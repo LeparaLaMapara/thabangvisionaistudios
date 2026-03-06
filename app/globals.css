@@ -1,0 +1,47 @@
+@import "tailwindcss";
+@plugin "@tailwindcss/typography";
+
+/* ── Dark mode: class-based strategy ─────────────────────────────
+   next-themes applies .dark on <html>. This variant makes all
+   dark: utilities respond to that class on any ancestor.         */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* ── Design tokens (Tailwind v4 CSS-based config) ────────────────
+   These replace tailwind.config.ts entirely.
+   Source: original index.html tailwind.config script block.      */
+@theme {
+  /* Brand colours */
+  --color-background: #050505;
+  --color-foreground: #F5F5F5;
+  --color-muted:      #94A3B8;
+  --color-accent:     #E2E8F0;
+  --color-border:     #1F2937;
+
+  /* Font families — CSS vars are injected by next/font/google in layout.tsx.
+     Tailwind generates font-sans / font-display / font-mono utility classes. */
+  --font-sans:    var(--font-inter),          ui-sans-serif, system-ui, sans-serif;
+  --font-display: var(--font-space-grotesk), ui-sans-serif, system-ui, sans-serif;
+  --font-mono:    var(--font-space-mono),    ui-monospace,  monospace;
+
+  /* Letter-spacing overrides (original: widest .25em, tighter -.05em) */
+  --letter-spacing-widest:  .25em;
+  --letter-spacing-tighter: -.05em;
+
+  /* Custom animations — keyframe names (pulse, spin) are Tailwind built-ins */
+  --animate-pulse-slow: pulse 4s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  --animate-spin-slow:  spin 12s linear infinite;
+}
+
+/* ── Base styles (migrated from index.html <style> block) ─────── */
+body {
+  font-family: var(--font-inter), sans-serif;
+  background-color: #050505;
+  color: #F5F5F5;
+  overflow-x: hidden;
+}
+
+/* Custom scrollbar — industrial feel */
+::-webkit-scrollbar        { width: 4px; }
+::-webkit-scrollbar-track  { background: #050505; }
+::-webkit-scrollbar-thumb  { background: #333; }
+::-webkit-scrollbar-thumb:hover { background: #fff; }
