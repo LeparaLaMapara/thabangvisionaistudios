@@ -114,12 +114,18 @@ export const ProjectCard = ({ project, index }: { project: Project; index: numbe
             </span>
           </div>
 
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={project.thumbnail}
-            alt={project.title}
-            className="w-full h-full object-cover transition-transform duration-700 ease-out group-hover:scale-105 filter grayscale-[0.2] group-hover:grayscale-0"
-          />
+          {project.thumbnail ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={project.thumbnail}
+              alt={project.title}
+              className="w-full h-full object-cover transition-transform duration-700 ease-out group-hover:scale-105 filter grayscale-[0.2] group-hover:grayscale-0"
+            />
+          ) : (
+            <div className="w-full h-full bg-neutral-200 dark:bg-neutral-800 flex items-center justify-center">
+              <span className="text-neutral-400 dark:text-neutral-600 text-xs font-mono uppercase">No image</span>
+            </div>
+          )}
         </div>
 
         <div className="flex justify-between items-start">

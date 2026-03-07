@@ -124,7 +124,7 @@ export const capabilities = [
   {
     title: 'Smart Productions',
     subtitle: 'Creative Services Hub',
-    image: 'https://images.unsplash.com/photo-1549488497-293d077468eb?q=80&w=2900&auto=format&fit=crop',
+    image: 'https://images.unsplash.com/photo-1492691527719-9d1e07e534b4?q=80&w=2900&auto=format&fit=crop',
     link: '/smart-production'
   },
   {
@@ -136,7 +136,7 @@ export const capabilities = [
   {
     title: 'Ubunye AI Studio',
     subtitle: 'AI Tools, Automation & Creative Intelligence',
-    image: 'https://images.unsplash.com/photo-1535016120720-40c6874c3b1c?q=80&w=2900&auto=format&fit=crop',
+    image: 'https://images.unsplash.com/photo-1574717024653-61fd2cf4d44d?q=80&w=2900&auto=format&fit=crop',
     link: '/ubunye-ai-studio'
   },
   {
@@ -215,7 +215,7 @@ export const projects: Project[] = [
     year: '2025',
     type: 'film',
     subCategory: 'Narrative',
-    thumbnail: 'https://images.unsplash.com/photo-1549488497-293d077468eb?q=80&w=2900&auto=format&fit=crop',
+    thumbnail: 'https://images.unsplash.com/photo-1492691527719-9d1e07e534b4?q=80&w=2900&auto=format&fit=crop',
     tags: ['Anamorphic', 'Virtual Production'],
     videoId: 'M7fi_IBsaNc',
     description: 'A cyberpunk noir exploring the intersection of memory and data. Shot on System 65 with custom-tuned expansion optics to create a distinct flaring profile that reacts to the LED volume light sources.',
@@ -361,7 +361,7 @@ export let press: PressArticle[] = [
     title: 'Expansion into Virtual Production: The New Stage 4',
     slug: 'virtual-production-stage-4',
     content: 'A 500sqm LED volume dedicated to car commercials and music videos opens in Maboneng.',
-    coverImage: 'https://images.unsplash.com/photo-1535016120720-40c6874c3b1c?q=80&w=2900&auto=format&fit=crop',
+    coverImage: 'https://images.unsplash.com/photo-1574717024653-61fd2cf4d44d?q=80&w=2900&auto=format&fit=crop',
     publishedAt: '2025-09-04',
     isPublished: true,
   },

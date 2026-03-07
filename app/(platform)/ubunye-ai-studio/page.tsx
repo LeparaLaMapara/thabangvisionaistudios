@@ -11,7 +11,7 @@ const SUB_CAPABILITIES = [
     number: '01',
     title: 'Virtual Production',
     subtitle: 'REAL-TIME RENDERING & COMPOSITING',
-    image: 'https://images.unsplash.com/photo-1535016120720-40c6874c3b1c?q=80&w=2000&auto=format&fit=crop',
+    image: 'https://images.unsplash.com/photo-1574717024653-61fd2cf4d44d?q=80&w=2000&auto=format&fit=crop',
     icon: Layers,
     description: 'We integrate LED volumes with real-time rendering engines, utilizing AI to optimize asset placement and lighting matching instantly.',
     features: ['Real-time Unreal Engine 5 Integration', 'AI-Assisted Frustum Tracking', 'Dynamic Set Extension']
