@@ -26,11 +26,6 @@ async function handlePaymentComplete(params: Record<string, string>) {
     // set status to 'confirmed', create booking_payment record with pf_payment_id,
     // and auto-generate an invoice record.
     console.log('[PayFast ITN] Booking confirmed:', paymentId);
-  } else if (paymentType === 'marketplace_order') {
-    // TODO: Look up orders by m_payment_id (our internal order ID),
-    // set status to 'paid'. Platform fee is already calculated in the order record.
-    // Manual payout to seller can be tracked via custom_str2 (seller_id).
-    console.log('[PayFast ITN] Marketplace order paid:', paymentId);
   } else if (paymentType === 'subscription') {
     // TODO: Look up subscription by m_payment_id,
     // confirm subscription status as 'active'.

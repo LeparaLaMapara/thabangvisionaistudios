@@ -3,7 +3,7 @@
 import { useState, useMemo, useEffect } from 'react';
 import Link from 'next/link';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ChevronDown, SlidersHorizontal, X, Check, ArrowRight } from 'lucide-react';
+import { ChevronDown, SlidersHorizontal, X, Check, ArrowRight, Users } from 'lucide-react';
 import type { SmartRental } from '@/lib/supabase/queries/smartRentals';
 
 // ─── Category label map ───────────────────────────────────────────────────────
@@ -92,6 +92,12 @@ function RentalCard({ rental, category }: { rental: SmartRental; category: strin
             Unavailable
           </span>
         )}
+        {rental.source === 'community' && (
+          <span className="flex items-center gap-1 bg-violet-500/90 backdrop-blur-md text-white text-[9px] font-mono font-bold px-2 py-0.5 uppercase tracking-widest">
+            <Users className="w-2.5 h-2.5" />
+            Community
+          </span>
+        )}
       </div>
 
       {rental.is_available && (
@@ -126,11 +132,15 @@ function RentalCard({ rental, category }: { rental: SmartRental; category: strin
       {/* Content */}
       <div className="p-5 flex-grow flex flex-col justify-between">
         <div>
-          {rental.brand && (
+          {rental.brand ? (
             <div className="text-[10px] font-mono uppercase tracking-widest text-neutral-500 mb-1">
               {rental.brand}
             </div>
-          )}
+          ) : rental.source === 'community' && rental.metadata?.location ? (
+            <div className="text-[10px] font-mono uppercase tracking-widest text-neutral-500 mb-1">
+              {rental.metadata.location}
+            </div>
+          ) : null}
           <h3 className="text-lg font-display font-medium text-black dark:text-white uppercase leading-tight mb-3 group-hover:underline decoration-1 underline-offset-4">
             {rental.title}
           </h3>
@@ -201,6 +211,7 @@ export default function RentalCategoryClient({
   const [selectedTypes,     setSelectedTypes]      = useState<string[]>([]);
   const [maxPrice,          setMaxPrice]           = useState<number>(0);
   const [onlyAvailable,     setOnlyAvailable]      = useState(false);
+  const [sourceFilter,      setSourceFilter]       = useState<'all' | 'studio' | 'community'>('all');
   const [sortBy,            setSortBy]             = useState<SortKey>('newest');
 
   // Derive filter options entirely from DB data — never static
@@ -224,11 +235,14 @@ export default function RentalCategoryClient({
     setMaxPrice(maxCatalogPrice);
   }, [maxCatalogPrice]);
 
+  const hasCommunity = useMemo(() => rentals.some(r => r.source === 'community'), [rentals]);
+
   // Reset filters when category changes
   useEffect(() => {
     setSelectedBrands([]);
     setSelectedTypes([]);
     setOnlyAvailable(false);
+    setSourceFilter('all');
     setSortBy('newest');
   }, [category]);
 
@@ -239,6 +253,7 @@ export default function RentalCategoryClient({
         if (selectedTypes.length > 0 && !selectedTypes.includes(r.sub_category ?? '')) return false;
         if (maxPrice > 0 && (r.price_per_day ?? 0) > maxPrice) return false;
         if (onlyAvailable && !r.is_available) return false;
+        if (sourceFilter !== 'all' && (r.source ?? 'studio') !== sourceFilter) return false;
         return true;
       })
       .sort((a, b) => {
@@ -248,13 +263,14 @@ export default function RentalCategoryClient({
         // newest (default) — already ordered by created_at DESC from DB
         return 0;
       });
-  }, [rentals, selectedBrands, selectedTypes, maxPrice, onlyAvailable, sortBy]);
+  }, [rentals, selectedBrands, selectedTypes, maxPrice, onlyAvailable, sourceFilter, sortBy]);
 
   const clearFilters = () => {
     setSelectedBrands([]);
     setSelectedTypes([]);
     setMaxPrice(maxCatalogPrice);
     setOnlyAvailable(false);
+    setSourceFilter('all');
   };
 
   const categoryLabel = getCategoryLabel(category);
@@ -374,6 +390,36 @@ export default function RentalCategoryClient({
           </div>
         </label>
       </FilterSection>
+
+      {hasCommunity && (
+        <FilterSection title="Source">
+          {(['all', 'studio', 'community'] as const).map(opt => (
+            <label key={opt} className="flex items-center gap-3 cursor-pointer group">
+              <div
+                className={`w-4 h-4 rounded-full border flex items-center justify-center transition-colors flex-shrink-0 ${
+                  sourceFilter === opt
+                    ? 'bg-black border-black dark:bg-white dark:border-white'
+                    : 'border-neutral-400'
+                }`}
+              >
+                {sourceFilter === opt && (
+                  <div className="w-1.5 h-1.5 rounded-full bg-white dark:bg-black" />
+                )}
+              </div>
+              <input
+                type="radio"
+                className="hidden"
+                name="source"
+                checked={sourceFilter === opt}
+                onChange={() => setSourceFilter(opt)}
+              />
+              <span className="text-xs font-mono text-neutral-600 dark:text-neutral-400 group-hover:text-black dark:group-hover:text-white uppercase">
+                {opt === 'all' ? 'All Gear' : opt === 'studio' ? 'Studio Gear' : 'Community Gear'}
+              </span>
+            </label>
+          ))}
+        </FilterSection>
+      )}
 
       <div className="pt-8">
         <button

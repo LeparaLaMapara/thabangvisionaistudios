@@ -4,7 +4,7 @@ import { motion, useScroll, useTransform } from 'framer-motion';
 import Link from 'next/link';
 import { ServiceGrid } from '@/components/cinematic/ServiceGrid';
 import { proprietaryTech, projects } from '@/lib/data';
-import { ChevronRight, ArrowRight, ArrowUpRight, Cpu, ShoppingBag, Calendar, Users } from 'lucide-react';
+import { ChevronRight, ArrowRight, ArrowUpRight, Cpu, Camera, Calendar, Users } from 'lucide-react';
 import { SITE_NAME } from '@/lib/constants';
 
 const Hero = () => {
@@ -158,7 +158,7 @@ const TechArsenal = () => (
   </section>
 );
 
-const MarketplaceSection = () => (
+const CommunitySection = () => (
   <section className="py-32 bg-neutral-50 dark:bg-[#050505] border-t border-black/5 dark:border-white/5 transition-colors duration-500">
     <div className="container mx-auto px-6">
       <div className="flex flex-col md:flex-row justify-between items-end mb-16">
@@ -167,29 +167,29 @@ const MarketplaceSection = () => (
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
         >
-          <span className="text-[10px] font-mono text-neutral-500 dark:text-accent uppercase tracking-widest mb-4 block">04 // Marketplace</span>
+          <span className="text-[10px] font-mono text-neutral-500 dark:text-accent uppercase tracking-widest mb-4 block">04 // Community</span>
           <h2 className="text-4xl md:text-5xl font-display font-medium text-black dark:text-white uppercase">
-            Creator <span className="text-neutral-400 dark:text-neutral-500">Economy</span>
+            Creator <span className="text-neutral-400 dark:text-neutral-500">Network</span>
           </h2>
         </motion.div>
-        <Link href="/marketplace" className="hidden md:flex items-center gap-2 text-xs font-mono text-neutral-500 hover:text-black dark:text-neutral-400 dark:hover:text-white transition-colors uppercase tracking-widest mt-6 md:mt-0">
-          Browse Marketplace <ChevronRight className="w-4 h-4" />
+        <Link href="/smart-rentals" className="hidden md:flex items-center gap-2 text-xs font-mono text-neutral-500 hover:text-black dark:text-neutral-400 dark:hover:text-white transition-colors uppercase tracking-widest mt-6 md:mt-0">
+          Browse All Gear <ChevronRight className="w-4 h-4" />
         </Link>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
         {[
           {
-            icon: ShoppingBag,
-            title: 'Buy & Sell Gear',
-            description: 'List your equipment or find deals from fellow creators. Cameras, lenses, lighting, audio and more.',
-            cta: 'Browse Listings',
-            href: '/marketplace',
+            icon: Camera,
+            title: 'List Your Gear',
+            description: 'Verified creators can list their equipment for rent. Earn from your camera, lenses, lighting, and audio gear.',
+            cta: 'Get Verified',
+            href: '/dashboard/verification',
           },
           {
             icon: Calendar,
             title: 'Book Equipment',
-            description: 'Reserve professional gear from our Smart Rentals catalog. Real-time availability, instant confirmation.',
+            description: 'Reserve professional gear from our catalog or community listings. Real-time availability, instant confirmation.',
             cta: 'View Rentals',
             href: '/smart-rentals',
           },
@@ -289,7 +289,7 @@ export default function Home() {
       <ProjectGallery />
       <ServiceGrid />
       <TechArsenal />
-      <MarketplaceSection />
+      <CommunitySection />
       <BookingCTA />
       <section className="py-40 relative bg-white dark:bg-[#050505] overflow-hidden border-t border-black/5 dark:border-white/5 transition-colors duration-500">
         <div className="container mx-auto px-6 relative z-10 text-center">

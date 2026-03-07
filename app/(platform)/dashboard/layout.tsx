@@ -38,8 +38,8 @@ export default async function DashboardLayout({
             <DashboardLink href="/dashboard">Overview</DashboardLink>
             <DashboardLink href="/dashboard/profile">Profile</DashboardLink>
             <DashboardLink href="/dashboard/bookings">Bookings</DashboardLink>
-            <DashboardLink href="/dashboard/listings">Listings</DashboardLink>
-            <DashboardLink href="/dashboard/orders">Orders</DashboardLink>
+            <DashboardLink href="/dashboard/listings">List Your Gear</DashboardLink>
+            <DashboardLink href="/dashboard/verification">Verification</DashboardLink>
           </nav>
 
           {/* Content */}

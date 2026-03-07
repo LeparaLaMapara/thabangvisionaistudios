@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { isEmailConfigured, sendContactNotification } from '@/lib/email';
 
 export async function POST(req: NextRequest) {
   const { name, email, message, subject, website } = await req.json();
@@ -20,27 +21,18 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const apiKey = process.env.RESEND_API_KEY;
-    if (!apiKey) {
-      // Resend not configured — log and return success so form still works
-      console.warn('[contact] RESEND_API_KEY not set — message logged but not emailed.');
+    if (!isEmailConfigured()) {
+      // Gmail not configured — log and return success so form still works
+      console.warn('[contact] GMAIL_USER or GMAIL_APP_PASSWORD not set — message logged but not emailed.');
       console.log('[contact]', { name, email, subject, message });
       return NextResponse.json({ success: true });
     }
 
-    const { Resend } = await import('resend');
-    const resend = new Resend(apiKey);
-
-    await resend.emails.send({
-      from: 'ThabangVision <noreply@thabangvision.com>',
-      to: ['studio@thabangvision.com'],
-      subject: subject ? `[Contact] ${subject}` : `[Contact] Message from ${name}`,
-      text: `Name: ${name}\nEmail: ${email}\n\n${message}`,
-    });
+    await sendContactNotification({ name, email, subject: subject || '', message });
 
     return NextResponse.json({ success: true });
   } catch (err) {
-    console.error('[contact] Resend error:', err);
+    console.error('[contact] Email error:', err);
     return NextResponse.json({ error: 'Failed to send message. Please try again.' }, { status: 500 });
   }
 }

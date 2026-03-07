@@ -22,7 +22,6 @@ export const MAIN_NAVIGATION = [
     children: [
       { label: 'Smart Productions', href: '/smart-production' },
       { label: 'Smart Rentals', href: '/smart-rentals' },
-      { label: 'Marketplace', href: '/marketplace' },
       {
         label: 'Ubunye AI Studio',
         href: '/ubunye-ai-studio',
@@ -63,7 +62,6 @@ export const FOOTER_SECTIONS = [
       { label: 'The Lab', href: '/lab' },
       ...(SHOW_CAREERS ? [{ label: 'Careers', href: '/careers' }] : []),
       { label: 'Press & News', href: '/press' },
-      { label: 'Marketplace', href: '/marketplace' },
     ]
   },
   {

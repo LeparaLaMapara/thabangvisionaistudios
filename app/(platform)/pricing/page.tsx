@@ -31,7 +31,7 @@ const PLANS: Plan[] = [
     annualPrice: 0,
     currency: 'ZAR',
     features: [
-      'Browse marketplace',
+      'Browse all rentals',
       'Book equipment rentals',
       'Basic creator profile',
       'Up to 3 active listings',
@@ -126,7 +126,7 @@ export default function PricingPage() {
           </h1>
           <p className="text-neutral-500 font-light max-w-xl mx-auto mb-10">
             Start free. Upgrade when you need more. All plans include access to
-            the marketplace and equipment rentals.
+            equipment rentals and community gear listings.
           </p>
 
           {/* Billing toggle */}
@@ -258,7 +258,7 @@ export default function PricingPage() {
         {/* FAQ note */}
         <div className="text-center mt-16">
           <p className="text-[9px] font-mono uppercase tracking-[0.2em] text-neutral-400 dark:text-neutral-600">
-            All prices in ZAR. Platform marketplace fee: 10% (Starter), 7%
+            All prices in ZAR. Platform rental fee: 10% (Starter), 7%
             (Pro), 5% (Studio).{' '}
             <Link
               href="/contact"

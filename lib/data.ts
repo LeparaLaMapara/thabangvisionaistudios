@@ -140,10 +140,10 @@ export const capabilities = [
     link: '/ubunye-ai-studio'
   },
   {
-    title: 'Marketplace',
-    subtitle: 'Buy, Sell & Trade Creative Gear',
+    title: 'Community Gear',
+    subtitle: 'Rent from Verified Creators',
     image: 'https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?q=80&w=2900&auto=format&fit=crop',
-    link: '/marketplace'
+    link: '/smart-rentals'
   },
   {
     title: 'Creator Dashboard',
