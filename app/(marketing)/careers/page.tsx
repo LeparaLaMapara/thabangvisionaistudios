@@ -1,12 +1,12 @@
 import { ArrowRight } from 'lucide-react';
-import { careers } from '@/lib/data';
+import { getPublishedCareers } from '@/lib/supabase/queries/careers';
 
 export const metadata = {
   title: 'Careers',
 };
 
-export default function CareersPage() {
-  const published = careers.filter(c => c.isPublished);
+export default async function CareersPage() {
+  const published = await getPublishedCareers();
 
   return (
     <div className="min-h-screen bg-white dark:bg-[#050505] pt-32 pb-20 transition-colors duration-500">
@@ -81,13 +81,36 @@ export default function CareersPage() {
                         {job.title}
                       </h3>
                       <div className="flex flex-wrap gap-4 text-[10px] font-mono uppercase tracking-widest text-neutral-500 mb-4">
-                        <span>{job.department}</span>
-                        <span className="w-px h-3 bg-neutral-300 dark:bg-neutral-700" />
-                        <span>{job.location}</span>
+                        {job.department && <span>{job.department}</span>}
+                        {job.department && job.location && (
+                          <span className="w-px h-3 bg-neutral-300 dark:bg-neutral-700" />
+                        )}
+                        {job.location && <span>{job.location}</span>}
+                        {job.employment_type && (
+                          <>
+                            <span className="w-px h-3 bg-neutral-300 dark:bg-neutral-700" />
+                            <span>{job.employment_type}</span>
+                          </>
+                        )}
                       </div>
-                      <p className="text-sm text-neutral-600 dark:text-neutral-400 font-light max-w-xl">
-                        {job.description}
-                      </p>
+                      {job.description && (
+                        <p className="text-sm text-neutral-600 dark:text-neutral-400 font-light max-w-xl">
+                          {job.description}
+                        </p>
+                      )}
+                      {job.requirements && job.requirements.length > 0 && (
+                        <ul className="mt-4 space-y-1">
+                          {job.requirements.map((req, i) => (
+                            <li
+                              key={i}
+                              className="text-xs font-mono text-neutral-500 dark:text-neutral-600 flex items-start gap-2"
+                            >
+                              <span className="mt-0.5 text-neutral-400">—</span>
+                              {req}
+                            </li>
+                          ))}
+                        </ul>
+                      )}
                     </div>
                     <div className="flex-shrink-0 self-start md:self-center">
                       <span className="inline-flex items-center gap-2 text-xs font-mono font-bold uppercase tracking-widest bg-black text-white dark:bg-white dark:text-black px-6 py-3 hover:opacity-80 transition-opacity">

@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { motion } from 'framer-motion';
 import { createClient } from '@/lib/supabase/client';
 
@@ -176,7 +177,13 @@ export default function LoginPage() {
 
         {/* Footer note */}
         <p className="text-center text-[9px] font-mono uppercase tracking-[0.2em] text-neutral-400 dark:text-neutral-600 mt-6">
-          Studio Access Only
+          Don&apos;t have an account?{' '}
+          <Link
+            href="/register"
+            className="text-black dark:text-white underline underline-offset-2 hover:opacity-70 transition-opacity"
+          >
+            Create One
+          </Link>
         </p>
       </motion.div>
     </div>

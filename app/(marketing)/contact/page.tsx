@@ -2,15 +2,32 @@
 
 import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { ArrowRight, Mail, Phone, MapPin, Send } from 'lucide-react';
+import { ArrowRight, Mail, Phone, MapPin, Send, Loader2 } from 'lucide-react';
 
 export default function ContactPage() {
-  const [formState, setFormState] = useState({ name: '', email: '', subject: 'Project Inquiry', message: '' });
+  const [formState, setFormState] = useState({ name: '', email: '', subject: 'Project Inquiry', message: '', website: '' });
   const [isSubmitted, setIsSubmitted] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setTimeout(() => setIsSubmitted(true), 1000);
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch('/api/contact', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(formState),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to send');
+      setIsSubmitted(true);
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -49,6 +66,24 @@ export default function ContactPage() {
                </motion.div>
             ) : (
               <form onSubmit={handleSubmit} className="space-y-8">
+                {/* Error alert */}
+                {error && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 p-4 flex items-start justify-between gap-4"
+                  >
+                    <p className="text-red-700 dark:text-red-400 font-mono text-sm">{error}</p>
+                    <button
+                      type="button"
+                      onClick={() => setError(null)}
+                      className="text-red-500 hover:text-red-700 dark:hover:text-red-300 text-xs font-bold uppercase shrink-0"
+                    >
+                      Dismiss
+                    </button>
+                  </motion.div>
+                )}
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                   <div className="space-y-2">
                     <label className="text-[10px] font-bold uppercase tracking-widest text-neutral-500">Identity</label>
@@ -101,11 +136,34 @@ export default function ContactPage() {
                   />
                 </div>
 
+                {/* Honeypot field — hidden from real users, catches bots */}
+                <div className="absolute opacity-0 top-0 left-0 h-0 w-0 -z-10" aria-hidden="true">
+                  <label htmlFor="website">Website</label>
+                  <input
+                    type="text"
+                    id="website"
+                    name="website"
+                    tabIndex={-1}
+                    autoComplete="off"
+                    value={formState.website}
+                    onChange={e => setFormState({...formState, website: e.target.value})}
+                  />
+                </div>
+
                 <button
                   type="submit"
-                  className="group bg-black text-white dark:bg-white dark:text-black px-10 py-5 text-xs font-mono font-bold tracking-[0.2em] uppercase flex items-center gap-4 hover:opacity-80 transition-opacity"
+                  disabled={loading}
+                  className="group bg-black text-white dark:bg-white dark:text-black px-10 py-5 text-xs font-mono font-bold tracking-[0.2em] uppercase flex items-center gap-4 hover:opacity-80 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  Transmit <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                  {loading ? (
+                    <>
+                      Transmitting <Loader2 className="w-4 h-4 animate-spin" />
+                    </>
+                  ) : (
+                    <>
+                      Transmit <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                    </>
+                  )}
                 </button>
               </form>
             )}

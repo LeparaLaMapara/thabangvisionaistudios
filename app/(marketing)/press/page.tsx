@@ -1,12 +1,12 @@
 import { ArrowUpRight } from 'lucide-react';
-import { press } from '@/lib/data';
+import { getPublishedPress } from '@/lib/supabase/queries/press';
 
 export const metadata = {
   title: 'Press',
 };
 
-export default function PressPage() {
-  const published = press.filter(a => a.isPublished);
+export default async function PressPage() {
+  const published = await getPublishedPress();
 
   return (
     <div className="min-h-screen bg-white dark:bg-[#050505] pt-32 pb-20 transition-colors duration-500">
@@ -35,22 +35,22 @@ export default function PressPage() {
                 key={article.id}
                 className="group grid grid-cols-1 md:grid-cols-12 gap-8 border-b border-black/5 dark:border-white/5 pb-12 last:border-0 cursor-pointer"
               >
-                {article.coverImage && (
+                {article.cover_url && (
                   <div className="md:col-span-4 overflow-hidden bg-neutral-100 dark:bg-neutral-900 h-64 md:h-full">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
-                      src={article.coverImage}
+                      src={article.cover_url}
                       alt={article.title}
                       className="w-full h-full object-cover grayscale group-hover:grayscale-0 scale-100 group-hover:scale-105 transition-all duration-700"
                     />
                   </div>
                 )}
                 <div
-                  className={`${article.coverImage ? 'md:col-span-8' : 'md:col-span-12'} flex flex-col justify-between py-4`}
+                  className={`${article.cover_url ? 'md:col-span-8' : 'md:col-span-12'} flex flex-col justify-between py-4`}
                 >
                   <div>
                     <div className="flex items-center gap-4 text-[10px] font-mono uppercase tracking-widest text-neutral-500 mb-4">
-                      <span>{article.publishedAt}</span>
+                      <span>{article.published_at}</span>
                     </div>
                     <h2 className="text-3xl md:text-4xl font-display uppercase mb-4 text-black dark:text-white group-hover:underline decoration-1 underline-offset-4">
                       {article.title}

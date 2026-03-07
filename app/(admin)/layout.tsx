@@ -59,6 +59,12 @@ export default async function AdminLayout({
                 Careers
               </Link>
               <Link
+                href="/admin/bookings"
+                className="text-[10px] font-mono uppercase tracking-widest text-neutral-400 hover:text-white transition-colors"
+              >
+                Bookings
+              </Link>
+              <Link
                 href="/admin/press"
                 className="text-[10px] font-mono uppercase tracking-widest text-neutral-400 hover:text-white transition-colors"
               >

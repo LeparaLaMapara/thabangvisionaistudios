@@ -22,6 +22,7 @@ export const MAIN_NAVIGATION = [
     children: [
       { label: 'Smart Productions', href: '/smart-production' },
       { label: 'Smart Rentals', href: '/smart-rentals' },
+      { label: 'Marketplace', href: '/marketplace' },
       {
         label: 'Ubunye AI Studio',
         href: '/ubunye-ai-studio',
@@ -45,6 +46,10 @@ export const MAIN_NAVIGATION = [
     ]
   },
   {
+    label: 'Pricing',
+    href: '/pricing',
+  },
+  {
     label: 'Contact',
     href: '/contact',
   }
@@ -58,6 +63,15 @@ export const FOOTER_SECTIONS = [
       { label: 'The Lab', href: '/lab' },
       ...(SHOW_CAREERS ? [{ label: 'Careers', href: '/careers' }] : []),
       { label: 'Press & News', href: '/press' },
+      { label: 'Marketplace', href: '/marketplace' },
+    ]
+  },
+  {
+    title: 'Account',
+    links: [
+      { label: 'Sign In', href: '/login' },
+      { label: 'Create Account', href: '/register' },
+      { label: 'Dashboard', href: '/dashboard' },
     ]
   },
   {
@@ -72,10 +86,10 @@ export const FOOTER_SECTIONS = [
 ];
 
 export const SOCIAL_LINKS = [
-  { platform: 'Youtube', href: '#' },
-  { platform: 'Instagram', href: '#' },
-  { platform: 'Facebook', href: '#' },
-  { platform: 'Twitter', href: '#' },
-  { platform: 'Linkedin', href: '#' },
+  { platform: 'Youtube', href: 'https://youtube.com/@thabangvisionai' },
+  { platform: 'Instagram', href: 'https://instagram.com/thabangvisionai' },
+  { platform: 'Facebook', href: 'https://facebook.com/thabangvisionai' },
+  { platform: 'Twitter', href: 'https://x.com/thabangvisionai' },
+  { platform: 'Linkedin', href: 'https://linkedin.com/company/thabangvisionai' },
   { platform: 'Mail', href: 'mailto:studio@thabangvision.com' },
 ];

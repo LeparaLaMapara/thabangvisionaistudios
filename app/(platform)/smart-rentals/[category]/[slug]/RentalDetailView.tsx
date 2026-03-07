@@ -3,8 +3,9 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
-import { ArrowLeft, Check, ChevronRight, Phone } from 'lucide-react';
+import { ArrowLeft, Check, ChevronRight } from 'lucide-react';
 import type { SmartRental } from '@/lib/supabase/queries/smartRentals';
+import { BookingWidget } from '@/components/booking/BookingWidget';
 
 // ─── Category label map ───────────────────────────────────────────────────────
 
@@ -371,47 +372,17 @@ export default function RentalDetailView({
                   )}
 
                   {activeTab === 'renting' && (
-                    <motion.div
-                      initial={{ opacity: 0, y: 4 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ duration: 0.2 }}
-                      className="space-y-4"
-                    >
-                      <p className="text-sm text-neutral-600 dark:text-neutral-400 leading-relaxed">
-                        Ready to book this equipment? Get in touch with our team to confirm
-                        availability, discuss deposit requirements, and arrange collection or
-                        delivery.
-                      </p>
-                      <Link
-                        href="/contact"
-                        className={`w-full flex items-center justify-center gap-2 py-4 text-[10px] font-mono font-bold uppercase tracking-widest transition-all ${
-                          rental.is_available
-                            ? 'bg-black text-white dark:bg-white dark:text-black hover:bg-neutral-800 dark:hover:bg-neutral-200'
-                            : 'bg-neutral-200 dark:bg-neutral-800 text-neutral-400 pointer-events-none'
-                        }`}
-                      >
-                        <Phone className="w-3 h-3" />
-                        {rental.is_available ? 'Request This Rental' : 'Currently Unavailable'}
-                      </Link>
-                    </motion.div>
+                    <BookingWidget rental={rental} />
                   )}
                 </div>
               </div>
             )}
 
-            {/* CTA when no tabs to show */}
+            {/* Booking widget when no tabs to show */}
             {!hasAnyTab && (
-              <Link
-                href="/contact"
-                className={`w-full flex items-center justify-center gap-2 py-4 text-[10px] font-mono font-bold uppercase tracking-widest transition-all mb-8 ${
-                  rental.is_available
-                    ? 'bg-black text-white dark:bg-white dark:text-black hover:bg-neutral-800 dark:hover:bg-neutral-200'
-                    : 'bg-neutral-200 dark:bg-neutral-800 text-neutral-400 pointer-events-none'
-                }`}
-              >
-                <Phone className="w-3 h-3" />
-                {rental.is_available ? 'Request This Rental' : 'Currently Unavailable'}
-              </Link>
+              <div className="mb-8">
+                <BookingWidget rental={rental} />
+              </div>
             )}
 
             {/* Tags */}

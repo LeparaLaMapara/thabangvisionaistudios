@@ -60,7 +60,7 @@ export async function getPublishedRentals(): Promise<SmartRental[]> {
     return [];
   }
 
-  return (data as SmartRental[]) ?? [];
+  return (data as unknown as SmartRental[]) ?? [];
 }
 
 /**
@@ -85,7 +85,7 @@ export async function getPublishedRentalsByCategory(
     return [];
   }
 
-  return (data as SmartRental[]) ?? [];
+  return (data as unknown as SmartRental[]) ?? [];
 }
 
 /**

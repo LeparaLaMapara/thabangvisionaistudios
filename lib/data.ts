@@ -138,6 +138,18 @@ export const capabilities = [
     subtitle: 'AI Tools, Automation & Creative Intelligence',
     image: 'https://images.unsplash.com/photo-1535016120720-40c6874c3b1c?q=80&w=2900&auto=format&fit=crop',
     link: '/ubunye-ai-studio'
+  },
+  {
+    title: 'Marketplace',
+    subtitle: 'Buy, Sell & Trade Creative Gear',
+    image: 'https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?q=80&w=2900&auto=format&fit=crop',
+    link: '/marketplace'
+  },
+  {
+    title: 'Creator Dashboard',
+    subtitle: 'Manage Your Studio',
+    image: 'https://images.unsplash.com/photo-1460925895917-afdab827c52f?q=80&w=2900&auto=format&fit=crop',
+    link: '/dashboard'
   }
 ];
 

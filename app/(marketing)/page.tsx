@@ -4,7 +4,7 @@ import { motion, useScroll, useTransform } from 'framer-motion';
 import Link from 'next/link';
 import { ServiceGrid } from '@/components/cinematic/ServiceGrid';
 import { proprietaryTech, projects } from '@/lib/data';
-import { ChevronRight, ArrowRight, ArrowUpRight, Cpu } from 'lucide-react';
+import { ChevronRight, ArrowRight, ArrowUpRight, Cpu, ShoppingBag, Calendar, Users } from 'lucide-react';
 import { SITE_NAME } from '@/lib/constants';
 
 const Hero = () => {
@@ -158,6 +158,130 @@ const TechArsenal = () => (
   </section>
 );
 
+const MarketplaceSection = () => (
+  <section className="py-32 bg-neutral-50 dark:bg-[#050505] border-t border-black/5 dark:border-white/5 transition-colors duration-500">
+    <div className="container mx-auto px-6">
+      <div className="flex flex-col md:flex-row justify-between items-end mb-16">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+        >
+          <span className="text-[10px] font-mono text-neutral-500 dark:text-accent uppercase tracking-widest mb-4 block">04 // Marketplace</span>
+          <h2 className="text-4xl md:text-5xl font-display font-medium text-black dark:text-white uppercase">
+            Creator <span className="text-neutral-400 dark:text-neutral-500">Economy</span>
+          </h2>
+        </motion.div>
+        <Link href="/marketplace" className="hidden md:flex items-center gap-2 text-xs font-mono text-neutral-500 hover:text-black dark:text-neutral-400 dark:hover:text-white transition-colors uppercase tracking-widest mt-6 md:mt-0">
+          Browse Marketplace <ChevronRight className="w-4 h-4" />
+        </Link>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+        {[
+          {
+            icon: ShoppingBag,
+            title: 'Buy & Sell Gear',
+            description: 'List your equipment or find deals from fellow creators. Cameras, lenses, lighting, audio and more.',
+            cta: 'Browse Listings',
+            href: '/marketplace',
+          },
+          {
+            icon: Calendar,
+            title: 'Book Equipment',
+            description: 'Reserve professional gear from our Smart Rentals catalog. Real-time availability, instant confirmation.',
+            cta: 'View Rentals',
+            href: '/smart-rentals',
+          },
+          {
+            icon: Users,
+            title: 'Join the Community',
+            description: 'Create your profile, showcase your portfolio, and connect with South African creatives.',
+            cta: 'Create Account',
+            href: '/register',
+          },
+        ].map((item, index) => (
+          <motion.div
+            key={item.title}
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ delay: index * 0.1 }}
+          >
+            <Link href={item.href} className="group block h-full">
+              <div className="h-full bg-white dark:bg-[#0A0A0B] border border-black/5 dark:border-white/5 p-8 hover:border-black/20 dark:hover:border-white/20 transition-all">
+                <item.icon className="w-6 h-6 text-neutral-400 dark:text-neutral-600 mb-6 group-hover:text-black dark:group-hover:text-white transition-colors" />
+                <h3 className="text-lg font-display font-medium uppercase text-black dark:text-white mb-3">
+                  {item.title}
+                </h3>
+                <p className="text-sm font-mono text-neutral-500 leading-relaxed mb-6">
+                  {item.description}
+                </p>
+                <span className="flex items-center gap-2 text-xs font-mono font-bold uppercase tracking-widest text-black dark:text-white group-hover:translate-x-1 transition-transform">
+                  {item.cta} <ArrowRight className="w-3 h-3" />
+                </span>
+              </div>
+            </Link>
+          </motion.div>
+        ))}
+      </div>
+    </div>
+  </section>
+);
+
+const BookingCTA = () => (
+  <section className="py-24 bg-white dark:bg-[#080808] border-t border-black/5 dark:border-white/5 transition-colors duration-500">
+    <div className="container mx-auto px-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-16 items-center">
+        <motion.div
+          initial={{ opacity: 0, x: -20 }}
+          whileInView={{ opacity: 1, x: 0 }}
+          viewport={{ once: true }}
+        >
+          <span className="text-[10px] font-mono text-neutral-500 dark:text-accent uppercase tracking-widest mb-4 block">05 // Smart Rentals</span>
+          <h2 className="text-4xl md:text-5xl font-display font-medium text-black dark:text-white tracking-tighter uppercase mb-6 leading-[0.95]">
+            Book <br />
+            <span className="text-neutral-400 dark:text-neutral-500">Professional Gear</span>
+          </h2>
+          <p className="text-neutral-500 dark:text-neutral-400 font-light leading-relaxed mb-8 max-w-md">
+            From cinema cameras to lighting kits. Check real-time availability, get instant pricing, and secure your gear with our streamlined booking system.
+          </p>
+          <div className="flex flex-wrap gap-4">
+            <Link href="/smart-rentals" className="inline-flex items-center gap-2 bg-black dark:bg-white text-white dark:text-black px-8 py-4 text-[10px] font-mono font-bold uppercase tracking-widest hover:opacity-80 transition-opacity">
+              Browse Equipment <ArrowRight className="w-3 h-3" />
+            </Link>
+            <Link href="/register" className="inline-flex items-center gap-2 border border-black/20 dark:border-white/20 text-black dark:text-white px-8 py-4 text-[10px] font-mono font-bold uppercase tracking-widest hover:bg-black/5 dark:hover:bg-white/5 transition-colors">
+              Create Account
+            </Link>
+          </div>
+        </motion.div>
+        <motion.div
+          initial={{ opacity: 0, x: 20 }}
+          whileInView={{ opacity: 1, x: 0 }}
+          viewport={{ once: true }}
+          className="grid grid-cols-2 gap-4"
+        >
+          {[
+            { label: 'Categories', value: '6+' },
+            { label: 'Day Rates From', value: 'R500' },
+            { label: 'Instant Booking', value: 'Yes' },
+            { label: 'Deposit Protection', value: 'Secured' },
+          ].map(stat => (
+            <div key={stat.label} className="bg-neutral-50 dark:bg-[#0A0A0B] border border-black/5 dark:border-white/5 p-6">
+              <p className="text-[10px] font-mono uppercase tracking-widest text-neutral-500 mb-2">
+                {stat.label}
+              </p>
+              <p className="text-2xl font-display font-medium text-black dark:text-white">
+                {stat.value}
+              </p>
+            </div>
+          ))}
+        </motion.div>
+      </div>
+    </div>
+  </section>
+);
+
 export default function Home() {
   return (
     <div className="min-h-screen bg-white dark:bg-[#050505] transition-colors duration-500">
@@ -165,9 +289,11 @@ export default function Home() {
       <ProjectGallery />
       <ServiceGrid />
       <TechArsenal />
+      <MarketplaceSection />
+      <BookingCTA />
       <section className="py-40 relative bg-white dark:bg-[#050505] overflow-hidden border-t border-black/5 dark:border-white/5 transition-colors duration-500">
         <div className="container mx-auto px-6 relative z-10 text-center">
-          <span className="text-[10px] font-mono text-neutral-500 dark:text-accent uppercase tracking-widest mb-6 block">04 // Contact</span>
+          <span className="text-[10px] font-mono text-neutral-500 dark:text-accent uppercase tracking-widest mb-6 block">06 // Contact</span>
           <h2 className="text-5xl md:text-8xl font-display font-medium text-black dark:text-white tracking-tighter mb-12 uppercase">
             Let&apos;s Build <br /> The Impossible
           </h2>

@@ -1,24 +1,70 @@
 'use client';
 
-import { useState } from 'react';
-import { Eye, EyeOff, Pencil, Plus, Trash2 } from 'lucide-react';
-import { careers as initialCareers, type Career } from '@/lib/data';
+import { useEffect, useState } from 'react';
+import { Eye, EyeOff, Loader2, Pencil, Plus, Trash2 } from 'lucide-react';
+import { createClient } from '@/lib/supabase/client';
+import type { Career } from '@/lib/supabase/queries/careers';
 
-type Form = Omit<Career, 'id' | 'createdAt'>;
+type EmploymentType = 'full-time' | 'part-time' | 'contract' | 'freelance';
+
+type Form = {
+  title: string;
+  department: string;
+  location: string;
+  description: string;
+  employment_type: EmploymentType | '';
+  requirements: string;
+  is_published: boolean;
+};
 
 const EMPTY: Form = {
   title: '',
   department: '',
   location: '',
   description: '',
-  isPublished: false,
+  employment_type: '',
+  requirements: '',
+  is_published: false,
 };
 
+const EMPLOYMENT_TYPES: EmploymentType[] = ['full-time', 'part-time', 'contract', 'freelance'];
+
 export default function AdminCareersPage() {
-  const [items, setItems] = useState<Career[]>([...initialCareers]);
+  const [items, setItems] = useState<Career[]>([]);
   const [form, setForm] = useState<Form>(EMPTY);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const supabase = createClient();
+
+  // ─── Fetch ───────────────────────────────────────────────────────────────
+
+  useEffect(() => {
+    fetchCareers();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  async function fetchCareers() {
+    setLoading(true);
+    setError(null);
+    const { data, error: fetchError } = await supabase
+      .from('careers')
+      .select('*')
+      .is('deleted_at', null)
+      .order('created_at', { ascending: false });
+
+    if (fetchError) {
+      setError(fetchError.message);
+    } else {
+      setItems((data as Career[]) ?? []);
+    }
+    setLoading(false);
+  }
+
+  // ─── Form helpers ─────────────────────────────────────────────────────────
 
   const openCreate = () => {
     setEditingId(null);
@@ -30,10 +76,12 @@ export default function AdminCareersPage() {
     setEditingId(item.id);
     setForm({
       title: item.title,
-      department: item.department,
-      location: item.location,
-      description: item.description,
-      isPublished: item.isPublished,
+      department: item.department ?? '',
+      location: item.location ?? '',
+      description: item.description ?? '',
+      employment_type: item.employment_type ?? '',
+      requirements: (item.requirements ?? []).join('\n'),
+      is_published: item.is_published,
     });
     setShowForm(true);
   };
@@ -44,30 +92,91 @@ export default function AdminCareersPage() {
     setForm(EMPTY);
   };
 
-  const save = () => {
+  // ─── CRUD operations ──────────────────────────────────────────────────────
+
+  const save = async () => {
     if (!form.title.trim()) return;
+    setSaving(true);
+    setError(null);
+
+    const payload = {
+      title: form.title.trim(),
+      department: form.department.trim() || null,
+      location: form.location.trim() || null,
+      description: form.description.trim() || null,
+      employment_type: (form.employment_type as EmploymentType) || null,
+      requirements: form.requirements
+        ? form.requirements.split('\n').map(r => r.trim()).filter(Boolean)
+        : null,
+      is_published: form.is_published,
+      updated_at: new Date().toISOString(),
+    };
+
     if (editingId) {
-      setItems(prev =>
-        prev.map(c => (c.id === editingId ? { ...c, ...form } : c))
-      );
+      const { data, error: updateError } = await supabase
+        .from('careers')
+        .update(payload)
+        .eq('id', editingId)
+        .select()
+        .single();
+
+      if (updateError) {
+        setError(updateError.message);
+      } else {
+        setItems(prev =>
+          prev.map(c => (c.id === editingId ? (data as Career) : c)),
+        );
+        cancel();
+      }
     } else {
-      const newItem: Career = {
-        ...form,
-        id: Date.now().toString(),
-        createdAt: new Date().toISOString().slice(0, 10),
-      };
-      setItems(prev => [...prev, newItem]);
+      const { data, error: insertError } = await supabase
+        .from('careers')
+        .insert(payload)
+        .select()
+        .single();
+
+      if (insertError) {
+        setError(insertError.message);
+      } else {
+        setItems(prev => [data as Career, ...prev]);
+        cancel();
+      }
     }
-    cancel();
+
+    setSaving(false);
   };
 
-  const remove = (id: string) =>
-    setItems(prev => prev.filter(c => c.id !== id));
+  const softDelete = async (id: string) => {
+    const { error: deleteError } = await supabase
+      .from('careers')
+      .update({ deleted_at: new Date().toISOString() })
+      .eq('id', id);
 
-  const togglePublish = (id: string) =>
-    setItems(prev =>
-      prev.map(c => (c.id === id ? { ...c, isPublished: !c.isPublished } : c))
-    );
+    if (deleteError) {
+      setError(deleteError.message);
+    } else {
+      setItems(prev => prev.filter(c => c.id !== id));
+    }
+  };
+
+  const togglePublish = async (item: Career) => {
+    const { data, error: updateError } = await supabase
+      .from('careers')
+      .update({ is_published: !item.is_published, updated_at: new Date().toISOString() })
+      .eq('id', item.id)
+      .select()
+      .single();
+
+    if (updateError) {
+      setError(updateError.message);
+    } else {
+      setItems(prev =>
+        prev.map(c => (c.id === item.id ? (data as Career) : c)),
+      );
+    }
+  };
+
+  // ─── Render ───────────────────────────────────────────────────────────────
 
   return (
     <div className="max-w-5xl mx-auto px-6 py-12">
@@ -88,6 +197,13 @@ export default function AdminCareersPage() {
           <Plus className="w-3 h-3" /> New Role
         </button>
       </div>
+
+      {/* Error */}
+      {error && (
+        <div className="mb-6 px-4 py-3 bg-red-950 border border-red-700/40 text-red-400 text-xs font-mono">
+          {error}
+        </div>
+      )}
 
       {/* Form */}
       {showForm && (
@@ -111,6 +227,28 @@ export default function AdminCareersPage() {
               value={form.location}
               onChange={v => setForm(f => ({ ...f, location: v }))}
             />
+            <div>
+              <label className="block text-[10px] font-mono uppercase tracking-widest text-neutral-500 mb-2">
+                Employment Type
+              </label>
+              <select
+                value={form.employment_type}
+                onChange={e =>
+                  setForm(f => ({
+                    ...f,
+                    employment_type: e.target.value as EmploymentType | '',
+                  }))
+                }
+                className="w-full bg-neutral-950 border border-white/10 text-white text-sm font-mono px-3 py-2 focus:outline-none focus:border-white/30"
+              >
+                <option value="">— Select —</option>
+                {EMPLOYMENT_TYPES.map(t => (
+                  <option key={t} value={t}>
+                    {t}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
           <div className="mb-4">
             <label className="block text-[10px] font-mono uppercase tracking-widest text-neutral-500 mb-2">
@@ -123,11 +261,23 @@ export default function AdminCareersPage() {
               className="w-full bg-neutral-950 border border-white/10 text-white text-sm font-mono px-3 py-2 focus:outline-none focus:border-white/30 resize-none"
             />
           </div>
+          <div className="mb-4">
+            <label className="block text-[10px] font-mono uppercase tracking-widest text-neutral-500 mb-2">
+              Requirements (one per line)
+            </label>
+            <textarea
+              value={form.requirements}
+              onChange={e => setForm(f => ({ ...f, requirements: e.target.value }))}
+              rows={4}
+              placeholder="3+ years experience&#10;Proficiency in X&#10;Strong communication skills"
+              className="w-full bg-neutral-950 border border-white/10 text-white text-sm font-mono px-3 py-2 focus:outline-none focus:border-white/30 resize-none placeholder:text-neutral-700"
+            />
+          </div>
           <label className="flex items-center gap-2 text-[10px] font-mono uppercase tracking-widest text-neutral-400 cursor-pointer mb-6">
             <input
               type="checkbox"
-              checked={form.isPublished}
-              onChange={e => setForm(f => ({ ...f, isPublished: e.target.checked }))}
+              checked={form.is_published}
+              onChange={e => setForm(f => ({ ...f, is_published: e.target.checked }))}
               className="accent-white"
             />
             Published
@@ -135,8 +285,10 @@ export default function AdminCareersPage() {
           <div className="flex gap-3">
             <button
               onClick={save}
-              className="px-5 py-2 bg-white text-black text-[10px] font-mono font-bold uppercase tracking-widest hover:opacity-80 transition-opacity"
+              disabled={saving}
+              className="flex items-center gap-2 px-5 py-2 bg-white text-black text-[10px] font-mono font-bold uppercase tracking-widest hover:opacity-80 transition-opacity disabled:opacity-50"
             >
+              {saving && <Loader2 className="w-3 h-3 animate-spin" />}
               Save
             </button>
             <button
@@ -150,7 +302,12 @@ export default function AdminCareersPage() {
       )}
 
       {/* List */}
-      {items.length === 0 ? (
+      {loading ? (
+        <div className="flex items-center justify-center py-20 gap-2 text-neutral-600 font-mono text-sm">
+          <Loader2 className="w-4 h-4 animate-spin" />
+          Loading…
+        </div>
+      ) : items.length === 0 ? (
         <p className="text-neutral-600 font-mono text-sm text-center py-20">
           No roles yet. Create one above.
         </p>
@@ -165,21 +322,26 @@ export default function AdminCareersPage() {
                 <div className="flex items-center gap-3 mb-1">
                   <span
                     className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
-                      item.isPublished ? 'bg-emerald-400' : 'bg-neutral-600'
+                      item.is_published ? 'bg-emerald-400' : 'bg-neutral-600'
                     }`}
                   />
                   <p className="text-sm font-mono text-white truncate">{item.title}</p>
                 </div>
                 <p className="text-[10px] font-mono text-neutral-600 pl-[18px]">
-                  {item.department} · {item.location} · {item.createdAt}
+                  {[item.department, item.location, item.employment_type]
+                    .filter(Boolean)
+                    .join(' · ')}
+                  {item.created_at
+                    ? ` · ${new Date(item.created_at).toLocaleDateString()}`
+                    : ''}
                 </p>
               </div>
               <div className="flex items-center gap-2 flex-shrink-0">
                 <ActionBtn
-                  onClick={() => togglePublish(item.id)}
-                  title={item.isPublished ? 'Unpublish' : 'Publish'}
+                  onClick={() => togglePublish(item)}
+                  title={item.is_published ? 'Unpublish' : 'Publish'}
                 >
-                  {item.isPublished ? (
+                  {item.is_published ? (
                     <EyeOff className="w-3.5 h-3.5" />
                   ) : (
                     <Eye className="w-3.5 h-3.5" />
@@ -188,7 +350,11 @@ export default function AdminCareersPage() {
                 <ActionBtn onClick={() => openEdit(item)} title="Edit">
                   <Pencil className="w-3.5 h-3.5" />
                 </ActionBtn>
-                <ActionBtn onClick={() => remove(item.id)} title="Delete" danger>
+                <ActionBtn
+                  onClick={() => softDelete(item.id)}
+                  title="Delete"
+                  danger
+                >
                   <Trash2 className="w-3.5 h-3.5" />
                 </ActionBtn>
               </div>
@@ -199,6 +365,8 @@ export default function AdminCareersPage() {
     </div>
   );
 }
+
+// ─── Shared sub-components ────────────────────────────────────────────────────
 
 function Field({
   label,
