@@ -28,7 +28,7 @@ const Hero = () => {
 
       <div className="absolute inset-0 bg-[linear-gradient(rgba(0,0,0,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(0,0,0,0.03)_1px,transparent_1px)] dark:bg-[linear-gradient(rgba(255,255,255,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.03)_1px,transparent_1px)] bg-[size:100px_100px] pointer-events-none z-10" />
 
-      <motion.div style={{ opacity }} className="relative z-20 px-6 max-w-7xl w-full">
+      <motion.div style={{ opacity }} className="relative z-20 px-6 max-w-7xl w-full overflow-hidden">
         <div className="border-l border-black/20 dark:border-white/20 pl-8 md:pl-16 py-4">
           <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.8 }}>
             <h2 className="text-xs md:text-sm font-mono tracking-[0.3em] text-neutral-500 dark:text-neutral-400 mb-6 uppercase">
@@ -40,7 +40,7 @@ const Hero = () => {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.8, delay: 0.2 }}
-            className="text-5xl md:text-8xl font-display font-medium text-black dark:text-white tracking-tighter leading-[0.9] mb-8 uppercase"
+            className="text-5xl md:text-8xl font-display font-medium text-black dark:text-white tracking-tighter leading-[0.9] mb-8 uppercase max-w-full break-words"
           >
             We Engineer <br />
             <span className="text-neutral-400 dark:text-neutral-500">The Invisible.</span>
@@ -51,7 +51,7 @@ const Hero = () => {
               {SITE_NAME} is a multidisciplinary laboratory fusing optical physics, mechanical engineering, and virtual production to define the next generation of image-making.
             </p>
             <div className="flex gap-6">
-              <Link href="/lab" className="group flex items-center gap-2 text-xs font-mono font-bold tracking-widest text-black dark:text-white border-b border-black dark:border-white pb-1 hover:text-neutral-600 dark:hover:text-neutral-400 hover:border-neutral-600 dark:hover:border-neutral-400 transition-all uppercase">
+              <Link href="/lab" className="group inline-flex items-center gap-2 min-h-[44px] text-xs font-mono font-bold tracking-widest text-black dark:text-white border-b border-black dark:border-white pb-1 hover:text-neutral-600 dark:hover:text-neutral-400 hover:border-neutral-600 dark:hover:border-neutral-400 transition-all uppercase">
                 Explore The Lab <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
               </Link>
             </div>
@@ -161,10 +161,10 @@ const BookingCTA = () => (
             From cinema cameras to lighting kits. Check real-time availability, get instant pricing, and secure your gear with our streamlined booking system.
           </p>
           <div className="flex flex-wrap gap-4">
-            <Link href="/smart-rentals" className="inline-flex items-center gap-2 bg-black dark:bg-white text-white dark:text-black px-8 py-4 text-[10px] font-mono font-bold uppercase tracking-widest hover:opacity-80 transition-opacity">
+            <Link href="/smart-rentals" className="inline-flex items-center gap-2 min-h-[44px] bg-black dark:bg-white text-white dark:text-black px-8 py-4 text-[10px] font-mono font-bold uppercase tracking-widest hover:opacity-80 transition-opacity">
               Browse Equipment <ArrowRight className="w-3 h-3" />
             </Link>
-            <Link href="/register" className="inline-flex items-center gap-2 border border-black/20 dark:border-white/20 text-black dark:text-white px-8 py-4 text-[10px] font-mono font-bold uppercase tracking-widest hover:bg-black/5 dark:hover:bg-white/5 transition-colors">
+            <Link href="/register" className="inline-flex items-center gap-2 min-h-[44px] border border-black/20 dark:border-white/20 text-black dark:text-white px-8 py-4 text-[10px] font-mono font-bold uppercase tracking-widest hover:bg-black/5 dark:hover:bg-white/5 transition-colors">
               Create Account
             </Link>
           </div>
@@ -212,7 +212,7 @@ export default function HomeClient({ carouselItems }: { carouselItems: CarouselI
           <h2 className="text-5xl md:text-8xl font-display font-medium text-white tracking-tighter mb-12 uppercase">
             Let&apos;s Build <br /> The Impossible
           </h2>
-          <Link href="/contact" className="inline-block border border-white/20 hover:bg-white hover:text-black text-white px-12 py-5 text-xs font-mono font-bold tracking-[0.2em] transition-all uppercase">
+          <Link href="/contact" className="inline-flex items-center justify-center min-h-[44px] border border-white/20 hover:bg-white hover:text-black text-white px-12 py-5 text-xs font-mono font-bold tracking-[0.2em] transition-all uppercase">
             Initiate Project
           </Link>
         </div>
