@@ -37,27 +37,27 @@ const CATEGORY_CONFIG = {
   press: {
     label: 'Press',
     icon: Newspaper,
-    href: (_slug: string, _categorySlug?: string) => `/press`,
+    href: (slug: string, _categorySlug?: string) => `/press/${slug}`,
   },
 } as const;
 
 const PLACEHOLDER_ITEMS: CarouselItem[] = [
   {
-    id: 'ph-1', slug: '', title: 'Your First Production',
-    description: 'Featured productions, rentals, and press will appear here once published.',
-    thumbnail_url: null, video_url: null, tags: ['Coming Soon'],
+    id: 'ph-1', slug: '', title: 'Smart Productions',
+    description: 'Cinematic storytelling powered by cutting-edge technology and South African creative talent.',
+    thumbnail_url: null, video_url: null, tags: ['Film', 'Photography'],
     category: 'production', meta: STUDIO.shortName, created_at: new Date().toISOString(),
   },
   {
-    id: 'ph-2', slug: '', title: 'Equipment Spotlight',
-    description: 'Feature your best rental gear here by marking it as featured in the admin panel.',
-    thumbnail_url: null, video_url: null, tags: ['Coming Soon'],
+    id: 'ph-2', slug: '', title: 'Professional Gear',
+    description: 'Cinema cameras, optics, lighting, audio, and grip equipment available for rent.',
+    thumbnail_url: null, video_url: null, tags: ['Cameras', 'Lighting'],
     category: 'rental', meta: 'Smart Rentals', created_at: new Date().toISOString(),
   },
   {
-    id: 'ph-3', slug: '', title: 'Latest News',
-    description: 'Press articles marked as featured will rotate through this carousel.',
-    thumbnail_url: null, video_url: null, tags: ['Coming Soon'],
+    id: 'ph-3', slug: '', title: 'Studio News',
+    description: 'Industry insights, project announcements, and behind-the-scenes features.',
+    thumbnail_url: null, video_url: null, tags: ['Press'],
     category: 'press', meta: 'Newsroom', created_at: new Date().toISOString(),
   },
 ];
@@ -248,18 +248,18 @@ export function LatestWorkCarousel({ items }: { items: CarouselItem[] }) {
       <div className="container mx-auto px-6 mb-16 flex justify-between items-end">
         <div>
           <span className="text-[10px] font-mono text-neutral-500 dark:text-accent uppercase tracking-widest mb-4 block">
-            01 // Selected Works
+            01 // Latest Work
           </span>
           <h2 className="text-4xl md:text-5xl font-display font-medium text-black dark:text-white uppercase">
-            Latest Work
+            Selected <span className="text-neutral-400 dark:text-neutral-500">Works</span>
           </h2>
         </div>
         <div className="hidden md:flex items-center gap-6">
           <Link
-            href="/archive"
+            href="/smart-production"
             className="flex items-center gap-2 text-xs font-mono text-neutral-500 hover:text-black dark:text-neutral-400 dark:hover:text-white transition-colors uppercase tracking-widest"
           >
-            View Archive <ChevronRight className="w-4 h-4" />
+            View All Work <ChevronRight className="w-4 h-4" />
           </Link>
           <div className="flex gap-2">
             <button
@@ -323,10 +323,10 @@ export function LatestWorkCarousel({ items }: { items: CarouselItem[] }) {
       {/* Mobile archive link */}
       <div className="md:hidden flex justify-center mt-8">
         <Link
-          href="/archive"
+          href="/smart-production"
           className="flex items-center gap-2 text-xs font-mono text-neutral-500 hover:text-black dark:text-neutral-400 dark:hover:text-white transition-colors uppercase tracking-widest"
         >
-          View Archive <ChevronRight className="w-4 h-4" />
+          View All Work <ChevronRight className="w-4 h-4" />
         </Link>
       </div>
     </section>
