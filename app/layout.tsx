@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import { Inter, Space_Grotesk, Space_Mono } from 'next/font/google';
+import { Inter, Space_Grotesk, Space_Mono, Orbitron } from 'next/font/google';
 import './globals.css';
 
 import { Providers } from '@/components/layout/Providers';
@@ -26,6 +26,13 @@ const spaceMono = Space_Mono({
   weight:   ['400', '700'],
   style:    ['normal', 'italic'],
   variable: '--font-space-mono',
+  display:  'swap',
+});
+
+const orbitron = Orbitron({
+  subsets:  ['latin'],
+  weight:   ['400', '500', '600', '700', '800', '900'],
+  variable: '--font-orbitron',
   display:  'swap',
 });
 
@@ -63,6 +70,7 @@ export default function RootLayout({
           inter.variable,
           spaceGrotesk.variable,
           spaceMono.variable,
+          orbitron.variable,
           'font-sans antialiased',
         ].join(' ')}
         suppressHydrationWarning

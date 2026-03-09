@@ -51,8 +51,9 @@ const LISTING_TO_RENTAL_CATEGORY: Record<string, string> = {
 const LIST_COLUMNS = [
   'id', 'slug', 'title', 'description', 'category', 'sub_category',
   'brand', 'model', 'price_per_day', 'price_per_week', 'currency',
-  'thumbnail_url', 'is_available', 'is_featured', 'tags', 'features',
-  'metadata', 'created_at',
+  'thumbnail_url', 'cover_public_id', 'gallery',
+  'is_available', 'is_featured', 'tags', 'features',
+  'metadata', 'video_provider', 'video_url', 'created_at',
 ].join(',');
 
 // ─── Queries ──────────────────────────────────────────────────────────────────

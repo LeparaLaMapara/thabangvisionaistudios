@@ -4,6 +4,27 @@ import { getFeaturedPress } from '@/lib/supabase/queries/press';
 import HomeClient from './HomeClient';
 import type { CarouselItem } from '@/components/cinematic/LatestWorkCarousel';
 
+/** Build a Cloudinary delivery URL from a public_id. */
+function cloudinaryUrl(publicId: string): string {
+  const cloud = process.env.CLOUDINARY_CLOUD_NAME;
+  return `https://res.cloudinary.com/${cloud}/image/upload/${publicId}`;
+}
+
+/**
+ * Resolve the best available image for a DB row.
+ * Priority: thumbnail_url → cover_public_id (build URL) → first gallery image → null.
+ */
+function resolveImage(
+  thumbnailUrl: string | null | undefined,
+  coverPublicId: string | null | undefined,
+  gallery: { url: string; public_id: string }[] | null | undefined,
+): string | null {
+  if (thumbnailUrl) return thumbnailUrl;
+  if (coverPublicId) return cloudinaryUrl(coverPublicId);
+  if (gallery && gallery.length > 0) return gallery[0].url;
+  return null;
+}
+
 export default async function Home() {
   const [productions, rentals, press] = await Promise.all([
     getFeaturedProductions(6),
@@ -17,7 +38,7 @@ export default async function Home() {
       slug: p.slug,
       title: p.title,
       description: p.description,
-      thumbnail_url: p.thumbnail_url,
+      thumbnail_url: resolveImage(p.thumbnail_url, p.cover_public_id, p.gallery),
       video_url: p.video_url,
       tags: p.tags ?? [],
       category: 'production' as const,
@@ -29,7 +50,7 @@ export default async function Home() {
       slug: r.slug,
       title: r.title,
       description: r.description,
-      thumbnail_url: r.thumbnail_url,
+      thumbnail_url: resolveImage(r.thumbnail_url, r.cover_public_id, r.gallery),
       video_url: r.video_url,
       tags: r.tags ?? [],
       category: 'rental' as const,
@@ -42,7 +63,7 @@ export default async function Home() {
       slug: a.slug,
       title: a.title,
       description: a.excerpt,
-      thumbnail_url: a.cover_url,
+      thumbnail_url: resolveImage(a.cover_url, a.cover_public_id, null),
       video_url: null,
       tags: a.category ? [a.category] : [],
       category: 'press' as const,
