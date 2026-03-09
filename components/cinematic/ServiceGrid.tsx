@@ -3,7 +3,7 @@
 import { motion } from 'framer-motion';
 import Link from 'next/link';
 import Image from 'next/image';
-import { capabilities } from '@/lib/data';
+import { CAPABILITIES as capabilities } from '@/lib/constants';
 import { ArrowUpRight } from 'lucide-react';
 
 export const ServiceGrid = () => {

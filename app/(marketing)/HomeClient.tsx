@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { ServiceGrid } from '@/components/cinematic/ServiceGrid';
 import { LatestWorkCarousel, type CarouselItem } from '@/components/cinematic/LatestWorkCarousel';
 import { ChevronRight, ArrowRight, Camera, Calendar, Users } from 'lucide-react';
-import { SITE_NAME, STUDIO } from '@/lib/constants';
+import { SITE_NAME, STUDIO, PLACEHOLDER_IMAGES } from '@/lib/constants';
 
 // ─── Hero ────────────────────────────────────────────────────────────────────
 
@@ -20,7 +20,7 @@ const Hero = () => {
         <div className="absolute inset-0 bg-gradient-to-t from-white via-transparent to-white/50 dark:from-[#050505] dark:via-transparent dark:to-[#050505]/50 z-10" />
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
-          src="https://images.unsplash.com/photo-1550745165-9bc0b252726f?q=80&w=2940&auto=format&fit=crop"
+          src={PLACEHOLDER_IMAGES.hero}
           alt="Studio Abstract"
           className="w-full h-full object-cover opacity-10 dark:opacity-40 grayscale contrast-125"
         />

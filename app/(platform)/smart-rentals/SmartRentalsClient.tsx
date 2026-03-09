@@ -5,9 +5,9 @@ import { motion } from 'framer-motion';
 import Link from 'next/link';
 import { ArrowUpRight } from 'lucide-react';
 import type { SmartRental } from '@/lib/supabase/queries/smartRentals';
+import { PLACEHOLDER_IMAGES } from '@/lib/constants';
 
 // ─── Category display metadata ────────────────────────────────────────────────
-// Owned by this file — not imported from data.ts.
 // Maps DB category slugs → display info.
 // The fallback thumbnail comes from each category's first published rental.
 
@@ -23,43 +23,43 @@ const CATEGORY_META: Record<string, CategoryMeta> = {
     label:         'Cameras & Optics',
     subtitle:      'High-end Cinema Systems',
     description:   'Cinema cameras, prime and zoom lens sets, and anamorphics for every format.',
-    fallbackImage: 'https://images.unsplash.com/photo-1516035069371-29a1b244cc32?q=80&w=2800&auto=format&fit=crop',
+    fallbackImage: PLACEHOLDER_IMAGES.camerasOptics,
   },
   'lighting-power': {
     label:         'Lighting & Power',
     subtitle:      'Fixtures & Distribution',
     description:   'LED panels, HMIs, generators, power distribution, and battery solutions.',
-    fallbackImage: 'https://images.unsplash.com/photo-1524253482453-3fed8d2fe12b?q=80&w=2800&auto=format&fit=crop',
+    fallbackImage: PLACEHOLDER_IMAGES.lightingPower,
   },
   'audio': {
     label:         'Audio',
     subtitle:      'Capture & Monitoring',
     description:   'Microphones, field recorders, mixers, wireless systems, and IEM monitoring.',
-    fallbackImage: 'https://images.unsplash.com/photo-1590845947698-8924d7409b56?q=80&w=2800&auto=format&fit=crop',
+    fallbackImage: PLACEHOLDER_IMAGES.audio,
   },
   'grip-motion': {
     label:         'Grip & Motion',
     subtitle:      'Support & Stabilization',
     description:   'Dollies, cranes, gimbals, sliders, and remote heads.',
-    fallbackImage: 'https://images.unsplash.com/photo-1601506521793-dc748fc80b67?q=80&w=2800&auto=format&fit=crop',
+    fallbackImage: PLACEHOLDER_IMAGES.gripMotion,
   },
   'data-storage': {
     label:         'Data & Storage',
     subtitle:      'Media Management',
     description:   'RAID arrays, NVMe drives, on-set DITs, and cloud backup solutions.',
-    fallbackImage: 'https://images.unsplash.com/photo-1558494949-ef010cbdcc31?q=80&w=2800&auto=format&fit=crop',
+    fallbackImage: PLACEHOLDER_IMAGES.dataStorage,
   },
   'crew-services': {
     label:         'Crew Services',
     subtitle:      'Technical Personnel',
     description:   'DPs, gaffers, sound operators, grips, and full-package crew for any scale.',
-    fallbackImage: 'https://images.unsplash.com/photo-1605379399642-870262d3d051?q=80&w=2900&auto=format&fit=crop',
+    fallbackImage: PLACEHOLDER_IMAGES.crewServices,
   },
   'specialized-solutions': {
     label:         'Specialized Solutions',
     subtitle:      'Emerging Tech & VP',
     description:   'LED volumes, virtual production tools, VR/AR rigs, and drone packages.',
-    fallbackImage: 'https://images.unsplash.com/photo-1617581629397-a72507c3de9e?q=80&w=2800&auto=format&fit=crop',
+    fallbackImage: PLACEHOLDER_IMAGES.specializedSolutions,
   },
 };
 
@@ -69,7 +69,7 @@ function getCategoryMeta(slug: string): CategoryMeta {
       label:         slug.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase()),
       subtitle:      'Equipment',
       description:   '',
-      fallbackImage: 'https://images.unsplash.com/photo-1516035069371-29a1b244cc32?q=80&w=2800&auto=format&fit=crop',
+      fallbackImage: PLACEHOLDER_IMAGES.camerasOptics,
     }
   );
 }

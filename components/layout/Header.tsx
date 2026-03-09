@@ -7,6 +7,7 @@ import { Search, Menu, X, ChevronDown } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { MAIN_NAVIGATION } from '@/lib/constants';
 import { GlobalSearch } from '@/components/search/GlobalSearch';
+import { createClient } from '@/lib/supabase/client';
 
 // Pre-computed ray params to avoid hydration mismatch (no Math.random() in render)
 const RAY_LENGTHS = [38, 47, 43, 35, 44, 41, 39, 48, 42];
@@ -95,10 +96,18 @@ const ThabangLogo = () => (
   </div>
 );
 
+// Shared style constants
+const NAV_TEXT = "font-mono font-medium tracking-widest uppercase text-neutral-600 dark:text-neutral-400 hover:text-black dark:hover:text-white transition-colors duration-300";
+const SUB_ITEM_TEXT = "text-xs font-mono tracking-widest uppercase text-neutral-600 dark:text-neutral-400 hover:text-black dark:hover:text-white transition-all duration-200";
+const NUMBER_PREFIX = "text-neutral-400 dark:text-neutral-600 mr-2";
+const ACTION_BTN = "w-full px-6 py-3 font-mono font-medium tracking-widest uppercase text-sm hover:opacity-80 transition-all duration-300";
+
+const formatIndex = (idx: number) => String(idx + 1).padStart(2, '0');
+
 const NavItem = ({ label, to, items }: { label: string; to?: string; items?: any[]; key?: any }) => {
   const [isOpen, setIsOpen] = useState(false);
 
-  const baseClasses = "px-4 py-2 text-[10px] font-mono font-medium tracking-widest text-neutral-600 dark:text-neutral-400 hover:text-black dark:hover:text-white transition-colors duration-300 uppercase flex items-center gap-1 group-hover:bg-black/5 dark:group-hover:bg-white/5 cursor-pointer";
+  const baseClasses = `px-4 py-2 text-[10px] ${NAV_TEXT} flex items-center gap-1 group-hover:bg-black/5 dark:group-hover:bg-white/5 cursor-pointer`;
 
   return (
     <div
@@ -132,9 +141,9 @@ const NavItem = ({ label, to, items }: { label: string; to?: string; items?: any
                 <Link
                   key={idx}
                   href={child.href}
-                  className="text-xs font-mono text-neutral-600 dark:text-neutral-400 hover:text-black dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/10 hover:pl-3 transition-all duration-200 block py-3 px-2 border-b border-neutral-100 dark:border-white/5 last:border-0"
+                  className={`${SUB_ITEM_TEXT} hover:bg-black/5 dark:hover:bg-white/10 hover:pl-3 block py-3 px-2 border-b border-neutral-100 dark:border-white/5 last:border-0`}
                 >
-                  <span className="mr-2 text-neutral-400 dark:text-neutral-600">0{idx + 1}</span> {child.label}
+                  <span className={NUMBER_PREFIX}>{formatIndex(idx)}</span> {child.label}
                 </Link>
               ))}
             </motion.div>
@@ -145,13 +154,83 @@ const NavItem = ({ label, to, items }: { label: string; to?: string; items?: any
   );
 };
 
+const MobileNavSection = ({
+  item,
+  onNavigate,
+}: {
+  item: (typeof MAIN_NAVIGATION)[number];
+  onNavigate: (href: string) => void;
+}) => {
+  const [open, setOpen] = useState(false);
+
+  if (!item.children) {
+    return (
+      <button
+        onClick={() => onNavigate(item.href)}
+        className={`text-sm ${NAV_TEXT}`}
+      >
+        {item.label}
+      </button>
+    );
+  }
+
+  return (
+    <div className="w-full flex flex-col items-center">
+      <button
+        onClick={() => setOpen(!open)}
+        className={`text-sm ${NAV_TEXT} flex items-center gap-2`}
+      >
+        {item.label}
+        <ChevronDown
+          className={`w-4 h-4 transition-transform duration-200 ${open ? 'rotate-180' : ''}`}
+        />
+      </button>
+      <AnimatePresence>
+        {open && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="overflow-hidden w-full flex justify-center mt-3"
+          >
+            <div className="w-fit flex flex-col items-start gap-3">
+              {item.children.map((child, idx) => (
+                <button
+                  key={child.href}
+                  onClick={() => onNavigate(child.href)}
+                  className={`pl-4 ${SUB_ITEM_TEXT} text-left`}
+                >
+                  <span className={NUMBER_PREFIX}>
+                    {formatIndex(idx)}
+                  </span>
+                  {child.label}
+                </button>
+              ))}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+};
+
 export const Header = () => {
   const router = useRouter();
   const [scrolled, setScrolled] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
 
   const closeSearch = useCallback(() => setSearchOpen(false), []);
+
+  // Check auth state
+  useEffect(() => {
+    const supabase = createClient();
+    supabase.auth.getUser().then(({ data }) => {
+      setIsLoggedIn(!!data.user);
+    });
+  }, []);
 
   /** Navigate from mobile menu — start navigation first, then close menu */
   const mobileNavigate = useCallback((href: string) => {
@@ -223,6 +302,12 @@ export const Header = () => {
           <Link href="/contact" className="text-[10px] font-mono font-bold tracking-widest text-white bg-black dark:text-black dark:bg-white px-5 py-2 hover:opacity-80 transition-all duration-300 uppercase">
             Start Project
           </Link>
+          <Link
+            href={isLoggedIn ? '/dashboard' : '/login'}
+            className="text-[10px] font-mono font-medium tracking-widest text-neutral-600 dark:text-neutral-400 hover:text-black dark:hover:text-white border border-neutral-300 dark:border-white/30 px-5 py-2 hover:opacity-80 transition-all duration-300 uppercase"
+          >
+            {isLoggedIn ? 'Dashboard' : 'Login'}
+          </Link>
         </div>
 
         {/* Mobile Actions */}
@@ -249,16 +334,30 @@ export const Header = () => {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[200] bg-white dark:bg-[#050505] h-screen min-h-screen overflow-y-auto flex flex-col justify-center items-center gap-6 lg:hidden"
+            className="fixed inset-0 z-[200] bg-white dark:bg-[#050505] min-h-screen overflow-y-auto flex flex-col justify-center items-center gap-6 lg:hidden"
           >
-            <button onClick={() => mobileNavigate('/smart-production')} className="text-3xl font-display font-medium text-black dark:text-white">PROJECTS</button>
-            <button onClick={() => mobileNavigate('/lab')} className="text-3xl font-display font-medium text-black dark:text-white">THE LAB</button>
-            <button onClick={() => mobileNavigate('/smart-rentals')} className="text-3xl font-display font-medium text-black dark:text-white">SMART RENTALS</button>
-            <button onClick={() => mobileNavigate('/ubunye-ai-studio')} className="text-3xl font-display font-medium text-black dark:text-white">UBUNYE AI</button>
-            <button onClick={() => mobileNavigate('/pricing')} className="text-3xl font-display font-medium text-black dark:text-white">PRICING</button>
-            <button onClick={() => mobileNavigate('/press')} className="text-3xl font-display font-medium text-black dark:text-white">PRESS</button>
-            <button onClick={() => mobileNavigate('/careers')} className="text-3xl font-display font-medium text-black dark:text-white">CAREERS</button>
-            <button onClick={() => mobileNavigate('/contact')} className="text-3xl font-display font-medium text-black dark:text-white">CONTACT</button>
+            {MAIN_NAVIGATION.map((item) => (
+              <MobileNavSection
+                key={item.label}
+                item={item}
+                onNavigate={mobileNavigate}
+              />
+            ))}
+
+            <div className="mt-6 px-6 w-full flex flex-col gap-3">
+              <button
+                onClick={() => mobileNavigate('/contact')}
+                className={`${ACTION_BTN} bg-white text-black border border-white`}
+              >
+                Start Project
+              </button>
+              <button
+                onClick={() => mobileNavigate(isLoggedIn ? '/dashboard' : '/login')}
+                className={`${ACTION_BTN} bg-transparent text-white border border-white/30`}
+              >
+                {isLoggedIn ? 'Dashboard' : 'Login'}
+              </button>
+            </div>
           </motion.div>
         )}
       </AnimatePresence>

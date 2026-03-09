@@ -135,7 +135,7 @@ export const MAIN_NAVIGATION = [
     href: '/lab',
     children: [
       { label: 'About', href: '/lab' },
-      { label: 'Our Team', href: '/careers' },
+      { label: 'Our Team', href: '/lab#team' },
     ],
   },
   {
@@ -158,21 +158,8 @@ export const MAIN_NAVIGATION = [
     ],
   },
   {
-    label: 'Tools',
-    href: '/resources/tools',
-    children: [
-      { label: 'Optics Calculators', href: '/resources/tools' },
-      { label: 'Production Planners', href: '/resources/tools' },
-      { label: 'Lens Comparison', href: '/resources/tools' },
-    ],
-  },
-  {
     label: 'Pricing',
     href: '/pricing',
-  },
-  {
-    label: 'Contact',
-    href: '/contact',
   },
 ];
 
@@ -202,6 +189,57 @@ export const FOOTER_SECTIONS = [
       { label: 'Legal / Terms', href: '/legal' },
       { label: 'Privacy Policy', href: '/privacy' },
     ],
+  },
+];
+
+// ─── PLACEHOLDER IMAGES ─────────────────────────────────────────────────────
+export const PLACEHOLDER_IMAGES = {
+  hero: 'https://images.unsplash.com/photo-1550745165-9bc0b252726f?q=80&w=2940&auto=format&fit=crop',
+  camerasOptics: 'https://images.unsplash.com/photo-1516035069371-29a1b244cc32?q=80&w=2800&auto=format&fit=crop',
+  lightingPower: 'https://images.unsplash.com/photo-1524253482453-3fed8d2fe12b?q=80&w=2800&auto=format&fit=crop',
+  audio: 'https://images.unsplash.com/photo-1590845947698-8924d7409b56?q=80&w=2800&auto=format&fit=crop',
+  gripMotion: 'https://images.unsplash.com/photo-1601506521793-dc748fc80b67?q=80&w=2800&auto=format&fit=crop',
+  dataStorage: 'https://images.unsplash.com/photo-1558494949-ef010cbdcc31?q=80&w=2800&auto=format&fit=crop',
+  crewServices: 'https://images.unsplash.com/photo-1605379399642-870262d3d051?q=80&w=2900&auto=format&fit=crop',
+  specializedSolutions: 'https://images.unsplash.com/photo-1617581629397-a72507c3de9e?q=80&w=2800&auto=format&fit=crop',
+  smartProductions: 'https://images.unsplash.com/photo-1492691527719-9d1e07e534b4?q=80&w=2900&auto=format&fit=crop',
+  smartRentals: 'https://images.unsplash.com/photo-1550948537-130a1ce83314?q=80&w=2900&auto=format&fit=crop',
+  ubunyeAi: 'https://images.unsplash.com/photo-1574717024653-61fd2cf4d44d?q=80&w=2900&auto=format&fit=crop',
+  communityGear: 'https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?q=80&w=2900&auto=format&fit=crop',
+  creatorDashboard: 'https://images.unsplash.com/photo-1460925895917-afdab827c52f?q=80&w=2900&auto=format&fit=crop',
+} as const;
+
+// ─── CAPABILITIES (used on home page ServiceGrid) ───────────────────────────
+export const CAPABILITIES = [
+  {
+    title: 'Smart Productions',
+    subtitle: 'Creative Services Hub',
+    image: PLACEHOLDER_IMAGES.smartProductions,
+    link: '/smart-production',
+  },
+  {
+    title: 'Smart Rentals',
+    subtitle: 'AI-Optimized Gear',
+    image: PLACEHOLDER_IMAGES.smartRentals,
+    link: '/smart-rentals',
+  },
+  {
+    title: 'Ubunye AI Studio',
+    subtitle: 'AI Tools, Automation & Creative Intelligence',
+    image: PLACEHOLDER_IMAGES.ubunyeAi,
+    link: '/ubunye-ai-studio',
+  },
+  {
+    title: 'Community Gear',
+    subtitle: 'Rent from Verified Creators',
+    image: PLACEHOLDER_IMAGES.communityGear,
+    link: '/smart-rentals',
+  },
+  {
+    title: 'Creator Dashboard',
+    subtitle: 'Manage Your Studio',
+    image: PLACEHOLDER_IMAGES.creatorDashboard,
+    link: '/dashboard',
   },
 ];
 
