@@ -159,6 +159,16 @@ export const Header = () => {
     setMobileMenuOpen(false);
   }, [router]);
 
+  // Lock body scroll when mobile menu is open
+  useEffect(() => {
+    if (mobileMenuOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => { document.body.style.overflow = ''; };
+  }, [mobileMenuOpen]);
+
   useEffect(() => {
     const handleScroll = () => setScrolled(window.scrollY > 50);
     window.addEventListener('scroll', handleScroll);
@@ -239,12 +249,15 @@ export const Header = () => {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-white dark:bg-[#050505] z-[45] flex flex-col justify-center items-center gap-8 lg:hidden"
+            className="fixed inset-0 z-[200] bg-white dark:bg-[#050505] h-screen min-h-screen overflow-y-auto flex flex-col justify-center items-center gap-6 lg:hidden"
           >
             <button onClick={() => mobileNavigate('/smart-production')} className="text-3xl font-display font-medium text-black dark:text-white">PROJECTS</button>
             <button onClick={() => mobileNavigate('/lab')} className="text-3xl font-display font-medium text-black dark:text-white">THE LAB</button>
             <button onClick={() => mobileNavigate('/smart-rentals')} className="text-3xl font-display font-medium text-black dark:text-white">SMART RENTALS</button>
-            <button onClick={() => mobileNavigate('/resources/tools')} className="text-3xl font-display font-medium text-black dark:text-white">TOOLS</button>
+            <button onClick={() => mobileNavigate('/ubunye-ai-studio')} className="text-3xl font-display font-medium text-black dark:text-white">UBUNYE AI</button>
+            <button onClick={() => mobileNavigate('/pricing')} className="text-3xl font-display font-medium text-black dark:text-white">PRICING</button>
+            <button onClick={() => mobileNavigate('/press')} className="text-3xl font-display font-medium text-black dark:text-white">PRESS</button>
+            <button onClick={() => mobileNavigate('/careers')} className="text-3xl font-display font-medium text-black dark:text-white">CAREERS</button>
             <button onClick={() => mobileNavigate('/contact')} className="text-3xl font-display font-medium text-black dark:text-white">CONTACT</button>
           </motion.div>
         )}
