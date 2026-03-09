@@ -1,9 +1,8 @@
 'use client';
 
-import { useRef, useState, useEffect, useCallback } from 'react';
+import { useRef, useState, useEffect, useCallback, memo } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { motion, useMotionValue, animate } from 'framer-motion';
 import { ChevronLeft, ChevronRight, Clapperboard, Package, Newspaper } from 'lucide-react';
 import { STUDIO } from '@/lib/constants';
 
@@ -64,9 +63,9 @@ const PLACEHOLDER_ITEMS: CarouselItem[] = [
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
-const GAP = 32;              // gap-8 = 2rem
-const LOOP_DURATION = 30;    // seconds to scroll one full set of cards
-const ARROW_PAUSE_MS = 3000; // pause auto-scroll 3s after arrow/dot click
+const GAP = 32;
+const SPEED = 0.5;            // pixels per frame (~30px/sec at 60fps)
+const ARROW_PAUSE_MS = 4000;
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
@@ -75,172 +74,144 @@ export function LatestWorkCarousel({ items }: { items: CarouselItem[] }) {
   const isPlaceholder = items.length === 0;
   const totalCards = displayItems.length;
 
-  // 3x duplication — when set 1 scrolls off-screen, set 2 is identical,
-  // so resetting translateX to 0 is visually invisible.
-  const loopedItems = [...displayItems, ...displayItems, ...displayItems];
+  // 2x duplication for seamless loop
+  const loopedItems = [...displayItems, ...displayItems];
 
-  const x = useMotionValue(0);
   const trackRef = useRef<HTMLDivElement>(null);
   const [activeIndex, setActiveIndex] = useState(0);
 
-  // Refs for animation control
-  const animRef = useRef<ReturnType<typeof animate> | null>(null);
-  const arrowTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const mountedRef = useRef(true);
-  const cardStrideRef = useRef(632);
+  // Animation state — all in refs to avoid re-renders
+  const offsetRef = useRef(0);
+  const rafRef = useRef(0);
+  const pausedRef = useRef(false);
+  const strideRef = useRef(632);
   const setWidthRef = useRef(0);
-  const lastDotRef = useRef(0);
+  const arrowTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
-  // Touch tracking
-  const touchStartClientX = useRef(0);
-  const touchStartValX = useRef(0);
-  const isTouching = useRef(false);
-
-  // ── Measure card dimensions ───────────────────────────────────────────────
+  // ── Measure ─────────────────────────────────────────────────────────────────
 
   const measure = useCallback(() => {
     if (!trackRef.current?.children[0]) return;
     const cardW = (trackRef.current.children[0] as HTMLElement).offsetWidth;
-    cardStrideRef.current = cardW + GAP;
-    setWidthRef.current = totalCards * cardStrideRef.current;
+    strideRef.current = cardW + GAP;
+    setWidthRef.current = totalCards * strideRef.current;
   }, [totalCards]);
 
-  // ── Start the infinite conveyor belt ──────────────────────────────────────
-  //    Uses framer-motion's `animate()` — linear easing, constant speed.
-  //    On completion, resets x to 0 (seamless because content is 3x duplicated)
-  //    and immediately starts the next loop.
+  // ── RAF loop — GPU-composited via translate3d ───────────────────────────────
 
-  const startLoop = useCallback(() => {
-    if (!mountedRef.current || isPlaceholder) return;
-    const sw = setWidthRef.current;
-    if (sw <= 0) return;
+  const tick = useCallback(() => {
+    if (!pausedRef.current && !isPlaceholder) {
+      offsetRef.current += SPEED;
+      const sw = setWidthRef.current;
+      if (sw > 0 && offsetRef.current >= sw) {
+        offsetRef.current -= sw;
+      }
 
-    // Stop any running animation
-    animRef.current?.stop();
+      if (trackRef.current) {
+        trackRef.current.style.transform = `translate3d(${-offsetRef.current}px, 0, 0)`;
+      }
 
-    // Current position
-    let current = x.get();
+      // Update dot indicator (throttled — only when index changes)
+      const stride = strideRef.current;
+      if (stride > 0 && sw > 0) {
+        const idx = Math.floor((offsetRef.current % sw) / stride) % totalCards;
+        // Direct DOM compare avoids setState churn
+        setActiveIndex(prev => prev === idx ? prev : idx);
+      }
+    }
 
-    // Normalize into the [0, -sw) range so the loop reset is clean
-    if (current <= -sw) current += sw;
-    if (current > 0) current -= sw;
-    x.set(current);
+    rafRef.current = requestAnimationFrame(tick);
+  }, [isPlaceholder, totalCards]);
 
-    // How far remains until one full set has scrolled off?
-    const remaining = sw + current; // current is negative, so this is (sw - |current|)
-    // Duration proportional to remaining distance (maintains constant speed)
-    const duration = (remaining / sw) * LOOP_DURATION;
-
-    animRef.current = animate(x, current - remaining, {
-      duration: Math.max(duration, 0.1),
-      ease: 'linear',
-      onComplete: () => {
-        if (!mountedRef.current) return;
-        // Snap back — visually invisible because set 2 is identical to set 1
-        x.set(0);
-        startLoop();
-      },
-    });
-  }, [x, isPlaceholder]);
-
-  const stopLoop = useCallback(() => {
-    animRef.current?.stop();
-  }, []);
-
-  // ── Mount: measure → start ────────────────────────────────────────────────
+  // ── Mount / unmount ─────────────────────────────────────────────────────────
 
   useEffect(() => {
-    mountedRef.current = true;
-    const raf = requestAnimationFrame(() => {
-      measure();
-      startLoop();
-    });
+    measure();
+    rafRef.current = requestAnimationFrame(tick);
     window.addEventListener('resize', measure);
     return () => {
-      mountedRef.current = false;
-      cancelAnimationFrame(raf);
+      cancelAnimationFrame(rafRef.current);
       window.removeEventListener('resize', measure);
-      animRef.current?.stop();
       if (arrowTimerRef.current) clearTimeout(arrowTimerRef.current);
     };
-  }, [measure, startLoop]);
+  }, [measure, tick]);
 
-  // ── Track active dot index ────────────────────────────────────────────────
+  // ── Pause / resume ──────────────────────────────────────────────────────────
 
-  useEffect(() => {
-    return x.on('change', (val) => {
-      const sw = setWidthRef.current;
-      const stride = cardStrideRef.current;
-      if (sw <= 0 || stride <= 0) return;
-      const pos = (((-val) % sw) + sw) % sw;
-      const idx = Math.round(pos / stride) % totalCards;
-      if (idx !== lastDotRef.current) {
-        lastDotRef.current = idx;
-        setActiveIndex(idx);
-      }
-    });
-  }, [x, totalCards]);
+  const pause = useCallback(() => { pausedRef.current = true; }, []);
+  const resume = useCallback(() => { pausedRef.current = false; }, []);
 
-  // ── Hover: stop on enter, resume on leave ─────────────────────────────────
-
-  const onMouseEnter = useCallback(() => {
-    if (isTouching.current) return; // don't interfere with touch
-    stopLoop();
-  }, [stopLoop]);
-
-  const onMouseLeave = useCallback(() => {
-    if (isTouching.current) return;
-    startLoop();
-  }, [startLoop]);
-
-  // ── Arrow navigation ──────────────────────────────────────────────────────
+  // ── Arrow navigation — instant jump with smooth snap ────────────────────────
 
   const scrollTo = useCallback((direction: 'left' | 'right') => {
-    stopLoop();
-    const stride = cardStrideRef.current;
-    x.set(x.get() + (direction === 'right' ? -stride : stride));
+    pause();
+    const stride = strideRef.current;
+    const sw = setWidthRef.current;
 
-    // Resume auto-scroll after 3s
+    if (direction === 'right') {
+      offsetRef.current += stride;
+    } else {
+      offsetRef.current -= stride;
+    }
+
+    // Keep in bounds
+    if (sw > 0) {
+      if (offsetRef.current < 0) offsetRef.current += sw;
+      if (offsetRef.current >= sw) offsetRef.current -= sw;
+    }
+
+    if (trackRef.current) {
+      trackRef.current.style.transform = `translate3d(${-offsetRef.current}px, 0, 0)`;
+    }
+
     if (arrowTimerRef.current) clearTimeout(arrowTimerRef.current);
-    arrowTimerRef.current = setTimeout(() => startLoop(), ARROW_PAUSE_MS);
-  }, [x, stopLoop, startLoop]);
+    arrowTimerRef.current = setTimeout(resume, ARROW_PAUSE_MS);
+  }, [pause, resume]);
 
-  // ── Dot navigation ────────────────────────────────────────────────────────
+  // ── Dot navigation ──────────────────────────────────────────────────────────
 
   const scrollToIndex = useCallback((idx: number) => {
-    stopLoop();
-    const sw = setWidthRef.current;
-    const stride = cardStrideRef.current;
-    if (sw <= 0) return;
+    pause();
+    offsetRef.current = idx * strideRef.current;
 
-    // Jump to the position of this card within the current set
-    const currentPos = -x.get();
-    const currentSet = Math.floor(currentPos / sw);
-    x.set(-(currentSet * sw + idx * stride));
+    if (trackRef.current) {
+      trackRef.current.style.transform = `translate3d(${-offsetRef.current}px, 0, 0)`;
+    }
 
     if (arrowTimerRef.current) clearTimeout(arrowTimerRef.current);
-    arrowTimerRef.current = setTimeout(() => startLoop(), ARROW_PAUSE_MS);
-  }, [x, stopLoop, startLoop]);
+    arrowTimerRef.current = setTimeout(resume, ARROW_PAUSE_MS);
+  }, [pause, resume]);
 
-  // ── Touch / swipe ─────────────────────────────────────────────────────────
+  // ── Touch / swipe ───────────────────────────────────────────────────────────
+
+  const touchStartX = useRef(0);
+  const touchStartOffset = useRef(0);
 
   const onTouchStart = useCallback((e: React.TouchEvent) => {
-    isTouching.current = true;
-    stopLoop();
-    touchStartClientX.current = e.touches[0].clientX;
-    touchStartValX.current = x.get();
-  }, [x, stopLoop]);
+    pause();
+    touchStartX.current = e.touches[0].clientX;
+    touchStartOffset.current = offsetRef.current;
+  }, [pause]);
 
   const onTouchMove = useCallback((e: React.TouchEvent) => {
-    if (!isTouching.current) return;
-    const dx = touchStartClientX.current - e.touches[0].clientX;
-    x.set(touchStartValX.current - dx);
-  }, [x]);
+    const dx = touchStartX.current - e.touches[0].clientX;
+    offsetRef.current = touchStartOffset.current + dx;
+
+    const sw = setWidthRef.current;
+    if (sw > 0) {
+      if (offsetRef.current < 0) offsetRef.current += sw;
+      if (offsetRef.current >= sw) offsetRef.current -= sw;
+    }
+
+    if (trackRef.current) {
+      trackRef.current.style.transform = `translate3d(${-offsetRef.current}px, 0, 0)`;
+    }
+  }, []);
 
   const onTouchEnd = useCallback(() => {
-    isTouching.current = false;
-    startLoop();
-  }, [startLoop]);
+    if (arrowTimerRef.current) clearTimeout(arrowTimerRef.current);
+    arrowTimerRef.current = setTimeout(resume, ARROW_PAUSE_MS);
+  }, [resume]);
 
   return (
     <section className="py-32 bg-neutral-50 dark:bg-[#050505] transition-colors duration-500">
@@ -283,25 +254,25 @@ export function LatestWorkCarousel({ items }: { items: CarouselItem[] }) {
       {/* Carousel */}
       <div
         className="relative overflow-hidden"
-        onMouseEnter={onMouseEnter}
-        onMouseLeave={onMouseLeave}
+        onMouseEnter={pause}
+        onMouseLeave={resume}
       >
-        <motion.div
+        <div
           ref={trackRef}
-          style={{ x }}
           onTouchStart={onTouchStart}
           onTouchMove={onTouchMove}
           onTouchEnd={onTouchEnd}
-          className="flex gap-8 pl-6 will-change-transform"
+          className="flex gap-8 pl-6"
+          style={{ willChange: 'transform' }}
         >
           {loopedItems.map((item, index) => (
             <CarouselCard
-              key={`${item.id}-set${Math.floor(index / totalCards)}`}
+              key={`${item.id}-${index < totalCards ? 'a' : 'b'}`}
               item={item}
               isPlaceholder={isPlaceholder}
             />
           ))}
-        </motion.div>
+        </div>
       </div>
 
       {/* Dot indicators */}
@@ -320,7 +291,7 @@ export function LatestWorkCarousel({ items }: { items: CarouselItem[] }) {
         ))}
       </div>
 
-      {/* Mobile archive link */}
+      {/* Mobile link */}
       <div className="md:hidden flex justify-center mt-8">
         <Link
           href="/smart-production"
@@ -333,9 +304,9 @@ export function LatestWorkCarousel({ items }: { items: CarouselItem[] }) {
   );
 }
 
-// ─── Card Component ──────────────────────────────────────────────────────────
+// ─── Card Component (memoized to prevent re-renders during scroll) ──────────
 
-function CarouselCard({
+const CarouselCard = memo(function CarouselCard({
   item,
   isPlaceholder,
 }: {
@@ -402,6 +373,7 @@ function CarouselCard({
                   ? 'opacity-0'
                   : 'opacity-90 dark:opacity-80 group-hover:opacity-100 group-hover:scale-105'
               }`}
+              unoptimized
             />
             {isDirectVideo && (
               <video
@@ -447,4 +419,4 @@ function CarouselCard({
       {cardContent}
     </Link>
   );
-}
+});
