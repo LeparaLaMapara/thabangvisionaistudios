@@ -36,7 +36,7 @@ function humanizeKey(key: string): string {
 
 // ─── Tab type ─────────────────────────────────────────────────────────────────
 
-type Tab = 'features' | 'includes' | 'renting';
+type Tab = 'features' | 'includes';
 
 // ─── Active media discriminated union ─────────────────────────────────────────
 
@@ -49,9 +49,11 @@ type ActiveMedia =
 export default function RentalDetailView({
   rental,
   category,
+  relatedRentals = [],
 }: {
   rental: SmartRental;
   category: string;
+  relatedRentals?: SmartRental[];
 }) {
   const categoryLabel = getCategoryLabel(category);
 
@@ -456,16 +458,6 @@ export default function RentalDetailView({
                       Rental Includes
                     </button>
                   )}
-                  <button
-                    onClick={() => setActiveTab('renting')}
-                    className={`text-[10px] font-mono font-bold uppercase tracking-widest px-4 py-3 border-b-2 -mb-px transition-colors ${
-                      activeTab === 'renting'
-                        ? 'border-accent-gold text-black dark:text-white'
-                        : 'border-transparent text-neutral-400 hover:text-black dark:hover:text-white'
-                    }`}
-                  >
-                    Start Renting
-                  </button>
                 </div>
 
                 {/* Tab content */}
@@ -506,19 +498,17 @@ export default function RentalDetailView({
                     </motion.ul>
                   )}
 
-                  {activeTab === 'renting' && (
-                    <BookingWidget rental={rental} />
-                  )}
                 </div>
               </div>
             )}
 
-            {/* Booking widget when no tabs to show */}
-            {!hasAnyTab && (
-              <div className="mb-8">
-                <BookingWidget rental={rental} />
-              </div>
-            )}
+            {/* ── Booking Widget — always visible in sidebar ── */}
+            <div className="mb-8 border border-black/10 dark:border-white/10 p-5 bg-neutral-50 dark:bg-[#0A0A0B]">
+              <h3 className="text-[10px] font-mono font-bold uppercase tracking-widest text-neutral-500 mb-4 border-b border-black/5 dark:border-white/5 pb-3">
+                Book This Equipment
+              </h3>
+              <BookingWidget rental={rental} />
+            </div>
 
             {/* Tags */}
             {rental.tags && rental.tags.length > 0 && (
@@ -535,6 +525,68 @@ export default function RentalDetailView({
             )}
           </div>
         </div>
+
+        {/* ── Related Equipment ── */}
+        {relatedRentals.length > 0 && (
+          <div className="mt-16 pt-12 border-t border-black/5 dark:border-white/5">
+            <h2 className="text-2xl font-bold tracking-tight mb-8 border-l-2 border-accent-gold pl-4 uppercase">
+              Related Equipment
+            </h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-px bg-neutral-200 dark:bg-white/10 border border-neutral-200 dark:border-white/10">
+              {relatedRentals.map((item, i) => (
+                <motion.div
+                  key={item.id}
+                  initial={{ opacity: 0 }}
+                  whileInView={{ opacity: 1 }}
+                  transition={{ delay: i * 0.1 }}
+                >
+                  <Link
+                    href={`/smart-rentals/${item.category}/${item.slug}`}
+                    className="block bg-white dark:bg-[#0A0A0B] group hover:bg-neutral-50 dark:hover:bg-white/5 transition-colors"
+                  >
+                    {/* Thumbnail */}
+                    <div className="relative aspect-[4/3] overflow-hidden bg-neutral-100 dark:bg-neutral-900">
+                      {item.thumbnail_url ? (
+                        <Image
+                          src={item.thumbnail_url}
+                          alt={item.title}
+                          fill
+                          sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw"
+                          className="object-cover grayscale group-hover:grayscale-0 group-hover:scale-105 transition-all duration-500"
+                          unoptimized
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center">
+                          <span className="text-[10px] font-mono text-neutral-500 uppercase tracking-widest">
+                            No image
+                          </span>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Info */}
+                    <div className="p-4">
+                      <h3 className="text-sm font-display font-medium uppercase tracking-tight text-black dark:text-white truncate group-hover:text-accent-gold transition-colors">
+                        {item.title}
+                      </h3>
+                      {item.brand && (
+                        <p className="text-[10px] font-mono text-neutral-500 uppercase tracking-widest mt-1">
+                          {item.brand}
+                        </p>
+                      )}
+                      {item.price_per_day != null && (
+                        <p className="text-sm font-mono font-bold text-accent-gold mt-2">
+                          {item.currency} {item.price_per_day.toLocaleString()}
+                          <span className="text-[10px] font-normal text-neutral-500"> /day</span>
+                        </p>
+                      )}
+                    </div>
+                  </Link>
+                </motion.div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* ── Back link ── */}
         <div className="mt-16 pt-8 border-t border-black/5 dark:border-white/5">

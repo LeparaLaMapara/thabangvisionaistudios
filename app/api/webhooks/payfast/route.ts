@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { createClient } from '@/lib/supabase/server';
 import {
   isPayFastConfigured,
   isPayFastIP,
@@ -21,15 +22,53 @@ async function handlePaymentComplete(params: Record<string, string>) {
     { paymentId, type: paymentType, amount: params.amount_gross },
   );
 
+  const supabase = await createClient();
+
   if (paymentType === 'equipment_booking') {
-    // TODO: Look up equipment_bookings by m_payment_id (our internal booking ID),
-    // set status to 'confirmed', create booking_payment record with pf_payment_id,
-    // and auto-generate an invoice record.
-    console.log('[PayFast ITN] Booking confirmed:', paymentId);
+    // Update booking status to confirmed
+    const { error: bookingErr } = await supabase
+      .from('equipment_bookings')
+      .update({
+        status: 'confirmed',
+        payfast_payment_id: pfPaymentId,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', paymentId);
+
+    if (bookingErr) {
+      console.error('[PayFast ITN] Failed to confirm booking:', bookingErr.message);
+    } else {
+      // Create booking_payment record
+      await supabase.from('booking_payments').insert({
+        booking_id: paymentId,
+        payfast_payment_id: pfPaymentId,
+        amount: parseFloat(params.amount_gross ?? '0'),
+        currency: 'ZAR',
+        status: 'complete',
+      });
+
+      console.log('[PayFast ITN] Booking confirmed:', paymentId);
+    }
   } else if (paymentType === 'subscription') {
-    // TODO: Look up subscription by m_payment_id,
-    // confirm subscription status as 'active'.
-    console.log('[PayFast ITN] Subscription payment:', paymentId);
+    // custom_str2 = user_id, custom_str3 = plan_id, custom_str4 = billing cycle
+    const userId = params.custom_str2 ?? '';
+
+    // Update subscription status to active
+    const { error: subErr } = await supabase
+      .from('subscriptions')
+      .update({
+        status: 'active',
+        payfast_token: pfPaymentId,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', paymentId)
+      .eq('user_id', userId);
+
+    if (subErr) {
+      console.error('[PayFast ITN] Failed to activate subscription:', subErr.message);
+    } else {
+      console.log('[PayFast ITN] Subscription activated:', paymentId);
+    }
   }
 }
 
@@ -42,7 +81,19 @@ async function handlePaymentFailed(params: Record<string, string>) {
     { paymentId, type: paymentType },
   );
 
-  // TODO: Update booking/order/subscription status to reflect failed payment
+  const supabase = await createClient();
+
+  if (paymentType === 'equipment_booking') {
+    await supabase
+      .from('equipment_bookings')
+      .update({ status: 'cancelled', updated_at: new Date().toISOString() })
+      .eq('id', paymentId);
+  } else if (paymentType === 'subscription') {
+    await supabase
+      .from('subscriptions')
+      .update({ status: 'cancelled', updated_at: new Date().toISOString() })
+      .eq('id', paymentId);
+  }
 }
 
 async function handlePaymentPending(params: Record<string, string>) {

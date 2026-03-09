@@ -1,5 +1,5 @@
 import { notFound } from 'next/navigation';
-import { getRentalBySlug } from '@/lib/supabase/queries/smartRentals';
+import { getRentalBySlug, getRelatedRentals } from '@/lib/supabase/queries/smartRentals';
 import RentalDetailView from './RentalDetailView';
 
 export const dynamic = 'force-dynamic';
@@ -14,5 +14,13 @@ export default async function RentalDetailPage({
 
   if (!rental) notFound();
 
-  return <RentalDetailView rental={rental} category={category} />;
+  const relatedRentals = await getRelatedRentals(rental.category, rental.id, 4);
+
+  return (
+    <RentalDetailView
+      rental={rental}
+      category={category}
+      relatedRentals={relatedRentals}
+    />
+  );
 }

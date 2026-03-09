@@ -175,6 +175,36 @@ export async function getArchivedRentals(): Promise<SmartRental[]> {
   return (data as unknown as SmartRental[]) ?? [];
 }
 
+/**
+ * Returns published rentals in the same category, excluding a specific item.
+ * Used for "Related Equipment" sections on detail pages.
+ */
+export async function getRelatedRentals(
+  category: string,
+  excludeId: string,
+  limit = 4,
+): Promise<SmartRental[]> {
+  const supabase = await createClient();
+
+  const { data, error } = await supabase
+    .from('smart_rentals')
+    .select(LIST_COLUMNS)
+    .eq('is_published', true)
+    .eq('category', category)
+    .neq('id', excludeId)
+    .is('deleted_at', null)
+    .order('is_featured', { ascending: false })
+    .order('created_at', { ascending: false })
+    .limit(limit);
+
+  if (error) {
+    console.error('[getRelatedRentals]', error.message);
+    return [];
+  }
+
+  return (data as unknown as SmartRental[]) ?? [];
+}
+
 // ─── Community Listings ──────────────────────────────────────────────────────
 // Fetches user-listed gear from the `listings` table and maps them to
 // SmartRental shape so they can be displayed alongside official rentals.

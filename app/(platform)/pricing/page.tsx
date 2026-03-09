@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { Check, Zap } from 'lucide-react';
 import { Card } from '@/components/ui/Card';
@@ -85,6 +86,13 @@ const PLANS: Plan[] = [
 export default function PricingPage() {
   const [billing, setBilling] = useState<BillingPeriod>('monthly');
   const [dbPlans, setDbPlans] = useState<Plan[]>([]);
+  const [loadingPlan, setLoadingPlan] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const router = useRouter();
+  const searchParams = useSearchParams();
+
+  // Show cancellation notice if redirected back from PayFast
+  const cancelled = searchParams.get('subscription') === 'cancelled';
 
   useEffect(() => {
     fetch('/api/subscriptions/plans')
@@ -110,6 +118,62 @@ export default function PricingPage() {
 
   const activePlans = dbPlans.length > 0 ? dbPlans : PLANS;
 
+  const handleCheckout = async (plan: Plan) => {
+    setError(null);
+    const price = billing === 'monthly' ? plan.monthlyPrice : plan.annualPrice;
+
+    // Free plan — go to register
+    if (price <= 0) {
+      router.push('/register');
+      return;
+    }
+
+    // Studio plan — go to contact
+    if (plan.id === 'studio') {
+      router.push('/contact');
+      return;
+    }
+
+    setLoadingPlan(plan.id);
+
+    try {
+      const res = await fetch('/api/payfast/checkout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          plan_id: plan.id,
+          plan_name: plan.name,
+          amount: price,
+          billing,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        if (res.status === 401) {
+          // Not logged in — redirect to login with return URL
+          router.push(`/login?redirect=/pricing`);
+          return;
+        }
+        setError(data.error ?? 'Something went wrong. Please try again.');
+        setLoadingPlan(null);
+        return;
+      }
+
+      if (data.payment_url) {
+        window.location.href = data.payment_url;
+        return;
+      }
+
+      // No payment URL (e.g., free plan handled server-side)
+      router.push('/dashboard?subscription=success');
+    } catch {
+      setError('Network error. Please check your connection and try again.');
+      setLoadingPlan(null);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-white dark:bg-[#0A0A0B] text-black dark:text-white pt-20 transition-colors duration-500">
       {/* Hero */}
@@ -129,6 +193,29 @@ export default function PricingPage() {
             Start free. Upgrade when you need more. All plans include access to
             equipment rentals and community gear listings.
           </p>
+
+          {/* Cancellation notice */}
+          {cancelled && (
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="mb-6 inline-block bg-amber-500/10 border border-amber-500/20 text-amber-600 dark:text-amber-400 text-xs font-mono px-4 py-2"
+            >
+              Payment was cancelled. You can try again when you&apos;re ready.
+            </motion.div>
+          )}
+
+          {/* Error message */}
+          {error && (
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="mb-6 inline-block bg-red-500/10 border border-red-500/20 text-red-600 dark:text-red-400 text-xs font-mono px-4 py-2 cursor-pointer"
+              onClick={() => setError(null)}
+            >
+              {error}
+            </motion.div>
+          )}
 
           {/* Billing toggle */}
           <div className="inline-flex border border-black/10 dark:border-white/10">
@@ -168,6 +255,7 @@ export default function PricingPage() {
             const price =
               billing === 'monthly' ? plan.monthlyPrice : plan.annualPrice;
             const period = billing === 'monthly' ? '/mo' : '/yr';
+            const isLoading = loadingPlan === plan.id;
 
             return (
               <motion.div
@@ -231,24 +319,26 @@ export default function PricingPage() {
 
                   {plan.id === 'studio' ? (
                     <Link href="/contact">
-                      <Button
-                        variant="outline"
-                        className="w-full"
-                      >
+                      <Button variant="outline" className="w-full">
                         {plan.cta}
                       </Button>
                     </Link>
                   ) : plan.id === 'free' ? (
                     <Link href="/register">
-                      <Button
-                        variant="secondary"
-                        className="w-full"
-                      >
+                      <Button variant="secondary" className="w-full">
                         {plan.cta}
                       </Button>
                     </Link>
                   ) : (
-                    <Button className="w-full">{plan.cta}</Button>
+                    <Button
+                      variant="accent"
+                      className="w-full"
+                      loading={isLoading}
+                      disabled={!!loadingPlan}
+                      onClick={() => handleCheckout(plan)}
+                    >
+                      {plan.cta}
+                    </Button>
                   )}
                 </Card>
               </motion.div>
@@ -260,7 +350,7 @@ export default function PricingPage() {
         <div className="text-center mt-16">
           <p className="text-[9px] font-mono uppercase tracking-[0.2em] text-neutral-400 dark:text-neutral-600">
             All prices in {STUDIO.currency.code}. Platform rental fee: 10% (Starter), 7%
-            (Pro), 5% (Studio).{' '}
+            (Pro), 5% (Studio). Payments processed securely via PayFast.{' '}
             <Link
               href="/contact"
               className="text-black dark:text-white underline underline-offset-2"
