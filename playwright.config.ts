@@ -17,6 +17,11 @@ export default defineConfig({
       name: 'chromium',
       use: { ...devices['Desktop Chrome'] },
     },
+    {
+      name: 'mobile',
+      use: { ...devices['iPhone 14'] },
+      testMatch: 'mobile.spec.ts',
+    },
   ],
   webServer: {
     command: 'npm run build && npm start',
