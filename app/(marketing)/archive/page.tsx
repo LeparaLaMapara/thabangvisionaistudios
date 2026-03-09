@@ -1,3 +1,5 @@
+export const revalidate = 60;
+
 import Link from 'next/link';
 import { getArchivedProductions } from '@/lib/supabase/queries/smartProductions';
 import { getArchivedRentals } from '@/lib/supabase/queries/smartRentals';

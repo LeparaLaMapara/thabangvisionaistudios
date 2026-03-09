@@ -2,7 +2,7 @@ import { notFound } from 'next/navigation';
 import { getRentalBySlug, getRelatedRentals } from '@/lib/supabase/queries/smartRentals';
 import RentalDetailView from './RentalDetailView';
 
-export const dynamic = 'force-dynamic';
+export const revalidate = 60;
 
 export default async function RentalDetailPage({
   params,

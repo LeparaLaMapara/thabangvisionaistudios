@@ -1,3 +1,5 @@
+export const revalidate = 60;
+
 import { ArrowRight } from 'lucide-react';
 import { getPublishedCareers } from '@/lib/supabase/queries/careers';
 import { STUDIO } from '@/lib/constants';

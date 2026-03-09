@@ -1,7 +1,7 @@
 import { getPublishedRentalsByCategory, getCommunityListingsByCategory } from '@/lib/supabase/queries/smartRentals';
 import RentalCategoryClient from './RentalCategoryClient';
 
-export const dynamic = 'force-dynamic';
+export const revalidate = 60;
 
 export default async function RentalCategoryPage({
   params,

@@ -1,7 +1,7 @@
 import { getPublishedRentals, getCommunityListings } from '@/lib/supabase/queries/smartRentals';
 import SmartRentalsClient from './SmartRentalsClient';
 
-export const dynamic = 'force-dynamic';
+export const revalidate = 60;
 
 export default async function SmartRentalsPage() {
   const [rentals, communityListings] = await Promise.all([

@@ -1,3 +1,5 @@
+export const revalidate = 60;
+
 import Link from 'next/link';
 import { ArrowUpRight } from 'lucide-react';
 import { getPublishedPress } from '@/lib/supabase/queries/press';

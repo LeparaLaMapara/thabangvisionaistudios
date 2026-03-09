@@ -1,5 +1,7 @@
+export const revalidate = 60;
+
 import { notFound } from 'next/navigation';
-import { getProfileById, getVerifiedProfiles } from '@/lib/supabase/queries/profiles';
+import { getProfileById } from '@/lib/supabase/queries/profiles';
 import { getPublishedProductions } from '@/lib/supabase/queries/smartProductions';
 import { getPublishedListings } from '@/lib/supabase/queries/marketplace';
 import { getReviewsForUser } from '@/lib/supabase/queries/creatorReviews';
@@ -49,9 +51,4 @@ export default async function CreatorProfilePage({ params }: Props) {
       reviews={reviews}
     />
   );
-}
-
-export async function generateStaticParams() {
-  const profiles = await getVerifiedProfiles();
-  return profiles.map((p) => ({ id: p.id }));
 }

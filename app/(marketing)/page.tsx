@@ -1,3 +1,5 @@
+export const revalidate = 60;
+
 import { getFeaturedProductions } from '@/lib/supabase/queries/smartProductions';
 import { getFeaturedRentals } from '@/lib/supabase/queries/smartRentals';
 import { getFeaturedPress } from '@/lib/supabase/queries/press';

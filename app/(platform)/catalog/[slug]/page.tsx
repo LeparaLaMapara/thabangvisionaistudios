@@ -1,5 +1,7 @@
+export const revalidate = 60;
+
 import { notFound } from 'next/navigation';
-import { getRentalBySlug, getPublishedRentals } from '@/lib/supabase/queries/smartRentals';
+import { getRentalBySlug } from '@/lib/supabase/queries/smartRentals';
 import CatalogDetailClient from './CatalogDetailClient';
 
 interface Props {
@@ -15,9 +17,4 @@ export default async function CatalogDetailPage({ params }: Props) {
   }
 
   return <CatalogDetailClient rental={rental} />;
-}
-
-export async function generateStaticParams() {
-  const rentals = await getPublishedRentals();
-  return rentals.map((r) => ({ slug: r.slug }));
 }

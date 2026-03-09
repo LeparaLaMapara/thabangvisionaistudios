@@ -1,3 +1,5 @@
+export const revalidate = 60;
+
 import { getPublishedProductions } from '@/lib/supabase/queries/smartProductions';
 import SmartProductionClient from './SmartProductionClient';
 
