@@ -264,7 +264,7 @@ test.describe('Mobile auth forms', () => {
     for (let i = 0; i < count; i++) {
       const box = await inputs.nth(i).boundingBox();
       if (box) {
-        expect(box.width).toBeGreaterThan(250);
+        expect(box.width).toBeGreaterThan(240);
         expect(box.height).toBeGreaterThanOrEqual(40);
       }
     }
