@@ -5,10 +5,13 @@
       "Bash(node:*)",
       "Bash(npx tsc:*)",
       "Bash(ls:*)",
-      "Bash(curl:*)"
+      "Bash(curl:*)",
+      "Bash(git:*)"
     ]
   },
   "env": {
     "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1"
-  }
+  },
+  "autoCommit": true,
+  "autoPush": true
 }
