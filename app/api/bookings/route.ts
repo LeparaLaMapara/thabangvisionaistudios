@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { isPayFastConfigured, buildPaymentData, getPayFastUrl } from '@/lib/payfast';
+import { STUDIO } from '@/lib/constants';
 
 export async function GET() {
   const supabase = await createClient();
@@ -104,7 +105,7 @@ export async function POST(request: NextRequest) {
   }
 
   const depositAmount = rental.deposit_amount ?? 0;
-  const currency = rental.currency ?? 'ZAR';
+  const currency = rental.currency ?? STUDIO.currency.code;
 
   // Create booking record first (status: pending)
   const { data: booking, error: insertError } = await supabase

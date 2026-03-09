@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import Link from 'next/link';
+import Image from 'next/image';
 import { Project } from '@/types/equipment';
 import { ChevronRight, X, ChevronLeft } from 'lucide-react';
 
@@ -32,7 +33,7 @@ export const FilterBar = ({
             <button
               key={type}
               onClick={() => {
-                onTypeChange(type as any);
+                onTypeChange(type as 'ALL' | 'FILM' | 'PHOTOGRAPHY');
                 onSubFilterChange(null);
               }}
               className={`text-xs font-mono tracking-widest uppercase transition-colors relative py-2 ${
@@ -45,7 +46,7 @@ export const FilterBar = ({
               {activeType === type && (
                 <motion.div
                   layoutId="activeTab"
-                  className="absolute bottom-0 left-0 right-0 h-[2px] bg-[#E2E8F0]"
+                  className="absolute bottom-0 left-0 right-0 h-[2px] bg-accent-gold"
                 />
               )}
             </button>
@@ -115,11 +116,12 @@ export const ProjectCard = ({ project, index }: { project: Project; index: numbe
           </div>
 
           {project.thumbnail ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
+            <Image
               src={project.thumbnail}
               alt={project.title}
-              className="w-full h-full object-cover transition-transform duration-700 ease-out group-hover:scale-105 filter grayscale-[0.2] group-hover:grayscale-0"
+              fill
+              sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+              className="object-cover transition-transform duration-700 ease-out group-hover:scale-105 filter grayscale-[0.2] group-hover:grayscale-0"
             />
           ) : (
             <div className="w-full h-full bg-neutral-200 dark:bg-neutral-800 flex items-center justify-center">
@@ -176,10 +178,12 @@ export const PhotographyGallery = ({ images }: { images: string[] }) => {
             className="break-inside-avoid relative group cursor-zoom-in"
             onClick={() => setSelectedImage(idx)}
           >
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
+            <Image
               src={src}
               alt={`Gallery ${idx}`}
+              width={800}
+              height={600}
+              sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
               className="w-full h-auto object-cover bg-neutral-100 dark:bg-neutral-900 hover:opacity-90 transition-opacity"
             />
             <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors" />
@@ -218,15 +222,23 @@ export const PhotographyGallery = ({ images }: { images: string[] }) => {
               <ChevronRight className="w-10 h-10" />
             </button>
 
-            <motion.img
+            {/* Lightbox uses unoptimized for full-res viewing */}
+            <motion.div
               key={selectedImage}
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               transition={{ duration: 0.2 }}
-              src={images[selectedImage]}
-              alt="Full screen"
-              className="max-h-[90vh] max-w-[90vw] object-contain shadow-2xl pointer-events-none select-none"
-            />
+              className="relative max-h-[90vh] max-w-[90vw]"
+            >
+              <Image
+                src={images[selectedImage]}
+                alt="Full screen"
+                width={1920}
+                height={1080}
+                unoptimized
+                className="max-h-[90vh] max-w-[90vw] object-contain shadow-2xl pointer-events-none select-none"
+              />
+            </motion.div>
 
             <div className="absolute bottom-8 left-0 w-full text-center text-white/40 text-xs font-mono tracking-widest">
                {selectedImage + 1} / {images.length}

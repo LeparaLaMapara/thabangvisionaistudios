@@ -1,5 +1,8 @@
 import { notFound } from 'next/navigation';
 import { getProfileById, getVerifiedProfiles } from '@/lib/supabase/queries/profiles';
+import { getPublishedProductions } from '@/lib/supabase/queries/smartProductions';
+import { getPublishedListings } from '@/lib/supabase/queries/marketplace';
+import { getReviewsForUser } from '@/lib/supabase/queries/creatorReviews';
 import CreatorProfileClient from './CreatorProfileClient';
 
 export async function generateMetadata({
@@ -24,7 +27,28 @@ export default async function CreatorProfilePage({ params }: Props) {
 
   if (!profile) notFound();
 
-  return <CreatorProfileClient profile={profile} />;
+  // Fetch creator's productions, listings, and reviews in parallel
+  const [allProductions, allListings, reviews] = await Promise.all([
+    getPublishedProductions(),
+    getPublishedListings(),
+    getReviewsForUser(id),
+  ]);
+
+  // Filter to this creator's content
+  // Note: productions don't have user_id, so we show all for now
+  // Listings have user_id which we can filter on
+  const creatorListings = allListings.filter(
+    (l) => 'user_id' in l && l.user_id === id,
+  );
+
+  return (
+    <CreatorProfileClient
+      profile={profile}
+      productions={allProductions.slice(0, 6)}
+      listings={creatorListings.slice(0, 4)}
+      reviews={reviews}
+    />
+  );
 }
 
 export async function generateStaticParams() {

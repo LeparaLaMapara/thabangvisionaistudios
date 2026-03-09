@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import { LogoutButton } from '@/components/admin/LogoutButton';
+import { STUDIO } from '@/lib/constants';
 
 /**
  * Auth guard for all /admin/* routes.
@@ -30,7 +31,7 @@ export default async function AdminLayout({
           {/* Left: brand + nav */}
           <div className="flex items-center gap-6">
             <span className="text-[10px] font-mono font-bold uppercase tracking-widest text-white select-none">
-              THABANGVISION
+              {STUDIO.shortName.toUpperCase()}
             </span>
             <span className="text-white/20 text-xs">|</span>
             <nav className="flex items-center gap-5">

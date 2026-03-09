@@ -45,6 +45,30 @@ export async function getPublishedPress(): Promise<PressArticle[]> {
 }
 
 /**
+ * Returns featured published press articles, limited and ordered by created_at DESC.
+ * Used on the home page "Latest Work" carousel.
+ */
+export async function getFeaturedPress(limit = 2): Promise<PressArticle[]> {
+  const supabase = await createClient();
+
+  const { data, error } = await supabase
+    .from('press')
+    .select('*')
+    .eq('is_published', true)
+    .eq('is_featured', true)
+    .is('deleted_at', null)
+    .order('created_at', { ascending: false })
+    .limit(limit);
+
+  if (error) {
+    console.error('[getFeaturedPress]', error.message);
+    return [];
+  }
+
+  return (data as PressArticle[]) ?? [];
+}
+
+/**
  * Returns a single published press article by slug, or null if not found.
  * PGRST116 = "no rows" — treated as a normal 404, not an error.
  */

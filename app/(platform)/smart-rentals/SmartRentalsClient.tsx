@@ -137,7 +137,7 @@ export default function SmartRentalsClient({ rentals }: { rentals: SmartRental[]
             /* Empty state — no published rentals yet */
             <div className="py-32 text-center">
               <p className="text-neutral-500 dark:text-neutral-600 font-mono text-sm uppercase tracking-widest">
-                Equipment catalogue coming soon.
+                Professional Equipment for Every Production
               </p>
             </div>
           ) : (

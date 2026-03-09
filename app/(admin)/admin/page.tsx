@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
+import { STUDIO } from '@/lib/constants';
 import {
   Briefcase,
   Clapperboard,
@@ -226,7 +227,7 @@ export default async function AdminDashboardPage() {
       <div className="border-b border-white/5 pb-8 flex items-end justify-between">
         <div>
           <p className="text-[10px] font-mono uppercase tracking-[0.3em] text-neutral-600 mb-2">
-            Thabangvision
+            {STUDIO.shortName}
           </p>
           <h1 className="text-2xl font-display font-medium uppercase text-white tracking-wide">
             Studio Control Center

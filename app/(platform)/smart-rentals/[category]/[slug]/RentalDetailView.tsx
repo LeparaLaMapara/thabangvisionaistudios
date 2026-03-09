@@ -2,10 +2,12 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { motion } from 'framer-motion';
 import { ArrowLeft, Check, ChevronRight } from 'lucide-react';
 import type { SmartRental } from '@/lib/supabase/queries/smartRentals';
 import { BookingWidget } from '@/components/booking/BookingWidget';
+import { Badge } from '@/components/ui/Badge';
 
 // ─── Category label map ───────────────────────────────────────────────────────
 
@@ -112,59 +114,159 @@ export default function RentalDetailView({
         </div>
       </div>
 
+      {/* ── Hero section — catalog-style gradient overlay + zoom entrance ── */}
+      {rental.thumbnail_url && (
+        <section className="relative h-[60vh] md:h-[70vh] w-full overflow-hidden">
+          <motion.div
+            initial={{ scale: 1.1, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            transition={{ duration: 1.5, ease: 'easeOut' }}
+            className="absolute inset-0"
+          >
+            <div className="absolute inset-0 bg-gradient-to-t from-white via-white/30 to-transparent dark:from-[#050505] dark:via-[#050505]/30 dark:to-transparent z-10" />
+            <Image
+              src={rental.thumbnail_url}
+              alt={rental.title}
+              fill
+              className="object-cover"
+              priority
+            />
+          </motion.div>
+
+          {/* Availability overlay badge */}
+          <div className="absolute top-6 left-6 z-20">
+            {rental.is_available ? (
+              <div className="flex items-center gap-1.5 bg-green-500/10 backdrop-blur-md px-3 py-1.5 rounded-full border border-green-500/20">
+                <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
+                <span className="text-[9px] font-mono font-bold text-green-600 dark:text-green-400 uppercase tracking-widest">
+                  Available
+                </span>
+              </div>
+            ) : (
+              <span className="bg-red-500 text-white text-[9px] font-mono font-bold px-3 py-1.5 uppercase tracking-widest">
+                Unavailable
+              </span>
+            )}
+          </div>
+
+          {/* Staggered text reveals over hero */}
+          <div className="absolute bottom-0 left-0 w-full z-20 pb-16 pt-32 bg-gradient-to-t from-white to-transparent dark:from-[#050505] dark:to-transparent">
+            <div className="container mx-auto px-6">
+              <motion.span
+                initial={{ y: 20, opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+                transition={{ delay: 0.5 }}
+                className="inline-block border border-black/10 dark:border-white/20 bg-white/50 dark:bg-black/50 backdrop-blur-sm px-3 py-1 text-[10px] font-bold tracking-widest uppercase mb-4 text-neutral-600 dark:text-neutral-300"
+              >
+                {categoryLabel}
+                {rental.sub_category ? ` / ${rental.sub_category}` : ''}
+              </motion.span>
+              <motion.h1
+                initial={{ y: 20, opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+                transition={{ delay: 0.7 }}
+                className="text-4xl md:text-7xl font-display font-black tracking-tighter uppercase mb-4 text-black dark:text-white"
+              >
+                {rental.title}
+              </motion.h1>
+              {(rental.brand || rental.model) && (
+                <motion.p
+                  initial={{ y: 20, opacity: 0 }}
+                  animate={{ y: 0, opacity: 1 }}
+                  transition={{ delay: 0.9 }}
+                  className="text-sm md:text-base text-neutral-600 dark:text-neutral-400 font-mono uppercase tracking-widest"
+                >
+                  {[rental.brand, rental.model].filter(Boolean).join(' ')}
+                </motion.p>
+              )}
+              {rental.description && (
+                <motion.p
+                  initial={{ y: 20, opacity: 0 }}
+                  animate={{ y: 0, opacity: 1 }}
+                  transition={{ delay: 1.1 }}
+                  className="text-base md:text-lg text-neutral-600 dark:text-neutral-400 max-w-2xl font-light leading-relaxed mt-4"
+                >
+                  {rental.description}
+                </motion.p>
+              )}
+            </div>
+          </div>
+        </section>
+      )}
+
       {/* ── Main two-column layout ── */}
       <div className="container mx-auto px-6 py-12">
         <div className="grid lg:grid-cols-[1fr_420px] gap-12 xl:gap-20 items-start">
 
-          {/* ── LEFT: Media ── */}
+          {/* ── LEFT: Media gallery ── */}
           <div>
-            {/* Hero media — image or video */}
-            <motion.div
-              key={activeMedia.type === 'video' ? '__video__' : activeMedia.src}
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ duration: 0.3 }}
-              className="relative aspect-[4/3] overflow-hidden bg-neutral-100 dark:bg-neutral-900 mb-4"
-            >
-              {activeMedia.type === 'video' && videoEmbedUrl ? (
-                <iframe
-                  src={videoEmbedUrl}
-                  className="absolute inset-0 w-full h-full"
-                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                  allowFullScreen
-                  title={`${rental.title} video`}
-                />
-              ) : activeMedia.type === 'image' ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={activeMedia.src}
-                  alt={rental.title}
-                  className="w-full h-full object-cover"
-                />
-              ) : (
-                <div className="w-full h-full flex items-center justify-center">
-                  <span className="text-[10px] font-mono text-neutral-500 uppercase tracking-widest">
-                    No image
-                  </span>
-                </div>
-              )}
-
-              {/* Availability overlay badge */}
-              <div className="absolute top-4 left-4">
-                {rental.is_available ? (
-                  <div className="flex items-center gap-1.5 bg-green-500/10 backdrop-blur-md px-3 py-1.5 rounded-full border border-green-500/20">
-                    <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
-                    <span className="text-[9px] font-mono font-bold text-green-600 dark:text-green-400 uppercase tracking-widest">
-                      Available
+            {/* Hero media — image or video (shown when no thumbnail for hero) */}
+            {!rental.thumbnail_url && (
+              <motion.div
+                key={activeMedia.type === 'video' ? '__video__' : activeMedia.type === 'image' ? activeMedia.src : ''}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ duration: 0.3 }}
+                className="relative aspect-[4/3] overflow-hidden bg-neutral-100 dark:bg-neutral-900 mb-4"
+              >
+                {activeMedia.type === 'video' && videoEmbedUrl ? (
+                  <iframe
+                    src={videoEmbedUrl}
+                    className="absolute inset-0 w-full h-full"
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                    allowFullScreen
+                    title={`${rental.title} video`}
+                  />
+                ) : activeMedia.type === 'image' ? (
+                  <Image
+                    src={activeMedia.src}
+                    alt={rental.title}
+                    fill
+                    className="object-cover"
+                  />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center">
+                    <span className="text-[10px] font-mono text-neutral-500 uppercase tracking-widest">
+                      No image
                     </span>
                   </div>
-                ) : (
-                  <span className="bg-red-500 text-white text-[9px] font-mono font-bold px-3 py-1.5 uppercase tracking-widest">
-                    Unavailable
-                  </span>
                 )}
-              </div>
-            </motion.div>
+              </motion.div>
+            )}
+
+            {/* Gallery — displayed when hero is active */}
+            {rental.thumbnail_url && (
+              <motion.div
+                key={activeMedia.type === 'video' ? '__video__' : activeMedia.type === 'image' ? activeMedia.src : ''}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ duration: 0.3 }}
+                className="relative aspect-[4/3] overflow-hidden bg-neutral-100 dark:bg-neutral-900 mb-4"
+              >
+                {activeMedia.type === 'video' && videoEmbedUrl ? (
+                  <iframe
+                    src={videoEmbedUrl}
+                    className="absolute inset-0 w-full h-full"
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                    allowFullScreen
+                    title={`${rental.title} video`}
+                  />
+                ) : activeMedia.type === 'image' ? (
+                  <Image
+                    src={activeMedia.src}
+                    alt={rental.title}
+                    fill
+                    className="object-cover"
+                  />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center">
+                    <span className="text-[10px] font-mono text-neutral-500 uppercase tracking-widest">
+                      No image
+                    </span>
+                  </div>
+                )}
+              </motion.div>
+            )}
 
             {/* Thumbnail strip — images + optional video thumb */}
             {(allImages.length > 1 || !!videoEmbedUrl) && (
@@ -174,17 +276,18 @@ export default function RentalDetailView({
                   <button
                     key={img.id}
                     onClick={() => setActiveMedia({ type: 'image', src: img.url })}
-                    className={`flex-shrink-0 w-20 h-20 overflow-hidden border-2 transition-all duration-200 ${
+                    className={`flex-shrink-0 w-20 h-20 overflow-hidden border-2 transition-all duration-200 relative ${
                       activeMedia.type === 'image' && activeMedia.src === img.url
-                        ? 'border-black dark:border-white'
+                        ? 'border-accent-gold'
                         : 'border-transparent hover:border-black/30 dark:hover:border-white/30'
                     }`}
                   >
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
+                    <Image
                       src={img.url}
                       alt=""
-                      className="w-full h-full object-cover"
+                      fill
+                      sizes="80px"
+                      className="object-cover"
                     />
                   </button>
                 ))}
@@ -196,17 +299,18 @@ export default function RentalDetailView({
                     aria-label="Play product video"
                     className={`flex-shrink-0 w-20 h-20 overflow-hidden border-2 transition-all duration-200 relative bg-neutral-900 ${
                       activeMedia.type === 'video'
-                        ? 'border-black dark:border-white'
+                        ? 'border-accent-gold'
                         : 'border-transparent hover:border-black/30 dark:hover:border-white/30'
                     }`}
                   >
                     {/* Dimmed thumbnail behind play icon */}
                     {rental.thumbnail_url && (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img
+                      <Image
                         src={rental.thumbnail_url}
                         alt=""
-                        className="absolute inset-0 w-full h-full object-cover opacity-40"
+                        fill
+                        sizes="80px"
+                        className="object-cover opacity-40"
                       />
                     )}
                     <div className="absolute inset-0 flex items-center justify-center">
@@ -224,32 +328,63 @@ export default function RentalDetailView({
                 )}
               </div>
             )}
+
+            {/* ── Full-width: Technical Specs (moved under gallery on left) ── */}
+            {hasMetadata && (
+              <div className="mt-12 pt-12 border-t border-black/5 dark:border-white/5">
+                <h2 className="text-2xl font-bold tracking-tight mb-8 border-l-2 border-accent-gold pl-4 uppercase">
+                  Technical Specifications
+                </h2>
+                <dl className="grid grid-cols-1 sm:grid-cols-2 gap-px bg-neutral-200 dark:bg-white/10 border border-neutral-200 dark:border-white/10 max-w-3xl">
+                  {Object.entries(rental.metadata!).map(([key, val]) => (
+                    <div
+                      key={key}
+                      className="flex flex-col gap-1 p-4 bg-white dark:bg-[#0A0A0B]"
+                    >
+                      <dt className="text-[10px] font-mono uppercase tracking-widest text-neutral-500">
+                        {humanizeKey(key)}
+                      </dt>
+                      <dd className="text-sm font-medium text-black dark:text-white">
+                        {val}
+                      </dd>
+                    </div>
+                  ))}
+                </dl>
+              </div>
+            )}
           </div>
 
           {/* ── RIGHT: Product info ── */}
           <div className="lg:sticky lg:top-28 lg:self-start">
 
-            {/* Rental category label */}
-            <p className="text-[10px] font-mono uppercase tracking-widest text-neutral-500 mb-3">
-              {categoryLabel}
-            </p>
-
-            {/* Title */}
-            <h1 className="text-3xl md:text-4xl font-display font-medium uppercase tracking-tight leading-tight text-black dark:text-white mb-2">
-              {rental.title}
-            </h1>
-
-            {/* Brand + Model */}
-            {(rental.brand || rental.model) && (
-              <div className="mb-6">
-                {rental.brand && (
-                  <p className="text-xs font-mono uppercase tracking-widest text-neutral-500">
-                    {rental.brand}
-                  </p>
+            {/* Rental category label (shown when no hero thumbnail) */}
+            {!rental.thumbnail_url && (
+              <>
+                <p className="text-[10px] font-mono uppercase tracking-widest text-neutral-500 mb-3">
+                  {categoryLabel}
+                </p>
+                <h1 className="text-3xl md:text-4xl font-display font-medium uppercase tracking-tight leading-tight text-black dark:text-white mb-2">
+                  {rental.title}
+                </h1>
+                {(rental.brand || rental.model) && (
+                  <div className="mb-6">
+                    {rental.brand && (
+                      <p className="text-xs font-mono uppercase tracking-widest text-neutral-500">
+                        {rental.brand}
+                      </p>
+                    )}
+                    {rental.model && (
+                      <p className="text-xs font-mono text-neutral-500">{rental.model}</p>
+                    )}
+                  </div>
                 )}
-                {rental.model && (
-                  <p className="text-xs font-mono text-neutral-500">{rental.model}</p>
-                )}
+              </>
+            )}
+
+            {/* Featured badge */}
+            {rental.is_featured && (
+              <div className="mb-4">
+                <Badge variant="featured">Featured</Badge>
               </div>
             )}
 
@@ -261,7 +396,7 @@ export default function RentalDetailView({
                     <span className="text-[10px] font-mono uppercase tracking-widest text-neutral-500">
                       Daily Rate
                     </span>
-                    <span className="text-2xl font-bold text-black dark:text-white">
+                    <span className="text-2xl font-bold text-accent-gold">
                       {fmt(rental.price_per_day)}
                     </span>
                   </div>
@@ -283,8 +418,8 @@ export default function RentalDetailView({
               </p>
             )}
 
-            {/* Description — full text, above tabs */}
-            {rental.description && (
+            {/* Description — only when no hero (hero shows description) */}
+            {!rental.thumbnail_url && rental.description && (
               <div className="mb-6 pb-6 border-b border-black/5 dark:border-white/5">
                 <p className="text-sm text-neutral-600 dark:text-neutral-400 leading-relaxed whitespace-pre-line">
                   {rental.description}
@@ -302,7 +437,7 @@ export default function RentalDetailView({
                       onClick={() => setActiveTab('features')}
                       className={`text-[10px] font-mono font-bold uppercase tracking-widest px-4 py-3 border-b-2 -mb-px transition-colors ${
                         activeTab === 'features'
-                          ? 'border-black dark:border-white text-black dark:text-white'
+                          ? 'border-accent-gold text-black dark:text-white'
                           : 'border-transparent text-neutral-400 hover:text-black dark:hover:text-white'
                       }`}
                     >
@@ -314,7 +449,7 @@ export default function RentalDetailView({
                       onClick={() => setActiveTab('includes')}
                       className={`text-[10px] font-mono font-bold uppercase tracking-widest px-4 py-3 border-b-2 -mb-px transition-colors ${
                         activeTab === 'includes'
-                          ? 'border-black dark:border-white text-black dark:text-white'
+                          ? 'border-accent-gold text-black dark:text-white'
                           : 'border-transparent text-neutral-400 hover:text-black dark:hover:text-white'
                       }`}
                     >
@@ -325,7 +460,7 @@ export default function RentalDetailView({
                     onClick={() => setActiveTab('renting')}
                     className={`text-[10px] font-mono font-bold uppercase tracking-widest px-4 py-3 border-b-2 -mb-px transition-colors ${
                       activeTab === 'renting'
-                        ? 'border-black dark:border-white text-black dark:text-white'
+                        ? 'border-accent-gold text-black dark:text-white'
                         : 'border-transparent text-neutral-400 hover:text-black dark:hover:text-white'
                     }`}
                   >
@@ -344,7 +479,7 @@ export default function RentalDetailView({
                     >
                       {rental.features!.map((feat, i) => (
                         <li key={i} className="flex items-start gap-3">
-                          <Check className="w-3.5 h-3.5 text-green-500 flex-shrink-0 mt-0.5" />
+                          <Check className="w-3.5 h-3.5 text-accent-gold flex-shrink-0 mt-0.5" />
                           <span className="text-sm text-neutral-700 dark:text-neutral-300 leading-snug">
                             {feat}
                           </span>
@@ -401,35 +536,11 @@ export default function RentalDetailView({
           </div>
         </div>
 
-        {/* ── Full-width: Technical Specs ── */}
-        {hasMetadata && (
-          <div className="mt-12 pt-12 border-t border-black/5 dark:border-white/5">
-            <h2 className="text-xs font-mono font-bold uppercase tracking-widest text-neutral-500 mb-8">
-              Technical Specifications
-            </h2>
-            <dl className="grid grid-cols-1 sm:grid-cols-2 gap-px bg-neutral-200 dark:bg-white/10 border border-neutral-200 dark:border-white/10 max-w-3xl">
-              {Object.entries(rental.metadata!).map(([key, val]) => (
-                <div
-                  key={key}
-                  className="flex flex-col gap-1 p-4 bg-white dark:bg-[#0A0A0B]"
-                >
-                  <dt className="text-[10px] font-mono uppercase tracking-widest text-neutral-500">
-                    {humanizeKey(key)}
-                  </dt>
-                  <dd className="text-sm font-medium text-black dark:text-white">
-                    {val}
-                  </dd>
-                </div>
-              ))}
-            </dl>
-          </div>
-        )}
-
         {/* ── Back link ── */}
         <div className="mt-16 pt-8 border-t border-black/5 dark:border-white/5">
           <Link
             href={`/smart-rentals/${category}`}
-            className="inline-flex items-center gap-2 text-[10px] font-mono font-bold uppercase tracking-widest text-neutral-500 hover:text-black dark:hover:text-white transition-colors"
+            className="inline-flex items-center gap-2 text-[10px] font-mono font-bold uppercase tracking-widest text-neutral-500 hover:text-accent-gold transition-colors"
           >
             <ArrowLeft className="w-3 h-3" />
             Back to {categoryLabel}

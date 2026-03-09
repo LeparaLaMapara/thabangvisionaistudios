@@ -1,17 +1,17 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { Calendar, Search, Eye, CheckCircle, XCircle } from 'lucide-react';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
 import { Tabs } from '@/components/ui/Tabs';
-import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Pagination } from '@/components/ui/Pagination';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { Modal } from '@/components/ui/Modal';
 import type { BookingStatus, EquipmentBooking } from '@/types/booking';
 
 // ─── Extended booking type with joined rental + user info ────────────────────
@@ -56,6 +56,17 @@ export default function AdminBookingsPage() {
   const [page, setPage] = useState(1);
   const [bookings, setBookings] = useState<AdminBooking[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // Detail modal
+  const [detailBooking, setDetailBooking] = useState<AdminBooking | null>(null);
+
+  // Confirmation modal
+  const [confirmAction, setConfirmAction] = useState<{
+    id: string;
+    action: 'confirm' | 'cancel';
+    title: string;
+  } | null>(null);
+  const [confirmLoading, setConfirmLoading] = useState(false);
 
   const fetchBookings = () => {
     fetch('/api/bookings')
@@ -111,8 +122,14 @@ export default function AdminBookingsPage() {
     }
   };
 
-  const handleConfirm = (id: string) => updateBookingStatus(id, 'confirmed');
-  const handleCancel = (id: string) => updateBookingStatus(id, 'cancelled');
+  const handleConfirmAction = useCallback(async () => {
+    if (!confirmAction) return;
+    setConfirmLoading(true);
+    const status = confirmAction.action === 'confirm' ? 'confirmed' : 'cancelled';
+    await updateBookingStatus(confirmAction.id, status);
+    setConfirmLoading(false);
+    setConfirmAction(null);
+  }, [confirmAction]);
 
   if (loading) {
     return <LoadingSpinner label="Loading bookings..." className="py-20" />;
@@ -250,7 +267,12 @@ export default function AdminBookingsPage() {
 
                   {/* Actions */}
                   <div className="flex items-center gap-1">
-                    <Button variant="ghost" size="sm" title="View details">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      title="View details"
+                      onClick={() => setDetailBooking(booking)}
+                    >
                       <Eye className="w-3 h-3" />
                     </Button>
                     {booking.status === 'pending' && (
@@ -259,7 +281,13 @@ export default function AdminBookingsPage() {
                           variant="ghost"
                           size="sm"
                           title="Confirm"
-                          onClick={() => handleConfirm(booking.id)}
+                          onClick={() =>
+                            setConfirmAction({
+                              id: booking.id,
+                              action: 'confirm',
+                              title: booking.rental_title,
+                            })
+                          }
                         >
                           <CheckCircle className="w-3 h-3 text-emerald-500" />
                         </Button>
@@ -267,7 +295,13 @@ export default function AdminBookingsPage() {
                           variant="ghost"
                           size="sm"
                           title="Cancel"
-                          onClick={() => handleCancel(booking.id)}
+                          onClick={() =>
+                            setConfirmAction({
+                              id: booking.id,
+                              action: 'cancel',
+                              title: booking.rental_title,
+                            })
+                          }
                         >
                           <XCircle className="w-3 h-3 text-red-500" />
                         </Button>
@@ -287,6 +321,209 @@ export default function AdminBookingsPage() {
           </>
         )}
       </motion.div>
+
+      {/* ── Booking Detail Modal ── */}
+      <Modal
+        isOpen={!!detailBooking}
+        onClose={() => setDetailBooking(null)}
+        title="Booking Details"
+        size="lg"
+      >
+        {detailBooking && (
+          <div className="space-y-6">
+            {/* Equipment */}
+            <div>
+              <h4 className="text-[10px] font-mono font-bold uppercase tracking-widest text-neutral-500 mb-2">
+                Equipment
+              </h4>
+              <p className="text-sm font-medium text-black dark:text-white">
+                {detailBooking.rental_title}
+              </p>
+              <p className="text-[10px] font-mono text-neutral-500 uppercase tracking-widest">
+                {detailBooking.rental_category}
+              </p>
+            </div>
+
+            {/* Customer */}
+            <div>
+              <h4 className="text-[10px] font-mono font-bold uppercase tracking-widest text-neutral-500 mb-2">
+                Customer
+              </h4>
+              <p className="text-sm text-black dark:text-white">
+                {detailBooking.user_name ?? 'Unknown'}
+              </p>
+              <p className="text-xs font-mono text-neutral-500">
+                {detailBooking.user_email}
+              </p>
+            </div>
+
+            {/* Dates */}
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <h4 className="text-[10px] font-mono font-bold uppercase tracking-widest text-neutral-500 mb-2">
+                  Start Date
+                </h4>
+                <p className="text-sm font-mono text-black dark:text-white">
+                  {new Date(detailBooking.start_date).toLocaleDateString('en-ZA', {
+                    year: 'numeric',
+                    month: 'long',
+                    day: 'numeric',
+                  })}
+                </p>
+              </div>
+              <div>
+                <h4 className="text-[10px] font-mono font-bold uppercase tracking-widest text-neutral-500 mb-2">
+                  End Date
+                </h4>
+                <p className="text-sm font-mono text-black dark:text-white">
+                  {new Date(detailBooking.end_date).toLocaleDateString('en-ZA', {
+                    year: 'numeric',
+                    month: 'long',
+                    day: 'numeric',
+                  })}
+                </p>
+              </div>
+            </div>
+
+            {/* Payment */}
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <h4 className="text-[10px] font-mono font-bold uppercase tracking-widest text-neutral-500 mb-2">
+                  Total Price
+                </h4>
+                <p className="text-lg font-mono font-bold text-black dark:text-white">
+                  {detailBooking.currency} {detailBooking.total_price.toLocaleString()}
+                </p>
+              </div>
+              <div>
+                <h4 className="text-[10px] font-mono font-bold uppercase tracking-widest text-neutral-500 mb-2">
+                  Deposit
+                </h4>
+                <p className="text-sm font-mono text-black dark:text-white">
+                  {detailBooking.currency} {detailBooking.deposit_amount.toLocaleString()}
+                </p>
+              </div>
+            </div>
+
+            {/* Status */}
+            <div>
+              <h4 className="text-[10px] font-mono font-bold uppercase tracking-widest text-neutral-500 mb-2">
+                Status
+              </h4>
+              <Badge variant={STATUS_VARIANT[detailBooking.status]}>
+                {detailBooking.status}
+              </Badge>
+            </div>
+
+            {/* PayFast ID */}
+            {detailBooking.payfast_payment_id && (
+              <div>
+                <h4 className="text-[10px] font-mono font-bold uppercase tracking-widest text-neutral-500 mb-2">
+                  PayFast Payment ID
+                </h4>
+                <p className="text-xs font-mono text-neutral-400 break-all">
+                  {detailBooking.payfast_payment_id}
+                </p>
+              </div>
+            )}
+
+            {/* Notes */}
+            {detailBooking.notes && (
+              <div>
+                <h4 className="text-[10px] font-mono font-bold uppercase tracking-widest text-neutral-500 mb-2">
+                  Notes
+                </h4>
+                <p className="text-sm text-neutral-600 dark:text-neutral-400 leading-relaxed whitespace-pre-wrap">
+                  {detailBooking.notes}
+                </p>
+              </div>
+            )}
+
+            {/* Actions */}
+            {detailBooking.status === 'pending' && (
+              <div className="flex gap-3 pt-4 border-t border-black/10 dark:border-white/10">
+                <button
+                  onClick={() => {
+                    setDetailBooking(null);
+                    setConfirmAction({
+                      id: detailBooking.id,
+                      action: 'confirm',
+                      title: detailBooking.rental_title,
+                    });
+                  }}
+                  className="flex-1 bg-emerald-600 text-white py-2.5 text-[10px] font-mono font-bold uppercase tracking-widest hover:bg-emerald-700 transition-colors flex items-center justify-center gap-2"
+                >
+                  <CheckCircle className="w-3.5 h-3.5" />
+                  Confirm Booking
+                </button>
+                <button
+                  onClick={() => {
+                    setDetailBooking(null);
+                    setConfirmAction({
+                      id: detailBooking.id,
+                      action: 'cancel',
+                      title: detailBooking.rental_title,
+                    });
+                  }}
+                  className="flex-1 bg-red-600 text-white py-2.5 text-[10px] font-mono font-bold uppercase tracking-widest hover:bg-red-700 transition-colors flex items-center justify-center gap-2"
+                >
+                  <XCircle className="w-3.5 h-3.5" />
+                  Cancel Booking
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+      </Modal>
+
+      {/* ── Confirmation Modal ── */}
+      <Modal
+        isOpen={!!confirmAction}
+        onClose={() => setConfirmAction(null)}
+        title={
+          confirmAction?.action === 'confirm'
+            ? 'Confirm Booking'
+            : 'Cancel Booking'
+        }
+        size="sm"
+      >
+        {confirmAction && (
+          <div className="space-y-6">
+            <p className="text-sm text-neutral-600 dark:text-neutral-400 leading-relaxed">
+              {confirmAction.action === 'confirm'
+                ? `Are you sure you want to confirm the booking for "${confirmAction.title}"?`
+                : `Are you sure you want to cancel the booking for "${confirmAction.title}"? This action cannot be undone.`}
+            </p>
+
+            <div className="flex gap-3">
+              <button
+                onClick={() => setConfirmAction(null)}
+                disabled={confirmLoading}
+                className="flex-1 border border-black/10 dark:border-white/10 text-black dark:text-white py-2.5 text-[10px] font-mono font-bold uppercase tracking-widest hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors disabled:opacity-40"
+              >
+                Go Back
+              </button>
+              <button
+                onClick={handleConfirmAction}
+                disabled={confirmLoading}
+                className={`flex-1 text-white py-2.5 text-[10px] font-mono font-bold uppercase tracking-widest transition-colors disabled:opacity-40 flex items-center justify-center gap-2 ${
+                  confirmAction.action === 'confirm'
+                    ? 'bg-emerald-600 hover:bg-emerald-700'
+                    : 'bg-red-600 hover:bg-red-700'
+                }`}
+              >
+                {confirmLoading ? (
+                  <span className="w-3.5 h-3.5 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+                ) : confirmAction.action === 'confirm' ? (
+                  'Confirm'
+                ) : (
+                  'Cancel Booking'
+                )}
+              </button>
+            </div>
+          </div>
+        )}
+      </Modal>
     </div>
   );
 }

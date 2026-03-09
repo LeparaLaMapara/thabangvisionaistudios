@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { uploadFile, type CloudinaryAsset } from '@/lib/cloudinary/upload';
+import { STUDIO } from '@/lib/constants';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -92,7 +93,7 @@ const EMPTY_FORM: Form = {
   price_per_day: '',
   price_per_week: '',
   deposit_amount: '',
-  currency: 'ZAR',
+  currency: STUDIO.currency.code,
   thumbnail_url: '',
   cover_public_id: '',
   gallery: [],
@@ -217,7 +218,7 @@ function formToPayload(f: Form) {
     price_per_day:   parseNum(f.price_per_day),
     price_per_week:  parseNum(f.price_per_week),
     deposit_amount:  parseNum(f.deposit_amount),
-    currency:        f.currency               || 'ZAR',
+    currency:        f.currency               || STUDIO.currency.code,
     thumbnail_url:   f.thumbnail_url          || null,
     cover_public_id: f.cover_public_id        || null,
     gallery:         f.gallery.length > 0 ? f.gallery : [],
@@ -264,7 +265,7 @@ function rentalToForm(r: Rental): Form {
     price_per_day:   r.price_per_day   != null ? String(r.price_per_day)  : '',
     price_per_week:  r.price_per_week  != null ? String(r.price_per_week) : '',
     deposit_amount:  r.deposit_amount  != null ? String(r.deposit_amount) : '',
-    currency:        r.currency        || 'ZAR',
+    currency:        r.currency        || STUDIO.currency.code,
     thumbnail_url:   r.thumbnail_url   ?? '',
     cover_public_id: r.cover_public_id ?? '',
     gallery:         r.gallery         ?? [],

@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
 import { createClient } from '@/lib/supabase/client';
+import { STUDIO } from '@/lib/constants';
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -13,6 +14,7 @@ export default function RegisterPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [agreedToTerms, setAgreedToTerms] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [checking, setChecking] = useState(true);
@@ -32,13 +34,18 @@ export default function RegisterPage() {
     e.preventDefault();
     setError(null);
 
+    if (!agreedToTerms) {
+      setError('You must agree to the Terms of Service and Privacy Policy.');
+      return;
+    }
+
     if (password !== confirmPassword) {
       setError('Passwords do not match.');
       return;
     }
 
-    if (password.length < 6) {
-      setError('Password must be at least 6 characters.');
+    if (password.length < STUDIO.platform.minPasswordLength) {
+      setError(`Password must be at least ${STUDIO.platform.minPasswordLength} characters.`);
       return;
     }
 
@@ -91,7 +98,7 @@ export default function RegisterPage() {
         {/* Header */}
         <div className="mb-10">
           <p className="text-[9px] font-mono uppercase tracking-[0.2em] text-neutral-400 dark:text-neutral-600 mb-3">
-            THABANGVISION
+            {STUDIO.shortName.toUpperCase()}
           </p>
           <h1 className="text-3xl font-display font-medium uppercase tracking-tight text-black dark:text-white">
             Create Account
@@ -156,7 +163,7 @@ export default function RegisterPage() {
                 onChange={e => setPassword(e.target.value)}
                 required
                 autoComplete="new-password"
-                placeholder="Min 6 characters"
+                placeholder={`Min ${STUDIO.platform.minPasswordLength} characters`}
                 className="w-full bg-white dark:bg-neutral-900 border border-black/10 dark:border-white/10 text-black dark:text-white px-4 py-3 text-sm font-mono placeholder:text-neutral-300 dark:placeholder:text-neutral-700 focus:outline-none focus:border-black dark:focus:border-white transition-colors"
               />
             </div>
@@ -179,6 +186,34 @@ export default function RegisterPage() {
                 placeholder="Repeat password"
                 className="w-full bg-white dark:bg-neutral-900 border border-black/10 dark:border-white/10 text-black dark:text-white px-4 py-3 text-sm font-mono placeholder:text-neutral-300 dark:placeholder:text-neutral-700 focus:outline-none focus:border-black dark:focus:border-white transition-colors"
               />
+            </div>
+
+            {/* Terms checkbox */}
+            <div>
+              <label className="flex items-start gap-3 cursor-pointer group">
+                <input
+                  type="checkbox"
+                  checked={agreedToTerms}
+                  onChange={(e) => setAgreedToTerms(e.target.checked)}
+                  className="mt-0.5 w-4 h-4 border border-black/20 dark:border-white/20 bg-white dark:bg-neutral-900 accent-black dark:accent-white cursor-pointer"
+                />
+                <span className="text-xs font-mono text-neutral-500 leading-relaxed">
+                  I agree to the{' '}
+                  <Link
+                    href="/legal"
+                    className="text-black dark:text-white underline underline-offset-2 hover:opacity-70 transition-opacity"
+                  >
+                    Terms of Service
+                  </Link>{' '}
+                  and{' '}
+                  <Link
+                    href="/privacy"
+                    className="text-black dark:text-white underline underline-offset-2 hover:opacity-70 transition-opacity"
+                  >
+                    Privacy Policy
+                  </Link>
+                </span>
+              </label>
             </div>
 
             {/* Error */}

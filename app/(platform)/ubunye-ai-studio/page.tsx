@@ -1,8 +1,8 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-import { Cpu, Wifi, Zap, Database, FlaskConical, ArrowRight, Layers, Box, ArrowUpRight } from 'lucide-react';
+import { Cpu, Wifi, Zap, Database, FlaskConical, ArrowRight, Layers, Box, ArrowUpRight, AlertTriangle, CheckCircle, Loader2 } from 'lucide-react';
 import Link from 'next/link';
 
 const SUB_CAPABILITIES = [
@@ -59,6 +59,10 @@ const SUB_CAPABILITIES = [
 ];
 
 export default function UbunyeAIPage() {
+  const [waitlistEmail, setWaitlistEmail] = useState('');
+  const [waitlistStatus, setWaitlistStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
+  const [waitlistMessage, setWaitlistMessage] = useState('');
+
   useEffect(() => {
     const hash = window.location.hash;
     if (hash) {
@@ -71,11 +75,42 @@ export default function UbunyeAIPage() {
     }
   }, []);
 
+  const handleWaitlistSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!waitlistEmail) return;
+
+    setWaitlistStatus('loading');
+    try {
+      const res = await fetch('/api/contact', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: 'Waitlist Signup',
+          email: waitlistEmail,
+          subject: 'AI Studio Waitlist',
+          message: 'User signed up for Ubunye AI Studio waitlist.',
+        }),
+      });
+
+      if (res.ok) {
+        setWaitlistStatus('success');
+        setWaitlistMessage('You have been added to the waitlist. We will notify you when Ubunye AI Studio launches.');
+        setWaitlistEmail('');
+      } else {
+        setWaitlistStatus('error');
+        setWaitlistMessage('Something went wrong. Please try again later.');
+      }
+    } catch {
+      setWaitlistStatus('error');
+      setWaitlistMessage('Something went wrong. Please try again later.');
+    }
+  };
+
   return (
     <div className="min-h-screen bg-white dark:bg-[#050505] pt-28 pb-20 transition-colors duration-500">
 
       {/* Hero */}
-      <div className="container mx-auto px-6 mb-20">
+      <div className="container mx-auto px-6 mb-10">
          <div className="border-l border-black/20 dark:border-white/20 pl-8 md:pl-16 py-4">
             <span className="text-[10px] font-mono text-neutral-500 dark:text-accent uppercase tracking-widest mb-4 block">03 // Ubunye AI Studio</span>
             <h1 className="text-4xl md:text-7xl font-display font-medium text-black dark:text-white tracking-tight leading-[0.9] mb-8 uppercase">
@@ -83,6 +118,56 @@ export default function UbunyeAIPage() {
               <span className="text-neutral-400 dark:text-neutral-600">Creative Intelligence & Automation</span>
             </h1>
          </div>
+      </div>
+
+      {/* Coming Soon Banner + Waitlist */}
+      <div className="container mx-auto px-6 mb-20">
+        <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-700/30 p-6 md:p-8">
+          <div className="flex items-start gap-4 mb-6">
+            <AlertTriangle className="w-5 h-5 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
+            <div>
+              <h3 className="text-sm font-mono font-bold uppercase tracking-widest text-amber-800 dark:text-amber-300 mb-2">
+                Coming Soon — In Development
+              </h3>
+              <p className="text-sm text-amber-700 dark:text-amber-400/80 leading-relaxed">
+                This feature is currently in development. Join the waitlist to be notified when it launches.
+              </p>
+            </div>
+          </div>
+
+          {waitlistStatus === 'success' ? (
+            <div className="flex items-center gap-3 bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-700/30 p-4">
+              <CheckCircle className="w-5 h-5 text-green-600 dark:text-green-400 flex-shrink-0" />
+              <p className="text-sm text-green-700 dark:text-green-400">{waitlistMessage}</p>
+            </div>
+          ) : (
+            <form onSubmit={handleWaitlistSubmit} className="flex flex-col sm:flex-row gap-3">
+              <input
+                type="email"
+                required
+                value={waitlistEmail}
+                onChange={(e) => setWaitlistEmail(e.target.value)}
+                placeholder="Enter your email address"
+                className="flex-1 bg-white dark:bg-black/30 border border-amber-200 dark:border-amber-700/30 px-4 py-3 text-sm text-black dark:text-white placeholder-neutral-400 dark:placeholder-neutral-600 outline-none focus:border-amber-400 dark:focus:border-amber-500 transition-colors"
+              />
+              <button
+                type="submit"
+                disabled={waitlistStatus === 'loading'}
+                className="bg-amber-600 hover:bg-amber-700 dark:bg-amber-500 dark:hover:bg-amber-600 text-white px-8 py-3 text-xs font-mono font-bold uppercase tracking-widest transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {waitlistStatus === 'loading' ? (
+                  <><Loader2 className="w-4 h-4 animate-spin" /> Joining...</>
+                ) : (
+                  'Join Waitlist'
+                )}
+              </button>
+            </form>
+          )}
+
+          {waitlistStatus === 'error' && (
+            <p className="mt-3 text-sm text-red-600 dark:text-red-400">{waitlistMessage}</p>
+          )}
+        </div>
       </div>
 
       {/* Sub-Capabilities Grid */}

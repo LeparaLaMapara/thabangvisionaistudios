@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { STUDIO } from '@/lib/constants';
 
 export const metadata: Metadata = { title: 'Privacy Policy' };
 
@@ -33,7 +34,7 @@ export default function PrivacyPage() {
              <p>We do not sell, trade, or otherwise transfer your Personally Identifiable Information to outside parties, except for trusted third parties who assist us in operating our website or conducting our business, so long as those parties agree to keep this information confidential.</p>
 
              <h3>6. Contact Us</h3>
-             <p>If you have any questions about this Privacy Policy, please contact us at privacy@thabangvision.com.</p>
+             <p>If you have any questions about this Privacy Policy, please contact us at {STUDIO.privacyEmail}.</p>
           </div>
        </div>
     </div>

@@ -7,6 +7,7 @@ import { Check, Zap } from 'lucide-react';
 import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
+import { STUDIO } from '@/lib/constants';
 
 type BillingPeriod = 'monthly' | 'annual';
 
@@ -29,7 +30,7 @@ const PLANS: Plan[] = [
     description: 'Perfect for getting started on the platform.',
     monthlyPrice: 0,
     annualPrice: 0,
-    currency: 'ZAR',
+    currency: STUDIO.currency.code,
     features: [
       'Browse all rentals',
       'Book equipment rentals',
@@ -46,7 +47,7 @@ const PLANS: Plan[] = [
     description: 'For active creators who sell and rent regularly.',
     monthlyPrice: 299,
     annualPrice: 2_990,
-    currency: 'ZAR',
+    currency: STUDIO.currency.code,
     features: [
       'Everything in Starter',
       'Unlimited listings',
@@ -65,7 +66,7 @@ const PLANS: Plan[] = [
     description: 'For production houses and teams.',
     monthlyPrice: 799,
     annualPrice: 7_990,
-    currency: 'ZAR',
+    currency: STUDIO.currency.code,
     features: [
       'Everything in Pro Creator',
       'Team accounts (up to 5)',
@@ -96,7 +97,7 @@ export default function PricingPage() {
             description: (p.description as string) ?? '',
             monthlyPrice: (p.price as number) ?? 0,
             annualPrice: Math.round(((p.price as number) ?? 0) * 10),
-            currency: (p.currency as string) ?? 'ZAR',
+            currency: (p.currency as string) ?? STUDIO.currency.code,
             features: Array.isArray(p.features) ? p.features as string[] : [],
             highlighted: (p.name as string)?.toLowerCase().includes('pro') ?? false,
             cta: (p.price as number) === 0 ? 'Get Started' : `Upgrade to ${p.name}`,
@@ -258,7 +259,7 @@ export default function PricingPage() {
         {/* FAQ note */}
         <div className="text-center mt-16">
           <p className="text-[9px] font-mono uppercase tracking-[0.2em] text-neutral-400 dark:text-neutral-600">
-            All prices in ZAR. Platform rental fee: 10% (Starter), 7%
+            All prices in {STUDIO.currency.code}. Platform rental fee: 10% (Starter), 7%
             (Pro), 5% (Studio).{' '}
             <Link
               href="/contact"

@@ -57,7 +57,7 @@ export function Rating({
             className={[
               'transition-colors duration-150 disabled:cursor-default',
               filled
-                ? 'text-amber-400'
+                ? 'text-accent-gold'
                 : 'text-neutral-300 dark:text-neutral-600',
             ].join(' ')}
           >

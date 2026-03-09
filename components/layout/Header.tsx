@@ -1,11 +1,12 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { useTheme } from 'next-themes';
 import { Search, Menu, X, ChevronDown, Sun, Moon } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { MAIN_NAVIGATION } from '@/lib/constants';
+import { GlobalSearch } from '@/components/search/GlobalSearch';
 
 // Pre-computed ray params to avoid hydration mismatch (no Math.random() in render)
 const RAY_LENGTHS = [38, 47, 43, 35, 44, 41, 39, 48, 42];
@@ -147,14 +148,29 @@ const NavItem = ({ label, to, items }: { label: string; to?: string; items?: any
 export const Header = () => {
   const [scrolled, setScrolled] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
   const { setTheme, resolvedTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
+
+  const closeSearch = useCallback(() => setSearchOpen(false), []);
 
   useEffect(() => {
     setMounted(true);
     const handleScroll = () => setScrolled(window.scrollY > 50);
     window.addEventListener('scroll', handleScroll);
     return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  // Cmd+K / Ctrl+K to toggle search
+  useEffect(() => {
+    const handleKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault();
+        setSearchOpen(prev => !prev);
+      }
+    };
+    window.addEventListener('keydown', handleKey);
+    return () => window.removeEventListener('keydown', handleKey);
   }, []);
 
   const isDark = resolvedTheme === 'dark';
@@ -197,21 +213,33 @@ export const Header = () => {
               {isDark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
             </button>
           )}
-          <button className="text-neutral-500 hover:text-black dark:hover:text-white transition-colors">
+          <button
+            onClick={() => setSearchOpen(true)}
+            className="text-neutral-500 hover:text-black dark:hover:text-white transition-colors flex items-center gap-1.5"
+          >
             <Search className="w-4 h-4" />
+            <kbd className="hidden xl:inline text-[9px] font-mono text-neutral-500 border border-neutral-300 dark:border-neutral-700 px-1 py-0.5 rounded">⌘K</kbd>
           </button>
           <Link href="/contact" className="text-[10px] font-mono font-bold tracking-widest text-white bg-black dark:text-black dark:bg-white px-5 py-2 hover:opacity-80 transition-all duration-300 uppercase">
             Start Project
           </Link>
         </div>
 
-        {/* Mobile Toggle */}
-        <button
-          className="lg:hidden text-black dark:text-white z-50"
-          onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-        >
-          {mobileMenuOpen ? <X /> : <Menu />}
-        </button>
+        {/* Mobile Actions */}
+        <div className="lg:hidden flex items-center gap-3 z-50">
+          <button
+            onClick={() => setSearchOpen(true)}
+            className="text-neutral-500 hover:text-black dark:hover:text-white transition-colors"
+          >
+            <Search className="w-5 h-5" />
+          </button>
+          <button
+            className="text-black dark:text-white"
+            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+          >
+            {mobileMenuOpen ? <X /> : <Menu />}
+          </button>
+        </div>
       </div>
 
       {/* Mobile Menu */}
@@ -236,6 +264,9 @@ export const Header = () => {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Global Search Modal */}
+      <GlobalSearch isOpen={searchOpen} onClose={closeSearch} />
     </header>
   );
 };

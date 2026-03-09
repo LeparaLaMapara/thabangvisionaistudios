@@ -11,8 +11,11 @@ import {
   ShieldCheck,
   Loader2,
   X,
+  ImagePlus,
 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
+import { uploadFile, type CloudinaryAsset } from '@/lib/cloudinary/upload';
+import { STUDIO } from '@/lib/constants';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { Card } from '@/components/ui/Card';
@@ -29,6 +32,8 @@ type Listing = {
   price_per_day: number | null;
   condition: string | null;
   location: string | null;
+  thumbnail_url: string | null;
+  gallery: { url: string; public_id: string }[] | null;
   is_published: boolean;
   created_at: string;
   deleted_at: string | null;
@@ -83,6 +88,9 @@ export default function ListingsPage() {
   const [form, setForm] = useState<ListingForm>(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [images, setImages] = useState<CloudinaryAsset[]>([]);
+  const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
 
   const supabase = createClient();
 
@@ -134,6 +142,7 @@ export default function ListingsPage() {
   const openCreate = () => {
     setEditingId(null);
     setForm(EMPTY_FORM);
+    setImages([]);
     setShowForm(true);
   };
 
@@ -147,6 +156,7 @@ export default function ListingsPage() {
       condition: listing.condition ?? '',
       location: listing.location ?? '',
     });
+    setImages(listing.gallery ?? (listing.thumbnail_url ? [{ url: listing.thumbnail_url, public_id: '' }] : []));
     setShowForm(true);
   };
 
@@ -154,6 +164,58 @@ export default function ListingsPage() {
     setShowForm(false);
     setEditingId(null);
     setForm(EMPTY_FORM);
+    setImages([]);
+  };
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    const remaining = STUDIO.platform.maxListingImages - images.length;
+    if (remaining <= 0) {
+      setError('Maximum 5 images per listing.');
+      return;
+    }
+
+    const toUpload = Array.from(files).slice(0, remaining);
+    setUploading(true);
+    setUploadProgress(0);
+    setError(null);
+
+    try {
+      let done = 0;
+      const uploaded: CloudinaryAsset[] = [];
+      for (const file of toUpload) {
+        const asset = await uploadFile(
+          file,
+          'thabangvision_usecase/media/listings',
+          (pct) => setUploadProgress(Math.round((done / toUpload.length) * 100 + pct / toUpload.length)),
+        );
+        uploaded.push(asset);
+        done++;
+      }
+      setImages((prev) => [...prev, ...uploaded]);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Image upload failed.');
+    } finally {
+      setUploading(false);
+      setUploadProgress(0);
+      // Reset input so the same file can be re-selected
+      e.target.value = '';
+    }
+  };
+
+  const removeImage = async (index: number) => {
+    const img = images[index];
+    setImages((prev) => prev.filter((_, i) => i !== index));
+    // Delete from Cloudinary if we have a public_id
+    if (img.public_id) {
+      fetch('/api/cloudinary/delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ public_id: img.public_id }),
+      }).catch(() => {});
+    }
   };
 
   // ── CRUD ────────────────────────────────────────────────────────────────────
@@ -165,6 +227,10 @@ export default function ListingsPage() {
     }
     if (!form.category) {
       setError('Category is required.');
+      return;
+    }
+    if (images.length === 0) {
+      setError('At least one image is required.');
       return;
     }
 
@@ -189,9 +255,12 @@ export default function ListingsPage() {
       price_per_day: form.price_per_day ? parseFloat(form.price_per_day) : null,
       condition: form.condition || null,
       location: form.location.trim() || null,
+      thumbnail_url: images[0]?.url ?? null,
+      cover_public_id: images[0]?.public_id ?? null,
+      gallery: images.length > 0 ? images : null,
       type: 'gear' as const,
       pricing_model: 'daily' as const,
-      currency: 'ZAR',
+      currency: STUDIO.currency.code,
       is_published: true,
       updated_at: new Date().toISOString(),
     };
@@ -356,7 +425,7 @@ export default function ListingsPage() {
             {/* Price per day */}
             <div>
               <label className="block text-[10px] font-mono uppercase tracking-widest text-neutral-500 mb-2">
-                Price per Day (ZAR)
+                Price per Day ({STUDIO.currency.code})
               </label>
               <input
                 type="number"
@@ -425,8 +494,61 @@ export default function ListingsPage() {
             />
           </div>
 
+          {/* Images */}
+          <div className="mb-6">
+            <label className="block text-[10px] font-mono uppercase tracking-widest text-neutral-500 mb-2">
+              Images ({images.length}/{STUDIO.platform.maxListingImages})
+            </label>
+            <div className="flex flex-wrap gap-3">
+              {images.map((img, i) => (
+                <div
+                  key={img.public_id || i}
+                  className="relative w-20 h-20 bg-neutral-100 dark:bg-neutral-900 border border-black/10 dark:border-white/10 overflow-hidden group"
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={img.url} alt="" className="w-full h-full object-cover" />
+                  <button
+                    type="button"
+                    onClick={() => removeImage(i)}
+                    className="absolute top-0.5 right-0.5 w-5 h-5 bg-black/70 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                  {i === 0 && (
+                    <span className="absolute bottom-0 left-0 right-0 bg-black/60 text-[8px] text-white text-center font-mono uppercase py-0.5">
+                      Cover
+                    </span>
+                  )}
+                </div>
+              ))}
+              {images.length < STUDIO.platform.maxListingImages && (
+                <label className="w-20 h-20 border border-dashed border-black/20 dark:border-white/20 flex flex-col items-center justify-center cursor-pointer hover:border-black/40 dark:hover:border-white/40 transition-colors">
+                  {uploading ? (
+                    <>
+                      <Loader2 className="w-4 h-4 text-neutral-400 animate-spin" />
+                      <span className="text-[9px] font-mono text-neutral-400 mt-1">{uploadProgress}%</span>
+                    </>
+                  ) : (
+                    <>
+                      <ImagePlus className="w-4 h-4 text-neutral-400" />
+                      <span className="text-[9px] font-mono text-neutral-400 mt-1">Add</span>
+                    </>
+                  )}
+                  <input
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    className="hidden"
+                    onChange={handleImageUpload}
+                    disabled={uploading}
+                  />
+                </label>
+              )}
+            </div>
+          </div>
+
           <div className="flex gap-3">
-            <Button onClick={save} loading={saving}>
+            <Button onClick={save} loading={saving} disabled={uploading || images.length === 0}>
               {editingId ? 'Update Listing' : 'Create Listing'}
             </Button>
             <Button variant="outline" onClick={cancel}>
@@ -447,44 +569,60 @@ export default function ListingsPage() {
       ) : (
         <div className="space-y-3">
           {listings.map((listing) => (
-            <Card key={listing.id} hover className="p-5">
-              <div className="flex items-start justify-between gap-4">
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2 mb-1">
-                    <h3 className="text-sm font-medium text-black dark:text-white truncate">
-                      {listing.title}
-                    </h3>
-                    <Badge variant={listing.is_published ? 'success' : 'warning'}>
-                      {listing.is_published ? 'Active' : 'Draft'}
-                    </Badge>
+            <Card key={listing.id} hover className="p-0 overflow-hidden">
+              <div className="flex items-stretch">
+                {listing.thumbnail_url ? (
+                  <div className="w-20 h-20 flex-shrink-0 bg-neutral-100 dark:bg-neutral-900">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={listing.thumbnail_url}
+                      alt={listing.title}
+                      className="w-full h-full object-cover"
+                    />
                   </div>
-                  <p className="text-[10px] font-mono uppercase tracking-widest text-neutral-500">
-                    {listing.category}
-                    {listing.condition ? ` / ${listing.condition}` : ''}
-                    {listing.location ? ` / ${listing.location}` : ''}
-                  </p>
-                </div>
-                <div className="flex items-center gap-4 flex-shrink-0">
-                  {listing.price_per_day !== null && (
-                    <p className="text-sm font-mono font-bold text-black dark:text-white whitespace-nowrap">
-                      R{listing.price_per_day}/day
+                ) : (
+                  <div className="w-20 h-20 flex-shrink-0 bg-neutral-100 dark:bg-neutral-900 flex items-center justify-center">
+                    <Package className="w-6 h-6 text-neutral-300 dark:text-neutral-700" />
+                  </div>
+                )}
+                <div className="flex items-start justify-between gap-4 flex-1 min-w-0 p-5">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2 mb-1">
+                      <h3 className="text-sm font-medium text-black dark:text-white truncate">
+                        {listing.title}
+                      </h3>
+                      <Badge variant={listing.is_published ? 'success' : 'warning'}>
+                        {listing.is_published ? 'Active' : 'Draft'}
+                      </Badge>
+                    </div>
+                    <p className="text-[10px] font-mono uppercase tracking-widest text-neutral-500">
+                      {listing.category}
+                      {listing.condition ? ` / ${listing.condition}` : ''}
+                      {listing.location ? ` / ${listing.location}` : ''}
                     </p>
-                  )}
-                  <div className="flex items-center gap-1">
-                    <button
-                      onClick={() => openEdit(listing)}
-                      title="Edit"
-                      className="p-2 border border-black/10 dark:border-white/10 text-neutral-500 hover:border-black/30 dark:hover:border-white/30 hover:text-black dark:hover:text-white transition-colors"
-                    >
-                      <Pencil className="w-3.5 h-3.5" />
-                    </button>
-                    <button
-                      onClick={() => softDelete(listing.id)}
-                      title="Delete"
-                      className="p-2 border border-red-900/20 dark:border-red-900/40 text-red-500 dark:text-red-600 hover:border-red-500/40 hover:text-red-400 transition-colors"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
+                  </div>
+                  <div className="flex items-center gap-4 flex-shrink-0">
+                    {listing.price_per_day !== null && (
+                      <p className="text-sm font-mono font-bold text-black dark:text-white whitespace-nowrap">
+                        {STUDIO.currency.symbol}{listing.price_per_day}/day
+                      </p>
+                    )}
+                    <div className="flex items-center gap-1">
+                      <button
+                        onClick={() => openEdit(listing)}
+                        title="Edit"
+                        className="p-2 border border-black/10 dark:border-white/10 text-neutral-500 hover:border-black/30 dark:hover:border-white/30 hover:text-black dark:hover:text-white transition-colors"
+                      >
+                        <Pencil className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        onClick={() => softDelete(listing.id)}
+                        title="Delete"
+                        className="p-2 border border-red-900/20 dark:border-red-900/40 text-red-500 dark:text-red-600 hover:border-red-500/40 hover:text-red-400 transition-colors"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>

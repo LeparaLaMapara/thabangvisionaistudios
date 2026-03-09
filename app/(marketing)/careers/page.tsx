@@ -1,5 +1,6 @@
 import { ArrowRight } from 'lucide-react';
 import { getPublishedCareers } from '@/lib/supabase/queries/careers';
+import { STUDIO } from '@/lib/constants';
 
 export const metadata = {
   title: 'Careers',
@@ -89,7 +90,7 @@ export default async function CareersPage() {
                         {job.employment_type && (
                           <>
                             <span className="w-px h-3 bg-neutral-300 dark:bg-neutral-700" />
-                            <span>{job.employment_type}</span>
+                            <span>{job.employment_type.replace(/[_-]/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}</span>
                           </>
                         )}
                       </div>
@@ -113,9 +114,12 @@ export default async function CareersPage() {
                       )}
                     </div>
                     <div className="flex-shrink-0 self-start md:self-center">
-                      <span className="inline-flex items-center gap-2 text-xs font-mono font-bold uppercase tracking-widest bg-black text-white dark:bg-white dark:text-black px-6 py-3 hover:opacity-80 transition-opacity">
+                      <a
+                        href={`mailto:${STUDIO.careersEmail}?subject=${encodeURIComponent(`Application: ${job.title}`)}`}
+                        className="inline-flex items-center gap-2 text-xs font-mono font-bold uppercase tracking-widest bg-black text-white dark:bg-white dark:text-black px-6 py-3 hover:opacity-80 transition-opacity"
+                      >
                         Apply Now <ArrowRight className="w-3 h-3" />
-                      </span>
+                      </a>
                     </div>
                   </div>
                 </div>
@@ -130,14 +134,14 @@ export default async function CareersPage() {
             Don&apos;t see your role?
           </h3>
           <p className="text-neutral-500 mb-8 max-w-lg mx-auto font-mono text-xs">
-            We are always looking for exceptional talent. If you believe you belong at Thabangvision,
+            We are always looking for exceptional talent. If you believe you belong at {STUDIO.shortName},
             send your portfolio and resume to our talent team.
           </p>
           <a
-            href="mailto:careers@thabangvision.com"
+            href={`mailto:${STUDIO.careersEmail}`}
             className="text-lg font-display underline decoration-1 underline-offset-4 hover:text-neutral-500 transition-colors"
           >
-            careers@thabangvision.com
+            {STUDIO.careersEmail}
           </a>
         </div>
 

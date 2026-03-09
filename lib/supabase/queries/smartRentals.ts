@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server';
+import { STUDIO } from '@/lib/constants';
 
 // ─── DB row type ──────────────────────────────────────────────────────────────
 
@@ -128,6 +129,52 @@ export async function getRentalBySlug(slug: string): Promise<SmartRental | null>
   return data as SmartRental;
 }
 
+/**
+ * Returns featured published rentals, limited and ordered by created_at DESC.
+ * Used on the home page "Latest Work" carousel.
+ */
+export async function getFeaturedRentals(limit = 2): Promise<SmartRental[]> {
+  const supabase = await createClient();
+
+  const { data, error } = await supabase
+    .from('smart_rentals')
+    .select(LIST_COLUMNS)
+    .eq('is_published', true)
+    .eq('is_featured', true)
+    .is('deleted_at', null)
+    .order('created_at', { ascending: false })
+    .limit(limit);
+
+  if (error) {
+    console.error('[getFeaturedRentals]', error.message);
+    return [];
+  }
+
+  return (data as unknown as SmartRental[]) ?? [];
+}
+
+/**
+ * Returns all archived rentals ordered by created_at DESC.
+ */
+export async function getArchivedRentals(): Promise<SmartRental[]> {
+  const supabase = await createClient();
+
+  const { data, error } = await supabase
+    .from('smart_rentals')
+    .select(LIST_COLUMNS)
+    .eq('is_published', true)
+    .eq('is_archived', true)
+    .is('deleted_at', null)
+    .order('created_at', { ascending: false });
+
+  if (error) {
+    console.error('[getArchivedRentals]', error.message);
+    return [];
+  }
+
+  return (data as unknown as SmartRental[]) ?? [];
+}
+
 // ─── Community Listings ──────────────────────────────────────────────────────
 // Fetches user-listed gear from the `listings` table and maps them to
 // SmartRental shape so they can be displayed alongside official rentals.
@@ -148,7 +195,7 @@ function mapListingToRental(row: Record<string, unknown>): SmartRental {
     price_per_day: (row.price_per_day as number) ?? (row.price as number) ?? null,
     price_per_week: null,
     deposit_amount: null,
-    currency: (row.currency as string) ?? 'ZAR',
+    currency: (row.currency as string) ?? STUDIO.currency.code,
     thumbnail_url: (row.thumbnail_url as string) ?? null,
     cover_public_id: null,
     gallery: null,

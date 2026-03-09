@@ -1,9 +1,9 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { FilterBar, ProjectCard } from '@/components/projects/ProjectsComponents';
-import { Video, Camera, Mic2, Clapperboard, ChevronRight } from 'lucide-react';
+import { Video, Camera, Mic2, Clapperboard, ChevronRight, Search, X } from 'lucide-react';
 import Link from 'next/link';
 import type { SmartProduction } from '@/lib/supabase/queries/smartProductions';
 import type { Project } from '@/types/equipment';
@@ -43,6 +43,17 @@ export default function SmartProductionClient({
 }) {
   const [activeType,      setActiveType]      = useState<'ALL' | 'FILM' | 'PHOTOGRAPHY'>('ALL');
   const [activeSubFilter, setActiveSubFilter] = useState<string | null>(null);
+  const [searchQuery,     setSearchQuery]     = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const handleSearchChange = useCallback((value: string) => {
+    setSearchQuery(value);
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      setDebouncedSearch(value);
+    }, 300);
+  }, []);
 
   const availableSubFilters = useMemo(() => {
     if (activeType === 'ALL') return [];
@@ -56,11 +67,21 @@ export default function SmartProductionClient({
     return Array.from(subCats).sort();
   }, [activeType, productions]);
 
-  const filteredProductions = productions.filter(p => {
-    if (activeType !== 'ALL' && p.project_type !== (activeType === 'FILM' ? 'film' : 'photography')) return false;
-    if (activeSubFilter && p.sub_category !== activeSubFilter) return false;
-    return true;
-  });
+  const filteredProductions = useMemo(() => {
+    const q = debouncedSearch.toLowerCase().trim();
+    return productions.filter(p => {
+      if (activeType !== 'ALL' && p.project_type !== (activeType === 'FILM' ? 'film' : 'photography')) return false;
+      if (activeSubFilter && p.sub_category !== activeSubFilter) return false;
+      if (q) {
+        const matchTitle = p.title.toLowerCase().includes(q);
+        const matchClient = (p.client ?? '').toLowerCase().includes(q);
+        const matchDesc = (p.description ?? '').toLowerCase().includes(q);
+        const matchTags = (p.tags ?? []).some(tag => tag.toLowerCase().includes(q));
+        if (!matchTitle && !matchClient && !matchDesc && !matchTags) return false;
+      }
+      return true;
+    });
+  }, [productions, activeType, activeSubFilter, debouncedSearch]);
 
   return (
     <div className="min-h-screen bg-white dark:bg-[#050505] pt-20 transition-colors duration-500">
@@ -129,6 +150,28 @@ export default function SmartProductionClient({
         availableSubFilters={availableSubFilters}
       />
 
+      {/* ── Search bar ── */}
+      <div className="container mx-auto px-6 mb-8">
+        <div className="relative max-w-md">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-400" />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => handleSearchChange(e.target.value)}
+            placeholder="Search by title, client, description, or tags..."
+            className="w-full bg-white dark:bg-neutral-900 border border-black/10 dark:border-white/10 text-black dark:text-white pl-10 pr-9 py-2.5 text-sm font-mono placeholder:text-neutral-400 dark:placeholder:text-neutral-600 focus:outline-none focus:border-black dark:focus:border-white transition-colors"
+          />
+          {searchQuery && (
+            <button
+              onClick={() => handleSearchChange('')}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-black dark:hover:text-white transition-colors"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          )}
+        </div>
+      </div>
+
       {/* ── Grid ── */}
       <div className="container mx-auto px-6 pb-32">
         <motion.div layout className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
@@ -140,8 +183,18 @@ export default function SmartProductionClient({
         {filteredProductions.length === 0 && (
           <div className="py-20 text-center">
             <p className="text-neutral-500 font-mono text-xs uppercase tracking-widest">
-              No projects found in this category.
+              {debouncedSearch
+                ? 'No projects match your search.'
+                : 'No projects found in this category.'}
             </p>
+            {debouncedSearch && (
+              <button
+                onClick={() => handleSearchChange('')}
+                className="mt-4 text-xs font-bold underline text-neutral-500 hover:text-black dark:hover:text-white transition-colors"
+              >
+                Clear Search
+              </button>
+            )}
           </div>
         )}
       </div>

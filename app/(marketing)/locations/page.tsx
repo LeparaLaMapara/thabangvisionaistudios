@@ -1,14 +1,17 @@
 'use client';
 
 import { motion } from 'framer-motion';
-import { MapPin, Clock, Phone } from 'lucide-react';
+import { MapPin, Clock, Phone, Mail } from 'lucide-react';
+import { STUDIO } from '@/lib/constants';
 
-const LocationCard = ({ city, type, address, contact, image, delay }: {
-  city: string;
-  type: string;
+const LocationCard = ({ name, address, city, province, phone, email, isPrimary, delay }: {
+  name: string;
   address: string;
-  contact: string;
-  image: string;
+  city: string;
+  province: string;
+  phone: string;
+  email: string;
+  isPrimary: boolean;
   delay: number;
 }) => (
   <motion.div
@@ -17,30 +20,41 @@ const LocationCard = ({ city, type, address, contact, image, delay }: {
     transition={{ delay }}
     className="group bg-white dark:bg-[#0A0A0B] border border-black/5 dark:border-white/5 overflow-hidden"
   >
-    <div className="relative h-64 overflow-hidden">
-       <div className="absolute inset-0 bg-black/20 group-hover:bg-black/0 transition-colors z-10" />
-       {/* eslint-disable-next-line @next/next/no-img-element */}
-       <img src={image} alt={city} className="w-full h-full object-cover grayscale group-hover:grayscale-0 scale-100 group-hover:scale-105 transition-all duration-700" />
-       <div className="absolute bottom-0 left-0 p-6 z-20">
-          <span className="bg-black text-white dark:bg-white dark:text-black text-[9px] font-mono font-bold px-2 py-1 uppercase tracking-widest">
-            {type}
-          </span>
-       </div>
+    <div className="relative h-48 overflow-hidden bg-neutral-100 dark:bg-neutral-900 flex items-center justify-center">
+      <MapPin className="w-16 h-16 text-neutral-300 dark:text-neutral-700" />
+      <div className="absolute bottom-0 left-0 p-6 z-20">
+        <span className="bg-black text-white dark:bg-white dark:text-black text-[9px] font-mono font-bold px-2 py-1 uppercase tracking-widest">
+          {isPrimary ? 'Headquarters' : 'Studio'}
+        </span>
+      </div>
     </div>
     <div className="p-8">
-       <h3 className="text-3xl font-display font-medium uppercase mb-6 text-black dark:text-white">{city}</h3>
+       <h3 className="text-3xl font-display font-medium uppercase mb-2 text-black dark:text-white">{name}</h3>
+       <p className="text-sm font-mono text-neutral-400 mb-6">{city}, {province}</p>
        <div className="space-y-4 text-sm font-mono text-neutral-600 dark:text-neutral-400">
+          {address && (
+            <div className="flex gap-4">
+               <MapPin className="w-4 h-4 flex-shrink-0 mt-1" />
+               <p>{address}</p>
+            </div>
+          )}
+          {phone && (
+            <div className="flex gap-4">
+               <Phone className="w-4 h-4 flex-shrink-0" />
+               <a href={`tel:${phone}`} className="hover:text-black dark:hover:text-white transition-colors">{phone}</a>
+            </div>
+          )}
           <div className="flex gap-4">
-             <MapPin className="w-4 h-4 flex-shrink-0 mt-1" />
-             <p>{address}</p>
+             <Mail className="w-4 h-4 flex-shrink-0" />
+             <a href={`mailto:${email}`} className="hover:text-black dark:hover:text-white transition-colors">{email}</a>
           </div>
           <div className="flex gap-4">
-             <Phone className="w-4 h-4 flex-shrink-0" />
-             <p>{contact}</p>
-          </div>
-          <div className="flex gap-4">
-             <Clock className="w-4 h-4 flex-shrink-0" />
-             <p>Mon-Fri: 08:00 - 18:00</p>
+             <Clock className="w-4 h-4 flex-shrink-0 mt-1" />
+             <div>
+               <p>{STUDIO.hours.weekday}</p>
+               <p>{STUDIO.hours.weekend}</p>
+               <p>{STUDIO.hours.sunday}</p>
+             </div>
           </div>
        </div>
     </div>
@@ -59,34 +73,36 @@ export default function LocationsPage() {
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-             <LocationCard
-               city="Johannesburg"
-               type="Headquarters & Lab"
-               address="1 Fox Precinct, Maboneng, Johannesburg, 2094, South Africa"
-               contact="+27 (10) 555 0123"
-               image="https://images.unsplash.com/photo-1576487248805-cf45f6bcc67f?q=80&w=2000&auto=format&fit=crop"
-               delay={0}
-             />
-             <LocationCard
-               city="Cape Town"
-               type="Rental Depot"
-               address="Unit 4, Film Studios, Paarden Eiland, Cape Town, 7405"
-               contact="+27 (21) 555 0987"
-               image="https://images.unsplash.com/photo-1580060839134-75a5edca2e27?q=80&w=2000&auto=format&fit=crop"
-               delay={0.1}
-             />
+             {STUDIO.locations.map((loc, index) => (
+               <LocationCard
+                 key={loc.name}
+                 name={loc.name}
+                 address={loc.address || ''}
+                 city={loc.city}
+                 province={loc.province}
+                 phone={loc.phone}
+                 email={loc.email}
+                 isPrimary={loc.isPrimary}
+                 delay={index * 0.1}
+               />
+             ))}
           </div>
 
-          {/* Map Graphic Placeholder */}
+          {/* International Partnerships */}
           <div className="mt-20 p-12 bg-neutral-100 dark:bg-[#0A0A0B] border border-black/5 dark:border-white/5 text-center">
-             <h2 className="text-2xl font-display uppercase mb-4 text-black dark:text-white">International Support</h2>
+             <h2 className="text-2xl font-display uppercase mb-4 text-black dark:text-white">International Partnerships</h2>
              <p className="text-neutral-500 max-w-2xl mx-auto font-mono text-sm mb-8">
-                We maintain active partnerships with rental houses in Los Angeles, London, and Dubai to support travelling productions using Thabangvision proprietary optics.
+                We maintain active partnerships with rental houses in {STUDIO.partnerships.international.map(p => p.city).join(', ')} to support travelling productions using {STUDIO.shortName} proprietary optics.
              </p>
              <div className="flex flex-wrap justify-center gap-4">
-                {['Los Angeles', 'New York', 'London', 'Berlin', 'Dubai', 'Tokyo'].map(city => (
-                   <span key={city} className="px-4 py-2 border border-black/10 dark:border-white/10 text-[10px] uppercase tracking-widest font-bold text-neutral-400">
-                      {city}
+                {STUDIO.partnerships.international.map(partner => (
+                   <span key={partner.city} className="px-4 py-2 border border-black/10 dark:border-white/10 text-[10px] uppercase tracking-widest font-bold text-neutral-400 flex items-center gap-2">
+                      {partner.city}
+                      {partner.status === 'planned' && (
+                        <span className="text-[8px] bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 px-1.5 py-0.5 rounded uppercase">
+                          Planned Expansion
+                        </span>
+                      )}
                    </span>
                 ))}
              </div>

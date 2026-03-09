@@ -1,43 +1,92 @@
 'use client';
 
 import { motion } from 'framer-motion';
-import { Cpu, Eye, Bot, Layers, ArrowRight, Network, Code2 } from 'lucide-react';
+import { Sparkles, Camera, Bot, Store, Workflow, Code, Aperture, ArrowRight } from 'lucide-react';
 import Link from 'next/link';
+import { STUDIO } from '@/lib/constants';
+
+const HERO_CAPABILITY = {
+  title: 'Ubunye AI Studio',
+  icon: Bot,
+  desc: `The AI brain behind ${STUDIO.shortName}. Chat with Ubunye to plan productions, find the right gear, discover crew, generate creative assets, get pricing estimates, and manage your projects — all through natural conversation. Powers every AI feature on the platform.`,
+};
+
+const CAPABILITIES = [
+  { title: 'AI-Powered Production', icon: Sparkles, desc: 'Using AI tools for automated editing, color grading, scene analysis, and content generation to accelerate production workflows.', poweredByAI: true },
+  { title: 'AI-Powered Smart Equipment', icon: Camera, desc: 'Intelligent rental platform with real-time availability tracking, automated booking, and equipment matching based on project requirements.', poweredByAI: true },
+  { title: 'Creator Marketplace', icon: Store, desc: 'A community-driven marketplace where verified creators list gear for rent, offer crew services, and connect with productions looking for talent. Smart matching powered by Ubunye AI.', poweredByAI: true },
+  { title: 'Content Automation', icon: Workflow, desc: 'Automated thumbnail generation, metadata tagging, SEO optimization, and social media content creation for productions and press.', poweredByAI: true },
+  { title: 'Custom Software', icon: Code, desc: 'Developing proprietary plugins, tools, and integrations for production software like DaVinci Resolve, Premiere Pro, and After Effects to solve real-world production challenges.', poweredByAI: false },
+  { title: 'Optical Engineering', icon: Aperture, desc: 'Building custom camera systems from scratch — designing proprietary lenses, sensors, and optical assemblies engineered for the unique demands of African filmmaking and content creation.', poweredByAI: false },
+];
 
 export default function LabPage() {
   return (
     <div className="min-h-screen bg-white dark:bg-[#050505] pt-32 pb-20 transition-colors duration-500">
       <div className="container mx-auto px-6">
+        {/* Header */}
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="max-w-5xl mb-24">
           <span className="text-[10px] font-mono text-neutral-500 dark:text-accent uppercase tracking-widest mb-4 block">01 // R&amp;D Division</span>
           <h1 className="text-5xl md:text-8xl font-display font-medium text-black dark:text-white tracking-tighter uppercase mb-8 leading-[0.9]">
             The <span className="text-neutral-400 dark:text-neutral-600">Lab</span>
           </h1>
           <p className="text-xl md:text-3xl text-neutral-600 dark:text-neutral-300 font-light leading-relaxed max-w-4xl">
-            Thabangvision Lab uses engineering, AI, and technology to build custom AI-driven solutions for creatives and operates as a research lab in computer vision and autonomous systems.
+            {STUDIO.name} combines AI, automation, and creative technology to build tools that empower South African filmmakers, photographers, and content creators. Every AI feature is powered by Ubunye AI Studio.
           </p>
         </motion.div>
 
+        {/* Ubunye AI Studio — Hero Card */}
+        <motion.div
+          initial={{ opacity: 0, y: 30 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6 }}
+          className="relative mb-px border border-[#D4A843]/30 bg-gradient-to-r from-neutral-900 to-neutral-800 p-12 md:p-16 group hover:border-[#D4A843]/60 transition-colors duration-500 shadow-[0_0_30px_rgba(212,168,67,0.08)]"
+        >
+          <div className="absolute top-6 right-6">
+            <span className="text-[10px] font-mono uppercase tracking-widest text-[#D4A843] border border-[#D4A843]/40 px-3 py-1">
+              Core Platform
+            </span>
+          </div>
+          <HERO_CAPABILITY.icon className="w-10 h-10 text-[#D4A843] mb-6" />
+          <h3 className="text-3xl md:text-4xl font-display uppercase mb-5 text-white tracking-tight">
+            {HERO_CAPABILITY.title}
+          </h3>
+          <p className="text-neutral-400 font-mono text-sm leading-relaxed max-w-3xl">
+            {HERO_CAPABILITY.desc}
+          </p>
+          <div className="w-12 h-px bg-[#D4A843]/40 mt-8 group-hover:w-full transition-all duration-700" />
+        </motion.div>
+
+        {/* 6 Capability Cards — 3x2 Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-px bg-neutral-200 dark:bg-white/10 border border-neutral-200 dark:border-white/10 mb-32">
-          {[
-            { title: "Computer Vision", icon: Eye, desc: "Developing proprietary object tracking and segmentation models for real-time virtual production environments. Our systems perceive depth and motion with sub-millimeter precision." },
-            { title: "Autonomous Systems", icon: Bot, desc: "Engineering robotic motion control systems that interface directly with Unreal Engine. We build custom rovers and arms for impossible camera angles." },
-            { title: "Generative Workflows", icon: Cpu, desc: "Building custom Stable Diffusion and LLM pipelines that augment human creativity, automating asset generation and storyboarding." },
-            { title: "Optical Engineering", icon: Layers, desc: "Designing bespoke lens elements and coatings. We bridge the gap between digital sensors and analog character through physical modification." },
-            { title: "Neural Rendering", icon: Network, desc: "Researching NeRFs and Gaussian Splatting for photorealistic environment capture and relighting in post-production." },
-            { title: "Custom Software", icon: Code2, desc: "Developing proprietary plugins for Nuke, Unreal, and DaVinci Resolve to solve niche production challenges found on our sets." },
-          ].map((item, i) => (
-            <motion.div key={i} initial={{ opacity: 0 }} whileInView={{ opacity: 1 }} transition={{ delay: i * 0.1 }} className="bg-white dark:bg-[#0A0A0B] p-12 group hover:bg-neutral-50 dark:hover:bg-white/5 transition-colors flex flex-col justify-between h-80">
+          {CAPABILITIES.map((item, i) => (
+            <motion.div
+              key={i}
+              initial={{ opacity: 0 }}
+              whileInView={{ opacity: 1 }}
+              transition={{ delay: i * 0.1 }}
+              className="bg-white dark:bg-[#0A0A0B] p-12 group hover:bg-neutral-50 dark:hover:bg-white/5 transition-colors flex flex-col justify-between h-80"
+            >
               <div>
                 <item.icon className="w-8 h-8 text-black dark:text-white mb-6 opacity-80" />
-                <h3 className="text-2xl font-display uppercase mb-4 text-black dark:text-white tracking-tight">{item.title}</h3>
+                <h3 className="text-2xl font-display uppercase mb-4 text-black dark:text-white tracking-tight">
+                  {item.title}
+                </h3>
                 <p className="text-neutral-500 font-mono text-xs leading-relaxed">{item.desc}</p>
               </div>
-              <div className="w-8 h-px bg-black/20 dark:bg-white/20 mt-8 group-hover:w-full transition-all duration-500" />
+              <div className="mt-8 flex flex-col gap-3">
+                <div className="w-8 h-px bg-black/20 dark:bg-white/20 group-hover:w-full transition-all duration-500" />
+                {item.poweredByAI && (
+                  <span className="text-[10px] font-mono uppercase tracking-widest text-[#D4A843]">
+                    Powered by Ubunye AI
+                  </span>
+                )}
+              </div>
             </motion.div>
           ))}
         </div>
 
+        {/* CTA Section */}
         <div className="bg-neutral-100 dark:bg-[#080808] border border-black/5 dark:border-white/5 p-12 md:p-24 text-center">
           <h2 className="text-3xl md:text-5xl font-display font-bold uppercase mb-8 text-black dark:text-white">Have a technical challenge?</h2>
           <p className="text-neutral-500 mb-12 max-w-xl mx-auto font-mono text-sm">

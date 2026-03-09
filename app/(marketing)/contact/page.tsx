@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { ArrowRight, Mail, Phone, MapPin, Send, Loader2 } from 'lucide-react';
+import { STUDIO } from '@/lib/constants';
 
 export default function ContactPage() {
   const [formState, setFormState] = useState({ name: '', email: '', subject: 'Project Inquiry', message: '', website: '' });
@@ -177,18 +178,18 @@ export default function ContactPage() {
                    <div className="flex items-start gap-4">
                       <MapPin className="w-4 h-4 mt-1 flex-shrink-0" />
                       <div>
-                        <p>1 Fox Precinct, Maboneng</p>
-                        <p>Johannesburg, 2094</p>
-                        <p>South Africa</p>
+                        <p>{STUDIO.locations[0].address || 'Address TBA'}</p>
+                        <p>{STUDIO.locations[0].city}, {STUDIO.locations[0].province}</p>
+                        <p>{STUDIO.location.country}</p>
                       </div>
                    </div>
                    <div className="flex items-center gap-4">
                       <Phone className="w-4 h-4 flex-shrink-0" />
-                      <a href="tel:+27105550123" className="hover:text-black dark:hover:text-white">+27 (10) 555 0123</a>
+                      {STUDIO.phone ? <a href={`tel:${STUDIO.phone}`} className="hover:text-black dark:hover:text-white">{STUDIO.phone}</a> : <span className="text-neutral-400">Phone TBA</span>}
                    </div>
                    <div className="flex items-center gap-4">
                       <Mail className="w-4 h-4 flex-shrink-0" />
-                      <a href="mailto:studio@thabangvision.com" className="hover:text-black dark:hover:text-white">studio@thabangvision.com</a>
+                      <a href={`mailto:${STUDIO.email}`} className="hover:text-black dark:hover:text-white">{STUDIO.email}</a>
                    </div>
                 </address>
              </div>

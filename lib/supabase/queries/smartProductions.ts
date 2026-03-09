@@ -51,6 +51,52 @@ export async function getPublishedProductions(): Promise<SmartProduction[]> {
  * Returns a single published production by slug, or null if not found.
  * PGRST116 = "no rows" — treated as a normal 404, not an error.
  */
+/**
+ * Returns featured published productions, limited and ordered by created_at DESC.
+ * Used on the home page "Latest Work" carousel.
+ */
+export async function getFeaturedProductions(limit = 6): Promise<SmartProduction[]> {
+  const supabase = await createClient();
+
+  const { data, error } = await supabase
+    .from('smart_productions')
+    .select('*')
+    .eq('is_published', true)
+    .eq('is_featured', true)
+    .order('created_at', { ascending: false })
+    .limit(limit);
+
+  if (error) {
+    console.error('[getFeaturedProductions]', error.message);
+    return [];
+  }
+
+  return (data as SmartProduction[]) ?? [];
+}
+
+/**
+ * Returns all archived productions ordered by created_at DESC.
+ * If `is_archived` column doesn't exist yet, returns empty array silently.
+ */
+export async function getArchivedProductions(): Promise<SmartProduction[]> {
+  const supabase = await createClient();
+
+  const { data, error } = await supabase
+    .from('smart_productions')
+    .select('*')
+    .eq('is_published', true)
+    .eq('is_archived', true)
+    .order('created_at', { ascending: false });
+
+  if (error) {
+    // Column may not exist yet — fail silently
+    console.error('[getArchivedProductions]', error.message);
+    return [];
+  }
+
+  return (data as SmartProduction[]) ?? [];
+}
+
 export async function getProductionBySlug(
   slug: string,
 ): Promise<SmartProduction | null> {

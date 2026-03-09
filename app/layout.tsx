@@ -3,6 +3,7 @@ import { Inter, Space_Grotesk, Space_Mono } from 'next/font/google';
 import './globals.css';
 
 import { Providers } from '@/components/layout/Providers';
+import { STUDIO } from '@/lib/constants';
 
 // ── Google Fonts via next/font ──
 // CSS variables injected into <html>, consumed by @theme in globals.css.
@@ -30,12 +31,11 @@ const spaceMono = Space_Mono({
 
 export const metadata: Metadata = {
   title: {
-    default:  'THABANGVISION | Technology Creative Studio',
-    template: '%s | THABANGVISION',
+    default:  `${STUDIO.shortName.toUpperCase()} | Technology Creative Studio`,
+    template: `%s | ${STUDIO.shortName.toUpperCase()}`,
   },
-  description:
-    'Technology Creative Studio — Smart Production, Smart Rentals, Ubunye AI Studio.',
-  metadataBase: new URL('https://thabangvision.com'),
+  description: STUDIO.meta.description,
+  metadataBase: new URL(STUDIO.meta.url),
 };
 
 /**

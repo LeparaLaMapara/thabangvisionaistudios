@@ -15,6 +15,8 @@
   --color-foreground: #F5F5F5;
   --color-muted:      #94A3B8;
   --color-accent:     #E2E8F0;
+  --color-accent-gold: #D4A843;
+  --color-accent-gold-light: #E8C96A;
   --color-border:     #1F2937;
 
   /* Font families — CSS vars are injected by next/font/google in layout.tsx.
