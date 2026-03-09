@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useTheme } from 'next-themes';
 import { Search, Menu, X, ChevronDown, Sun, Moon } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -146,6 +147,7 @@ const NavItem = ({ label, to, items }: { label: string; to?: string; items?: any
 };
 
 export const Header = () => {
+  const router = useRouter();
   const [scrolled, setScrolled] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
@@ -153,6 +155,12 @@ export const Header = () => {
   const [mounted, setMounted] = useState(false);
 
   const closeSearch = useCallback(() => setSearchOpen(false), []);
+
+  /** Navigate from mobile menu — start navigation first, then close menu */
+  const mobileNavigate = useCallback((href: string) => {
+    router.push(href);
+    setMobileMenuOpen(false);
+  }, [router]);
 
   useEffect(() => {
     setMounted(true);
@@ -256,11 +264,11 @@ export const Header = () => {
                 {isDark ? "Switch to Light Mode" : "Switch to Dark Mode"}
               </button>
             )}
-            <Link href="/smart-production" onClick={() => setMobileMenuOpen(false)} className="text-3xl font-display font-medium text-black dark:text-white">PROJECTS</Link>
-            <Link href="/lab" onClick={() => setMobileMenuOpen(false)} className="text-3xl font-display font-medium text-black dark:text-white">THE LAB</Link>
-            <Link href="/smart-rentals" onClick={() => setMobileMenuOpen(false)} className="text-3xl font-display font-medium text-black dark:text-white">SMART RENTALS</Link>
-            <Link href="/resources/tools" onClick={() => setMobileMenuOpen(false)} className="text-3xl font-display font-medium text-black dark:text-white">TOOLS</Link>
-            <Link href="/contact" onClick={() => setMobileMenuOpen(false)} className="text-3xl font-display font-medium text-black dark:text-white">CONTACT</Link>
+            <button onClick={() => mobileNavigate('/smart-production')} className="text-3xl font-display font-medium text-black dark:text-white">PROJECTS</button>
+            <button onClick={() => mobileNavigate('/lab')} className="text-3xl font-display font-medium text-black dark:text-white">THE LAB</button>
+            <button onClick={() => mobileNavigate('/smart-rentals')} className="text-3xl font-display font-medium text-black dark:text-white">SMART RENTALS</button>
+            <button onClick={() => mobileNavigate('/resources/tools')} className="text-3xl font-display font-medium text-black dark:text-white">TOOLS</button>
+            <button onClick={() => mobileNavigate('/contact')} className="text-3xl font-display font-medium text-black dark:text-white">CONTACT</button>
           </motion.div>
         )}
       </AnimatePresence>

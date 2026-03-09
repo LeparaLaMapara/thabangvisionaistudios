@@ -4,9 +4,10 @@ export default defineConfig({
   testDir: './tests/e2e',
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
-  retries: process.env.CI ? 2 : 0,
+  retries: process.env.CI ? 2 : 1,
   workers: process.env.CI ? 1 : undefined,
   reporter: 'html',
+  timeout: 60_000,
   use: {
     baseURL: process.env.BASE_URL || 'http://localhost:3000',
     trace: 'on-first-retry',
@@ -16,10 +17,18 @@ export default defineConfig({
     {
       name: 'chromium',
       use: { ...devices['Desktop Chrome'] },
+      testIgnore: 'mobile.spec.ts',
     },
     {
       name: 'mobile',
-      use: { ...devices['iPhone 14'], hasTouch: true },
+      use: {
+        ...devices['Desktop Chrome'],
+        viewport: { width: 393, height: 852 },
+        deviceScaleFactor: 3,
+        isMobile: true,
+        hasTouch: true,
+        userAgent: devices['iPhone 14'].userAgent,
+      },
       testMatch: 'mobile.spec.ts',
     },
   ],

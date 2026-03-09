@@ -29,7 +29,7 @@ const Hero = () => {
       <div className="absolute inset-0 bg-[linear-gradient(rgba(0,0,0,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(0,0,0,0.03)_1px,transparent_1px)] dark:bg-[linear-gradient(rgba(255,255,255,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.03)_1px,transparent_1px)] bg-[size:100px_100px] pointer-events-none z-10" />
 
       <motion.div style={{ opacity }} className="relative z-20 px-6 max-w-7xl w-full overflow-hidden">
-        <div className="border-l border-black/20 dark:border-white/20 pl-8 md:pl-16 py-4">
+        <div className="border-l border-black/20 dark:border-white/20 pl-8 md:pl-16 py-4 overflow-hidden">
           <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.8 }}>
             <h2 className="text-xs md:text-sm font-mono tracking-[0.3em] text-neutral-500 dark:text-neutral-400 mb-6 uppercase">
               Technology Creative Studio

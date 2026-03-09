@@ -288,13 +288,13 @@ export default function UbunyeAIStudioPage() {
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0 }}
               transition={{ duration: 0.4, delay: 0.2 }}
-              className="flex flex-wrap justify-center gap-2 md:gap-3 mb-6 md:mb-8 max-w-2xl flex-shrink-0"
+              className="flex flex-wrap justify-center gap-2 md:gap-3 mb-6 md:mb-8 max-w-full md:max-w-2xl px-2 flex-shrink-0"
             >
               {QUICK_ACTIONS.map((action) => (
                 <button
                   key={action.label}
                   onClick={() => handleQuickAction(action.prompt)}
-                  className="px-4 py-2 text-[10px] md:text-[11px] font-mono font-bold uppercase tracking-[0.15em] border border-[#D4A843]/20 text-[#D4A843]/70 hover:text-[#D4A843] hover:border-[#D4A843]/50 hover:bg-[#D4A843]/5 transition-all duration-300"
+                  className="px-3 md:px-4 py-2 text-[9px] md:text-[11px] font-mono font-bold uppercase tracking-[0.1em] md:tracking-[0.15em] border border-[#D4A843]/20 text-[#D4A843]/70 hover:text-[#D4A843] hover:border-[#D4A843]/50 hover:bg-[#D4A843]/5 transition-all duration-300 max-w-full overflow-hidden text-ellipsis whitespace-nowrap"
                 >
                   {action.label}
                 </button>

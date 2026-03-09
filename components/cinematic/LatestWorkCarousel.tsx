@@ -343,7 +343,7 @@ const CarouselCard = memo(function CarouselCard({
     <div
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
-      className="group cursor-pointer flex-shrink-0 w-[85vw] md:w-[600px]"
+      className="group cursor-pointer flex-shrink-0 w-[85vw] max-w-[85vw] md:w-[600px] md:max-w-[600px]"
     >
       <div className="relative overflow-hidden mb-6 bg-neutral-200 dark:bg-neutral-900 border border-black/5 dark:border-white/10 w-full h-[55vw] md:h-[340px]">
         <div className="absolute top-4 left-4 z-30 flex gap-2">
