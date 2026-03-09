@@ -3,8 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useTheme } from 'next-themes';
-import { Search, Menu, X, ChevronDown, Sun, Moon } from 'lucide-react';
+import { Search, Menu, X, ChevronDown } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { MAIN_NAVIGATION } from '@/lib/constants';
 import { GlobalSearch } from '@/components/search/GlobalSearch';
@@ -151,8 +150,6 @@ export const Header = () => {
   const [scrolled, setScrolled] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
-  const { setTheme, resolvedTheme } = useTheme();
-  const [mounted, setMounted] = useState(false);
 
   const closeSearch = useCallback(() => setSearchOpen(false), []);
 
@@ -163,7 +160,6 @@ export const Header = () => {
   }, [router]);
 
   useEffect(() => {
-    setMounted(true);
     const handleScroll = () => setScrolled(window.scrollY > 50);
     window.addEventListener('scroll', handleScroll);
     return () => window.removeEventListener('scroll', handleScroll);
@@ -180,12 +176,6 @@ export const Header = () => {
     window.addEventListener('keydown', handleKey);
     return () => window.removeEventListener('keydown', handleKey);
   }, []);
-
-  const isDark = resolvedTheme === 'dark';
-
-  const toggleTheme = () => {
-    setTheme(isDark ? 'light' : 'dark');
-  };
 
   return (
     <header
@@ -213,14 +203,6 @@ export const Header = () => {
 
         {/* Right Actions */}
         <div className="hidden lg:flex items-center gap-6">
-          {mounted && (
-            <button
-              onClick={toggleTheme}
-              className="text-neutral-500 hover:text-black dark:hover:text-white transition-colors"
-            >
-              {isDark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
-            </button>
-          )}
           <button
             onClick={() => setSearchOpen(true)}
             className="text-neutral-500 hover:text-black dark:hover:text-white transition-colors flex items-center gap-1.5"
@@ -259,11 +241,6 @@ export const Header = () => {
             exit={{ opacity: 0 }}
             className="fixed inset-0 bg-white dark:bg-[#050505] z-[45] flex flex-col justify-center items-center gap-8 lg:hidden"
           >
-            {mounted && (
-              <button onClick={toggleTheme} className="text-black dark:text-white mb-4">
-                {isDark ? "Switch to Light Mode" : "Switch to Dark Mode"}
-              </button>
-            )}
             <button onClick={() => mobileNavigate('/smart-production')} className="text-3xl font-display font-medium text-black dark:text-white">PROJECTS</button>
             <button onClick={() => mobileNavigate('/lab')} className="text-3xl font-display font-medium text-black dark:text-white">THE LAB</button>
             <button onClick={() => mobileNavigate('/smart-rentals')} className="text-3xl font-display font-medium text-black dark:text-white">SMART RENTALS</button>
