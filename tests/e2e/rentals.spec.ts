@@ -15,8 +15,8 @@ test.describe('Rental browsing', () => {
 
   test('home page renders key sections', async ({ page }) => {
     await page.goto('/');
-    // Should have a header/nav
-    await expect(page.locator('header, nav')).toBeVisible();
+    // Should have a header
+    await expect(page.locator('header').first()).toBeVisible();
     // Should have a footer
     await expect(page.locator('footer')).toBeVisible();
   });
@@ -43,7 +43,6 @@ test.describe('Rental browsing', () => {
 
     const categoryLink = page.locator('a[href*="/smart-rentals/"]').first();
     if ((await categoryLink.count()) > 0) {
-      const href = await categoryLink.getAttribute('href');
       await categoryLink.click();
       await page.waitForURL(/\/smart-rentals\/.+/, { timeout: 10000 });
       await expect(page.locator('body')).toBeVisible();
