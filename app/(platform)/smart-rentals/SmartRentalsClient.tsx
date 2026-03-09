@@ -3,7 +3,7 @@
 import { useMemo } from 'react';
 import { motion } from 'framer-motion';
 import Link from 'next/link';
-import { ArrowUpRight, PackagePlus } from 'lucide-react';
+import { ArrowUpRight } from 'lucide-react';
 import type { SmartRental } from '@/lib/supabase/queries/smartRentals';
 
 // ─── Category display metadata ────────────────────────────────────────────────
@@ -142,24 +142,6 @@ export default function SmartRentalsClient({ rentals }: { rentals: SmartRental[]
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-px bg-neutral-200 dark:bg-white/10 border border-neutral-200 dark:border-white/10">
-
-              {/* Fixed CTA card */}
-              <div className="relative group h-[450px] bg-black text-white dark:bg-white dark:text-black flex flex-col justify-center items-center text-center p-8 overflow-hidden">
-                <PackagePlus className="w-16 h-16 mb-6 opacity-80" />
-                <h3 className="text-3xl font-display font-medium uppercase mb-4">
-                  Custom Package Builder
-                </h3>
-                <p className="text-sm font-mono opacity-70 mb-8 max-w-xs">
-                  Use our AI assistant to recommend the perfect camera and lens combination for your
-                  specific shot requirements.
-                </p>
-                <Link
-                  href="/contact"
-                  className="inline-block border border-white/30 dark:border-black/30 px-8 py-3 text-xs font-mono font-bold uppercase tracking-widest hover:bg-white hover:text-black dark:hover:bg-black dark:hover:text-white transition-colors"
-                >
-                  Start Building
-                </Link>
-              </div>
 
               {/* Dynamic category cards — from DB */}
               {categories.map((cat, index) => {

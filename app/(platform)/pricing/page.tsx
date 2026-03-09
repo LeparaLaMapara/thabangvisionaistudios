@@ -128,12 +128,6 @@ export default function PricingPage() {
       return;
     }
 
-    // Studio plan — go to contact
-    if (plan.id === 'studio') {
-      router.push('/contact');
-      return;
-    }
-
     setLoadingPlan(plan.id);
 
     try {
@@ -317,27 +311,20 @@ export default function PricingPage() {
                     ))}
                   </ul>
 
-                  {plan.id === 'studio' ? (
-                    <Link href="/contact">
-                      <Button variant="outline" className="w-full">
-                        {plan.cta}
-                      </Button>
-                    </Link>
-                  ) : plan.id === 'free' ? (
+                  {plan.id === 'free' ? (
                     <Link href="/register">
-                      <Button variant="secondary" className="w-full">
-                        {plan.cta}
+                      <Button variant="outline" className="w-full">
+                        Get Started
                       </Button>
                     </Link>
                   ) : (
                     <Button
-                      variant="accent"
-                      className="w-full"
+                      className="w-full bg-[#D4A843] text-neutral-950 hover:bg-[#E8C96A] font-bold"
                       loading={isLoading}
                       disabled={!!loadingPlan}
                       onClick={() => handleCheckout(plan)}
                     >
-                      {plan.cta}
+                      Upgrade Now
                     </Button>
                   )}
                 </Card>

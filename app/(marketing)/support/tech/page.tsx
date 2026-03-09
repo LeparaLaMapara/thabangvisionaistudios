@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Terminal, AlertTriangle, FileText, CheckCircle2 } from 'lucide-react';
+import { CheckCircle2 } from 'lucide-react';
 
 export default function TechSupportPage() {
   const [ticketState, setTicketState] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle');
@@ -63,30 +63,9 @@ export default function TechSupportPage() {
             </div>
          </div>
 
-         <div className="grid grid-cols-1 lg:grid-cols-3 gap-12">
-            {/* Quick Actions */}
-            <div className="space-y-4">
-               <h3 className="text-sm font-bold uppercase tracking-widest border-b border-black/10 dark:border-white/10 pb-4 mb-6">Quick Diagnostics</h3>
-
-               {[
-                 { title: 'Firmware Status', icon: Terminal, desc: 'Check latest builds for DXL2 and Venice' },
-                 { title: 'Lens Charts', icon: FileText, desc: 'Download distortion maps and illumination data' },
-                 { title: 'Emergency Procedures', icon: AlertTriangle, desc: 'Critical failure protocols' }
-               ].map((item, i) => (
-                 <motion.div
-                   key={i}
-                   whileHover={{ x: 5 }}
-                   className="p-6 border border-black/10 dark:border-white/10 bg-neutral-50 dark:bg-[#0A0A0B] cursor-pointer group hover:border-black/30 dark:hover:border-white/30 transition-all"
-                 >
-                    <item.icon className="w-6 h-6 mb-4 text-neutral-400 group-hover:text-black dark:group-hover:text-white transition-colors" />
-                    <h4 className="font-bold text-black dark:text-white uppercase text-sm mb-1">{item.title}</h4>
-                    <p className="text-xs font-mono text-neutral-500">{item.desc}</p>
-                 </motion.div>
-               ))}
-            </div>
-
+         <div className="max-w-3xl mx-auto">
             {/* Ticket Form */}
-            <div className="lg:col-span-2">
+            <div>
                <div className="bg-white dark:bg-[#0A0A0B] border border-black/10 dark:border-white/10 p-8 md:p-12">
                   <h3 className="text-xl font-display font-medium uppercase mb-8 text-black dark:text-white">Submit Support Ticket</h3>
 
