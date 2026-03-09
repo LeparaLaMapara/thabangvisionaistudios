@@ -29,7 +29,7 @@ export function Input({ label, error, hint, id, className = '', ...props }: Inpu
             ? 'border-red-500'
             : 'border-black/20 dark:border-white/10',
           'text-black dark:text-white',
-          'px-4 py-3 font-mono text-sm',
+          'px-4 py-3 min-h-[44px] font-mono text-sm',
           'placeholder:text-neutral-300 dark:placeholder:text-neutral-700',
           'focus:outline-none',
           error

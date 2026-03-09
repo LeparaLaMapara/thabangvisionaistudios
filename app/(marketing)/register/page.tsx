@@ -124,7 +124,7 @@ export default function RegisterPage() {
                 onChange={e => setDisplayName(e.target.value)}
                 autoComplete="name"
                 placeholder="Your name"
-                className="w-full bg-white dark:bg-neutral-900 border border-black/10 dark:border-white/10 text-black dark:text-white px-4 py-3 text-sm font-mono placeholder:text-neutral-300 dark:placeholder:text-neutral-700 focus:outline-none focus:border-black dark:focus:border-white transition-colors"
+                className="w-full bg-white dark:bg-neutral-900 border border-black/10 dark:border-white/10 text-black dark:text-white px-4 py-3 min-h-[44px] text-sm font-mono placeholder:text-neutral-300 dark:placeholder:text-neutral-700 focus:outline-none focus:border-black dark:focus:border-white transition-colors"
               />
             </div>
 
@@ -144,7 +144,7 @@ export default function RegisterPage() {
                 required
                 autoComplete="email"
                 placeholder="you@example.com"
-                className="w-full bg-white dark:bg-neutral-900 border border-black/10 dark:border-white/10 text-black dark:text-white px-4 py-3 text-sm font-mono placeholder:text-neutral-300 dark:placeholder:text-neutral-700 focus:outline-none focus:border-black dark:focus:border-white transition-colors"
+                className="w-full bg-white dark:bg-neutral-900 border border-black/10 dark:border-white/10 text-black dark:text-white px-4 py-3 min-h-[44px] text-sm font-mono placeholder:text-neutral-300 dark:placeholder:text-neutral-700 focus:outline-none focus:border-black dark:focus:border-white transition-colors"
               />
             </div>
 
@@ -164,7 +164,7 @@ export default function RegisterPage() {
                 required
                 autoComplete="new-password"
                 placeholder={`Min ${STUDIO.platform.minPasswordLength} characters`}
-                className="w-full bg-white dark:bg-neutral-900 border border-black/10 dark:border-white/10 text-black dark:text-white px-4 py-3 text-sm font-mono placeholder:text-neutral-300 dark:placeholder:text-neutral-700 focus:outline-none focus:border-black dark:focus:border-white transition-colors"
+                className="w-full bg-white dark:bg-neutral-900 border border-black/10 dark:border-white/10 text-black dark:text-white px-4 py-3 min-h-[44px] text-sm font-mono placeholder:text-neutral-300 dark:placeholder:text-neutral-700 focus:outline-none focus:border-black dark:focus:border-white transition-colors"
               />
             </div>
 
@@ -184,7 +184,7 @@ export default function RegisterPage() {
                 required
                 autoComplete="new-password"
                 placeholder="Repeat password"
-                className="w-full bg-white dark:bg-neutral-900 border border-black/10 dark:border-white/10 text-black dark:text-white px-4 py-3 text-sm font-mono placeholder:text-neutral-300 dark:placeholder:text-neutral-700 focus:outline-none focus:border-black dark:focus:border-white transition-colors"
+                className="w-full bg-white dark:bg-neutral-900 border border-black/10 dark:border-white/10 text-black dark:text-white px-4 py-3 min-h-[44px] text-sm font-mono placeholder:text-neutral-300 dark:placeholder:text-neutral-700 focus:outline-none focus:border-black dark:focus:border-white transition-colors"
               />
             </div>
 
