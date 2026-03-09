@@ -190,12 +190,12 @@ export default function RegisterPage() {
 
             {/* Terms checkbox */}
             <div>
-              <label className="flex items-start gap-3 cursor-pointer group">
+              <label className="flex items-start gap-3 cursor-pointer group min-h-[44px] py-2">
                 <input
                   type="checkbox"
                   checked={agreedToTerms}
                   onChange={(e) => setAgreedToTerms(e.target.checked)}
-                  className="mt-0.5 w-4 h-4 border border-black/20 dark:border-white/20 bg-white dark:bg-neutral-900 accent-black dark:accent-white cursor-pointer"
+                  className="mt-0.5 w-5 h-5 min-w-[20px] border border-black/20 dark:border-white/20 bg-white dark:bg-neutral-900 accent-black dark:accent-white cursor-pointer"
                 />
                 <span className="text-xs font-mono text-neutral-500 leading-relaxed">
                   I agree to the{' '}

@@ -193,9 +193,9 @@ export const Header = () => {
         scrolled ? 'bg-white/90 dark:bg-[#050505]/90 backdrop-blur-md border-neutral-200 dark:border-white/10' : 'bg-transparent border-transparent'
       }`}
     >
-      <div className="container mx-auto px-6 flex justify-between items-center h-20">
+      <div className={`container mx-auto px-6 flex justify-between items-center h-20 relative z-50 ${mobileMenuOpen ? 'pointer-events-none' : ''}`}>
         {/* Logo */}
-        <Link href="/" className="z-50 group flex items-center gap-4">
+        <Link href="/" className="group flex items-center gap-4 pointer-events-auto">
           <ThabangLogo />
         </Link>
 
@@ -234,7 +234,7 @@ export const Header = () => {
         </div>
 
         {/* Mobile Actions */}
-        <div className="lg:hidden flex items-center gap-3 z-50">
+        <div className="lg:hidden flex items-center gap-3 pointer-events-auto">
           <button
             onClick={() => setSearchOpen(true)}
             className="text-neutral-500 hover:text-black dark:hover:text-white transition-colors"
@@ -257,7 +257,7 @@ export const Header = () => {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-white dark:bg-[#050505] z-40 flex flex-col justify-center items-center gap-8 lg:hidden"
+            className="fixed inset-0 bg-white dark:bg-[#050505] z-[45] flex flex-col justify-center items-center gap-8 lg:hidden"
           >
             {mounted && (
               <button onClick={toggleTheme} className="text-black dark:text-white mb-4">
