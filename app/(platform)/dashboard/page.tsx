@@ -2,6 +2,7 @@ export const dynamic = 'force-dynamic';
 
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
+import { auth } from '@/lib/auth';
 import { getProfileById } from '@/lib/supabase/queries/profiles';
 import { Calendar, Package, ShoppingBag, ArrowRight, User, Search, ShieldCheck } from 'lucide-react';
 
@@ -10,10 +11,8 @@ export const metadata = {
 };
 
 export default async function DashboardPage() {
+  const user = await auth.getUser();
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
 
   const profile = user ? await getProfileById(user.id) : null;
 

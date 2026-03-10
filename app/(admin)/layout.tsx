@@ -2,9 +2,9 @@ export const dynamic = 'force-dynamic';
 
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
-import { createClient } from '@/lib/supabase/server';
+import { auth } from '@/lib/auth';
 import { LogoutButton } from '@/components/admin/LogoutButton';
-import { STUDIO, ADMIN_EMAILS } from '@/lib/constants';
+import { STUDIO } from '@/lib/constants';
 
 /**
  * Auth guard for all /admin/* routes.
@@ -17,15 +17,12 @@ export default async function AdminLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await auth.getUser();
 
   if (!user) redirect('/login');
 
   // C3: Verify user is an admin — not just authenticated
-  if (!user.email || !ADMIN_EMAILS.includes(user.email.toLowerCase())) {
+  if (!auth.isAdmin(user.email)) {
     redirect('/dashboard');
   }
 

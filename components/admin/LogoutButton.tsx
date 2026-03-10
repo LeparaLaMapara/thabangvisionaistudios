@@ -11,6 +11,9 @@ export function LogoutButton() {
 
   const handleSignOut = async () => {
     setLoading(true);
+    // Client-side sign out — uses browser Supabase client directly
+    // because dynamic imports of lib/auth/supabase.ts would pull in
+    // server-only code (@supabase/ssr server client).
     const supabase = createClient();
     await supabase.auth.signOut();
     router.push('/login');
