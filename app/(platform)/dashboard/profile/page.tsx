@@ -153,6 +153,20 @@ export default function ProfileEditPage() {
       return;
     }
 
+    // H10: Validate social link URLs — only allow http/https protocols
+    const safeSocialLinks: Record<string, string> = {};
+    for (const [platform, url] of Object.entries(socialLinks)) {
+      if (!url.trim()) continue;
+      try {
+        const parsed = new URL(url);
+        if (['https:', 'http:'].includes(parsed.protocol)) {
+          safeSocialLinks[platform] = url;
+        }
+      } catch {
+        // Skip invalid URLs
+      }
+    }
+
     const payload = {
       display_name: displayName.trim() || null,
       bio: bio.trim() || null,
@@ -161,7 +175,7 @@ export default function ProfileEditPage() {
       avatar_url: avatarUrl || null,
       skills: skills.length > 0 ? skills : null,
       social_links:
-        Object.keys(socialLinks).length > 0 ? socialLinks : null,
+        Object.keys(safeSocialLinks).length > 0 ? safeSocialLinks : null,
       updated_at: new Date().toISOString(),
     };
 

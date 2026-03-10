@@ -2,16 +2,18 @@
 // ─── Studio Branding & Configuration ─────────────────────────────────────────
 // Single source of truth for ALL studio identity, contact info, and config.
 
+
 export const STUDIO = {
-  name: 'Thabang Vision AI Studios',
+  name: 'ThabangVision AI Studios',
   shortName: 'ThabangVision',
   tagline: 'We Engineer The Invisible',
   email: 'thabangvisionstudios@gmail.com',
-  careersEmail: 'thabangvisionstudios@gmail.com',
-  supportEmail: 'thabangvisionstudios@gmail.com',
-  pressEmail: 'thabangvisionstudios@gmail.com',
-  privacyEmail: 'thabangvisionstudios@gmail.com',
-  phone: '',
+  careersEmail: 'thabangvisionstudios+careers@gmail.com',
+  supportEmail: 'thabangvisionstudios+support@gmail.com',
+  bookingEmail: 'thabangvisionstudios+booking@gmail.com',
+  pressEmail: 'thabangvisionstudios+press@gmail.com',
+  privacyEmail: 'thabangvisionstudios+privacy@gmail.com',
+  phone: '079 539 9012',
 
   location: {
     city: 'Johannesburg',
@@ -23,14 +25,14 @@ export const STUDIO = {
   },
 
   social: {
-    instagram: '',
-    twitter: '',
-    youtube: '',
-    linkedin: '',
-    tiktok: '',
-    behance: '',
-    vimeo: '',
-    facebook: '',
+    instagram: 'https://instagram.com/thabangvisionlabs',
+    twitter: 'https://x.com/thabangvisionlabs',
+    youtube: 'https://youtube.com/@thabangvisionlabs',
+    linkedin: 'https://linkedin.com/thabangvisionlabs',
+    tiktok: 'https://tiktok.com/thabangvisionlabs',
+    // behance: 'https://behance.net/thabangvisionstudios',
+    // vimeo: 'https://vimeo.com/thabangvisionstudios',
+    facebook: 'https://facebook.com/thabangvisionlabs',
   },
 
   legal: {
@@ -41,7 +43,7 @@ export const STUDIO = {
 
   meta: {
     url: 'https://thabangvisionstudios.com',
-    title: 'Thabang Vision AI Studios',
+    title: 'ThabangVision AI Studios',
     description:
       'Premium creative production and equipment rental platform for South African filmmakers and photographers.',
     ogImage: '/og-image.jpg',
@@ -118,6 +120,12 @@ export const STUDIO = {
     paginationLimit: 12,
   },
 } as const;
+
+// ─── Admin Access Control ────────────────────────────────────────────────────
+// Emails that have admin access. Add new admins here.
+export const ADMIN_EMAILS: readonly string[] = [
+  'thabangvisionstudios@gmail.com',
+];
 
 // ─── Derived constants (backward-compatible exports) ─────────────────────────
 

@@ -2,13 +2,18 @@ export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'node:crypto';
+import { requireAuth } from '@/lib/auth';
 
 /**
  * POST /api/cloudinary/sign
  * Returns a signed upload signature so clients can upload directly to
  * Cloudinary without ever seeing CLOUDINARY_API_SECRET.
+ * Requires authentication — only logged-in users can sign uploads.
  */
 export async function POST(req: NextRequest) {
+  const auth = await requireAuth();
+  if (auth.error) return auth.error;
+
   const secret = process.env.CLOUDINARY_API_SECRET;
   if (!secret) {
     return NextResponse.json(

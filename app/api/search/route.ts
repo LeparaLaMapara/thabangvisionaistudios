@@ -24,7 +24,13 @@ export async function GET(req: NextRequest) {
   }
 
   const supabase = await createClient();
-  const pattern = `%${q}%`;
+
+  // H2: Sanitize search input — escape PostgREST special characters to prevent filter injection
+  const sanitized = q.replace(/[,.()"'\\%_]/g, '');
+  if (!sanitized || sanitized.length < 2) {
+    return NextResponse.json({ results: [], counts: {} } satisfies SearchResponse);
+  }
+  const pattern = `%${sanitized}%`;
 
   const [productions, rentals, press, careers, profiles, listings] = await Promise.all([
     supabase

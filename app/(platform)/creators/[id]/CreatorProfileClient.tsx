@@ -367,7 +367,15 @@ export default function CreatorProfileClient({
                 Connect
               </h2>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {Object.entries(socialLinks).map(([platform, url]) => (
+                {Object.entries(socialLinks)
+                  .filter(([, url]) => {
+                    // H10: Only render links with safe protocols (http/https)
+                    try {
+                      const parsed = new URL(url);
+                      return ['https:', 'http:'].includes(parsed.protocol);
+                    } catch { return false; }
+                  })
+                  .map(([platform, url]) => (
                   <Card key={platform} hover>
                     <a
                       href={url}

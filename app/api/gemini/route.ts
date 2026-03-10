@@ -1,16 +1,32 @@
 export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
+import { requireAuth, checkRateLimit } from '@/lib/auth';
+
+const ALLOWED_MODELS = ['gemini-pro', 'gemini-pro-vision', 'gemini-1.5-pro', 'gemini-1.5-flash'];
 
 /**
  * POST /api/gemini
  * Secure proxy — GEMINI_API_KEY lives only on the server.
- * Client code calls this route; the key is never bundled to the browser.
+ * Requires authentication + rate limited to 10 requests/minute per user.
  *
  * Body:    { prompt: string; model?: string }
  * Returns: raw Gemini generateContent JSON
  */
 export async function POST(req: NextRequest) {
+  // H1: Require authentication
+  const auth = await requireAuth();
+  if (auth.error) return auth.error;
+
+  // H1: Rate limit — 10 requests per minute per user
+  const allowed = checkRateLimit(`gemini:${auth.user.id}`, 10, 60_000);
+  if (!allowed) {
+    return NextResponse.json(
+      { error: 'Rate limit exceeded. Please wait before trying again.' },
+      { status: 429 },
+    );
+  }
+
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
     return NextResponse.json(
@@ -37,12 +53,20 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  // H1: Validate model against allowlist to prevent URL manipulation
+  if (!ALLOWED_MODELS.includes(model)) {
+    return NextResponse.json(
+      { error: `Invalid model. Allowed: ${ALLOWED_MODELS.join(', ')}` },
+      { status: 400 },
+    );
+  }
+
   const upstream = await fetch(
     `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
     {
-      method:  'POST',
+      method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({
+      body: JSON.stringify({
         contents: [{ parts: [{ text: prompt.trim() }] }],
       }),
     },
@@ -50,9 +74,10 @@ export async function POST(req: NextRequest) {
 
   if (!upstream.ok) {
     const detail = await upstream.text();
+    console.error('[gemini] Upstream error:', detail);
     return NextResponse.json(
-      { error: 'Gemini upstream error.', detail },
-      { status: upstream.status },
+      { error: 'AI service temporarily unavailable.' },
+      { status: 502 },
     );
   }
 

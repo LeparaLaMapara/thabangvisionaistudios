@@ -1,12 +1,14 @@
 export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
+import { requireAdmin } from '@/lib/auth';
 
 /**
  * POST /api/cloudinary/delete-folder
  *
  * Deletes ALL assets under a given Cloudinary folder prefix.
  * Used exclusively when hard-deleting an entire Smart Production project.
+ * Requires admin access — only admins can delete folders.
  *
  * Strategy:
  *   - Cloudinary Admin API  DELETE /resources/{type}/upload?prefix={folder}
@@ -20,6 +22,9 @@ import { NextRequest, NextResponse } from 'next/server';
  * Returns: { success: true } | { error: string }
  */
 export async function POST(req: NextRequest) {
+  const auth = await requireAdmin();
+  if (auth.error) return auth.error;
+
   const cloudName = process.env.CLOUDINARY_CLOUD_NAME;
   const apiKey    = process.env.CLOUDINARY_API_KEY;
   const secret    = process.env.CLOUDINARY_API_SECRET;
@@ -45,9 +50,9 @@ export async function POST(req: NextRequest) {
   }
 
   // HTTP Basic Auth — used by the Cloudinary Admin API.
-  const auth    = Buffer.from(`${apiKey}:${secret}`).toString('base64');
-  const baseUrl = `https://api.cloudinary.com/v1_1/${cloudName}`;
-  const headers = { Authorization: `Basic ${auth}` };
+  const basicAuth = Buffer.from(`${apiKey}:${secret}`).toString('base64');
+  const baseUrl   = `https://api.cloudinary.com/v1_1/${cloudName}`;
+  const headers   = { Authorization: `Basic ${basicAuth}` };
 
   // Delete by prefix for images and videos in parallel.
   // A missing / empty folder returns { deleted: {} } — not an error.

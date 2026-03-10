@@ -2,17 +2,22 @@ export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'node:crypto';
+import { requireAdmin } from '@/lib/auth';
 
 /**
  * POST /api/cloudinary/delete
  *
  * Deletes a single asset from Cloudinary using a server-side signed request.
  * CLOUDINARY_API_SECRET never leaves the server.
+ * Requires admin access — only admins can delete assets.
  *
  * Body: { public_id: string, resource_type?: 'image' | 'video' | 'raw' }
  * Returns: { success: true } | { error: string }
  */
 export async function POST(req: NextRequest) {
+  const auth = await requireAdmin();
+  if (auth.error) return auth.error;
+
   const secret    = process.env.CLOUDINARY_API_SECRET;
   const cloudName = process.env.CLOUDINARY_CLOUD_NAME;
   const apiKey    = process.env.CLOUDINARY_API_KEY;
