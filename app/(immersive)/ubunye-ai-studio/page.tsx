@@ -1,11 +1,14 @@
 'use client';
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Send } from 'lucide-react';
+import { ArrowUp, LogIn, UserPlus, ArrowUpRight } from 'lucide-react';
+import ReactMarkdown, { type Components } from 'react-markdown';
 import { createClient } from '@/lib/supabase/client';
 import { STUDIO } from '@/lib/constants';
 import { EnergySphere } from '@/components/ubunye/EnergySphere';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 
 // ─── Types ──────────────────────────────────────────────────────────────────────
 
@@ -14,27 +17,21 @@ type Message = {
   role: 'user' | 'assistant';
   content: string;
   timestamp: Date;
+  isLimitMessage?: boolean;
 };
 
 type EnergyLevel = 'idle' | 'pulse' | 'calm';
 
-// ─── System Prompt ──────────────────────────────────────────────────────────────
+// ─── Constants ──────────────────────────────────────────────────────────────────
 
-const SYSTEM_PROMPT = `You are Ubunye, the AI assistant for ${STUDIO.name}. You help ${STUDIO.location.country} filmmakers and photographers plan productions, find equipment, discover crew, generate creative assets, and get pricing estimates. Be helpful, knowledgeable about the ${STUDIO.location.country} creative industry, and conversational. Use ${STUDIO.currency.code} for all pricing. Keep responses concise and actionable. You can help with:
-- Production planning (schedules, shot lists, budgets)
-- Equipment recommendations and rental pricing
-- Crew hiring and role suggestions
-- Creative asset ideas and briefs
-- ${STUDIO.location.country} filming locations and permits
-- Industry rates and market pricing in ${STUDIO.currency.code}`;
-
-// ─── Quick Actions ──────────────────────────────────────────────────────────────
+const GUEST_LIMIT = 5;
+const SESSION_STORAGE_KEY = 'ubunye_msg_count';
+const HEADER_HEIGHT = '5rem';
 
 const QUICK_ACTIONS = [
   { label: 'Plan a shoot', prompt: `Help me plan a professional shoot in ${STUDIO.location.city}. I need a shot list, crew recommendations, and equipment.` },
   { label: 'Find gear', prompt: `What camera and lens packages do you recommend for a cinematic corporate video in ${STUDIO.location.country}?` },
   { label: 'Hire crew', prompt: `I need to hire a film crew for a 2-day shoot in ${STUDIO.location.city}. What roles do I need and what are typical rates in ${STUDIO.currency.code}?` },
-  { label: 'Create assets', prompt: `Help me create a creative brief for a brand video for a ${STUDIO.location.country} tech startup.` },
   { label: 'Get pricing', prompt: `Give me a breakdown of typical production costs in ${STUDIO.currency.code} for a 1-minute commercial in ${STUDIO.location.country}.` },
 ];
 
@@ -51,9 +48,6 @@ function generateId(): string {
   return Math.random().toString(36).substring(2, 11);
 }
 
-// Header is fixed top-0 h-20 = 80px
-const HEADER_HEIGHT = '5rem'; // 80px
-
 // ─── Component ──────────────────────────────────────────────────────────────────
 
 export default function UbunyeAIStudioPage() {
@@ -61,284 +55,335 @@ export default function UbunyeAIStudioPage() {
   const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const [userName, setUserName] = useState<string | null>(null);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [, setUserPlan] = useState<string>('free');
+  const [dailyLimit, setDailyLimit] = useState<number>(20);
+  const [dailyUsed, setDailyUsed] = useState<number>(0);
+  const [guestMessageCount, setGuestMessageCount] = useState(0);
+  const [limitReached, setLimitReached] = useState(false);
   const [energyLevel, setEnergyLevel] = useState<EnergyLevel>('idle');
-  const [latency, setLatency] = useState(12);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const router = useRouter();
 
-  // Fetch user name from Supabase session
+  // ─── Markdown components (stable ref) ──
+  const mdComponents: Components = useMemo(() => ({
+    a: ({ href, children }) => {
+      if (href?.startsWith('/')) {
+        return (
+          <Link href={href} className="text-[#D4A843] hover:underline transition-colors">
+            {children}
+          </Link>
+        );
+      }
+      return (
+        <a href={href} className="text-[#D4A843] hover:underline transition-colors" target="_blank" rel="noopener noreferrer">
+          {children}
+        </a>
+      );
+    },
+    strong: ({ children }) => <strong className="text-white font-semibold">{children}</strong>,
+    em: ({ children }) => <em className="text-neutral-200">{children}</em>,
+    p: ({ children }) => <p className="mb-3 last:mb-0 leading-relaxed">{children}</p>,
+    ul: ({ children }) => <ul className="ml-4 mb-3 space-y-1 list-disc">{children}</ul>,
+    ol: ({ children }) => <ol className="ml-4 mb-3 space-y-1 list-decimal">{children}</ol>,
+    li: ({ children }) => <li className="text-neutral-300 leading-relaxed">{children}</li>,
+    h1: ({ children }) => <h1 className="text-white font-semibold text-lg mt-5 mb-2">{children}</h1>,
+    h2: ({ children }) => <h2 className="text-white font-semibold text-base mt-5 mb-2">{children}</h2>,
+    h3: ({ children }) => <h3 className="text-white font-semibold mt-4 mb-2">{children}</h3>,
+    h4: ({ children }) => <h4 className="text-neutral-200 font-semibold mt-3 mb-1">{children}</h4>,
+    code: ({ children, className }) => {
+      if (className?.includes('language-')) {
+        return (
+          <code className="block bg-neutral-900 rounded-lg px-4 py-3 my-3 text-[13px] font-mono text-neutral-300 overflow-x-auto">
+            {children}
+          </code>
+        );
+      }
+      return (
+        <code className="bg-neutral-800 px-1.5 py-0.5 rounded text-[13px] font-mono text-[#D4A843]">
+          {children}
+        </code>
+      );
+    },
+    pre: ({ children }) => <pre className="my-3">{children}</pre>,
+    blockquote: ({ children }) => (
+      <blockquote className="border-l-2 border-[#D4A843]/30 pl-4 my-3 text-neutral-400">
+        {children}
+      </blockquote>
+    ),
+    hr: () => <hr className="border-neutral-800 my-4" />,
+    table: ({ children }) => (
+      <div className="overflow-x-auto my-3">
+        <table className="w-full text-sm border-collapse">{children}</table>
+      </div>
+    ),
+    thead: ({ children }) => <thead className="border-b border-neutral-700">{children}</thead>,
+    th: ({ children }) => <th className="text-left text-neutral-300 font-semibold px-3 py-2 text-sm">{children}</th>,
+    td: ({ children }) => <td className="px-3 py-2 border-b border-neutral-800/50 text-sm">{children}</td>,
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }), []);
+
+  // ─── Auth & session ──
   useEffect(() => {
     const supabase = createClient();
-    supabase.auth.getUser().then(({ data }) => {
+
+    try {
+      const stored = sessionStorage.getItem(SESSION_STORAGE_KEY);
+      if (stored) setGuestMessageCount(parseInt(stored, 10) || 0);
+    } catch { /* SSR safety */ }
+
+    supabase.auth.getUser().then(async ({ data }) => {
       if (data.user) {
+        setIsAuthenticated(true);
         const meta = data.user.user_metadata;
-        const name = meta?.display_name || meta?.full_name || meta?.name || null;
-        setUserName(name);
+        setUserName(meta?.display_name || meta?.full_name || meta?.name || null);
+
+        try {
+          const res = await fetch('/api/subscriptions/me');
+          const sub = await res.json();
+          if (sub?.subscription_plans?.slug) {
+            const slug = sub.subscription_plans.slug;
+            setUserPlan(slug);
+            const limits: Record<string, number> = { free: 20, starter: 20, pro: 100, 'pro-creator': 100, studio: -1 };
+            setDailyLimit(limits[slug] ?? 20);
+          }
+        } catch { /* fallback to free */ }
       }
     });
   }, []);
 
-  // Simulate latency fluctuation
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setLatency(Math.floor(8 + Math.random() * 18));
-    }, 3000);
-    return () => clearInterval(interval);
-  }, []);
-
-  // Auto-scroll to bottom
+  // Auto-scroll
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, isTyping]);
 
-  const sendMessage = useCallback(async (text: string) => {
-    if (!text.trim()) return;
-
-    const userMsg: Message = {
+  // ─── Message handling ──
+  const addLimitMessage = useCallback((content: string) => {
+    setMessages(prev => [...prev, {
       id: generateId(),
-      role: 'user',
-      content: text.trim(),
+      role: 'assistant',
+      content,
       timestamp: new Date(),
-    };
+      isLimitMessage: true,
+    }]);
+    setLimitReached(true);
+  }, []);
 
+  const sendMessage = useCallback(async (text: string) => {
+    if (!text.trim() || limitReached) return;
+
+    if (!isAuthenticated && guestMessageCount >= GUEST_LIMIT) {
+      addLimitMessage("You've used your 5 free messages. Sign in to continue chatting with Ubunye.");
+      return;
+    }
+
+    const userMsg: Message = { id: generateId(), role: 'user', content: text.trim(), timestamp: new Date() };
     setMessages(prev => [...prev, userMsg]);
     setInput('');
     setIsTyping(true);
     setEnergyLevel('pulse');
 
-    const startTime = Date.now();
+    let newGuestCount = guestMessageCount;
+    if (!isAuthenticated) {
+      newGuestCount = guestMessageCount + 1;
+      setGuestMessageCount(newGuestCount);
+      try { sessionStorage.setItem(SESSION_STORAGE_KEY, String(newGuestCount)); } catch { /* SSR */ }
+    }
+
+    const isFirstGuestMessage = !isAuthenticated && newGuestCount === 1;
 
     try {
-      // Build conversation history in the format the AI abstraction expects
-      const chatMessages = [...messages, userMsg].map(m => ({
-        role: m.role as 'user' | 'assistant',
-        content: m.content,
-      }));
+      const chatMessages = [...messages, userMsg]
+        .filter(m => !m.isLimitMessage)
+        .map(m => ({ role: m.role as 'user' | 'assistant', content: m.content }));
 
       const res = await fetch('/api/gemini', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           prompt: text.trim(),
-          systemPrompt: SYSTEM_PROMPT,
           messages: chatMessages,
+          ...(!isAuthenticated && { sessionMessageCount: newGuestCount - 1 }),
+          ...(isFirstGuestMessage && { isFirstGuestMessage: true }),
         }),
       });
 
-      if (!res.ok) {
-        throw new Error('Failed to get response');
+      if (res.status === 429) {
+        const data = await res.json();
+        if (data.error === 'limit_reached') {
+          addLimitMessage(
+            data.plan === 'guest'
+              ? "You've used your 5 free messages. Sign in to continue chatting with Ubunye."
+              : `You've reached your daily limit of ${data.limit} messages on the ${data.plan} plan. Upgrade for more messages.`
+          );
+          setIsTyping(false);
+          setEnergyLevel('idle');
+          return;
+        }
+        throw new Error('Rate limited');
       }
 
+      if (!res.ok) throw new Error('Failed to get response');
+
       const data = await res.json();
-      const responseText = data?.response
-        || 'I apologize, I couldn\'t process that request. Please try again.';
+      if (isAuthenticated) setDailyUsed(prev => prev + 1);
 
-      const elapsed = Date.now() - startTime;
-      setLatency(Math.max(8, Math.min(99, Math.floor(elapsed / 100))));
-
-      const assistantMsg: Message = {
+      setMessages(prev => [...prev, {
         id: generateId(),
         role: 'assistant',
-        content: responseText,
+        content: data?.response || "I couldn't process that request. Please try again.",
         timestamp: new Date(),
-      };
-
-      setMessages(prev => [...prev, assistantMsg]);
+      }]);
     } catch {
-      const assistantMsg: Message = {
+      setMessages(prev => [...prev, {
         id: generateId(),
         role: 'assistant',
-        content: 'I\'m experiencing connectivity issues. Please check that the AI service is configured and try again.',
+        content: "I'm experiencing connectivity issues. Please check that the AI service is configured and try again.",
         timestamp: new Date(),
-      };
-      setMessages(prev => [...prev, assistantMsg]);
+      }]);
     } finally {
       setIsTyping(false);
       setEnergyLevel('calm');
-      // Return to idle after calm period
       setTimeout(() => setEnergyLevel('idle'), 2000);
     }
-  }, [messages]);
+  }, [messages, isAuthenticated, guestMessageCount, limitReached, addLimitMessage]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     sendMessage(input);
   };
 
-  const handleQuickAction = (prompt: string) => {
-    sendMessage(prompt);
-  };
-
   const greeting = getGreeting();
   const displayName = userName || 'Creator';
+  const userInitial = (userName?.[0] || 'Y').toUpperCase();
+  const hasMessages = messages.length > 0;
 
   return (
-    <div
-      className="relative bg-[#030305] text-white overflow-hidden"
-      style={{ paddingTop: HEADER_HEIGHT, height: '100vh' }}
-    >
+    <div className="bg-[#050505] text-white" style={{ paddingTop: HEADER_HEIGHT, height: '100vh' }}>
+      <div className="flex flex-col h-full max-w-3xl mx-auto px-4 md:px-6">
 
-      {/* ── Background layers (offset below header) ── */}
-
-      {/* Grid overlay */}
-      <div
-        className="absolute inset-0 pointer-events-none z-0"
-        style={{
-          top: HEADER_HEIGHT,
-          backgroundImage:
-            'linear-gradient(rgba(212,168,67,0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(212,168,67,0.03) 1px, transparent 1px)',
-          backgroundSize: '60px 60px',
-        }}
-      />
-
-      {/* Scanlines */}
-      <div
-        className="absolute inset-0 pointer-events-none z-[1]"
-        style={{
-          top: HEADER_HEIGHT,
-          backgroundImage:
-            'repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.03) 2px, rgba(0,0,0,0.03) 4px)',
-        }}
-      />
-
-      {/* Vignette */}
-      <div
-        className="absolute inset-0 pointer-events-none z-[2]"
-        style={{
-          top: HEADER_HEIGHT,
-          background: 'radial-gradient(ellipse at center, transparent 40%, rgba(0,0,0,0.7) 100%)',
-        }}
-      />
-
-      {/* ── HUD Corners (hidden on mobile, offset below header) ── */}
-      <div className="hidden md:block">
-        {/* Top-left */}
-        <div className="absolute left-4 z-10 w-12 h-12 border-l border-t border-[#D4A843]/30" style={{ top: `calc(${HEADER_HEIGHT} + 1rem)` }} />
-        {/* Top-right */}
-        <div className="absolute right-4 z-10 w-12 h-12 border-r border-t border-[#D4A843]/30" style={{ top: `calc(${HEADER_HEIGHT} + 1rem)` }} />
-        {/* Bottom-left */}
-        <div className="absolute bottom-4 left-4 z-10 w-12 h-12 border-l border-b border-[#D4A843]/30" />
-        {/* Bottom-right */}
-        <div className="absolute bottom-4 right-4 z-10 w-12 h-12 border-r border-b border-[#D4A843]/30" />
-      </div>
-
-      {/* ── Top status bar (below header) ── */}
-      <div className="relative z-10 flex items-center justify-between px-4 md:px-8 py-4 border-b border-[#D4A843]/10">
-        <div className="flex items-center gap-3">
-          {/* AI avatar dot */}
-          <div className="relative w-3 h-3">
-            <div className="absolute inset-0 rounded-full bg-[#D4A843] animate-ping opacity-30" />
-            <div className="relative w-3 h-3 rounded-full bg-[#D4A843]" />
-          </div>
-          <span
-            className="text-[11px] font-bold tracking-[0.3em] text-[#D4A843] uppercase"
-            style={{ fontFamily: 'var(--font-orbitron), sans-serif' }}
-          >
-            UBUNYE AI
-          </span>
-        </div>
-
-        {/* Status indicators (hidden on mobile) */}
-        <div className="hidden md:flex items-center gap-6">
-          <StatusIndicator label="Neural Core" status="active" />
-          <StatusIndicator label="Latency" value={`${latency}ms`} />
-          <StatusIndicator label="Status" status="ready" />
-        </div>
-      </div>
-
-      {/* ── Main content — fills remaining space below header + status bar ── */}
-      <div className="relative z-10 flex flex-col items-center px-4 md:px-8 pt-6 md:pt-8 pb-4 overflow-hidden" style={{ height: `calc(100vh - ${HEADER_HEIGHT} - 57px)` }}>
-
-        {/* Energy Sphere */}
-        <div className="relative w-[200px] h-[200px] md:w-[320px] md:h-[320px] mb-6 md:mb-8 flex-shrink-0">
-          <EnergySphere
-            energyLevel={energyLevel}
-            className="w-full h-full"
-          />
-        </div>
-
-        {/* Greeting & Prompt (shown when no messages) */}
+        {/* ── Empty state: sphere + greeting + chips ── */}
         <AnimatePresence mode="wait">
-          {messages.length === 0 && (
+          {!hasMessages && (
             <motion.div
-              key="greeting"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
-              transition={{ duration: 0.5 }}
-              className="text-center mb-6 md:mb-8 flex-shrink-0"
+              key="empty"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0, transition: { duration: 0.2 } }}
+              className="flex-1 flex flex-col items-center justify-center"
             >
-              <p className="text-xs font-mono text-[#D4A843]/60 tracking-[0.2em] uppercase mb-3">
+              {/* Sphere — hidden on mobile */}
+              <div className="hidden md:block w-[160px] h-[160px] mb-8 opacity-60">
+                <EnergySphere energyLevel={energyLevel} className="w-full h-full" />
+              </div>
+
+              {/* Greeting */}
+              <p className="text-xs text-neutral-500 tracking-wide mb-3">
                 {greeting}, {displayName}
               </p>
-              <h1
-                className="text-2xl md:text-4xl font-bold tracking-wide text-white uppercase mb-2"
-                style={{ fontFamily: 'var(--font-orbitron), sans-serif' }}
-              >
-                WHAT CAN I DO{' '}
-                <span className="text-[#D4A843]">FOR YOU?</span>
+              <h1 className="text-xl md:text-2xl font-medium text-neutral-200 mb-8">
+                What can I do <span className="text-[#D4A843]">for you?</span>
               </h1>
+
+              {/* Quick actions */}
+              <div className="flex flex-wrap justify-center gap-2 max-w-lg">
+                {QUICK_ACTIONS.map((action) => (
+                  <button
+                    key={action.label}
+                    onClick={() => sendMessage(action.prompt)}
+                    className="px-4 py-2 text-sm text-neutral-400 rounded-full border border-neutral-800 hover:border-[#D4A843]/50 hover:text-[#D4A843] transition-colors"
+                  >
+                    {action.label}
+                  </button>
+                ))}
+              </div>
             </motion.div>
           )}
         </AnimatePresence>
 
-        {/* Quick Actions (shown when no messages) */}
-        <AnimatePresence>
-          {messages.length === 0 && (
-            <motion.div
-              key="actions"
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.4, delay: 0.2 }}
-              className="flex flex-wrap justify-center gap-2 md:gap-3 mb-6 md:mb-8 max-w-full md:max-w-2xl px-2 flex-shrink-0"
-            >
-              {QUICK_ACTIONS.map((action) => (
-                <button
-                  key={action.label}
-                  onClick={() => handleQuickAction(action.prompt)}
-                  className="px-3 md:px-4 py-2 text-[9px] md:text-[11px] font-mono font-bold uppercase tracking-[0.1em] md:tracking-[0.15em] border border-[#D4A843]/20 text-[#D4A843]/70 hover:text-[#D4A843] hover:border-[#D4A843]/50 hover:bg-[#D4A843]/5 transition-all duration-300 max-w-full overflow-hidden text-ellipsis whitespace-nowrap"
-                >
-                  {action.label}
-                </button>
-              ))}
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        {/* Messages area */}
-        {messages.length > 0 && (
-          <div className="w-full max-w-2xl flex-1 overflow-y-auto mb-4 space-y-4 scrollbar-thin px-2">
+        {/* ── Messages ── */}
+        {hasMessages && (
+          <div className="flex-1 overflow-y-auto py-6 space-y-6 scrollbar-thin">
             {messages.map((msg) => (
               <motion.div
                 key={msg.id}
-                initial={{ opacity: 0, y: 10 }}
+                initial={{ opacity: 0, y: 8 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.3 }}
-                className={`flex gap-3 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
+                transition={{ duration: 0.25 }}
+                className="flex gap-3"
               >
-                {msg.role === 'assistant' && (
-                  <div className="flex-shrink-0 mt-1">
-                    {/* AI avatar ring + core dot */}
-                    <div className="relative w-7 h-7 flex items-center justify-center">
-                      <div className="absolute inset-0 rounded-full border border-[#D4A843]/40" />
-                      <div className="w-2 h-2 rounded-full bg-[#D4A843]" />
+                {/* Avatar */}
+                <div className="flex-shrink-0 mt-1">
+                  {msg.role === 'assistant' ? (
+                    <div className="w-7 h-7 rounded-full bg-[#D4A843]/15 flex items-center justify-center">
+                      <span className="text-[11px] font-bold text-[#D4A843]">U</span>
                     </div>
+                  ) : (
+                    <div className="w-7 h-7 rounded-full bg-neutral-800 flex items-center justify-center">
+                      <span className="text-[11px] font-medium text-neutral-400">{userInitial}</span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Content */}
+                <div className="flex-1 min-w-0">
+                  {/* Name */}
+                  <div className="text-[11px] font-medium mb-1.5">
+                    {msg.role === 'assistant' ? (
+                      <span className="text-[#D4A843]">Ubunye</span>
+                    ) : (
+                      <span className="text-neutral-500">{displayName}</span>
+                    )}
                   </div>
-                )}
-                <div
-                  className={`max-w-[80%] px-4 py-3 text-sm leading-relaxed ${
-                    msg.role === 'user'
-                      ? 'bg-[#D4A843]/10 border border-[#D4A843]/20 text-white'
-                      : 'bg-white/5 border border-white/10 text-neutral-300'
-                  }`}
-                >
-                  <div className="whitespace-pre-wrap">{msg.content}</div>
-                  <div className={`text-[9px] font-mono mt-2 ${
-                    msg.role === 'user' ? 'text-[#D4A843]/40' : 'text-white/20'
-                  }`}>
-                    {msg.timestamp.toLocaleTimeString(STUDIO.currency.locale, { hour: '2-digit', minute: '2-digit' })}
-                  </div>
+
+                  {/* Message body */}
+                  {msg.role === 'user' ? (
+                    <div className="text-[15px] text-white leading-relaxed whitespace-pre-wrap">
+                      {msg.content}
+                    </div>
+                  ) : msg.isLimitMessage ? (
+                    <div>
+                      <div className="text-[15px] text-[#D4A843] leading-relaxed border-l-2 border-[#D4A843]/30 pl-4">
+                        {msg.content}
+                      </div>
+                      {/* Limit CTAs */}
+                      {!isAuthenticated ? (
+                        <div className="flex gap-2 mt-4">
+                          <Link
+                            href="/login"
+                            className="flex items-center gap-1.5 px-4 py-2 bg-[#D4A843] text-black text-xs font-semibold rounded-full hover:bg-[#E8C96A] transition-colors"
+                          >
+                            <LogIn className="w-3.5 h-3.5" />
+                            Sign In
+                          </Link>
+                          <Link
+                            href="/register"
+                            className="flex items-center gap-1.5 px-4 py-2 border border-neutral-700 text-neutral-300 text-xs font-semibold rounded-full hover:border-[#D4A843]/50 hover:text-[#D4A843] transition-colors"
+                          >
+                            <UserPlus className="w-3.5 h-3.5" />
+                            Create Account
+                          </Link>
+                        </div>
+                      ) : (
+                        <div className="flex gap-2 mt-4">
+                          <Link
+                            href="/pricing"
+                            className="flex items-center gap-1.5 px-4 py-2 bg-[#D4A843] text-black text-xs font-semibold rounded-full hover:bg-[#E8C96A] transition-colors"
+                          >
+                            <ArrowUpRight className="w-3.5 h-3.5" />
+                            Upgrade Plan
+                          </Link>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="text-[15px] text-neutral-300 leading-relaxed">
+                      <ReactMarkdown components={mdComponents}>
+                        {msg.content}
+                      </ReactMarkdown>
+                    </div>
+                  )}
                 </div>
               </motion.div>
             ))}
@@ -348,18 +393,20 @@ export default function UbunyeAIStudioPage() {
               <motion.div
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
-                className="flex items-center gap-3"
+                className="flex gap-3"
               >
-                <div className="relative w-7 h-7 flex items-center justify-center flex-shrink-0">
-                  <div className="absolute inset-0 rounded-full border border-[#D4A843]/40 animate-spin" style={{ animationDuration: '3s' }} />
-                  <div className="w-2 h-2 rounded-full bg-[#D4A843] animate-pulse" />
+                <div className="flex-shrink-0 mt-1">
+                  <div className="w-7 h-7 rounded-full bg-[#D4A843]/15 flex items-center justify-center">
+                    <span className="text-[11px] font-bold text-[#D4A843]">U</span>
+                  </div>
                 </div>
-                <span
-                  className="text-[10px] font-bold tracking-[0.25em] text-[#D4A843]/60 uppercase animate-pulse"
-                  style={{ fontFamily: 'var(--font-orbitron), sans-serif' }}
-                >
-                  UBUNYE IS THINKING
-                </span>
+                <div className="pt-2">
+                  <div className="flex gap-1">
+                    <div className="w-1.5 h-1.5 rounded-full bg-neutral-500 animate-bounce" style={{ animationDelay: '0ms' }} />
+                    <div className="w-1.5 h-1.5 rounded-full bg-neutral-500 animate-bounce" style={{ animationDelay: '150ms' }} />
+                    <div className="w-1.5 h-1.5 rounded-full bg-neutral-500 animate-bounce" style={{ animationDelay: '300ms' }} />
+                  </div>
+                </div>
               </motion.div>
             )}
 
@@ -367,74 +414,52 @@ export default function UbunyeAIStudioPage() {
           </div>
         )}
 
-        {/* Chat input */}
-        <form onSubmit={handleSubmit} className="w-full max-w-2xl mt-auto flex-shrink-0">
-          <div className="relative flex items-center border border-[#D4A843]/20 bg-[#0A0A0F] hover:border-[#D4A843]/40 focus-within:border-[#D4A843]/50 transition-colors">
-            {/* Prefix */}
-            <span className="pl-4 text-[#D4A843]/50 font-mono text-sm select-none">&#9654;</span>
-            <input
-              ref={inputRef}
-              type="text"
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              placeholder="Ask Ubunye anything..."
-              disabled={isTyping}
-              className="flex-1 bg-transparent px-3 py-4 text-sm text-white placeholder-white/20 outline-none font-mono disabled:opacity-50"
-            />
-            <button
-              type="submit"
-              disabled={!input.trim() || isTyping}
-              className="h-full px-5 py-4 bg-[#D4A843] text-black font-bold text-xs tracking-widest uppercase hover:bg-[#E8C96A] disabled:opacity-30 disabled:hover:bg-[#D4A843] transition-colors flex items-center gap-2"
-              style={{
-                clipPath: 'polygon(12px 0, 100% 0, 100% 100%, 0 100%)',
-              }}
-            >
-              <Send className="w-3.5 h-3.5" />
-            </button>
-          </div>
-        </form>
+        {/* ── Input bar ── */}
+        <div className="pb-4 pt-2 flex-shrink-0">
+          <form onSubmit={handleSubmit}>
+            <div className={`flex items-center rounded-2xl bg-neutral-900 transition-all ${
+              limitReached ? 'opacity-40' : 'focus-within:ring-1 focus-within:ring-neutral-700'
+            }`}>
+              <input
+                ref={inputRef}
+                type="text"
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                placeholder={limitReached ? 'Message limit reached' : 'Message Ubunye...'}
+                disabled={isTyping || limitReached}
+                className="flex-1 bg-transparent px-5 py-3.5 text-[15px] text-white placeholder-neutral-600 outline-none disabled:opacity-50"
+              />
+              <button
+                type="submit"
+                disabled={!input.trim() || isTyping || limitReached}
+                className="mr-2 w-9 h-9 rounded-full flex items-center justify-center transition-colors disabled:opacity-20 bg-neutral-800 hover:bg-[#D4A843] hover:text-black text-neutral-400"
+              >
+                <ArrowUp className="w-4 h-4" />
+              </button>
+            </div>
+          </form>
 
-        {/* Footer */}
-        <div className="w-full text-center mt-4 mb-2 flex-shrink-0">
-          <p
-            className="text-[8px] md:text-[9px] tracking-[0.25em] text-white/15 uppercase"
-            style={{ fontFamily: 'var(--font-orbitron), sans-serif' }}
-          >
-            POWERED BY UBUNYE AI &middot; {STUDIO.name.toUpperCase()} &middot; {STUDIO.location.city.toUpperCase()}, {STUDIO.location.country.toUpperCase()}
+          {/* Remaining messages */}
+          {!limitReached && (
+            <div className="text-center mt-2">
+              {!isAuthenticated ? (
+                <span className="text-[11px] text-neutral-600">
+                  {GUEST_LIMIT - guestMessageCount} free message{GUEST_LIMIT - guestMessageCount !== 1 ? 's' : ''} remaining
+                </span>
+              ) : dailyLimit !== -1 ? (
+                <span className="text-[11px] text-neutral-600">
+                  {Math.max(0, dailyLimit - dailyUsed)} message{Math.max(0, dailyLimit - dailyUsed) !== 1 ? 's' : ''} remaining today
+                </span>
+              ) : null}
+            </div>
+          )}
+
+          {/* Footer */}
+          <p className="text-center text-[10px] text-neutral-700 mt-3">
+            Powered by Ubunye AI
           </p>
         </div>
       </div>
-    </div>
-  );
-}
-
-// ─── Status Indicator ──────────────────────────────────────────────────────────
-
-function StatusIndicator({
-  label,
-  status,
-  value,
-}: {
-  label: string;
-  status?: 'active' | 'ready';
-  value?: string;
-}) {
-  return (
-    <div className="flex items-center gap-2">
-      {status === 'active' && (
-        <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
-      )}
-      {status === 'ready' && (
-        <div className="w-1.5 h-1.5 rounded-full bg-[#D4A843]" />
-      )}
-      <span className="text-[9px] font-mono tracking-[0.15em] text-white/30 uppercase">
-        {label}
-      </span>
-      {value && (
-        <span className="text-[9px] font-mono tracking-wider text-[#D4A843]/60">
-          {value}
-        </span>
-      )}
     </div>
   );
 }

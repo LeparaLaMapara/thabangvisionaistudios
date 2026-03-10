@@ -105,6 +105,44 @@ export const STUDIO = {
     depositPercent: 20,
     maxBookingDays: 30,
     cancellationHours: 24,
+    multiDayDiscount: '7+ days = weekly rate applies',
+  },
+
+  services: {
+    photography: {
+      portrait: { rate: 1500, unit: 'hour' as const, description: 'Portrait / Headshot — Studio or on-location, includes lighting setup' },
+      commercial: { rate: 1500, unit: 'hour' as const, description: 'Commercial / Product — Products, branding, look-book, flat-lay' },
+      lifestyle: { rate: 1500, unit: 'hour' as const, description: 'Lifestyle / Editorial — Outdoor narrative sessions, full art direction' },
+    },
+    cinematography: {
+      shortForm: { rate: 2850, unit: 'hour' as const, description: 'Short-Form Video — TikTok / IG optimized, 4K capture' },
+      musicVideo: { rate: 2850, unit: 'hour' as const, description: 'Music Video Production — Multi-setup shoot, advanced SFX, cinema glass' },
+      corporate: { rate: 2850, unit: 'hour' as const, description: 'Corporate / Industrial Film — 2-camera setup, script assist, voice-over' },
+    },
+    postProduction: {
+      photoRetouch: { rate: 650, unit: 'hour' as const, description: 'Photo Retouching & Colour Grading — Skin retouch, compositing, tone matching' },
+      videoEdit: { rate: 650, unit: 'hour' as const, description: 'Video Editing & Assembly — Rough cut through final master, audio sync' },
+      cinemaGrade: { rate: 650, unit: 'hour' as const, description: 'Cinema Colour Grade / SFX — DaVinci Resolve grade, motion graphics, VFX' },
+    },
+    logistics: {
+      travelRate: 4.95,
+      fuelSurcharge: 550,
+    },
+    billing: {
+      minimumBooking: '1 hour',
+      incrementAfter: '30 minutes',
+      overtimeMultiplier: 1.5,
+      overtimeAfterHours: 8,
+      vatRate: 15,
+      instalmentThreshold: 15000,
+    },
+    edge: [
+      'Cinema Grade Hardware: All video captured on Sony FX/Canon Cinema systems (4K 10-bit)',
+      'Transparent Pricing: Every hour is accounted for — no hidden package markups',
+      'Logistics Precision: Travel billed at the official 2026 SARS rate of R4.95/km',
+      'Cloud Ecosystem: Secure, 12-month digital hosting of all final assets',
+      'Intellectual Property: Full commercial usage licence granted upon final payment',
+    ],
   },
 
   verification: {
