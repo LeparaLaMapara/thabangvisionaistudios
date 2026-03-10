@@ -53,10 +53,10 @@ export async function GET(
   const totalQuantity = rental.quantity ?? 1;
   const available = bookedCount < totalQuantity;
 
+  // M3: Only return availability status, not booking details
   return NextResponse.json({
     available,
     booked_count: bookedCount,
     total_quantity: totalQuantity,
-    conflicts: conflicts ?? [],
   });
 }

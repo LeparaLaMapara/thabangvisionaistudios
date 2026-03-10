@@ -63,6 +63,23 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  // M9: Deduplication — reject if same user+plan was created in last 60 seconds
+  const recentCutoff = new Date(Date.now() - 60_000).toISOString();
+  const { data: recentSub } = await supabase
+    .from('subscriptions')
+    .select('id')
+    .eq('user_id', user.id)
+    .eq('plan_id', plan_id)
+    .gte('created_at', recentCutoff)
+    .limit(1);
+
+  if (recentSub && recentSub.length > 0) {
+    return NextResponse.json(
+      { error: 'Duplicate request detected. Please wait before trying again.' },
+      { status: 409 },
+    );
+  }
+
   // Verify profile exists
   const { data: profile } = await supabase
     .from('profiles')
@@ -99,7 +116,8 @@ export async function POST(request: NextRequest) {
     .single();
 
   if (insertError) {
-    return NextResponse.json({ error: insertError.message }, { status: 500 });
+    console.error('[subscriptions] Insert error:', insertError.message);
+    return NextResponse.json({ error: 'Failed to create subscription.' }, { status: 500 });
   }
 
   // Build PayFast payment URL if configured

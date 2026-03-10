@@ -10,6 +10,27 @@ import { NextResponse, type NextRequest } from 'next/server';
  * the token refresh.
  */
 export async function proxy(request: NextRequest) {
+  // M1: CSRF protection — validate Origin header on mutation requests to /api/ routes
+  // Exemptions: PayFast ITN webhook (server-to-server, no Origin header)
+  const method = request.method;
+  const isApiMutation =
+    request.nextUrl.pathname.startsWith('/api/') &&
+    ['POST', 'PUT', 'DELETE', 'PATCH'].includes(method);
+  const isWebhook = request.nextUrl.pathname.startsWith('/api/webhooks/');
+
+  if (isApiMutation && !isWebhook) {
+    const origin = request.headers.get('origin');
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000';
+    const allowedOrigin = new URL(appUrl).origin;
+
+    if (origin && origin !== allowedOrigin) {
+      return NextResponse.json(
+        { error: 'Invalid origin.' },
+        { status: 403 },
+      );
+    }
+  }
+
   let supabaseResponse = NextResponse.next({ request });
 
   const supabase = createServerClient(

@@ -28,7 +28,8 @@ export async function GET(
     if (error.code === 'PGRST116') {
       return NextResponse.json({ error: 'Booking not found' }, { status: 404 });
     }
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error('[bookings/[id]] GET error:', error.message);
+    return NextResponse.json({ error: 'Failed to fetch booking.' }, { status: 500 });
   }
 
   return NextResponse.json(data);
@@ -81,7 +82,8 @@ export async function PUT(
     if (error.code === 'PGRST116') {
       return NextResponse.json({ error: 'Booking not found' }, { status: 404 });
     }
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error('[bookings/[id]] PUT error:', error.message);
+    return NextResponse.json({ error: 'Failed to update booking.' }, { status: 500 });
   }
 
   return NextResponse.json(data);

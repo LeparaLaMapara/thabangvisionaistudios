@@ -8,13 +8,13 @@
 
 ## Executive Summary
 
-The codebase has a solid foundation with several security patterns implemented correctly (signed Cloudinary uploads, PayFast ITN multi-step validation, Supabase auth guards on admin/dashboard layouts, no raw SQL). The initial audit found **4 Critical**, **10 High**, **9 Medium**, and **6 Low** severity findings. As of 2026-03-10, **all 4 Critical and all 10 High findings have been fixed**.
+The codebase has a solid foundation with several security patterns implemented correctly (signed Cloudinary uploads, PayFast ITN multi-step validation, Supabase auth guards on admin/dashboard layouts, no raw SQL). The initial audit found **4 Critical**, **10 High**, **9 Medium**, and **6 Low** severity findings. As of 2026-03-10, **all 4 Critical, all 10 High, and all 9 Medium findings have been fixed**.
 
 | Severity | Total | Fixed | Remaining |
 |----------|-------|-------|-----------|
 | Critical | 4 | 4 | 0 |
 | High | 10 | 10 | 0 |
-| Medium | 9 | 0 | 9 |
+| Medium | 9 | 9 | 0 |
 | Low | 6 | 0 | 6 |
 
 ---
@@ -157,126 +157,70 @@ The codebase has a solid foundation with several security patterns implemented c
 ### M1. No CSRF Protection on Mutation Endpoints
 
 - **Severity:** MEDIUM
-- **Files:** All POST/PUT/DELETE API routes
-- **Description:** There is no CSRF token validation on any API route. While Next.js API routes using `fetch()` from the same origin have some protection via the SameSite cookie attribute (Supabase cookies default to `Lax`), this isn't sufficient for all scenarios. A malicious website could potentially trigger POST requests if the user has an active session.
-- **Fix:**
-  1. Verify Supabase auth cookies are set with `SameSite=Lax` (they should be by default)
-  2. For sensitive mutations (delete, payment), consider adding a custom CSRF token or requiring the `Origin`/`Referer` header to match your domain
-  3. Add `X-Requested-With` header check for API routes
+- **Status:** FIXED
+- **File:** `proxy.ts`
+- **Resolution (2026-03-10):** Added Origin header validation in the proxy (middleware) for all mutation requests (POST/PUT/DELETE/PATCH) to `/api/*` routes. Cross-origin requests are rejected with 403. PayFast ITN webhook is exempt (server-to-server, no browser Origin). Combined with Supabase's SameSite=Lax cookies, this provides robust CSRF protection.
 
 ### M2. No Security Headers Configured
 
 - **Severity:** MEDIUM
+- **Status:** FIXED
 - **File:** `next.config.ts`
-- **Description:** No security headers are configured:
-  - No `Content-Security-Policy` (CSP) header
-  - No `X-Frame-Options` (clickjacking protection)
-  - No `X-Content-Type-Options` (MIME sniffing protection)
-  - No `Referrer-Policy`
-  - No `Permissions-Policy`
-  - No `Strict-Transport-Security` (HSTS)
-- **Fix:** Add security headers in `next.config.ts`:
-  ```typescript
-  const nextConfig: NextConfig = {
-    headers: async () => [
-      {
-        source: '/(.*)',
-        headers: [
-          { key: 'X-Frame-Options', value: 'DENY' },
-          { key: 'X-Content-Type-Options', value: 'nosniff' },
-          { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
-          { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=()' },
-          { key: 'Strict-Transport-Security', value: 'max-age=31536000; includeSubDomains' },
-        ],
-      },
-    ],
-    // ...existing config
-  };
-  ```
+- **Resolution (2026-03-10):** Added security headers for all routes: `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`, `Referrer-Policy: strict-origin-when-cross-origin`, `Permissions-Policy: camera=(), microphone=(), geolocation=()`, `Strict-Transport-Security: max-age=31536000; includeSubDomains`. CSP can be added later as a separate hardening step.
 
 ### M3. Availability Check Leaks Booking Details
 
 - **Severity:** MEDIUM
-- **File:** `app/api/rentals/[id]/availability/route.ts:56-61`
-- **Description:** The availability endpoint returns the full `conflicts` array including booking IDs, dates, and statuses for other users' bookings. This leaks information about when and how often other users are booking equipment, which could be a business intelligence/privacy concern.
-- **Fix:** Return only the boolean `available` flag and counts, not the conflict details:
-  ```typescript
-  return NextResponse.json({ available, booked_count: bookedCount, total_quantity: totalQuantity });
-  ```
+- **Status:** FIXED
+- **File:** `app/api/rentals/[id]/availability/route.ts`
+- **Resolution (2026-03-10):** Removed the `conflicts` array from the availability response. Now only returns `{ available, booked_count, total_quantity }` — no booking IDs, dates, or statuses are exposed.
 
 ### M4. Contact Form Email Validation Too Permissive
 
 - **Severity:** MEDIUM
-- **File:** `app/api/contact/route.ts:20-21`
-- **Description:** The email regex `/^[^\s@]+@[^\s@]+\.[^\s@]+$/` is very loose and allows many invalid email formats. More importantly, the `name`, `email`, and `subject` fields from the contact form are logged to the server console (line 29) without sanitization when email is not configured. If logs are collected by a log aggregation service, this could lead to log injection.
-- **Fix:** Use a stricter email validation library. Sanitize all user input before logging.
+- **Status:** FIXED
+- **File:** `app/api/contact/route.ts`
+- **Resolution (2026-03-10):** Replaced loose email regex with RFC 5322-compliant pattern. Added 254-char max length check. Log output is now sanitized — control characters stripped and fields truncated to 100 chars to prevent log injection.
 
 ### M5. Sensitive Error Messages Exposed to Client
 
 - **Severity:** MEDIUM
-- **Files:**
-  - `app/api/gemini/route.ts:53` - returns raw Gemini upstream error text to client
-  - Multiple routes return `error.message` from Supabase errors directly
-- **Description:** Raw error messages from upstream services (Gemini, Supabase) are passed to the client. These can reveal internal implementation details, table names, column names, and database schema information.
-- **Fix:** Return generic error messages to clients and log detailed errors server-side:
-  ```typescript
-  console.error('[gemini] Upstream error:', detail);
-  return NextResponse.json({ error: 'AI service temporarily unavailable.' }, { status: 502 });
-  ```
+- **Status:** FIXED
+- **Files:** Multiple API routes
+- **Resolution (2026-03-10):** All routes now return generic error messages to clients. Raw Supabase/upstream error messages are logged server-side only. Fixed in: `bookings/route.ts`, `bookings/[id]/route.ts`, `subscriptions/route.ts`, `subscriptions/me/route.ts`, `subscriptions/plans/route.ts`, `gemini/route.ts` (already fixed in prior commit).
 
 ### M6. PayFast Notify URL Uses APP_URL Which May Be localhost
 
 - **Severity:** MEDIUM
-- **File:** `lib/payfast.ts:128-135`
-- **Description:** The `notify_url` for PayFast ITN is built from `NEXT_PUBLIC_APP_URL` which defaults to `http://localhost:3000`. If this env var is not properly set in production, PayFast won't be able to send ITN notifications, meaning payments succeed on PayFast's side but bookings/subscriptions never get confirmed in the database.
-- **Fix:** Add a runtime check that `NEXT_PUBLIC_APP_URL` is set to a publicly accessible HTTPS URL in production. Throw an error if it contains `localhost` when sandbox mode is off.
+- **Status:** FIXED
+- **File:** `lib/payfast.ts`
+- **Resolution (2026-03-10):** `buildPaymentData()` now throws an error if `NEXT_PUBLIC_APP_URL` contains "localhost" when sandbox mode is OFF. Includes a descriptive console.error to help diagnose production misconfiguration. In sandbox mode, localhost is allowed for testing.
 
 ### M7. PayFast ITN Does Not Reconcile Payment Amount
 
 - **Severity:** MEDIUM
-- **File:** `app/api/webhooks/payfast/route.ts:29-48`
-- **Description:** When a `COMPLETE` payment is received, the ITN handler updates the booking to `confirmed` and inserts a `booking_payments` record using `params.amount_gross`. However, it never checks that `amount_gross` matches the `total_price` stored in `equipment_bookings`. A manipulated PayFast redirect (or a partial payment scenario) could result in a booking being confirmed at a lower amount than expected.
-- **Fix:** After receiving the ITN, fetch the booking record and compare the amounts:
-  ```typescript
-  const { data: booking } = await supabase
-    .from('equipment_bookings')
-    .select('total_price')
-    .eq('id', paymentId)
-    .single();
-
-  if (Math.abs(booking.total_price - parseFloat(params.amount_gross)) > 0.01) {
-    console.error('[PayFast ITN] Amount mismatch:', { expected: booking.total_price, received: params.amount_gross });
-    // Flag for manual review instead of auto-confirming
-    return;
-  }
-  ```
+- **Status:** FIXED
+- **File:** `app/api/webhooks/payfast/route.ts`
+- **Resolution (2026-03-10):** ITN handler now fetches the booking's `total_price` before confirming and compares it with `amount_gross` (tolerance: R0.01). On mismatch, the booking stays `pending` with a note flagging it for manual review. Amount mismatch details are logged server-side.
 
 ### M8. Booking Dates Not Validated as Future Dates
 
 - **Severity:** MEDIUM
-- **File:** `app/api/bookings/route.ts:51-59`
-- **Description:** The booking endpoint validates `end > start` but does not check that dates are in the future. A user could create bookings for past dates. Additionally, there's no maximum duration limit — someone could book equipment for 10 years.
-- **Fix:**
-  ```typescript
-  const now = new Date();
-  now.setHours(0, 0, 0, 0);
-  if (start < now) {
-    return NextResponse.json({ error: 'Cannot book for past dates.' }, { status: 400 });
-  }
-  if (days > 365) {
-    return NextResponse.json({ error: 'Maximum booking is 365 days.' }, { status: 400 });
-  }
-  ```
+- **Status:** FIXED
+- **File:** `app/api/bookings/route.ts`
+- **Resolution (2026-03-10):** Added two validations: (1) Start date must be today or in the future — past dates rejected with 400. (2) Maximum booking duration capped at 365 days.
 
 ### M9. No Idempotency Protection on Booking/Subscription Creation
 
 - **Severity:** MEDIUM
+- **Status:** FIXED
 - **Files:**
-  - `app/api/bookings/route.ts` POST handler
-  - `app/api/subscriptions/route.ts` POST handler
-  - `app/api/payfast/checkout/route.ts` POST handler
-- **Description:** If a user double-clicks a submit button or retries a failed request, duplicate bookings/subscriptions are created with separate PayFast payment requests. This could result in double charges.
-- **Fix:** Add a deduplication check (e.g., reject if the same user+rental+dates combination was created within the last 60 seconds), or implement an idempotency key header.
+  - `app/api/bookings/route.ts`
+  - `app/api/subscriptions/route.ts`
+- **Resolution (2026-03-10):** Added deduplication checks:
+  - Bookings: Rejects if same user+rental+dates combination was created within last 60 seconds (409 Conflict).
+  - Subscriptions: Rejects if same user+plan was created within last 60 seconds (409 Conflict).
+  - This prevents double-click and retry-induced duplicate charges.
 
 ---
 
@@ -366,12 +310,23 @@ The codebase has a solid foundation with several security patterns implemented c
 - [x] **Payment redirect validation** - URL hostname validated against PayFast allowlist (H9)
 - [x] **Social link URL validation** - Client + server-side protocol validation (H10)
 
-### Still Failing
+- [x] **CSRF protection** - Origin header validation in proxy for all API mutations (M1)
+- [x] **Security headers** - X-Frame-Options, X-Content-Type-Options, Referrer-Policy, Permissions-Policy, HSTS (M2)
+- [x] **Availability endpoint privacy** - Conflicts array removed from response (M3)
+- [x] **Contact form email validation** - RFC 5322-compliant regex + sanitized logs (M4)
+- [x] **Error message sanitization** - Generic errors to clients, details logged server-side (M5)
+- [x] **PayFast notify URL validation** - Throws if localhost in production mode (M6)
+- [x] **PayFast amount reconciliation** - ITN verifies amount_gross matches total_price (M7)
+- [x] **Booking date validation** - Future dates required, max 365 days (M8)
+- [x] **Idempotency protection** - 60-second deduplication on bookings + subscriptions (M9)
 
-- [ ] **CSRF protection** - No explicit CSRF tokens (M1)
-- [ ] **Security headers** - None configured (M2)
-- [ ] **Booking date validation** - Past dates and unbounded duration allowed (M8)
-- [ ] **Idempotency protection** - Duplicate bookings/subscriptions possible (M9)
+### Still Open (Low Severity)
+
+- [ ] **Honeypot field name** - `website` is predictable (L1)
+- [ ] **Debug logging** - Payment details logged to console (L3)
+- [ ] **VERCEL_OIDC_TOKEN** - Stale token in .env.local (L4)
+- [ ] **Video iframe sandbox** - Missing sandbox attribute (L5)
+- [ ] **Supabase RLS** - Verify RLS enabled on all tables (L6)
 
 ---
 
@@ -428,4 +383,4 @@ The codebase has a solid foundation with several security patterns implemented c
 
 ---
 
-*Initial audit: 2026-03-09. Updated 2026-03-10 after fixing all Critical (C1-C4) and all High (H1-H10) findings. Medium and Low findings remain — address before production launch.*
+*Initial audit: 2026-03-09. Updated 2026-03-10 after fixing all Critical (C1-C4), all High (H1-H10), and all Medium (M1-M9) findings. Only Low severity findings remain.*

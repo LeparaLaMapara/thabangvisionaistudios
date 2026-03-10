@@ -23,7 +23,8 @@ export async function GET() {
     .order('start_date', { ascending: false });
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error('[bookings] GET error:', error.message);
+    return NextResponse.json({ error: 'Failed to fetch bookings.' }, { status: 500 });
   }
 
   return NextResponse.json(data);
@@ -67,6 +68,27 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  // M8: Validate dates are in the future
+  const now = new Date();
+  now.setHours(0, 0, 0, 0);
+  if (start < now) {
+    return NextResponse.json(
+      { error: 'Cannot book for past dates.' },
+      { status: 400 },
+    );
+  }
+
+  // M8: Maximum booking duration of 365 days
+  const bookingDays = Math.ceil(
+    (end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24),
+  );
+  if (bookingDays > 365) {
+    return NextResponse.json(
+      { error: 'Maximum booking duration is 365 days.' },
+      { status: 400 },
+    );
+  }
+
   // Fetch the rental item
   const { data: rental, error: rentalError } = await supabase
     .from('smart_rentals')
@@ -80,6 +102,25 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       { error: 'Rental item not found or unavailable.' },
       { status: 404 },
+    );
+  }
+
+  // M9: Deduplication — reject if same user+rental+dates was created in the last 60 seconds
+  const recentCutoff = new Date(Date.now() - 60_000).toISOString();
+  const { data: duplicates } = await supabase
+    .from('equipment_bookings')
+    .select('id')
+    .eq('user_id', user.id)
+    .eq('rental_id', rental_id)
+    .eq('start_date', start_date)
+    .eq('end_date', end_date)
+    .gte('created_at', recentCutoff)
+    .limit(1);
+
+  if (duplicates && duplicates.length > 0) {
+    return NextResponse.json(
+      { error: 'Duplicate booking detected. Please wait before trying again.' },
+      { status: 409 },
     );
   }
 
@@ -136,7 +177,8 @@ export async function POST(request: NextRequest) {
     .single();
 
   if (insertError) {
-    return NextResponse.json({ error: insertError.message }, { status: 500 });
+    console.error('[bookings] Insert error:', insertError.message);
+    return NextResponse.json({ error: 'Failed to create booking.' }, { status: 500 });
   }
 
   // Build PayFast payment data if configured

@@ -25,6 +25,33 @@ async function handlePaymentComplete(params: Record<string, string>) {
   const supabase = await createClient();
 
   if (paymentType === 'equipment_booking') {
+    // M7: Reconcile payment amount before confirming
+    const { data: booking } = await supabase
+      .from('equipment_bookings')
+      .select('total_price')
+      .eq('id', paymentId)
+      .single();
+
+    const receivedAmount = parseFloat(params.amount_gross ?? '0');
+
+    if (booking && Math.abs(booking.total_price - receivedAmount) > 0.01) {
+      console.error('[PayFast ITN] Amount mismatch:', {
+        expected: booking.total_price,
+        received: receivedAmount,
+        bookingId: paymentId,
+      });
+      // Flag for manual review — do not auto-confirm
+      await supabase
+        .from('equipment_bookings')
+        .update({
+          status: 'pending',
+          notes: `AMOUNT MISMATCH: expected ${booking.total_price}, received ${receivedAmount}. Requires manual review.`,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', paymentId);
+      return;
+    }
+
     // Update booking status to confirmed
     const { error: bookingErr } = await supabase
       .from('equipment_bookings')
@@ -42,7 +69,7 @@ async function handlePaymentComplete(params: Record<string, string>) {
       await supabase.from('booking_payments').insert({
         booking_id: paymentId,
         payfast_payment_id: pfPaymentId,
-        amount: parseFloat(params.amount_gross ?? '0'),
+        amount: receivedAmount,
         currency: 'ZAR',
         status: 'complete',
       });

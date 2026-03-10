@@ -26,17 +26,19 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'name, email, and message are required.' }, { status: 400 });
   }
 
-  // Basic email validation
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  if (!emailRegex.test(email)) {
+  // M4: Stricter email validation
+  const emailRegex = /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)+$/;
+  if (!emailRegex.test(email) || email.length > 254) {
     return NextResponse.json({ error: 'Invalid email address.' }, { status: 400 });
   }
 
   try {
     if (!isEmailConfigured()) {
-      // Gmail not configured — log and return success so form still works
+      // Gmail not configured — log sanitized info and return success so form still works
       console.warn('[contact] GMAIL_USER or GMAIL_APP_PASSWORD not set — message logged but not emailed.');
-      console.log('[contact]', { name, email, subject, message });
+      // M4: Sanitize log output — truncate and strip control characters
+      const sanitize = (s: string) => s.replace(/[\x00-\x1f\x7f]/g, '').slice(0, 100);
+      console.log('[contact]', { name: sanitize(name), email: sanitize(email), subject: sanitize(subject || '') });
       return NextResponse.json({ success: true });
     }
 

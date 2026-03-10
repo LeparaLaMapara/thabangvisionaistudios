@@ -136,6 +136,15 @@ export function buildPaymentData(params: BuildPaymentParams): PayFastPaymentData
 
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000';
 
+  // M6: Warn if notify_url will point to localhost in production
+  if (!isSandbox && appUrl.includes('localhost')) {
+    console.error(
+      '[PayFast] CRITICAL: NEXT_PUBLIC_APP_URL contains "localhost" but sandbox mode is OFF. ' +
+      'PayFast ITN notifications will fail. Set NEXT_PUBLIC_APP_URL to a publicly accessible HTTPS URL.',
+    );
+    throw new Error('NEXT_PUBLIC_APP_URL must be a public URL in production');
+  }
+
   const data: Record<string, string> = {
     merchant_id: merchantId,
     merchant_key: merchantKey,

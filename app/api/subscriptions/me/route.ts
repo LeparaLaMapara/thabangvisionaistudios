@@ -24,7 +24,8 @@ export async function GET() {
     if (error.code === 'PGRST116') {
       return NextResponse.json(null);
     }
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error('[subscriptions/me] Error:', error.message);
+    return NextResponse.json({ error: 'Failed to fetch subscription.' }, { status: 500 });
   }
 
   return NextResponse.json(data);
