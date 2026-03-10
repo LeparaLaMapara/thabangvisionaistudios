@@ -2,8 +2,18 @@ export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
 import { isEmailConfigured, sendContactNotification } from '@/lib/email';
+import { checkRateLimit } from '@/lib/auth';
 
 export async function POST(req: NextRequest) {
+  // H3: Rate limit contact form — 3 requests per minute per IP
+  const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown';
+  if (!checkRateLimit(`contact:${ip}`, 3, 60_000)) {
+    return NextResponse.json(
+      { error: 'Too many requests. Please wait before trying again.' },
+      { status: 429 },
+    );
+  }
+
   const { name, email, message, subject, website } = await req.json();
 
   // Honeypot spam protection — real users never fill this hidden field

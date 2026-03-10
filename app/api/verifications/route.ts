@@ -3,6 +3,7 @@ export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { getVerificationStatus, submitVerification } from '@/lib/supabase/queries/verifications';
+import { STUDIO } from '@/lib/constants';
 
 // ─── GET — Return current user's verification status ────────────────────────
 
@@ -49,6 +50,29 @@ export async function POST(req: NextRequest) {
         { error: 'All three documents are required: id_front, id_back, proof_of_address.' },
         { status: 400 },
       );
+    }
+
+    // H4: Validate file types and sizes
+    const maxSize = (STUDIO.verification.maxFileSizeMB ?? 5) * 1024 * 1024;
+    const allowedTypes = STUDIO.verification.acceptedTypes;
+
+    for (const [label, file] of [
+      ['id_front', idFront],
+      ['id_back', idBack],
+      ['proof_of_address', proofOfAddress],
+    ] as const) {
+      if (!allowedTypes.includes(file.type as typeof allowedTypes[number])) {
+        return NextResponse.json(
+          { error: `${label}: Invalid file type "${file.type}". Allowed: ${allowedTypes.join(', ')}` },
+          { status: 400 },
+        );
+      }
+      if (file.size > maxSize) {
+        return NextResponse.json(
+          { error: `${label}: File too large (${(file.size / 1024 / 1024).toFixed(1)}MB). Maximum: ${STUDIO.verification.maxFileSizeMB}MB` },
+          { status: 400 },
+        );
+      }
     }
 
     // Extract file extensions

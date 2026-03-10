@@ -71,7 +71,16 @@ export function validateSignature(
   receivedSignature: string,
 ): boolean {
   const expected = generateSignature(params);
-  return expected === receivedSignature;
+  // H8: Use timing-safe comparison to prevent timing attacks
+  try {
+    return crypto.timingSafeEqual(
+      Buffer.from(expected),
+      Buffer.from(receivedSignature),
+    );
+  } catch {
+    // Buffers of different length throw — signatures don't match
+    return false;
+  }
 }
 
 // ─── Payment data builders ──────────────────────────────────────────────────
@@ -165,18 +174,28 @@ const PAYFAST_IPS = [
 ];
 
 /**
- * Simple check if an IP is from PayFast (basic validation).
- * For production, implement proper CIDR matching.
+ * Check if an IP is within a CIDR range using proper bit-level matching.
+ */
+function ipInCidr(ip: string, cidr: string): boolean {
+  const [rangeIp, bits] = cidr.split('/');
+  const mask = bits ? ~((1 << (32 - parseInt(bits, 10))) - 1) >>> 0 : 0xFFFFFFFF;
+
+  const ipToNum = (addr: string): number => {
+    const parts = addr.split('.').map(Number);
+    return ((parts[0] << 24) | (parts[1] << 16) | (parts[2] << 8) | parts[3]) >>> 0;
+  };
+
+  return (ipToNum(ip) & mask) === (ipToNum(rangeIp) & mask);
+}
+
+/**
+ * Check if an IP is from PayFast using proper CIDR matching.
  */
 export function isPayFastIP(ip: string): boolean {
   // In sandbox mode, allow any IP for testing
   if (isSandbox) return true;
 
-  // Basic prefix check for production
-  return PAYFAST_IPS.some((range) => {
-    const prefix = range.split('/')[0].split('.').slice(0, 3).join('.');
-    return ip.startsWith(prefix);
-  });
+  return PAYFAST_IPS.some((range) => ipInCidr(ip, range));
 }
 
 /**

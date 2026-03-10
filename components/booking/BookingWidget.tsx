@@ -126,8 +126,19 @@ export function BookingWidget({ rental }: Props) {
       }
 
       // If PayFast payment URL is returned, redirect to PayFast checkout
+      // H9: Validate URL points to legitimate PayFast domain before redirecting
       if (data.payment_url) {
-        window.location.href = data.payment_url;
+        try {
+          const payUrl = new URL(data.payment_url);
+          const allowedHosts = ['sandbox.payfast.co.za', 'www.payfast.co.za'];
+          if (!allowedHosts.includes(payUrl.hostname)) {
+            throw new Error('Invalid payment URL');
+          }
+          window.location.href = data.payment_url;
+        } catch {
+          setError('Invalid payment URL received. Please try again.');
+          setSubmitting(false);
+        }
         return;
       }
 

@@ -51,12 +51,13 @@ export async function PUT(
   const body = await request.json();
   const { status, notes } = body;
 
-  // Validate status transitions
-  const validStatuses = ['pending', 'confirmed', 'active', 'completed', 'cancelled'];
-  if (status && !validStatuses.includes(status)) {
+  // H7: Users can only cancel their own bookings.
+  // Other status transitions (confirmed, active, completed) are system-only via PayFast ITN.
+  const userAllowedStatuses = ['cancelled'];
+  if (status && !userAllowedStatuses.includes(status)) {
     return NextResponse.json(
-      { error: `Invalid status. Must be one of: ${validStatuses.join(', ')}` },
-      { status: 400 },
+      { error: 'You can only cancel bookings.' },
+      { status: 403 },
     );
   }
 

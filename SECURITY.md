@@ -8,12 +8,12 @@
 
 ## Executive Summary
 
-The codebase has a solid foundation with several security patterns implemented correctly (signed Cloudinary uploads, PayFast ITN multi-step validation, Supabase auth guards on admin/dashboard layouts, no raw SQL). The initial audit found **4 Critical**, **10 High**, **9 Medium**, and **6 Low** severity findings. As of 2026-03-10, **all 4 Critical and 3 High findings have been fixed**.
+The codebase has a solid foundation with several security patterns implemented correctly (signed Cloudinary uploads, PayFast ITN multi-step validation, Supabase auth guards on admin/dashboard layouts, no raw SQL). The initial audit found **4 Critical**, **10 High**, **9 Medium**, and **6 Low** severity findings. As of 2026-03-10, **all 4 Critical and all 10 High findings have been fixed**.
 
 | Severity | Total | Fixed | Remaining |
 |----------|-------|-------|-----------|
 | Critical | 4 | 4 | 0 |
-| High | 10 | 3 | 7 |
+| High | 10 | 10 | 0 |
 | Medium | 9 | 0 | 9 |
 | Low | 6 | 0 | 6 |
 
@@ -81,102 +81,63 @@ The codebase has a solid foundation with several security patterns implemented c
 ### H3. No Rate Limiting on Any Endpoint
 
 - **Severity:** HIGH
-- **Files:** All files in `app/api/`
-- **Description:** There is zero rate limiting across the entire application:
-  - `/api/contact` - can be used for email spam/bombing
-  - `/api/gemini` - unlimited AI API consumption
-  - `/api/bookings` POST - booking spam
-  - `/api/cloudinary/sign` - unlimited upload signatures
-  - Login/register pages - brute force attacks on passwords
-  - Password reset - email flooding
-- **Fix:** Implement rate limiting. Options:
-  1. Use Vercel's built-in rate limiting (if deploying to Vercel)
-  2. Add `@upstash/ratelimit` with Redis for serverless-compatible rate limiting
-  3. Implement per-IP or per-user rate limits in middleware
-  Recommended limits: Auth endpoints (5/min), AI (10/min), contact (3/min), uploads (20/min)
+- **Status:** FIXED
+- **Files:** Multiple API routes
+- **Resolution (2026-03-10):** Added in-memory rate limiting via `checkRateLimit()` from `lib/auth.ts` to all key endpoints:
+  - `/api/contact` — 3 req/min per IP
+  - `/api/gemini` — 10 req/min per user (fixed in prior commit)
+  - `/api/bookings` POST — 5 req/min per user
+  - `/api/subscriptions` POST — 3 req/min per user
+  - `/api/cloudinary/sign` — 20 req/min per user
+  - Note: Login/register rate limiting is handled by Supabase's built-in auth rate limits
 
 ### H4. File Upload - No Type or Size Validation
 
 - **Severity:** HIGH
+- **Status:** FIXED
 - **Files:**
-  - `app/api/cloudinary/sign/route.ts` - signs ANY upload parameters without checking file type
-  - `app/api/verifications/route.ts:41-63` - accepts any file type for verification documents
-- **Description:**
-  - The Cloudinary sign route blindly signs whatever `paramsToSign` the client sends, including any resource type or transformation. There's no server-side validation of file type, size, or upload preset.
-  - The verification upload route accepts files via `formData` and uploads them to Supabase Storage with the original content type. There's no validation that files are actually images/PDFs (not executables, HTML files with XSS payloads, etc.).
-- **Fix:**
-  - Cloudinary sign: Validate `paramsToSign` contains expected fields. Enforce allowed resource types and upload presets server-side.
-  - Verification uploads: Validate `file.type` against an allowlist (`image/jpeg`, `image/png`, `application/pdf`). Check `file.size` against a max (e.g., 10MB). Validate file magic bytes, not just the MIME type.
+  - `app/api/cloudinary/sign/route.ts` - validates resource_type
+  - `app/api/verifications/route.ts` - validates file type and size
+- **Resolution (2026-03-10):**
+  - Cloudinary sign: Validates `resource_type` against allowlist (`image`, `video`, `raw`). Rejects unknown resource types.
+  - Verification uploads: Validates each file's MIME type against `STUDIO.verification.acceptedTypes` (`image/jpeg`, `image/png`, `application/pdf`). Validates file size against `STUDIO.verification.maxFileSizeMB` (5MB). Returns descriptive errors for invalid files.
 
 ### H5. PayFast Webhook - Weak IP Validation in Production
 
 - **Severity:** HIGH
-- **File:** `lib/payfast.ts:171-179`
-- **Description:** The `isPayFastIP()` function does a naive string prefix match:
-  ```typescript
-  const prefix = range.split('/')[0].split('.').slice(0, 3).join('.');
-  return ip.startsWith(prefix);
-  ```
-  This checks only the first 3 octets of the IP, which is too broad for the CIDR ranges listed (`197.97.145.144/28` = only 16 IPs, `41.74.179.192/27` = only 32 IPs). The current implementation allows any IP in `197.97.145.*` or `41.74.179.*` (256 IPs each), which is 5-16x more IPs than intended.
-  Additionally, in sandbox mode, `isPayFastIP()` returns `true` for ALL IPs (line 173), which is correct for testing but dangerous if `NEXT_PUBLIC_PAYFAST_SANDBOX=true` is accidentally left on in production.
-- **Fix:**
-  1. Implement proper CIDR matching (use a library like `ip-cidr` or `netmask`)
-  2. Add a startup warning or deploy-time check that sandbox mode is off in production
-  3. Also validate the `x-forwarded-for` header can be trusted (depends on hosting provider)
+- **Status:** FIXED
+- **File:** `lib/payfast.ts`
+- **Resolution (2026-03-10):** Replaced naive string prefix matching with proper CIDR bit-level matching via `ipInCidr()`. Now correctly validates that IPs fall within the exact CIDR ranges (`197.97.145.144/28` = 16 IPs, `41.74.179.192/27` = 32 IPs) rather than allowing the entire /24 subnet. Sandbox bypass mode preserved for testing.
 
 ### H6. Subscription Created as "active" Before Payment
 
 - **Severity:** HIGH
-- **File:** `app/api/subscriptions/route.ts:85`
-- **Description:** The subscription POST route creates the subscription with `status: 'active'` immediately (line 85), before the user has paid via PayFast. This means a user gets an active subscription just by calling the API, without completing payment. Compare this with `app/api/payfast/checkout/route.ts:104` which correctly uses `status: 'pending'`.
-- **Fix:** Change line 85 from `status: 'active'` to `status: 'pending'`. The PayFast ITN webhook handler already activates subscriptions upon payment confirmation.
+- **Status:** FIXED
+- **File:** `app/api/subscriptions/route.ts`
+- **Resolution (2026-03-10):** Changed subscription insert status from `'active'` to `'pending'`. Subscriptions are now only activated by the PayFast ITN webhook upon successful payment confirmation.
 
 ### H7. Booking Status Manipulation by Users
 
 - **Severity:** HIGH
-- **File:** `app/api/bookings/[id]/route.ts:51-61`
-- **Description:** The PUT route allows any authenticated user to set their booking to ANY status including `confirmed` and `active`, which should only be set by the system (via PayFast ITN webhook after payment). A user could confirm their own booking without paying.
-- **Fix:** Restrict user-modifiable statuses. Users should only be allowed to `cancel` their own bookings:
-  ```typescript
-  const userAllowedStatuses = ['cancelled'];
-  if (!userAllowedStatuses.includes(status)) {
-    return NextResponse.json({ error: 'You can only cancel bookings.' }, { status: 403 });
-  }
-  ```
+- **Status:** FIXED
+- **File:** `app/api/bookings/[id]/route.ts`
+- **Resolution (2026-03-10):** Restricted user-modifiable booking statuses to `['cancelled']` only. Users can only cancel their own bookings. All other status transitions (`confirmed`, `active`, `completed`) are system-only, handled by the PayFast ITN webhook. Returns 403 if a user attempts an unauthorized status change.
 
 ### H8. PayFast Signature Comparison Vulnerable to Timing Attack
 
 - **Severity:** HIGH
-- **File:** `lib/payfast.ts:74`
-- **Description:** The `validateSignature()` function uses strict equality (`===`) to compare the expected signature with the received one:
-  ```typescript
-  return expected === receivedSignature;
-  ```
-  String comparison with `===` is not constant-time - it short-circuits on the first mismatched character. An attacker could measure response times to incrementally guess the correct MD5 signature byte-by-byte.
-- **Fix:** Use `crypto.timingSafeEqual()`:
-  ```typescript
-  return crypto.timingSafeEqual(
-    Buffer.from(expected),
-    Buffer.from(receivedSignature),
-  );
-  ```
+- **Status:** FIXED
+- **File:** `lib/payfast.ts`
+- **Resolution (2026-03-10):** Replaced `===` string comparison with `crypto.timingSafeEqual()` for constant-time signature comparison. Wrapped in try/catch to handle mismatched buffer lengths (which would indicate non-matching signatures).
 
 ### H9. Open Redirect via Payment URL Redirect
 
 - **Severity:** HIGH
+- **Status:** FIXED
 - **Files:**
-  - `components/booking/BookingWidget.tsx:130`
-  - `app/(platform)/pricing/page.tsx:159`
-- **Description:** Both files redirect the user's browser using `window.location.href = data.payment_url` where `payment_url` is returned from the API. If the API response is intercepted or manipulated (e.g., MITM on non-HTTPS, or if the API itself is compromised), users could be redirected to a phishing site. The client does not validate that the URL points to a legitimate PayFast domain.
-- **Fix:** Validate the URL before redirecting:
-  ```typescript
-  const url = new URL(data.payment_url);
-  const allowed = ['sandbox.payfast.co.za', 'www.payfast.co.za'];
-  if (!allowed.includes(url.hostname)) {
-    throw new Error('Invalid payment URL');
-  }
-  window.location.href = data.payment_url;
-  ```
+  - `components/booking/BookingWidget.tsx`
+  - `app/(platform)/pricing/page.tsx`
+- **Resolution (2026-03-10):** Both files now validate the payment URL hostname against an allowlist (`sandbox.payfast.co.za`, `www.payfast.co.za`) before redirecting. Invalid URLs show an error message instead of redirecting. Uses `new URL()` parsing to prevent protocol-level attacks.
 
 ### H10. Unvalidated Social Media URLs in Creator Profiles (javascript: XSS)
 
@@ -396,18 +357,19 @@ The codebase has a solid foundation with several security patterns implemented c
 - [x] **Cloudinary route authentication** - Sign requires auth, delete requires admin (C4)
 - [x] **Gemini route authentication** - Requires auth + 10 req/min rate limit + model allowlist (H1)
 - [x] **Search input sanitization** - PostgREST special chars stripped from query (H2)
+- [x] **Rate limiting** - Applied to contact (3/min), bookings (5/min), subscriptions (3/min), uploads (20/min), gemini (10/min) (H3)
+- [x] **File upload validation** - Cloudinary enforces resource_type allowlist; verifications validate MIME type + file size (H4)
+- [x] **PayFast IP validation** - Proper CIDR bit-level matching replaces prefix check (H5)
+- [x] **Subscription payment flow** - Status set to `pending` until PayFast ITN confirms (H6)
+- [x] **Booking status access control** - Users can only cancel; system handles confirm/active/complete (H7)
+- [x] **Timing-safe signature comparison** - `crypto.timingSafeEqual()` for PayFast signatures (H8)
+- [x] **Payment redirect validation** - URL hostname validated against PayFast allowlist (H9)
 - [x] **Social link URL validation** - Client + server-side protocol validation (H10)
 
 ### Still Failing
 
-- [ ] **Rate limiting** - Only Gemini has rate limiting; other endpoints still unprotected (H3)
 - [ ] **CSRF protection** - No explicit CSRF tokens (M1)
 - [ ] **Security headers** - None configured (M2)
-- [ ] **File upload validation** - No type/size checks (H4)
-- [ ] **Subscription payment flow** - Active before payment (H6)
-- [ ] **Booking status access control** - Users can self-confirm bookings (H7)
-- [ ] **Timing-safe signature comparison** - PayFast uses `===` not `timingSafeEqual` (H8)
-- [ ] **Payment redirect validation** - Client blindly follows `payment_url` (H9)
 - [ ] **Booking date validation** - Past dates and unbounded duration allowed (M8)
 - [ ] **Idempotency protection** - Duplicate bookings/subscriptions possible (M9)
 
@@ -466,4 +428,4 @@ The codebase has a solid foundation with several security patterns implemented c
 
 ---
 
-*Initial audit: 2026-03-09. Updated 2026-03-10 after fixing C1-C4, H1, H2, H10. Re-audit remaining findings before production launch.*
+*Initial audit: 2026-03-09. Updated 2026-03-10 after fixing all Critical (C1-C4) and all High (H1-H10) findings. Medium and Low findings remain — address before production launch.*

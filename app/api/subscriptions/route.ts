@@ -3,6 +3,7 @@ export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { isPayFastConfigured, buildPaymentData, getPayFastUrl } from '@/lib/payfast';
+import { checkRateLimit } from '@/lib/auth';
 
 export async function POST(request: NextRequest) {
   const supabase = await createClient();
@@ -12,6 +13,14 @@ export async function POST(request: NextRequest) {
 
   if (!user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  // H3: Rate limit subscription creation — 3 requests per minute per user
+  if (!checkRateLimit(`subscription:${user.id}`, 3, 60_000)) {
+    return NextResponse.json(
+      { error: 'Too many requests. Please wait before trying again.' },
+      { status: 429 },
+    );
   }
 
   const body = await request.json();
@@ -82,7 +91,7 @@ export async function POST(request: NextRequest) {
     .insert({
       user_id: user.id,
       plan_id,
-      status: 'active',
+      status: 'pending',
       current_period_start: now.toISOString(),
       current_period_end: periodEnd.toISOString(),
     })
