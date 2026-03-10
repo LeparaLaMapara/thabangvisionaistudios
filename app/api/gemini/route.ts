@@ -2,16 +2,15 @@ export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth, checkRateLimit } from '@/lib/auth';
-
-const ALLOWED_MODELS = ['gemini-pro', 'gemini-pro-vision', 'gemini-1.5-pro', 'gemini-1.5-flash'];
+import { ai } from '@/lib/ai';
 
 /**
  * POST /api/gemini
- * Secure proxy — GEMINI_API_KEY lives only on the server.
+ * AI chat proxy — the active provider's API key lives only on the server.
  * Requires authentication + rate limited to 10 requests/minute per user.
  *
- * Body:    { prompt: string; model?: string }
- * Returns: raw Gemini generateContent JSON
+ * Body:    { prompt: string; systemPrompt?: string; messages?: { role: 'user' | 'assistant'; content: string }[] }
+ * Returns: { response: string }
  */
 export async function POST(req: NextRequest) {
   // H1: Require authentication
@@ -19,7 +18,7 @@ export async function POST(req: NextRequest) {
   if (auth.error) return auth.error;
 
   // H1: Rate limit — 10 requests per minute per user
-  const allowed = checkRateLimit(`gemini:${auth.user.id}`, 10, 60_000);
+  const allowed = checkRateLimit(`ai:${auth.user.id}`, 10, 60_000);
   if (!allowed) {
     return NextResponse.json(
       { error: 'Rate limit exceeded. Please wait before trying again.' },
@@ -27,21 +26,22 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) {
+  if (!ai.isConfigured()) {
     return NextResponse.json(
-      { error: 'GEMINI_API_KEY is not configured on the server.' },
+      { error: 'AI provider is not configured on the server.' },
       { status: 500 },
     );
   }
 
   let prompt: string;
-  let model = 'gemini-pro';
+  let systemPrompt = 'You are a helpful creative studio assistant for Thabang Vision AI Studios, a platform for South African creators.';
+  let messages: { role: 'user' | 'assistant'; content: string }[] | undefined;
 
   try {
     const body = await req.json();
     prompt = body.prompt;
-    if (body.model) model = body.model;
+    if (body.systemPrompt) systemPrompt = body.systemPrompt;
+    if (body.messages) messages = body.messages;
   } catch {
     return NextResponse.json({ error: 'Invalid JSON body.' }, { status: 400 });
   }
@@ -53,34 +53,18 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // H1: Validate model against allowlist to prevent URL manipulation
-  if (!ALLOWED_MODELS.includes(model)) {
-    return NextResponse.json(
-      { error: `Invalid model. Allowed: ${ALLOWED_MODELS.join(', ')}` },
-      { status: 400 },
-    );
-  }
+  // Build message list: use provided history or just the single prompt
+  const messageList = messages ?? [{ role: 'user' as const, content: prompt.trim() }];
 
-  const upstream = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [{ parts: [{ text: prompt.trim() }] }],
-      }),
-    },
-  );
-
-  if (!upstream.ok) {
-    const detail = await upstream.text();
-    console.error('[gemini] Upstream error:', detail);
+  try {
+    const result = await ai.sendMessage(systemPrompt, messageList);
+    return NextResponse.json({ response: result.response });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Unknown error';
+    console.error(`[ai] ${ai.name} error:`, message);
     return NextResponse.json(
       { error: 'AI service temporarily unavailable.' },
       { status: 502 },
     );
   }
-
-  const data = await upstream.json();
-  return NextResponse.json(data);
 }

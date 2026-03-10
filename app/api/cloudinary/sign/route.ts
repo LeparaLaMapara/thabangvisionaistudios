@@ -1,13 +1,13 @@
 export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
-import crypto from 'node:crypto';
 import { requireAuth, checkRateLimit } from '@/lib/auth';
+import { storage } from '@/lib/storage';
 
 /**
  * POST /api/cloudinary/sign
- * Returns a signed upload signature so clients can upload directly to
- * Cloudinary without ever seeing CLOUDINARY_API_SECRET.
+ * Returns signed upload params so clients can upload directly to
+ * the storage provider without exposing secrets.
  * Requires authentication — only logged-in users can sign uploads.
  */
 export async function POST(req: NextRequest) {
@@ -15,25 +15,24 @@ export async function POST(req: NextRequest) {
   if (auth.error) return auth.error;
 
   // H3: Rate limit uploads — 20 requests per minute per user
-  if (!checkRateLimit(`cloudinary:${auth.user.id}`, 20, 60_000)) {
+  if (!checkRateLimit(`storage:${auth.user.id}`, 20, 60_000)) {
     return NextResponse.json(
       { error: 'Too many upload requests. Please wait before trying again.' },
       { status: 429 },
     );
   }
 
-  const secret = process.env.CLOUDINARY_API_SECRET;
-  if (!secret) {
+  if (!storage.isConfigured()) {
     return NextResponse.json(
-      { error: 'Cloudinary is not configured on the server.' },
+      { error: 'Storage provider is not configured on the server.' },
       { status: 500 },
     );
   }
 
   const { paramsToSign } = await req.json();
+  const params = paramsToSign as Record<string, string>;
 
   // H4: Validate upload parameters — enforce allowed resource types
-  const params = paramsToSign as Record<string, string>;
   const allowedResourceTypes = ['image', 'video', 'raw'];
   if (params.resource_type && !allowedResourceTypes.includes(params.resource_type)) {
     return NextResponse.json(
@@ -42,18 +41,20 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // Cloudinary signature: alphabetically sorted key=value pairs + secret
-  const toSign =
-    Object.entries(paramsToSign as Record<string, string>)
-      .sort(([a], [b]) => a.localeCompare(b))
-      .map(([k, v]) => `${k}=${v}`)
-      .join('&') + secret;
+  try {
+    const folder = params.folder ?? '';
+    const signed = await storage.getSignedUploadParams(folder, params);
 
-  const signature = crypto.createHash('sha256').update(toSign).digest('hex');
-
-  return NextResponse.json({
-    signature,
-    cloudName: process.env.CLOUDINARY_CLOUD_NAME,
-    apiKey:    process.env.CLOUDINARY_API_KEY, // public key — safe to return
-  });
+    return NextResponse.json({
+      signature: signed.signature,
+      cloudName: signed.fields.cloud_name,
+      apiKey: signed.fields.api_key,
+    });
+  } catch (err) {
+    console.error('[sign] Storage error:', err);
+    return NextResponse.json(
+      { error: 'Failed to generate upload signature.' },
+      { status: 500 },
+    );
+  }
 }

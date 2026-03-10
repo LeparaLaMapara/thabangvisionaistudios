@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useDropzone } from 'react-dropzone';
 import Cropper from 'react-easy-crop';
 import type { Area } from 'react-easy-crop';
@@ -106,7 +106,7 @@ export default function AdminPressPage() {
   const [croppedAreaPixels, setCroppedAreaPixels] = useState<Area | null>(null);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploading, setUploading] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+
 
   const supabase = createClient();
 
@@ -466,7 +466,7 @@ export default function AdminPressPage() {
                     : 'border-white/10 hover:border-white/20'
                 }`}
               >
-                <input {...getInputProps()} ref={fileInputRef} />
+                <input {...getInputProps()} />
                 <ImagePlus className="w-5 h-5 mx-auto mb-2 text-neutral-600" />
                 <p className="text-[10px] font-mono text-neutral-600 uppercase tracking-widest">
                   Drop image here or click to browse
