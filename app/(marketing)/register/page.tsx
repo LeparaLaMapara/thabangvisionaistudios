@@ -66,10 +66,10 @@ export default function RegisterPage() {
 
     // Create profile row
     if (data.user) {
-      const { error: profileError } = await supabase.from('profiles').insert({
+      const { error: profileError } = await supabase.from('profiles').upsert({
         id: data.user.id,
         display_name: displayName.trim() || null,
-      });
+      }, { onConflict: 'id' });
 
       if (profileError) {
         console.error('[register] profile insert failed:', profileError.message);

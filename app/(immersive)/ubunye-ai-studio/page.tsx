@@ -109,17 +109,20 @@ export default function UbunyeAIStudioPage() {
     const startTime = Date.now();
 
     try {
-      // Build conversation context
-      const conversationHistory = [...messages, userMsg]
-        .map(m => `${m.role === 'user' ? 'User' : 'Ubunye'}: ${m.content}`)
-        .join('\n');
-
-      const fullPrompt = `${SYSTEM_PROMPT}\n\nConversation:\n${conversationHistory}\n\nUbunye:`;
+      // Build conversation history in the format the AI abstraction expects
+      const chatMessages = [...messages, userMsg].map(m => ({
+        role: m.role as 'user' | 'assistant',
+        content: m.content,
+      }));
 
       const res = await fetch('/api/gemini', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt: fullPrompt }),
+        body: JSON.stringify({
+          prompt: text.trim(),
+          systemPrompt: SYSTEM_PROMPT,
+          messages: chatMessages,
+        }),
       });
 
       if (!res.ok) {
@@ -127,7 +130,7 @@ export default function UbunyeAIStudioPage() {
       }
 
       const data = await res.json();
-      const responseText = data?.candidates?.[0]?.content?.parts?.[0]?.text
+      const responseText = data?.response
         || 'I apologize, I couldn\'t process that request. Please try again.';
 
       const elapsed = Date.now() - startTime;
