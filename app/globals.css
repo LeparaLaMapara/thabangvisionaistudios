@@ -47,3 +47,7 @@ body {
 ::-webkit-scrollbar-track  { background: #050505; }
 ::-webkit-scrollbar-thumb  { background: #333; }
 ::-webkit-scrollbar-thumb:hover { background: #fff; }
+
+/* Hide scrollbar for horizontal-scroll nav */
+.scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+.scrollbar-hide::-webkit-scrollbar { display: none; }

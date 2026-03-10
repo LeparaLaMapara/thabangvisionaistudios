@@ -221,7 +221,7 @@ export default async function AdminDashboardPage() {
   });
 
   return (
-    <div className="max-w-7xl mx-auto px-6 py-12 space-y-12">
+    <div className="max-w-7xl mx-auto px-3 md:px-6 py-6 md:py-12 space-y-8 md:space-y-12">
 
       {/* ── Header ── */}
       <div className="border-b border-white/5 pb-8 flex items-end justify-between">
@@ -241,7 +241,7 @@ export default async function AdminDashboardPage() {
       {/* ── Section 1: KPI Row ── */}
       <section>
         <SectionLabel>Global Stats</SectionLabel>
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-px bg-white/[0.04]">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-px bg-white/[0.04]">
 
           <KpiCard
             label="Productions"
@@ -296,7 +296,7 @@ export default async function AdminDashboardPage() {
       {/* ── Section 2: Quick Create ── */}
       <section>
         <SectionLabel>Quick Create</SectionLabel>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
           <QuickCreateBtn href="/admin/projects" label="New Production" icon={<Clapperboard className="w-4 h-4" />} />
           <QuickCreateBtn href="/admin/rentals"  label="New Rental"     icon={<Package      className="w-4 h-4" />} />
           <QuickCreateBtn href="/admin/press"    label="New Press"      icon={<FilePen      className="w-4 h-4" />} />
@@ -317,7 +317,7 @@ export default async function AdminDashboardPage() {
               activityFeed.map(item => (
                 <div
                   key={`${item.type}-${item.id}`}
-                  className="grid grid-cols-[auto_1fr_auto_auto] items-center gap-4 px-4 py-3 hover:bg-white/[0.02] transition-colors"
+                  className="grid grid-cols-[auto_1fr_auto_auto] items-center gap-2 md:gap-4 px-3 md:px-4 py-3 hover:bg-white/[0.02] transition-colors"
                 >
                   <TypeBadge type={item.type} />
                   <p className="text-sm font-mono text-neutral-300 truncate">{item.title}</p>
@@ -373,7 +373,7 @@ export default async function AdminDashboardPage() {
             Featured Content
             <span className="text-neutral-700">· {featuredItems.length}</span>
           </SectionLabel>
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
             {featuredItems.map(item => (
               <div
                 key={`${item.type}-${item.id}`}
@@ -408,7 +408,7 @@ export default async function AdminDashboardPage() {
       {/* ── Section 6: Studio Overview ── */}
       <section>
         <SectionLabel>Studio Overview</SectionLabel>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-px bg-white/[0.04]">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-px bg-white/[0.04]">
           <OverviewCard
             label="Productions"
             count={kpi.productions.total}
