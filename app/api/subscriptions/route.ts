@@ -2,7 +2,7 @@ export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
-import { isPayFastConfigured, buildPaymentData, getPayFastUrl } from '@/lib/payfast';
+import { payments } from '@/lib/payments';
 import { checkRateLimit } from '@/lib/auth';
 
 export async function POST(request: NextRequest) {
@@ -120,28 +120,30 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Failed to create subscription.' }, { status: 500 });
   }
 
-  // Build PayFast payment URL if configured
+  // Build payment checkout URL if configured
   let paymentUrl: string | null = null;
 
-  if (isPayFastConfigured() && plan.price > 0) {
+  if (payments.isConfigured() && plan.price > 0) {
     try {
-      const paymentData = buildPaymentData({
+      const interval = plan.interval === 'year' ? 'annual' : 'monthly';
+      const checkout = await payments.createSubscriptionCheckout({
+        subscriptionId: sub.id,
         amount: plan.price,
-        itemName: `${plan.name} Subscription (${plan.interval}ly)`,
-        itemDescription: plan.description ?? `${plan.name} plan`,
+        planName: plan.name,
+        planDescription: plan.description ?? undefined,
         email: user.email ?? undefined,
-        paymentId: sub.id,
-        returnUrl: `/dashboard?subscription=success`,
-        cancelUrl: `/pricing?subscription=cancelled`,
-        customStr1: 'subscription',
-        customStr2: user.id,
-        customStr3: plan_id,
+        returnUrl: '/dashboard?subscription=success',
+        cancelUrl: '/pricing?subscription=cancelled',
+        interval,
+        metadata: {
+          customStr1: 'subscription',
+          customStr2: user.id,
+          customStr3: plan_id,
+        },
       });
-
-      const params = new URLSearchParams(paymentData as Record<string, string>);
-      paymentUrl = `${getPayFastUrl()}?${params.toString()}`;
+      paymentUrl = checkout.paymentUrl;
     } catch (err) {
-      console.error('[subscriptions] PayFast error:', err);
+      console.error('[subscriptions] Payment error:', err);
     }
   }
 

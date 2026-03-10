@@ -1,10 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
-import {
-  isPayFastConfigured,
-  buildPaymentData,
-  getPayFastUrl,
-} from '@/lib/payfast';
+import { payments } from '@/lib/payments';
 
 export const dynamic = 'force-dynamic';
 
@@ -14,7 +10,7 @@ export const dynamic = 'force-dynamic';
  * Accepts: { plan_id: string, plan_name: string, amount: number, billing: 'monthly' | 'annual' }
  * Returns: { payment_url: string } or error
  *
- * Creates a pending subscription in Supabase, builds a signed PayFast
+ * Creates a pending subscription in Supabase, builds a signed payment
  * redirect URL, and returns it for the client to navigate to.
  */
 export async function POST(request: NextRequest) {
@@ -52,8 +48,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ payment_url: '/dashboard?subscription=free' });
   }
 
-  // 3. Check PayFast credentials
-  if (!isPayFastConfigured()) {
+  // 3. Check payment provider credentials
+  if (!payments.isConfigured()) {
     return NextResponse.json(
       { error: 'Payment processing is not configured. Please contact support.' },
       { status: 503 },
@@ -112,38 +108,35 @@ export async function POST(request: NextRequest) {
     .single();
 
   if (insertError) {
-    console.error('[payfast/checkout] Insert subscription error:', insertError.message);
+    console.error('[checkout] Insert subscription error:', insertError.message);
     return NextResponse.json(
       { error: 'Failed to create subscription. Please try again.' },
       { status: 500 },
     );
   }
 
-  // 8. Build signed PayFast redirect URL
+  // 8. Build payment redirect URL
   try {
     const interval = billing === 'annual' ? 'annual' : 'monthly';
-    const paymentData = buildPaymentData({
+    const checkout = await payments.createSubscriptionCheckout({
+      subscriptionId: sub.id,
       amount,
-      itemName: `${plan_name} Plan (${interval})`,
-      itemDescription: `${plan_name} subscription — billed ${interval}`,
+      planName: plan_name,
       email: user.email ?? undefined,
-      paymentId: sub.id,
       returnUrl: '/dashboard?subscription=success',
       cancelUrl: '/pricing?subscription=cancelled',
-      customStr1: 'subscription',
-      customStr2: user.id,
-      customStr3: plan_id,
-      customStr4: billing,
+      interval,
+      metadata: {
+        customStr1: 'subscription',
+        customStr2: user.id,
+        customStr3: plan_id,
+        customStr4: billing,
+      },
     });
 
-    const params = new URLSearchParams(
-      paymentData as Record<string, string>,
-    );
-    const paymentUrl = `${getPayFastUrl()}?${params.toString()}`;
-
-    return NextResponse.json({ payment_url: paymentUrl });
+    return NextResponse.json({ payment_url: checkout.paymentUrl });
   } catch (err) {
-    console.error('[payfast/checkout] PayFast build error:', err);
+    console.error('[checkout] Payment build error:', err);
 
     // Rollback the pending subscription
     await supabase.from('subscriptions').delete().eq('id', sub.id);

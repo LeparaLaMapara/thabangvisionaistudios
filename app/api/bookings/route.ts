@@ -2,7 +2,7 @@ export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
-import { isPayFastConfigured, buildPaymentData, getPayFastUrl } from '@/lib/payfast';
+import { payments } from '@/lib/payments';
 import { STUDIO } from '@/lib/constants';
 import { checkRateLimit } from '@/lib/auth';
 
@@ -181,29 +181,28 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Failed to create booking.' }, { status: 500 });
   }
 
-  // Build PayFast payment data if configured
+  // Build payment checkout URL if configured
   let paymentUrl: string | null = null;
 
-  if (isPayFastConfigured() && totalPrice > 0) {
+  if (payments.isConfigured() && totalPrice > 0) {
     try {
-      const paymentData = buildPaymentData({
+      const checkout = await payments.createCheckout({
+        paymentId: booking.id,
         amount: totalPrice,
         itemName: `Rental: ${rental.title ?? 'Equipment'}`,
         itemDescription: `Booking ${start_date} to ${end_date} (${days} days)`,
         email: user.email ?? undefined,
-        paymentId: booking.id,
         returnUrl: `/dashboard/bookings/${booking.id}?payment=success`,
         cancelUrl: `/dashboard/bookings/${booking.id}?payment=cancelled`,
-        customStr1: 'equipment_booking',
-        customStr2: user.id,
-        customStr3: rental_id,
+        metadata: {
+          customStr1: 'equipment_booking',
+          customStr2: user.id,
+          customStr3: rental_id,
+        },
       });
-
-      // Build the redirect URL with form params
-      const params = new URLSearchParams(paymentData as Record<string, string>);
-      paymentUrl = `${getPayFastUrl()}?${params.toString()}`;
+      paymentUrl = checkout.paymentUrl;
     } catch (err) {
-      console.error('[bookings] PayFast error:', err);
+      console.error('[bookings] Payment error:', err);
       // Booking is created but payment URL generation failed — don't fail the whole request
     }
   }

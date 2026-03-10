@@ -1,24 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
-import {
-  isPayFastConfigured,
-  isPayFastIP,
-  validateSignature,
-  validateITN,
-  type PayFastPaymentStatus,
-} from '@/lib/payfast';
+import { payments, type WebhookResult } from '@/lib/payments';
 
 export const dynamic = 'force-dynamic';
 
-// ─── ITN handlers ───────────────────────────────────────────────────────────
+// ─── Payment handlers ────────────────────────────────────────────────────────
 
-async function handlePaymentComplete(params: Record<string, string>) {
-  const paymentId = params.m_payment_id ?? '';
-  const pfPaymentId = params.pf_payment_id ?? '';
-  const paymentType = params.custom_str1 ?? '';
+async function handlePaymentComplete(webhook: WebhookResult) {
+  const { paymentId, providerPaymentId, amountGross, raw } = webhook;
+  const paymentType = raw.custom_str1 ?? '';
 
-  // L3: Log only non-PII identifiers — no amounts or user details
-  console.log(`[PayFast ITN] COMPLETE: pf=${pfPaymentId} ref=${paymentId} type=${paymentType}`);
+  // L3: Log only non-PII identifiers
+  console.log(`[webhook] COMPLETE: provider=${providerPaymentId} ref=${paymentId} type=${paymentType}`);
 
   const supabase = await createClient();
 
@@ -30,12 +23,10 @@ async function handlePaymentComplete(params: Record<string, string>) {
       .eq('id', paymentId)
       .single();
 
-    const receivedAmount = parseFloat(params.amount_gross ?? '0');
-
-    if (booking && Math.abs(booking.total_price - receivedAmount) > 0.01) {
-      console.error('[PayFast ITN] Amount mismatch:', {
+    if (booking && Math.abs(booking.total_price - amountGross) > 0.01) {
+      console.error('[webhook] Amount mismatch:', {
         expected: booking.total_price,
-        received: receivedAmount,
+        received: amountGross,
         bookingId: paymentId,
       });
       // Flag for manual review — do not auto-confirm
@@ -43,7 +34,7 @@ async function handlePaymentComplete(params: Record<string, string>) {
         .from('equipment_bookings')
         .update({
           status: 'pending',
-          notes: `AMOUNT MISMATCH: expected ${booking.total_price}, received ${receivedAmount}. Requires manual review.`,
+          notes: `AMOUNT MISMATCH: expected ${booking.total_price}, received ${amountGross}. Requires manual review.`,
           updated_at: new Date().toISOString(),
         })
         .eq('id', paymentId);
@@ -55,53 +46,50 @@ async function handlePaymentComplete(params: Record<string, string>) {
       .from('equipment_bookings')
       .update({
         status: 'confirmed',
-        payfast_payment_id: pfPaymentId,
+        payfast_payment_id: providerPaymentId,
         updated_at: new Date().toISOString(),
       })
       .eq('id', paymentId);
 
     if (bookingErr) {
-      console.error('[PayFast ITN] Failed to confirm booking:', bookingErr.message);
+      console.error('[webhook] Failed to confirm booking:', bookingErr.message);
     } else {
-      // Create booking_payment record
       await supabase.from('booking_payments').insert({
         booking_id: paymentId,
-        payfast_payment_id: pfPaymentId,
-        amount: receivedAmount,
+        payfast_payment_id: providerPaymentId,
+        amount: amountGross,
         currency: 'ZAR',
         status: 'complete',
       });
 
-      console.log(`[PayFast ITN] Booking confirmed: ref=${paymentId}`);
+      console.log(`[webhook] Booking confirmed: ref=${paymentId}`);
     }
   } else if (paymentType === 'subscription') {
-    // custom_str2 = user_id, custom_str3 = plan_id, custom_str4 = billing cycle
-    const userId = params.custom_str2 ?? '';
+    const userId = raw.custom_str2 ?? '';
 
-    // Update subscription status to active
     const { error: subErr } = await supabase
       .from('subscriptions')
       .update({
         status: 'active',
-        payfast_token: pfPaymentId,
+        payfast_token: providerPaymentId,
         updated_at: new Date().toISOString(),
       })
       .eq('id', paymentId)
       .eq('user_id', userId);
 
     if (subErr) {
-      console.error('[PayFast ITN] Failed to activate subscription:', subErr.message);
+      console.error('[webhook] Failed to activate subscription:', subErr.message);
     } else {
-      console.log(`[PayFast ITN] Subscription activated: ref=${paymentId}`);
+      console.log(`[webhook] Subscription activated: ref=${paymentId}`);
     }
   }
 }
 
-async function handlePaymentFailed(params: Record<string, string>) {
-  const paymentId = params.m_payment_id ?? '';
-  const paymentType = params.custom_str1 ?? '';
+async function handlePaymentFailed(webhook: WebhookResult) {
+  const { paymentId, raw } = webhook;
+  const paymentType = raw.custom_str1 ?? '';
 
-  console.log(`[PayFast ITN] FAILED: pf=${params.pf_payment_id} ref=${paymentId} type=${paymentType}`);
+  console.log(`[webhook] FAILED: provider=${webhook.providerPaymentId} ref=${paymentId} type=${paymentType}`);
 
   const supabase = await createClient();
 
@@ -118,76 +106,59 @@ async function handlePaymentFailed(params: Record<string, string>) {
   }
 }
 
-async function handlePaymentPending(params: Record<string, string>) {
-  console.log(`[PayFast ITN] PENDING: pf=${params.pf_payment_id} ref=${params.m_payment_id} type=${params.custom_str1}`);
+async function handlePaymentPending(webhook: WebhookResult) {
+  console.log(`[webhook] PENDING: provider=${webhook.providerPaymentId} ref=${webhook.paymentId} type=${webhook.raw.custom_str1}`);
 }
 
-// ─── POST handler (receives ITN from PayFast) ──────────────────────────────
+// ─── POST handler (receives webhook from payment provider) ───────────────────
 
 export async function POST(request: NextRequest) {
-  if (!isPayFastConfigured()) {
+  if (!payments.isConfigured()) {
     return NextResponse.json(
-      { error: 'PayFast is not configured' },
+      { error: 'Payment provider is not configured' },
       { status: 503 },
     );
   }
 
-  // 1. Validate source IP
+  // Validate webhook (IP, signature, server-to-server) via provider abstraction
   const forwardedFor = request.headers.get('x-forwarded-for');
   const ip = forwardedFor?.split(',')[0]?.trim() ?? '';
-
-  if (!isPayFastIP(ip)) {
-    console.error(`[PayFast ITN] Request from unauthorized IP: ${ip}`);
-    return NextResponse.json({ error: 'Unauthorized IP' }, { status: 403 });
-  }
-
-  // 2. Parse form-encoded body
   const body = await request.text();
-  const params: Record<string, string> = {};
-  new URLSearchParams(body).forEach((value, key) => {
-    params[key] = value;
+
+  const webhook = await payments.validateWebhook({
+    ip,
+    body,
+    headers: Object.fromEntries(request.headers.entries()),
   });
 
-  // 3. Validate signature
-  const receivedSignature = params.signature ?? '';
-  if (!validateSignature(params, receivedSignature)) {
-    console.error('[PayFast ITN] Signature validation failed');
-    return NextResponse.json({ error: 'Invalid signature' }, { status: 400 });
+  if (!webhook.valid) {
+    return NextResponse.json({ error: 'Webhook validation failed' }, { status: 400 });
   }
 
-  // 4. Validate with PayFast server
-  const isValid = await validateITN(params);
-  if (!isValid) {
-    console.error('[PayFast ITN] Server validation failed');
-    return NextResponse.json({ error: 'ITN validation failed' }, { status: 400 });
-  }
-
-  // 5. Process payment based on status
-  const paymentStatus = params.payment_status as PayFastPaymentStatus;
-
+  // Process payment based on status
   try {
-    switch (paymentStatus) {
+    switch (webhook.status) {
       case 'COMPLETE':
-        await handlePaymentComplete(params);
+        await handlePaymentComplete(webhook);
         break;
       case 'FAILED':
-        await handlePaymentFailed(params);
+        await handlePaymentFailed(webhook);
         break;
       case 'PENDING':
-        await handlePaymentPending(params);
+        await handlePaymentPending(webhook);
         break;
       default:
-        console.log(`[PayFast ITN] Unknown payment status: ${paymentStatus}`);
+        console.log(`[webhook] Unknown payment status: ${webhook.status}`);
     }
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Unknown error';
-    console.error(`[PayFast ITN] Error processing ${paymentStatus}: ${message}`);
+    console.error(`[webhook] Error processing ${webhook.status}: ${message}`);
     return NextResponse.json(
-      { error: 'ITN handler failed' },
+      { error: 'Webhook handler failed' },
       { status: 500 },
     );
   }
 
-  // PayFast expects a 200 OK response
+  // Payment provider expects a 200 OK response
   return new NextResponse('OK', { status: 200 });
 }
