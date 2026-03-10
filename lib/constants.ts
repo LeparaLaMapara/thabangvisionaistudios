@@ -298,4 +298,4 @@ export const PRODUCTION_SERVICES = {
     "Cloud Ecosystem: Secure, 12-month digital hosting of all final assets",
     "Intellectual Property: Full commercial usage licence granted upon final payment",
   ],
-},
+} as const;

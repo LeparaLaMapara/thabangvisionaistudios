@@ -4,7 +4,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { checkRateLimit } from '@/lib/auth';
 import { ai } from '@/lib/ai';
 import { createClient } from '@/lib/supabase/server';
-import { STUDIO } from '@/lib/constants';
+import { STUDIO, PRODUCTION_SERVICES } from '@/lib/constants';
 
 // ─── Plan Limits ────────────────────────────────────────────────────────────
 
@@ -45,14 +45,14 @@ function formatServices(): string {
   const cats = { photography: 'Photography', cinematography: 'Cinematography', postProduction: 'Post-Production' } as const;
 
   for (const [key, label] of Object.entries(cats)) {
-    const category = STUDIO.services[key as keyof typeof cats];
+    const category = PRODUCTION_SERVICES[key as keyof typeof cats];
     for (const svc of Object.values(category)) {
       lines.push(`- ${label}: R${svc.rate}/${svc.unit} — ${svc.description}`);
     }
   }
 
-  lines.push(`- Travel: R${STUDIO.services.logistics.travelRate}/km + R${STUDIO.services.logistics.fuelSurcharge} fuel surcharge`);
-  lines.push(`- Billing: Min ${STUDIO.services.billing.minimumBooking}, then per ${STUDIO.services.billing.incrementAfter}. Overtime (${STUDIO.services.billing.overtimeAfterHours}h+): ${STUDIO.services.billing.overtimeMultiplier}x rate. VAT: ${STUDIO.services.billing.vatRate}%. Instalment plans for orders over R${STUDIO.services.billing.instalmentThreshold}.`);
+  lines.push(`- Travel: R${PRODUCTION_SERVICES.logistics.travelRate}/km + R${PRODUCTION_SERVICES.logistics.fuelSurcharge} fuel surcharge`);
+  lines.push(`- Billing: Min ${PRODUCTION_SERVICES.billing.minimumBooking}, then per ${PRODUCTION_SERVICES.billing.incrementAfter}. Overtime (${PRODUCTION_SERVICES.billing.overtimeAfterHours}h+): ${PRODUCTION_SERVICES.billing.overtimeMultiplier}x rate. VAT: ${PRODUCTION_SERVICES.billing.vatRate}%. Instalment plans for orders over R${PRODUCTION_SERVICES.billing.instalmentThreshold}.`);
 
   return lines.join('\n');
 }
@@ -208,11 +208,11 @@ Hours: ${STUDIO.hours.weekday} | ${STUDIO.hours.weekend} | ${STUDIO.hours.sunday
 ${platform.services}
 
 ===== COMPETITIVE EDGE =====
-${STUDIO.services.edge.map(e => `- ${e}`).join('\n')}
+${PRODUCTION_SERVICES.edge.map(e => `- ${e}`).join('\n')}
 
 ===== RENTAL TERMS =====
 Deposit: ${STUDIO.rental.depositPercent}% required
-Multi-day discount: ${STUDIO.rental.multiDayDiscount}
+Multi-day discount: 7+ days = weekly rate applies
 Cancellation: ${STUDIO.rental.cancellationHours} hours notice
 Max booking: ${STUDIO.rental.maxBookingDays} days
 
@@ -261,7 +261,7 @@ ${userContext || 'User is NOT logged in. Encourage them to register at /register
 2. Use EXACT prices from the data — never guess
 3. Always link to real pages
 4. Use ${STUDIO.currency.code} for all pricing
-5. Calculate multi-day rates: ${STUDIO.rental.multiDayDiscount}
+5. Calculate multi-day rates: 7+ days = weekly rate applies
 6. Remind about ${STUDIO.rental.depositPercent}% deposit when discussing bookings
 7. Be warm, professional, knowledgeable about SA creative industry
 8. Keep responses concise with clear formatting
