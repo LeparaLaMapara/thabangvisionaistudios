@@ -14,12 +14,19 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const { name, email, message, subject, website } = await req.json();
+  const { name, email, message, subject, _hp_company, _ts } = await req.json();
 
-  // Honeypot spam protection — real users never fill this hidden field
-  if (website) {
-    // Return success to not tip off bots
+  // L1: Honeypot spam protection — less predictable field name
+  if (_hp_company) {
     return NextResponse.json({ success: true });
+  }
+
+  // L1: Time-based check — reject submissions faster than 2 seconds after page load
+  if (_ts && typeof _ts === 'number') {
+    const elapsed = Date.now() - _ts;
+    if (elapsed < 2000) {
+      return NextResponse.json({ success: true });
+    }
   }
 
   if (!name || !email || !message) {

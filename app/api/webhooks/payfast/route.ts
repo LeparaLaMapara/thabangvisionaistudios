@@ -17,10 +17,8 @@ async function handlePaymentComplete(params: Record<string, string>) {
   const pfPaymentId = params.pf_payment_id ?? '';
   const paymentType = params.custom_str1 ?? '';
 
-  console.log(
-    `[PayFast ITN] Payment complete: ${pfPaymentId}`,
-    { paymentId, type: paymentType, amount: params.amount_gross },
-  );
+  // L3: Log only non-PII identifiers — no amounts or user details
+  console.log(`[PayFast ITN] COMPLETE: pf=${pfPaymentId} ref=${paymentId} type=${paymentType}`);
 
   const supabase = await createClient();
 
@@ -74,7 +72,7 @@ async function handlePaymentComplete(params: Record<string, string>) {
         status: 'complete',
       });
 
-      console.log('[PayFast ITN] Booking confirmed:', paymentId);
+      console.log(`[PayFast ITN] Booking confirmed: ref=${paymentId}`);
     }
   } else if (paymentType === 'subscription') {
     // custom_str2 = user_id, custom_str3 = plan_id, custom_str4 = billing cycle
@@ -94,7 +92,7 @@ async function handlePaymentComplete(params: Record<string, string>) {
     if (subErr) {
       console.error('[PayFast ITN] Failed to activate subscription:', subErr.message);
     } else {
-      console.log('[PayFast ITN] Subscription activated:', paymentId);
+      console.log(`[PayFast ITN] Subscription activated: ref=${paymentId}`);
     }
   }
 }
@@ -103,10 +101,7 @@ async function handlePaymentFailed(params: Record<string, string>) {
   const paymentId = params.m_payment_id ?? '';
   const paymentType = params.custom_str1 ?? '';
 
-  console.log(
-    `[PayFast ITN] Payment failed: ${params.pf_payment_id}`,
-    { paymentId, type: paymentType },
-  );
+  console.log(`[PayFast ITN] FAILED: pf=${params.pf_payment_id} ref=${paymentId} type=${paymentType}`);
 
   const supabase = await createClient();
 
@@ -124,10 +119,7 @@ async function handlePaymentFailed(params: Record<string, string>) {
 }
 
 async function handlePaymentPending(params: Record<string, string>) {
-  console.log(
-    `[PayFast ITN] Payment pending: ${params.pf_payment_id}`,
-    { paymentId: params.m_payment_id, type: params.custom_str1 },
-  );
+  console.log(`[PayFast ITN] PENDING: pf=${params.pf_payment_id} ref=${params.m_payment_id} type=${params.custom_str1}`);
 }
 
 // ─── POST handler (receives ITN from PayFast) ──────────────────────────────

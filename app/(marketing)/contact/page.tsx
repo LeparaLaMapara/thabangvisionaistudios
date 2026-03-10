@@ -6,7 +6,8 @@ import { ArrowRight, Mail, Phone, MapPin, Send, Loader2 } from 'lucide-react';
 import { STUDIO } from '@/lib/constants';
 
 export default function ContactPage() {
-  const [formState, setFormState] = useState({ name: '', email: '', subject: 'Project Inquiry', message: '', website: '' });
+  const [formState, setFormState] = useState({ name: '', email: '', subject: 'Project Inquiry', message: '', _hp_company: '' });
+  const [pageLoadTs] = useState(() => Date.now());
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -19,7 +20,7 @@ export default function ContactPage() {
       const res = await fetch('/api/contact', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formState),
+        body: JSON.stringify({ ...formState, _ts: pageLoadTs }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to send');
@@ -137,17 +138,17 @@ export default function ContactPage() {
                   />
                 </div>
 
-                {/* Honeypot field — hidden from real users, catches bots */}
+                {/* L1: Honeypot field — less predictable name, hidden from real users */}
                 <div className="absolute opacity-0 top-0 left-0 h-0 w-0 -z-10" aria-hidden="true">
-                  <label htmlFor="website">Website</label>
+                  <label htmlFor="_hp_company">Company</label>
                   <input
                     type="text"
-                    id="website"
-                    name="website"
+                    id="_hp_company"
+                    name="_hp_company"
                     tabIndex={-1}
                     autoComplete="off"
-                    value={formState.website}
-                    onChange={e => setFormState({...formState, website: e.target.value})}
+                    value={formState._hp_company}
+                    onChange={e => setFormState({...formState, _hp_company: e.target.value})}
                   />
                 </div>
 

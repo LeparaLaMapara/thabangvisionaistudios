@@ -215,8 +215,10 @@ export default function RentalDetailView({
                   <iframe
                     src={videoEmbedUrl}
                     className="absolute inset-0 w-full h-full"
-                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                    allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture"
                     allowFullScreen
+                    sandbox="allow-scripts allow-same-origin allow-presentation"
+                    referrerPolicy="no-referrer"
                     title={`${rental.title} video`}
                   />
                 ) : activeMedia.type === 'image' ? (
@@ -249,8 +251,10 @@ export default function RentalDetailView({
                   <iframe
                     src={videoEmbedUrl}
                     className="absolute inset-0 w-full h-full"
-                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                    allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture"
                     allowFullScreen
+                    sandbox="allow-scripts allow-same-origin allow-presentation"
+                    referrerPolicy="no-referrer"
                     title={`${rental.title} video`}
                   />
                 ) : activeMedia.type === 'image' ? (
