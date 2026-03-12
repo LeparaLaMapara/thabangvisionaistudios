@@ -1,6 +1,6 @@
 # Security Audit Report — Thabang Vision AI Studios
 
-**Date:** 2026-03-09 (Updated: 2026-03-10)
+**Date:** 2026-03-09 (Updated: 2026-03-13)
 **Auditor:** Claude Code (Automated Codebase Security Review)
 **Scope:** Full codebase — all API routes, middleware, auth, database queries, client components, file uploads, payment integration
 
@@ -693,4 +693,43 @@ All 29 findings from the initial audit have been resolved. The following are add
 
 ---
 
-*Initial audit: 2026-03-09. Updated 2026-03-10 — all 29 findings resolved (4 Critical, 10 High, 9 Medium, 6 Low). Full details of each issue, its discovery, and exact fix documented above.*
+---
+
+## V3 Security Posture (2026-03-12 to 2026-03-13)
+
+All V3 features (TASK-017 to TASK-033) follow the security patterns established in V2:
+
+### New API Routes — Auth Status
+
+| Route | Auth | Method |
+|-------|------|--------|
+| `POST /api/ubunye-chat` | `supabase.auth.getUser()` + rate limit (10 req/min) | Session + 429 |
+| `POST /api/admin/reindex` | `requireAdmin()` | Admin-only |
+| `POST /api/admin/recalculate-rankings` | `requireAdmin()` | Admin-only |
+| `POST /api/admin/rentals` | `requireAdmin()` | Admin-only |
+| `POST /api/admin/productions` | `requireAdmin()` | Admin-only |
+| `POST /api/admin/press` | `requireAdmin()` | Admin-only |
+| `POST /api/admin/careers` | `requireAdmin()` | Admin-only |
+| `GET/POST/PUT/DELETE /api/listings` | `supabase.auth.getUser()` + ownership check | Session + 401 |
+
+### RAG Infrastructure
+
+- RAG gated by `RAG_ENABLED` env var (default: `false`) — all operations no-op when disabled
+- Embedding API keys stored in env vars, never exposed to client
+- Admin reindex route requires `requireAdmin()` — no public access to reindexing
+- Content text truncated to 10,000 chars before storage — prevents oversized embeddings
+
+### Marketplace Security
+
+- Creator listings enforce `owner_id` ownership on all mutations (PUT/DELETE check `owner_id = user.id`)
+- Community items inserted with `owner_type='community'` — cannot impersonate studio listings
+- Ranking recalculation admin-only — no user self-scoring
+
+### Production Brief Form
+
+- Posts to existing `/api/contact` route (inherits honeypot, time-check, rate limiting)
+- Phone field optional — no new PII exposure vectors
+
+---
+
+*Initial audit: 2026-03-09. Updated 2026-03-13 — all 29 original findings resolved. V3 features (Sessions 5-8) follow established security patterns with auth on all new routes.*
