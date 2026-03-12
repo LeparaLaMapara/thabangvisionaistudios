@@ -2,7 +2,6 @@
 // Generates embeddings for content and stores them in the content_embeddings table.
 
 import { generateEmbedding, isEmbeddingConfigured } from './embeddings';
-import { STUDIO } from '@/lib/constants';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 

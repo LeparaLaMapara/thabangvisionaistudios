@@ -4,7 +4,8 @@
 // Gated by RAG_ENABLED env var. When disabled (default), all operations
 // are no-ops that return gracefully without calling external services.
 
-export { generateEmbedding, isEmbeddingConfigured } from './embeddings';
+export { embedding, generateEmbedding, isEmbeddingConfigured } from './embeddings';
+export type { EmbeddingProvider } from './embeddings';
 export { indexItem, reindexAll, buildContentString } from './indexer';
 export type { ContentType, IndexResult } from './indexer';
 export { searchSimilar, formatRetrievalContext } from './retrieval';
