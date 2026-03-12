@@ -1,0 +1,26 @@
+# CODEOWNERS — ThabangVision Labs
+# Every PR that touches these paths requires approval from the listed owner.
+
+# Source of truth — only Thabang approves changes
+/lib/constants.ts    @LeparaLaMapara
+/.env*               @LeparaLaMapara
+/CLAUDE.md           @LeparaLaMapara
+/MEMORY.md           @LeparaLaMapara
+/AGENT_HARNESS.md    @LeparaLaMapara
+
+# Security-critical paths
+/middleware.ts        @LeparaLaMapara
+/lib/auth/           @LeparaLaMapara
+/lib/payments/       @LeparaLaMapara
+/app/api/admin/      @LeparaLaMapara
+/app/api/webhooks/   @LeparaLaMapara
+
+# AI brain
+/lib/ai/             @LeparaLaMapara
+/lib/ubunye/         @LeparaLaMapara
+/lib/rag/            @LeparaLaMapara
+
+# Infrastructure
+/.github/            @LeparaLaMapara
+/SECURITY.md         @LeparaLaMapara
+/CODEOWNERS          @LeparaLaMapara

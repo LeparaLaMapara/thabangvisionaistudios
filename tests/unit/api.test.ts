@@ -9,6 +9,15 @@ vi.mock('@/lib/email', () => ({
   sendContactNotification: vi.fn(),
 }));
 
+// Mock checkRateLimit so contact tests don't hit the in-memory rate limiter
+vi.mock('@/lib/auth', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/auth')>();
+  return {
+    ...actual,
+    checkRateLimit: vi.fn().mockReturnValue(true),
+  };
+});
+
 async function callContactRoute(body: Record<string, unknown>) {
   const { POST } = await import('@/app/api/contact/route');
   const req = new NextRequest('http://localhost:3000/api/contact', {
@@ -77,7 +86,7 @@ describe('/api/contact', () => {
       name: 'Bot',
       email: 'bot@spam.com',
       message: 'spam',
-      website: 'http://spam.com', // honeypot field
+      _hp_company: 'http://spam.com', // honeypot field
     });
     expect(res.status).toBe(200);
     const json = await res.json();
@@ -87,30 +96,47 @@ describe('/api/contact', () => {
 
 // ─── /api/gemini tests ──────────────────────────────────────────────────────
 
+// Mock Supabase server client so the gemini route doesn't call cookies()
+const mockSupabaseFrom = vi.fn().mockReturnValue({
+  select: vi.fn().mockReturnThis(),
+  eq: vi.fn().mockReturnThis(),
+  single: vi.fn().mockResolvedValue({ data: null, error: null }),
+  insert: vi.fn().mockResolvedValue({ data: null, error: null }),
+  update: vi.fn().mockReturnThis(),
+  is: vi.fn().mockReturnThis(),
+  order: vi.fn().mockReturnThis(),
+  limit: vi.fn().mockReturnThis(),
+  or: vi.fn().mockReturnThis(),
+});
+
+const mockGetUser = vi.fn().mockResolvedValue({
+  data: { user: null },
+  error: null,
+});
+
+vi.mock('@/lib/supabase/server', () => ({
+  createClient: vi.fn().mockResolvedValue({
+    auth: { getUser: () => mockGetUser() },
+    from: (...args: unknown[]) => mockSupabaseFrom(...args),
+  }),
+}));
+
+// Mock the AI provider
+vi.mock('@/lib/ai', () => ({
+  ai: {
+    isConfigured: vi.fn().mockReturnValue(false),
+    name: 'mock-ai',
+    sendMessage: vi.fn(),
+  },
+}));
+
 describe('/api/gemini', () => {
   beforeEach(() => {
     vi.unstubAllEnvs();
+    mockGetUser.mockResolvedValue({ data: { user: null }, error: null });
   });
 
-  it('returns 500 when GEMINI_API_KEY is not set', async () => {
-    vi.stubEnv('GEMINI_API_KEY', '');
-
-    // Re-import to pick up the env change
-    const mod = await import('@/app/api/gemini/route');
-    const req = new NextRequest('http://localhost:3000/api/gemini', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ prompt: 'hello' }),
-    });
-    const res = await mod.POST(req);
-    expect(res.status).toBe(500);
-    const json = await res.json();
-    expect(json.error).toMatch(/GEMINI_API_KEY/i);
-  });
-
-  it('returns 400 for empty prompt', async () => {
-    vi.stubEnv('GEMINI_API_KEY', 'test-key-123');
-
+  it('returns 400 for empty prompt (guest user)', async () => {
     const mod = await import('@/app/api/gemini/route');
     const req = new NextRequest('http://localhost:3000/api/gemini', {
       method: 'POST',
@@ -124,8 +150,6 @@ describe('/api/gemini', () => {
   });
 
   it('returns 400 for invalid JSON body', async () => {
-    vi.stubEnv('GEMINI_API_KEY', 'test-key-123');
-
     const mod = await import('@/app/api/gemini/route');
     const req = new NextRequest('http://localhost:3000/api/gemini', {
       method: 'POST',
@@ -134,5 +158,18 @@ describe('/api/gemini', () => {
     });
     const res = await mod.POST(req);
     expect(res.status).toBe(400);
+  });
+
+  it('returns 500 when AI provider is not configured', async () => {
+    const mod = await import('@/app/api/gemini/route');
+    const req = new NextRequest('http://localhost:3000/api/gemini', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ prompt: 'hello' }),
+    });
+    const res = await mod.POST(req);
+    expect(res.status).toBe(500);
+    const json = await res.json();
+    expect(json.error).toMatch(/ai provider/i);
   });
 });

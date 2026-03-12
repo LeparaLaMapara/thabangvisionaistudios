@@ -37,6 +37,20 @@ interface Props {
   reviews?: ReviewData[];
 }
 
+/**
+ * Validate that a URL uses a safe protocol (http/https only).
+ * Blocks javascript:, data:, and other dangerous protocols.
+ * Defined locally to avoid importing server-side dependencies from lib/auth.
+ */
+function isSafeUrl(url: string): boolean {
+  try {
+    const parsed = new URL(url);
+    return ['https:', 'http:'].includes(parsed.protocol);
+  } catch {
+    return false;
+  }
+}
+
 const SOCIAL_ICONS: Record<string, string> = {
   website: 'Globe',
   instagram: 'Instagram',
@@ -368,13 +382,7 @@ export default function CreatorProfileClient({
               </h2>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {Object.entries(socialLinks)
-                  .filter(([, url]) => {
-                    // H10: Only render links with safe protocols (http/https)
-                    try {
-                      const parsed = new URL(url);
-                      return ['https:', 'http:'].includes(parsed.protocol);
-                    } catch { return false; }
-                  })
+                  .filter(([, url]) => isSafeUrl(url))
                   .map(([platform, url]) => (
                   <Card key={platform} hover>
                     <a

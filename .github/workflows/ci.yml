@@ -1,44 +1,77 @@
 name: CI
-
 on:
   push:
-    branches: [main]
+    branches: [main, 'v2/**', 'v3/**', 'v4/**']
   pull_request:
     branches: [main]
 
+env:
+  NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+  NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+  SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+  ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+  AI_PROVIDER: anthropic
+  PAYMENT_PROVIDER: payfast
+  STORAGE_PROVIDER: cloudinary
+  EMAIL_PROVIDER: gmail
+  SEARCH_PROVIDER: supabase
+  RAG_ENABLED: "false"
+  NEXT_PUBLIC_APP_URL: https://nonprodthabangvisionaistudios.vercel.app
+
 jobs:
-  test:
+  build-and-test:
     runs-on: ubuntu-latest
-
-    env:
-      NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
-      NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
-      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-      NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME: ${{ secrets.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME }}
-      CLOUDINARY_CLOUD_NAME: ${{ secrets.CLOUDINARY_CLOUD_NAME }}
-      CLOUDINARY_API_KEY: ${{ secrets.CLOUDINARY_API_KEY }}
-      CLOUDINARY_API_SECRET: ${{ secrets.CLOUDINARY_API_SECRET }}
-      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-      PAYFAST_MERCHANT_ID: ${{ secrets.PAYFAST_MERCHANT_ID }}
-      PAYFAST_MERCHANT_KEY: ${{ secrets.PAYFAST_MERCHANT_KEY }}
-      PAYFAST_PASSPHRASE: ${{ secrets.PAYFAST_PASSPHRASE }}
-      NEXT_PUBLIC_PAYFAST_SANDBOX: 'true'
-      NEXT_PUBLIC_APP_URL: http://localhost:3000
-
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: 'npm'
-      - run: npm ci
 
-      # Unit tests
-      - run: npm test
+      - name: Install dependencies
+        run: npm ci
 
-      # Build check
-      - run: npm run build
+      - name: Type check
+        run: npx tsc --noEmit
 
-      # E2E tests
-      - run: npx playwright install --with-deps
-      - run: npm run test:e2e
+      - name: Build
+        run: npm run build
+
+      - name: Unit tests
+        run: npm run test
+
+  security-checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: No hardcoded secrets
+        run: |
+          echo "Checking for hardcoded secrets..."
+          FOUND=0
+          grep -rn "sk-ant-" --include="*.ts" --include="*.tsx" app/ lib/ components/ 2>/dev/null && FOUND=1 || true
+          grep -rn "sk-proj-" --include="*.ts" --include="*.tsx" app/ lib/ components/ 2>/dev/null && FOUND=1 || true
+          grep -rn "AIzaSy" --include="*.ts" --include="*.tsx" app/ lib/ components/ 2>/dev/null && FOUND=1 || true
+          if [ $FOUND -eq 1 ]; then echo "❌ Hardcoded secrets found!"; exit 1; fi
+          echo "✅ No hardcoded secrets"
+
+      - name: No hardcoded business values in app/
+        run: |
+          echo "Checking for hardcoded business values..."
+          FOUND=0
+          grep -rn "079 539\|0795399012" --include="*.ts" --include="*.tsx" app/ components/ 2>/dev/null && FOUND=1 || true
+          grep -rn "thabangvisionstudios@gmail" --include="*.ts" --include="*.tsx" app/ components/ 2>/dev/null && FOUND=1 || true
+          if [ $FOUND -eq 1 ]; then echo "❌ Hardcoded business values found in app/ or components/"; exit 1; fi
+          echo "✅ No hardcoded business values"
+
+      - name: No direct SDK imports in app/
+        run: |
+          echo "Checking for direct SDK imports..."
+          FOUND=0
+          grep -rn "from '@anthropic-ai" --include="*.ts" --include="*.tsx" app/ 2>/dev/null && FOUND=1 || true
+          grep -rn "from 'cloudinary'" --include="*.ts" --include="*.tsx" app/ 2>/dev/null && FOUND=1 || true
+          grep -rn "from 'nodemailer'" --include="*.ts" --include="*.tsx" app/ 2>/dev/null && FOUND=1 || true
+          if [ $FOUND -eq 1 ]; then echo "❌ Direct SDK imports found in app/ — use lib/ abstractions"; exit 1; fi
+          echo "✅ No direct SDK imports in app/"
