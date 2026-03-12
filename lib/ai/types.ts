@@ -20,6 +20,12 @@ export type SendMessageResult = {
 };
 
 /**
+ * A stream of text chunks from the AI model.
+ * Implements AsyncIterable so consumers can `for await (const chunk of stream)`.
+ */
+export type StreamMessageResult = AsyncIterable<string>;
+
+/**
  * Unified AI provider interface.
  *
  * Each provider implements these methods. The active provider is
@@ -33,7 +39,7 @@ export interface AIProvider {
   isConfigured(): boolean;
 
   /**
-   * Send a message to the AI model and get a response.
+   * Send a message to the AI model and get a complete response.
    *
    * @param systemPrompt - System-level instructions for the model
    * @param messages - Conversation history (user/assistant turns)
@@ -44,4 +50,17 @@ export interface AIProvider {
     messages: Message[],
     options?: SendMessageOptions,
   ): Promise<SendMessageResult>;
+
+  /**
+   * Stream a message from the AI model, yielding text chunks as they arrive.
+   *
+   * @param systemPrompt - System-level instructions for the model
+   * @param messages - Conversation history (user/assistant turns)
+   * @param options - Optional generation parameters
+   */
+  streamMessage(
+    systemPrompt: string,
+    messages: Message[],
+    options?: SendMessageOptions,
+  ): Promise<StreamMessageResult>;
 }

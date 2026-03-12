@@ -4,6 +4,7 @@ import type {
   Message,
   SendMessageOptions,
   SendMessageResult,
+  StreamMessageResult,
 } from './types';
 
 // ─── Gemini Provider ─────────────────────────────────────────────────────────
@@ -56,5 +57,44 @@ export const gemini: AIProvider = {
     const response = result.response.text();
 
     return { response };
+  },
+
+  async streamMessage(
+    systemPrompt: string,
+    messages: Message[],
+    options?: SendMessageOptions,
+  ): Promise<StreamMessageResult> {
+    const client = getClient();
+
+    const model = client.getGenerativeModel({
+      model: MODEL,
+      systemInstruction: systemPrompt,
+      generationConfig: {
+        maxOutputTokens: options?.maxTokens ?? 4096,
+        temperature: options?.temperature ?? 0.7,
+      },
+    });
+
+    const history = messages.slice(0, -1).map((m) => ({
+      role: m.role === 'assistant' ? 'model' : 'user',
+      parts: [{ text: m.content }],
+    }));
+
+    const lastMessage = messages[messages.length - 1];
+    if (!lastMessage || lastMessage.role !== 'user') {
+      throw new Error('The last message must be from the user');
+    }
+
+    const chat = model.startChat({ history });
+    const result = await chat.sendMessageStream(lastMessage.content);
+
+    async function* generate(): AsyncIterable<string> {
+      for await (const chunk of result.stream) {
+        const text = chunk.text();
+        if (text) yield text;
+      }
+    }
+
+    return generate();
   },
 };

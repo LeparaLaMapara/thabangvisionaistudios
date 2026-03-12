@@ -10,6 +10,7 @@ export type {
   MessageRole,
   SendMessageOptions,
   SendMessageResult,
+  StreamMessageResult,
 } from './types';
 
 // ─── Provider Registry ───────────────────────────────────────────────────────
