@@ -13,7 +13,6 @@ import {
   X,
   ImagePlus,
 } from 'lucide-react';
-import { createClient } from '@/lib/supabase/client';
 import { uploadFile, type CloudinaryAsset } from '@/lib/cloudinary/upload';
 import { STUDIO } from '@/lib/constants';
 import { Button } from '@/components/ui/Button';
@@ -29,11 +28,11 @@ type Listing = {
   slug: string;
   description: string | null;
   category: string;
+  sub_category: string | null;
   price_per_day: number | null;
-  condition: string | null;
-  location: string | null;
   thumbnail_url: string | null;
   gallery: { url: string; public_id: string }[] | null;
+  metadata: { location?: string } | null;
   is_published: boolean;
   created_at: string;
   deleted_at: string | null;
@@ -69,15 +68,6 @@ const CATEGORIES = [
 
 const CONDITIONS = ['new', 'like-new', 'good', 'fair'];
 
-function slugify(text: string): string {
-  return text
-    .toLowerCase()
-    .trim()
-    .replace(/[^\w\s-]/g, '')
-    .replace(/[\s_]+/g, '-')
-    .replace(/-+/g, '-');
-}
-
 export default function ListingsPage() {
   const [verificationStatus, setVerificationStatus] =
     useState<VerificationStatus | null>(null);
@@ -91,8 +81,6 @@ export default function ListingsPage() {
   const [images, setImages] = useState<CloudinaryAsset[]>([]);
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
-
-  const supabase = createClient();
 
   useEffect(() => {
     init();
@@ -114,24 +102,18 @@ export default function ListingsPage() {
       setVerificationStatus('unverified');
     }
 
-    // Fetch listings
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (user) {
-      const { data, error: fetchError } = await supabase
-        .from('listings')
-        .select('*')
-        .eq('user_id', user.id)
-        .is('deleted_at', null)
-        .order('created_at', { ascending: false });
-
-      if (fetchError) {
-        setError(fetchError.message);
-      } else {
+    // Fetch listings via API
+    try {
+      const res = await fetch('/api/listings');
+      if (res.ok) {
+        const data = await res.json();
         setListings((data as Listing[]) ?? []);
+      } else {
+        const body = await res.json().catch(() => null);
+        setError(body?.error ?? 'Failed to fetch listings.');
       }
+    } catch {
+      setError('Failed to fetch listings.');
     }
 
     setLoading(false);
@@ -153,8 +135,8 @@ export default function ListingsPage() {
       description: listing.description ?? '',
       category: listing.category,
       price_per_day: listing.price_per_day?.toString() ?? '',
-      condition: listing.condition ?? '',
-      location: listing.location ?? '',
+      condition: listing.sub_category ?? '',
+      location: listing.metadata?.location ?? '',
     });
     setImages(listing.gallery ?? (listing.thumbnail_url ? [{ url: listing.thumbnail_url, public_id: '' }] : []));
     setShowForm(true);
@@ -237,19 +219,8 @@ export default function ListingsPage() {
     setSaving(true);
     setError(null);
 
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user) {
-      setError('Not authenticated.');
-      setSaving(false);
-      return;
-    }
-
     const payload = {
       title: form.title.trim(),
-      slug: slugify(form.title),
       description: form.description.trim() || null,
       category: form.category,
       price_per_day: form.price_per_day ? parseFloat(form.price_per_day) : null,
@@ -258,42 +229,44 @@ export default function ListingsPage() {
       thumbnail_url: images[0]?.url ?? null,
       cover_public_id: images[0]?.public_id ?? null,
       gallery: images.length > 0 ? images : null,
-      type: 'gear' as const,
-      pricing_model: 'daily' as const,
-      currency: STUDIO.currency.code,
-      is_published: true,
-      updated_at: new Date().toISOString(),
     };
 
-    if (editingId) {
-      const { data, error: updateError } = await supabase
-        .from('listings')
-        .update(payload)
-        .eq('id', editingId)
-        .select()
-        .single();
+    try {
+      if (editingId) {
+        const res = await fetch('/api/listings', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ...payload, id: editingId }),
+        });
 
-      if (updateError) {
-        setError(updateError.message);
+        if (!res.ok) {
+          const body = await res.json().catch(() => null);
+          setError(body?.error ?? 'Failed to update listing.');
+        } else {
+          const data = (await res.json()) as Listing;
+          setListings((prev) =>
+            prev.map((l) => (l.id === editingId ? data : l)),
+          );
+          cancel();
+        }
       } else {
-        setListings((prev) =>
-          prev.map((l) => (l.id === editingId ? (data as Listing) : l)),
-        );
-        cancel();
-      }
-    } else {
-      const { data, error: insertError } = await supabase
-        .from('listings')
-        .insert({ ...payload, user_id: user.id })
-        .select()
-        .single();
+        const res = await fetch('/api/listings', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
 
-      if (insertError) {
-        setError(insertError.message);
-      } else {
-        setListings((prev) => [data as Listing, ...prev]);
-        cancel();
+        if (!res.ok) {
+          const body = await res.json().catch(() => null);
+          setError(body?.error ?? 'Failed to create listing.');
+        } else {
+          const data = (await res.json()) as Listing;
+          setListings((prev) => [data, ...prev]);
+          cancel();
+        }
       }
+    } catch {
+      setError('An unexpected error occurred.');
     }
 
     setSaving(false);
@@ -302,15 +275,21 @@ export default function ListingsPage() {
   const softDelete = async (id: string) => {
     if (!confirm('Are you sure you want to delete this listing?')) return;
 
-    const { error: deleteError } = await supabase
-      .from('listings')
-      .update({ deleted_at: new Date().toISOString() })
-      .eq('id', id);
+    try {
+      const res = await fetch('/api/listings', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id }),
+      });
 
-    if (deleteError) {
-      setError(deleteError.message);
-    } else {
-      setListings((prev) => prev.filter((l) => l.id !== id));
+      if (!res.ok) {
+        const body = await res.json().catch(() => null);
+        setError(body?.error ?? 'Failed to delete listing.');
+      } else {
+        setListings((prev) => prev.filter((l) => l.id !== id));
+      }
+    } catch {
+      setError('Failed to delete listing.');
     }
   };
 
@@ -597,8 +576,8 @@ export default function ListingsPage() {
                     </div>
                     <p className="text-[10px] font-mono uppercase tracking-widest text-neutral-500">
                       {listing.category}
-                      {listing.condition ? ` / ${listing.condition}` : ''}
-                      {listing.location ? ` / ${listing.location}` : ''}
+                      {listing.sub_category ? ` / ${listing.sub_category}` : ''}
+                      {listing.metadata?.location ? ` / ${listing.metadata.location}` : ''}
                     </p>
                   </div>
                   <div className="flex items-center gap-4 flex-shrink-0">

@@ -101,6 +101,17 @@ export default function SmartRentalsClient({ rentals }: { rentals: SmartRental[]
     return map;
   }, [rentals]);
 
+  // Item count per category
+  const categoryCount = useMemo(() => {
+    const map: Record<string, number> = {};
+    for (const r of rentals) {
+      if (r.category) {
+        map[r.category] = (map[r.category] ?? 0) + 1;
+      }
+    }
+    return map;
+  }, [rentals]);
+
   return (
     <div className="min-h-screen bg-white dark:bg-[#050505] pt-32 pb-20 transition-colors duration-500">
 
@@ -180,6 +191,11 @@ export default function SmartRentalsClient({ rentals }: { rentals: SmartRental[]
                           </h3>
                           <p className="text-xs font-mono text-white/60 uppercase tracking-widest mb-4">
                             {meta.subtitle}
+                            {categoryCount[cat] != null && (
+                              <span className="ml-2 text-white/40">
+                                — {categoryCount[cat]} item{categoryCount[cat] !== 1 ? 's' : ''}
+                              </span>
+                            )}
                           </p>
                           <p className="text-sm text-neutral-300 opacity-0 group-hover:opacity-100 transition-opacity duration-500 delay-100 leading-relaxed border-t border-white/20 pt-4">
                             {meta.description}

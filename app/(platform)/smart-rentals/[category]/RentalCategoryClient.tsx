@@ -3,7 +3,7 @@
 import { useState, useMemo, useEffect } from 'react';
 import Link from 'next/link';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ChevronDown, SlidersHorizontal, X, Check, ArrowRight, Users } from 'lucide-react';
+import { ChevronDown, SlidersHorizontal, X, Check, ArrowRight, Users, Star, ShieldCheck, Building2 } from 'lucide-react';
 import type { SmartRental } from '@/lib/supabase/queries/smartRentals';
 
 // ─── Category label map ───────────────────────────────────────────────────────
@@ -86,16 +86,33 @@ function RentalCard({ rental, category }: { rental: SmartRental; category: strin
       className="group relative bg-white dark:bg-[#0A0A0B] border border-black/5 dark:border-white/5 hover:border-black/20 dark:hover:border-white/20 transition-all duration-300 flex flex-col"
     >
       {/* Status badges */}
-      <div className="absolute top-3 left-3 z-20 flex gap-2">
+      <div className="absolute top-3 left-3 z-20 flex flex-wrap gap-1.5">
         {!rental.is_available && (
           <span className="bg-red-500 text-white text-[9px] font-mono font-bold px-2 py-0.5 uppercase tracking-widest">
             Unavailable
           </span>
         )}
-        {rental.source === 'community' && (
+        {(rental as Record<string, unknown>).owner_type === 'studio' || !(rental as Record<string, unknown>).owner_type ? (
+          <span className="flex items-center gap-1 bg-[#D4A843] text-black text-[9px] font-mono font-bold px-2 py-0.5 uppercase tracking-widest">
+            <Building2 className="w-2.5 h-2.5" />
+            Studio
+          </span>
+        ) : (
           <span className="flex items-center gap-1 bg-violet-500/90 backdrop-blur-md text-white text-[9px] font-mono font-bold px-2 py-0.5 uppercase tracking-widest">
             <Users className="w-2.5 h-2.5" />
             Community
+          </span>
+        )}
+        {Boolean((rental as Record<string, unknown>).is_verified) && (
+          <span className="flex items-center gap-1 bg-emerald-600 text-white text-[9px] font-mono font-bold px-2 py-0.5 uppercase tracking-widest">
+            <ShieldCheck className="w-2.5 h-2.5" />
+            Verified
+          </span>
+        )}
+        {rental.is_featured && (
+          <span className="flex items-center gap-1 bg-[#D4A843] text-black text-[9px] font-mono font-bold px-2 py-0.5 uppercase tracking-widest">
+            <Star className="w-2.5 h-2.5" />
+            Featured
           </span>
         )}
       </div>
@@ -136,7 +153,7 @@ function RentalCard({ rental, category }: { rental: SmartRental; category: strin
             <div className="text-[10px] font-mono uppercase tracking-widest text-neutral-500 mb-1">
               {rental.brand}
             </div>
-          ) : rental.source === 'community' && rental.metadata?.location ? (
+          ) : (rental as Record<string, unknown>).owner_type === 'community' && rental.metadata?.location ? (
             <div className="text-[10px] font-mono uppercase tracking-widest text-neutral-500 mb-1">
               {rental.metadata.location}
             </div>
@@ -146,6 +163,11 @@ function RentalCard({ rental, category }: { rental: SmartRental; category: strin
           </h3>
           {rental.model && (
             <p className="text-[10px] font-mono text-neutral-500 mb-3 -mt-2">{rental.model}</p>
+          )}
+          {(rental as Record<string, unknown>).owner_type === 'community' && (rental.metadata as Record<string, string> | null)?.display_name && (
+            <p className="text-[10px] font-mono text-violet-400 mb-2 -mt-1">
+              Listed by {(rental.metadata as Record<string, string>).display_name}
+            </p>
           )}
 
           {specs.length > 0 && (
@@ -197,7 +219,7 @@ function RentalCard({ rental, category }: { rental: SmartRental; category: strin
 
 // ─── Main client component ────────────────────────────────────────────────────
 
-type SortKey = 'newest' | 'name' | 'priceAsc' | 'priceDesc';
+type SortKey = 'recommended' | 'newest' | 'name' | 'priceAsc' | 'priceDesc';
 
 export default function RentalCategoryClient({
   rentals,
@@ -212,7 +234,7 @@ export default function RentalCategoryClient({
   const [maxPrice,          setMaxPrice]           = useState<number>(0);
   const [onlyAvailable,     setOnlyAvailable]      = useState(false);
   const [sourceFilter,      setSourceFilter]       = useState<'all' | 'studio' | 'community'>('all');
-  const [sortBy,            setSortBy]             = useState<SortKey>('newest');
+  const [sortBy,            setSortBy]             = useState<SortKey>('recommended');
 
   // Derive filter options entirely from DB data — never static
   const uniqueBrands = useMemo(
@@ -235,7 +257,7 @@ export default function RentalCategoryClient({
     setMaxPrice(maxCatalogPrice);
   }, [maxCatalogPrice]);
 
-  const hasCommunity = useMemo(() => rentals.some(r => r.source === 'community'), [rentals]);
+  const hasCommunity = useMemo(() => rentals.some(r => (r as Record<string, unknown>).owner_type === 'community'), [rentals]);
 
   // Reset filters when category changes
   useEffect(() => {
@@ -243,7 +265,7 @@ export default function RentalCategoryClient({
     setSelectedTypes([]);
     setOnlyAvailable(false);
     setSourceFilter('all');
-    setSortBy('newest');
+    setSortBy('recommended');
   }, [category]);
 
   const filtered = useMemo(() => {
@@ -253,15 +275,20 @@ export default function RentalCategoryClient({
         if (selectedTypes.length > 0 && !selectedTypes.includes(r.sub_category ?? '')) return false;
         if (maxPrice > 0 && (r.price_per_day ?? 0) > maxPrice) return false;
         if (onlyAvailable && !r.is_available) return false;
-        if (sourceFilter !== 'all' && (r.source ?? 'studio') !== sourceFilter) return false;
+        if (sourceFilter !== 'all' && (((r as Record<string, unknown>).owner_type as string) ?? 'studio') !== sourceFilter) return false;
         return true;
       })
       .sort((a, b) => {
+        if (sortBy === 'recommended') {
+          const scoreA = ((a as Record<string, unknown>).ranking_score as number | undefined) ?? 0;
+          const scoreB = ((b as Record<string, unknown>).ranking_score as number | undefined) ?? 0;
+          return scoreB - scoreA;
+        }
         if (sortBy === 'priceAsc')  return (a.price_per_day ?? 0) - (b.price_per_day ?? 0);
         if (sortBy === 'priceDesc') return (b.price_per_day ?? 0) - (a.price_per_day ?? 0);
         if (sortBy === 'name')      return a.title.localeCompare(b.title);
-        // newest (default) — already ordered by created_at DESC from DB
-        return 0;
+        // newest — sort by created_at DESC
+        return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
       });
   }, [rentals, selectedBrands, selectedTypes, maxPrice, onlyAvailable, sourceFilter, sortBy]);
 
@@ -491,10 +518,11 @@ export default function RentalCategoryClient({
                   onChange={e => setSortBy(e.target.value as SortKey)}
                   className="bg-transparent text-xs font-bold uppercase tracking-widest border-none outline-none cursor-pointer hover:text-neutral-600 dark:hover:text-neutral-400"
                 >
+                  <option value="recommended">Recommended</option>
                   <option value="newest">Newest</option>
                   <option value="name">Name (A–Z)</option>
-                  <option value="priceAsc">Price (Low → High)</option>
-                  <option value="priceDesc">Price (High → Low)</option>
+                  <option value="priceAsc">Price: Low → High</option>
+                  <option value="priceDesc">Price: High → Low</option>
                 </select>
               </div>
             </div>

@@ -30,6 +30,13 @@ export type SmartRental = {
   video_url: string | null;
   video_id: string | null;
   created_at: string;
+  /** 'studio' for official ThabangVision gear, 'community' for user-listed gear */
+  owner_type: string;
+  owner_id: string | null;
+  ranking_score: number;
+  total_rentals: number;
+  average_rating: number;
+  review_count: number;
   /** 'studio' for official gear, 'community' for user-listed gear */
   source?: 'studio' | 'community';
 };
@@ -54,12 +61,14 @@ const LIST_COLUMNS = [
   'thumbnail_url', 'cover_public_id', 'gallery',
   'is_available', 'is_featured', 'tags', 'features',
   'metadata', 'video_provider', 'video_url', 'created_at',
+  'owner_type', 'owner_id', 'ranking_score', 'total_rentals',
+  'average_rating', 'review_count',
 ].join(',');
 
 // ─── Queries ──────────────────────────────────────────────────────────────────
 
 /**
- * Returns all published, non-deleted rentals ordered by created_at DESC.
+ * Returns all published, non-deleted rentals ordered by ranking_score DESC.
  * Safe to call in Server Components — never exposes the service key.
  */
 export async function getPublishedRentals(): Promise<SmartRental[]> {
@@ -70,6 +79,7 @@ export async function getPublishedRentals(): Promise<SmartRental[]> {
     .select(LIST_COLUMNS)
     .eq('is_published', true)
     .is('deleted_at', null)
+    .order('ranking_score', { ascending: false })
     .order('created_at', { ascending: false });
 
   if (error) {
@@ -95,6 +105,7 @@ export async function getPublishedRentalsByCategory(
     .eq('is_published', true)
     .eq('category', category)
     .is('deleted_at', null)
+    .order('ranking_score', { ascending: false })
     .order('created_at', { ascending: false });
 
   if (error) {
@@ -131,7 +142,7 @@ export async function getRentalBySlug(slug: string): Promise<SmartRental | null>
 }
 
 /**
- * Returns featured published rentals, limited and ordered by created_at DESC.
+ * Returns featured published rentals, limited and ordered by ranking_score DESC.
  * Used on the home page "Latest Work" carousel.
  */
 export async function getFeaturedRentals(limit = 2): Promise<SmartRental[]> {
@@ -143,6 +154,7 @@ export async function getFeaturedRentals(limit = 2): Promise<SmartRental[]> {
     .eq('is_published', true)
     .eq('is_featured', true)
     .is('deleted_at', null)
+    .order('ranking_score', { ascending: false })
     .order('created_at', { ascending: false })
     .limit(limit);
 
@@ -155,7 +167,7 @@ export async function getFeaturedRentals(limit = 2): Promise<SmartRental[]> {
 }
 
 /**
- * Returns all archived rentals ordered by created_at DESC.
+ * Returns all archived rentals ordered by ranking_score DESC.
  */
 export async function getArchivedRentals(): Promise<SmartRental[]> {
   const supabase = await createClient();
@@ -166,6 +178,7 @@ export async function getArchivedRentals(): Promise<SmartRental[]> {
     .eq('is_published', true)
     .eq('is_archived', true)
     .is('deleted_at', null)
+    .order('ranking_score', { ascending: false })
     .order('created_at', { ascending: false });
 
   if (error) {
@@ -194,7 +207,7 @@ export async function getRelatedRentals(
     .eq('category', category)
     .neq('id', excludeId)
     .is('deleted_at', null)
-    .order('is_featured', { ascending: false })
+    .order('ranking_score', { ascending: false })
     .order('created_at', { ascending: false })
     .limit(limit);
 
@@ -241,6 +254,12 @@ function mapListingToRental(row: Record<string, unknown>): SmartRental {
     video_url: null,
     video_id: null,
     created_at: row.created_at as string,
+    owner_type: 'community',
+    owner_id: (row.user_id as string) ?? null,
+    ranking_score: 0,
+    total_rentals: 0,
+    average_rating: 0,
+    review_count: 0,
     source: 'community',
   };
 }
