@@ -68,16 +68,20 @@ export const gmail: EmailProvider = {
     email,
     subject,
     message,
+    phone,
   }: ContactNotificationParams): Promise<void> {
     const emailSubject = subject
       ? `[Contact] ${subject}`
       : `[Contact] Message from ${name}`;
 
-    const text = `Name: ${name}\nEmail: ${email}\nSubject: ${subject || '(none)'}\n\n${message}`;
+    const phoneLine = phone ? `\nPhone: ${phone}` : '';
+    const text = `Name: ${name}\nEmail: ${email}${phoneLine}\nSubject: ${subject || '(none)'}\n\n${message}`;
+    const phoneHtml = phone ? `<p><strong>Phone:</strong> ${escapeHtml(phone)}</p>` : '';
     const html = `
       <h2>New Contact Form Submission</h2>
       <p><strong>Name:</strong> ${escapeHtml(name)}</p>
       <p><strong>Email:</strong> ${escapeHtml(email)}</p>
+      ${phoneHtml}
       <p><strong>Subject:</strong> ${escapeHtml(subject || '(none)')}</p>
       <hr />
       <p>${escapeHtml(message).replace(/\n/g, '<br />')}</p>

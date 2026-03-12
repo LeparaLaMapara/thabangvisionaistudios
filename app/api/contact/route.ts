@@ -14,7 +14,7 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const { name, email, message, subject, _hp_company, _ts } = await req.json();
+  const { name, email, message, subject, phone, _hp_company, _ts } = await req.json();
 
   // L1: Honeypot spam protection — less predictable field name
   if (_hp_company) {
@@ -49,7 +49,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: true });
     }
 
-    await sendContactNotification({ name, email, subject: subject || '', message });
+    await sendContactNotification({ name, email, subject: subject || '', message, phone: phone || undefined });
 
     return NextResponse.json({ success: true });
   } catch (err) {

@@ -12,6 +12,7 @@ export type ContactNotificationParams = {
   email: string;
   subject: string;
   message: string;
+  phone?: string;
 };
 
 export type VerificationApprovedParams = {

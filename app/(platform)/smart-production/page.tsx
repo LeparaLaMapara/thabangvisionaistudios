@@ -1,6 +1,7 @@
 export const revalidate = 60;
 
 import { getPublishedProductions } from '@/lib/supabase/queries/smartProductions';
+import { getFeaturedRentals } from '@/lib/supabase/queries/smartRentals';
 import SmartProductionClient from './SmartProductionClient';
 
 export const metadata = {
@@ -8,11 +9,19 @@ export const metadata = {
 };
 
 /**
- * Server Component — fetches published productions from Supabase and passes
- * them to the client component that handles filtering + animations.
- * No data.ts usage; no client-side DB calls.
+ * Server Component — fetches published productions and featured rentals from
+ * Supabase and passes them to the client component that handles filtering,
+ * division sections, gear cross-sell, and animations.
  */
 export default async function SmartProductionPage() {
-  const productions = await getPublishedProductions();
-  return <SmartProductionClient productions={productions} />;
+  const [productions, featuredRentals] = await Promise.all([
+    getPublishedProductions(),
+    getFeaturedRentals(6),
+  ]);
+  return (
+    <SmartProductionClient
+      productions={productions}
+      featuredRentals={featuredRentals}
+    />
+  );
 }
