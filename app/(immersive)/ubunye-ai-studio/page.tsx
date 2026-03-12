@@ -198,7 +198,7 @@ export default function UbunyeAIStudioPage() {
         .filter(m => !m.isLimitMessage)
         .map(m => ({ role: m.role as 'user' | 'assistant', content: m.content }));
 
-      const res = await fetch('/api/gemini', {
+      const res = await fetch('/api/ubunye-chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -226,15 +226,60 @@ export default function UbunyeAIStudioPage() {
 
       if (!res.ok) throw new Error('Failed to get response');
 
-      const data = await res.json();
-      if (isAuthenticated) setDailyUsed(prev => prev + 1);
-
+      // Create assistant message placeholder for streaming
+      const assistantId = generateId();
       setMessages(prev => [...prev, {
-        id: generateId(),
+        id: assistantId,
         role: 'assistant',
-        content: data?.response || "I couldn't process that request. Please try again.",
+        content: '',
         timestamp: new Date(),
       }]);
+
+      // Read SSE stream
+      const reader = res.body?.getReader();
+      const decoder = new TextDecoder();
+
+      if (!reader) throw new Error('No response body');
+
+      let accumulated = '';
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        const chunk = decoder.decode(value, { stream: true });
+        const lines = chunk.split('\n');
+
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            const data = line.slice(6);
+            if (data === '[DONE]') break;
+            try {
+              const parsed = JSON.parse(data);
+              if (typeof parsed === 'string') {
+                accumulated += parsed;
+                setMessages(prev => prev.map(m =>
+                  m.id === assistantId ? { ...m, content: accumulated } : m
+                ));
+              } else if (parsed?.error) {
+                // Server-side stream error
+                throw new Error(parsed.error);
+              }
+            } catch (e) {
+              // Ignore JSON parse errors for partial chunks, but rethrow actual errors
+              if (e instanceof Error && e.message === 'Stream error') throw e;
+            }
+          }
+        }
+      }
+
+      if (isAuthenticated) setDailyUsed(prev => prev + 1);
+
+      // If no content was accumulated (empty stream), show fallback
+      if (!accumulated) {
+        setMessages(prev => prev.map(m =>
+          m.id === assistantId ? { ...m, content: "I couldn't process that request. Please try again." } : m
+        ));
+      }
     } catch {
       setMessages(prev => [...prev, {
         id: generateId(),

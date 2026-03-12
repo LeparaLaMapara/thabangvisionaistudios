@@ -1,19 +1,21 @@
 export const dynamic = 'force-dynamic';
+export const maxDuration = 30;
 
 import { NextRequest, NextResponse } from 'next/server';
 import { checkRateLimit } from '@/lib/auth';
 import { ai } from '@/lib/ai';
+import type { Message } from '@/lib/ai';
 import { createClient } from '@/lib/supabase/server';
 import { buildSystemPrompt, fetchPlatformData, fetchUserContext } from '@/lib/ubunye/system-prompt';
 
 // ─── Plan Limits ────────────────────────────────────────────────────────────
 
 const PLAN_LIMITS: Record<string, number> = {
-  free: 20,        // Free / Starter: 20 messages per day
+  free: 20,
   starter: 20,
-  pro: 100,        // Pro Creator: 100 messages per day
+  pro: 100,
   'pro-creator': 100,
-  studio: -1,      // Studio: unlimited (-1 = no limit)
+  studio: -1,
 };
 
 const GUEST_LIMIT = 5;
@@ -24,7 +26,7 @@ function getTodaySAST(): string {
   return new Date().toLocaleDateString('en-CA', { timeZone: 'Africa/Johannesburg' });
 }
 
-// ─── POST Handler ───────────────────────────────────────────────────────────
+// ─── POST Handler (Streaming) ───────────────────────────────────────────────
 
 export async function POST(req: NextRequest) {
   const supabase = await createClient();
@@ -32,7 +34,7 @@ export async function POST(req: NextRequest) {
 
   // ── Parse body ──
   let prompt: string;
-  let messages: { role: 'user' | 'assistant'; content: string }[] | undefined;
+  let messages: Message[] | undefined;
   let sessionMessageCount = 0;
   let isFirstGuestMessage = false;
 
@@ -132,20 +134,43 @@ export async function POST(req: NextRequest) {
 
   let systemPrompt = buildSystemPrompt(platformData, userContext);
 
-  // Enrich first guest message with intro instructions
   if (isFirstGuestMessage) {
     systemPrompt += `\n\nThis is the user's very first message. Introduce yourself warmly as Ubunye. Mention you can help with production planning, equipment, crew hiring, creative briefs, and SA industry pricing. Subtly mention they can sign in for more access. Be energetic and welcoming. Use their message as a springboard.`;
   }
 
   // Build message list
-  const messageList = messages ?? [{ role: 'user' as const, content: prompt.trim() }];
+  const messageList: Message[] = messages ?? [{ role: 'user', content: prompt.trim() }];
 
   try {
-    const result = await ai.sendMessage(systemPrompt, messageList);
-    return NextResponse.json({ response: result.response });
+    const stream = await ai.streamMessage(systemPrompt, messageList);
+
+    const encoder = new TextEncoder();
+    const readable = new ReadableStream({
+      async start(controller) {
+        try {
+          for await (const chunk of stream) {
+            controller.enqueue(encoder.encode(`data: ${JSON.stringify(chunk)}\n\n`));
+          }
+          controller.enqueue(encoder.encode('data: [DONE]\n\n'));
+          controller.close();
+        } catch (err) {
+          console.error('[ubunye-chat] Stream error:', err instanceof Error ? err.message : 'Unknown error');
+          controller.enqueue(encoder.encode(`data: ${JSON.stringify({ error: 'Stream error' })}\n\n`));
+          controller.close();
+        }
+      },
+    });
+
+    return new Response(readable, {
+      headers: {
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache',
+        'Connection': 'keep-alive',
+      },
+    });
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Unknown error';
-    console.error(`[ai] ${ai.name} error:`, message);
+    console.error(`[ubunye-chat] ${ai.name} error:`, message);
     return NextResponse.json(
       { error: 'AI service temporarily unavailable.' },
       { status: 502 },
