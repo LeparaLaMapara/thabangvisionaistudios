@@ -167,7 +167,7 @@ const MobileNavSection = ({
     return (
       <button
         onClick={() => onNavigate(item.href)}
-        className={`text-sm ${NAV_TEXT}`}
+        className={`text-sm min-h-[44px] ${NAV_TEXT}`}
       >
         {item.label}
       </button>
@@ -178,7 +178,7 @@ const MobileNavSection = ({
     <div className="w-full flex flex-col items-center">
       <button
         onClick={() => setOpen(!open)}
-        className={`text-sm ${NAV_TEXT} flex items-center gap-2`}
+        className={`text-sm min-h-[44px] ${NAV_TEXT} flex items-center gap-2`}
       >
         {item.label}
         <ChevronDown
@@ -194,12 +194,12 @@ const MobileNavSection = ({
             transition={{ duration: 0.2 }}
             className="overflow-hidden w-full flex justify-center mt-3"
           >
-            <div className="w-fit flex flex-col items-start gap-3">
+            <div className="w-fit flex flex-col items-start gap-1">
               {item.children.map((child, idx) => (
                 <button
                   key={child.href}
                   onClick={() => onNavigate(child.href)}
-                  className={`pl-4 ${SUB_ITEM_TEXT} text-left`}
+                  className={`pl-4 min-h-[44px] flex items-center ${SUB_ITEM_TEXT} text-left`}
                 >
                   <span className={NUMBER_PREFIX}>
                     {formatIndex(idx)}
@@ -334,7 +334,7 @@ export const Header = () => {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[200] bg-white dark:bg-[#050505] min-h-screen overflow-y-auto flex flex-col justify-center items-center gap-6 lg:hidden"
+            className="fixed inset-0 z-[200] bg-[#050505] min-h-screen overflow-y-auto flex flex-col justify-center items-center gap-6 lg:hidden"
           >
             {MAIN_NAVIGATION.map((item) => (
               <MobileNavSection
@@ -347,16 +347,39 @@ export const Header = () => {
             <div className="mt-6 px-6 w-full flex flex-col gap-3">
               <button
                 onClick={() => mobileNavigate('/contact')}
-                className={`${ACTION_BTN} bg-white text-black border border-white`}
+                className={`${ACTION_BTN} bg-[#D4A843] text-black border border-[#D4A843] min-h-[44px]`}
               >
                 Start Project
               </button>
               <button
-                onClick={() => mobileNavigate(isLoggedIn ? '/dashboard' : '/login')}
-                className={`${ACTION_BTN} bg-transparent text-white border border-white/30`}
+                onClick={() => mobileNavigate('/contact')}
+                className={`${ACTION_BTN} bg-transparent text-white border border-white/30 min-h-[44px]`}
               >
-                {isLoggedIn ? 'Dashboard' : 'Login'}
+                Contact
               </button>
+              {isLoggedIn ? (
+                <button
+                  onClick={() => mobileNavigate('/dashboard')}
+                  className={`${ACTION_BTN} bg-transparent text-white border border-white/30 min-h-[44px]`}
+                >
+                  Dashboard
+                </button>
+              ) : (
+                <>
+                  <button
+                    onClick={() => mobileNavigate('/login')}
+                    className={`${ACTION_BTN} bg-transparent text-white border border-white/30 min-h-[44px]`}
+                  >
+                    Sign In
+                  </button>
+                  <button
+                    onClick={() => mobileNavigate('/register')}
+                    className={`${ACTION_BTN} bg-transparent text-white border border-white/30 min-h-[44px]`}
+                  >
+                    Register
+                  </button>
+                </>
+              )}
             </div>
           </motion.div>
         )}
