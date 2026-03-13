@@ -128,12 +128,12 @@ function RentalCard({ rental, category }: { rental: SmartRental; category: strin
         </div>
       )}
 
-      {/* Thumbnail */}
+      {/* Preview image — first gallery image */}
       <div className="relative aspect-square overflow-hidden bg-neutral-100 dark:bg-neutral-900">
-        {rental.thumbnail_url ? (
+        {rental.gallery && rental.gallery.length > 0 ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
-            src={rental.thumbnail_url}
+            src={rental.gallery[0].url}
             alt={rental.title}
             className="w-full h-full object-cover grayscale group-hover:grayscale-0 scale-95 group-hover:scale-105 transition-all duration-700 ease-out"
           />

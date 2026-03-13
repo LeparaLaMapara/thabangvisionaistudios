@@ -3,6 +3,7 @@ export const dynamic = 'force-dynamic';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { auth } from '@/lib/auth';
+import SignOutButton from '@/components/dashboard/SignOutButton';
 
 /**
  * Auth guard for all /dashboard/* routes.
@@ -39,6 +40,9 @@ export default async function DashboardLayout({
             <DashboardLink href="/dashboard/bookings">Bookings</DashboardLink>
             <DashboardLink href="/dashboard/listings">List Your Gear</DashboardLink>
             <DashboardLink href="/dashboard/verification">Verification</DashboardLink>
+            <div className="border-t border-white/10 mt-4 pt-4">
+              <SignOutButton />
+            </div>
           </nav>
 
           {/* Content */}

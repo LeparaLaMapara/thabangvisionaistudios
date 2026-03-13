@@ -57,13 +57,11 @@ export default function RentalDetailView({
 }) {
   const categoryLabel = getCategoryLabel(category);
 
-  // Build image list: thumbnail first, then gallery extras
-  const allImages: { url: string; id: string }[] = [
-    ...(rental.thumbnail_url ? [{ url: rental.thumbnail_url, id: 'thumb' }] : []),
-    ...(rental.gallery ?? []).map(g => ({ url: g.url, id: g.public_id })),
-  ];
+  // Build image list from gallery — first image is the hero/preview
+  const allImages: { url: string; id: string }[] = (rental.gallery ?? []).map(g => ({ url: g.url, id: g.public_id }));
+  const heroImage = allImages[0]?.url ?? null;
 
-  const initialSrc = rental.thumbnail_url ?? allImages[0]?.url ?? '';
+  const initialSrc = heroImage ?? '';
   const [activeMedia, setActiveMedia] = useState<ActiveMedia>(
     initialSrc ? { type: 'image', src: initialSrc } : { type: 'video' },
   );
@@ -116,8 +114,8 @@ export default function RentalDetailView({
         </div>
       </div>
 
-      {/* ── Hero section — catalog-style gradient overlay + zoom entrance ── */}
-      {rental.thumbnail_url && (
+      {/* ── Hero section — first gallery image as hero ── */}
+      {heroImage && (
         <section className="relative h-[60vh] md:h-[70vh] w-full overflow-hidden">
           <motion.div
             initial={{ scale: 1.1, opacity: 0 }}
@@ -127,7 +125,7 @@ export default function RentalDetailView({
           >
             <div className="absolute inset-0 bg-gradient-to-t from-white via-white/30 to-transparent dark:from-[#050505] dark:via-[#050505]/30 dark:to-transparent z-10" />
             <Image
-              src={rental.thumbnail_url}
+              src={heroImage}
               alt={rental.title}
               fill
               className="object-cover"
@@ -202,8 +200,8 @@ export default function RentalDetailView({
 
           {/* ── LEFT: Media gallery ── */}
           <div>
-            {/* Hero media — image or video (shown when no thumbnail for hero) */}
-            {!rental.thumbnail_url && (
+            {/* Hero media — image or video (shown when no gallery images for hero) */}
+            {!heroImage && (
               <motion.div
                 key={activeMedia.type === 'video' ? '__video__' : activeMedia.type === 'image' ? activeMedia.src : ''}
                 initial={{ opacity: 0 }}
@@ -239,7 +237,7 @@ export default function RentalDetailView({
             )}
 
             {/* Gallery — displayed when hero is active */}
-            {rental.thumbnail_url && (
+            {heroImage && (
               <motion.div
                 key={activeMedia.type === 'video' ? '__video__' : activeMedia.type === 'image' ? activeMedia.src : ''}
                 initial={{ opacity: 0 }}
@@ -309,10 +307,10 @@ export default function RentalDetailView({
                         : 'border-transparent hover:border-black/30 dark:hover:border-white/30'
                     }`}
                   >
-                    {/* Dimmed thumbnail behind play icon */}
-                    {rental.thumbnail_url && (
+                    {/* Dimmed first gallery image behind play icon */}
+                    {heroImage && (
                       <Image
-                        src={rental.thumbnail_url}
+                        src={heroImage}
                         alt=""
                         fill
                         sizes="80px"
@@ -363,8 +361,8 @@ export default function RentalDetailView({
           {/* ── RIGHT: Product info ── */}
           <div className="lg:sticky lg:top-28 lg:self-start">
 
-            {/* Rental category label (shown when no hero thumbnail) */}
-            {!rental.thumbnail_url && (
+            {/* Rental category label (shown when no gallery hero) */}
+            {!heroImage && (
               <>
                 <p className="text-[10px] font-mono uppercase tracking-widest text-neutral-500 mb-3">
                   {categoryLabel}
@@ -425,7 +423,7 @@ export default function RentalDetailView({
             )}
 
             {/* Description — only when no hero (hero shows description) */}
-            {!rental.thumbnail_url && rental.description && (
+            {!heroImage && rental.description && (
               <div className="mb-6 pb-6 border-b border-black/5 dark:border-white/5">
                 <p className="text-sm text-neutral-600 dark:text-neutral-400 leading-relaxed whitespace-pre-line">
                   {rental.description}
@@ -548,11 +546,11 @@ export default function RentalDetailView({
                     href={`/smart-rentals/${item.category}/${item.slug}`}
                     className="block bg-white dark:bg-[#0A0A0B] group hover:bg-neutral-50 dark:hover:bg-white/5 transition-colors"
                   >
-                    {/* Thumbnail */}
+                    {/* Preview — first gallery image */}
                     <div className="relative aspect-[4/3] overflow-hidden bg-neutral-100 dark:bg-neutral-900">
-                      {item.thumbnail_url ? (
+                      {item.gallery && item.gallery.length > 0 ? (
                         <Image
-                          src={item.thumbnail_url}
+                          src={item.gallery[0].url}
                           alt={item.title}
                           fill
                           sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw"

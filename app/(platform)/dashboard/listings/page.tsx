@@ -550,11 +550,11 @@ export default function ListingsPage() {
           {listings.map((listing) => (
             <Card key={listing.id} hover className="p-0 overflow-hidden">
               <div className="flex items-stretch">
-                {listing.thumbnail_url ? (
+                {listing.gallery && listing.gallery.length > 0 ? (
                   <div className="w-20 h-20 flex-shrink-0 bg-neutral-100 dark:bg-neutral-900">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
-                      src={listing.thumbnail_url}
+                      src={listing.gallery[0].url}
                       alt={listing.title}
                       className="w-full h-full object-cover"
                     />

@@ -322,11 +322,11 @@ export default function SmartProductionClient({
                   className="flex-shrink-0 w-[260px] bg-[#0A0A0B] border border-white/5 hover:border-[#D4A843]/30 transition-colors group"
                 >
                   <Link href={`/smart-rentals/${rental.category}/${rental.slug}`} className="block">
-                    {/* Thumbnail */}
+                    {/* Preview — first gallery image */}
                     <div className="relative aspect-[4/3] bg-[#111] overflow-hidden">
-                      {rental.thumbnail_url ? (
+                      {rental.gallery && rental.gallery.length > 0 ? (
                         <img
-                          src={rental.thumbnail_url}
+                          src={rental.gallery[0].url}
                           alt={rental.title}
                           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                         />

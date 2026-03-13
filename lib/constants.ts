@@ -203,18 +203,18 @@ export const FOOTER_SECTIONS = [
 // ─── PLACEHOLDER IMAGES ─────────────────────────────────────────────────────
 export const PLACEHOLDER_IMAGES = {
   hero: 'https://images.unsplash.com/photo-1550745165-9bc0b252726f?q=80&w=2940&auto=format&fit=crop',
-  camerasOptics: 'https://images.unsplash.com/photo-1516035069371-29a1b244cc32?q=80&w=2800&auto=format&fit=crop',
-  lightingPower: 'https://images.unsplash.com/photo-1524253482453-3fed8d2fe12b?q=80&w=2800&auto=format&fit=crop',
-  audio: 'https://images.unsplash.com/photo-1590845947698-8924d7409b56?q=80&w=2800&auto=format&fit=crop',
-  gripMotion: 'https://images.unsplash.com/photo-1601506521793-dc748fc80b67?q=80&w=2800&auto=format&fit=crop',
-  dataStorage: 'https://images.unsplash.com/photo-1558494949-ef010cbdcc31?q=80&w=2800&auto=format&fit=crop',
-  crewServices: 'https://images.unsplash.com/photo-1605379399642-870262d3d051?q=80&w=2900&auto=format&fit=crop',
-  specializedSolutions: 'https://images.unsplash.com/photo-1617581629397-a72507c3de9e?q=80&w=2800&auto=format&fit=crop',
-  smartProductions: 'https://images.unsplash.com/photo-1492691527719-9d1e07e534b4?q=80&w=2900&auto=format&fit=crop',
-  smartRentals: 'https://images.unsplash.com/photo-1550948537-130a1ce83314?q=80&w=2900&auto=format&fit=crop',
-  ubunyeAi: 'https://images.unsplash.com/photo-1574717024653-61fd2cf4d44d?q=80&w=2900&auto=format&fit=crop',
-  communityGear: 'https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?q=80&w=2900&auto=format&fit=crop',
-  creatorDashboard: 'https://images.unsplash.com/photo-1460925895917-afdab827c52f?q=80&w=2900&auto=format&fit=crop',
+  camerasOptics: 'https://res.cloudinary.com/dzymetqjr/image/upload/v1773356991/camerasOptics_rnce72.png',
+  lightingPower: 'https://res.cloudinary.com/dzymetqjr/image/upload/v1773356990/lightingPower_pexxot.png',
+  audio: 'https://res.cloudinary.com/dzymetqjr/image/upload/v1773356994/audio_aj6co5.png',
+  gripMotion: 'https://res.cloudinary.com/dzymetqjr/image/upload/v1773356994/gripMotion_ucsu5j.png',
+  dataStorage: 'https://res.cloudinary.com/dzymetqjr/image/upload/v1773356975/dataStorage_mpqvqo.png',
+  crewServices: 'https://res.cloudinary.com/dzymetqjr/image/upload/v1773356985/crewServices_pcvchd.png',
+  specializedSolutions: 'https://res.cloudinary.com/dzymetqjr/image/upload/v1773356963/specializedSolutions_gdsa3n.png',
+  smartProductions: 'https://res.cloudinary.com/dzymetqjr/image/upload/v1773356173/smart_productions_difzj3.png',
+  smartRentals: 'https://res.cloudinary.com/dzymetqjr/image/upload/v1773355515/smart_rentals_zagh26.png',
+  ubunyeAi: 'https://res.cloudinary.com/dzymetqjr/image/upload/v1773355508/ubunye_studio_qt4xqk.png',
+  communityGear: 'https://res.cloudinary.com/dzymetqjr/image/upload/v1773355512/community_gear_butskk.png',
+  creatorDashboard: 'https://res.cloudinary.com/dzymetqjr/image/upload/v1773355513/creator_dashboard_xolw82.png',
 } as const;
 
 // ─── CAPABILITIES (used on home page ServiceGrid) ───────────────────────────

@@ -1,13 +1,10 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useDropzone } from 'react-dropzone';
-import Cropper from 'react-easy-crop';
-import type { Area } from 'react-easy-crop';
-import 'react-easy-crop/react-easy-crop.css';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
-  Crop, Eye, EyeOff, ImagePlus, Images, Loader2,
+  Eye, EyeOff, Images, Loader2,
   Pencil, Plus, RefreshCw, Star, Trash2, X,
 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
@@ -65,8 +62,6 @@ type Form = {
   price_per_week: string;
   deposit_amount: string;
   currency: string;
-  thumbnail_url: string;
-  cover_public_id: string;
   gallery: GalleryItem[];
   is_available: boolean;
   quantity: string;
@@ -94,8 +89,6 @@ const EMPTY_FORM: Form = {
   price_per_week: '',
   deposit_amount: '',
   currency: STUDIO.currency.code,
-  thumbnail_url: '',
-  cover_public_id: '',
   gallery: [],
   is_available: true,
   quantity: '1',
@@ -111,38 +104,6 @@ const EMPTY_FORM: Form = {
 };
 
 // ─── Pure helpers ─────────────────────────────────────────────────────────────
-
-/**
- * Canvas-crops an image to the given pixel rect and returns it as a JPEG File.
- * The cropped image is uploaded as the thumbnail — no extra DB column needed.
- */
-async function getCroppedImg(imageSrc: string, pixelCrop: Area): Promise<File> {
-  const image = new Image();
-  image.crossOrigin = 'anonymous';
-  await new Promise<void>((resolve, reject) => {
-    image.onload  = () => resolve();
-    image.onerror = reject;
-    image.src = imageSrc;
-  });
-
-  const canvas = document.createElement('canvas');
-  canvas.width  = pixelCrop.width;
-  canvas.height = pixelCrop.height;
-  const ctx = canvas.getContext('2d')!;
-
-  ctx.drawImage(
-    image,
-    pixelCrop.x, pixelCrop.y, pixelCrop.width, pixelCrop.height,
-    0, 0, pixelCrop.width, pixelCrop.height,
-  );
-
-  return new Promise<File>((resolve, reject) => {
-    canvas.toBlob(blob => {
-      if (!blob) { reject(new Error('Canvas crop failed')); return; }
-      resolve(new File([blob], 'thumbnail.jpg', { type: 'image/jpeg' }));
-    }, 'image/jpeg', 0.92);
-  });
-}
 
 function autoSlug(title: string) {
   return title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
@@ -219,8 +180,8 @@ function formToPayload(f: Form) {
     price_per_week:  parseNum(f.price_per_week),
     deposit_amount:  parseNum(f.deposit_amount),
     currency:        f.currency               || STUDIO.currency.code,
-    thumbnail_url:   f.thumbnail_url          || null,
-    cover_public_id: f.cover_public_id        || null,
+    thumbnail_url:   f.gallery.length > 0 ? f.gallery[0].url : null,
+    cover_public_id: f.gallery.length > 0 ? f.gallery[0].public_id : null,
     gallery:         f.gallery.length > 0 ? f.gallery : [],
     is_available:    f.is_available,
     quantity:        parseInt(f.quantity || '1', 10),
@@ -266,8 +227,6 @@ function rentalToForm(r: Rental): Form {
     price_per_week:  r.price_per_week  != null ? String(r.price_per_week) : '',
     deposit_amount:  r.deposit_amount  != null ? String(r.deposit_amount) : '',
     currency:        r.currency        || STUDIO.currency.code,
-    thumbnail_url:   r.thumbnail_url   ?? '',
-    cover_public_id: r.cover_public_id ?? '',
     gallery:         r.gallery         ?? [],
     is_available:    r.is_available,
     quantity:        String(r.quantity ?? 1),
@@ -301,8 +260,6 @@ export default function AdminRentalsPage() {
   const [formError, setFormError] = useState<string | null>(null);
 
   // Upload state
-  const [thumbUploading, setThumbUploading] = useState(false);
-  const [thumbPct,       setThumbPct]       = useState(0);
   const [galUploading,   setGalUploading]   = useState(false);
   const [galPct,         setGalPct]         = useState(0);
   const [galUploaded,    setGalUploaded]    = useState(0);
@@ -318,22 +275,14 @@ export default function AdminRentalsPage() {
   const [confirmMedia,  setConfirmMedia]  = useState<string | null>(null);
   const [deletingMedia, setDeletingMedia] = useState<Set<string>>(new Set());
 
-  // Crop modal state
-  const [showCropModal,     setShowCropModal]     = useState(false);
-  const [cropSourceUrl,     setCropSourceUrl]     = useState<string | null>(null);
-  const [cropperCrop,       setCropperCrop]       = useState({ x: 0, y: 0 });
-  const [cropperZoom,       setCropperZoom]       = useState(1);
-  const [pendingCropPixels, setPendingCropPixels] = useState<Area | null>(null);
-
   // File input refs
-  const thumbInputRef = useRef<HTMLInputElement>(null);
   const galInputRef   = useRef<HTMLInputElement>(null);
 
   // Live form ref — always current for async handlers
   const formRef = useRef<Form>(form);
   formRef.current = form;
 
-  const isUploading = thumbUploading || galUploading;
+  const isUploading = galUploading;
 
   // ── Fetch ───────────────────────────────────────────────────────────────────
 
@@ -399,28 +348,6 @@ export default function AdminRentalsPage() {
 
   // ── Upload helpers ───────────────────────────────────────────────────────────
 
-  const doThumbnailUpload = async (file: File) => {
-    const folder = buildRentalFolder(resolveCategory(formRef.current), formRef.current.slug);
-    setThumbUploading(true);
-    setThumbPct(0);
-    setFormError(null);
-    try {
-      const asset = await uploadFile(file, folder, pct => setThumbPct(pct));
-      setForm(f => ({ ...f, thumbnail_url: asset.url, cover_public_id: asset.public_id }));
-      // Auto-open crop modal so the user can frame the 3:2 crop immediately.
-      setCropSourceUrl(asset.url);
-      setCropperCrop({ x: 0, y: 0 });
-      setCropperZoom(1);
-      setPendingCropPixels(null);
-      setShowCropModal(true);
-    } catch (err) {
-      setFormError(`Thumbnail upload failed: ${(err as Error).message}`);
-    } finally {
-      setThumbUploading(false);
-      if (thumbInputRef.current) thumbInputRef.current.value = '';
-    }
-  };
-
   const doGalleryUpload = async (files: File[]) => {
     if (files.length === 0) return;
     const folder = buildRentalFolder(resolveCategory(formRef.current), formRef.current.slug);
@@ -450,23 +377,11 @@ export default function AdminRentalsPage() {
     }
   };
 
-  const handleThumbnailChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) void doThumbnailUpload(file);
-  };
-
   const handleGalleryChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     void doGalleryUpload(Array.from(e.target.files ?? []));
   };
 
   // ── Dropzone hooks ───────────────────────────────────────────────────────────
-
-  const thumbDropzone = useDropzone({
-    accept:   { 'image/*': [] },
-    multiple: false,
-    disabled: thumbUploading,
-    onDrop:   (accepted) => { if (accepted[0]) void doThumbnailUpload(accepted[0]); },
-  });
 
   const galDropzone = useDropzone({
     accept:   { 'image/*': [], 'video/*': [] },
@@ -517,80 +432,6 @@ export default function AdminRentalsPage() {
     } finally {
       setDeletingMedia(prev => { const s = new Set(prev); s.delete(public_id); return s; });
     }
-  };
-
-  const deleteThumbnail = async () => {
-    const { thumbnail_url, cover_public_id } = formRef.current;
-    setConfirmMedia(null);
-
-    if (!cover_public_id) {
-      setForm(f => ({ ...f, thumbnail_url: '', cover_public_id: '' }));
-      return;
-    }
-
-    setDeletingMedia(prev => new Set(prev).add('thumbnail'));
-    try {
-      await callCloudinaryDelete(cover_public_id, thumbnail_url);
-      setForm(f => ({ ...f, thumbnail_url: '', cover_public_id: '' }));
-
-      if (editingId) {
-        const { error } = await createClient()
-          .from('smart_rentals')
-          .update({ thumbnail_url: null, cover_public_id: null })
-          .eq('id', editingId);
-        if (error) throw new Error(`DB sync failed: ${error.message}`);
-      }
-    } catch (err) {
-      setFormError(`Thumbnail delete failed: ${(err as Error).message}`);
-    } finally {
-      setDeletingMedia(prev => { const s = new Set(prev); s.delete('thumbnail'); return s; });
-    }
-  };
-
-  // ── Crop modal handlers ──────────────────────────────────────────────────────
-
-  const onCropComplete = useCallback((_: Area, croppedAreaPixels: Area) => {
-    setPendingCropPixels(croppedAreaPixels);
-  }, []);
-
-  /**
-   * Canvas-crops the source image, deletes the old Cloudinary asset (silently),
-   * uploads the cropped JPEG, and updates the form with the new URL.
-   */
-  const applyCropFromModal = async () => {
-    if (!cropSourceUrl || !pendingCropPixels) return;
-    setShowCropModal(false);
-    setThumbUploading(true);
-    setThumbPct(0);
-    setFormError(null);
-    try {
-      const croppedFile = await getCroppedImg(cropSourceUrl, pendingCropPixels);
-
-      const { cover_public_id: oldId, thumbnail_url: oldUrl } = formRef.current;
-      if (oldId && oldUrl) {
-        try { await callCloudinaryDelete(oldId, oldUrl); } catch { /* ignored */ }
-      }
-
-      const folder = buildRentalFolder(resolveCategory(formRef.current), formRef.current.slug);
-      const asset  = await uploadFile(croppedFile, folder, pct => setThumbPct(pct));
-      setForm(f => ({ ...f, thumbnail_url: asset.url, cover_public_id: asset.public_id }));
-    } catch (err) {
-      setFormError(`Crop upload failed: ${(err as Error).message}`);
-    } finally {
-      setThumbUploading(false);
-    }
-  };
-
-  const skipCrop = () => setShowCropModal(false);
-
-  const openReCrop = () => {
-    const url = formRef.current.thumbnail_url;
-    if (!url) return;
-    setCropSourceUrl(url);
-    setCropperCrop({ x: 0, y: 0 });
-    setCropperZoom(1);
-    setPendingCropPixels(null);
-    setShowCropModal(true);
   };
 
   // ── Save ────────────────────────────────────────────────────────────────────
@@ -963,150 +804,11 @@ export default function AdminRentalsPage() {
                 </div>
               </Section>
 
-              {/* ── Thumbnail ── */}
-              <Section label="Thumbnail">
-                <div className="flex flex-wrap items-start gap-4">
-                  {/* Preview + crop controls */}
-                  {form.thumbnail_url && (
-                    <div className="flex flex-col gap-2 flex-shrink-0">
-                      {/* Thumbnail tile — 3:2 */}
-                      <div className="relative group w-28 aspect-[3/2] bg-neutral-950 border border-white/10 overflow-hidden">
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img
-                          src={form.thumbnail_url}
-                          alt="Thumbnail"
-                          className={`w-full h-full object-cover transition-opacity ${deletingMedia.has('thumbnail') ? 'opacity-30' : ''}`}
-                        />
-
-                        {/* Loading */}
-                        {deletingMedia.has('thumbnail') && (
-                          <div className="absolute inset-0 flex items-center justify-center bg-black/60">
-                            <Loader2 className="w-4 h-4 text-white animate-spin" />
-                          </div>
-                        )}
-
-                        {/* Confirm delete */}
-                        {!deletingMedia.has('thumbnail') && confirmMedia === 'thumbnail' && (
-                          <div className="absolute inset-0 flex flex-col items-center justify-center gap-1.5 bg-black/80">
-                            <p className="text-[9px] font-mono text-white/80 uppercase tracking-widest">Delete?</p>
-                            <div className="flex gap-1.5">
-                              <button
-                                onClick={deleteThumbnail}
-                                className="px-2 py-1 text-[9px] font-mono uppercase tracking-widest text-red-400 border border-red-500/40 hover:border-red-400 transition-colors"
-                              >
-                                Yes
-                              </button>
-                              <button
-                                onClick={() => setConfirmMedia(null)}
-                                className="px-2 py-1 text-[9px] font-mono text-neutral-400 border border-white/10 hover:border-white/30 transition-colors"
-                              >
-                                No
-                              </button>
-                            </div>
-                          </div>
-                        )}
-
-                        {/* Normal hover X */}
-                        {!deletingMedia.has('thumbnail') && confirmMedia !== 'thumbnail' && (
-                          <button
-                            onClick={() => setConfirmMedia('thumbnail')}
-                            title="Remove thumbnail"
-                            className="absolute inset-0 bg-black/70 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity"
-                          >
-                            <X className="w-4 h-4 text-white" />
-                          </button>
-                        )}
-                      </div>
-
-                      {/* Re-crop button */}
-                      <button
-                        onClick={openReCrop}
-                        title="Open crop editor"
-                        className="flex items-center gap-1 text-[9px] font-mono uppercase tracking-widest text-neutral-500 hover:text-white transition-colors self-start"
-                      >
-                        <Crop className="w-2.5 h-2.5" />
-                        Crop
-                      </button>
-                    </div>
-                  )}
-
-                  {/* Upload area */}
-                  <div className="flex flex-col gap-2">
-                    {/* Dropzone */}
-                    <div
-                      {...thumbDropzone.getRootProps()}
-                      className={`w-48 h-20 border-2 border-dashed flex flex-col items-center justify-center gap-1 transition-colors cursor-pointer select-none ${
-                        thumbUploading
-                          ? 'border-white/5 opacity-40 pointer-events-none'
-                          : thumbDropzone.isDragActive
-                          ? 'border-white/50 bg-white/5'
-                          : 'border-white/15 hover:border-white/30'
-                      }`}
-                    >
-                      <input {...thumbDropzone.getInputProps()} />
-                      {thumbUploading ? (
-                        <>
-                          <Loader2 className="w-4 h-4 animate-spin text-neutral-500" />
-                          <span className="text-[9px] font-mono text-neutral-600">{thumbPct}%</span>
-                          <div className="w-32 h-0.5 bg-white/10 overflow-hidden">
-                            <div className="h-full bg-white transition-all duration-150" style={{ width: `${thumbPct}%` }} />
-                          </div>
-                        </>
-                      ) : thumbDropzone.isDragActive ? (
-                        <span className="text-[9px] font-mono text-white/60 uppercase tracking-widest">Drop here</span>
-                      ) : (
-                        <>
-                          <ImagePlus className="w-4 h-4 text-neutral-600" />
-                          <span className="text-[9px] font-mono text-neutral-600 uppercase tracking-widest text-center leading-tight px-2">
-                            Drop or click to upload
-                          </span>
-                        </>
-                      )}
-                    </div>
-
-                    {/* Fallback button */}
-                    <label
-                      className={`flex items-center gap-2 px-4 py-2 bg-neutral-950 border border-white/10 text-[10px] font-mono uppercase tracking-widest transition-colors w-fit ${
-                        thumbUploading
-                          ? 'text-neutral-500 cursor-not-allowed'
-                          : 'text-neutral-400 hover:text-white hover:border-white/30 cursor-pointer'
-                      }`}
-                    >
-                      {thumbUploading ? (
-                        <><Loader2 className="w-3 h-3 animate-spin" /> {thumbPct}%</>
-                      ) : (
-                        <><ImagePlus className="w-3 h-3" /> {form.thumbnail_url ? 'Replace' : 'Browse Files'}</>
-                      )}
-                      <input
-                        ref={thumbInputRef}
-                        type="file"
-                        accept="image/*"
-                        className="hidden"
-                        disabled={thumbUploading}
-                        onChange={handleThumbnailChange}
-                      />
-                    </label>
-
-                    {form.cover_public_id && (
-                      <p className="text-[9px] font-mono text-neutral-700 max-w-[200px] truncate">
-                        {form.cover_public_id}
-                      </p>
-                    )}
-                  </div>
-                </div>
-
-                {(form.category || form.slug) && (
-                  <p className="text-[9px] font-mono text-neutral-700 mt-3">
-                    Folder → thabangvision_usecase/media/smartrentals/
-                    <span className="text-neutral-500">
-                      {resolveCategory(form)}{form.slug ? `/${form.slug}` : ''}
-                    </span>
-                  </p>
-                )}
-              </Section>
-
-              {/* ── Gallery ── */}
+              {/* ── Gallery (first image = preview everywhere) ── */}
               <Section label={`Gallery${form.gallery.length > 0 ? ` (${form.gallery.length})` : ''}`}>
+                <p className="text-[9px] font-mono text-neutral-600 uppercase tracking-widest mb-3">
+                  First image is used as the preview on listing pages
+                </p>
                 {form.gallery.length > 0 && (
                   <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-2 mb-4">
                     {form.gallery.map((item, i) => {
@@ -1384,11 +1086,11 @@ export default function AdminRentalsPage() {
                 >
                   <div className="grid grid-cols-1 md:grid-cols-[40px_1fr_100px_110px_90px_40px_160px] gap-4 items-center px-4 py-4 bg-neutral-900 border border-white/5 hover:border-white/10 transition-colors">
 
-                    {/* Thumbnail */}
+                    {/* Preview — first gallery image */}
                     <div className="hidden md:block w-10 h-7 bg-neutral-800 flex-shrink-0 overflow-hidden">
-                      {item.thumbnail_url ? (
+                      {item.gallery && item.gallery.length > 0 ? (
                         // eslint-disable-next-line @next/next/no-img-element
-                        <img src={item.thumbnail_url} alt="" className="w-full h-full object-cover" />
+                        <img src={item.gallery[0].url} alt="" className="w-full h-full object-cover" />
                       ) : (
                         <div className="w-full h-full bg-neutral-800" />
                       )}
@@ -1494,70 +1196,6 @@ export default function AdminRentalsPage() {
         </>
       )}
     </div>
-
-    {/* ── Crop Modal ────────────────────────────────────────────────────────── */}
-    {showCropModal && cropSourceUrl && (
-      <div className="fixed inset-0 z-50 flex flex-col bg-black">
-        {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-white/10 flex-shrink-0">
-          <div className="flex items-center gap-3">
-            <Crop className="w-4 h-4 text-neutral-500" />
-            <h3 className="text-xs font-mono uppercase tracking-widest text-white">Crop Thumbnail</h3>
-            <span className="text-[10px] font-mono text-neutral-600 uppercase tracking-widest">3 : 2</span>
-          </div>
-          <button
-            onClick={skipCrop}
-            title="Close without cropping"
-            className="text-neutral-600 hover:text-white transition-colors"
-          >
-            <X className="w-4 h-4" />
-          </button>
-        </div>
-
-        {/* Cropper — fills remaining height */}
-        <div className="relative flex-1">
-          <Cropper
-            image={cropSourceUrl}
-            crop={cropperCrop}
-            zoom={cropperZoom}
-            aspect={3 / 2}
-            onCropChange={setCropperCrop}
-            onZoomChange={setCropperZoom}
-            onCropComplete={onCropComplete}
-          />
-        </div>
-
-        {/* Zoom + actions */}
-        <div className="flex-shrink-0 flex items-center gap-4 px-6 py-4 border-t border-white/10 bg-black">
-          <span className="text-[10px] font-mono text-neutral-600 uppercase tracking-widest w-10 flex-shrink-0">
-            Zoom
-          </span>
-          <input
-            type="range"
-            min={1}
-            max={3}
-            step={0.01}
-            value={cropperZoom}
-            onChange={e => setCropperZoom(Number(e.target.value))}
-            className="flex-1 accent-white"
-          />
-          <div className="flex gap-2 ml-4 flex-shrink-0">
-            <button
-              onClick={skipCrop}
-              className="px-4 py-2 border border-white/20 text-[10px] font-mono uppercase tracking-widest text-neutral-400 hover:text-white hover:border-white/40 transition-colors"
-            >
-              Skip
-            </button>
-            <button
-              onClick={() => void applyCropFromModal()}
-              className="px-4 py-2 bg-white text-black text-[10px] font-mono font-bold uppercase tracking-widest hover:opacity-80 transition-opacity"
-            >
-              Apply Crop
-            </button>
-          </div>
-        </div>
-      </div>
-    )}
 
   </>
   );

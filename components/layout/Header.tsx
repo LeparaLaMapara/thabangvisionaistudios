@@ -221,6 +221,7 @@ export const Header = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [signingOut, setSigningOut] = useState(false);
 
   const closeSearch = useCallback(() => setSearchOpen(false), []);
 
@@ -231,6 +232,16 @@ export const Header = () => {
       setIsLoggedIn(!!data.user);
     });
   }, []);
+
+  const handleSignOut = useCallback(async () => {
+    setSigningOut(true);
+    const supabase = createClient();
+    await supabase.auth.signOut();
+    setIsLoggedIn(false);
+    setMobileMenuOpen(false);
+    router.push('/');
+    router.refresh();
+  }, [router]);
 
   /** Navigate from mobile menu — start navigation first, then close menu */
   const mobileNavigate = useCallback((href: string) => {
@@ -302,12 +313,30 @@ export const Header = () => {
           <Link href="/contact" className="text-[10px] font-mono font-bold tracking-widest text-white bg-black dark:text-black dark:bg-white px-5 py-2 hover:opacity-80 transition-all duration-300 uppercase">
             Start Project
           </Link>
-          <Link
-            href={isLoggedIn ? '/dashboard' : '/login'}
-            className="text-[10px] font-mono font-medium tracking-widest text-neutral-600 dark:text-neutral-400 hover:text-black dark:hover:text-white border border-neutral-300 dark:border-white/30 px-5 py-2 hover:opacity-80 transition-all duration-300 uppercase"
-          >
-            {isLoggedIn ? 'Dashboard' : 'Login'}
-          </Link>
+          {isLoggedIn ? (
+            <>
+              <Link
+                href="/dashboard"
+                className="text-[10px] font-mono font-medium tracking-widest text-neutral-600 dark:text-neutral-400 hover:text-black dark:hover:text-white border border-neutral-300 dark:border-white/30 px-5 py-2 hover:opacity-80 transition-all duration-300 uppercase"
+              >
+                Dashboard
+              </Link>
+              <button
+                onClick={handleSignOut}
+                disabled={signingOut}
+                className="text-[10px] font-mono font-medium tracking-widest text-neutral-600 dark:text-neutral-400 hover:text-red-500 dark:hover:text-red-400 px-5 py-2 hover:opacity-80 transition-all duration-300 uppercase disabled:opacity-50"
+              >
+                {signingOut ? 'Signing Out...' : 'Sign Out'}
+              </button>
+            </>
+          ) : (
+            <Link
+              href="/login"
+              className="text-[10px] font-mono font-medium tracking-widest text-neutral-600 dark:text-neutral-400 hover:text-black dark:hover:text-white border border-neutral-300 dark:border-white/30 px-5 py-2 hover:opacity-80 transition-all duration-300 uppercase"
+            >
+              Login
+            </Link>
+          )}
         </div>
 
         {/* Mobile Actions */}
@@ -358,12 +387,21 @@ export const Header = () => {
                 Contact
               </button>
               {isLoggedIn ? (
-                <button
-                  onClick={() => mobileNavigate('/dashboard')}
-                  className={`${ACTION_BTN} bg-transparent text-white border border-white/30 min-h-[44px]`}
-                >
-                  Dashboard
-                </button>
+                <>
+                  <button
+                    onClick={() => mobileNavigate('/dashboard')}
+                    className={`${ACTION_BTN} bg-transparent text-white border border-white/30 min-h-[44px]`}
+                  >
+                    Dashboard
+                  </button>
+                  <button
+                    onClick={handleSignOut}
+                    disabled={signingOut}
+                    className={`${ACTION_BTN} bg-transparent text-red-400 border border-red-400/30 hover:bg-red-400/10 min-h-[44px] disabled:opacity-50`}
+                  >
+                    {signingOut ? 'Signing Out...' : 'Sign Out'}
+                  </button>
+                </>
               ) : (
                 <>
                   <button
