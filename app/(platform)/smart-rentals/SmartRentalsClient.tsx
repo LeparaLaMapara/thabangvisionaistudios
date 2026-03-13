@@ -9,7 +9,7 @@ import { PLACEHOLDER_IMAGES } from '@/lib/constants';
 
 // ─── Category display metadata ────────────────────────────────────────────────
 // Maps DB category slugs → display info.
-// The fallback thumbnail comes from each category's first published rental.
+// Category images are fixed brand images from PLACEHOLDER_IMAGES — never overridden by rental thumbnails.
 
 type CategoryMeta = {
   label: string;
@@ -61,6 +61,12 @@ const CATEGORY_META: Record<string, CategoryMeta> = {
     description:   'LED volumes, virtual production tools, VR/AR rigs, and drone packages.',
     fallbackImage: PLACEHOLDER_IMAGES.specializedSolutions,
   },
+  'aerial-support': {
+    label:         'Aerial Support',
+    subtitle:      'Drone & Aerial Systems',
+    description:   'Professional drone rigs, aerial camera systems, and licensed pilot services.',
+    fallbackImage: PLACEHOLDER_IMAGES.gripMotion,
+  },
 };
 
 function getCategoryMeta(slug: string): CategoryMeta {
@@ -88,17 +94,6 @@ export default function SmartRentalsClient({ rentals }: { rentals: SmartRental[]
       }
     }
     return out;
-  }, [rentals]);
-
-  // First thumbnail per category as the card hero image
-  const categoryThumbnail = useMemo(() => {
-    const map: Record<string, string> = {};
-    for (const r of rentals) {
-      if (r.category && !map[r.category] && r.thumbnail_url) {
-        map[r.category] = r.thumbnail_url;
-      }
-    }
-    return map;
   }, [rentals]);
 
   // Item count per category
@@ -157,7 +152,7 @@ export default function SmartRentalsClient({ rentals }: { rentals: SmartRental[]
               {/* Dynamic category cards — from DB */}
               {categories.map((cat, index) => {
                 const meta  = getCategoryMeta(cat);
-                const image = categoryThumbnail[cat] ?? meta.fallbackImage;
+                const image = meta.fallbackImage;
 
                 return (
                   <motion.div

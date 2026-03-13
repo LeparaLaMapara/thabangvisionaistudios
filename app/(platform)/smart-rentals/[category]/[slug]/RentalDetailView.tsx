@@ -215,7 +215,6 @@ export default function RentalDetailView({
                     className="absolute inset-0 w-full h-full"
                     allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture"
                     allowFullScreen
-                    sandbox="allow-scripts allow-same-origin allow-presentation"
                     referrerPolicy="no-referrer"
                     title={`${rental.title} video`}
                   />
@@ -251,7 +250,6 @@ export default function RentalDetailView({
                     className="absolute inset-0 w-full h-full"
                     allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture"
                     allowFullScreen
-                    sandbox="allow-scripts allow-same-origin allow-presentation"
                     referrerPolicy="no-referrer"
                     title={`${rental.title} video`}
                   />

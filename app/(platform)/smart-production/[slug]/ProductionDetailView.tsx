@@ -90,7 +90,6 @@ export default function ProductionDetailView({
               frameBorder="0"
               allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture"
               allowFullScreen
-              sandbox="allow-scripts allow-same-origin allow-presentation"
               referrerPolicy="no-referrer"
               className="absolute inset-0"
             />
