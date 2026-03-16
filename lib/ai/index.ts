@@ -1,39 +1,21 @@
-import type { AIProvider } from './types';
-import { anthropic } from './anthropic';
-import { gemini } from './gemini';
-import { openai } from './openai';
+import { anthropic } from '@ai-sdk/anthropic';
+import { openai } from '@ai-sdk/openai';
+import { google } from '@ai-sdk/google';
+import type { LanguageModel } from 'ai';
 
-// Re-export types for convenience
-export type {
-  AIProvider,
-  Message,
-  MessageRole,
-  SendMessageOptions,
-  SendMessageResult,
-  StreamMessageResult,
-} from './types';
+// ─── Vercel AI SDK Provider Wrapper ─────────────────────────────────────────
 
-// ─── Provider Registry ───────────────────────────────────────────────────────
+export function getModel(): LanguageModel {
+  const provider = (process.env.AI_PROVIDER ?? 'anthropic').toLowerCase();
 
-const providers: Record<string, AIProvider> = {
-  anthropic,
-  gemini,
-  openai,
-};
-
-// ─── Active Provider ─────────────────────────────────────────────────────────
-
-const providerName = (process.env.AI_PROVIDER ?? 'anthropic').toLowerCase();
-
-if (!providers[providerName]) {
-  console.warn(
-    `[ai] Unknown AI_PROVIDER="${providerName}". Falling back to anthropic. ` +
-    `Valid options: ${Object.keys(providers).join(', ')}`,
-  );
+  switch (provider) {
+    case 'anthropic':
+      return anthropic('claude-sonnet-4-20250514');
+    case 'openai':
+      return openai('gpt-4o');
+    case 'gemini':
+      return google('gemini-2.0-flash');
+    default:
+      return anthropic('claude-sonnet-4-20250514');
+  }
 }
-
-/**
- * The active AI provider, determined by `AI_PROVIDER` env var.
- * Defaults to Anthropic (Claude) if not set or unrecognized.
- */
-export const ai: AIProvider = providers[providerName] ?? anthropic;

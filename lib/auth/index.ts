@@ -38,8 +38,8 @@ export async function requireAdmin() {
   return auth.requireAdmin();
 }
 
-export function isAdmin(email: string) {
-  return auth.isAdmin(email);
+export function isAdmin(userId: string, email?: string) {
+  return auth.isAdmin(userId, email);
 }
 
 // ─── Rate Limiting (provider-agnostic) ───────────────────────────────────────

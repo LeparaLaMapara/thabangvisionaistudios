@@ -1,0 +1,585 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ubunye AI — ThabangVision Labs</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=Space+Mono:wght@400;700&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --bg: #050505;
+    --bg-elevated: #0a0a0c;
+    --bg-input: #0e0e11;
+    --border: #1a1a1e;
+    --border-subtle: #111114;
+    --text: #e8e8e8;
+    --text-dim: #555;
+    --text-mid: #888;
+    --accent: #D4A843;
+    --accent-dim: rgba(212,168,67,0.08);
+    --accent-glow: rgba(212,168,67,0.15);
+    --accent-strong: rgba(212,168,67,0.4);
+  }
+
+  html, body {
+    height: 100%;
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Space Mono', monospace;
+    overflow: hidden;
+  }
+
+  .chat-container {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    max-width: 800px;
+    margin: 0 auto;
+    position: relative;
+  }
+
+  /* ─── LANDING STATE (before first message) ─── */
+  .landing {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 40px 24px;
+    position: relative;
+  }
+
+  /* Ambient glow behind sphere */
+  .ambient-glow {
+    position: absolute;
+    width: 400px;
+    height: 400px;
+    border-radius: 50%;
+    background: radial-gradient(circle, var(--accent-glow) 0%, transparent 70%);
+    filter: blur(60px);
+    animation: breathe 4s ease-in-out infinite;
+    pointer-events: none;
+  }
+
+  @keyframes breathe {
+    0%, 100% { transform: scale(1); opacity: 0.4; }
+    50% { transform: scale(1.15); opacity: 0.7; }
+  }
+
+  /* Golden particle sphere */
+  .sphere-container {
+    width: 120px;
+    height: 120px;
+    position: relative;
+    margin-bottom: 32px;
+  }
+
+  .sphere {
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    background: radial-gradient(circle at 35% 35%, 
+      var(--accent-strong) 0%, 
+      var(--accent-dim) 40%, 
+      transparent 70%);
+    position: relative;
+    animation: float 6s ease-in-out infinite;
+  }
+
+  .sphere::before {
+    content: '';
+    position: absolute;
+    inset: -2px;
+    border-radius: 50%;
+    background: conic-gradient(from 0deg, transparent, var(--accent), transparent, var(--accent), transparent);
+    opacity: 0.3;
+    animation: rotate 8s linear infinite;
+  }
+
+  .sphere::after {
+    content: '';
+    position: absolute;
+    inset: 8px;
+    border-radius: 50%;
+    background: radial-gradient(circle at 40% 40%, 
+      rgba(212,168,67,0.2) 0%, 
+      rgba(212,168,67,0.05) 50%, 
+      transparent 70%);
+  }
+
+  /* Orbiting particles */
+  .particle-ring {
+    position: absolute;
+    inset: -20px;
+    border-radius: 50%;
+    animation: rotate 12s linear infinite;
+  }
+
+  .particle {
+    position: absolute;
+    width: 3px;
+    height: 3px;
+    background: var(--accent);
+    border-radius: 50%;
+    box-shadow: 0 0 6px var(--accent);
+  }
+
+  .particle:nth-child(1) { top: 0; left: 50%; }
+  .particle:nth-child(2) { top: 50%; right: 0; animation-delay: -3s; }
+  .particle:nth-child(3) { bottom: 0; left: 50%; animation-delay: -6s; }
+  .particle:nth-child(4) { top: 50%; left: 0; animation-delay: -9s; }
+
+  .particle-ring-2 {
+    position: absolute;
+    inset: -35px;
+    border-radius: 50%;
+    animation: rotate 20s linear infinite reverse;
+  }
+
+  .particle-sm {
+    position: absolute;
+    width: 2px;
+    height: 2px;
+    background: var(--accent);
+    border-radius: 50%;
+    opacity: 0.5;
+    box-shadow: 0 0 4px var(--accent);
+  }
+
+  .particle-sm:nth-child(1) { top: 10%; left: 10%; }
+  .particle-sm:nth-child(2) { top: 10%; right: 10%; }
+  .particle-sm:nth-child(3) { bottom: 10%; right: 10%; }
+  .particle-sm:nth-child(4) { bottom: 10%; left: 10%; }
+  .particle-sm:nth-child(5) { top: 50%; right: -5px; }
+  .particle-sm:nth-child(6) { bottom: 50%; left: -5px; }
+
+  @keyframes float {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-8px); }
+  }
+
+  @keyframes rotate {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+  }
+
+  /* Greeting */
+  .greeting {
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.2em;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    margin-bottom: 12px;
+    opacity: 0;
+    animation: fadeUp 0.6s ease forwards 0.3s;
+  }
+
+  .headline {
+    font-family: 'Syne', sans-serif;
+    font-size: clamp(24px, 4vw, 36px);
+    font-weight: 700;
+    text-align: center;
+    margin-bottom: 40px;
+    opacity: 0;
+    animation: fadeUp 0.6s ease forwards 0.5s;
+  }
+
+  .headline span {
+    color: var(--accent);
+  }
+
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(12px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  /* Quick action chips */
+  .chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    justify-content: center;
+    max-width: 500px;
+    opacity: 0;
+    animation: fadeUp 0.6s ease forwards 0.7s;
+  }
+
+  .chip {
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.05em;
+    color: var(--text-mid);
+    padding: 10px 20px;
+    border: 1px solid var(--border);
+    border-radius: 100px;
+    cursor: pointer;
+    transition: all 0.3s;
+    background: transparent;
+  }
+
+  .chip:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+    background: var(--accent-dim);
+    box-shadow: 0 0 20px var(--accent-glow);
+  }
+
+  /* ─── MESSAGES ─── */
+  .messages {
+    flex: 1;
+    overflow-y: auto;
+    padding: 24px;
+    display: none; /* hidden until first message */
+    flex-direction: column;
+    gap: 32px;
+    scrollbar-width: thin;
+    scrollbar-color: var(--border) transparent;
+  }
+
+  .messages.active {
+    display: flex;
+  }
+
+  .messages::-webkit-scrollbar { width: 4px; }
+  .messages::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+  .message {
+    max-width: 680px;
+    width: 100%;
+    margin: 0 auto;
+  }
+
+  .message-label {
+    font-size: 9px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    margin-bottom: 8px;
+  }
+
+  .user-label { color: var(--text-dim); }
+  .ai-label { color: var(--accent); }
+
+  .user-content {
+    font-size: 14px;
+    color: var(--text);
+    line-height: 1.6;
+  }
+
+  .ai-content {
+    font-size: 14px;
+    color: var(--text-mid);
+    line-height: 1.8;
+  }
+
+  .ai-content strong { color: var(--text); font-weight: 600; }
+
+  .ai-content a {
+    color: var(--accent);
+    text-decoration: none;
+    border-bottom: 1px solid var(--accent-dim);
+    transition: border-color 0.3s;
+  }
+
+  .ai-content a:hover { border-color: var(--accent); }
+
+  .ai-content ul, .ai-content ol {
+    margin: 12px 0 12px 20px;
+  }
+
+  .ai-content li {
+    margin-bottom: 6px;
+    color: var(--text-mid);
+  }
+
+  .ai-content code {
+    background: var(--bg-elevated);
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 12px;
+    color: var(--accent);
+    border: 1px solid var(--border-subtle);
+  }
+
+  /* Typing indicator */
+  .typing {
+    display: flex;
+    gap: 4px;
+    padding: 8px 0;
+  }
+
+  .typing-dot {
+    width: 4px;
+    height: 4px;
+    background: var(--accent);
+    border-radius: 50%;
+    animation: typingPulse 1.2s ease-in-out infinite;
+  }
+
+  .typing-dot:nth-child(2) { animation-delay: 0.2s; }
+  .typing-dot:nth-child(3) { animation-delay: 0.4s; }
+
+  @keyframes typingPulse {
+    0%, 100% { opacity: 0.3; transform: scale(1); }
+    50% { opacity: 1; transform: scale(1.2); }
+  }
+
+  /* ─── INPUT BAR ─── */
+  .input-bar {
+    padding: 16px 24px 24px;
+    position: relative;
+  }
+
+  .input-wrapper {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: var(--bg-input);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 4px 4px 4px 20px;
+    transition: border-color 0.3s, box-shadow 0.3s;
+  }
+
+  .input-wrapper:focus-within {
+    border-color: rgba(212,168,67,0.3);
+    box-shadow: 0 0 0 3px var(--accent-dim);
+  }
+
+  .input-wrapper input {
+    flex: 1;
+    background: none;
+    border: none;
+    outline: none;
+    color: var(--text);
+    font-family: 'Space Mono', monospace;
+    font-size: 13px;
+    padding: 12px 0;
+  }
+
+  .input-wrapper input::placeholder {
+    color: var(--text-dim);
+    font-size: 12px;
+  }
+
+  .send-btn {
+    width: 40px;
+    height: 40px;
+    border-radius: 12px;
+    border: none;
+    background: var(--accent);
+    color: var(--bg);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.3s;
+    flex-shrink: 0;
+  }
+
+  .send-btn:hover {
+    box-shadow: 0 0 16px var(--accent-glow);
+    transform: scale(1.05);
+  }
+
+  .send-btn:active { transform: scale(0.95); }
+
+  .send-btn svg {
+    width: 16px;
+    height: 16px;
+  }
+
+  /* Message counter */
+  .msg-counter {
+    font-size: 9px;
+    letter-spacing: 0.1em;
+    color: var(--text-dim);
+    text-align: center;
+    padding-top: 8px;
+  }
+
+  /* ─── POWERED BY ─── */
+  .powered-by {
+    font-size: 9px;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    text-align: center;
+    padding-bottom: 16px;
+    opacity: 0.5;
+  }
+
+  .powered-by span { color: var(--accent); }
+
+  /* ─── MOBILE ─── */
+  @media (max-width: 640px) {
+    .chat-container { padding: 0; }
+    .landing { padding: 24px 16px; }
+    .messages { padding: 16px; }
+    .input-bar { padding: 12px 16px 16px; }
+    .sphere-container { width: 80px; height: 80px; }
+    .ambient-glow { width: 250px; height: 250px; }
+    .chips { gap: 6px; }
+    .chip { font-size: 10px; padding: 8px 14px; }
+    .headline { font-size: 22px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="chat-container">
+
+  <!-- LANDING STATE -->
+  <div class="landing" id="landing">
+    <div class="ambient-glow"></div>
+    
+    <div class="sphere-container">
+      <div class="sphere"></div>
+      <div class="particle-ring">
+        <div class="particle"></div>
+        <div class="particle"></div>
+        <div class="particle"></div>
+        <div class="particle"></div>
+      </div>
+      <div class="particle-ring-2">
+        <div class="particle-sm"></div>
+        <div class="particle-sm"></div>
+        <div class="particle-sm"></div>
+        <div class="particle-sm"></div>
+        <div class="particle-sm"></div>
+        <div class="particle-sm"></div>
+      </div>
+    </div>
+
+    <div class="greeting">Good morning, Creator</div>
+    <h1 class="headline">What can I do <span>for you?</span></h1>
+
+    <div class="chips">
+      <button class="chip" onclick="sendChip('Plan a shoot for this weekend')">Plan a shoot</button>
+      <button class="chip" onclick="sendChip('What cameras do you have for rent?')">Find gear</button>
+      <button class="chip" onclick="sendChip('I need a cinematographer for a wedding')">Hire crew</button>
+      <button class="chip" onclick="sendChip('Give me a quote for a music video production')">Get pricing</button>
+    </div>
+  </div>
+
+  <!-- MESSAGES (hidden until first message) -->
+  <div class="messages" id="messages">
+    <!-- Messages rendered here -->
+  </div>
+
+  <!-- INPUT BAR -->
+  <div class="input-bar">
+    <div class="input-wrapper">
+      <input 
+        type="text" 
+        placeholder="Message Ubunye..." 
+        id="input"
+        autocomplete="off"
+        onkeydown="if(event.key==='Enter')sendMessage()"
+      />
+      <button class="send-btn" onclick="sendMessage()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="5" y1="12" x2="19" y2="12"></line>
+          <polyline points="12 5 19 12 12 19"></polyline>
+        </svg>
+      </button>
+    </div>
+    <div class="msg-counter" id="counter">5 free messages remaining</div>
+  </div>
+
+  <div class="powered-by">Powered by <span>Ubunye AI</span></div>
+
+</div>
+
+<script>
+  // Demo interactions
+  const landing = document.getElementById('landing');
+  const messagesEl = document.getElementById('messages');
+  const input = document.getElementById('input');
+  let messageCount = 0;
+
+  function sendChip(text) {
+    input.value = text;
+    sendMessage();
+  }
+
+  function sendMessage() {
+    const text = input.value.trim();
+    if (!text) return;
+
+    // Hide landing, show messages
+    landing.style.display = 'none';
+    messagesEl.classList.add('active');
+
+    // Add user message
+    addMessage('You', text, 'user');
+    input.value = '';
+    messageCount++;
+
+    // Update counter
+    const remaining = 5 - messageCount;
+    document.getElementById('counter').textContent = 
+      remaining > 0 ? `${remaining} free messages remaining` : '';
+
+    // Show typing indicator
+    const typingId = addTyping();
+
+    // Simulate AI response
+    setTimeout(() => {
+      removeTyping(typingId);
+      addMessage('Ubunye', 'We have 3 cameras available right now:\n\n**Sony Alpha A7 III** — R750/day\nFull-frame mirrorless, 4K HDR, perfect for weddings and corporate.\n[View & Book →](/smart-rentals/cameras-optics/sony-alpha-a7-iii)\n\n**Fujifilm X-T1** — R600/day\nClassic Chrome film simulation, ideal for street and documentary.\n[View & Book →](/smart-rentals/cameras-optics/fujifilm-x-t1)\n\n**Canon 250D** — R500/day\nCompact DSLR, 4K video, great for beginners and travel.\n[View & Book →](/smart-rentals/cameras-optics/canon-eos-250d)\n\nWant me to help you choose based on your shoot type?', 'ai');
+    }, 1500);
+  }
+
+  function addMessage(label, text, type) {
+    const msg = document.createElement('div');
+    msg.className = 'message';
+    
+    // Simple markdown-like rendering for demo
+    let rendered = text
+      .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+      .replace(/\[(.*?)\]\((.*?)\)/g, '<a href="$2">$1</a>')
+      .replace(/\n\n/g, '</p><p>')
+      .replace(/\n/g, '<br>');
+
+    msg.innerHTML = `
+      <div class="message-label ${type}-label">${label}</div>
+      <div class="${type}-content"><p>${rendered}</p></div>
+    `;
+    messagesEl.appendChild(msg);
+    messagesEl.scrollTop = messagesEl.scrollHeight;
+  }
+
+  function addTyping() {
+    const id = 'typing-' + Date.now();
+    const msg = document.createElement('div');
+    msg.className = 'message';
+    msg.id = id;
+    msg.innerHTML = `
+      <div class="message-label ai-label">Ubunye</div>
+      <div class="typing">
+        <div class="typing-dot"></div>
+        <div class="typing-dot"></div>
+        <div class="typing-dot"></div>
+      </div>
+    `;
+    messagesEl.appendChild(msg);
+    messagesEl.scrollTop = messagesEl.scrollHeight;
+    return id;
+  }
+
+  function removeTyping(id) {
+    document.getElementById(id)?.remove();
+  }
+
+  // Time-aware greeting
+  const hour = new Date().getHours();
+  const greeting = hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening';
+  document.querySelector('.greeting').textContent = greeting + ', Creator';
+</script>
+
+</body>
+</html>

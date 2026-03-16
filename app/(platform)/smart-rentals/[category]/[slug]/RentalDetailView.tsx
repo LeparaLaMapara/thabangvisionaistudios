@@ -215,7 +215,6 @@ export default function RentalDetailView({
                     className="absolute inset-0 w-full h-full"
                     allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture"
                     allowFullScreen
-                    referrerPolicy="no-referrer"
                     title={`${rental.title} video`}
                   />
                 ) : activeMedia.type === 'image' ? (
@@ -250,7 +249,6 @@ export default function RentalDetailView({
                     className="absolute inset-0 w-full h-full"
                     allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture"
                     allowFullScreen
-                    referrerPolicy="no-referrer"
                     title={`${rental.title} video`}
                   />
                 ) : activeMedia.type === 'image' ? (
@@ -552,7 +550,7 @@ export default function RentalDetailView({
                           alt={item.title}
                           fill
                           sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw"
-                          className="object-cover grayscale group-hover:grayscale-0 group-hover:scale-105 transition-all duration-500"
+                          className="object-cover grayscale-0 md:grayscale md:group-hover:grayscale-0 group-hover:scale-105 transition-all duration-500"
                           unoptimized
                         />
                       ) : (

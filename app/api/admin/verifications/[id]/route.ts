@@ -1,7 +1,7 @@
 export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/server';
 import {
   getVerificationStatus,
   approveVerification,
@@ -30,7 +30,7 @@ export async function GET(_req: NextRequest, context: RouteContext) {
     }
 
     // Generate signed URLs for stored documents (1 hour expiry)
-    const supabase = await createClient();
+    const supabase = createAdminClient();
     const documents: Record<string, string | null> = {
       idFront: null,
       idBack: null,
@@ -93,10 +93,15 @@ export async function PUT(req: NextRequest, context: RouteContext) {
       );
     }
 
-    // Fetch the profile to get email and display name for notifications
-    const supabase = await createClient();
-    const { data: authUser } = await supabase.auth.admin.getUserById(id);
-    const userEmail = authUser?.user?.email;
+    // Fetch the user's auth email via service-role client
+    let userEmail: string | undefined;
+    try {
+      const admin = createAdminClient();
+      const { data: authUser } = await admin.auth.admin.getUserById(id);
+      userEmail = authUser?.user?.email;
+    } catch {
+      console.warn('[admin/verifications] Could not fetch user email — notification will be skipped.');
+    }
 
     // Get display name from profile
     const profile = await getVerificationStatus(id);

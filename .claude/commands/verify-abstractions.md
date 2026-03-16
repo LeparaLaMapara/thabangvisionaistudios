@@ -1,10 +1,11 @@
 Verify all provider abstraction layers are properly used across the codebase:
 
-1. AI Provider — should only be imported in lib/ai/:
-   - grep -rn "from '@anthropic-ai" --include="*.ts" --include="*.tsx"
-   - grep -rn "from '@google/generative-ai'" --include="*.ts" --include="*.tsx"
-   - grep -rn "from 'openai'" --include="*.ts" --include="*.tsx"
-   - ALLOWED in: lib/ai/anthropic.ts, lib/ai/gemini.ts, lib/ai/openai.ts
+1. AI Provider — uses Vercel AI SDK (@ai-sdk/*), thin wrapper in lib/ai/index.ts:
+   - grep -rn "from '@ai-sdk/anthropic'" --include="*.ts" --include="*.tsx"
+   - grep -rn "from '@ai-sdk/google'" --include="*.ts" --include="*.tsx"
+   - grep -rn "from '@ai-sdk/openai'" --include="*.ts" --include="*.tsx"
+   - ALLOWED in: lib/ai/index.ts
+   - ALLOWED for RAG embeddings: lib/rag/embeddings/gemini.ts, lib/rag/embeddings/openai.ts (use native SDKs)
    - VIOLATION if found in: app/, components/, pages/
 
 2. Payment Provider — should only be imported in lib/payments/:

@@ -5,6 +5,15 @@ import { createClient } from '@/lib/supabase/server';
 import { getVerificationStatus, submitVerification } from '@/lib/supabase/queries/verifications';
 import { STUDIO } from '@/lib/constants';
 
+// Fixed filenames per user — resubmission overwrites automatically via upsert.
+// No extension in the path: Supabase stores the file with the content-type header
+// so the browser can render it correctly regardless of extension.
+const FILE_NAMES = {
+  id_front: 'id-front',
+  id_back: 'id-back',
+  proof_of_address: 'proof-of-address',
+} as const;
+
 // ─── GET — Return current user's verification status ────────────────────────
 
 export async function GET() {
@@ -39,6 +48,24 @@ export async function POST(req: NextRequest) {
   }
 
   try {
+    // ── Guard: block submission if already pending or verified ───────────
+    const current = await getVerificationStatus(user.id);
+
+    if (current?.verification_status === 'pending') {
+      return NextResponse.json(
+        { error: 'Your documents are already under review. Please wait for a response.' },
+        { status: 409 },
+      );
+    }
+
+    if (current?.verification_status === 'verified') {
+      return NextResponse.json(
+        { error: 'Your identity is already verified.' },
+        { status: 409 },
+      );
+    }
+
+    // ── Parse form data ─────────────────────────────────────────────────
     const formData = await req.formData();
 
     const idFront = formData.get('id_front') as File | null;
@@ -52,7 +79,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // H4: Validate file types and sizes
+    // ── Validate file types and sizes ───────────────────────────────────
     const maxSize = (STUDIO.verification.maxFileSizeMB ?? 5) * 1024 * 1024;
     const allowedTypes = STUDIO.verification.acceptedTypes;
 
@@ -75,16 +102,24 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Extract file extensions
-    const extFront = getFileExtension(idFront.name);
-    const extBack = getFileExtension(idBack.name);
-    const extProof = getFileExtension(proofOfAddress.name);
+    // ── If resubmitting (rejected), delete old files first ──────────────
+    if (current?.verification_status === 'rejected') {
+      const oldPaths = [
+        current.id_front_path,
+        current.id_back_path,
+        current.proof_of_address_path,
+      ].filter(Boolean) as string[];
 
-    // Upload each file to Supabase Storage bucket "verifications"
+      if (oldPaths.length > 0) {
+        await supabase.storage.from('verifications').remove(oldPaths);
+      }
+    }
+
+    // ── Upload with fixed filenames — upsert overwrites any remnants ────
     const uploads = await Promise.all([
-      uploadToStorage(supabase, idFront, `${user.id}/id-front${extFront}`),
-      uploadToStorage(supabase, idBack, `${user.id}/id-back${extBack}`),
-      uploadToStorage(supabase, proofOfAddress, `${user.id}/proof-of-address${extProof}`),
+      uploadToStorage(supabase, idFront, `${user.id}/${FILE_NAMES.id_front}`),
+      uploadToStorage(supabase, idBack, `${user.id}/${FILE_NAMES.id_back}`),
+      uploadToStorage(supabase, proofOfAddress, `${user.id}/${FILE_NAMES.proof_of_address}`),
     ]);
 
     // Check for upload errors
@@ -97,7 +132,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Update profile with document paths and set status to pending
+    // ── Update profile: new paths, status → pending, timestamp → now ────
     const result = await submitVerification(user.id, {
       idFront: uploads[0].path!,
       idBack: uploads[1].path!,
@@ -123,11 +158,6 @@ export async function POST(req: NextRequest) {
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
-function getFileExtension(filename: string): string {
-  const lastDot = filename.lastIndexOf('.');
-  return lastDot !== -1 ? filename.slice(lastDot) : '';
-}
-
 async function uploadToStorage(
   supabase: Awaited<ReturnType<typeof createClient>>,
   file: File,
@@ -139,7 +169,7 @@ async function uploadToStorage(
     .from('verifications')
     .upload(path, buffer, {
       contentType: file.type,
-      upsert: true, // overwrite if resubmitting
+      upsert: true,
     });
 
   if (error) {

@@ -7,9 +7,11 @@ import type { Area } from 'react-easy-crop';
 import 'react-easy-crop/react-easy-crop.css';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
-  Crop, Eye, EyeOff, ImagePlus, Images, Loader2,
+  Camera, Crop, Eye, EyeOff, ImagePlus, Images, Loader2,
   Pencil, Plus, RefreshCw, Star, Trash2, X,
 } from 'lucide-react';
+import exifr from 'exifr';
+import type { ImageMetadata } from '@/lib/metadata/extract';
 import { createClient } from '@/lib/supabase/client';
 import {
   uploadFile,
@@ -20,6 +22,8 @@ import {
 // ─── Types ───────────────────────────────────────────────────────────────────
 
 type GalleryItem = CloudinaryAsset; // { url; public_id }
+
+type MetadataEntry = { url: string } & ImageMetadata;
 
 type Production = {
   id: string;
@@ -36,6 +40,7 @@ type Production = {
   thumbnail_url: string | null;
   cover_public_id: string | null;
   gallery: GalleryItem[] | null;
+  image_metadata: MetadataEntry[] | null;
   is_published: boolean;
   is_featured: boolean;
   created_at: string;
@@ -55,6 +60,7 @@ type Form = {
   thumbnail_url: string;
   cover_public_id: string;
   gallery: GalleryItem[];
+  image_metadata: MetadataEntry[];
   is_published: boolean;
   is_featured: boolean;
 };
@@ -72,6 +78,7 @@ const EMPTY_FORM: Form = {
   thumbnail_url: '',
   cover_public_id: '',
   gallery: [],
+  image_metadata: [],
   is_published: false,
   is_featured: false,
 };
@@ -117,6 +124,48 @@ function autoSlug(title: string) {
   return title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
 }
 
+/**
+ * Extract EXIF metadata from a File object client-side (before Cloudinary upload).
+ * Uses exifr which works in both browser and Node.
+ */
+async function extractExifFromFile(file: File): Promise<ImageMetadata> {
+  try {
+    // Only process image files
+    if (!file.type.startsWith('image/')) return {};
+    const buffer = await file.arrayBuffer();
+    const exif = await exifr.parse(buffer, {
+      pick: [
+        'Make', 'Model', 'LensModel', 'FocalLength',
+        'FNumber', 'ISO', 'ExposureTime', 'DateTimeOriginal',
+        'ImageWidth', 'ImageHeight', 'Software',
+      ],
+    });
+    if (!exif) return {};
+    return {
+      camera: exif.Make && exif.Model
+        ? `${exif.Make} ${exif.Model}`.replace(/\s+/g, ' ').trim()
+        : undefined,
+      lens: exif.LensModel || undefined,
+      focalLength: exif.FocalLength || undefined,
+      aperture: exif.FNumber || undefined,
+      iso: exif.ISO || undefined,
+      shutterSpeed: exif.ExposureTime
+        ? exif.ExposureTime >= 1
+          ? `${exif.ExposureTime}s`
+          : `1/${Math.round(1 / exif.ExposureTime)}s`
+        : undefined,
+      dateTaken: exif.DateTimeOriginal
+        ? new Date(exif.DateTimeOriginal).toISOString()
+        : undefined,
+      width: exif.ImageWidth || undefined,
+      height: exif.ImageHeight || undefined,
+      software: exif.Software || undefined,
+    };
+  } catch {
+    return {};
+  }
+}
+
 function formToPayload(f: Form, existingYear?: number | null) {
   return {
     title:           f.title.trim(),
@@ -134,6 +183,7 @@ function formToPayload(f: Form, existingYear?: number | null) {
     thumbnail_url:   f.thumbnail_url   || null,
     cover_public_id: f.cover_public_id || null,
     gallery:         f.gallery.length > 0 ? f.gallery : null,
+    image_metadata:  f.image_metadata.length > 0 ? f.image_metadata : null,
     is_published:    f.is_published,
     is_featured:     f.is_featured,
   };
@@ -153,6 +203,7 @@ function productionToForm(p: Production): Form {
     thumbnail_url:   p.thumbnail_url   ?? '',
     cover_public_id: p.cover_public_id ?? '',
     gallery:         p.gallery         ?? [],
+    image_metadata:  p.image_metadata  ?? [],
     is_published:    p.is_published,
     is_featured:     p.is_featured,
   };
@@ -180,6 +231,9 @@ export default function AdminProjectsPage() {
   const [galPct,         setGalPct]         = useState(0);
   const [galUploaded,    setGalUploaded]    = useState(0);
   const [galTotal,       setGalTotal]       = useState(0);
+
+  // EXIF metadata extraction
+  const [extracting, setExtracting] = useState(false);
 
   // Row-level action state
   const [togglingId,   setTogglingId]   = useState<string | null>(null);
@@ -295,22 +349,80 @@ export default function AdminProjectsPage() {
     setFormError(null);
     try {
       let done = 0;
-      const assets = await Promise.all(
-        files.map(file =>
-          uploadFile(file, folder).then(asset => {
-            done++;
-            setGalUploaded(done);
-            setGalPct(Math.round((done / files.length) * 100));
-            return asset;
-          }),
-        ),
+      // Upload to Cloudinary AND extract EXIF from original files in parallel
+      const results = await Promise.all(
+        files.map(async (file) => {
+          const [asset, exif] = await Promise.all([
+            uploadFile(file, folder),
+            extractExifFromFile(file),
+          ]);
+          done++;
+          setGalUploaded(done);
+          setGalPct(Math.round((done / files.length) * 100));
+          return { asset, exif };
+        }),
       );
-      setForm(prev => ({ ...prev, gallery: [...prev.gallery, ...assets] }));
+
+      const assets = results.map(r => r.asset);
+      // Build metadata entries for images that have EXIF data
+      const newMeta: MetadataEntry[] = results
+        .filter(r => r.exif.camera || r.exif.lens || r.exif.iso)
+        .map(r => ({ url: r.asset.url, ...r.exif }));
+
+      setForm(prev => ({
+        ...prev,
+        gallery: [...prev.gallery, ...assets],
+        image_metadata: [...prev.image_metadata, ...newMeta],
+      }));
     } catch (err) {
       setFormError(`Gallery upload failed: ${(err as Error).message}`);
     } finally {
       setGalUploading(false);
       if (galInputRef.current) galInputRef.current.value = '';
+    }
+  };
+
+  // ── EXIF metadata extraction ────────────────────────────────────────────────
+
+  const doExtractMetadata = async () => {
+    const f = formRef.current;
+    const imageUrls = f.gallery
+      .map(g => g.url)
+      .filter(url => !url.includes('/video/'));
+
+    if (imageUrls.length === 0) {
+      setFormError('No images in gallery to extract metadata from.');
+      return;
+    }
+
+    setExtracting(true);
+    setFormError(null);
+
+    try {
+      const res = await fetch('/api/admin/extract-metadata', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ imageUrls }),
+      });
+
+      if (!res.ok) throw new Error('Extraction failed.');
+
+      const results: { url: string; metadata: ImageMetadata }[] = await res.json();
+
+      // Filter out entries with no useful data
+      const entries: MetadataEntry[] = results
+        .filter(r => r.metadata.camera || r.metadata.lens || r.metadata.iso)
+        .map(r => ({ url: r.url, ...r.metadata }));
+
+      setForm(prev => ({ ...prev, image_metadata: entries }));
+
+      if (entries.length === 0) {
+        setFormError('No EXIF data found. Images may have been stripped of metadata.');
+      }
+    } catch (err) {
+      setFormError(`Metadata extraction failed: ${(err as Error).message}`);
+    } finally {
+      setExtracting(false);
     }
   };
 
@@ -1014,7 +1126,61 @@ export default function AdminProjectsPage() {
                       onChange={handleGalleryChange}
                     />
                   </label>
+
+                  {/* Extract Metadata button */}
+                  {form.gallery.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={doExtractMetadata}
+                      disabled={extracting || galUploading}
+                      className={`flex items-center gap-2 px-4 py-2 bg-neutral-950 border border-white/10 text-[10px] font-mono uppercase tracking-widest transition-colors w-fit ${
+                        extracting
+                          ? 'text-neutral-500 cursor-not-allowed'
+                          : 'text-amber-400 hover:text-amber-300 hover:border-amber-500/30 cursor-pointer'
+                      }`}
+                    >
+                      {extracting ? (
+                        <><Loader2 className="w-3 h-3 animate-spin" /> Extracting...</>
+                      ) : (
+                        <><Camera className="w-3 h-3" /> Re-extract from URLs</>
+                      )}
+                    </button>
+                  )}
                 </div>
+
+                {/* Metadata Preview */}
+                {form.image_metadata.length > 0 && (
+                  <div className="mt-4 border border-white/5 bg-neutral-950 p-4 space-y-2">
+                    <div className="flex items-center justify-between mb-2">
+                      <p className="text-[9px] font-mono uppercase tracking-widest text-amber-400">
+                        EXIF Data ({form.image_metadata.length} image{form.image_metadata.length !== 1 ? 's' : ''})
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => setForm(f => ({ ...f, image_metadata: [] }))}
+                        className="text-[9px] font-mono text-neutral-600 hover:text-red-400 transition-colors uppercase tracking-widest"
+                      >
+                        Clear
+                      </button>
+                    </div>
+                    {form.image_metadata.slice(0, 5).map((meta, i) => (
+                      <div key={i} className="text-[10px] font-mono text-neutral-400 flex flex-wrap gap-x-4 gap-y-0.5">
+                        {meta.camera && <span className="text-white">{meta.camera}</span>}
+                        {meta.lens && <span>{meta.lens}</span>}
+                        {meta.focalLength && <span>{meta.focalLength}mm</span>}
+                        {meta.aperture && <span>f/{meta.aperture}</span>}
+                        {meta.iso && <span>ISO {meta.iso}</span>}
+                        {meta.shutterSpeed && <span>{meta.shutterSpeed}</span>}
+                        {meta.software && <span className="text-neutral-600">{meta.software}</span>}
+                      </div>
+                    ))}
+                    {form.image_metadata.length > 5 && (
+                      <p className="text-[9px] font-mono text-neutral-700">
+                        +{form.image_metadata.length - 5} more...
+                      </p>
+                    )}
+                  </div>
+                )}
               </Section>
 
               {/* ── Video ── */}

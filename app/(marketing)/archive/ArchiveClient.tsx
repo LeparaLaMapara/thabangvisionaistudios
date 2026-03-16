@@ -109,7 +109,7 @@ export default function ArchiveClient({ items }: { items: ArchiveItem[] }) {
                           <img
                             src={item.thumbnail_url}
                             alt={item.title}
-                            className="w-full h-full object-cover opacity-70 grayscale group-hover:grayscale-0 group-hover:opacity-100 transition-all duration-700"
+                            className="w-full h-full object-cover opacity-70 grayscale-0 md:grayscale group-hover:grayscale-0 group-hover:opacity-100 transition-all duration-700"
                           />
                         ) : (
                           <div className="w-full h-full flex items-center justify-center">

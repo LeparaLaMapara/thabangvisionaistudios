@@ -1,12 +1,14 @@
 'use client';
 
-import { useMemo, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useEffect, useMemo, useState } from 'react';
+import { useRouter, usePathname } from 'next/navigation';
+import Link from 'next/link';
 import { motion } from 'framer-motion';
-import { CalendarDays, Info } from 'lucide-react';
+import { CalendarDays, Info, LogIn } from 'lucide-react';
 import { DateRangePicker, type DateRange } from '@/components/ui/DateRangePicker';
 import { Button } from '@/components/ui/Button';
 import { Textarea } from '@/components/ui/Textarea';
+import { createClient } from '@/lib/supabase/client';
 import type { SmartRental } from '@/lib/supabase/queries/smartRentals';
 
 interface Props {
@@ -15,6 +17,15 @@ interface Props {
 
 export function BookingWidget({ rental }: Props) {
   const router = useRouter();
+  const pathname = usePathname();
+  const [isLoggedIn, setIsLoggedIn] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    const supabase = createClient();
+    supabase.auth.getUser().then(({ data }) => {
+      setIsLoggedIn(!!data.user);
+    });
+  }, []);
   const [dateRange, setDateRange] = useState<DateRange>({
     start: null,
     end: null,
@@ -255,19 +266,34 @@ export function BookingWidget({ rental }: Props) {
         </span>
       </div>
 
-      {/* Book button */}
-      <Button
-        onClick={handleBook}
-        loading={submitting}
-        disabled={!dateRange.start || !dateRange.end || checking || available === false}
-        className="w-full"
-        size="lg"
-      >
-        <CalendarDays className="w-4 h-4" />
-        {pricing
-          ? `Book Now — ${rental.currency} ${(pricing.total + pricing.deposit).toLocaleString()}`
-          : 'Select Dates to Book'}
-      </Button>
+      {/* Book button — requires auth */}
+      {isLoggedIn === false ? (
+        <div className="space-y-3">
+          <Link
+            href={`/login?redirect=${encodeURIComponent(pathname)}`}
+            className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-black text-white dark:bg-white dark:text-black text-[10px] font-mono font-bold uppercase tracking-widest hover:opacity-80 transition-all"
+          >
+            <LogIn className="w-4 h-4" />
+            Sign In to Book
+          </Link>
+          <p className="text-[9px] font-mono text-neutral-500 text-center">
+            Sign in to book this equipment
+          </p>
+        </div>
+      ) : (
+        <Button
+          onClick={handleBook}
+          loading={submitting}
+          disabled={isLoggedIn === null || !dateRange.start || !dateRange.end || checking || available === false}
+          className="w-full"
+          size="lg"
+        >
+          <CalendarDays className="w-4 h-4" />
+          {pricing
+            ? `Book Now — ${rental.currency} ${(pricing.total + pricing.deposit).toLocaleString()}`
+            : 'Select Dates to Book'}
+        </Button>
+      )}
     </motion.div>
   );
 }

@@ -1,9 +1,9 @@
 'use client';
 
-import { useRef, useState, useEffect, useCallback, memo } from 'react';
+import { useRef, useState, useCallback, memo } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { ChevronLeft, ChevronRight, Clapperboard, Package, Newspaper } from 'lucide-react';
+import { ChevronRight, Clapperboard, Package, Newspaper } from 'lucide-react';
 import { STUDIO } from '@/lib/constants';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -63,158 +63,65 @@ const PLACEHOLDER_ITEMS: CarouselItem[] = [
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
-const GAP = 32;
-const SPEED = 0.5;            // pixels per frame (~30px/sec at 60fps)
-const ARROW_PAUSE_MS = 4000;
+const GAP_PX = 24;
+const RESUME_DELAY_MS = 3000;
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export function LatestWorkCarousel({ items }: { items: CarouselItem[] }) {
   const displayItems = items.length > 0 ? items : PLACEHOLDER_ITEMS;
   const isPlaceholder = items.length === 0;
-  const totalCards = displayItems.length;
-
-  // 2x duplication for seamless loop
-  const loopedItems = [...displayItems, ...displayItems];
 
   const trackRef = useRef<HTMLDivElement>(null);
-  const [activeIndex, setActiveIndex] = useState(0);
+  const [touchPaused, setTouchPaused] = useState(false);
+  const resumeTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
 
-  // Animation state — all in refs to avoid re-renders
-  const offsetRef = useRef(0);
-  const rafRef = useRef(0);
-  const pausedRef = useRef(false);
-  const strideRef = useRef(632);
-  const setWidthRef = useRef(0);
-  const arrowTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+  // Duration scales with card count so speed stays constant
+  // ~4s per card gives a smooth, readable pace
+  const duration = displayItems.length * 4;
 
-  // ── Measure ─────────────────────────────────────────────────────────────────
-
-  const measure = useCallback(() => {
-    if (!trackRef.current?.children[0]) return;
-    const cardW = (trackRef.current.children[0] as HTMLElement).offsetWidth;
-    strideRef.current = cardW + GAP;
-    setWidthRef.current = totalCards * strideRef.current;
-  }, [totalCards]);
-
-  // ── RAF loop — GPU-composited via translate3d ───────────────────────────────
-
-  const tick = useCallback(() => {
-    if (!pausedRef.current && !isPlaceholder) {
-      offsetRef.current += SPEED;
-      const sw = setWidthRef.current;
-      if (sw > 0 && offsetRef.current >= sw) {
-        offsetRef.current -= sw;
-      }
-
-      if (trackRef.current) {
-        trackRef.current.style.transform = `translate3d(${-offsetRef.current}px, 0, 0)`;
-      }
-
-      // Update dot indicator (throttled — only when index changes)
-      const stride = strideRef.current;
-      if (stride > 0 && sw > 0) {
-        const idx = Math.floor((offsetRef.current % sw) / stride) % totalCards;
-        // Direct DOM compare avoids setState churn
-        setActiveIndex(prev => prev === idx ? prev : idx);
-      }
-    }
-
-    rafRef.current = requestAnimationFrame(tick);
-  }, [isPlaceholder, totalCards]);
-
-  // ── Mount / unmount ─────────────────────────────────────────────────────────
-
-  useEffect(() => {
-    measure();
-    rafRef.current = requestAnimationFrame(tick);
-    window.addEventListener('resize', measure);
-    return () => {
-      cancelAnimationFrame(rafRef.current);
-      window.removeEventListener('resize', measure);
-      if (arrowTimerRef.current) clearTimeout(arrowTimerRef.current);
-    };
-  }, [measure, tick]);
-
-  // ── Pause / resume ──────────────────────────────────────────────────────────
-
-  const pause = useCallback(() => { pausedRef.current = true; }, []);
-  const resume = useCallback(() => { pausedRef.current = false; }, []);
-
-  // ── Arrow navigation — instant jump with smooth snap ────────────────────────
-
-  const scrollTo = useCallback((direction: 'left' | 'right') => {
-    pause();
-    const stride = strideRef.current;
-    const sw = setWidthRef.current;
-
-    if (direction === 'right') {
-      offsetRef.current += stride;
-    } else {
-      offsetRef.current -= stride;
-    }
-
-    // Keep in bounds
-    if (sw > 0) {
-      if (offsetRef.current < 0) offsetRef.current += sw;
-      if (offsetRef.current >= sw) offsetRef.current -= sw;
-    }
-
-    if (trackRef.current) {
-      trackRef.current.style.transform = `translate3d(${-offsetRef.current}px, 0, 0)`;
-    }
-
-    if (arrowTimerRef.current) clearTimeout(arrowTimerRef.current);
-    arrowTimerRef.current = setTimeout(resume, ARROW_PAUSE_MS);
-  }, [pause, resume]);
-
-  // ── Dot navigation ──────────────────────────────────────────────────────────
-
-  const scrollToIndex = useCallback((idx: number) => {
-    pause();
-    offsetRef.current = idx * strideRef.current;
-
-    if (trackRef.current) {
-      trackRef.current.style.transform = `translate3d(${-offsetRef.current}px, 0, 0)`;
-    }
-
-    if (arrowTimerRef.current) clearTimeout(arrowTimerRef.current);
-    arrowTimerRef.current = setTimeout(resume, ARROW_PAUSE_MS);
-  }, [pause, resume]);
-
-  // ── Touch / swipe ───────────────────────────────────────────────────────────
+  // ── Touch / swipe handlers ────────────────────────────────────────────────
 
   const touchStartX = useRef(0);
-  const touchStartOffset = useRef(0);
+  const touchStartScroll = useRef(0);
 
   const onTouchStart = useCallback((e: React.TouchEvent) => {
-    pause();
+    if (resumeTimer.current) clearTimeout(resumeTimer.current);
+    setTouchPaused(true);
     touchStartX.current = e.touches[0].clientX;
-    touchStartOffset.current = offsetRef.current;
-  }, [pause]);
-
-  const onTouchMove = useCallback((e: React.TouchEvent) => {
-    const dx = touchStartX.current - e.touches[0].clientX;
-    offsetRef.current = touchStartOffset.current + dx;
-
-    const sw = setWidthRef.current;
-    if (sw > 0) {
-      if (offsetRef.current < 0) offsetRef.current += sw;
-      if (offsetRef.current >= sw) offsetRef.current -= sw;
-    }
-
+    // Record current computed translateX so we can drag from there
     if (trackRef.current) {
-      trackRef.current.style.transform = `translate3d(${-offsetRef.current}px, 0, 0)`;
+      const style = getComputedStyle(trackRef.current);
+      const matrix = new DOMMatrixReadOnly(style.transform);
+      touchStartScroll.current = matrix.m41; // current translateX value
     }
   }, []);
 
+  const onTouchMove = useCallback((e: React.TouchEvent) => {
+    if (!trackRef.current) return;
+    const dx = e.touches[0].clientX - touchStartX.current;
+    trackRef.current.style.transform = `translateX(${touchStartScroll.current + dx}px)`;
+  }, []);
+
   const onTouchEnd = useCallback(() => {
-    if (arrowTimerRef.current) clearTimeout(arrowTimerRef.current);
-    arrowTimerRef.current = setTimeout(resume, ARROW_PAUSE_MS);
-  }, [resume]);
+    if (!trackRef.current) return;
+    // Remove inline transform so CSS animation resumes from current position
+    trackRef.current.style.transform = '';
+    resumeTimer.current = setTimeout(() => {
+      setTouchPaused(false);
+    }, RESUME_DELAY_MS);
+  }, []);
 
   return (
     <section className="py-32 bg-neutral-50 dark:bg-[#050505] transition-colors duration-500">
+      {/* Inject keyframes */}
+      <style>{`
+        @keyframes marquee-scroll {
+          0% { transform: translateX(0); }
+          100% { transform: translateX(-50%); }
+        }
+      `}</style>
+
       {/* Header */}
       <div className="container mx-auto px-6 mb-16 flex justify-between items-end">
         <div>
@@ -232,63 +139,34 @@ export function LatestWorkCarousel({ items }: { items: CarouselItem[] }) {
           >
             View All Work <ChevronRight className="w-4 h-4" />
           </Link>
-          <div className="flex gap-2">
-            <button
-              onClick={() => scrollTo('left')}
-              className="w-10 h-10 border border-black/10 dark:border-white/10 flex items-center justify-center hover:bg-black hover:text-white dark:hover:bg-white dark:hover:text-black transition-all"
-              aria-label="Scroll left"
-            >
-              <ChevronLeft className="w-4 h-4" />
-            </button>
-            <button
-              onClick={() => scrollTo('right')}
-              className="w-10 h-10 border border-black/10 dark:border-white/10 flex items-center justify-center hover:bg-black hover:text-white dark:hover:bg-white dark:hover:text-black transition-all"
-              aria-label="Scroll right"
-            >
-              <ChevronRight className="w-4 h-4" />
-            </button>
-          </div>
         </div>
       </div>
 
-      {/* Carousel */}
-      <div
-        className="relative overflow-hidden"
-        onMouseEnter={pause}
-        onMouseLeave={resume}
-      >
+      {/* Marquee */}
+      <div className="relative overflow-hidden">
         <div
           ref={trackRef}
           onTouchStart={onTouchStart}
           onTouchMove={onTouchMove}
           onTouchEnd={onTouchEnd}
-          className="flex gap-8 pl-6"
-          style={{ willChange: 'transform' }}
+          className="flex w-max hover:[animation-play-state:paused]"
+          style={{
+            gap: `${GAP_PX}px`,
+            animation: isPlaceholder || touchPaused
+              ? 'none'
+              : `marquee-scroll ${duration}s linear infinite`,
+            willChange: 'transform',
+          }}
         >
-          {loopedItems.map((item, index) => (
-            <CarouselCard
-              key={`${item.id}-${index < totalCards ? 'a' : 'b'}`}
-              item={item}
-              isPlaceholder={isPlaceholder}
-            />
+          {/* First set */}
+          {displayItems.map((item) => (
+            <CarouselCard key={item.id} item={item} isPlaceholder={isPlaceholder} />
+          ))}
+          {/* Duplicate set for seamless loop */}
+          {displayItems.map((item) => (
+            <CarouselCard key={`dup-${item.id}`} item={item} isPlaceholder={isPlaceholder} />
           ))}
         </div>
-      </div>
-
-      {/* Dot indicators */}
-      <div className="flex justify-center gap-2 mt-8 px-6">
-        {displayItems.map((item, idx) => (
-          <button
-            key={item.id}
-            onClick={() => scrollToIndex(idx)}
-            aria-label={`Go to slide ${idx + 1}`}
-            className={`h-1.5 rounded-full transition-all duration-300 ${
-              idx === activeIndex
-                ? 'w-8 bg-black dark:bg-white'
-                : 'w-1.5 bg-black/20 dark:bg-white/20 hover:bg-black/40 dark:hover:bg-white/40'
-            }`}
-          />
-        ))}
       </div>
 
       {/* Mobile link */}
@@ -343,9 +221,9 @@ const CarouselCard = memo(function CarouselCard({
     <div
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
-      className="group cursor-pointer flex-shrink-0 w-[85vw] max-w-[85vw] md:w-[600px] md:max-w-[600px]"
+      className="group cursor-pointer flex-shrink-0 w-[300px] md:w-[400px]"
     >
-      <div className="relative overflow-hidden mb-6 bg-neutral-200 dark:bg-neutral-900 border border-black/5 dark:border-white/10 w-full h-[55vw] md:h-[340px]">
+      <div className="relative overflow-hidden mb-6 bg-neutral-200 dark:bg-neutral-900 border border-black/5 dark:border-white/10 w-full h-[200px] md:h-[260px]">
         <div className="absolute top-4 left-4 z-30 flex gap-2">
           <span className="flex items-center gap-1.5 text-[9px] font-mono bg-white/90 dark:bg-black/80 text-black dark:text-white border border-black/10 dark:border-white/20 px-2 py-1 uppercase tracking-wider backdrop-blur-md">
             <Icon className="w-2.5 h-2.5" />
@@ -367,7 +245,7 @@ const CarouselCard = memo(function CarouselCard({
               src={item.thumbnail_url}
               alt={item.title}
               fill
-              sizes="(max-width: 768px) 85vw, 600px"
+              sizes="(max-width: 768px) 300px, 400px"
               className={`object-cover transition-all duration-700 ${
                 isHovered && isDirectVideo
                   ? 'opacity-0'

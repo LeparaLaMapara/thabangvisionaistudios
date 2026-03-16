@@ -60,7 +60,7 @@ export default async function PressPage() {
                           <img
                             src={featured.cover_url}
                             alt={featured.title}
-                            className="w-full h-full object-cover grayscale group-hover:grayscale-0 scale-100 group-hover:scale-105 transition-all duration-700"
+                            className="w-full h-full object-cover grayscale-0 md:grayscale md:group-hover:grayscale-0 scale-100 group-hover:scale-105 transition-all duration-700"
                           />
                         </div>
                       )}
@@ -113,7 +113,7 @@ export default async function PressPage() {
                               <img
                                 src={article.cover_url}
                                 alt={article.title}
-                                className="w-full h-full object-cover grayscale group-hover:grayscale-0 scale-100 group-hover:scale-105 transition-all duration-700"
+                                className="w-full h-full object-cover grayscale-0 md:grayscale md:group-hover:grayscale-0 scale-100 group-hover:scale-105 transition-all duration-700"
                               />
                             </div>
                           )}

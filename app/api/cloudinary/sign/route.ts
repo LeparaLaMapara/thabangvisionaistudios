@@ -47,6 +47,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({
       signature: signed.signature,
+      timestamp: signed.timestamp,
       cloudName: signed.fields.cloud_name,
       apiKey: signed.fields.api_key,
     });

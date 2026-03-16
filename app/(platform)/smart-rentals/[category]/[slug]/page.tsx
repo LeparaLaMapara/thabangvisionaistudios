@@ -1,6 +1,7 @@
 import { notFound } from 'next/navigation';
 import { getRentalBySlug, getRelatedRentals } from '@/lib/supabase/queries/smartRentals';
 import RentalDetailView from './RentalDetailView';
+import { AskUbunyeButton } from '@/components/ubunye/AskUbunyeButton';
 
 export const revalidate = 60;
 
@@ -17,10 +18,16 @@ export default async function RentalDetailPage({
   const relatedRentals = await getRelatedRentals(rental.category, rental.id, 4);
 
   return (
-    <RentalDetailView
-      rental={rental}
-      category={category}
-      relatedRentals={relatedRentals}
-    />
+    <>
+      <RentalDetailView
+        rental={rental}
+        category={category}
+        relatedRentals={relatedRentals}
+      />
+      <AskUbunyeButton
+        prompt={`Tell me more about the ${rental.title} and what it's best for`}
+        label="Questions about this gear?"
+      />
+    </>
   );
 }

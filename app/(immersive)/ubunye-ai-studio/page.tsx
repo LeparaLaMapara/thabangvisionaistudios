@@ -1,30 +1,20 @@
 'use client';
 
-import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import { useChat } from '@ai-sdk/react';
+import { DefaultChatTransport } from 'ai';
+import { useSearchParams, useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowUp, LogIn, UserPlus, ArrowUpRight } from 'lucide-react';
 import ReactMarkdown, { type Components } from 'react-markdown';
 import { createClient } from '@/lib/supabase/client';
 import { STUDIO } from '@/lib/constants';
-import { EnergySphere } from '@/components/ubunye/EnergySphere';
+import { GoldenSphere } from '@/components/ubunye/GoldenSphere';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
-
-// ─── Types ──────────────────────────────────────────────────────────────────────
-
-type Message = {
-  id: string;
-  role: 'user' | 'assistant';
-  content: string;
-  timestamp: Date;
-  isLimitMessage?: boolean;
-};
-
-type EnergyLevel = 'idle' | 'pulse' | 'calm';
 
 // ─── Constants ──────────────────────────────────────────────────────────────────
 
-const GUEST_LIMIT = 5;
+const GUEST_LIMIT = 2;
 const SESSION_STORAGE_KEY = 'ubunye_msg_count';
 const HEADER_HEIGHT = '5rem';
 
@@ -44,16 +34,21 @@ function getGreeting(): string {
   return 'Good evening';
 }
 
-function generateId(): string {
-  return Math.random().toString(36).substring(2, 11);
-}
+// ─── Stagger animation variants ─────────────────────────────────────────────────
+
+const fadeUp = {
+  hidden: { opacity: 0, y: 20 },
+  visible: (i: number) => ({
+    opacity: 1,
+    y: 0,
+    transition: { delay: 0.15 + i * 0.15, duration: 0.6, ease: [0.25, 0.46, 0.45, 0.94] as const },
+  }),
+};
 
 // ─── Component ──────────────────────────────────────────────────────────────────
 
 export default function UbunyeAIStudioPage() {
-  const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
-  const [isTyping, setIsTyping] = useState(false);
   const [userName, setUserName] = useState<string | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [, setUserPlan] = useState<string>('free');
@@ -61,23 +56,83 @@ export default function UbunyeAIStudioPage() {
   const [dailyUsed, setDailyUsed] = useState<number>(0);
   const [guestMessageCount, setGuestMessageCount] = useState(0);
   const [limitReached, setLimitReached] = useState(false);
-  const [energyLevel, setEnergyLevel] = useState<EnergyLevel>('idle');
+  const [limitMessage, setLimitMessage] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-  const router = useRouter();
+  const guestCountRef = useRef(0);
+  const isAuthenticatedRef = useRef(false);
+
+  // Keep refs in sync
+  useEffect(() => { guestCountRef.current = guestMessageCount; }, [guestMessageCount]);
+  useEffect(() => { isAuthenticatedRef.current = isAuthenticated; }, [isAuthenticated]);
+
+  // ─── Transport with dynamic body ──
+  const transportRef = useRef(
+    new DefaultChatTransport({
+      api: '/api/ubunye-chat',
+      body: () => ({
+        ...(!isAuthenticatedRef.current && { sessionMessageCount: guestCountRef.current }),
+        ...(!isAuthenticatedRef.current && guestCountRef.current === 0 && { isFirstGuestMessage: true }),
+      }),
+    })
+  );
+
+  // ─── Vercel AI SDK useChat (v4 API) ──
+  const {
+    messages,
+    sendMessage,
+    status,
+    error,
+  } = useChat({
+    transport: transportRef.current,
+    onFinish: () => {
+      if (isAuthenticatedRef.current) setDailyUsed(prev => prev + 1);
+    },
+    onError: (err) => {
+      const msg = err?.message;
+      if (msg?.includes('limit_reached')) {
+        try {
+          const data = JSON.parse(msg);
+          const limitMsg = data.plan === 'guest'
+            ? "You've used your 2 free messages. Sign in to continue chatting with Ubunye."
+            : `You've reached your daily limit of ${data.limit} messages on the ${data.plan} plan. Upgrade for more messages.`;
+          setLimitMessage(limitMsg);
+          setLimitReached(true);
+        } catch {
+          // Non-parseable error, ignore
+        }
+      }
+    },
+  });
+
+  const isLoading = status === 'submitted' || status === 'streaming';
+
+  // Track guest message sends
+  const trackGuestMessage = useCallback(() => {
+    if (!isAuthenticated) {
+      const newCount = guestMessageCount + 1;
+      setGuestMessageCount(newCount);
+      try { sessionStorage.setItem(SESSION_STORAGE_KEY, String(newCount)); } catch { /* SSR */ }
+
+      if (newCount >= GUEST_LIMIT) {
+        setLimitMessage("You've used your 2 free messages. Sign in to continue chatting with Ubunye.");
+        setLimitReached(true);
+      }
+    }
+  }, [isAuthenticated, guestMessageCount]);
 
   // ─── Markdown components (stable ref) ──
   const mdComponents: Components = useMemo(() => ({
     a: ({ href, children }) => {
       if (href?.startsWith('/')) {
         return (
-          <Link href={href} className="text-[#D4A843] hover:underline transition-colors">
+          <Link href={href} className="text-[#D4A843] underline decoration-[#D4A843]/30 underline-offset-2 hover:decoration-[#D4A843] transition-colors">
             {children}
           </Link>
         );
       }
       return (
-        <a href={href} className="text-[#D4A843] hover:underline transition-colors" target="_blank" rel="noopener noreferrer">
+        <a href={href} className="text-[#D4A843] underline decoration-[#D4A843]/30 underline-offset-2 hover:decoration-[#D4A843] transition-colors" target="_blank" rel="noopener noreferrer">
           {children}
         </a>
       );
@@ -87,7 +142,7 @@ export default function UbunyeAIStudioPage() {
     p: ({ children }) => <p className="mb-3 last:mb-0 leading-relaxed">{children}</p>,
     ul: ({ children }) => <ul className="ml-4 mb-3 space-y-1 list-disc">{children}</ul>,
     ol: ({ children }) => <ol className="ml-4 mb-3 space-y-1 list-decimal">{children}</ol>,
-    li: ({ children }) => <li className="text-neutral-300 leading-relaxed">{children}</li>,
+    li: ({ children }) => <li className="text-neutral-400 leading-relaxed">{children}</li>,
     h1: ({ children }) => <h1 className="text-white font-semibold text-lg mt-5 mb-2">{children}</h1>,
     h2: ({ children }) => <h2 className="text-white font-semibold text-base mt-5 mb-2">{children}</h2>,
     h3: ({ children }) => <h3 className="text-white font-semibold mt-4 mb-2">{children}</h3>,
@@ -95,20 +150,20 @@ export default function UbunyeAIStudioPage() {
     code: ({ children, className }) => {
       if (className?.includes('language-')) {
         return (
-          <code className="block bg-neutral-900 rounded-lg px-4 py-3 my-3 text-[13px] font-mono text-neutral-300 overflow-x-auto">
+          <code className="block bg-neutral-900/80 rounded-lg px-4 py-3 my-3 text-[13px] font-mono text-neutral-300 overflow-x-auto border border-white/5">
             {children}
           </code>
         );
       }
       return (
-        <code className="bg-neutral-800 px-1.5 py-0.5 rounded text-[13px] font-mono text-[#D4A843]">
+        <code className="bg-neutral-800/80 px-1.5 py-0.5 rounded text-[13px] font-mono text-[#D4A843]">
           {children}
         </code>
       );
     },
     pre: ({ children }) => <pre className="my-3">{children}</pre>,
     blockquote: ({ children }) => (
-      <blockquote className="border-l-2 border-[#D4A843]/30 pl-4 my-3 text-neutral-400">
+      <blockquote className="border-l-2 border-[#D4A843]/30 pl-4 my-3 text-neutral-500">
         {children}
       </blockquote>
     ),
@@ -156,314 +211,263 @@ export default function UbunyeAIStudioPage() {
   // Auto-scroll
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, isTyping]);
+  }, [messages, isLoading]);
 
-  // ─── Message handling ──
-  const addLimitMessage = useCallback((content: string) => {
-    setMessages(prev => [...prev, {
-      id: generateId(),
-      role: 'assistant',
-      content,
-      timestamp: new Date(),
-      isLimitMessage: true,
-    }]);
-    setLimitReached(true);
-  }, []);
-
-  const sendMessage = useCallback(async (text: string) => {
-    if (!text.trim() || limitReached) return;
-
+  // ─── Send message helper ──
+  const doSend = useCallback((text: string) => {
+    if (!text.trim() || limitReached || isLoading) return;
     if (!isAuthenticated && guestMessageCount >= GUEST_LIMIT) {
-      addLimitMessage("You've used your 5 free messages. Sign in to continue chatting with Ubunye.");
+      setLimitMessage("You've used your 2 free messages. Sign in to continue chatting with Ubunye.");
+      setLimitReached(true);
       return;
     }
+    trackGuestMessage();
+    sendMessage({ text });
+  }, [limitReached, isLoading, isAuthenticated, guestMessageCount, trackGuestMessage, sendMessage]);
 
-    const userMsg: Message = { id: generateId(), role: 'user', content: text.trim(), timestamp: new Date() };
-    setMessages(prev => [...prev, userMsg]);
-    setInput('');
-    setIsTyping(true);
-    setEnergyLevel('pulse');
-
-    let newGuestCount = guestMessageCount;
-    if (!isAuthenticated) {
-      newGuestCount = guestMessageCount + 1;
-      setGuestMessageCount(newGuestCount);
-      try { sessionStorage.setItem(SESSION_STORAGE_KEY, String(newGuestCount)); } catch { /* SSR */ }
-    }
-
-    const isFirstGuestMessage = !isAuthenticated && newGuestCount === 1;
-
-    try {
-      const chatMessages = [...messages, userMsg]
-        .filter(m => !m.isLimitMessage)
-        .map(m => ({ role: m.role as 'user' | 'assistant', content: m.content }));
-
-      const res = await fetch('/api/ubunye-chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          prompt: text.trim(),
-          messages: chatMessages,
-          ...(!isAuthenticated && { sessionMessageCount: newGuestCount - 1 }),
-          ...(isFirstGuestMessage && { isFirstGuestMessage: true }),
-        }),
-      });
-
-      if (res.status === 429) {
-        const data = await res.json();
-        if (data.error === 'limit_reached') {
-          addLimitMessage(
-            data.plan === 'guest'
-              ? "You've used your 5 free messages. Sign in to continue chatting with Ubunye."
-              : `You've reached your daily limit of ${data.limit} messages on the ${data.plan} plan. Upgrade for more messages.`
-          );
-          setIsTyping(false);
-          setEnergyLevel('idle');
-          return;
-        }
-        throw new Error('Rate limited');
-      }
-
-      if (!res.ok) throw new Error('Failed to get response');
-
-      // Create assistant message placeholder for streaming
-      const assistantId = generateId();
-      setMessages(prev => [...prev, {
-        id: assistantId,
-        role: 'assistant',
-        content: '',
-        timestamp: new Date(),
-      }]);
-
-      // Read SSE stream
-      const reader = res.body?.getReader();
-      const decoder = new TextDecoder();
-
-      if (!reader) throw new Error('No response body');
-
-      let accumulated = '';
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        const chunk = decoder.decode(value, { stream: true });
-        const lines = chunk.split('\n');
-
-        for (const line of lines) {
-          if (line.startsWith('data: ')) {
-            const data = line.slice(6);
-            if (data === '[DONE]') break;
-            try {
-              const parsed = JSON.parse(data);
-              if (typeof parsed === 'string') {
-                accumulated += parsed;
-                setMessages(prev => prev.map(m =>
-                  m.id === assistantId ? { ...m, content: accumulated } : m
-                ));
-              } else if (parsed?.error) {
-                // Server-side stream error
-                throw new Error(parsed.error);
-              }
-            } catch (e) {
-              // Ignore JSON parse errors for partial chunks, but rethrow actual errors
-              if (e instanceof Error && e.message === 'Stream error') throw e;
-            }
-          }
-        }
-      }
-
-      if (isAuthenticated) setDailyUsed(prev => prev + 1);
-
-      // If no content was accumulated (empty stream), show fallback
-      if (!accumulated) {
-        setMessages(prev => prev.map(m =>
-          m.id === assistantId ? { ...m, content: "I couldn't process that request. Please try again." } : m
-        ));
-      }
-    } catch {
-      setMessages(prev => [...prev, {
-        id: generateId(),
-        role: 'assistant',
-        content: "I'm experiencing connectivity issues. Please check that the AI service is configured and try again.",
-        timestamp: new Date(),
-      }]);
-    } finally {
-      setIsTyping(false);
-      setEnergyLevel('calm');
-      setTimeout(() => setEnergyLevel('idle'), 2000);
-    }
-  }, [messages, isAuthenticated, guestMessageCount, limitReached, addLimitMessage]);
-
-  const handleSubmit = (e: React.FormEvent) => {
+  // ─── Form submit ──
+  const handleSubmit = useCallback((e: React.FormEvent) => {
     e.preventDefault();
-    sendMessage(input);
-  };
+    doSend(input);
+    setInput('');
+  }, [input, doSend]);
+
+  // ─── Quick action ──
+  const sendQuickAction = useCallback((text: string) => {
+    doSend(text);
+  }, [doSend]);
+
+  // ─── Auto-send from ?prompt query param ──
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const promptSentRef = useRef(false);
+
+  useEffect(() => {
+    const promptParam = searchParams.get('prompt');
+    if (promptParam && !promptSentRef.current && !isLoading && messages.length === 0) {
+      promptSentRef.current = true;
+      doSend(promptParam);
+      router.replace('/ubunye-ai-studio', { scroll: false });
+    }
+  }, [searchParams, doSend, isLoading, messages.length, router]);
 
   const greeting = getGreeting();
   const displayName = userName || 'Creator';
-  const userInitial = (userName?.[0] || 'Y').toUpperCase();
   const hasMessages = messages.length > 0;
+
+  // Remaining messages count
+  const remaining = !isAuthenticated
+    ? GUEST_LIMIT - guestMessageCount
+    : dailyLimit === -1 ? -1 : Math.max(0, dailyLimit - dailyUsed);
+
+  // Extract text content from UIMessage parts
+  const getMessageText = (msg: typeof messages[0]): string => {
+    return msg.parts
+      .filter((p): p is { type: 'text'; text: string } => p.type === 'text')
+      .map(p => p.text)
+      .join('');
+  };
 
   return (
     <div className="bg-[#050505] text-white" style={{ paddingTop: HEADER_HEIGHT, height: '100vh' }}>
-      <div className="flex flex-col h-full max-w-3xl mx-auto px-4 md:px-6">
+      <div className="flex flex-col h-full w-full max-w-[680px] mx-auto px-4 md:px-6">
 
-        {/* ── Empty state: sphere + greeting + chips ── */}
+        {/* ── Landing state: sphere + greeting + headline + chips ── */}
         <AnimatePresence mode="wait">
           {!hasMessages && (
             <motion.div
-              key="empty"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0, transition: { duration: 0.2 } }}
-              className="flex-1 flex flex-col items-center justify-center"
+              key="landing"
+              initial={{ opacity: 1 }}
+              exit={{ opacity: 0, scale: 0.98, transition: { duration: 0.25 } }}
+              className="flex-1 flex flex-col items-center justify-center gap-0"
             >
-              {/* Sphere — hidden on mobile */}
-              <div className="hidden md:block w-[160px] h-[160px] mb-8 opacity-60">
-                <EnergySphere energyLevel={energyLevel} className="w-full h-full" />
-              </div>
+              {/* Golden sphere — smaller on mobile */}
+              <motion.div
+                custom={0}
+                initial="hidden"
+                animate="visible"
+                variants={fadeUp}
+                className="w-[100px] h-[100px] md:w-[160px] md:h-[160px] mb-6 md:mb-8"
+              >
+                <GoldenSphere className="w-full h-full" />
+              </motion.div>
 
-              {/* Greeting */}
-              <p className="text-xs text-neutral-500 tracking-wide mb-3">
+              {/* Greeting line */}
+              <motion.p
+                custom={1}
+                initial="hidden"
+                animate="visible"
+                variants={fadeUp}
+                className="text-xs md:text-sm text-neutral-500 tracking-wide mb-2"
+              >
                 {greeting}, {displayName}
-              </p>
-              <h1 className="text-xl md:text-2xl font-medium text-neutral-200 mb-8">
-                What can I do <span className="text-[#D4A843]">for you?</span>
-              </h1>
+              </motion.p>
 
-              {/* Quick actions */}
-              <div className="flex flex-wrap justify-center gap-2 max-w-lg">
+              {/* Headline */}
+              <motion.h1
+                custom={2}
+                initial="hidden"
+                animate="visible"
+                variants={fadeUp}
+                className="text-xl md:text-3xl font-medium text-neutral-200 mb-8 md:mb-10 text-center"
+              >
+                What can I help you <span className="text-[#D4A843]">create?</span>
+              </motion.h1>
+
+              {/* Quick-action chips */}
+              <motion.div
+                custom={3}
+                initial="hidden"
+                animate="visible"
+                variants={fadeUp}
+                className="flex flex-wrap justify-center gap-2 md:gap-3 max-w-md md:max-w-lg"
+              >
                 {QUICK_ACTIONS.map((action) => (
                   <button
                     key={action.label}
-                    onClick={() => sendMessage(action.prompt)}
-                    className="px-4 py-2 text-sm text-neutral-400 rounded-full border border-neutral-800 hover:border-[#D4A843]/50 hover:text-[#D4A843] transition-colors"
+                    onClick={() => sendQuickAction(action.prompt)}
+                    className="px-3 py-1.5 md:px-4 md:py-2 text-xs md:text-sm text-neutral-500 rounded-full border border-neutral-800 hover:border-[#D4A843]/50 hover:text-[#D4A843] transition-all duration-200 hover:bg-[#D4A843]/5"
                   >
                     {action.label}
                   </button>
                 ))}
-              </div>
+              </motion.div>
             </motion.div>
           )}
         </AnimatePresence>
 
-        {/* ── Messages ── */}
+        {/* ── Messages area ── */}
         {hasMessages && (
-          <div className="flex-1 overflow-y-auto py-6 space-y-6 scrollbar-thin">
-            {messages.map((msg) => (
-              <motion.div
-                key={msg.id}
-                initial={{ opacity: 0, y: 8 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.25 }}
-                className="flex gap-3"
-              >
-                {/* Avatar */}
-                <div className="flex-shrink-0 mt-1">
-                  {msg.role === 'assistant' ? (
-                    <div className="w-7 h-7 rounded-full bg-[#D4A843]/15 flex items-center justify-center">
-                      <span className="text-[11px] font-bold text-[#D4A843]">U</span>
-                    </div>
-                  ) : (
-                    <div className="w-7 h-7 rounded-full bg-neutral-800 flex items-center justify-center">
-                      <span className="text-[11px] font-medium text-neutral-400">{userInitial}</span>
-                    </div>
-                  )}
-                </div>
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.3 }}
+            className="flex-1 overflow-y-auto py-6 space-y-6 scrollbar-thin scrollbar-thumb-neutral-800 scrollbar-track-transparent"
+          >
+            {messages.map((msg) => {
+              const text = getMessageText(msg);
+              const isAssistant = msg.role === 'assistant';
 
-                {/* Content */}
-                <div className="flex-1 min-w-0">
-                  {/* Name */}
-                  <div className="text-[11px] font-medium mb-1.5">
-                    {msg.role === 'assistant' ? (
-                      <span className="text-[#D4A843]">Ubunye</span>
-                    ) : (
-                      <span className="text-neutral-500">{displayName}</span>
-                    )}
-                  </div>
+              return (
+                <motion.div
+                  key={msg.id}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.3, ease: 'easeOut' }}
+                  className="space-y-1"
+                >
+                  {/* Label */}
+                  <span className={`text-[11px] font-medium tracking-wide ${
+                    isAssistant ? 'text-[#D4A843]' : 'text-neutral-600'
+                  }`}>
+                    {isAssistant ? 'Ubunye' : 'You'}
+                  </span>
 
-                  {/* Message body */}
+                  {/* Body */}
                   {msg.role === 'user' ? (
-                    <div className="text-[15px] text-white leading-relaxed whitespace-pre-wrap">
-                      {msg.content}
-                    </div>
-                  ) : msg.isLimitMessage ? (
-                    <div>
-                      <div className="text-[15px] text-[#D4A843] leading-relaxed border-l-2 border-[#D4A843]/30 pl-4">
-                        {msg.content}
-                      </div>
-                      {/* Limit CTAs */}
-                      {!isAuthenticated ? (
-                        <div className="flex gap-2 mt-4">
-                          <Link
-                            href="/login"
-                            className="flex items-center gap-1.5 px-4 py-2 bg-[#D4A843] text-black text-xs font-semibold rounded-full hover:bg-[#E8C96A] transition-colors"
-                          >
-                            <LogIn className="w-3.5 h-3.5" />
-                            Sign In
-                          </Link>
-                          <Link
-                            href="/register"
-                            className="flex items-center gap-1.5 px-4 py-2 border border-neutral-700 text-neutral-300 text-xs font-semibold rounded-full hover:border-[#D4A843]/50 hover:text-[#D4A843] transition-colors"
-                          >
-                            <UserPlus className="w-3.5 h-3.5" />
-                            Create Account
-                          </Link>
-                        </div>
-                      ) : (
-                        <div className="flex gap-2 mt-4">
-                          <Link
-                            href="/pricing"
-                            className="flex items-center gap-1.5 px-4 py-2 bg-[#D4A843] text-black text-xs font-semibold rounded-full hover:bg-[#E8C96A] transition-colors"
-                          >
-                            <ArrowUpRight className="w-3.5 h-3.5" />
-                            Upgrade Plan
-                          </Link>
-                        </div>
-                      )}
+                    <div className="text-[15px] text-neutral-200 leading-relaxed whitespace-pre-wrap">
+                      {text}
                     </div>
                   ) : (
-                    <div className="text-[15px] text-neutral-300 leading-relaxed">
+                    <div className="text-[15px] text-neutral-400 leading-relaxed">
                       <ReactMarkdown components={mdComponents}>
-                        {msg.content}
+                        {text}
                       </ReactMarkdown>
                     </div>
                   )}
-                </div>
-              </motion.div>
-            ))}
+                </motion.div>
+              );
+            })}
 
-            {/* Typing indicator */}
-            {isTyping && (
+            {/* Limit message */}
+            {limitMessage && (
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="space-y-1"
+              >
+                <span className="text-[11px] font-medium tracking-wide text-[#D4A843]">
+                  Ubunye
+                </span>
+                <div className="text-[15px] text-[#D4A843]/80 leading-relaxed border-l-2 border-[#D4A843]/20 pl-4">
+                  {limitMessage}
+                </div>
+                {!isAuthenticated ? (
+                  <div className="flex gap-2 mt-3 pl-4">
+                    <Link
+                      href="/login"
+                      className="flex items-center gap-1.5 px-4 py-2 bg-[#D4A843] text-black text-xs font-semibold rounded-full hover:bg-[#E8C96A] transition-colors"
+                    >
+                      <LogIn className="w-3.5 h-3.5" />
+                      Sign In
+                    </Link>
+                    <Link
+                      href="/register"
+                      className="flex items-center gap-1.5 px-4 py-2 border border-neutral-700 text-neutral-400 text-xs font-semibold rounded-full hover:border-[#D4A843]/50 hover:text-[#D4A843] transition-colors"
+                    >
+                      <UserPlus className="w-3.5 h-3.5" />
+                      Create Account
+                    </Link>
+                  </div>
+                ) : (
+                  <div className="flex gap-2 mt-3 pl-4">
+                    <Link
+                      href="/pricing"
+                      className="flex items-center gap-1.5 px-4 py-2 bg-[#D4A843] text-black text-xs font-semibold rounded-full hover:bg-[#E8C96A] transition-colors"
+                    >
+                      <ArrowUpRight className="w-3.5 h-3.5" />
+                      Upgrade Plan
+                    </Link>
+                  </div>
+                )}
+              </motion.div>
+            )}
+
+            {/* Three-dot typing indicator in gold */}
+            {isLoading && (
               <motion.div
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
-                className="flex gap-3"
+                className="space-y-1"
               >
-                <div className="flex-shrink-0 mt-1">
-                  <div className="w-7 h-7 rounded-full bg-[#D4A843]/15 flex items-center justify-center">
-                    <span className="text-[11px] font-bold text-[#D4A843]">U</span>
-                  </div>
+                <span className="text-[11px] font-medium tracking-wide text-[#D4A843]">
+                  Ubunye
+                </span>
+                <div className="flex items-center gap-1 pt-1">
+                  <span className="typing-dot" style={{ animationDelay: '0ms' }} />
+                  <span className="typing-dot" style={{ animationDelay: '160ms' }} />
+                  <span className="typing-dot" style={{ animationDelay: '320ms' }} />
                 </div>
-                <div className="pt-2">
-                  <div className="flex gap-1">
-                    <div className="w-1.5 h-1.5 rounded-full bg-neutral-500 animate-bounce" style={{ animationDelay: '0ms' }} />
-                    <div className="w-1.5 h-1.5 rounded-full bg-neutral-500 animate-bounce" style={{ animationDelay: '150ms' }} />
-                    <div className="w-1.5 h-1.5 rounded-full bg-neutral-500 animate-bounce" style={{ animationDelay: '300ms' }} />
-                  </div>
+              </motion.div>
+            )}
+
+            {/* Error display */}
+            {error && !limitReached && (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                className="space-y-1"
+              >
+                <span className="text-[11px] font-medium tracking-wide text-[#D4A843]">
+                  Ubunye
+                </span>
+                <div className="text-[15px] text-neutral-500 leading-relaxed">
+                  I&apos;m experiencing connectivity issues. Please try again.
                 </div>
               </motion.div>
             )}
 
             <div ref={messagesEndRef} />
-          </div>
+          </motion.div>
         )}
 
-        {/* ── Input bar ── */}
-        <div className="pb-4 pt-2 flex-shrink-0">
+        {/* ── Input bar + footer ── */}
+        <div className="pb-4 pt-3 flex-shrink-0">
           <form onSubmit={handleSubmit}>
-            <div className={`flex items-center rounded-2xl bg-neutral-900 transition-all ${
-              limitReached ? 'opacity-40' : 'focus-within:ring-1 focus-within:ring-neutral-700'
+            <div className={`flex items-center rounded-2xl bg-neutral-900/80 border border-transparent transition-all duration-200 ${
+              limitReached
+                ? 'opacity-40'
+                : 'focus-within:border-[#D4A843]/40 focus-within:ring-1 focus-within:ring-[#D4A843]/20'
             }`}>
               <input
                 ref={inputRef}
@@ -471,40 +475,60 @@ export default function UbunyeAIStudioPage() {
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 placeholder={limitReached ? 'Message limit reached' : 'Message Ubunye...'}
-                disabled={isTyping || limitReached}
+                disabled={isLoading || limitReached}
                 className="flex-1 bg-transparent px-5 py-3.5 text-[15px] text-white placeholder-neutral-600 outline-none disabled:opacity-50"
               />
               <button
                 type="submit"
-                disabled={!input.trim() || isTyping || limitReached}
-                className="mr-2 w-9 h-9 rounded-full flex items-center justify-center transition-colors disabled:opacity-20 bg-neutral-800 hover:bg-[#D4A843] hover:text-black text-neutral-400"
+                disabled={!input.trim() || isLoading || limitReached}
+                className={`mr-2 w-9 h-9 rounded-full flex items-center justify-center transition-all duration-200 ${
+                  input.trim() && !isLoading && !limitReached
+                    ? 'bg-[#D4A843] text-black hover:bg-[#E8C96A] scale-100'
+                    : 'bg-neutral-800 text-neutral-600 opacity-50'
+                }`}
               >
                 <ArrowUp className="w-4 h-4" />
               </button>
             </div>
           </form>
 
-          {/* Remaining messages */}
-          {!limitReached && (
-            <div className="text-center mt-2">
-              {!isAuthenticated ? (
-                <span className="text-[11px] text-neutral-600">
-                  {GUEST_LIMIT - guestMessageCount} free message{GUEST_LIMIT - guestMessageCount !== 1 ? 's' : ''} remaining
-                </span>
-              ) : dailyLimit !== -1 ? (
-                <span className="text-[11px] text-neutral-600">
-                  {Math.max(0, dailyLimit - dailyUsed)} message{Math.max(0, dailyLimit - dailyUsed) !== 1 ? 's' : ''} remaining today
-                </span>
-              ) : null}
-            </div>
+          {/* X free messages remaining */}
+          {!limitReached && remaining !== -1 && (
+            <p className="text-center mt-2.5 text-[11px] text-neutral-600">
+              {remaining} free message{remaining !== 1 ? 's' : ''} remaining
+              {isAuthenticated && ' today'}
+            </p>
           )}
 
-          {/* Footer */}
-          <p className="text-center text-[10px] text-neutral-700 mt-3">
+          {/* Powered by */}
+          <p className="text-center text-[10px] text-neutral-700 mt-2.5">
             Powered by Ubunye AI
           </p>
         </div>
       </div>
+
+      {/* ── Typing dot animation ── */}
+      <style jsx>{`
+        .typing-dot {
+          display: inline-block;
+          width: 6px;
+          height: 6px;
+          border-radius: 50%;
+          background-color: #D4A843;
+          animation: typing-bounce 1.2s ease-in-out infinite;
+        }
+
+        @keyframes typing-bounce {
+          0%, 60%, 100% {
+            transform: translateY(0);
+            opacity: 0.4;
+          }
+          30% {
+            transform: translateY(-6px);
+            opacity: 1;
+          }
+        }
+      `}</style>
     </div>
   );
 }

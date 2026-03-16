@@ -2,18 +2,19 @@
 
 import { useEffect, useState, useRef } from 'react';
 import { motion } from 'framer-motion';
-import { Upload, CheckCircle, XCircle, Clock, Loader2 } from 'lucide-react';
+import { Upload, CheckCircle, XCircle, Clock, Loader2, ShieldCheck } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { Card } from '@/components/ui/Card';
+import { STUDIO } from '@/lib/constants';
 
 type VerificationStatus = 'unverified' | 'pending' | 'verified' | 'rejected';
 
 interface VerificationData {
-  status: VerificationStatus;
-  submitted_at?: string;
-  verified_at?: string;
-  rejection_reason?: string;
+  verification_status: VerificationStatus;
+  verification_submitted_at: string | null;
+  verification_reviewed_at: string | null;
+  verification_rejected_reason: string | null;
 }
 
 interface FileSlot {
@@ -22,10 +23,13 @@ interface FileSlot {
   file: File | null;
 }
 
+const REVIEW_DAYS = STUDIO.verification.reviewDays;
+
 export default function VerificationPage() {
   const [verification, setVerification] = useState<VerificationData | null>(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [justSubmitted, setJustSubmitted] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [files, setFiles] = useState<FileSlot[]>([
     { label: 'SA ID Document (Front)', key: 'id_front', file: null },
@@ -45,10 +49,10 @@ export default function VerificationPage() {
         const data = await res.json();
         setVerification(data);
       } else {
-        setVerification({ status: 'unverified' });
+        setVerification({ verification_status: 'unverified', verification_submitted_at: null, verification_reviewed_at: null, verification_rejected_reason: null });
       }
     } catch {
-      setVerification({ status: 'unverified' });
+      setVerification({ verification_status: 'unverified', verification_submitted_at: null, verification_reviewed_at: null, verification_rejected_reason: null });
     }
     setLoading(false);
   }
@@ -85,6 +89,7 @@ export default function VerificationPage() {
         throw new Error(body.error || 'Failed to submit documents.');
       }
 
+      setJustSubmitted(true);
       await fetchVerification();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Submission failed.');
@@ -102,7 +107,7 @@ export default function VerificationPage() {
     );
   }
 
-  const status = verification?.status ?? 'unverified';
+  const status = verification?.verification_status ?? 'unverified';
 
   return (
     <motion.div
@@ -123,20 +128,45 @@ export default function VerificationPage() {
         </div>
       )}
 
+      {/* ── Success banner after fresh submission ──────────────────────────── */}
+      {justSubmitted && status === 'pending' && (
+        <motion.div
+          initial={{ opacity: 0, y: -8 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="mb-6 px-5 py-4 bg-emerald-500/10 border border-emerald-500/30 flex items-start gap-3"
+        >
+          <CheckCircle className="w-5 h-5 text-emerald-400 flex-shrink-0 mt-0.5" />
+          <div>
+            <p className="text-sm font-mono font-medium text-emerald-400">
+              Documents submitted successfully.
+            </p>
+            <p className="text-xs font-mono text-emerald-400/70 mt-1">
+              We&apos;ll review your verification within {REVIEW_DAYS}.
+            </p>
+          </div>
+        </motion.div>
+      )}
+
       {/* ── Verified ──────────────────────────────────────────────────────── */}
       {status === 'verified' && (
         <Card className="p-10 text-center">
-          <CheckCircle className="w-12 h-12 text-emerald-400 mx-auto mb-4" />
+          <ShieldCheck className="w-12 h-12 text-emerald-400 mx-auto mb-4" />
+          <div className="flex justify-center mb-4">
+            <Badge variant="success">
+              <CheckCircle className="w-3 h-3" />
+              Verified
+            </Badge>
+          </div>
           <h3 className="text-sm font-display font-medium uppercase text-black dark:text-white mb-2">
             Identity Verified
           </h3>
           <p className="text-xs font-mono text-neutral-500">
             Your identity has been successfully verified. You have full access to platform features.
           </p>
-          {verification?.verified_at && (
+          {verification?.verification_reviewed_at && (
             <p className="text-[10px] font-mono text-neutral-400 mt-4">
               Verified on{' '}
-              {new Date(verification.verified_at).toLocaleDateString('en-ZA', {
+              {new Date(verification.verification_reviewed_at).toLocaleDateString('en-ZA', {
                 day: 'numeric',
                 month: 'long',
                 year: 'numeric',
@@ -151,24 +181,29 @@ export default function VerificationPage() {
         <Card className="p-10 text-center">
           <Clock className="w-12 h-12 text-amber-400 mx-auto mb-4" />
           <h3 className="text-sm font-display font-medium uppercase text-black dark:text-white mb-2">
-            Documents Submitted
+            Documents Under Review
           </h3>
           <Badge variant="warning" className="mb-4">
-            Under Review
+            Pending Review
           </Badge>
           <p className="text-xs font-mono text-neutral-500">
-            Your documents are currently being reviewed. This typically takes 1-2 business days.
+            Your documents are under review. We&apos;ll notify you within {REVIEW_DAYS}.
           </p>
-          {verification?.submitted_at && (
+          {verification?.verification_submitted_at && (
             <p className="text-[10px] font-mono text-neutral-400 mt-4">
               Submitted on{' '}
-              {new Date(verification.submitted_at).toLocaleDateString('en-ZA', {
+              {new Date(verification.verification_submitted_at).toLocaleDateString('en-ZA', {
                 day: 'numeric',
                 month: 'long',
                 year: 'numeric',
               })}
             </p>
           )}
+          <div className="mt-6">
+            <Button disabled>
+              Submitted — Under Review
+            </Button>
+          </div>
         </Card>
       )}
 
@@ -182,10 +217,10 @@ export default function VerificationPage() {
                 <h3 className="text-sm font-display font-medium uppercase text-black dark:text-white mb-2">
                   Verification Rejected
                 </h3>
-                {verification?.rejection_reason && (
+                {verification?.verification_rejected_reason && (
                   <p className="text-xs font-mono text-neutral-500 mb-2">
                     <span className="text-neutral-400">Reason:</span>{' '}
-                    {verification.rejection_reason}
+                    {verification.verification_rejected_reason}
                   </p>
                 )}
                 <p className="text-xs font-mono text-neutral-500">

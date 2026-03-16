@@ -38,7 +38,8 @@ export const supabaseAuth: AuthProvider = {
     const auth = await this.requireAuth();
     if (auth.error) return auth;
 
-    if (!this.isAdmin(auth.user.email)) {
+    const admin = await this.isAdmin(auth.user.id, auth.user.email);
+    if (!admin) {
       return {
         error: NextResponse.json(
           { error: 'Admin access required.' },
@@ -50,8 +51,26 @@ export const supabaseAuth: AuthProvider = {
     return { user: auth.user };
   },
 
-  isAdmin(email: string): boolean {
-    return ADMIN_EMAILS.includes(email.toLowerCase());
+  async isAdmin(userId: string, email?: string): Promise<boolean> {
+    try {
+      const { createClient } = await import('@/lib/supabase/server');
+      const supabase = await createClient();
+
+      const { data } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', userId)
+        .single();
+
+      if (data?.role === 'admin') return true;
+    } catch {
+      // DB check failed — fall through to constant fallback
+    }
+
+    // Fallback: check ADMIN_EMAILS constant so you're never locked out
+    if (email && ADMIN_EMAILS.includes(email.toLowerCase())) return true;
+
+    return false;
   },
 
   async signOut(): Promise<void> {

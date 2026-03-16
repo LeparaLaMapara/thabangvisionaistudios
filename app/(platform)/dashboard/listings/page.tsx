@@ -94,7 +94,7 @@ export default function ListingsPage() {
       const res = await fetch('/api/verifications');
       if (res.ok) {
         const data = await res.json();
-        setVerificationStatus(data.status);
+        setVerificationStatus(data.verification_status ?? 'unverified');
       } else {
         setVerificationStatus('unverified');
       }

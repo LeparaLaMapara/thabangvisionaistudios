@@ -79,6 +79,20 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
+  // Require verified account to list equipment
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('verification_status')
+    .eq('id', user.id)
+    .single();
+
+  if (profile?.verification_status !== 'verified') {
+    return NextResponse.json(
+      { error: 'Account must be verified to list equipment.' },
+      { status: 403 },
+    );
+  }
+
   try {
     const body = await request.json();
 

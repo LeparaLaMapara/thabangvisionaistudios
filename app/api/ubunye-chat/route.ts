@@ -1,10 +1,10 @@
 export const dynamic = 'force-dynamic';
-export const maxDuration = 30;
+export const maxDuration = 60;
 
 import { NextRequest, NextResponse } from 'next/server';
+import { streamText, convertToModelMessages } from 'ai';
 import { checkRateLimit } from '@/lib/auth';
-import { ai } from '@/lib/ai';
-import type { Message } from '@/lib/ai';
+import { getModel } from '@/lib/ai';
 import { createClient } from '@/lib/supabase/server';
 import { buildSystemPrompt, fetchPlatformData, fetchUserContext } from '@/lib/ubunye/system-prompt';
 
@@ -26,33 +26,37 @@ function getTodaySAST(): string {
   return new Date().toLocaleDateString('en-CA', { timeZone: 'Africa/Johannesburg' });
 }
 
-// ─── POST Handler (Streaming) ───────────────────────────────────────────────
+// ─── POST Handler (Streaming via Vercel AI SDK) ────────────────────────────
 
 export async function POST(req: NextRequest) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
 
   // ── Parse body ──
-  let prompt: string;
-  let messages: Message[] | undefined;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let rawMessages: any[];
   let sessionMessageCount = 0;
   let isFirstGuestMessage = false;
 
   try {
     const body = await req.json();
-    prompt = body.prompt;
-    if (body.messages) messages = body.messages;
+
+    // Support both Vercel AI SDK format (messages array) and legacy format (prompt string)
+    if (body.messages && Array.isArray(body.messages)) {
+      rawMessages = body.messages;
+    } else if (body.prompt && typeof body.prompt === 'string' && body.prompt.trim()) {
+      rawMessages = [{ role: 'user', content: body.prompt.trim() }];
+    } else {
+      return NextResponse.json(
+        { error: '`messages` array or `prompt` string is required.' },
+        { status: 400 },
+      );
+    }
+
     if (typeof body.sessionMessageCount === 'number') sessionMessageCount = body.sessionMessageCount;
     if (body.isFirstGuestMessage === true) isFirstGuestMessage = true;
   } catch {
     return NextResponse.json({ error: 'Invalid JSON body.' }, { status: 400 });
-  }
-
-  if (!prompt || typeof prompt !== 'string' || !prompt.trim()) {
-    return NextResponse.json(
-      { error: '`prompt` is required and must be a non-empty string.' },
-      { status: 400 },
-    );
   }
 
   // ── Guest (unauthenticated) usage check ──
@@ -118,14 +122,6 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  // ── AI provider check ──
-  if (!ai.isConfigured()) {
-    return NextResponse.json(
-      { error: 'AI provider is not configured on the server.' },
-      { status: 500 },
-    );
-  }
-
   // ── Build context-aware system prompt ──
   const [platformData, userContext] = await Promise.all([
     fetchPlatformData(supabase),
@@ -138,39 +134,23 @@ export async function POST(req: NextRequest) {
     systemPrompt += `\n\nThis is the user's very first message. Introduce yourself warmly as Ubunye. Mention you can help with production planning, equipment, crew hiring, creative briefs, and SA industry pricing. Subtly mention they can sign in for more access. Be energetic and welcoming. Use their message as a springboard.`;
   }
 
-  // Build message list
-  const messageList: Message[] = messages ?? [{ role: 'user', content: prompt.trim() }];
-
   try {
-    const stream = await ai.streamMessage(systemPrompt, messageList);
+    // Convert UIMessage[] (from useChat frontend) or CoreMessage[] (from curl) to ModelMessage[]
+    const isUIFormat = rawMessages.some((m: { parts?: unknown }) => Array.isArray(m.parts));
+    const modelMessages = isUIFormat
+      ? await convertToModelMessages(rawMessages)
+      : rawMessages;
 
-    const encoder = new TextEncoder();
-    const readable = new ReadableStream({
-      async start(controller) {
-        try {
-          for await (const chunk of stream) {
-            controller.enqueue(encoder.encode(`data: ${JSON.stringify(chunk)}\n\n`));
-          }
-          controller.enqueue(encoder.encode('data: [DONE]\n\n'));
-          controller.close();
-        } catch (err) {
-          console.error('[ubunye-chat] Stream error:', err instanceof Error ? err.message : 'Unknown error');
-          controller.enqueue(encoder.encode(`data: ${JSON.stringify({ error: 'Stream error' })}\n\n`));
-          controller.close();
-        }
-      },
+    const result = streamText({
+      model: getModel(),
+      system: systemPrompt,
+      messages: modelMessages,
     });
 
-    return new Response(readable, {
-      headers: {
-        'Content-Type': 'text/event-stream',
-        'Cache-Control': 'no-cache',
-        'Connection': 'keep-alive',
-      },
-    });
+    return result.toUIMessageStreamResponse();
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Unknown error';
-    console.error(`[ubunye-chat] ${ai.name} error:`, message);
+    console.error('[ubunye-chat] AI error:', message);
     return NextResponse.json(
       { error: 'AI service temporarily unavailable.' },
       { status: 502 },

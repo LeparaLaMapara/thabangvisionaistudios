@@ -67,6 +67,12 @@ const CATEGORY_META: Record<string, CategoryMeta> = {
     description:   'Professional drone rigs, aerial camera systems, and licensed pilot services.',
     fallbackImage: PLACEHOLDER_IMAGES.gripMotion,
   },
+  'sound-reinforcement': {
+    label:         'Sound Reinforcement',
+    subtitle:      'Live Sound & PA Systems',
+    description:   'PA systems, stage monitors, mixing consoles, and live sound engineering packages.',
+    fallbackImage: PLACEHOLDER_IMAGES.soundReinforcement,
+  },
 };
 
 function getCategoryMeta(slug: string): CategoryMeta {
@@ -164,13 +170,13 @@ export default function SmartRentalsClient({ rentals }: { rentals: SmartRental[]
                     className="relative group h-[450px] overflow-hidden bg-white dark:bg-[#0A0A0B] cursor-pointer"
                   >
                     <Link href={`/smart-rentals/${cat}`} className="block w-full h-full relative">
-                      <div className="absolute inset-0 z-10 bg-black/40 dark:bg-black/60 group-hover:bg-black/20 dark:group-hover:bg-black/30 transition-colors duration-500" />
+                      <div className="absolute inset-0 z-10 bg-black/20 md:bg-black/40 dark:bg-black/30 dark:md:bg-black/60 group-hover:bg-black/20 dark:group-hover:bg-black/30 transition-colors duration-500" />
 
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img
                         src={image}
                         alt={meta.label}
-                        className="absolute inset-0 w-full h-full object-cover grayscale group-hover:grayscale-0 scale-100 group-hover:scale-105 transition-all duration-700 ease-out"
+                        className="absolute inset-0 w-full h-full object-cover grayscale-0 md:grayscale md:group-hover:grayscale-0 scale-100 group-hover:scale-105 transition-all duration-700 ease-out"
                       />
 
                       <div className="absolute inset-0 z-20 flex flex-col justify-between p-8">

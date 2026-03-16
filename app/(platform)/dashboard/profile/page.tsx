@@ -83,32 +83,68 @@ export default function ProfileEditPage() {
       } = await supabase.auth.getUser();
       if (!user) throw new Error('Not authenticated.');
 
+      const folder = `profiles/${user.id}`;
+
+      // Request signed upload params from the storage abstraction
       const signRes = await fetch('/api/cloudinary/sign', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ folder: `profiles/${user.id}` }),
+        body: JSON.stringify({
+          paramsToSign: { folder, resource_type: 'image' },
+        }),
       });
-      const { signature, timestamp, api_key, cloud_name } =
-        await signRes.json();
+
+      if (!signRes.ok) {
+        const err = await signRes.json();
+        throw new Error(err.error || 'Failed to sign upload.');
+      }
+
+      const { signature, timestamp, cloudName, apiKey } = await signRes.json();
 
       const formData = new FormData();
       formData.append('file', file);
       formData.append('signature', signature);
-      formData.append('timestamp', String(timestamp));
-      formData.append('api_key', api_key);
-      formData.append('folder', `profiles/${user.id}`);
+      formData.append('timestamp', timestamp);
+      formData.append('api_key', apiKey);
+      formData.append('folder', folder);
 
       const uploadRes = await fetch(
-        `https://api.cloudinary.com/v1_1/${cloud_name}/image/upload`,
+        `https://api.cloudinary.com/v1_1/${cloudName}/image/upload`,
         { method: 'POST', body: formData },
       );
       const uploadData = await uploadRes.json();
 
       if (uploadData.secure_url) {
+        // Save avatar URL to database immediately
+        const {
+          data: { user: currentUser },
+        } = await supabase.auth.getUser();
+        if (currentUser) {
+          const { error: dbError } = await supabase
+            .from('profiles')
+            .update({
+              avatar_url: uploadData.secure_url,
+              avatar_public_id: uploadData.public_id || null,
+              updated_at: new Date().toISOString(),
+            })
+            .eq('id', currentUser.id);
+
+          if (dbError) {
+            throw new Error('Photo uploaded but failed to save. Please click Save Profile.');
+          }
+        }
+
         setAvatarUrl(uploadData.secure_url);
+        setMessage({ type: 'success', text: 'Profile photo updated.' });
+        setTimeout(() => setMessage(null), 3000);
+      } else {
+        throw new Error(uploadData.error?.message || 'Upload failed.');
       }
-    } catch {
-      setMessage({ type: 'error', text: 'Failed to upload avatar.' });
+    } catch (err) {
+      setMessage({
+        type: 'error',
+        text: err instanceof Error ? err.message : 'Failed to upload avatar.',
+      });
     } finally {
       setUploadingAvatar(false);
     }

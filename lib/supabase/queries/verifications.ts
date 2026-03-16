@@ -1,4 +1,4 @@
-import { createClient } from '@/lib/supabase/server';
+import { createClient, createAdminClient } from '@/lib/supabase/server';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -9,6 +9,11 @@ export type VerificationRecord = {
   display_name: string | null;
   email?: string;
   avatar_url: string | null;
+  bio: string | null;
+  phone: string | null;
+  location: string | null;
+  skills: string[] | null;
+  social_links: Record<string, string> | null;
   is_verified: boolean;
   verification_status: VerificationStatus;
   verification_submitted_at: string | null;
@@ -17,6 +22,7 @@ export type VerificationRecord = {
   id_front_path: string | null;
   id_back_path: string | null;
   proof_of_address_path: string | null;
+  created_at: string | null;
 };
 
 // ─── Queries ────────────────────────────────────────────────────────────────
@@ -26,7 +32,7 @@ export type VerificationRecord = {
  * PGRST116 = "no rows" — treated as a normal 404, not an error.
  */
 export async function getVerificationStatus(userId: string): Promise<VerificationRecord | null> {
-  const supabase = await createClient();
+  const supabase = createAdminClient();
 
   const { data, error } = await supabase
     .from('profiles')
@@ -84,7 +90,7 @@ export async function submitVerification(
 export async function approveVerification(
   userId: string,
 ): Promise<{ success: boolean; error?: string }> {
-  const supabase = await createClient();
+  const supabase = createAdminClient();
 
   const { error } = await supabase
     .from('profiles')
@@ -111,7 +117,7 @@ export async function rejectVerification(
   userId: string,
   reason: string,
 ): Promise<{ success: boolean; error?: string }> {
-  const supabase = await createClient();
+  const supabase = createAdminClient();
 
   const { error } = await supabase
     .from('profiles')
@@ -136,7 +142,7 @@ export async function rejectVerification(
  * ordered by submission date ascending (oldest first).
  */
 export async function getPendingVerifications(): Promise<VerificationRecord[]> {
-  const supabase = await createClient();
+  const supabase = createAdminClient();
 
   const { data, error } = await supabase
     .from('profiles')
@@ -159,13 +165,11 @@ export async function getPendingVerifications(): Promise<VerificationRecord[]> {
  * (status != 'unverified'), ordered by submission date descending.
  */
 export async function getAllVerifications(): Promise<VerificationRecord[]> {
-  const supabase = await createClient();
+  const supabase = createAdminClient();
 
   const { data, error } = await supabase
     .from('profiles')
-    .select(
-      'id, display_name, avatar_url, is_verified, verification_status, verification_submitted_at, verification_reviewed_at, verification_rejected_reason, id_front_path, id_back_path, proof_of_address_path',
-    )
+    .select('*')
     .neq('verification_status', 'unverified')
     .order('verification_submitted_at', { ascending: false, nullsFirst: false });
 

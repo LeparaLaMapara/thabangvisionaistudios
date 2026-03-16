@@ -1,10 +1,10 @@
 'use client';
 
 import { motion } from 'framer-motion';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, Aperture } from 'lucide-react';
 import Link from 'next/link';
 import { PhotographyGallery } from '@/components/projects/ProjectsComponents';
-import type { SmartProduction } from '@/lib/supabase/queries/smartProductions';
+import type { SmartProduction, ImageExifMetadata } from '@/lib/supabase/queries/smartProductions';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -35,6 +35,11 @@ export default function ProductionDetailView({
   const galleryUrls = project.gallery?.map(g => g.url) ?? [];
   const videoId     = extractVideoId(project.video_provider, project.video_url);
 
+  // Deduplicate metadata — show unique camera+lens combos
+  const metadata = project.image_metadata ?? [];
+  const primaryMeta = metadata.length > 0 ? metadata[0] : null;
+  const uniqueGear = getUniqueGear(metadata);
+
   // ── Photography layout ──────────────────────────────────────────────────────
   if (project.project_type === 'photography') {
     return (
@@ -59,6 +64,13 @@ export default function ProductionDetailView({
           ) : (
             <div className="text-center py-20 text-neutral-500 font-mono text-xs">
               Gallery coming soon.
+            </div>
+          )}
+
+          {/* EXIF Metadata Bar */}
+          {primaryMeta && (
+            <div className="mt-12 mb-8 border-t border-black/5 dark:border-white/5 pt-6">
+              <ShotInfo metadata={metadata} uniqueGear={uniqueGear} />
             </div>
           )}
         </div>
@@ -90,7 +102,6 @@ export default function ProductionDetailView({
               frameBorder="0"
               allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture"
               allowFullScreen
-              referrerPolicy="no-referrer"
               className="absolute inset-0"
             />
           ) : (
@@ -164,10 +175,94 @@ export default function ProductionDetailView({
                 </span>
               </div>
             )}
+
+            {/* Shot info */}
+            {primaryMeta && (
+              <div className="border-t border-black/10 dark:border-white/10 pt-4">
+                <ShotInfo metadata={metadata} uniqueGear={uniqueGear} />
+              </div>
+            )}
           </div>
 
         </div>
       </div>
+    </div>
+  );
+}
+
+// ─── Shot Info Component ──────────────────────────────────────────────────────
+
+function getUniqueGear(
+  metadata: ImageExifMetadata[],
+): { camera: string; lens?: string }[] {
+  const seen = new Set<string>();
+  const result: { camera: string; lens?: string }[] = [];
+
+  for (const m of metadata) {
+    if (!m.camera) continue;
+    const key = `${m.camera}|${m.lens ?? ''}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    result.push({ camera: m.camera, lens: m.lens });
+  }
+
+  return result;
+}
+
+function ShotInfo({
+  metadata,
+  uniqueGear,
+}: {
+  metadata: ImageExifMetadata[];
+  uniqueGear: { camera: string; lens?: string }[];
+}) {
+  // Aggregate common settings from first image with full data
+  const primary = metadata.find(m => m.camera || m.iso) ?? metadata[0];
+  if (!primary) return null;
+
+  const settingsLine = [
+    primary.focalLength ? `${primary.focalLength}mm` : null,
+    primary.aperture ? `f/${primary.aperture}` : null,
+    primary.iso ? `ISO ${primary.iso}` : null,
+    primary.shutterSpeed ?? null,
+  ]
+    .filter(Boolean)
+    .join('  ');
+
+  return (
+    <div className="space-y-3">
+      <span className="flex items-center gap-2 text-[10px] font-mono text-neutral-500 uppercase tracking-widest">
+        <Aperture className="w-3 h-3" />
+        Shot On
+      </span>
+
+      {/* Camera + lens lines */}
+      {uniqueGear.map((gear, i) => (
+        <div key={i}>
+          <span className="text-sm font-display text-black dark:text-white">
+            {gear.camera}
+          </span>
+          {gear.lens && (
+            <span className="block text-xs font-mono text-neutral-500 mt-0.5">
+              {gear.lens}
+            </span>
+          )}
+        </div>
+      ))}
+
+      {/* Settings line */}
+      {settingsLine && (
+        <p className="text-[10px] font-mono text-neutral-600 dark:text-neutral-500 tracking-wide">
+          {settingsLine}
+        </p>
+      )}
+
+      {/* Software */}
+      {primary.software && (
+        <p className="text-[9px] font-mono text-neutral-700 uppercase tracking-widest">
+          Edited in {primary.software}
+        </p>
+      )}
     </div>
   );
 }

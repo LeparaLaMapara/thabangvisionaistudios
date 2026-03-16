@@ -135,7 +135,7 @@ function RentalCard({ rental, category }: { rental: SmartRental; category: strin
           <img
             src={rental.gallery[0].url}
             alt={rental.title}
-            className="w-full h-full object-cover grayscale group-hover:grayscale-0 scale-95 group-hover:scale-105 transition-all duration-700 ease-out"
+            className="w-full h-full object-cover grayscale-0 md:grayscale md:group-hover:grayscale-0 scale-95 group-hover:scale-105 transition-all duration-700 ease-out"
           />
         ) : (
           <div className="w-full h-full flex items-center justify-center">

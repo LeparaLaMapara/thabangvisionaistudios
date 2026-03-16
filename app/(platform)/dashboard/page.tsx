@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
 import { auth } from '@/lib/auth';
 import { getProfileById } from '@/lib/supabase/queries/profiles';
-import { Calendar, Package, ShoppingBag, ArrowRight, User, Search, ShieldCheck } from 'lucide-react';
+import { Calendar, Package, ShoppingBag, ArrowRight, User, Search, ShieldCheck, Clock } from 'lucide-react';
 
 export const metadata = {
   title: 'Dashboard',
@@ -43,9 +43,22 @@ export default async function DashboardPage() {
   const listingsCount = ('count' in listingsResult ? listingsResult.count : 0) ?? 0;
   const ordersCount = ('count' in ordersResult ? ordersResult.count : 0) ?? 0;
 
+  // Fetch verification status from profiles (column added by migration 003)
+  let verificationStatus: 'unverified' | 'pending' | 'verified' | 'rejected' = 'unverified';
+  if (user) {
+    const { data: vData } = await supabase
+      .from('profiles')
+      .select('verification_status')
+      .eq('id', user.id)
+      .single();
+    if (vData?.verification_status) {
+      verificationStatus = vData.verification_status;
+    }
+  }
+
   const displayName = profile?.display_name || user?.email?.split('@')[0] || 'Creator';
   const hasProfile = profile && (profile.bio || profile.avatar_url || (profile.skills && profile.skills.length > 0));
-  const isVerified = profile?.is_verified ?? false;
+  const isVerified = verificationStatus === 'verified';
 
   return (
     <div>
@@ -92,8 +105,15 @@ export default async function DashboardPage() {
             />
             <ChecklistItem
               done={isVerified}
-              label="Get verified"
-              description="Verification lets you list your own gear for rent."
+              pending={verificationStatus === 'pending'}
+              label={verificationStatus === 'pending' ? 'Verification pending' : 'Get verified'}
+              description={
+                verificationStatus === 'pending'
+                  ? 'Your documents are under review.'
+                  : verificationStatus === 'rejected'
+                    ? 'Verification was rejected. Please resubmit.'
+                    : 'Verification lets you list your own gear for rent.'
+              }
               href="/dashboard/verification"
             />
           </div>
@@ -155,23 +175,31 @@ function StatCard({
 
 function ChecklistItem({
   done,
+  pending,
   label,
   description,
   href,
 }: {
   done: boolean;
+  pending?: boolean;
   label: string;
   description: string;
   href: string;
 }) {
   return (
     <Link href={href} className="group block">
-      <div className="flex items-start gap-4 bg-neutral-100 dark:bg-[#0A0A0B] border border-black/5 dark:border-white/5 p-4 hover:border-black/20 dark:hover:border-white/20 transition-colors">
+      <div className={`flex items-start gap-4 bg-neutral-100 dark:bg-[#0A0A0B] border p-4 hover:border-black/20 dark:hover:border-white/20 transition-colors ${
+        pending
+          ? 'border-amber-500/30 dark:border-amber-500/20'
+          : 'border-black/5 dark:border-white/5'
+      }`}>
         <div
           className={`w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 mt-0.5 ${
             done
               ? 'border-emerald-500 bg-emerald-500'
-              : 'border-neutral-300 dark:border-neutral-700'
+              : pending
+                ? 'border-amber-500 bg-amber-500'
+                : 'border-neutral-300 dark:border-neutral-700'
           }`}
         >
           {done && (
@@ -179,12 +207,23 @@ function ChecklistItem({
               <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
             </svg>
           )}
+          {pending && (
+            <Clock className="w-3 h-3 text-white" />
+          )}
         </div>
         <div className="min-w-0">
-          <p className={`text-sm font-mono font-bold ${done ? 'text-neutral-400 line-through' : 'text-black dark:text-white'}`}>
+          <p className={`text-sm font-mono font-bold ${
+            done
+              ? 'text-neutral-400 line-through'
+              : pending
+                ? 'text-amber-500 dark:text-amber-400'
+                : 'text-black dark:text-white'
+          }`}>
             {label}
           </p>
-          <p className="text-xs text-neutral-500 mt-0.5">{description}</p>
+          <p className={`text-xs mt-0.5 ${pending ? 'text-amber-500/70 dark:text-amber-400/70' : 'text-neutral-500'}`}>
+            {description}
+          </p>
         </div>
         <ArrowRight className="w-3 h-3 text-neutral-300 dark:text-neutral-700 flex-shrink-0 mt-1 opacity-0 group-hover:opacity-100 transition-opacity" />
       </div>

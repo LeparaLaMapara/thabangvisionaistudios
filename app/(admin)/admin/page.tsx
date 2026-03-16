@@ -11,6 +11,7 @@ import {
   FileEdit,
   Package,
   Pencil,
+  ShieldCheck,
   Star,
 } from 'lucide-react';
 
@@ -105,7 +106,7 @@ async function fetchAll() {
 
   // Run all queries in parallel; use allSettled so a missing table doesn't
   // break the whole dashboard — it just returns an empty array.
-  const [prodsRes, rentalsRes, pressRes, careersRes] = await Promise.allSettled([
+  const [prodsRes, rentalsRes, pressRes, careersRes, pendingVerificationsRes] = await Promise.allSettled([
     supabase
       .from('smart_productions')
       .select('id,title,slug,is_published,is_featured,thumbnail_url,updated_at')
@@ -122,6 +123,10 @@ async function fetchAll() {
       .from('careers')
       .select('id,title,is_published,updated_at')
       .is('deleted_at', null),
+    supabase
+      .from('profiles')
+      .select('id', { count: 'exact', head: true })
+      .eq('verification_status', 'pending'),
   ]);
 
   const productions: ProductionRow[] =
@@ -140,13 +145,17 @@ async function fetchAll() {
     careersRes.status === 'fulfilled' && !careersRes.value.error
       ? (careersRes.value.data as CareerRow[]) ?? [] : [];
 
-  return { productions, rentals, press, careers };
+  const pendingVerifications =
+    pendingVerificationsRes.status === 'fulfilled' && !pendingVerificationsRes.value.error
+      ? pendingVerificationsRes.value.count ?? 0 : 0;
+
+  return { productions, rentals, press, careers, pendingVerifications };
 }
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default async function AdminDashboardPage() {
-  const { productions, rentals, press, careers } = await fetchAll();
+  const { productions, rentals, press, careers, pendingVerifications } = await fetchAll();
 
   // ── KPI stats ─────────────────────────────────────────────────────────────
   const kpi = {
@@ -241,7 +250,7 @@ export default async function AdminDashboardPage() {
       {/* ── Section 1: KPI Row ── */}
       <section>
         <SectionLabel>Global Stats</SectionLabel>
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-px bg-white/[0.04]">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-px bg-white/[0.04]">
 
           <KpiCard
             label="Productions"
@@ -288,6 +297,14 @@ export default async function AdminDashboardPage() {
             href="#drafts"
             icon={<FileEdit className="w-3.5 h-3.5" />}
             accent={kpi.totalDrafts > 0 ? 'red' : 'neutral'}
+          />
+          <KpiCard
+            label="Verifications"
+            total={pendingVerifications}
+            lines={[]}
+            href="/admin/verifications"
+            icon={<ShieldCheck className="w-3.5 h-3.5" />}
+            accent={pendingVerifications > 0 ? 'amber' : 'neutral'}
           />
 
         </div>

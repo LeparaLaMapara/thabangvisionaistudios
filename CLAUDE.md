@@ -54,12 +54,8 @@ Built by ThabangVision (Pty) Ltd, trading as ThabangVision Labs.
 ```
 lib/
 ├── constants.ts          # STUDIO, PRODUCTION_SERVICES, ADMIN_EMAILS — single source of truth
-├── ai/                   # AI provider abstraction
-│   ├── types.ts
-│   ├── anthropic.ts
-│   ├── gemini.ts
-│   ├── openai.ts
-│   └── index.ts
+├── ai/                   # AI provider abstraction (Vercel AI SDK)
+│   └── index.ts          # getModel() — returns provider based on AI_PROVIDER env var
 ├── payments/             # Payment provider abstraction
 │   ├── types.ts
 │   ├── payfast.ts

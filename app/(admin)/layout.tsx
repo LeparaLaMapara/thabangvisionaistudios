@@ -22,7 +22,8 @@ export default async function AdminLayout({
   if (!user) redirect('/login');
 
   // C3: Verify user is an admin — not just authenticated
-  if (!auth.isAdmin(user.email)) {
+  const isAdminUser = await auth.isAdmin(user.id, user.email);
+  if (!isAdminUser) {
     redirect('/dashboard');
   }
 
@@ -59,6 +60,12 @@ export default async function AdminLayout({
                 Rentals
               </Link>
               <Link
+                href="/admin/rentals/import"
+                className="text-[10px] font-mono uppercase tracking-widest text-neutral-400 hover:text-white transition-colors flex-shrink-0"
+              >
+                Import
+              </Link>
+              <Link
                 href="/admin/careers"
                 className="text-[10px] font-mono uppercase tracking-widest text-neutral-400 hover:text-white transition-colors flex-shrink-0"
               >
@@ -69,6 +76,18 @@ export default async function AdminLayout({
                 className="text-[10px] font-mono uppercase tracking-widest text-neutral-400 hover:text-white transition-colors flex-shrink-0"
               >
                 Bookings
+              </Link>
+              <Link
+                href="/admin/users"
+                className="text-[10px] font-mono uppercase tracking-widest text-neutral-400 hover:text-white transition-colors flex-shrink-0"
+              >
+                Users
+              </Link>
+              <Link
+                href="/admin/verifications"
+                className="text-[10px] font-mono uppercase tracking-widest text-neutral-400 hover:text-white transition-colors flex-shrink-0"
+              >
+                Verifications
               </Link>
               <Link
                 href="/admin/press"

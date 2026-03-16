@@ -41,9 +41,10 @@ export interface AuthProvider {
   requireAdmin(): Promise<AuthResult>;
 
   /**
-   * Check if a user (by email) has admin privileges.
+   * Check if a user has admin privileges.
+   * Checks role in database first, falls back to ADMIN_EMAILS constant.
    */
-  isAdmin(email: string): boolean;
+  isAdmin(userId: string, email?: string): Promise<boolean>;
 
   /**
    * Sign out the current user (client-side).

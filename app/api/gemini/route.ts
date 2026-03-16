@@ -1,8 +1,9 @@
 export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
+import { generateText } from 'ai';
 import { checkRateLimit } from '@/lib/auth';
-import { ai } from '@/lib/ai';
+import { getModel } from '@/lib/ai';
 import { createClient } from '@/lib/supabase/server';
 import { buildSystemPrompt, fetchPlatformData, fetchUserContext } from '@/lib/ubunye/system-prompt';
 
@@ -116,14 +117,6 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  // ── AI provider check ──
-  if (!ai.isConfigured()) {
-    return NextResponse.json(
-      { error: 'AI provider is not configured on the server.' },
-      { status: 500 },
-    );
-  }
-
   // ── Build context-aware system prompt ──
   const [platformData, userContext] = await Promise.all([
     fetchPlatformData(supabase),
@@ -141,11 +134,15 @@ export async function POST(req: NextRequest) {
   const messageList = messages ?? [{ role: 'user' as const, content: prompt.trim() }];
 
   try {
-    const result = await ai.sendMessage(systemPrompt, messageList);
-    return NextResponse.json({ response: result.response });
+    const result = await generateText({
+      model: getModel(),
+      system: systemPrompt,
+      messages: messageList,
+    });
+    return NextResponse.json({ response: result.text });
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Unknown error';
-    console.error(`[ai] ${ai.name} error:`, message);
+    console.error('[gemini] AI error:', message);
     return NextResponse.json(
       { error: 'AI service temporarily unavailable.' },
       { status: 502 },

@@ -121,13 +121,14 @@ vi.mock('@/lib/supabase/server', () => ({
   }),
 }));
 
-// Mock the AI provider
+// Mock the Vercel AI SDK's generateText
+vi.mock('ai', () => ({
+  generateText: vi.fn().mockRejectedValue(new Error('AI not configured')),
+}));
+
+// Mock the AI provider (getModel)
 vi.mock('@/lib/ai', () => ({
-  ai: {
-    isConfigured: vi.fn().mockReturnValue(false),
-    name: 'mock-ai',
-    sendMessage: vi.fn(),
-  },
+  getModel: vi.fn().mockReturnValue({}),
 }));
 
 describe('/api/gemini', () => {
@@ -160,7 +161,7 @@ describe('/api/gemini', () => {
     expect(res.status).toBe(400);
   });
 
-  it('returns 500 when AI provider is not configured', async () => {
+  it('returns 502 when AI provider fails', async () => {
     const mod = await import('@/app/api/gemini/route');
     const req = new NextRequest('http://localhost:3000/api/gemini', {
       method: 'POST',
@@ -168,8 +169,8 @@ describe('/api/gemini', () => {
       body: JSON.stringify({ prompt: 'hello' }),
     });
     const res = await mod.POST(req);
-    expect(res.status).toBe(500);
+    expect(res.status).toBe(502);
     const json = await res.json();
-    expect(json.error).toMatch(/ai provider/i);
+    expect(json.error).toMatch(/unavailable/i);
   });
 });

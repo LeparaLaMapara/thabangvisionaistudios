@@ -259,6 +259,26 @@ export const Header = () => {
     return () => { document.body.style.overflow = ''; };
   }, [mobileMenuOpen]);
 
+  // Close mobile menu on Escape key or browser back button
+  useEffect(() => {
+    if (!mobileMenuOpen) return;
+
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setMobileMenuOpen(false);
+    };
+
+    // Push a history entry so the back button closes the menu instead of navigating away
+    window.history.pushState({ mobileMenu: true }, '');
+    const handlePopState = () => setMobileMenuOpen(false);
+
+    window.addEventListener('keydown', handleEscape);
+    window.addEventListener('popstate', handlePopState);
+    return () => {
+      window.removeEventListener('keydown', handleEscape);
+      window.removeEventListener('popstate', handlePopState);
+    };
+  }, [mobileMenuOpen]);
+
   useEffect(() => {
     const handleScroll = () => setScrolled(window.scrollY > 50);
     window.addEventListener('scroll', handleScroll);
@@ -283,7 +303,7 @@ export const Header = () => {
         scrolled ? 'bg-white/90 dark:bg-[#050505]/90 backdrop-blur-md border-neutral-200 dark:border-white/10' : 'bg-transparent border-transparent'
       }`}
     >
-      <div className={`container mx-auto px-6 flex justify-between items-center h-20 relative z-50 ${mobileMenuOpen ? 'pointer-events-none' : ''}`}>
+      <div className="container mx-auto px-6 flex justify-between items-center h-20 relative z-50">
         {/* Logo */}
         <Link href="/" className="group flex items-center gap-4 pointer-events-auto">
           <ThabangLogo />
@@ -363,62 +383,82 @@ export const Header = () => {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[200] bg-[#050505] min-h-screen overflow-y-auto flex flex-col justify-center items-center gap-6 lg:hidden"
+            transition={{ duration: 0.2 }}
+            className="fixed inset-0 z-[200] lg:hidden"
+            onClick={() => setMobileMenuOpen(false)}
           >
-            {MAIN_NAVIGATION.map((item) => (
-              <MobileNavSection
-                key={item.label}
-                item={item}
-                onNavigate={mobileNavigate}
-              />
-            ))}
+            <motion.div
+              initial={{ opacity: 0, y: -30 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -30 }}
+              transition={{ duration: 0.3, ease: 'easeOut' }}
+              className="bg-[#050505] min-h-screen overflow-y-auto flex flex-col justify-center items-center gap-6"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Close button — fixed top-right, same position as hamburger */}
+              <button
+                onClick={() => setMobileMenuOpen(false)}
+                className="absolute top-0 right-0 z-10 p-6 min-h-[44px] min-w-[44px] flex items-center justify-center text-white"
+                aria-label="Close menu"
+              >
+                <X className="w-6 h-6" />
+              </button>
 
-            <div className="mt-6 px-6 w-full flex flex-col gap-3">
-              <button
-                onClick={() => mobileNavigate('/contact')}
-                className={`${ACTION_BTN} bg-[#D4A843] text-black border border-[#D4A843] min-h-[44px]`}
-              >
-                Start Project
-              </button>
-              <button
-                onClick={() => mobileNavigate('/contact')}
-                className={`${ACTION_BTN} bg-transparent text-white border border-white/30 min-h-[44px]`}
-              >
-                Contact
-              </button>
-              {isLoggedIn ? (
-                <>
-                  <button
-                    onClick={() => mobileNavigate('/dashboard')}
-                    className={`${ACTION_BTN} bg-transparent text-white border border-white/30 min-h-[44px]`}
-                  >
-                    Dashboard
-                  </button>
-                  <button
-                    onClick={handleSignOut}
-                    disabled={signingOut}
-                    className={`${ACTION_BTN} bg-transparent text-red-400 border border-red-400/30 hover:bg-red-400/10 min-h-[44px] disabled:opacity-50`}
-                  >
-                    {signingOut ? 'Signing Out...' : 'Sign Out'}
-                  </button>
-                </>
-              ) : (
-                <>
-                  <button
-                    onClick={() => mobileNavigate('/login')}
-                    className={`${ACTION_BTN} bg-transparent text-white border border-white/30 min-h-[44px]`}
-                  >
-                    Sign In
-                  </button>
-                  <button
-                    onClick={() => mobileNavigate('/register')}
-                    className={`${ACTION_BTN} bg-transparent text-white border border-white/30 min-h-[44px]`}
-                  >
-                    Register
-                  </button>
-                </>
-              )}
-            </div>
+              {MAIN_NAVIGATION.map((item) => (
+                <MobileNavSection
+                  key={item.label}
+                  item={item}
+                  onNavigate={mobileNavigate}
+                />
+              ))}
+
+              <div className="mt-6 px-6 w-full flex flex-col gap-3">
+                <button
+                  onClick={() => mobileNavigate('/contact')}
+                  className={`${ACTION_BTN} bg-[#D4A843] text-black border border-[#D4A843] min-h-[44px]`}
+                >
+                  Start Project
+                </button>
+                <button
+                  onClick={() => mobileNavigate('/contact')}
+                  className={`${ACTION_BTN} bg-transparent text-white border border-white/30 min-h-[44px]`}
+                >
+                  Contact
+                </button>
+                {isLoggedIn ? (
+                  <>
+                    <button
+                      onClick={() => mobileNavigate('/dashboard')}
+                      className={`${ACTION_BTN} bg-transparent text-white border border-white/30 min-h-[44px]`}
+                    >
+                      Dashboard
+                    </button>
+                    <button
+                      onClick={handleSignOut}
+                      disabled={signingOut}
+                      className={`${ACTION_BTN} bg-transparent text-red-400 border border-red-400/30 hover:bg-red-400/10 min-h-[44px] disabled:opacity-50`}
+                    >
+                      {signingOut ? 'Signing Out...' : 'Sign Out'}
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <button
+                      onClick={() => mobileNavigate('/login')}
+                      className={`${ACTION_BTN} bg-transparent text-white border border-white/30 min-h-[44px]`}
+                    >
+                      Sign In
+                    </button>
+                    <button
+                      onClick={() => mobileNavigate('/register')}
+                      className={`${ACTION_BTN} bg-transparent text-white border border-white/30 min-h-[44px]`}
+                    >
+                      Register
+                    </button>
+                  </>
+                )}
+              </div>
+            </motion.div>
           </motion.div>
         )}
       </AnimatePresence>

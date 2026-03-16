@@ -2,6 +2,18 @@ import { createClient } from '@/lib/supabase/server';
 
 // ─── DB row type ─────────────────────────────────────────────────────────────
 
+export type ImageExifMetadata = {
+  url: string;
+  camera?: string;
+  lens?: string;
+  focalLength?: number;
+  aperture?: number;
+  iso?: number;
+  shutterSpeed?: string;
+  dateTaken?: string;
+  software?: string;
+};
+
 export type SmartProduction = {
   id: string;
   slug: string;
@@ -17,6 +29,7 @@ export type SmartProduction = {
   thumbnail_url: string | null;
   cover_public_id: string | null;
   gallery: { url: string; public_id: string }[] | null;
+  image_metadata: ImageExifMetadata[] | null;
   is_published: boolean;
   is_featured: boolean;
   created_at: string;

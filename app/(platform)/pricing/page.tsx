@@ -9,6 +9,7 @@ import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { STUDIO } from '@/lib/constants';
+import { AskUbunyeButton } from '@/components/ubunye/AskUbunyeButton';
 
 type BillingPeriod = 'monthly' | 'annual';
 
@@ -33,11 +34,12 @@ const PLANS: Plan[] = [
     annualPrice: 0,
     currency: STUDIO.currency.code,
     features: [
-      'Browse all rentals',
+      'Browse all rentals and productions',
       'Book equipment rentals',
       'Basic creator profile',
-      'Up to 3 active listings',
-      'Community access',
+      'Up to 3 active gear listings',
+      'Chat with Ubunye AI (2 messages/day)',
+      '10% platform fee on community rentals',
     ],
     highlighted: false,
     cta: 'Get Started',
@@ -51,12 +53,14 @@ const PLANS: Plan[] = [
     currency: STUDIO.currency.code,
     features: [
       'Everything in Starter',
-      'Unlimited listings',
+      'Unlimited gear listings',
       'Reduced platform fee (7%)',
-      'Priority support',
-      'Verified badge',
+      'Verified creator badge',
+      'Priority in search rankings',
       'Analytics dashboard',
-      'Featured listing credits (2/mo)',
+      'Featured listing credits (2/month)',
+      'Priority support',
+      '100 Ubunye messages/day',
     ],
     highlighted: true,
     cta: 'Upgrade to Pro',
@@ -70,13 +74,14 @@ const PLANS: Plan[] = [
     currency: STUDIO.currency.code,
     features: [
       'Everything in Pro Creator',
-      'Team accounts (up to 5)',
+      'Team accounts (up to 5 members)',
       'Lowest platform fee (5%)',
-      'Custom branding',
+      'Custom studio branding',
       'Bulk booking discounts',
       'Dedicated account manager',
       'API access',
       'Invoice management',
+      'Unlimited Ubunye messages',
     ],
     highlighted: false,
     cta: 'Contact Sales',
@@ -361,6 +366,7 @@ export default function PricingPage() {
           </p>
         </div>
       </section>
+      <AskUbunyeButton prompt="Help me choose the right plan for my needs" label="Not sure which plan?" />
     </div>
   );
 }

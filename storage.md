@@ -491,3 +491,5 @@ STORAGE_PROVIDER=cloudinary
 | `.env.local` | Updated - added `STORAGE_PROVIDER` variable |
 
 **Unchanged:** `lib/cloudinary/upload.ts` — client-side upload helpers remain as-is. They call `/api/cloudinary/sign` which now delegates to the storage abstraction internally.
+
+

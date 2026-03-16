@@ -42,12 +42,12 @@ export const ServiceGrid = () => {
               className="relative group h-96 bg-white dark:bg-[#0A0A0B]"
             >
               <Link href={item.link} className="block w-full h-full relative overflow-hidden">
-                  <div className="absolute inset-0 z-10 bg-black/40 dark:bg-black/60 group-hover:bg-black/20 dark:group-hover:bg-black/30 transition-colors duration-500" />
+                  <div className="absolute inset-0 z-10 bg-black/20 md:bg-black/40 dark:bg-black/30 dark:md:bg-black/60 group-hover:bg-black/20 dark:group-hover:bg-black/30 transition-colors duration-500" />
                   <Image
                     src={item.image}
                     alt={item.title}
                     fill
-                    className="object-cover grayscale group-hover:grayscale-0 scale-100 group-hover:scale-105 transition-all duration-700 ease-out"
+                    className="object-cover grayscale-0 md:grayscale md:group-hover:grayscale-0 scale-100 group-hover:scale-105 transition-all duration-700 ease-out"
                   />
                   <div className="absolute inset-0 z-20 flex flex-col justify-between p-8">
                     <div className="flex justify-between items-start">

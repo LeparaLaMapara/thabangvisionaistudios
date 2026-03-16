@@ -121,7 +121,7 @@ export const ProjectCard = ({ project, index }: { project: Project; index: numbe
               alt={project.title}
               fill
               sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
-              className="object-cover transition-transform duration-700 ease-out group-hover:scale-105 filter grayscale-[0.2] group-hover:grayscale-0"
+              className="object-cover transition-transform duration-700 ease-out group-hover:scale-105 filter grayscale-0 md:grayscale-[0.2] md:group-hover:grayscale-0"
             />
           ) : (
             <div className="w-full h-full bg-neutral-200 dark:bg-neutral-800 flex items-center justify-center">

@@ -2,18 +2,17 @@ import type { NextConfig } from 'next';
 
 const nextConfig: NextConfig = {
   images: {
+    loader: 'custom',
+    loaderFile: './lib/cloudinary/loader.ts',
     remotePatterns: [
-      // Current project images (Unsplash placeholders)
-      {
-        protocol: 'https',
-        hostname: 'images.unsplash.com',
-      },
-      // Cloudinary CDN — production media
       {
         protocol: 'https',
         hostname: 'res.cloudinary.com',
       },
-      // YouTube thumbnails
+      {
+        protocol: 'https',
+        hostname: 'images.unsplash.com',
+      },
       {
         protocol: 'https',
         hostname: 'i.ytimg.com',
