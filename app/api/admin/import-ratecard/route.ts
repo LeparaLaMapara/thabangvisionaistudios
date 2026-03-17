@@ -58,7 +58,8 @@ export async function POST(req: NextRequest) {
     // Parse PDF → text using unpdf (works in all JS runtimes, no worker needed)
     const arrayBuffer = await file.arrayBuffer();
     const { extractText } = await import('unpdf');
-    const { text: pdfText, totalPages: pageCount } = await extractText(new Uint8Array(arrayBuffer));
+    const { text: pdfPages, totalPages: pageCount } = await extractText(new Uint8Array(arrayBuffer));
+    const pdfText = (Array.isArray(pdfPages) ? pdfPages.join('\n') : String(pdfPages ?? '')).trim();
 
     if (!pdfText || pdfText.length < 20) {
       return NextResponse.json(
