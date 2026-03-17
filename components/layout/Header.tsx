@@ -221,6 +221,7 @@ export const Header = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [authLoading, setAuthLoading] = useState(true);
   const [signingOut, setSigningOut] = useState(false);
 
   const closeSearch = useCallback(() => setSearchOpen(false), []);
@@ -230,6 +231,7 @@ export const Header = () => {
     const supabase = createClient();
     supabase.auth.getUser().then(({ data }) => {
       setIsLoggedIn(!!data.user);
+      setAuthLoading(false);
     });
   }, []);
 
@@ -333,7 +335,9 @@ export const Header = () => {
           <Link href="/contact" className="text-[10px] font-mono font-bold tracking-widest text-white bg-black dark:text-black dark:bg-white px-5 py-2 hover:opacity-80 transition-all duration-300 uppercase">
             Start Project
           </Link>
-          {isLoggedIn ? (
+          {authLoading ? (
+            <div className="w-24 h-8" />
+          ) : isLoggedIn ? (
             <>
               <Link
                 href="/dashboard"
@@ -425,7 +429,9 @@ export const Header = () => {
                 >
                   Contact
                 </button>
-                {isLoggedIn ? (
+                {authLoading ? (
+                  <div className="h-[44px]" />
+                ) : isLoggedIn ? (
                   <>
                     <button
                       onClick={() => mobileNavigate('/dashboard')}
