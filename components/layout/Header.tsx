@@ -8,6 +8,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { MAIN_NAVIGATION } from '@/lib/constants';
 import { GlobalSearch } from '@/components/search/GlobalSearch';
 import { createClient } from '@/lib/supabase/client';
+import { useAuth } from '@/providers/AuthProvider';
 
 // Pre-computed ray params to avoid hydration mismatch (no Math.random() in render)
 const RAY_LENGTHS = [38, 47, 43, 35, 44, 41, 39, 48, 42];
@@ -217,33 +218,23 @@ const MobileNavSection = ({
 
 export const Header = () => {
   const router = useRouter();
+  const { user, loading: authLoading } = useAuth();
+  const isLoggedIn = !!user;
+
   const [scrolled, setScrolled] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [authLoading, setAuthLoading] = useState(true);
   const [signingOut, setSigningOut] = useState(false);
 
   const closeSearch = useCallback(() => setSearchOpen(false), []);
-
-  // Check auth state
-  useEffect(() => {
-    const supabase = createClient();
-    supabase.auth.getUser().then(({ data }) => {
-      setIsLoggedIn(!!data.user);
-      setAuthLoading(false);
-    });
-  }, []);
 
   const handleSignOut = useCallback(async () => {
     setSigningOut(true);
     const supabase = createClient();
     await supabase.auth.signOut();
-    setIsLoggedIn(false);
     setMobileMenuOpen(false);
-    router.push('/');
-    router.refresh();
-  }, [router]);
+    window.location.href = '/';
+  }, []);
 
   /** Navigate from mobile menu — start navigation first, then close menu */
   const mobileNavigate = useCallback((href: string) => {
@@ -301,7 +292,7 @@ export const Header = () => {
 
   return (
     <header
-      className={`fixed top-0 w-full z-[100] transition-all duration-500 border-b ${
+      className={`fixed top-0 w-full z-[300] transition-all duration-500 border-b ${
         scrolled ? 'bg-white/90 dark:bg-[#050505]/90 backdrop-blur-md border-neutral-200 dark:border-white/10' : 'bg-transparent border-transparent'
       }`}
     >

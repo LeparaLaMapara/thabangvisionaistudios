@@ -24,7 +24,7 @@ function sign(params: Record<string, string>, secret: string): string {
       .sort(([a], [b]) => a.localeCompare(b))
       .map(([k, v]) => `${k}=${v}`)
       .join('&') + secret;
-  return crypto.createHash('sha256').update(toSign).digest('hex');
+  return crypto.createHash('sha1').update(toSign).digest('hex');
 }
 
 export const cloudinary: StorageProvider = {
@@ -157,11 +157,17 @@ export const cloudinary: StorageProvider = {
     const { cloudName, apiKey, apiSecret } = getConfig();
     const timestamp = Math.round(Date.now() / 1000).toString();
 
-    const paramsToSign: Record<string, string> = {
-      folder,
-      timestamp,
-      ...extraParams,
-    };
+    // Only include parameters that Cloudinary expects in the signature.
+    // Exclude non-signable params like resource_type (it's a URL path segment).
+    const NON_SIGNABLE = new Set(['resource_type', 'api_key', 'file', 'type']);
+    const paramsToSign: Record<string, string> = { folder, timestamp };
+    if (extraParams) {
+      for (const [k, v] of Object.entries(extraParams)) {
+        if (!NON_SIGNABLE.has(k) && v !== undefined && v !== '') {
+          paramsToSign[k] = v;
+        }
+      }
+    }
     const signature = sign(paramsToSign, apiSecret);
 
     return {

@@ -25,14 +25,14 @@ export const STUDIO = {
   },
 
   social: {
-    instagram: 'https://instagram.com/thabangvisionlabs',
+    instagram: 'https://instagram.com/thabangvision',
     twitter: 'https://x.com/thabangvisionlabs',
-    youtube: 'https://youtube.com/@thabangvisionlabs',
-    linkedin: 'https://linkedin.com/thabangvisionlabs',
+    youtube: 'https://youtube.com/@thabangvision',
+    linkedin: 'https://linkedin.com/thabangvision',
     tiktok: 'https://tiktok.com/thabangvisionlabs',
     // behance: 'https://behance.net/thabangvisionstudios',
     // vimeo: 'https://vimeo.com/thabangvisionstudios',
-    facebook: 'https://facebook.com/thabangvisionlabs',
+    facebook: 'https://facebook.com/thabangvision',
   },
 
   legal: {
@@ -109,7 +109,8 @@ export const STUDIO = {
 
   verification: {
     maxFileSizeMB: 5,
-    acceptedTypes: ['image/jpeg', 'image/png', 'application/pdf'],
+    acceptedTypes: ['image/jpeg', 'image/png'],
+    maxAttempts: 3,
     reviewDays: '1-2 business days',
   },
 
@@ -118,6 +119,38 @@ export const STUDIO = {
     maxListingImages: 5,
     maxGalleryImages: 20,
     paginationLimit: 12,
+  },
+
+  crew: {
+    commissionRate: 15,
+    minRequestLength: 20,
+    maxRequestsPerHour: 5,
+    statusLabels: {
+      pending: 'Under Review',
+      contacted: 'In Discussion',
+      confirmed: 'Confirmed',
+      declined: 'Not Available',
+      completed: 'Completed',
+      cancelled: 'Cancelled',
+    },
+    projectTypes: [
+      'Photography',
+      'Cinematography',
+      'Wedding',
+      'Corporate',
+      'Music Video',
+      'Event',
+      'Documentary',
+      'Content Creation',
+      'Other',
+    ],
+    budgetRanges: [
+      'Under R5,000',
+      'R5,000 - R15,000',
+      'R15,000 - R50,000',
+      'R50,000+',
+      'Flexible',
+    ],
   },
 } as const;
 
@@ -152,6 +185,7 @@ export const MAIN_NAVIGATION = [
     children: [
       { label: 'Smart Productions', href: '/smart-production' },
       { label: 'Smart Rentals', href: '/smart-rentals' },
+      { label: 'Crew & Talent', href: '/crew' },
       {
         label: 'Ubunye AI Studio',
         href: '/ubunye-ai-studio',

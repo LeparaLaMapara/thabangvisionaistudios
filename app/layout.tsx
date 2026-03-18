@@ -4,6 +4,7 @@ import './globals.css';
 
 import { Providers } from '@/components/layout/Providers';
 import { STUDIO } from '@/lib/constants';
+import { createClient } from '@/lib/supabase/server';
 
 // ── Google Fonts via next/font ──
 // CSS variables injected into <html>, consumed by @theme in globals.css.
@@ -56,11 +57,22 @@ export const metadata: Metadata = {
  *   app/(platform)/layout.tsx   ← Header + Footer for capability pages
  *   app/(admin)/layout.tsx      ← Admin topbar only, no public nav
  */
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  // Get user on the server to prevent auth flicker on client
+  let initialUser: { id: string; email?: string } | null = null;
+  try {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user) {
+      initialUser = { id: user.id, email: user.email ?? undefined };
+    }
+  } catch {
+    // No session — user is null
+  }
   return (
     // suppressHydrationWarning: next-themes sets the theme class on <html>
     // after SSR which would otherwise trigger a React hydration mismatch.
@@ -75,7 +87,7 @@ export default function RootLayout({
         ].join(' ')}
         suppressHydrationWarning
       >
-        <Providers>
+        <Providers initialUser={initialUser}>
           {children}
         </Providers>
       </body>

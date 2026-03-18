@@ -7,6 +7,7 @@ import { checkRateLimit } from '@/lib/auth';
 import { getModel } from '@/lib/ai';
 import { createClient } from '@/lib/supabase/server';
 import { buildSystemPrompt, fetchPlatformData, fetchUserContext } from '@/lib/ubunye/system-prompt';
+import { createCrewTools } from '@/lib/ubunye/tools';
 
 // ─── Plan Limits ────────────────────────────────────────────────────────────
 
@@ -141,10 +142,13 @@ export async function POST(req: NextRequest) {
       ? await convertToModelMessages(rawMessages)
       : rawMessages;
 
+    const crewTools = createCrewTools(supabase);
+
     const result = streamText({
       model: getModel(),
       system: systemPrompt,
       messages: modelMessages,
+      tools: crewTools,
     });
 
     return result.toUIMessageStreamResponse();

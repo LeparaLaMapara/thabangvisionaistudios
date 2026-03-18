@@ -59,6 +59,7 @@ export default async function DashboardPage() {
   const displayName = profile?.display_name || user?.email?.split('@')[0] || 'Creator';
   const hasProfile = profile && (profile.bio || profile.avatar_url || (profile.skills && profile.skills.length > 0));
   const isVerified = verificationStatus === 'verified';
+  const needsProfileCompletion = profile && (!profile.bio || !profile.skills || profile.skills.length === 0);
 
   return (
     <div>
@@ -83,6 +84,15 @@ export default async function DashboardPage() {
         <StatCard label="Listings" value={String(listingsCount)} icon={Package} href="/dashboard/listings" />
         <StatCard label="Orders" value={String(ordersCount)} icon={ShoppingBag} href="/dashboard/orders" />
       </div>
+
+      {/* Profile completeness prompt */}
+      {needsProfileCompletion && (
+        <ProfileCompletenessPrompt
+          hasBio={!!profile?.bio}
+          hasSkills={!!(profile?.skills && profile.skills.length > 0)}
+          hasSocialLinks={!!(profile?.social_links && Object.keys(profile.social_links).length > 0)}
+        />
+      )}
 
       {/* Onboarding checklist (only show if profile incomplete) */}
       {!hasProfile || !isVerified ? (
@@ -252,5 +262,59 @@ function QuickAction({
         <p className="text-xs text-neutral-500 leading-relaxed">{description}</p>
       </div>
     </Link>
+  );
+}
+
+function ProfileCompletenessPrompt({
+  hasBio,
+  hasSkills,
+  hasSocialLinks,
+}: {
+  hasBio: boolean;
+  hasSkills: boolean;
+  hasSocialLinks: boolean;
+}) {
+  return (
+    <div className="mb-10">
+      <div className="bg-[#0A0A0B] border border-amber-500/20 p-6">
+        <h3 className="text-xs font-mono font-bold uppercase tracking-widest text-amber-400 mb-2">
+          Complete Your Profile
+        </h3>
+        <p className="text-xs font-mono text-neutral-400 mb-4 leading-relaxed">
+          Add a bio and skills to appear in crew searches and stand out to clients.
+        </p>
+        <div className="space-y-2 mb-5">
+          <CompletionItem done={hasBio} label="Bio (tell clients about your experience)" />
+          <CompletionItem done={hasSkills} label="Skills (e.g. Premiere Pro, Cinematography)" />
+          <CompletionItem done={hasSocialLinks} label="Social links (Instagram, YouTube, etc.)" />
+        </div>
+        <Link
+          href="/dashboard/profile"
+          className="inline-flex items-center gap-1 text-[10px] font-mono font-bold uppercase tracking-widest text-white border border-white/20 px-4 py-2.5 hover:bg-white hover:text-black transition-all"
+        >
+          Edit Profile
+          <ArrowRight className="w-3 h-3" />
+        </Link>
+      </div>
+    </div>
+  );
+}
+
+function CompletionItem({ done, label }: { done: boolean; label: string }) {
+  return (
+    <div className="flex items-center gap-2">
+      <div className={`w-3.5 h-3.5 rounded-full border flex items-center justify-center ${
+        done ? 'border-emerald-500 bg-emerald-500' : 'border-neutral-600'
+      }`}>
+        {done && (
+          <svg className="w-2 h-2 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+          </svg>
+        )}
+      </div>
+      <span className={`text-xs font-mono ${done ? 'text-neutral-500 line-through' : 'text-neutral-300'}`}>
+        {label}
+      </span>
+    </div>
   );
 }

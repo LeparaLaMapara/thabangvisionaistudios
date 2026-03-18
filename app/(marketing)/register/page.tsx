@@ -1,34 +1,87 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
 import { createClient } from '@/lib/supabase/client';
 import { STUDIO } from '@/lib/constants';
 
-export default function RegisterPage() {
-  const router = useRouter();
+// Google "G" icon
+function GoogleIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 48 48">
+      <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
+      <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
+      <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
+      <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
+    </svg>
+  );
+}
 
-  const [displayName, setDisplayName] = useState('');
+export default function RegisterPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [agreedToTerms, setAgreedToTerms] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [checking, setChecking] = useState(true);
+  const [showPassword, setShowPassword] = useState(false);
+  const [magicEmail, setMagicEmail] = useState('');
+  const [magicLoading, setMagicLoading] = useState(false);
 
   useEffect(() => {
     const supabase = createClient();
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session) {
-        router.replace('/dashboard');
+        window.location.href = '/dashboard';
       } else {
         setChecking(false);
       }
     });
-  }, [router]);
+  }, []);
+
+  const handleGoogleSignIn = async () => {
+    const supabase = createClient();
+    await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: `${window.location.origin}/auth/callback`,
+      },
+    });
+  };
+
+  const handleMagicLink = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setError(null);
+    setMessage(null);
+
+    if (!magicEmail.trim()) {
+      setError('Please enter your email address.');
+      return;
+    }
+
+    setMagicLoading(true);
+    const supabase = createClient();
+    const { error: otpError } = await supabase.auth.signInWithOtp({
+      email: magicEmail,
+      options: {
+        emailRedirectTo: `${window.location.origin}/auth/callback`,
+      },
+    });
+
+    if (otpError) {
+      if (otpError.message.toLowerCase().includes('rate limit')) {
+        setError("We've already sent a sign-in link. Please check your inbox and spam folder. You can try again in 60 minutes.");
+      } else {
+        setError(otpError.message);
+      }
+    } else {
+      setMessage('Check your email for a sign-in link. No password needed.');
+    }
+    setMagicLoading(false);
+  };
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -52,8 +105,7 @@ export default function RegisterPage() {
     setLoading(true);
 
     const supabase = createClient();
-
-    const { data, error: signUpError } = await supabase.auth.signUp({
+    const { error: signUpError } = await supabase.auth.signUp({
       email,
       password,
     });
@@ -64,19 +116,7 @@ export default function RegisterPage() {
       return;
     }
 
-    // Create profile row
-    if (data.user) {
-      const { error: profileError } = await supabase.from('profiles').upsert({
-        id: data.user.id,
-        display_name: displayName.trim() || null,
-      }, { onConflict: 'id' });
-
-      if (profileError) {
-        console.error('[register] profile insert failed:', profileError.message);
-      }
-    }
-
-    router.push('/dashboard');
+    window.location.href = '/dashboard';
   };
 
   if (checking) {
@@ -108,145 +148,172 @@ export default function RegisterPage() {
 
         {/* Card */}
         <div className="bg-neutral-50 dark:bg-[#0A0A0B] border border-black/10 dark:border-white/10 p-8">
-          <form onSubmit={handleSubmit} noValidate className="space-y-5">
-            {/* Display Name */}
-            <div>
-              <label
-                htmlFor="displayName"
-                className="block text-[10px] font-bold uppercase tracking-widest text-neutral-500 mb-2"
-              >
-                Display Name
-              </label>
-              <input
-                id="displayName"
-                type="text"
-                value={displayName}
-                onChange={e => setDisplayName(e.target.value)}
-                autoComplete="name"
-                placeholder="Your name"
-                className="w-full bg-white dark:bg-neutral-900 border border-black/10 dark:border-white/10 text-black dark:text-white px-4 py-3 min-h-[44px] text-sm font-mono placeholder:text-neutral-300 dark:placeholder:text-neutral-700 focus:outline-none focus:border-black dark:focus:border-white transition-colors"
-              />
-            </div>
+          <div className="space-y-5">
 
-            {/* Email */}
-            <div>
-              <label
-                htmlFor="email"
-                className="block text-[10px] font-bold uppercase tracking-widest text-neutral-500 mb-2"
-              >
-                Email
-              </label>
-              <input
-                id="email"
-                type="email"
-                value={email}
-                onChange={e => setEmail(e.target.value)}
-                required
-                autoComplete="email"
-                placeholder="you@example.com"
-                className="w-full bg-white dark:bg-neutral-900 border border-black/10 dark:border-white/10 text-black dark:text-white px-4 py-3 min-h-[44px] text-sm font-mono placeholder:text-neutral-300 dark:placeholder:text-neutral-700 focus:outline-none focus:border-black dark:focus:border-white transition-colors"
-              />
-            </div>
+            {/* Google OAuth */}
+            <button
+              type="button"
+              onClick={handleGoogleSignIn}
+              className="w-full flex items-center justify-center gap-3 bg-white border border-neutral-300 dark:border-neutral-700 text-neutral-800 py-3.5 text-xs font-mono font-medium tracking-wide hover:bg-neutral-50 transition-colors min-h-[44px]"
+            >
+              <GoogleIcon />
+              Sign up with Google
+            </button>
 
-            {/* Password */}
-            <div>
-              <label
-                htmlFor="password"
-                className="block text-[10px] font-bold uppercase tracking-widest text-neutral-500 mb-2"
-              >
-                Password
-              </label>
-              <input
-                id="password"
-                type="password"
-                value={password}
-                onChange={e => setPassword(e.target.value)}
-                required
-                autoComplete="new-password"
-                placeholder={`Min ${STUDIO.platform.minPasswordLength} characters`}
-                className="w-full bg-white dark:bg-neutral-900 border border-black/10 dark:border-white/10 text-black dark:text-white px-4 py-3 min-h-[44px] text-sm font-mono placeholder:text-neutral-300 dark:placeholder:text-neutral-700 focus:outline-none focus:border-black dark:focus:border-white transition-colors"
-              />
-            </div>
-
-            {/* Confirm Password */}
-            <div>
-              <label
-                htmlFor="confirmPassword"
-                className="block text-[10px] font-bold uppercase tracking-widest text-neutral-500 mb-2"
-              >
-                Confirm Password
-              </label>
-              <input
-                id="confirmPassword"
-                type="password"
-                value={confirmPassword}
-                onChange={e => setConfirmPassword(e.target.value)}
-                required
-                autoComplete="new-password"
-                placeholder="Repeat password"
-                className="w-full bg-white dark:bg-neutral-900 border border-black/10 dark:border-white/10 text-black dark:text-white px-4 py-3 min-h-[44px] text-sm font-mono placeholder:text-neutral-300 dark:placeholder:text-neutral-700 focus:outline-none focus:border-black dark:focus:border-white transition-colors"
-              />
-            </div>
-
-            {/* Terms checkbox */}
-            <div>
-              <label className="flex items-start gap-3 cursor-pointer group min-h-[44px] py-2">
+            {/* Magic Link */}
+            <form onSubmit={handleMagicLink} noValidate className="space-y-3">
+              <div>
+                <label htmlFor="magicEmail" className="block text-[10px] font-bold uppercase tracking-widest text-neutral-500 mb-2">
+                  Email
+                </label>
                 <input
-                  type="checkbox"
-                  checked={agreedToTerms}
-                  onChange={(e) => setAgreedToTerms(e.target.checked)}
-                  className="mt-0.5 w-5 h-5 min-w-[20px] border border-black/20 dark:border-white/20 bg-white dark:bg-neutral-900 accent-black dark:accent-white cursor-pointer"
+                  id="magicEmail"
+                  type="email"
+                  value={magicEmail}
+                  onChange={(e) => setMagicEmail(e.target.value)}
+                  autoComplete="email"
+                  placeholder="you@example.com"
+                  className="w-full bg-white dark:bg-neutral-900 border border-black/10 dark:border-white/10 text-black dark:text-white px-4 py-3 min-h-[44px] text-sm font-mono placeholder:text-neutral-300 dark:placeholder:text-neutral-700 focus:outline-none focus:border-black dark:focus:border-white transition-colors"
                 />
-                <span className="text-xs font-mono text-neutral-500 leading-relaxed">
-                  I agree to the{' '}
-                  <Link
-                    href="/legal"
-                    className="text-black dark:text-white underline underline-offset-2 hover:opacity-70 transition-opacity"
-                  >
-                    Terms of Service
-                  </Link>{' '}
-                  and{' '}
-                  <Link
-                    href="/privacy"
-                    className="text-black dark:text-white underline underline-offset-2 hover:opacity-70 transition-opacity"
-                  >
-                    Privacy Policy
-                  </Link>
-                </span>
-              </label>
-            </div>
-
-            {/* Error */}
-            {error && (
-              <motion.div
-                initial={{ opacity: 0, height: 0 }}
-                animate={{ opacity: 1, height: 'auto' }}
-                className="overflow-hidden"
+              </div>
+              <button
+                type="submit"
+                disabled={magicLoading}
+                className="w-full bg-black dark:bg-white text-white dark:text-black py-3.5 text-[10px] font-mono font-bold uppercase tracking-widest hover:opacity-80 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
               >
+                {magicLoading ? (
+                  <>
+                    <span className="w-3.5 h-3.5 border-2 border-white/40 dark:border-black/40 border-t-white dark:border-t-black rounded-full animate-spin" />
+                    Sending...
+                  </>
+                ) : (
+                  'Send Me a Sign In Link'
+                )}
+              </button>
+            </form>
+
+            {/* Success / Error messages */}
+            {message && (
+              <div className="bg-emerald-500/10 border border-emerald-500/30 px-4 py-3">
+                <p className="text-xs text-emerald-600 dark:text-emerald-400 font-mono leading-relaxed">{message}</p>
+              </div>
+            )}
+            {error && !showPassword && (
+              <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} className="overflow-hidden">
                 <div className="bg-red-500/10 border border-red-500/30 px-4 py-3">
-                  <p className="text-xs text-red-600 dark:text-red-400 font-mono leading-relaxed">
-                    {error}
-                  </p>
+                  <p className="text-xs text-red-600 dark:text-red-400 font-mono leading-relaxed">{error}</p>
                 </div>
               </motion.div>
             )}
 
-            {/* Submit */}
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full bg-black dark:bg-white text-white dark:text-black py-3.5 text-[10px] font-mono font-bold uppercase tracking-widest hover:opacity-80 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-            >
-              {loading ? (
-                <>
-                  <span className="w-3.5 h-3.5 border-2 border-white/40 dark:border-black/40 border-t-white dark:border-t-black rounded-full animate-spin" />
-                  Creating Account...
-                </>
-              ) : (
-                'Create Account'
-              )}
-            </button>
-          </form>
+            {/* Divider */}
+            <div className="flex items-center gap-3 py-1">
+              <div className="flex-1 h-px bg-neutral-200 dark:bg-white/10" />
+              <span className="text-[9px] font-mono uppercase tracking-widest text-neutral-400 dark:text-neutral-600">
+                or register with password
+              </span>
+              <div className="flex-1 h-px bg-neutral-200 dark:bg-white/10" />
+            </div>
+
+            {!showPassword ? (
+              <button
+                type="button"
+                onClick={() => setShowPassword(true)}
+                className="w-full text-xs font-mono text-neutral-500 hover:text-black dark:hover:text-white transition-colors uppercase tracking-widest py-2"
+              >
+                Use Password
+              </button>
+            ) : (
+              <form onSubmit={handleSubmit} noValidate className="space-y-4">
+                <div>
+                  <label htmlFor="email" className="block text-[10px] font-bold uppercase tracking-widest text-neutral-500 mb-2">
+                    Email
+                  </label>
+                  <input
+                    id="email"
+                    type="email"
+                    value={email}
+                    onChange={e => setEmail(e.target.value)}
+                    required
+                    autoComplete="email"
+                    placeholder="you@example.com"
+                    className="w-full bg-white dark:bg-neutral-900 border border-black/10 dark:border-white/10 text-black dark:text-white px-4 py-3 min-h-[44px] text-sm font-mono placeholder:text-neutral-300 dark:placeholder:text-neutral-700 focus:outline-none focus:border-black dark:focus:border-white transition-colors"
+                  />
+                </div>
+                <div>
+                  <label htmlFor="password" className="block text-[10px] font-bold uppercase tracking-widest text-neutral-500 mb-2">
+                    Password
+                  </label>
+                  <input
+                    id="password"
+                    type="password"
+                    value={password}
+                    onChange={e => setPassword(e.target.value)}
+                    required
+                    autoComplete="new-password"
+                    placeholder={`Min ${STUDIO.platform.minPasswordLength} characters`}
+                    className="w-full bg-white dark:bg-neutral-900 border border-black/10 dark:border-white/10 text-black dark:text-white px-4 py-3 min-h-[44px] text-sm font-mono placeholder:text-neutral-300 dark:placeholder:text-neutral-700 focus:outline-none focus:border-black dark:focus:border-white transition-colors"
+                  />
+                </div>
+                <div>
+                  <label htmlFor="confirmPassword" className="block text-[10px] font-bold uppercase tracking-widest text-neutral-500 mb-2">
+                    Confirm Password
+                  </label>
+                  <input
+                    id="confirmPassword"
+                    type="password"
+                    value={confirmPassword}
+                    onChange={e => setConfirmPassword(e.target.value)}
+                    required
+                    autoComplete="new-password"
+                    placeholder="Repeat password"
+                    className="w-full bg-white dark:bg-neutral-900 border border-black/10 dark:border-white/10 text-black dark:text-white px-4 py-3 min-h-[44px] text-sm font-mono placeholder:text-neutral-300 dark:placeholder:text-neutral-700 focus:outline-none focus:border-black dark:focus:border-white transition-colors"
+                  />
+                </div>
+                <div>
+                  <label className="flex items-start gap-3 cursor-pointer group min-h-[44px] py-2">
+                    <input
+                      type="checkbox"
+                      checked={agreedToTerms}
+                      onChange={(e) => setAgreedToTerms(e.target.checked)}
+                      className="mt-0.5 w-5 h-5 min-w-[20px] border border-black/20 dark:border-white/20 bg-white dark:bg-neutral-900 accent-black dark:accent-white cursor-pointer"
+                    />
+                    <span className="text-xs font-mono text-neutral-500 leading-relaxed">
+                      I agree to the{' '}
+                      <Link href="/legal" className="text-black dark:text-white underline underline-offset-2 hover:opacity-70 transition-opacity">
+                        Terms of Service
+                      </Link>{' '}
+                      and{' '}
+                      <Link href="/privacy" className="text-black dark:text-white underline underline-offset-2 hover:opacity-70 transition-opacity">
+                        Privacy Policy
+                      </Link>
+                    </span>
+                  </label>
+                </div>
+                {error && (
+                  <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} className="overflow-hidden">
+                    <div className="bg-red-500/10 border border-red-500/30 px-4 py-3">
+                      <p className="text-xs text-red-600 dark:text-red-400 font-mono leading-relaxed">{error}</p>
+                    </div>
+                  </motion.div>
+                )}
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="w-full bg-black dark:bg-white text-white dark:text-black py-3.5 text-[10px] font-mono font-bold uppercase tracking-widest hover:opacity-80 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                >
+                  {loading ? (
+                    <>
+                      <span className="w-3.5 h-3.5 border-2 border-white/40 dark:border-black/40 border-t-white dark:border-t-black rounded-full animate-spin" />
+                      Creating Account...
+                    </>
+                  ) : (
+                    'Create Account'
+                  )}
+                </button>
+              </form>
+            )}
+          </div>
         </div>
 
         {/* Footer */}

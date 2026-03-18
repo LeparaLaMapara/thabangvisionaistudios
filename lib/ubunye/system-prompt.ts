@@ -11,6 +11,7 @@ export type CachedData = {
   listings: string;
   plans: string;
   services: string;
+  crew: string;
 };
 
 // ─── Platform Data Cache (5 minutes) ────────────────────────────────────────
@@ -45,7 +46,7 @@ export async function fetchPlatformData(supabase: any): Promise<CachedData> {
     return platformCache.data;
   }
 
-  const [rentals, productions, press, careers, creators, listings, plans] = await Promise.all([
+  const [rentals, productions, press, careers, creators, listings, plans, crew] = await Promise.all([
     supabase
       .from('smart_rentals')
       .select('title, brand, model, price_per_day, price_per_week, deposit_amount, is_available, category, slug, description, features')
@@ -82,6 +83,12 @@ export async function fetchPlatformData(supabase: any): Promise<CachedData> {
       .select('name, slug, price, interval, currency, features')
       .eq('is_active', true)
       .order('price', { ascending: true }),
+    supabase
+      .from('profiles')
+      .select('display_name, crew_slug, specializations, hourly_rate, location, crew_bio, years_experience, crew_featured')
+      .eq('verification_status', 'verified')
+      .eq('available_for_hire', true)
+      .order('crew_featured', { ascending: false }),
   ]);
 
   const data: CachedData = {
@@ -113,6 +120,10 @@ export async function fetchPlatformData(supabase: any): Promise<CachedData> {
     plans: plans.data?.map((p: Record<string, unknown>) =>
       `${p.name} (${p.slug}): R${p.price}/${p.interval} — ${(p.features as string[])?.join(', ') || 'No features listed'}`
     ).join('\n') || 'Contact for pricing',
+
+    crew: crew.data?.map((c: Record<string, unknown>) =>
+      `${c.display_name} — ${(c.specializations as string[])?.join(', ') || 'General'} — R${c.hourly_rate || '?'}/hr — ${c.location || 'SA'} — ${c.years_experience || '?'} yrs — Profile: /crew/${c.crew_slug}`
+    ).join('\n') || 'No crew available yet',
 
     services: formatServices(),
   };
@@ -211,6 +222,9 @@ ${platform.rentals}
 ===== PRODUCTIONS =====
 ${platform.productions}
 
+===== AVAILABLE CREW =====
+${platform.crew}
+
 ===== VERIFIED CREATORS =====
 ${platform.creators}
 
@@ -225,8 +239,25 @@ ${platform.careers}
 
 ${userContext || 'User is NOT logged in. Encourage them to register at /register.'}
 
+===== CREW BOOKING =====
+You have tools to search and book crew. When a client asks about hiring someone:
+1. Use search_crew to find matching creators. Present 2-3 options with name, rate, rating, and profile link.
+2. If the client asks for more detail, use get_crew_detail to get their full profile.
+3. When the client wants to book, collect: their name, email, project type, and a brief description (min 20 chars).
+4. Ask for optional info: phone, dates, location, duration, budget range.
+5. Confirm all details with the client BEFORE calling submit_crew_request.
+6. After booking, tell them ${STUDIO.name} will reach out within 24 hours.
+
+CREW RULES:
+- NEVER share creator email or phone with clients — only show display name, specializations, rate, rating, and profile link.
+- NEVER fabricate crew members — only recommend creators returned by search_crew.
+- If no crew match, suggest the client contact ${STUDIO.name} directly at ${STUDIO.email}.
+- For team/package requests, search for multiple crew members and present as a package.
+- Always use exact rates from the data — never estimate.
+
 ===== HOW TO GUIDE USERS =====
 - Rent gear → /smart-rentals
+- Hire crew → /crew (or ask Ubunye to search)
 - Book production → /contact
 - List gear → /register → /dashboard/verification → /dashboard/listings
 - View portfolio → /smart-production

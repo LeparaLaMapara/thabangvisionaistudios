@@ -9,6 +9,7 @@ import {
 } from '@/lib/supabase/queries/verifications';
 import { sendVerificationApproved, sendVerificationRejected } from '@/lib/email';
 import { requireAdmin } from '@/lib/auth';
+import { generateCrewSlug } from '@/lib/supabase/queries/crew';
 
 type RouteContext = {
   params: Promise<{ id: string }>;
@@ -34,7 +35,7 @@ export async function GET(_req: NextRequest, context: RouteContext) {
     const documents: Record<string, string | null> = {
       idFront: null,
       idBack: null,
-      proofOfAddress: null,
+      selfieWithId: null,
     };
 
     if (profile.id_front_path) {
@@ -51,11 +52,11 @@ export async function GET(_req: NextRequest, context: RouteContext) {
       documents.idBack = data?.signedUrl ?? null;
     }
 
-    if (profile.proof_of_address_path) {
+    if (profile.selfie_with_id_path) {
       const { data } = await supabase.storage
         .from('verifications')
-        .createSignedUrl(profile.proof_of_address_path, 3600);
-      documents.proofOfAddress = data?.signedUrl ?? null;
+        .createSignedUrl(profile.selfie_with_id_path, 3600);
+      documents.selfieWithId = data?.signedUrl ?? null;
     }
 
     return NextResponse.json({ profile, documents });
@@ -114,6 +115,31 @@ export async function PUT(req: NextRequest, context: RouteContext) {
           { error: result.error || 'Failed to approve verification.' },
           { status: 500 },
         );
+      }
+
+      // Auto-setup crew profile on verification approval
+      if (displayName) {
+        const adminSupa = createAdminClient();
+        const slug = generateCrewSlug(displayName);
+
+        // Check for slug uniqueness, append number if needed
+        const { data: existing } = await adminSupa
+          .from('profiles')
+          .select('crew_slug')
+          .like('crew_slug', `${slug}%`)
+          .neq('id', id);
+
+        const finalSlug = existing && existing.length > 0
+          ? `${slug}-${existing.length + 1}`
+          : slug;
+
+        await adminSupa
+          .from('profiles')
+          .update({
+            available_for_hire: true,
+            crew_slug: finalSlug,
+          })
+          .eq('id', id);
       }
 
       // Send approval email

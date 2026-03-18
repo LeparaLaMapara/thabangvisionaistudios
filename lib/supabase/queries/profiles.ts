@@ -5,6 +5,8 @@ import { createClient } from '@/lib/supabase/server';
 export type Profile = {
   id: string;
   display_name: string | null;
+  first_name: string | null;
+  last_name: string | null;
   bio: string | null;
   avatar_url: string | null;
   avatar_public_id: string | null;
@@ -12,6 +14,15 @@ export type Profile = {
   social_links: Record<string, string> | null;
   location: string | null;
   phone: string | null;
+  street_address: string | null;
+  city: string | null;
+  province: string | null;
+  postal_code: string | null;
+  country: string | null;
+  address_lat: number | null;
+  address_lng: number | null;
+  address_place_id: string | null;
+  onboarding_completed_at: string | null;
   is_verified: boolean;
   created_at: string;
   updated_at: string;

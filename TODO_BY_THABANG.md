@@ -73,3 +73,18 @@ Tasks that only Thabang can do — not automatable by Claude Code.
 - [ ] Run /api/admin/reindex to generate embeddings for all content
 - [ ] Test Ubunye with real questions on live site
 - [ ] Set RAG_ENABLED=true when ready to switch from prompt stuffing to vector search
+
+## AFTER chnaging domain name to thabangvision.com
+1. Vercel → Domains:
+   thabangvision.com
+   www.thabangvision.com (redirects to thabangvision.com)
+
+2. Vercel env var:
+   NEXT_PUBLIC_APP_URL=https://thabangvision.com
+
+3. Supabase → URL Configuration:
+   Site URL: https://thabangvision.com
+   Redirect URLs: https://thabangvision.com/**
+
+4. Google Cloud → OAuth Client:
+   Add: https://thabangvision.com to authorized origins

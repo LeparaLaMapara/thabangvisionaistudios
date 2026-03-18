@@ -9,16 +9,27 @@ import type { Profile } from '@/lib/supabase/queries/profiles';
 import { Input } from '@/components/ui/Input';
 import { Textarea } from '@/components/ui/Textarea';
 import { Button } from '@/components/ui/Button';
+import AddressAutocomplete from '@/components/ui/AddressAutocomplete';
+import type { AddressResult } from '@/components/ui/AddressAutocomplete';
 
 export default function ProfileEditPage() {
-  const [displayName, setDisplayName] = useState('');
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
   const [bio, setBio] = useState('');
-  const [location, setLocation] = useState('');
   const [phone, setPhone] = useState('');
   const [avatarUrl, setAvatarUrl] = useState('');
   const [skills, setSkills] = useState<string[]>([]);
   const [newSkill, setNewSkill] = useState('');
   const [socialLinks, setSocialLinks] = useState<Record<string, string>>({});
+  const [address, setAddress] = useState<AddressResult | null>(null);
+
+  // Crew settings
+  const [availableForHire, setAvailableForHire] = useState(false);
+  const [hourlyRate, setHourlyRate] = useState('');
+  const [crewBio, setCrewBio] = useState('');
+  const [yearsExperience, setYearsExperience] = useState('');
+  const [specializations, setSpecializations] = useState<string[]>([]);
+  const [isVerified, setIsVerified] = useState(false);
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -56,13 +67,33 @@ export default function ProfileEditPage() {
       setMessage({ type: 'error', text: error.message });
     } else if (data) {
       const profile = data as Profile;
-      setDisplayName(profile.display_name ?? '');
+      setFirstName(profile.first_name ?? '');
+      setLastName(profile.last_name ?? '');
       setBio(profile.bio ?? '');
-      setLocation(profile.location ?? '');
       setPhone(profile.phone ?? '');
       setAvatarUrl(profile.avatar_url ?? '');
       setSkills(profile.skills ?? []);
       setSocialLinks(profile.social_links ?? {});
+      // Load crew settings
+      setAvailableForHire((data as Record<string, unknown>).available_for_hire as boolean ?? false);
+      setHourlyRate(String((data as Record<string, unknown>).hourly_rate ?? ''));
+      setCrewBio((data as Record<string, unknown>).crew_bio as string ?? '');
+      setYearsExperience(String((data as Record<string, unknown>).years_experience ?? ''));
+      setSpecializations((data as Record<string, unknown>).specializations as string[] ?? []);
+      setIsVerified((data as Record<string, unknown>).verification_status === 'verified');
+
+      if (profile.street_address || profile.city || profile.province) {
+        setAddress({
+          streetAddress: profile.street_address ?? '',
+          city: profile.city ?? '',
+          province: profile.province ?? '',
+          postalCode: profile.postal_code ?? '',
+          country: profile.country ?? 'South Africa',
+          lat: profile.address_lat,
+          lng: profile.address_lng,
+          placeId: profile.address_place_id,
+        });
+      }
     }
 
     setLoading(false);
@@ -85,10 +116,10 @@ export default function ProfileEditPage() {
 
       const folder = `profiles/${user.id}`;
 
-      // Request signed upload params from the storage abstraction
       const signRes = await fetch('/api/cloudinary/sign', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({
           paramsToSign: { folder, resource_type: 'image' },
         }),
@@ -115,7 +146,6 @@ export default function ProfileEditPage() {
       const uploadData = await uploadRes.json();
 
       if (uploadData.secure_url) {
-        // Save avatar URL to database immediately
         const {
           data: { user: currentUser },
         } = await supabase.auth.getUser();
@@ -189,7 +219,7 @@ export default function ProfileEditPage() {
       return;
     }
 
-    // H10: Validate social link URLs — only allow http/https protocols
+    // Validate social link URLs
     const safeSocialLinks: Record<string, string> = {};
     for (const [platform, url] of Object.entries(socialLinks)) {
       if (!url.trim()) continue;
@@ -203,15 +233,40 @@ export default function ProfileEditPage() {
       }
     }
 
+    // Auto-generate display_name from first + last name
+    const displayName = firstName.trim() && lastName.trim()
+      ? `${firstName.trim()} ${lastName.trim()}`
+      : firstName.trim() || lastName.trim() || null;
+
+    // Sync legacy location field
+    const locationLegacy = address?.city && address?.province
+      ? `${address.city}, ${address.province}`
+      : null;
+
     const payload = {
-      display_name: displayName.trim() || null,
+      first_name: firstName.trim() || null,
+      last_name: lastName.trim() || null,
+      display_name: displayName,
       bio: bio.trim() || null,
-      location: location.trim() || null,
+      location: locationLegacy,
       phone: phone.trim() || null,
       avatar_url: avatarUrl || null,
       skills: skills.length > 0 ? skills : null,
       social_links:
         Object.keys(safeSocialLinks).length > 0 ? safeSocialLinks : null,
+      street_address: address?.streetAddress?.trim() || null,
+      city: address?.city?.trim() || null,
+      province: address?.province?.trim() || null,
+      postal_code: address?.postalCode?.trim() || null,
+      country: address?.country?.trim() || 'South Africa',
+      address_lat: address?.lat ?? null,
+      address_lng: address?.lng ?? null,
+      address_place_id: address?.placeId ?? null,
+      available_for_hire: availableForHire,
+      hourly_rate: hourlyRate ? parseInt(hourlyRate, 10) : null,
+      crew_bio: crewBio.trim() || null,
+      years_experience: yearsExperience ? parseInt(yearsExperience, 10) : null,
+      specializations: specializations.length > 0 ? specializations : [],
       updated_at: new Date().toISOString(),
     };
 
@@ -269,8 +324,10 @@ export default function ProfileEditPage() {
                 className="object-cover"
               />
             ) : (
-              <div className="w-full h-full flex items-center justify-center text-neutral-400">
-                <Camera className="w-6 h-6" />
+              <div className="w-full h-full flex items-center justify-center bg-neutral-800 text-neutral-300 text-lg font-display font-bold uppercase">
+                {firstName
+                  ? `${firstName[0] || ''}${lastName[0] || ''}`.toUpperCase()
+                  : <Camera className="w-6 h-6 text-neutral-400" />}
               </div>
             )}
           </div>
@@ -293,20 +350,44 @@ export default function ProfileEditPage() {
           </div>
         </div>
 
-        {/* Basic Info */}
+        {/* Name Fields */}
         <div className="space-y-5">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-            <Input
-              label="Display Name"
-              value={displayName}
-              onChange={(e) => setDisplayName(e.target.value)}
-              placeholder="Your public name"
-            />
-            <Input
-              label="Location"
-              value={location}
-              onChange={(e) => setLocation(e.target.value)}
-              placeholder="e.g. Johannesburg, SA"
+          <div>
+            <p className="block text-[10px] font-mono uppercase tracking-widest text-neutral-500 mb-3">
+              Full Name (as on your ID)
+            </p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+              <Input
+                label="First Name"
+                value={firstName}
+                onChange={(e) => setFirstName(e.target.value)}
+                placeholder="First name"
+              />
+              <Input
+                label="Last Name"
+                value={lastName}
+                onChange={(e) => setLastName(e.target.value)}
+                placeholder="Last name"
+              />
+            </div>
+            <p className="text-[9px] font-mono text-neutral-600 mt-2">
+              Must match the name on your SA ID for verification.
+            </p>
+          </div>
+
+          {/* Address */}
+          <div>
+            <p className="block text-[10px] font-mono uppercase tracking-widest text-neutral-500 mb-3">
+              Address
+            </p>
+            <AddressAutocomplete
+              onSelect={(addr) => setAddress(addr)}
+              defaultValue={address?.streetAddress}
+              defaultAddress={address ? {
+                city: address.city,
+                province: address.province,
+                postalCode: address.postalCode,
+              } : undefined}
             />
           </div>
 
@@ -374,6 +455,108 @@ export default function ProfileEditPage() {
             </Button>
           </div>
         </div>
+
+        {/* Crew Settings (only for verified users) */}
+        {isVerified && (
+          <div className="border-t border-white/10 pt-8">
+            <p className="block text-[10px] font-mono uppercase tracking-widest text-neutral-500 mb-4">
+              Crew Settings
+            </p>
+
+            {/* Available for hire toggle */}
+            <div className="flex items-center justify-between mb-5 bg-neutral-900 border border-white/5 p-4">
+              <div>
+                <p className="text-xs font-mono font-bold text-white">Available for Hire</p>
+                <p className="text-[9px] font-mono text-neutral-500 mt-0.5">
+                  {availableForHire
+                    ? 'You appear on the crew listing and in Ubunye search results.'
+                    : "You're hidden from the crew listing."}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setAvailableForHire(!availableForHire)}
+                className={`relative w-10 h-5 rounded-full transition-colors ${
+                  availableForHire ? 'bg-emerald-500' : 'bg-neutral-700'
+                }`}
+              >
+                <span
+                  className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-transform ${
+                    availableForHire ? 'translate-x-5' : 'translate-x-0.5'
+                  }`}
+                />
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mb-5">
+              <Input
+                label="Hourly Rate (ZAR)"
+                type="number"
+                value={hourlyRate}
+                onChange={(e) => setHourlyRate(e.target.value)}
+                placeholder="1500"
+              />
+              <div>
+                <label className="block text-[10px] font-mono uppercase tracking-widest text-neutral-500 mb-2">
+                  Years of Experience
+                </label>
+                <select
+                  value={yearsExperience}
+                  onChange={(e) => setYearsExperience(e.target.value)}
+                  className="w-full bg-neutral-900 border border-white/10 text-white px-4 py-3 min-h-[44px] text-sm font-mono focus:outline-none focus:border-white transition-colors"
+                >
+                  <option value="">Select...</option>
+                  {Array.from({ length: 20 }, (_, i) => (
+                    <option key={i + 1} value={String(i + 1)}>
+                      {i + 1} {i === 0 ? 'year' : 'years'}
+                    </option>
+                  ))}
+                  <option value="20">20+ years</option>
+                </select>
+              </div>
+            </div>
+
+            {/* Specializations */}
+            <div className="mb-5">
+              <p className="block text-[10px] font-mono uppercase tracking-widest text-neutral-500 mb-2">
+                Specializations
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {['Photography', 'Cinematography', 'Editing', 'Sound', 'Directing', 'Lighting', 'Producing'].map(
+                  (spec) => (
+                    <button
+                      key={spec}
+                      type="button"
+                      onClick={() =>
+                        setSpecializations((prev) =>
+                          prev.includes(spec.toLowerCase())
+                            ? prev.filter((s) => s !== spec.toLowerCase())
+                            : [...prev, spec.toLowerCase()],
+                        )
+                      }
+                      className={`text-[10px] font-mono uppercase tracking-widest px-4 py-2 border transition-all min-h-[36px] ${
+                        specializations.includes(spec.toLowerCase())
+                          ? 'bg-white text-black border-white'
+                          : 'bg-transparent text-neutral-500 border-white/10 hover:border-white/30'
+                      }`}
+                    >
+                      {spec}
+                    </button>
+                  ),
+                )}
+              </div>
+            </div>
+
+            <Textarea
+              label="Crew Bio (shown on your public crew profile)"
+              value={crewBio}
+              onChange={(e) => setCrewBio(e.target.value)}
+              placeholder="Tell clients about your professional experience..."
+              maxLength={500}
+              rows={3}
+            />
+          </div>
+        )}
 
         {/* Social Links */}
         <div>

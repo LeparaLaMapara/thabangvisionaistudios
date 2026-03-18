@@ -1,8 +1,20 @@
 'use client';
 
 import { ThemeProvider } from 'next-themes';
+import { AuthProvider } from '@/providers/AuthProvider';
 
-export function Providers({ children }: { children: React.ReactNode }) {
+type SerializedUser = {
+  id: string;
+  email?: string;
+} | null;
+
+export function Providers({
+  initialUser,
+  children,
+}: {
+  initialUser: SerializedUser;
+  children: React.ReactNode;
+}) {
   return (
     <ThemeProvider
       attribute="class"
@@ -11,7 +23,9 @@ export function Providers({ children }: { children: React.ReactNode }) {
       enableSystem={false}
       disableTransitionOnChange={false}
     >
-      {children}
+      <AuthProvider initialUser={initialUser}>
+        {children}
+      </AuthProvider>
     </ThemeProvider>
   );
 }

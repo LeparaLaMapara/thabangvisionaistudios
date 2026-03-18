@@ -40,6 +40,7 @@ export default async function DashboardLayout({
             <DashboardLink href="/dashboard/bookings">Bookings</DashboardLink>
             <DashboardLink href="/dashboard/listings">List Your Gear</DashboardLink>
             <DashboardLink href="/dashboard/orders">Orders</DashboardLink>
+            <DashboardLink href="/dashboard/gigs">Gigs</DashboardLink>
             <DashboardLink href="/dashboard/verification">Verification</DashboardLink>
             <div className="border-t border-white/10 mt-4 pt-4">
               <SignOutButton />

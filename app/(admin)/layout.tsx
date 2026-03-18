@@ -1,9 +1,9 @@
 export const dynamic = 'force-dynamic';
 
-import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { auth } from '@/lib/auth';
 import { LogoutButton } from '@/components/admin/LogoutButton';
+import { AdminNav } from '@/components/admin/AdminNav';
 import { STUDIO } from '@/lib/constants';
 
 /**
@@ -31,7 +31,7 @@ export default async function AdminLayout({
     <div className="min-h-screen bg-neutral-950 text-white">
 
       {/* Admin Topbar */}
-      <header className="sticky top-0 z-50 border-b border-white/10 bg-neutral-900/80 backdrop-blur-md">
+      <header className="sticky top-0 z-50 border-b border-white/10 bg-neutral-900/80 backdrop-blur-md relative">
         <div className="max-w-7xl mx-auto px-3 md:px-6 h-14 flex items-center justify-between gap-3 md:gap-4">
 
           {/* Left: brand + nav */}
@@ -40,62 +40,7 @@ export default async function AdminLayout({
               {STUDIO.shortName.toUpperCase()}
             </span>
             <span className="text-white/20 text-xs flex-shrink-0 hidden md:block">|</span>
-            <nav className="flex items-center gap-4 md:gap-5 overflow-x-auto scrollbar-hide min-w-0">
-              <Link
-                href="/admin"
-                className="text-[10px] font-mono uppercase tracking-widest text-neutral-400 hover:text-white transition-colors flex-shrink-0"
-              >
-                Dashboard
-              </Link>
-              <Link
-                href="/admin/projects"
-                className="text-[10px] font-mono uppercase tracking-widest text-neutral-400 hover:text-white transition-colors flex-shrink-0"
-              >
-                Projects
-              </Link>
-              <Link
-                href="/admin/rentals"
-                className="text-[10px] font-mono uppercase tracking-widest text-neutral-400 hover:text-white transition-colors flex-shrink-0"
-              >
-                Rentals
-              </Link>
-              <Link
-                href="/admin/rentals/import"
-                className="text-[10px] font-mono uppercase tracking-widest text-neutral-400 hover:text-white transition-colors flex-shrink-0"
-              >
-                Import
-              </Link>
-              <Link
-                href="/admin/careers"
-                className="text-[10px] font-mono uppercase tracking-widest text-neutral-400 hover:text-white transition-colors flex-shrink-0"
-              >
-                Careers
-              </Link>
-              <Link
-                href="/admin/bookings"
-                className="text-[10px] font-mono uppercase tracking-widest text-neutral-400 hover:text-white transition-colors flex-shrink-0"
-              >
-                Bookings
-              </Link>
-              <Link
-                href="/admin/users"
-                className="text-[10px] font-mono uppercase tracking-widest text-neutral-400 hover:text-white transition-colors flex-shrink-0"
-              >
-                Users
-              </Link>
-              <Link
-                href="/admin/verifications"
-                className="text-[10px] font-mono uppercase tracking-widest text-neutral-400 hover:text-white transition-colors flex-shrink-0"
-              >
-                Verifications
-              </Link>
-              <Link
-                href="/admin/press"
-                className="text-[10px] font-mono uppercase tracking-widest text-neutral-400 hover:text-white transition-colors flex-shrink-0"
-              >
-                Press
-              </Link>
-            </nav>
+            <AdminNav />
           </div>
 
           {/* Right: user email + logout */}

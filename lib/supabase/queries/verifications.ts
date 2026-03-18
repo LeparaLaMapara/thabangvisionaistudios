@@ -1,4 +1,6 @@
 import { createClient, createAdminClient } from '@/lib/supabase/server';
+import type { FraudFlag } from '@/lib/metadata/fraud-detection';
+import type { VerificationMetadata } from '@/lib/metadata/verification';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -21,9 +23,45 @@ export type VerificationRecord = {
   verification_rejected_reason: string | null;
   id_front_path: string | null;
   id_back_path: string | null;
-  proof_of_address_path: string | null;
+  selfie_with_id_path: string | null;
+  verification_metadata: VerificationMetadata | null;
+  verification_ai_check: unknown | null;
+  verification_fraud_flags: FraudFlag[];
+  id_document_hash: string | null;
+  verification_ip: string | null;
+  verification_user_agent: string | null;
+  verification_attempts: number;
   created_at: string | null;
 };
+
+// ─── Select columns ─────────────────────────────────────────────────────────
+
+const VERIFICATION_COLUMNS = [
+  'id',
+  'display_name',
+  'avatar_url',
+  'bio',
+  'phone',
+  'location',
+  'skills',
+  'social_links',
+  'is_verified',
+  'verification_status',
+  'verification_submitted_at',
+  'verification_reviewed_at',
+  'verification_rejected_reason',
+  'id_front_path',
+  'id_back_path',
+  'selfie_with_id_path',
+  'verification_metadata',
+  'verification_ai_check',
+  'verification_fraud_flags',
+  'id_document_hash',
+  'verification_ip',
+  'verification_user_agent',
+  'verification_attempts',
+  'created_at',
+].join(', ');
 
 // ─── Queries ────────────────────────────────────────────────────────────────
 
@@ -36,9 +74,7 @@ export async function getVerificationStatus(userId: string): Promise<Verificatio
 
   const { data, error } = await supabase
     .from('profiles')
-    .select(
-      'id, display_name, avatar_url, is_verified, verification_status, verification_submitted_at, verification_reviewed_at, verification_rejected_reason, id_front_path, id_back_path, proof_of_address_path',
-    )
+    .select(VERIFICATION_COLUMNS)
     .eq('id', userId)
     .single();
 
@@ -49,25 +85,42 @@ export async function getVerificationStatus(userId: string): Promise<Verificatio
     return null;
   }
 
-  return data as VerificationRecord;
+  return data as unknown as VerificationRecord;
 }
 
 /**
- * Submits a verification request by updating the profile with document paths
- * and setting verification_status to 'pending'.
+ * Submits a verification request by updating the profile with document paths,
+ * metadata, fraud flags, and setting verification_status to 'pending'.
  */
 export async function submitVerification(
   userId: string,
-  paths: { idFront: string; idBack: string; proofOfAddress: string },
+  params: {
+    idFrontPath: string;
+    idBackPath: string;
+    selfiePath: string;
+    metadata: VerificationMetadata;
+    fraudFlags: FraudFlag[];
+    idDocumentHash: string;
+    ip: string;
+    userAgent: string;
+    currentAttempts: number;
+  },
 ): Promise<{ success: boolean; error?: string }> {
   const supabase = await createClient();
 
   const { error } = await supabase
     .from('profiles')
     .update({
-      id_front_path: paths.idFront,
-      id_back_path: paths.idBack,
-      proof_of_address_path: paths.proofOfAddress,
+      id_front_path: params.idFrontPath,
+      id_back_path: params.idBackPath,
+      selfie_with_id_path: params.selfiePath,
+      verification_metadata: params.metadata,
+      verification_ai_check: null, // V5: will be populated by AI screening
+      verification_fraud_flags: params.fraudFlags,
+      id_document_hash: params.idDocumentHash,
+      verification_ip: params.ip,
+      verification_user_agent: params.userAgent,
+      verification_attempts: params.currentAttempts + 1,
       verification_status: 'pending' as VerificationStatus,
       verification_submitted_at: new Date().toISOString(),
       verification_reviewed_at: null,
@@ -146,9 +199,7 @@ export async function getPendingVerifications(): Promise<VerificationRecord[]> {
 
   const { data, error } = await supabase
     .from('profiles')
-    .select(
-      'id, display_name, avatar_url, is_verified, verification_status, verification_submitted_at, verification_reviewed_at, verification_rejected_reason, id_front_path, id_back_path, proof_of_address_path',
-    )
+    .select(VERIFICATION_COLUMNS)
     .eq('verification_status', 'pending')
     .order('verification_submitted_at', { ascending: true, nullsFirst: false });
 
@@ -157,7 +208,7 @@ export async function getPendingVerifications(): Promise<VerificationRecord[]> {
     return [];
   }
 
-  return (data as VerificationRecord[]) ?? [];
+  return (data as unknown as VerificationRecord[]) ?? [];
 }
 
 /**
@@ -169,7 +220,7 @@ export async function getAllVerifications(): Promise<VerificationRecord[]> {
 
   const { data, error } = await supabase
     .from('profiles')
-    .select('*')
+    .select(VERIFICATION_COLUMNS)
     .neq('verification_status', 'unverified')
     .order('verification_submitted_at', { ascending: false, nullsFirst: false });
 
@@ -178,5 +229,5 @@ export async function getAllVerifications(): Promise<VerificationRecord[]> {
     return [];
   }
 
-  return (data as VerificationRecord[]) ?? [];
+  return (data as unknown as VerificationRecord[]) ?? [];
 }
