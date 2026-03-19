@@ -1,10 +1,23 @@
 'use client';
 
 import { motion } from 'framer-motion';
-import { ArrowLeft, Aperture } from 'lucide-react';
+import { ArrowLeft, Aperture, Camera } from 'lucide-react';
 import Link from 'next/link';
 import { PhotographyGallery } from '@/components/projects/ProjectsComponents';
+import { STUDIO } from '@/lib/constants';
 import type { SmartProduction, ImageExifMetadata } from '@/lib/supabase/queries/smartProductions';
+
+// ─── Types ───────────────────────────────────────────────────────────────────
+
+export type MatchedGear = {
+  title: string;
+  slug: string;
+  category: string;
+  pricePerDay: number;
+  thumbnail: string | null;
+  brand: string | null;
+  model: string | null;
+};
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -28,8 +41,10 @@ function extractVideoId(
 
 export default function ProductionDetailView({
   project,
+  matchedGear = [],
 }: {
   project: SmartProduction;
+  matchedGear?: MatchedGear[];
 }) {
   // Gallery: DB stores [{ url, public_id }] — PhotographyGallery expects string[]
   const galleryUrls = project.gallery?.map(g => g.url) ?? [];
@@ -71,6 +86,13 @@ export default function ProductionDetailView({
           {primaryMeta && (
             <div className="mt-12 mb-8 border-t border-black/5 dark:border-white/5 pt-6">
               <ShotInfo metadata={metadata} uniqueGear={uniqueGear} />
+            </div>
+          )}
+
+          {/* Shot With — linked rental gear */}
+          {matchedGear.length > 0 && (
+            <div className="mb-16">
+              <ShotWithSection gear={matchedGear} />
             </div>
           )}
         </div>
@@ -182,6 +204,13 @@ export default function ProductionDetailView({
                 <ShotInfo metadata={metadata} uniqueGear={uniqueGear} />
               </div>
             )}
+
+            {/* Shot With — linked rental gear */}
+            {matchedGear.length > 0 && (
+              <div className="border-t border-black/10 dark:border-white/10 pt-4">
+                <ShotWithSection gear={matchedGear} />
+              </div>
+            )}
           </div>
 
         </div>
@@ -207,6 +236,85 @@ function getUniqueGear(
   }
 
   return result;
+}
+
+function ShotWithSection({ gear }: { gear: MatchedGear[] }) {
+  return (
+    <div className="space-y-4">
+      <span className="flex items-center gap-2 text-[10px] font-mono text-neutral-500 uppercase tracking-widest">
+        <Camera className="w-3 h-3" />
+        Shot On {STUDIO.shortName} Gear
+      </span>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
+        {gear.map((item) => (
+          <Link
+            key={item.slug}
+            href={`/smart-rentals/${item.category}/${item.slug}`}
+            className="group flex flex-col bg-[#0A0A0B] border border-white/5 hover:border-white/20 transition-all duration-300 overflow-hidden"
+          >
+            {/* Thumbnail */}
+            <div className="relative aspect-square overflow-hidden bg-neutral-900">
+              {item.thumbnail ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={item.thumbnail}
+                  alt={item.title}
+                  className="w-full h-full object-cover grayscale group-hover:grayscale-0 group-hover:scale-105 transition-all duration-700 ease-out"
+                />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center">
+                  <Camera className="w-8 h-8 text-neutral-700" />
+                </div>
+              )}
+              {/* Studio badge */}
+              <span className="absolute top-2 left-2 z-10 text-[8px] font-mono uppercase tracking-widest bg-[#D4A843]/90 text-black px-2 py-0.5">
+                Studio
+              </span>
+            </div>
+
+            {/* Content */}
+            <div className="flex flex-col flex-grow p-4">
+              {/* Brand */}
+              {item.brand && (
+                <span className="text-[9px] font-mono uppercase tracking-widest text-neutral-500 mb-1">
+                  {item.brand}
+                </span>
+              )}
+
+              {/* Title */}
+              <h3 className="text-sm font-display font-medium text-white uppercase leading-tight group-hover:underline decoration-[#D4A843] underline-offset-4 transition-colors">
+                {item.title}
+              </h3>
+
+              {/* Model */}
+              {item.model && (
+                <p className="text-[10px] font-mono text-neutral-600 mt-1">
+                  {item.model}
+                </p>
+              )}
+
+              {/* Spacer */}
+              <div className="flex-grow" />
+
+              {/* Price + CTA */}
+              <div className="flex items-end justify-between mt-4 pt-3 border-t border-white/5">
+                <div>
+                  <span className="text-base font-display font-medium text-white">
+                    {STUDIO.currency.symbol}{item.pricePerDay.toLocaleString()}
+                  </span>
+                  <span className="text-[10px] font-mono text-neutral-600 ml-1">/ day</span>
+                </div>
+                <span className="text-[9px] font-mono uppercase tracking-widest text-[#D4A843] group-hover:translate-x-1 transition-transform duration-300">
+                  View Details &rarr;
+                </span>
+              </div>
+            </div>
+          </Link>
+        ))}
+      </div>
+    </div>
+  );
 }
 
 function ShotInfo({

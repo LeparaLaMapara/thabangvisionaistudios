@@ -17,7 +17,6 @@ import {
   Trash2,
   X,
 } from 'lucide-react';
-import { createClient } from '@/lib/supabase/client';
 import { uploadFile } from '@/lib/cloudinary/upload';
 import type { PressArticle } from '@/lib/supabase/queries/press';
 
@@ -108,8 +107,6 @@ export default function AdminPressPage() {
   const [uploading, setUploading] = useState(false);
 
 
-  const supabase = createClient();
-
   // ─── Fetch ─────────────────────────────────────────────────────────────────
 
   useEffect(() => {
@@ -120,18 +117,19 @@ export default function AdminPressPage() {
   async function fetchArticles() {
     setLoading(true);
     setError(null);
-    const { data, error: fetchError } = await supabase
-      .from('press')
-      .select('*')
-      .is('deleted_at', null)
-      .order('published_at', { ascending: false, nullsFirst: false });
-
-    if (fetchError) {
-      setError(fetchError.message);
-    } else {
+    try {
+      const res = await fetch('/api/admin/press');
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error ?? 'Failed to fetch');
+      }
+      const data = await res.json();
       setItems((data as PressArticle[]) ?? []);
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   }
 
   // ─── Cover image dropzone ─────────────────────────────────────────────────
@@ -248,87 +246,104 @@ export default function AdminPressPage() {
       published_at: form.published_at || null,
       is_published: form.is_published,
       is_featured: form.is_featured,
-      updated_at: new Date().toISOString(),
     };
 
-    if (editingId) {
-      const { data, error: updateError } = await supabase
-        .from('press')
-        .update(payload)
-        .eq('id', editingId)
-        .select()
-        .single();
-
-      if (updateError) {
-        setError(updateError.message);
-      } else {
+    try {
+      if (editingId) {
+        const res = await fetch('/api/admin/press', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: editingId, ...payload }),
+        });
+        if (!res.ok) {
+          const err = await res.json();
+          setError(err.error ?? 'Failed to update');
+          return;
+        }
+        const data = (await res.json()) as PressArticle;
         setItems(prev =>
-          prev.map(p => (p.id === editingId ? (data as PressArticle) : p)),
+          prev.map(p => (p.id === editingId ? data : p)),
         );
         cancel();
-      }
-    } else {
-      const { data, error: insertError } = await supabase
-        .from('press')
-        .insert(payload)
-        .select()
-        .single();
-
-      if (insertError) {
-        setError(insertError.message);
       } else {
-        setItems(prev => [data as PressArticle, ...prev]);
+        const res = await fetch('/api/admin/press', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        if (!res.ok) {
+          const err = await res.json();
+          setError(err.error ?? 'Failed to create');
+          return;
+        }
+        const data = (await res.json()) as PressArticle;
+        setItems(prev => [data, ...prev]);
         cancel();
       }
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setSaving(false);
     }
-
-    setSaving(false);
   };
 
   const softDelete = async (id: string) => {
-    const { error: deleteError } = await supabase
-      .from('press')
-      .update({ deleted_at: new Date().toISOString() })
-      .eq('id', id);
-
-    if (deleteError) {
-      setError(deleteError.message);
-    } else {
+    try {
+      const res = await fetch('/api/admin/press', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, deleted_at: new Date().toISOString() }),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        setError(err.error ?? 'Failed to delete');
+        return;
+      }
       setItems(prev => prev.filter(p => p.id !== id));
+    } catch (err) {
+      setError((err as Error).message);
     }
   };
 
   const togglePublish = async (item: PressArticle) => {
-    const { data, error: updateError } = await supabase
-      .from('press')
-      .update({ is_published: !item.is_published, updated_at: new Date().toISOString() })
-      .eq('id', item.id)
-      .select()
-      .single();
-
-    if (updateError) {
-      setError(updateError.message);
-    } else {
+    try {
+      const res = await fetch('/api/admin/press', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: item.id, is_published: !item.is_published }),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        setError(err.error ?? 'Failed to update');
+        return;
+      }
+      const data = (await res.json()) as PressArticle;
       setItems(prev =>
-        prev.map(p => (p.id === item.id ? (data as PressArticle) : p)),
+        prev.map(p => (p.id === item.id ? data : p)),
       );
+    } catch (err) {
+      setError((err as Error).message);
     }
   };
 
   const toggleFeatured = async (item: PressArticle) => {
-    const { data, error: updateError } = await supabase
-      .from('press')
-      .update({ is_featured: !item.is_featured, updated_at: new Date().toISOString() })
-      .eq('id', item.id)
-      .select()
-      .single();
-
-    if (updateError) {
-      setError(updateError.message);
-    } else {
+    try {
+      const res = await fetch('/api/admin/press', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: item.id, is_featured: !item.is_featured }),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        setError(err.error ?? 'Failed to update');
+        return;
+      }
+      const data = (await res.json()) as PressArticle;
       setItems(prev =>
-        prev.map(p => (p.id === item.id ? (data as PressArticle) : p)),
+        prev.map(p => (p.id === item.id ? data : p)),
       );
+    } catch (err) {
+      setError((err as Error).message);
     }
   };
 

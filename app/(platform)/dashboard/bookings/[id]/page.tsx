@@ -1,15 +1,17 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
 import {
   ArrowLeft,
   Calendar,
+  CheckCircle2,
   CreditCard,
   FileText,
   AlertTriangle,
+  XCircle,
 } from 'lucide-react';
 import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
@@ -40,6 +42,8 @@ const STATUS_VARIANT: Record<BookingStatus, 'default' | 'warning' | 'success' | 
 export default function BookingDetailPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const paymentStatus = searchParams.get('payment');
   const [booking, setBooking] = useState<BookingWithRental | null>(null);
   const [loading, setLoading] = useState(true);
   const [cancelling, setCancelling] = useState(false);
@@ -116,6 +120,26 @@ export default function BookingDetailPage() {
         <ArrowLeft className="w-3 h-3" />
         Back to Bookings
       </Link>
+
+      {/* Payment status banner */}
+      {paymentStatus === 'success' && (
+        <div className="flex items-center gap-3 p-4 mb-6 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400">
+          <CheckCircle2 className="w-5 h-5 flex-shrink-0" />
+          <div>
+            <p className="text-sm font-mono font-bold">Payment received</p>
+            <p className="text-[10px] font-mono text-emerald-400/70">Your booking is being confirmed. This page will update shortly.</p>
+          </div>
+        </div>
+      )}
+      {paymentStatus === 'cancelled' && (
+        <div className="flex items-center gap-3 p-4 mb-6 bg-red-500/10 border border-red-500/20 text-red-400">
+          <XCircle className="w-5 h-5 flex-shrink-0" />
+          <div>
+            <p className="text-sm font-mono font-bold">Payment cancelled</p>
+            <p className="text-[10px] font-mono text-red-400/70">Your booking is still pending. You can retry payment or cancel the booking.</p>
+          </div>
+        </div>
+      )}
 
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8">

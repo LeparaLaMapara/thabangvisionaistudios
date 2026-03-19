@@ -16,6 +16,7 @@ import Link from 'next/link';
 
 const GUEST_LIMIT = 2;
 const SESSION_STORAGE_KEY = 'ubunye_msg_count';
+const CHAT_HISTORY_KEY = 'ubunye_chat_history';
 const HEADER_HEIGHT = '5rem';
 
 const QUICK_ACTIONS = [
@@ -80,6 +81,7 @@ export default function UbunyeAIStudioPage() {
   // ─── Vercel AI SDK useChat (v4 API) ──
   const {
     messages,
+    setMessages,
     sendMessage,
     status,
     error,
@@ -107,6 +109,38 @@ export default function UbunyeAIStudioPage() {
 
   const isLoading = status === 'submitted' || status === 'streaming';
 
+  // ─── Persist chat to sessionStorage ──
+  // Save messages whenever they change (so session survives login redirect)
+  useEffect(() => {
+    if (messages.length > 0) {
+      try {
+        // Only save text parts (tool parts don't serialize well)
+        const toSave = messages.map(m => ({
+          id: m.id,
+          role: m.role,
+          parts: m.parts.filter(p => p.type === 'text'),
+        }));
+        sessionStorage.setItem(CHAT_HISTORY_KEY, JSON.stringify(toSave));
+      } catch { /* quota exceeded or SSR */ }
+    }
+  }, [messages]);
+
+  // Restore messages from sessionStorage on mount
+  const restoredRef = useRef(false);
+  useEffect(() => {
+    if (restoredRef.current) return;
+    restoredRef.current = true;
+    try {
+      const saved = sessionStorage.getItem(CHAT_HISTORY_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setMessages(parsed);
+        }
+      }
+    } catch { /* SSR or invalid JSON */ }
+  }, [setMessages]);
+
   // Track guest message sends
   const trackGuestMessage = useCallback(() => {
     if (!isAuthenticated) {
@@ -130,6 +164,10 @@ export default function UbunyeAIStudioPage() {
             {children}
           </Link>
         );
+      }
+      const safe = (() => { try { return ['http:', 'https:'].includes(new URL(href ?? '').protocol); } catch { return false; } })();
+      if (!href || !safe) {
+        return <span className="text-[#D4A843]">{children}</span>;
       }
       return (
         <a href={href} className="text-[#D4A843] underline decoration-[#D4A843]/30 underline-offset-2 hover:decoration-[#D4A843] transition-colors" target="_blank" rel="noopener noreferrer">
@@ -268,6 +306,29 @@ export default function UbunyeAIStudioPage() {
       .join('');
   };
 
+  // Tool invocation labels
+  const toolLabels: Record<string, string> = {
+    search_creators: 'Searching creators',
+    get_creator_detail: 'Getting creator details',
+    submit_creator_request: 'Submitting booking request',
+  };
+
+  // Check if message has active (pending) tool calls
+  const getToolStates = (msg: typeof messages[0]) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const parts = msg.parts as any[];
+    const toolCalls = parts.filter(p => p.type === 'tool-call');
+    const toolResults = parts.filter(p => p.type === 'tool-result');
+    const completedIds = new Set(toolResults.map(p => p.toolCallId));
+
+    return toolCalls
+      .filter(p => !completedIds.has(p.toolCallId))
+      .map(p => ({
+        name: p.toolName as string,
+        label: toolLabels[p.toolName as string] || 'Processing',
+      }));
+  };
+
   return (
     <div className="bg-[#050505] text-white" style={{ paddingTop: HEADER_HEIGHT, height: '100vh' }}>
       <div className="flex flex-col h-full w-full max-w-[680px] mx-auto px-4 md:px-6">
@@ -347,6 +408,7 @@ export default function UbunyeAIStudioPage() {
             {messages.map((msg) => {
               const text = getMessageText(msg);
               const isAssistant = msg.role === 'assistant';
+              const pendingTools = isAssistant ? getToolStates(msg) : [];
 
               return (
                 <motion.div
@@ -373,6 +435,16 @@ export default function UbunyeAIStudioPage() {
                       <ReactMarkdown components={mdComponents}>
                         {text}
                       </ReactMarkdown>
+                    </div>
+                  )}
+
+                  {/* Tool invocation indicator */}
+                  {pendingTools.length > 0 && (
+                    <div className="flex items-center gap-2 pt-1">
+                      <div className="w-3 h-3 border-2 border-[#D4A843]/30 border-t-[#D4A843] rounded-full animate-spin" />
+                      <span className="text-[12px] text-[#D4A843]/70 font-mono">
+                        {pendingTools[0].label}...
+                      </span>
                     </div>
                   )}
                 </motion.div>

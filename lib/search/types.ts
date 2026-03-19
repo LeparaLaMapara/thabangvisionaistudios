@@ -1,3 +1,16 @@
+// ─── PostgREST ilike escaping ────────────────────────────────────────────────
+
+/**
+ * Escape special characters for PostgREST ilike filters.
+ * Prevents filter injection via %, _, and backslash characters.
+ */
+export function escapeIlike(input: string): string {
+  return input
+    .replace(/\\/g, '\\\\')
+    .replace(/%/g, '\\%')
+    .replace(/_/g, '\\_');
+}
+
 // ─── Search Provider Abstraction ─────────────────────────────────────────────
 
 export type SearchResultItem = {

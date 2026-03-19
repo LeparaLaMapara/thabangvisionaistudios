@@ -2,7 +2,7 @@ export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/auth';
-import { createClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/server';
 import { isRagEnabled, indexItem } from '@/lib/rag';
 
 // ─── GET — List all productions (admin) ─────────────────────────────────────
@@ -12,7 +12,7 @@ export async function GET() {
   if (auth.error) return auth.error;
 
   try {
-    const supabase = await createClient();
+    const supabase = createAdminClient();
     const { data, error } = await supabase
       .from('smart_productions')
       .select('*')
@@ -35,7 +35,7 @@ export async function POST(req: NextRequest) {
 
   try {
     const body = await req.json();
-    const supabase = await createClient();
+    const supabase = createAdminClient();
 
     const { data, error } = await supabase
       .from('smart_productions')
@@ -75,7 +75,7 @@ export async function PUT(req: NextRequest) {
       return NextResponse.json({ error: 'Missing id.' }, { status: 400 });
     }
 
-    const supabase = await createClient();
+    const supabase = createAdminClient();
     const { data, error } = await supabase
       .from('smart_productions')
       .update({ ...updates, updated_at: new Date().toISOString() })

@@ -12,7 +12,7 @@ import {
 } from 'lucide-react';
 import exifr from 'exifr';
 import type { ImageMetadata } from '@/lib/metadata/extract';
-import { createClient } from '@/lib/supabase/client';
+
 import {
   uploadFile,
   smartProductionFolder,
@@ -272,14 +272,16 @@ export default function AdminProjectsPage() {
   const load = async () => {
     setLoading(true);
     setFetchError(null);
-    const { data, error } = await createClient()
-      .from('smart_productions')
-      .select('*')
-      .is('deleted_at', null)
-      .order('created_at', { ascending: false });
-    if (error) setFetchError(error.message);
-    else setItems((data as Production[]) ?? []);
-    setLoading(false);
+    try {
+      const res = await fetch('/api/admin/productions');
+      if (!res.ok) throw new Error('Failed to fetch productions');
+      const data = await res.json();
+      setItems((data as Production[]) ?? []);
+    } catch (err) {
+      setFetchError((err as Error).message);
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => { load(); }, []);
@@ -478,11 +480,15 @@ export default function AdminProjectsPage() {
 
   // Update Supabase gallery column for the currently edited project.
   const syncGalleryToSupabase = async (projectId: string, gallery: GalleryItem[]) => {
-    const { error } = await createClient()
-      .from('smart_productions')
-      .update({ gallery: gallery.length > 0 ? gallery : null })
-      .eq('id', projectId);
-    if (error) throw new Error(`DB sync failed: ${error.message}`);
+    const res = await fetch('/api/admin/productions', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: projectId, gallery: gallery.length > 0 ? gallery : null }),
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(`DB sync failed: ${err.error ?? 'Unknown error'}`);
+    }
   };
 
   /**
@@ -549,11 +555,15 @@ export default function AdminProjectsPage() {
       setForm(f => ({ ...f, thumbnail_url: '', cover_public_id: '' }));
 
       if (editingId) {
-        const { error } = await createClient()
-          .from('smart_productions')
-          .update({ thumbnail_url: null, cover_public_id: null })
-          .eq('id', editingId);
-        if (error) throw new Error(`DB sync failed: ${error.message}`);
+        const res = await fetch('/api/admin/productions', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: editingId, thumbnail_url: null, cover_public_id: null }),
+        });
+        if (!res.ok) {
+          const err = await res.json();
+          throw new Error(`DB sync failed: ${err.error ?? 'Unknown error'}`);
+        }
         console.log('✅ Thumbnail nulled in Supabase');
       }
     } catch (err) {
@@ -632,7 +642,6 @@ export default function AdminProjectsPage() {
     setSaving(true);
     setFormError(null);
 
-    const supabase    = createClient();
     const existingYear = editingId ? (items.find(p => p.id === editingId)?.year ?? null) : null;
     const payload      = formToPayload(f, existingYear);
 
@@ -644,27 +653,29 @@ export default function AdminProjectsPage() {
       gallery_length:  Array.isArray(payload.gallery) ? payload.gallery.length : payload.gallery,
     });
 
-    const handleError = (error: { message: string; code?: string; details?: string }) => {
-      const msg = `${error.message}${error.details ? ` — ${error.details}` : ''}`;
-      console.error('❌ Supabase save error:', error);
-      setFormError(msg);
+    const handleError = (error: { message: string }) => {
+      console.error('❌ Save error:', error);
+      setFormError(error.message);
       setSaving(false);
     };
 
     if (editingId) {
-      const { error } = await supabase
-        .from('smart_productions')
-        .update(payload)
-        .eq('id', editingId);
-      if (error) { handleError(error); return; }
-      setItems(prev => prev.map(p => p.id === editingId ? { ...p, ...payload } : p));
+      const res = await fetch('/api/admin/productions', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: editingId, ...payload }),
+      });
+      if (!res.ok) { const err = await res.json(); handleError({ message: err.error ?? 'Update failed' }); return; }
+      const data = await res.json();
+      setItems(prev => prev.map(p => p.id === editingId ? (data as Production) : p));
     } else {
-      const { data, error } = await supabase
-        .from('smart_productions')
-        .insert(payload)
-        .select()
-        .single();
-      if (error) { handleError(error); return; }
+      const res = await fetch('/api/admin/productions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) { const err = await res.json(); handleError({ message: err.error ?? 'Create failed' }); return; }
+      const data = await res.json();
       setItems(prev => [data as Production, ...prev]);
     }
 
@@ -712,17 +723,21 @@ export default function AdminProjectsPage() {
     }
 
     // ── 3. Soft-delete DB row ────────────────────────────────────────────────
-    const { error } = await createClient()
-      .from('smart_productions')
-      .update({ deleted_at: new Date().toISOString() })
-      .eq('id', id);
-
-    if (error) {
-      console.error('❌ Soft-delete DB error:', error);
-      setDeleteError(`Failed to delete project: ${error.message}`);
-    } else {
+    try {
+      const res = await fetch('/api/admin/productions', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, deleted_at: new Date().toISOString() }),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error ?? 'Soft-delete failed');
+      }
       setItems(prev => prev.filter(p => p.id !== id));
       console.log(`✅ Project ${id} soft-deleted`);
+    } catch (err) {
+      console.error('❌ Soft-delete DB error:', err);
+      setDeleteError(`Failed to delete project: ${(err as Error).message}`);
     }
 
     setDeletingId(null);
@@ -735,11 +750,12 @@ export default function AdminProjectsPage() {
     const next = !item.is_published;
     setTogglingId(item.id);
     setItems(prev => prev.map(p => p.id === item.id ? { ...p, is_published: next } : p));
-    const { error } = await createClient()
-      .from('smart_productions')
-      .update({ is_published: next })
-      .eq('id', item.id);
-    if (error) {
+    const res = await fetch('/api/admin/productions', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: item.id, is_published: next }),
+    });
+    if (!res.ok) {
       setItems(prev => prev.map(p => p.id === item.id ? { ...p, is_published: item.is_published } : p));
     }
     setTogglingId(null);

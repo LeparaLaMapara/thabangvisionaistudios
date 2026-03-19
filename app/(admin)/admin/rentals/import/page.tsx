@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { STUDIO } from '@/lib/constants';
+import { escapeIlike } from '@/lib/search/types';
 import {
   uploadFile,
   type CloudinaryAsset,
@@ -210,7 +211,7 @@ export default function ImportRateCardPage() {
       const { data: existing } = await supabase
         .from('smart_rentals')
         .select('id, title, slug')
-        .or(`slug.eq.${slug},title.ilike.${item.title}`)
+        .or(`slug.eq.${slug},title.ilike.${escapeIlike(item.title)}`)
         .is('deleted_at', null)
         .limit(1);
 

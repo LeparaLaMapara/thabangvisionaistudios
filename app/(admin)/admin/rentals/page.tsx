@@ -7,7 +7,6 @@ import {
   Eye, EyeOff, Images, Loader2,
   Pencil, Plus, RefreshCw, Star, Trash2, X,
 } from 'lucide-react';
-import { createClient } from '@/lib/supabase/client';
 import { uploadFile, type CloudinaryAsset } from '@/lib/cloudinary/upload';
 import { STUDIO } from '@/lib/constants';
 
@@ -289,14 +288,16 @@ export default function AdminRentalsPage() {
   const load = async () => {
     setLoading(true);
     setFetchError(null);
-    const { data, error } = await createClient()
-      .from('smart_rentals')
-      .select('*')
-      .is('deleted_at', null)
-      .order('created_at', { ascending: false });
-    if (error) setFetchError(error.message);
-    else setItems((data as Rental[]) ?? []);
-    setLoading(false);
+    try {
+      const res = await fetch('/api/admin/rentals');
+      if (!res.ok) throw new Error('Failed to fetch');
+      const data = await res.json();
+      setItems((data as Rental[]) ?? []);
+    } catch (err) {
+      setFetchError((err as Error).message);
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => { load(); }, []);
@@ -409,11 +410,15 @@ export default function AdminRentalsPage() {
   };
 
   const syncGalleryToSupabase = async (rentalId: string, gallery: GalleryItem[]) => {
-    const { error } = await createClient()
-      .from('smart_rentals')
-      .update({ gallery: gallery.length > 0 ? gallery : [] })
-      .eq('id', rentalId);
-    if (error) throw new Error(`DB sync failed: ${error.message}`);
+    const res = await fetch('/api/admin/rentals', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: rentalId, gallery: gallery.length > 0 ? gallery : [] }),
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(`DB sync failed: ${err.error ?? 'Unknown error'}`);
+    }
   };
 
   const deleteGalleryItem = async (item: GalleryItem) => {
@@ -448,33 +453,39 @@ export default function AdminRentalsPage() {
     setSaving(true);
     setFormError(null);
 
-    const supabase = createClient();
     const payload  = formToPayload(f);
 
-    const handleError = (error: { message: string; code?: string; details?: string }) => {
-      const msg = `${error.message}${error.details ? ` — ${error.details}` : ''}`;
-      console.error('❌ Supabase save error:', error);
-      setFormError(msg);
+    const handleError = (error: { message: string }) => {
+      console.error('Save error:', error);
+      setFormError(error.message);
       setSaving(false);
     };
 
-    if (editingId) {
-      const { error } = await supabase
-        .from('smart_rentals')
-        .update(payload)
-        .eq('id', editingId);
-      if (error) { handleError(error); return; }
-      setItems(prev => prev.map(r =>
-        r.id === editingId ? { ...r, ...payload } as Rental : r,
-      ));
-    } else {
-      const { data, error } = await supabase
-        .from('smart_rentals')
-        .insert(payload)
-        .select()
-        .single();
-      if (error) { handleError(error); return; }
-      setItems(prev => [data as Rental, ...prev]);
+    try {
+      if (editingId) {
+        const res = await fetch('/api/admin/rentals', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: editingId, ...payload }),
+        });
+        if (!res.ok) { const err = await res.json(); handleError({ message: err.error ?? 'Update failed' }); return; }
+        const data = await res.json();
+        setItems(prev => prev.map(r =>
+          r.id === editingId ? (data as Rental) : r,
+        ));
+      } else {
+        const res = await fetch('/api/admin/rentals', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        if (!res.ok) { const err = await res.json(); handleError({ message: err.error ?? 'Create failed' }); return; }
+        const data = await res.json();
+        setItems(prev => [data as Rental, ...prev]);
+      }
+    } catch (err) {
+      handleError({ message: (err as Error).message });
+      return;
     }
 
     setSaving(false);
@@ -515,18 +526,22 @@ export default function AdminRentalsPage() {
       return;
     }
 
-    // 2. Soft-delete DB row
-    const { error } = await createClient()
-      .from('smart_rentals')
-      .update({ deleted_at: new Date().toISOString(), is_archived: true })
-      .eq('id', id);
-
-    if (error) {
-      console.error('❌ Soft-delete DB error:', error);
-      setDeleteError(`Failed to delete rental: ${error.message}`);
-    } else {
+    // 2. Soft-delete DB row via API
+    try {
+      const res = await fetch('/api/admin/rentals', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, deleted_at: new Date().toISOString(), is_archived: true }),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error ?? 'Failed to delete rental');
+      }
       setItems(prev => prev.filter(r => r.id !== id));
-      console.log(`✅ Rental ${id} soft-deleted`);
+      console.log(`Rental ${id} soft-deleted`);
+    } catch (err) {
+      console.error('Soft-delete DB error:', err);
+      setDeleteError(`Failed to delete rental: ${(err as Error).message}`);
     }
 
     setDeletingId(null);
@@ -539,11 +554,14 @@ export default function AdminRentalsPage() {
     const next = !item.is_published;
     setTogglingId(item.id);
     setItems(prev => prev.map(r => r.id === item.id ? { ...r, is_published: next } : r));
-    const { error } = await createClient()
-      .from('smart_rentals')
-      .update({ is_published: next })
-      .eq('id', item.id);
-    if (error) {
+    try {
+      const res = await fetch('/api/admin/rentals', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: item.id, is_published: next }),
+      });
+      if (!res.ok) throw new Error('Toggle failed');
+    } catch {
       setItems(prev => prev.map(r =>
         r.id === item.id ? { ...r, is_published: item.is_published } : r,
       ));

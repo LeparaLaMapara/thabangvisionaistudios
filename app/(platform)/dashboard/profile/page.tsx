@@ -11,6 +11,15 @@ import { Textarea } from '@/components/ui/Textarea';
 import { Button } from '@/components/ui/Button';
 import AddressAutocomplete from '@/components/ui/AddressAutocomplete';
 import type { AddressResult } from '@/components/ui/AddressAutocomplete';
+import BankingDetails from '@/components/dashboard/BankingDetails';
+
+function RequiredLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <span>
+      {children} <span className="text-red-400">*</span>
+    </span>
+  );
+}
 
 export default function ProfileEditPage() {
   const [firstName, setFirstName] = useState('');
@@ -23,13 +32,15 @@ export default function ProfileEditPage() {
   const [socialLinks, setSocialLinks] = useState<Record<string, string>>({});
   const [address, setAddress] = useState<AddressResult | null>(null);
 
-  // Crew settings
+  // Creator settings
   const [availableForHire, setAvailableForHire] = useState(false);
   const [hourlyRate, setHourlyRate] = useState('');
   const [crewBio, setCrewBio] = useState('');
   const [yearsExperience, setYearsExperience] = useState('');
   const [specializations, setSpecializations] = useState<string[]>([]);
   const [isVerified, setIsVerified] = useState(false);
+
+  const [hasBanking, setHasBanking] = useState(false);
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -43,8 +54,18 @@ export default function ProfileEditPage() {
 
   useEffect(() => {
     loadProfile();
+    checkBankingStatus();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  async function checkBankingStatus() {
+    try {
+      const res = await fetch('/api/banking', { credentials: 'include' });
+      setHasBanking(res.ok);
+    } catch {
+      setHasBanking(false);
+    }
+  }
 
   async function loadProfile() {
     setLoading(true);
@@ -74,7 +95,7 @@ export default function ProfileEditPage() {
       setAvatarUrl(profile.avatar_url ?? '');
       setSkills(profile.skills ?? []);
       setSocialLinks(profile.social_links ?? {});
-      // Load crew settings
+      // Load creator settings
       setAvailableForHire((data as Record<string, unknown>).available_for_hire as boolean ?? false);
       setHourlyRate(String((data as Record<string, unknown>).hourly_rate ?? ''));
       setCrewBio((data as Record<string, unknown>).crew_bio as string ?? '');
@@ -209,6 +230,29 @@ export default function ProfileEditPage() {
     setSaving(true);
     setMessage(null);
 
+    // Block save if available for hire without banking details
+    if (availableForHire && !hasBanking) {
+      setMessage({ type: 'error', text: 'You must add your banking details before going available for hire.' });
+      setSaving(false);
+      return;
+    }
+
+    // Validate required fields
+    const missingFields: string[] = [];
+    if (!firstName.trim()) missingFields.push('First Name');
+    if (!lastName.trim()) missingFields.push('Last Name');
+    if (!address?.streetAddress?.trim()) missingFields.push('Street Address');
+    if (!address?.city?.trim()) missingFields.push('City');
+    if (!address?.province?.trim()) missingFields.push('Province');
+    if (!address?.postalCode?.trim()) missingFields.push('Postal Code');
+    if (!phone.trim()) missingFields.push('Phone');
+
+    if (missingFields.length > 0) {
+      setMessage({ type: 'error', text: `Please complete all required fields: ${missingFields.join(', ')}` });
+      setSaving(false);
+      return;
+    }
+
     const {
       data: { user },
     } = await supabase.auth.getUser();
@@ -308,14 +352,14 @@ export default function ProfileEditPage() {
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3 }}
     >
-      <h2 className="text-lg font-display font-medium uppercase text-black dark:text-white mb-8">
+      <h2 className="text-lg font-display font-medium uppercase text-white mb-8">
         Edit Profile
       </h2>
 
       <form onSubmit={handleSubmit} className="space-y-10">
-        {/* Avatar */}
+        {/* Section 1: Profile Photo */}
         <div className="flex items-center gap-6">
-          <div className="relative w-20 h-20 rounded-full overflow-hidden border border-black/10 dark:border-white/10 bg-neutral-100 dark:bg-neutral-900 flex-shrink-0">
+          <div className="relative w-20 h-20 rounded-full overflow-hidden border border-white/10 bg-neutral-900 flex-shrink-0">
             {avatarUrl ? (
               <Image
                 src={avatarUrl}
@@ -333,7 +377,7 @@ export default function ProfileEditPage() {
           </div>
           <div>
             <label className="cursor-pointer">
-              <span className="inline-block text-[10px] font-mono uppercase tracking-widest border border-black/20 dark:border-white/20 text-black dark:text-white px-4 py-2 hover:bg-black hover:text-white dark:hover:bg-white dark:hover:text-black transition-all">
+              <span className="inline-block text-[10px] font-mono uppercase tracking-widest border border-white/20 text-white px-4 py-2 hover:bg-white hover:text-black transition-all">
                 {uploadingAvatar ? 'Uploading...' : 'Upload Photo'}
               </span>
               <input
@@ -350,11 +394,11 @@ export default function ProfileEditPage() {
           </div>
         </div>
 
-        {/* Name Fields */}
+        {/* Section 2: Personal Details (REQUIRED) */}
         <div className="space-y-5">
           <div>
             <p className="block text-[10px] font-mono uppercase tracking-widest text-neutral-500 mb-3">
-              Full Name (as on your ID)
+              <RequiredLabel>Full Name (as on your ID)</RequiredLabel>
             </p>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
               <Input
@@ -362,12 +406,14 @@ export default function ProfileEditPage() {
                 value={firstName}
                 onChange={(e) => setFirstName(e.target.value)}
                 placeholder="First name"
+                required
               />
               <Input
                 label="Last Name"
                 value={lastName}
                 onChange={(e) => setLastName(e.target.value)}
                 placeholder="Last name"
+                required
               />
             </div>
             <p className="text-[9px] font-mono text-neutral-600 mt-2">
@@ -378,7 +424,7 @@ export default function ProfileEditPage() {
           {/* Address */}
           <div>
             <p className="block text-[10px] font-mono uppercase tracking-widest text-neutral-500 mb-3">
-              Address
+              <RequiredLabel>Address</RequiredLabel>
             </p>
             <AddressAutocomplete
               onSelect={(addr) => setAddress(addr)}
@@ -391,102 +437,102 @@ export default function ProfileEditPage() {
             />
           </div>
 
-          <Input
-            label="Phone"
-            type="tel"
-            value={phone}
-            onChange={(e) => setPhone(e.target.value)}
-            placeholder="+27..."
-          />
-
-          <Textarea
-            label="Bio"
-            value={bio}
-            onChange={(e) => setBio(e.target.value)}
-            placeholder="Tell us about yourself and your work..."
-            maxLength={500}
-            rows={4}
-          />
+          <div>
+            <Input
+              label="Phone"
+              type="tel"
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+              placeholder="+27..."
+              required
+            />
+            <p className="text-[9px] font-mono text-neutral-600 mt-1">
+              <span className="text-red-400">*</span> Required
+            </p>
+          </div>
         </div>
 
-        {/* Skills */}
+        {/* Section 3: Social Links (optional) */}
         <div>
           <p className="block text-[10px] font-mono uppercase tracking-widest text-neutral-500 mb-3">
-            Skills
+            Social Links
           </p>
-          <div className="flex flex-wrap gap-2 mb-3">
-            {skills.map((skill) => (
-              <span
-                key={skill}
-                className="inline-flex items-center gap-1.5 text-[9px] font-mono uppercase tracking-widest border border-black/10 dark:border-white/10 px-2.5 py-1 text-neutral-600 dark:text-neutral-400"
-              >
-                {skill}
-                <button
-                  type="button"
-                  onClick={() => removeSkill(skill)}
-                  className="text-neutral-400 hover:text-red-500 transition-colors"
-                >
-                  <X className="w-2.5 h-2.5" />
-                </button>
-              </span>
-            ))}
-          </div>
-          <div className="flex gap-2">
-            <div className="flex-1">
+          <div className="space-y-3">
+            {socialPlatforms.map((platform) => (
               <Input
-                value={newSkill}
-                onChange={(e) => setNewSkill(e.target.value)}
-                placeholder="Add a skill..."
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    e.preventDefault();
-                    addSkill();
-                  }
-                }}
+                key={platform}
+                label={platform}
+                value={socialLinks[platform] ?? ''}
+                onChange={(e) =>
+                  handleSocialChange(platform, e.target.value)
+                }
+                placeholder={
+                  platform === 'website'
+                    ? 'https://yoursite.com'
+                    : `https://${platform}.com/...`
+                }
               />
-            </div>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={addSkill}
-            >
-              <Plus className="w-3 h-3" />
-            </Button>
+            ))}
           </div>
         </div>
 
-        {/* Crew Settings (only for verified users) */}
+        {/* Banking Details */}
+        <div id="banking-details-section">
+          <p className="block text-[10px] font-mono uppercase tracking-widest text-neutral-500 mb-3">
+            Banking Details
+          </p>
+          <BankingDetails onSaved={() => checkBankingStatus()} />
+        </div>
+
+        {/* Section 4: Creator Settings (only for verified users) */}
         {isVerified && (
           <div className="border-t border-white/10 pt-8">
             <p className="block text-[10px] font-mono uppercase tracking-widest text-neutral-500 mb-4">
-              Crew Settings
+              Creator Settings
             </p>
 
             {/* Available for hire toggle */}
-            <div className="flex items-center justify-between mb-5 bg-neutral-900 border border-white/5 p-4">
+            <div className="flex items-center justify-between mb-2 bg-neutral-900 border border-white/5 p-4">
               <div>
                 <p className="text-xs font-mono font-bold text-white">Available for Hire</p>
                 <p className="text-[9px] font-mono text-neutral-500 mt-0.5">
                   {availableForHire
-                    ? 'You appear on the crew listing and in Ubunye search results.'
-                    : "You're hidden from the crew listing."}
+                    ? 'You appear on the creator listing and in Ubunye search results.'
+                    : "You're hidden from the creator listing."}
                 </p>
               </div>
               <button
                 type="button"
-                onClick={() => setAvailableForHire(!availableForHire)}
+                disabled={!hasBanking}
+                onClick={() => {
+                  if (hasBanking) setAvailableForHire(!availableForHire);
+                }}
                 className={`relative w-10 h-5 rounded-full transition-colors ${
-                  availableForHire ? 'bg-emerald-500' : 'bg-neutral-700'
+                  !hasBanking
+                    ? 'bg-neutral-800 cursor-not-allowed opacity-50'
+                    : availableForHire
+                      ? 'bg-emerald-500'
+                      : 'bg-neutral-700'
                 }`}
               >
                 <span
                   className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-transform ${
-                    availableForHire ? 'translate-x-5' : 'translate-x-0.5'
+                    availableForHire && hasBanking ? 'translate-x-5' : 'translate-x-0.5'
                   }`}
                 />
               </button>
             </div>
+            {!hasBanking && (
+              <p className="text-[9px] font-mono text-[#D4A843] mb-5 px-1">
+                You must add your banking details before going available for hire.{' '}
+                <span className="underline cursor-pointer" onClick={() => {
+                  document.getElementById('banking-details-section')?.scrollIntoView({ behavior: 'smooth' });
+                }}>
+                  Go to Banking Details
+                </span>
+              </p>
+            )}
+            {hasBanking && <div className="mb-5" />}
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mb-5">
               <Input
@@ -547,8 +593,68 @@ export default function ProfileEditPage() {
               </div>
             </div>
 
+            {/* Bio (moved from Personal Details) */}
+            <div className="mb-5">
+              <Textarea
+                label="Bio"
+                value={bio}
+                onChange={(e) => setBio(e.target.value)}
+                placeholder="Tell us about yourself and your work..."
+                maxLength={500}
+                rows={4}
+              />
+            </div>
+
+            {/* Skills (moved from Personal Details) */}
+            <div className="mb-5">
+              <p className="block text-[10px] font-mono uppercase tracking-widest text-neutral-500 mb-3">
+                Skills
+              </p>
+              <div className="flex flex-wrap gap-2 mb-3">
+                {skills.map((skill) => (
+                  <span
+                    key={skill}
+                    className="inline-flex items-center gap-1.5 text-[9px] font-mono uppercase tracking-widest border border-white/10 px-2.5 py-1 text-neutral-400"
+                  >
+                    {skill}
+                    <button
+                      type="button"
+                      onClick={() => removeSkill(skill)}
+                      className="text-neutral-400 hover:text-red-500 transition-colors"
+                    >
+                      <X className="w-2.5 h-2.5" />
+                    </button>
+                  </span>
+                ))}
+              </div>
+              <div className="flex gap-2">
+                <div className="flex-1">
+                  <Input
+                    value={newSkill}
+                    onChange={(e) => setNewSkill(e.target.value)}
+                    placeholder="Add a skill..."
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        addSkill();
+                      }
+                    }}
+                  />
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={addSkill}
+                >
+                  <Plus className="w-3 h-3" />
+                </Button>
+              </div>
+            </div>
+
+            {/* Creator Bio */}
             <Textarea
-              label="Crew Bio (shown on your public crew profile)"
+              label="Creator Bio (shown on your public creator profile)"
               value={crewBio}
               onChange={(e) => setCrewBio(e.target.value)}
               placeholder="Tell clients about your professional experience..."
@@ -557,30 +663,6 @@ export default function ProfileEditPage() {
             />
           </div>
         )}
-
-        {/* Social Links */}
-        <div>
-          <p className="block text-[10px] font-mono uppercase tracking-widest text-neutral-500 mb-3">
-            Social Links
-          </p>
-          <div className="space-y-3">
-            {socialPlatforms.map((platform) => (
-              <Input
-                key={platform}
-                label={platform}
-                value={socialLinks[platform] ?? ''}
-                onChange={(e) =>
-                  handleSocialChange(platform, e.target.value)
-                }
-                placeholder={
-                  platform === 'website'
-                    ? 'https://yoursite.com'
-                    : `https://${platform}.com/...`
-                }
-              />
-            ))}
-          </div>
-        </div>
 
         {/* Message */}
         {message && (
@@ -593,8 +675,8 @@ export default function ProfileEditPage() {
               className={[
                 'px-4 py-3 border text-xs font-mono leading-relaxed',
                 message.type === 'success'
-                  ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-600 dark:text-emerald-400'
-                  : 'bg-red-500/10 border-red-500/30 text-red-600 dark:text-red-400',
+                  ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
+                  : 'bg-red-500/10 border-red-500/30 text-red-400',
               ].join(' ')}
             >
               {message.text}

@@ -1,12 +1,19 @@
 'use client';
 
 import { useState } from 'react';
-import { motion } from 'framer-motion';
-import { CheckCircle2 } from 'lucide-react';
+import { CheckCircle2, Bug, Lightbulb, AlertTriangle, Monitor, Smartphone } from 'lucide-react';
+import { STUDIO } from '@/lib/constants';
 
-export default function TechSupportPage() {
+const REPORT_TYPES = [
+  { value: 'bug', label: 'Bug Report', icon: Bug, desc: 'Something is broken or not working as expected' },
+  { value: 'feedback', label: 'Feedback', icon: Lightbulb, desc: 'Suggest an improvement or new feature' },
+  { value: 'issue', label: 'Account Issue', icon: AlertTriangle, desc: 'Login, payments, bookings, or profile problems' },
+] as const;
+
+export default function PlatformSupportPage() {
   const [ticketState, setTicketState] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle');
   const [errorMsg, setErrorMsg] = useState('');
+  const [reportType, setReportType] = useState<string>('bug');
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -15,26 +22,35 @@ export default function TechSupportPage() {
 
     const form = e.currentTarget;
     const formData = new FormData(form);
-    const urgency = formData.get('urgency') as string;
-    const assetId = formData.get('assetId') as string;
+    const page = formData.get('page') as string;
+    const device = formData.get('device') as string;
     const description = formData.get('description') as string;
     const email = formData.get('email') as string;
+    const steps = formData.get('steps') as string;
+
+    const typeLabel = REPORT_TYPES.find(t => t.value === reportType)?.label ?? 'Bug Report';
 
     try {
       const res = await fetch('/api/contact', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          name: assetId || 'N/A',
+          name: `Platform ${typeLabel}`,
           email,
-          subject: `Tech Support: ${urgency} - ${assetId || 'General'}`,
-          message: `Urgency: ${urgency}\nAsset ID: ${assetId || 'N/A'}\n\n${description}`,
+          subject: `[${typeLabel}] ${page || 'General'} — ${device || 'Unknown device'}`,
+          message: [
+            `Type: ${typeLabel}`,
+            `Page/Feature: ${page || 'N/A'}`,
+            `Device: ${device || 'N/A'}`,
+            steps ? `\nSteps to Reproduce:\n${steps}` : '',
+            `\nDescription:\n${description}`,
+          ].filter(Boolean).join('\n'),
         }),
       });
 
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        throw new Error(data.error || 'Failed to submit ticket');
+        throw new Error(data.error || 'Failed to submit report');
       }
 
       setTicketState('sent');
@@ -46,84 +62,173 @@ export default function TechSupportPage() {
   };
 
   return (
-    <div className="min-h-screen bg-white dark:bg-[#050505] pt-32 pb-20 transition-colors duration-500">
+    <div className="min-h-screen bg-[#050505] pt-32 pb-20">
       <div className="container mx-auto px-6">
-         <div className="flex flex-col md:flex-row justify-between items-end mb-16">
-            <div>
-              <span className="text-[10px] font-mono text-neutral-500 dark:text-accent uppercase tracking-widest mb-4 block">00 // System Diagnostics</span>
-              <h1 className="text-4xl md:text-6xl font-display font-medium text-black dark:text-white tracking-tighter uppercase">
-                Technical Support
-              </h1>
-            </div>
-            <div className="bg-green-500/10 border border-green-500/20 px-4 py-2 flex items-center gap-2 mt-4 md:mt-0">
-               <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-               <span className="text-[10px] font-mono font-bold text-green-600 dark:text-green-400 uppercase tracking-widest">
-                 Support Available
-               </span>
-            </div>
-         </div>
+        {/* Header */}
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-16 gap-4">
+          <div>
+            <span className="text-[10px] font-mono text-neutral-500 uppercase tracking-widest mb-4 block">
+              00 // Platform Support
+            </span>
+            <h1 className="text-4xl md:text-6xl font-display font-medium text-white tracking-tighter uppercase">
+              Report an Issue
+            </h1>
+            <p className="text-neutral-500 font-mono text-sm mt-4 max-w-lg">
+              Found a bug? Have feedback? Let us know and we&apos;ll fix it.
+              For equipment support, visit us at our{' '}
+              <span className="text-white">{STUDIO.location.city} studio</span>.
+            </p>
+          </div>
+          <div className="bg-[#D4A843]/10 border border-[#D4A843]/20 px-4 py-2 flex items-center gap-2 shrink-0">
+            <div className="w-2 h-2 rounded-full bg-[#D4A843] animate-pulse" />
+            <span className="text-[10px] font-mono font-bold text-[#D4A843] uppercase tracking-widest">
+              Listening
+            </span>
+          </div>
+        </div>
 
-         <div className="max-w-3xl mx-auto">
-            {/* Ticket Form */}
-            <div>
-               <div className="bg-white dark:bg-[#0A0A0B] border border-black/10 dark:border-white/10 p-8 md:p-12">
-                  <h3 className="text-xl font-display font-medium uppercase mb-8 text-black dark:text-white">Submit Support Ticket</h3>
+        <div className="max-w-3xl mx-auto">
+          {/* Report Type Selector */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-px bg-white/10 border border-white/10 mb-8">
+            {REPORT_TYPES.map((type) => (
+              <button
+                key={type.value}
+                type="button"
+                onClick={() => setReportType(type.value)}
+                className={`p-6 text-left transition-colors ${
+                  reportType === type.value
+                    ? 'bg-white/5'
+                    : 'bg-[#0A0A0B] hover:bg-white/[0.02]'
+                }`}
+              >
+                <type.icon className={`w-5 h-5 mb-3 ${
+                  reportType === type.value ? 'text-[#D4A843]' : 'text-neutral-600'
+                }`} />
+                <h3 className={`text-sm font-display uppercase font-medium mb-1 ${
+                  reportType === type.value ? 'text-white' : 'text-neutral-400'
+                }`}>
+                  {type.label}
+                </h3>
+                <p className="text-[10px] font-mono text-neutral-600 leading-relaxed">
+                  {type.desc}
+                </p>
+              </button>
+            ))}
+          </div>
 
-                  {ticketState === 'sent' ? (
-                     <div className="text-center py-12">
-                        <CheckCircle2 className="w-16 h-16 text-green-500 mx-auto mb-6" />
-                        <h4 className="text-2xl font-display uppercase mb-2 text-black dark:text-white">Ticket Submitted</h4>
-                        <p className="text-neutral-500 font-mono text-sm">
-                          Your support request has been received. We&apos;ll get back to you via email as soon as possible.
-                        </p>
-                        <button
-                          onClick={() => setTicketState('idle')}
-                          className="mt-8 text-xs underline uppercase font-bold text-black dark:text-white"
-                        >
-                          Submit Another Ticket
-                        </button>
-                     </div>
-                  ) : (
-                     <form onSubmit={handleSubmit} className="space-y-6">
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                           <div>
-                              <label className="block text-[10px] font-bold uppercase tracking-widest text-neutral-500 mb-2">Serial Number / Asset ID</label>
-                              <input name="assetId" type="text" className="w-full bg-neutral-100 dark:bg-neutral-900 border border-black/10 dark:border-white/10 p-3 font-mono text-sm text-black dark:text-white" placeholder="e.g. CAM-A-042" />
-                           </div>
-                           <div>
-                              <label className="block text-[10px] font-bold uppercase tracking-widest text-neutral-500 mb-2">Urgency Level</label>
-                              <select name="urgency" className="w-full bg-neutral-100 dark:bg-neutral-900 border border-black/10 dark:border-white/10 p-3 font-mono text-sm uppercase text-black dark:text-white">
-                                 <option>Low - Question</option>
-                                 <option>Medium - Performance Issue</option>
-                                 <option>High - On Set Stoppage</option>
-                              </select>
-                           </div>
-                        </div>
-                        <div>
-                           <label className="block text-[10px] font-bold uppercase tracking-widest text-neutral-500 mb-2">Issue Description</label>
-                           <textarea name="description" required rows={5} className="w-full bg-neutral-100 dark:bg-neutral-900 border border-black/10 dark:border-white/10 p-3 font-mono text-sm text-black dark:text-white" placeholder="Describe the technical fault..." />
-                        </div>
-                        <div>
-                           <label className="block text-[10px] font-bold uppercase tracking-widest text-neutral-500 mb-2">Contact Email</label>
-                           <input name="email" type="email" required className="w-full bg-neutral-100 dark:bg-neutral-900 border border-black/10 dark:border-white/10 p-3 font-mono text-sm text-black dark:text-white" />
-                        </div>
+          {/* Form */}
+          <div className="bg-[#0A0A0B] border border-white/10 p-8 md:p-12">
+            {ticketState === 'sent' ? (
+              <div className="text-center py-12">
+                <CheckCircle2 className="w-16 h-16 text-green-500 mx-auto mb-6" />
+                <h4 className="text-2xl font-display uppercase mb-2 text-white">
+                  Report Received
+                </h4>
+                <p className="text-neutral-500 font-mono text-sm max-w-md mx-auto">
+                  Thanks for helping us improve the platform. We&apos;ll review your report and
+                  follow up via email if we need more details.
+                </p>
+                <button
+                  onClick={() => setTicketState('idle')}
+                  className="mt-8 text-xs underline uppercase font-bold text-white"
+                >
+                  Submit Another Report
+                </button>
+              </div>
+            ) : (
+              <form onSubmit={handleSubmit} className="space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div>
+                    <label className="block text-[10px] font-bold uppercase tracking-widest text-neutral-500 mb-2">
+                      Page / Feature
+                    </label>
+                    <input
+                      name="page"
+                      type="text"
+                      className="w-full bg-neutral-900 border border-white/10 p-3 font-mono text-sm text-white placeholder:text-neutral-700 focus:border-white/30 focus:outline-none transition-colors"
+                      placeholder="e.g. Smart Rentals, Dashboard, Checkout"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold uppercase tracking-widest text-neutral-500 mb-2">
+                      Device
+                    </label>
+                    <div className="flex gap-2">
+                      <label className="flex-1 cursor-pointer">
+                        <input type="radio" name="device" value="Desktop" className="sr-only peer" defaultChecked />
+                        <span className="flex items-center justify-center gap-2 w-full bg-neutral-900 border border-white/10 p-3 font-mono text-sm text-neutral-500 peer-checked:text-white peer-checked:border-white/30 transition-colors">
+                          <Monitor className="w-4 h-4" /> Desktop
+                        </span>
+                      </label>
+                      <label className="flex-1 cursor-pointer">
+                        <input type="radio" name="device" value="Mobile" className="sr-only peer" />
+                        <span className="flex items-center justify-center gap-2 w-full bg-neutral-900 border border-white/10 p-3 font-mono text-sm text-neutral-500 peer-checked:text-white peer-checked:border-white/30 transition-colors">
+                          <Smartphone className="w-4 h-4" /> Mobile
+                        </span>
+                      </label>
+                    </div>
+                  </div>
+                </div>
 
-                        {ticketState === 'error' && errorMsg && (
-                          <p className="text-sm font-mono text-red-500">{errorMsg}</p>
-                        )}
+                {reportType === 'bug' && (
+                  <div>
+                    <label className="block text-[10px] font-bold uppercase tracking-widest text-neutral-500 mb-2">
+                      Steps to Reproduce
+                    </label>
+                    <textarea
+                      name="steps"
+                      rows={3}
+                      className="w-full bg-neutral-900 border border-white/10 p-3 font-mono text-sm text-white placeholder:text-neutral-700 focus:border-white/30 focus:outline-none transition-colors"
+                      placeholder={"1. Go to Smart Rentals\n2. Click on a rental\n3. The page shows an error"}
+                    />
+                  </div>
+                )}
 
-                        <button
-                          type="submit"
-                          disabled={ticketState === 'sending'}
-                          className="bg-black text-white dark:bg-white dark:text-black px-8 py-4 text-xs font-mono font-bold tracking-widest uppercase hover:opacity-80 transition-opacity w-full md:w-auto disabled:opacity-50"
-                        >
-                           {ticketState === 'sending' ? 'Submitting...' : 'Submit Ticket'}
-                        </button>
-                     </form>
-                  )}
-               </div>
-            </div>
-         </div>
+                <div>
+                  <label className="block text-[10px] font-bold uppercase tracking-widest text-neutral-500 mb-2">
+                    {reportType === 'feedback' ? 'Your Suggestion' : 'Describe the Issue'}
+                  </label>
+                  <textarea
+                    name="description"
+                    required
+                    rows={5}
+                    className="w-full bg-neutral-900 border border-white/10 p-3 font-mono text-sm text-white placeholder:text-neutral-700 focus:border-white/30 focus:outline-none transition-colors"
+                    placeholder={
+                      reportType === 'feedback'
+                        ? 'Tell us what you would like to see improved or added...'
+                        : 'What happened? What did you expect to happen instead?'
+                    }
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-bold uppercase tracking-widest text-neutral-500 mb-2">
+                    Your Email
+                  </label>
+                  <input
+                    name="email"
+                    type="email"
+                    required
+                    className="w-full bg-neutral-900 border border-white/10 p-3 font-mono text-sm text-white placeholder:text-neutral-700 focus:border-white/30 focus:outline-none transition-colors"
+                    placeholder="so we can follow up with you"
+                  />
+                </div>
+
+                {ticketState === 'error' && errorMsg && (
+                  <p className="text-sm font-mono text-red-500">{errorMsg}</p>
+                )}
+
+                <button
+                  type="submit"
+                  disabled={ticketState === 'sending'}
+                  className="bg-white text-black px-8 py-4 text-xs font-mono font-bold tracking-widest uppercase hover:opacity-80 transition-opacity w-full md:w-auto disabled:opacity-50"
+                >
+                  {ticketState === 'sending' ? 'Submitting...' : 'Submit Report'}
+                </button>
+              </form>
+            )}
+          </div>
+        </div>
       </div>
     </div>
   );

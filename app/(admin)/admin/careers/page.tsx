@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from 'react';
 import { Eye, EyeOff, Loader2, Pencil, Plus, Trash2 } from 'lucide-react';
-import { createClient } from '@/lib/supabase/client';
 import type { Career } from '@/lib/supabase/queries/careers';
 
 type EmploymentType = 'full-time' | 'part-time' | 'contract' | 'freelance';
@@ -38,8 +37,6 @@ export default function AdminCareersPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const supabase = createClient();
-
   // ─── Fetch ───────────────────────────────────────────────────────────────
 
   useEffect(() => {
@@ -50,16 +47,16 @@ export default function AdminCareersPage() {
   async function fetchCareers() {
     setLoading(true);
     setError(null);
-    const { data, error: fetchError } = await supabase
-      .from('careers')
-      .select('*')
-      .is('deleted_at', null)
-      .order('created_at', { ascending: false });
-
-    if (fetchError) {
-      setError(fetchError.message);
-    } else {
+    try {
+      const res = await fetch('/api/admin/careers');
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || 'Failed to fetch');
+      }
+      const data = await res.json();
       setItems((data as Career[]) ?? []);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to fetch careers');
     }
     setLoading(false);
   }
@@ -109,70 +106,83 @@ export default function AdminCareersPage() {
         ? form.requirements.split('\n').map(r => r.trim()).filter(Boolean)
         : null,
       is_published: form.is_published,
-      updated_at: new Date().toISOString(),
     };
 
-    if (editingId) {
-      const { data, error: updateError } = await supabase
-        .from('careers')
-        .update(payload)
-        .eq('id', editingId)
-        .select()
-        .single();
-
-      if (updateError) {
-        setError(updateError.message);
+    try {
+      if (editingId) {
+        const res = await fetch('/api/admin/careers', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: editingId, ...payload }),
+        });
+        if (!res.ok) {
+          const err = await res.json();
+          setError(err.error || 'Failed to update');
+        } else {
+          const data = await res.json();
+          setItems(prev =>
+            prev.map(c => (c.id === editingId ? (data as Career) : c)),
+          );
+          cancel();
+        }
       } else {
-        setItems(prev =>
-          prev.map(c => (c.id === editingId ? (data as Career) : c)),
-        );
-        cancel();
+        const res = await fetch('/api/admin/careers', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        if (!res.ok) {
+          const err = await res.json();
+          setError(err.error || 'Failed to create');
+        } else {
+          const data = await res.json();
+          setItems(prev => [data as Career, ...prev]);
+          cancel();
+        }
       }
-    } else {
-      const { data, error: insertError } = await supabase
-        .from('careers')
-        .insert(payload)
-        .select()
-        .single();
-
-      if (insertError) {
-        setError(insertError.message);
-      } else {
-        setItems(prev => [data as Career, ...prev]);
-        cancel();
-      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'An unexpected error occurred');
     }
 
     setSaving(false);
   };
 
   const softDelete = async (id: string) => {
-    const { error: deleteError } = await supabase
-      .from('careers')
-      .update({ deleted_at: new Date().toISOString() })
-      .eq('id', id);
-
-    if (deleteError) {
-      setError(deleteError.message);
-    } else {
-      setItems(prev => prev.filter(c => c.id !== id));
+    try {
+      const res = await fetch('/api/admin/careers', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, deleted_at: new Date().toISOString() }),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        setError(err.error || 'Failed to delete');
+      } else {
+        setItems(prev => prev.filter(c => c.id !== id));
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to delete');
     }
   };
 
   const togglePublish = async (item: Career) => {
-    const { data, error: updateError } = await supabase
-      .from('careers')
-      .update({ is_published: !item.is_published, updated_at: new Date().toISOString() })
-      .eq('id', item.id)
-      .select()
-      .single();
-
-    if (updateError) {
-      setError(updateError.message);
-    } else {
-      setItems(prev =>
-        prev.map(c => (c.id === item.id ? (data as Career) : c)),
-      );
+    try {
+      const res = await fetch('/api/admin/careers', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: item.id, is_published: !item.is_published }),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        setError(err.error || 'Failed to update');
+      } else {
+        const data = await res.json();
+        setItems(prev =>
+          prev.map(c => (c.id === item.id ? (data as Career) : c)),
+        );
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to toggle publish');
     }
   };
 

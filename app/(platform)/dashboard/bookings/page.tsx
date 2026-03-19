@@ -10,6 +10,7 @@ import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
+import ServiceBookingsList from './ServiceBookingsList';
 import type { EquipmentBooking, BookingStatus } from '@/types/booking';
 
 const STATUS_VARIANT: Record<BookingStatus, 'default' | 'warning' | 'success' | 'info' | 'error'> = {
@@ -28,17 +29,20 @@ const TABS = [
 
 export default function BookingsPage() {
   const [activeTab, setActiveTab] = useState('upcoming');
+  const [bookingType, setBookingType] = useState<'services' | 'equipment'>('services');
   const [bookings, setBookings] = useState<EquipmentBooking[]>([]);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [serviceBookings, setServiceBookings] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch('/api/bookings')
-      .then((res) => res.json())
-      .then((data) => {
-        if (Array.isArray(data)) setBookings(data);
-      })
-      .catch(() => {})
-      .finally(() => setLoading(false));
+    Promise.all([
+      fetch('/api/bookings').then((r) => r.json()).catch(() => []),
+      fetch('/api/service-bookings').then((r) => r.json()).catch(() => ({ bookings: [] })),
+    ]).then(([equipData, serviceData]) => {
+      if (Array.isArray(equipData)) setBookings(equipData);
+      if (serviceData?.bookings) setServiceBookings(serviceData.bookings);
+    }).finally(() => setLoading(false));
   }, []);
 
   if (loading) {
@@ -58,10 +62,30 @@ export default function BookingsPage() {
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3 }}
     >
-      <h2 className="text-lg font-display font-medium uppercase text-black dark:text-white mb-6">
+      <h2 className="text-lg font-display font-medium uppercase text-white mb-6">
         My Bookings
       </h2>
 
+      {/* Type toggle */}
+      <div className="mb-6 flex gap-2">
+        <button
+          onClick={() => setBookingType('services')}
+          className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${bookingType === 'services' ? 'bg-[#D4A843] text-black' : 'border border-neutral-700 text-neutral-400 hover:bg-neutral-800'}`}
+        >
+          Service Bookings ({serviceBookings.length})
+        </button>
+        <button
+          onClick={() => setBookingType('equipment')}
+          className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${bookingType === 'equipment' ? 'bg-[#D4A843] text-black' : 'border border-neutral-700 text-neutral-400 hover:bg-neutral-800'}`}
+        >
+          Equipment Rentals ({bookings.length})
+        </button>
+      </div>
+
+      {bookingType === 'services' ? (
+        <ServiceBookingsList bookings={serviceBookings} />
+      ) : (
+      <>
       <Tabs tabs={TABS} activeTab={activeTab} onTabChange={setActiveTab} className="mb-8" />
 
       {filtered.length === 0 ? (
@@ -121,6 +145,8 @@ export default function BookingsPage() {
             </Link>
           ))}
         </div>
+      )}
+    </>
       )}
     </motion.div>
   );

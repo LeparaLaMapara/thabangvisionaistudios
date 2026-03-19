@@ -1,4 +1,6 @@
 import { createClient, createAdminClient } from '@/lib/supabase/server';
+import { STUDIO } from '@/lib/constants';
+import type { SupabaseClient } from '@supabase/supabase-js';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -35,6 +37,7 @@ export type CrewRequest = {
   commission_rate: number;
   total_amount: number | null;
   commission_amount: number | null;
+  payment_id: string | null;
   booked_via: string;
   created_at: string;
   updated_at: string;
@@ -81,6 +84,7 @@ export async function getAvailableCrew(): Promise<CrewMember[]> {
 export async function getCrewBySlug(slug: string): Promise<CrewMember | null> {
   const supabase = await createClient();
 
+  // Try by crew_slug first
   const { data, error } = await supabase
     .from('profiles')
     .select(CREW_COLUMNS)
@@ -89,14 +93,26 @@ export async function getCrewBySlug(slug: string): Promise<CrewMember | null> {
     .eq('available_for_hire', true)
     .single();
 
-  if (error) {
-    if (error.code !== 'PGRST116') {
-      console.error('[getCrewBySlug]', error.message);
-    }
-    return null;
+  if (data) return data as unknown as CrewMember;
+
+  if (error && error.code !== 'PGRST116') {
+    console.error('[getCrewBySlug]', error.message);
   }
 
-  return data as unknown as CrewMember;
+  // Fallback: try by profile id (for profiles without a crew_slug)
+  const { data: byId, error: idErr } = await supabase
+    .from('profiles')
+    .select(CREW_COLUMNS)
+    .eq('id', slug)
+    .eq('verification_status', 'verified')
+    .eq('available_for_hire', true)
+    .single();
+
+  if (idErr && idErr.code !== 'PGRST116') {
+    console.error('[getCrewBySlug:id-fallback]', idErr.message);
+  }
+
+  return (byId as unknown as CrewMember) ?? null;
 }
 
 export async function getCrewReviews(creatorId: string): Promise<CrewReview[]> {
@@ -134,6 +150,29 @@ export async function getCreatorGigs(creatorId: string): Promise<CrewRequest[]> 
 
   if (error) {
     console.error('[getCreatorGigs]', error.message);
+    return [];
+  }
+
+  return (data as unknown as CrewRequest[]) ?? [];
+}
+
+// ─── Client Queries ─────────────────────────────────────────────────────────
+
+export async function getClientCrewRequests(clientEmail: string): Promise<CrewRequest[]> {
+  const supabase = await createClient();
+
+  const { data, error } = await supabase
+    .from('crew_requests')
+    .select(
+      `*, creator:profiles!creator_id (
+        id, display_name, crew_slug, avatar_url, specializations, hourly_rate
+      )`,
+    )
+    .eq('client_email', clientEmail)
+    .order('created_at', { ascending: false });
+
+  if (error) {
+    console.error('[getClientCrewRequests]', error.message);
     return [];
   }
 
@@ -191,6 +230,81 @@ export async function updateCrewRequestStatus(
   }
 
   return { success: true };
+}
+
+// ─── Lazy Expiry ────────────────────────────────────────────────────────────
+// Serverless "lazy expiry" — expire pending crew_requests older than 48 hours.
+// Called before returning results on dashboard pages. Idempotent and safe to
+// call multiple times.
+
+export async function expireStaleRequests(
+  supabase: SupabaseClient,
+): Promise<{ id: string; client_email: string; client_name: string; project_type: string; creator_id: string }[]> {
+  const cutoff = new Date(
+    Date.now() - STUDIO.creators.requestExpiryHours * 60 * 60 * 1000,
+  ).toISOString();
+
+  const { data, error } = await supabase
+    .from('crew_requests')
+    .update({ status: 'expired', updated_at: new Date().toISOString() })
+    .eq('status', 'pending')
+    .lt('created_at', cutoff)
+    .select('id, client_email, client_name, project_type, creator_id');
+
+  if (error) {
+    console.error('[expireStaleRequests]', error.message);
+    return [];
+  }
+
+  const expired = data ?? [];
+
+  // Insert a notification for each creator whose gig expired
+  if (expired.length > 0) {
+    const notifications = expired.map((r) => ({
+      user_id: r.creator_id,
+      type: 'gig_expired',
+      title: 'Gig request expired',
+      body: `A ${r.project_type} request expired after ${STUDIO.creators.requestExpiryHours} hours with no response.`,
+      link: '/dashboard/gigs',
+      is_read: false,
+    }));
+
+    const { error: notifError } = await supabase
+      .from('notifications')
+      .insert(notifications);
+
+    if (notifError) {
+      console.error('[expireStaleRequests:notifications]', notifError.message);
+    }
+
+    // Optionally send email to clients — fire-and-forget, non-blocking
+    try {
+      const { email: emailProvider, isEmailConfigured } = await import('@/lib/email');
+      if (isEmailConfigured()) {
+        await Promise.allSettled(
+          expired.map((r) =>
+            emailProvider.sendEmail({
+              to: r.client_email,
+              subject: `Your ${r.project_type} request has expired — ${STUDIO.shortName}`,
+              text: [
+                `Hi ${r.client_name},`,
+                '',
+                `Your ${r.project_type} creator request on ${STUDIO.shortName} expired because the creator did not respond within ${STUDIO.creators.requestExpiryHours} hours.`,
+                '',
+                'You can submit a new request to another creator at any time.',
+                '',
+                `— ${STUDIO.shortName}`,
+              ].join('\n'),
+            }),
+          ),
+        );
+      }
+    } catch {
+      // Email sending is best-effort; do not block the response
+    }
+  }
+
+  return expired;
 }
 
 // ─── Slug Generation ────────────────────────────────────────────────────────

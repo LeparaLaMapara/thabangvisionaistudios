@@ -7,13 +7,13 @@ export const STUDIO = {
   name: 'ThabangVision AI Studios',
   shortName: 'ThabangVision',
   tagline: 'We Engineer The Invisible',
-  email: 'thabangvisionstudios@gmail.com',
-  careersEmail: 'thabangvisionstudios+careers@gmail.com',
-  supportEmail: 'thabangvisionstudios+support@gmail.com',
-  bookingEmail: 'thabangvisionstudios+booking@gmail.com',
-  pressEmail: 'thabangvisionstudios+press@gmail.com',
-  privacyEmail: 'thabangvisionstudios+privacy@gmail.com',
-  phone: '079 539 9012',
+  email: 'hello@thabangvision.com', //'thabangvisionstudios@gmail.com',
+  careersEmail: 'careers@thabangvision.com',  //'thabangvisionstudios+careers@gmail.com',
+  supportEmail: 'support@thabangvision.com',  //'thabasngvisionstudios+support@gmail.com',
+  bookingEmail: 'bookings@thabangvision.com',  //'thabangvisionstudios+booking@gmail.com',
+  pressEmail: 'press@thabangvision.com',  //'thabangvisionstudios+press@gmail.com',
+  privacyEmail: 'privacy@thabangvision.com',  //'thabangvisionstudios+privacy@gmail.com',
+  phone: '+27 79 539 9012',
 
   location: {
     city: 'Johannesburg',
@@ -26,10 +26,10 @@ export const STUDIO = {
 
   social: {
     instagram: 'https://instagram.com/thabangvision',
-    twitter: 'https://x.com/thabangvisionlabs',
+    twitter: 'https://x.com/thabangvision',
     youtube: 'https://youtube.com/@thabangvision',
-    linkedin: 'https://linkedin.com/thabangvision',
-    tiktok: 'https://tiktok.com/thabangvisionlabs',
+    // linkedin: 'https://linkedin.com/thabangvision',
+    // tiktok: 'https://tiktok.com/thabangvision',
     // behance: 'https://behance.net/thabangvisionstudios',
     // vimeo: 'https://vimeo.com/thabangvisionstudios',
     facebook: 'https://facebook.com/thabangvision',
@@ -42,7 +42,7 @@ export const STUDIO = {
   },
 
   meta: {
-    url: 'https://thabangvisionstudios.com',
+    url: 'https://thabangvision.com',
     title: 'ThabangVision AI Studios',
     description:
       'Premium creative production and equipment rental platform for South African filmmakers and photographers.',
@@ -68,7 +68,7 @@ export const STUDIO = {
       city: 'Johannesburg',
       province: 'Gauteng',
       phone: '',
-      email: 'thabangvisionstudios@gmail.com',
+      email: 'hello@thabangvision.com',  //'thabangvisionstudios@gmail.com',
       isPrimary: true,
     },
     {
@@ -77,7 +77,7 @@ export const STUDIO = {
       city: 'Cape Town',
       province: 'Western Cape',
       phone: '',
-      email: 'thabangvisionstudios@gmail.com',
+      email: 'hello@thabangvision.com',  //'thabangvisionstudios@gmail.com',
       isPrimary: false,
     },
   ],
@@ -121,7 +121,15 @@ export const STUDIO = {
     paginationLimit: 12,
   },
 
-  crew: {
+  hero: {
+    type: 'image' as 'image' | 'video',  // switch to 'video' when ready
+    imageSrc: 'https://res.cloudinary.com/dzymetqjr/image/upload/v1773909281/hero_image_erskic.avif',
+    videoSrc: '',                          // Cloudinary video URL (desktop)
+    mobileVideoSrc: '',                    // Smaller video for mobile (falls back to videoSrc)
+    poster: 'https://res.cloudinary.com/dzymetqjr/image/upload/v1773909281/hero_image_erskic.avif',                            // Static image shown while video loads
+  },
+
+  creators: {
     commissionRate: 15,
     minRequestLength: 20,
     maxRequestsPerHour: 5,
@@ -130,9 +138,13 @@ export const STUDIO = {
       contacted: 'In Discussion',
       confirmed: 'Confirmed',
       declined: 'Not Available',
+      paid: 'Paid',
+      in_progress: 'In Progress',
       completed: 'Completed',
       cancelled: 'Cancelled',
+      expired: 'Expired',
     },
+    requestExpiryHours: 48,
     projectTypes: [
       'Photography',
       'Cinematography',
@@ -151,6 +163,67 @@ export const STUDIO = {
       'R50,000+',
       'Flexible',
     ],
+  },
+
+
+  booking: {
+    platformCommission: 15,
+    vatRate: 15,
+    minBookingHours: 1,
+    maxBookingHours: 72,
+    cancellationPolicy: 'Free cancellation up to 48 hours before the shoot. After that, the full amount is non-refundable.',
+    autoCompleteAfterDays: 30,
+    projectCategories: [
+      'Wedding Photography',
+      'Wedding Cinematography',
+      'Portrait Photography',
+      'Corporate Photography',
+      'Corporate Video',
+      'Music Video',
+      'Event Coverage',
+      'Product Photography',
+      'Real Estate Photography',
+      'Content Creation',
+      'Documentary',
+      'Short Film',
+      'Other',
+    ],
+    deliverableTypes: [
+      'Edited Photos (Digital)',
+      'Printed Photos',
+      'Highlight Video',
+      'Full-Length Video',
+      'Raw Files',
+      'Social Media Edits',
+      'All of the Above',
+    ],
+    statusLabels: {
+      pending: 'Pending Payment',
+      paid: 'Paid',
+      accepted: 'Accepted',
+      completed: 'Completed',
+      paid_out: 'Paid Out',
+      cancelled: 'Cancelled',
+      disputed: 'Disputed',
+    } as Record<string, string>,
+  },
+
+  // ─── EXIF → Rental Slug Map ─────────────────────────────────────────────────
+  // Maps camera/lens EXIF model strings to smart_rentals slugs.
+  // Used on production detail pages to link "Shot With" gear to rental listings.
+  gearExifMap: {
+    // Camera bodies
+    'ILCE-7M3': 'sony-alpha-a7-iii',
+    'Sony ILCE-7M3': 'sony-alpha-a7-iii',
+    'X-T1': 'fujifilm-x-t1',
+    'FUJIFILM X-T1': 'fujifilm-x-t1',
+    'Canon EOS 250D': 'canon-250d',
+    'HERO9 Black': 'gopro-hero-9-black',
+    'NIKON D5300': 'nikon-d5300',
+    // Lenses
+    'FE 85mm F1.8': 'sony-fe-85mm-f18',
+    'FE 50mm F1.8': 'sony-fe-50mm-f18',
+    'XF 35mm F2 R WR': 'fujifilm-xf-35mm-f2',
   },
 } as const;
 
@@ -185,7 +258,6 @@ export const MAIN_NAVIGATION = [
     children: [
       { label: 'Smart Productions', href: '/smart-production' },
       { label: 'Smart Rentals', href: '/smart-rentals' },
-      { label: 'Crew & Talent', href: '/crew' },
       {
         label: 'Ubunye AI Studio',
         href: '/ubunye-ai-studio',
@@ -227,7 +299,7 @@ export const FOOTER_SECTIONS = [
     title: 'Support',
     links: [
       { label: 'Contact', href: '/contact' },
-      { label: 'Technical Support', href: '/support/tech' },
+      { label: 'Report an Issue', href: '/support/tech' },
       { label: 'Legal / Terms', href: '/legal' },
       { label: 'Privacy Policy', href: '/privacy' },
     ],
@@ -236,13 +308,14 @@ export const FOOTER_SECTIONS = [
 
 // ─── PLACEHOLDER IMAGES ─────────────────────────────────────────────────────
 export const PLACEHOLDER_IMAGES = {
-  hero: 'https://images.unsplash.com/photo-1550745165-9bc0b252726f?q=80&w=2940&auto=format&fit=crop',
+  hero: 'https://res.cloudinary.com/dzymetqjr/image/upload/v1773909281/hero_image_erskic.avif',
   camerasOptics: 'https://res.cloudinary.com/dzymetqjr/image/upload/v1773356991/camerasOptics_rnce72.png',
   lightingPower: 'https://res.cloudinary.com/dzymetqjr/image/upload/v1773356990/lightingPower_pexxot.png',
   audio: 'https://res.cloudinary.com/dzymetqjr/image/upload/v1773356994/audio_aj6co5.png',
   gripMotion: 'https://res.cloudinary.com/dzymetqjr/image/upload/v1773356994/gripMotion_ucsu5j.png',
   dataStorage: 'https://res.cloudinary.com/dzymetqjr/image/upload/v1773356975/dataStorage_mpqvqo.png',
   crewServices: 'https://res.cloudinary.com/dzymetqjr/image/upload/v1773356985/crewServices_pcvchd.png',
+  smartCreators: 'https://res.cloudinary.com/dzymetqjr/image/upload/v1773356985/crewServices_pcvchd.png',
   specializedSolutions: 'https://res.cloudinary.com/dzymetqjr/image/upload/v1773356963/specializedSolutions_gdsa3n.png',
   soundReinforcement: 'https://res.cloudinary.com/dzymetqjr/image/upload/v1773356994/audio_aj6co5.png',
   smartProductions: 'https://res.cloudinary.com/dzymetqjr/image/upload/v1773356173/smart_productions_difzj3.png',
@@ -279,6 +352,12 @@ export const CAPABILITIES = [
     link: '/smart-rentals',
   },
   {
+    title: 'Smart Creators',
+    subtitle: 'Verified Professionals for Hire',
+    image: PLACEHOLDER_IMAGES.smartCreators,
+    link: '/smart-creators',
+  },
+  {
     title: 'Creator Dashboard',
     subtitle: 'Manage Your Studio',
     image: PLACEHOLDER_IMAGES.creatorDashboard,
@@ -291,12 +370,25 @@ export const SOCIAL_LINKS = [
   ...(STUDIO.social.instagram ? [{ platform: 'Instagram', href: STUDIO.social.instagram }] : []),
   ...(STUDIO.social.facebook ? [{ platform: 'Facebook', href: STUDIO.social.facebook }] : []),
   ...(STUDIO.social.twitter ? [{ platform: 'Twitter', href: STUDIO.social.twitter }] : []),
-  ...(STUDIO.social.linkedin ? [{ platform: 'Linkedin', href: STUDIO.social.linkedin }] : []),
+  ...('linkedin' in STUDIO.social ? [{ platform: 'Linkedin', href: (STUDIO.social as Record<string, string>).linkedin }] : []),
   { platform: 'Mail', href: `mailto:${STUDIO.email}` },
 ];
 
 
 
+
+export const SA_BANKS = [
+  { name: 'ABSA', code: '632005' },
+  { name: 'African Bank', code: '430000' },
+  { name: 'Bidvest Bank', code: '462005' },
+  { name: 'Capitec Bank', code: '470010' },
+  { name: 'Discovery Bank', code: '679000' },
+  { name: 'First National Bank (FNB)', code: '250655' },
+  { name: 'Investec', code: '580105' },
+  { name: 'Nedbank', code: '198765' },
+  { name: 'Standard Bank', code: '051001' },
+  { name: 'TymeBank', code: '678910' },
+] as const;
 
 export const PRODUCTION_SERVICES = {
   photography: {

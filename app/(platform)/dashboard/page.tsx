@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
 import { auth } from '@/lib/auth';
 import { getProfileById } from '@/lib/supabase/queries/profiles';
-import { Calendar, Package, ShoppingBag, ArrowRight, User, Search, ShieldCheck, Clock } from 'lucide-react';
+import { Calendar, Package, ShoppingBag, ArrowRight, User, Search, ShieldCheck, Clock, Briefcase, FileText } from 'lucide-react';
 
 export const metadata = {
   title: 'Dashboard',
@@ -16,34 +16,7 @@ export default async function DashboardPage() {
 
   const profile = user ? await getProfileById(user.id) : null;
 
-  // Fetch real counts from Supabase (silently return 0 if tables don't exist)
-  const [bookingsResult, listingsResult, ordersResult] = await Promise.all([
-    user
-      ? supabase
-          .from('equipment_bookings')
-          .select('id', { count: 'exact', head: true })
-          .eq('user_id', user.id)
-      : { count: 0 },
-    user
-      ? supabase
-          .from('listings')
-          .select('id', { count: 'exact', head: true })
-          .eq('user_id', user.id)
-          .is('deleted_at', null)
-      : { count: 0 },
-    user
-      ? supabase
-          .from('orders')
-          .select('id', { count: 'exact', head: true })
-          .or(`buyer_id.eq.${user.id},seller_id.eq.${user.id}`)
-      : { count: 0 },
-  ]);
-
-  const bookingsCount = ('count' in bookingsResult ? bookingsResult.count : 0) ?? 0;
-  const listingsCount = ('count' in listingsResult ? listingsResult.count : 0) ?? 0;
-  const ordersCount = ('count' in ordersResult ? ordersResult.count : 0) ?? 0;
-
-  // Fetch verification status from profiles (column added by migration 003)
+  // Fetch verification status
   let verificationStatus: 'unverified' | 'pending' | 'verified' | 'rejected' = 'unverified';
   if (user) {
     const { data: vData } = await supabase
@@ -56,10 +29,54 @@ export default async function DashboardPage() {
     }
   }
 
-  const displayName = profile?.display_name || user?.email?.split('@')[0] || 'Creator';
-  const hasProfile = profile && (profile.bio || profile.avatar_url || (profile.skills && profile.skills.length > 0));
   const isVerified = verificationStatus === 'verified';
-  const needsProfileCompletion = profile && (!profile.bio || !profile.skills || profile.skills.length === 0);
+
+  // Fetch auth user for email (needed for crew_requests client_email query)
+  const { data: { user: authUser } } = await supabase.auth.getUser();
+
+  // Fetch real counts from Supabase
+  const [bookingsResult, listingsResult, ordersResult, gigsResult, requestsResult] = await Promise.all([
+    user
+      ? supabase
+          .from('equipment_bookings')
+          .select('id', { count: 'exact', head: true })
+          .eq('user_id', user.id)
+      : { count: 0 },
+    user && isVerified
+      ? supabase
+          .from('listings')
+          .select('id', { count: 'exact', head: true })
+          .eq('user_id', user.id)
+          .is('deleted_at', null)
+      : { count: 0 },
+    user && isVerified
+      ? supabase
+          .from('orders')
+          .select('id', { count: 'exact', head: true })
+          .or(`buyer_id.eq.${user.id},seller_id.eq.${user.id}`)
+      : { count: 0 },
+    user && isVerified
+      ? supabase
+          .from('crew_requests')
+          .select('id', { count: 'exact', head: true })
+          .eq('creator_id', user.id)
+      : { count: 0 },
+    authUser?.email
+      ? supabase
+          .from('crew_requests')
+          .select('id', { count: 'exact', head: true })
+          .eq('client_email', authUser.email)
+      : { count: 0 },
+  ]);
+
+  const bookingsCount = ('count' in bookingsResult ? bookingsResult.count : 0) ?? 0;
+  const listingsCount = ('count' in listingsResult ? listingsResult.count : 0) ?? 0;
+  const ordersCount = ('count' in ordersResult ? ordersResult.count : 0) ?? 0;
+  const gigsCount = ('count' in gigsResult ? gigsResult.count : 0) ?? 0;
+  const requestsCount = ('count' in requestsResult ? requestsResult.count : 0) ?? 0;
+
+  const displayName = profile?.display_name || user?.email?.split('@')[0] || 'Creator';
+  const hasRequiredProfile = profile && (profile.display_name && profile.phone);
 
   return (
     <div>
@@ -74,41 +91,61 @@ export default async function DashboardPage() {
         <p className="text-sm text-neutral-500 dark:text-neutral-400 font-mono mt-3">
           {isVerified
             ? 'You are a verified creator. List gear, book equipment, and manage your orders.'
-            : 'Complete your profile and get verified to unlock all features.'}
+            : 'Book equipment, hire creators, and explore the platform. Get verified to list your own gear and services.'}
         </p>
       </div>
 
-      {/* Stat cards — real counts */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-10">
-        <StatCard label="Bookings" value={String(bookingsCount)} icon={Calendar} href="/dashboard/bookings" />
-        <StatCard label="Listings" value={String(listingsCount)} icon={Package} href="/dashboard/listings" />
-        <StatCard label="Orders" value={String(ordersCount)} icon={ShoppingBag} href="/dashboard/orders" />
-      </div>
-
-      {/* Profile completeness prompt */}
-      {needsProfileCompletion && (
-        <ProfileCompletenessPrompt
-          hasBio={!!profile?.bio}
-          hasSkills={!!(profile?.skills && profile.skills.length > 0)}
-          hasSocialLinks={!!(profile?.social_links && Object.keys(profile.social_links).length > 0)}
-        />
+      {/* Become a Creator CTA (unverified users only) */}
+      {!isVerified && (
+        <div className="bg-[#0A0A0B] border border-[#D4A843]/30 p-8 mb-10">
+          <div className="flex items-start gap-4">
+            <ShieldCheck className="w-8 h-8 text-[#D4A843] flex-shrink-0 mt-0.5" />
+            <div>
+              <h3 className="text-sm font-display font-medium uppercase text-white mb-2">
+                Become a Creator
+              </h3>
+              <p className="text-xs font-mono text-neutral-400 mb-4 leading-relaxed">
+                Get verified to list gear, receive gig requests, and earn money on the platform. Verification takes 1-2 business days.
+              </p>
+              <Link
+                href="/dashboard/verification"
+                className="inline-flex items-center gap-2 text-[10px] font-mono uppercase tracking-widest px-5 py-2.5 bg-[#D4A843] text-black hover:bg-[#E5B954] transition-colors"
+              >
+                Get Verified <ArrowRight className="w-3 h-3" />
+              </Link>
+            </div>
+          </div>
+        </div>
       )}
 
-      {/* Onboarding checklist (only show if profile incomplete) */}
-      {!hasProfile || !isVerified ? (
+      {/* Stat cards */}
+      <div className={`grid grid-cols-1 gap-4 mb-10 ${isVerified ? 'sm:grid-cols-5' : 'sm:grid-cols-2'}`}>
+        <StatCard label="Bookings" value={String(bookingsCount)} icon={Calendar} href="/dashboard/bookings" />
+        <StatCard label="My Requests" value={String(requestsCount)} icon={FileText} href="/dashboard/creator-requests" />
+        {isVerified && (
+          <>
+            <StatCard label="Gigs" value={String(gigsCount)} icon={Briefcase} href="/dashboard/gigs" />
+            <StatCard label="Listings" value={String(listingsCount)} icon={Package} href="/dashboard/listings" />
+            <StatCard label="Orders" value={String(ordersCount)} icon={ShoppingBag} href="/dashboard/orders" />
+          </>
+        )}
+      </div>
+
+      {/* Onboarding checklist (unverified users only) */}
+      {!isVerified && (
         <div className="mb-10">
           <h2 className="text-xs font-mono font-bold uppercase tracking-widest text-black dark:text-white mb-4">
             Get Started
           </h2>
           <div className="space-y-3">
             <ChecklistItem
-              done={!!hasProfile}
+              done={!!hasRequiredProfile}
               label="Complete your profile"
-              description="Add a bio, avatar, and skills to stand out."
+              description="Add your name, address, and phone number."
               href="/dashboard/profile"
             />
             <ChecklistItem
-              done={bookingsCount > 0 || listingsCount > 0}
+              done={bookingsCount > 0}
               label="Browse equipment"
               description="Explore professional gear available for rent."
               href="/smart-rentals"
@@ -116,19 +153,25 @@ export default async function DashboardPage() {
             <ChecklistItem
               done={isVerified}
               pending={verificationStatus === 'pending'}
-              label={verificationStatus === 'pending' ? 'Verification pending' : 'Get verified'}
+              label={
+                verificationStatus === 'pending'
+                  ? 'Verification pending'
+                  : verificationStatus === 'rejected'
+                    ? 'Resubmit verification'
+                    : 'Get verified (become a creator)'
+              }
               description={
                 verificationStatus === 'pending'
                   ? 'Your documents are under review.'
                   : verificationStatus === 'rejected'
                     ? 'Verification was rejected. Please resubmit.'
-                    : 'Verification lets you list your own gear for rent.'
+                    : 'Verification lets you list gear, accept gigs, and earn on the platform.'
               }
               href="/dashboard/verification"
             />
           </div>
         </div>
-      ) : null}
+      )}
 
       {/* Quick actions */}
       <h2 className="text-xs font-mono font-bold uppercase tracking-widest text-black dark:text-white mb-4">
@@ -141,18 +184,37 @@ export default async function DashboardPage() {
           description="Browse and reserve professional gear."
           href="/smart-rentals"
         />
-        <QuickAction
-          icon={Package}
-          title="List Your Gear"
-          description="Earn by renting out your equipment."
-          href="/dashboard/listings"
-        />
-        <QuickAction
-          icon={User}
-          title="Edit Profile"
-          description="Update your bio, avatar, and skills."
-          href="/dashboard/profile"
-        />
+        {isVerified ? (
+          <>
+            <QuickAction
+              icon={Package}
+              title="List Your Gear"
+              description="Earn by renting out your equipment."
+              href="/dashboard/listings"
+            />
+            <QuickAction
+              icon={Briefcase}
+              title="View Gigs"
+              description="See incoming gig requests from clients."
+              href="/dashboard/gigs"
+            />
+          </>
+        ) : (
+          <>
+            <QuickAction
+              icon={User}
+              title="Hire a Creator"
+              description="Find verified creators for your project."
+              href="/smart-creators"
+            />
+            <QuickAction
+              icon={User}
+              title="Edit Profile"
+              description="Update your name, phone, and details."
+              href="/dashboard/profile"
+            />
+          </>
+        )}
       </div>
     </div>
   );
@@ -262,59 +324,5 @@ function QuickAction({
         <p className="text-xs text-neutral-500 leading-relaxed">{description}</p>
       </div>
     </Link>
-  );
-}
-
-function ProfileCompletenessPrompt({
-  hasBio,
-  hasSkills,
-  hasSocialLinks,
-}: {
-  hasBio: boolean;
-  hasSkills: boolean;
-  hasSocialLinks: boolean;
-}) {
-  return (
-    <div className="mb-10">
-      <div className="bg-[#0A0A0B] border border-amber-500/20 p-6">
-        <h3 className="text-xs font-mono font-bold uppercase tracking-widest text-amber-400 mb-2">
-          Complete Your Profile
-        </h3>
-        <p className="text-xs font-mono text-neutral-400 mb-4 leading-relaxed">
-          Add a bio and skills to appear in crew searches and stand out to clients.
-        </p>
-        <div className="space-y-2 mb-5">
-          <CompletionItem done={hasBio} label="Bio (tell clients about your experience)" />
-          <CompletionItem done={hasSkills} label="Skills (e.g. Premiere Pro, Cinematography)" />
-          <CompletionItem done={hasSocialLinks} label="Social links (Instagram, YouTube, etc.)" />
-        </div>
-        <Link
-          href="/dashboard/profile"
-          className="inline-flex items-center gap-1 text-[10px] font-mono font-bold uppercase tracking-widest text-white border border-white/20 px-4 py-2.5 hover:bg-white hover:text-black transition-all"
-        >
-          Edit Profile
-          <ArrowRight className="w-3 h-3" />
-        </Link>
-      </div>
-    </div>
-  );
-}
-
-function CompletionItem({ done, label }: { done: boolean; label: string }) {
-  return (
-    <div className="flex items-center gap-2">
-      <div className={`w-3.5 h-3.5 rounded-full border flex items-center justify-center ${
-        done ? 'border-emerald-500 bg-emerald-500' : 'border-neutral-600'
-      }`}>
-        {done && (
-          <svg className="w-2 h-2 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-          </svg>
-        )}
-      </div>
-      <span className={`text-xs font-mono ${done ? 'text-neutral-500 line-through' : 'text-neutral-300'}`}>
-        {label}
-      </span>
-    </div>
   );
 }

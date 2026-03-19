@@ -98,7 +98,7 @@ export async function POST(req: NextRequest) {
 
     // ── Validate file types and sizes ─────────────────────────────────
     const maxSize = (STUDIO.verification.maxFileSizeMB ?? 5) * 1024 * 1024;
-    const minSize = 200 * 1024; // 200KB minimum
+    const minSize = 50 * 1024; // 50KB minimum
     const allowedTypes = ['image/jpeg', 'image/png'];
 
     for (const [label, file] of [
@@ -114,7 +114,7 @@ export async function POST(req: NextRequest) {
       }
       if (file.size < minSize) {
         return NextResponse.json(
-          { error: `${label}: Photo is too small. Please take a clearer photo.` },
+          { error: `${label}: Photo file is too small (under 50KB). Please take a higher resolution photo.` },
           { status: 400 },
         );
       }

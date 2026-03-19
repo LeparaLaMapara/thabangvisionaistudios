@@ -249,6 +249,116 @@ export const paystack: PaymentProvider = {
   },
 };
 
+// ─── Verify Transaction ──────────────────────────────────────────────────────
+
+/**
+ * Verify a Paystack transaction by reference.
+ * Docs: https://paystack.com/docs/api/transaction/#verify
+ */
+export async function verifyPayment(reference: string): Promise<{
+  success: boolean;
+  amount: number;
+  reference: string;
+  paidAt: string | null;
+  metadata: Record<string, string>;
+}> {
+  const res = await fetch(`${PAYSTACK_API}/transaction/verify/${encodeURIComponent(reference)}`, {
+    headers: {
+      Authorization: `Bearer ${getSecretKey()}`,
+    },
+  });
+
+  const data = await res.json();
+
+  if (!res.ok || !data.status) {
+    return { success: false, amount: 0, reference, paidAt: null, metadata: {} };
+  }
+
+  return {
+    success: data.data.status === 'success',
+    amount: data.data.amount / 100, // cents → ZAR
+    reference: data.data.reference,
+    paidAt: data.data.paid_at ?? null,
+    metadata: data.data.metadata ?? {},
+  };
+}
+
+// ─── Refunds ─────────────────────────────────────────────────────────────────
+
+/**
+ * Refund a Paystack transaction (full or partial).
+ * Docs: https://paystack.com/docs/api/refund/#create
+ */
+export async function refundPayment(reference: string, amount?: number): Promise<{
+  success: boolean;
+  error?: string;
+}> {
+  try {
+    const body: Record<string, unknown> = { transaction: reference };
+    if (amount) body.amount = Math.round(amount * 100); // ZAR → cents
+
+    const res = await fetch(`${PAYSTACK_API}/refund`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${getSecretKey()}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(body),
+    });
+
+    const data = await res.json();
+
+    if (!res.ok || !data.status) {
+      return { success: false, error: data.message || 'Refund failed' };
+    }
+
+    return { success: true };
+  } catch (err) {
+    return { success: false, error: err instanceof Error ? err.message : 'Refund failed' };
+  }
+}
+
+// ─── Transfers (Payouts) ─────────────────────────────────────────────────────
+
+/**
+ * Initiate a transfer (payout) to a creator's bank account via Paystack Transfers API.
+ * Docs: https://paystack.com/docs/api/transfer/#initiate
+ */
+export async function initiateTransfer(params: {
+  amount: number; // In ZAR (not cents)
+  recipientCode: string;
+  reason: string;
+  reference: string;
+}): Promise<{ success: boolean; transferCode?: string; error?: string }> {
+  try {
+    const res = await fetch(`${PAYSTACK_API}/transfer`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${getSecretKey()}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        source: 'balance',
+        amount: Math.round(params.amount * 100), // ZAR → cents
+        recipient: params.recipientCode,
+        reason: params.reason,
+        reference: params.reference,
+        currency: 'ZAR',
+      }),
+    });
+
+    const data = await res.json();
+
+    if (!res.ok || !data.status) {
+      return { success: false, error: data.message || 'Transfer failed' };
+    }
+
+    return { success: true, transferCode: data.data?.transfer_code };
+  } catch (err) {
+    return { success: false, error: err instanceof Error ? err.message : 'Transfer failed' };
+  }
+}
+
 // ─── Utilities ───────────────────────────────────────────────────────────────
 
 /** Flatten metadata object into a flat Record for Paystack's metadata field. */

@@ -262,7 +262,7 @@ export function BookingWidget({ rental }: Props) {
         <Info className="w-3 h-3 mt-0.5 flex-shrink-0" />
         <span>
           Booking is subject to availability confirmation. Payment is processed
-          securely via PayFast.
+          securely via our payment partner.
         </span>
       </div>
 

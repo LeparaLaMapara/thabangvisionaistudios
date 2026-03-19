@@ -13,17 +13,47 @@ const Hero = () => {
   const { scrollY } = useScroll();
   const y1 = useTransform(scrollY, [0, 500], [0, 200]);
   const opacity = useTransform(scrollY, [0, 300], [1, 0]);
+  const { hero } = STUDIO;
+  const useVideo = hero.type === 'video' && !!hero.videoSrc;
 
   return (
     <div className="relative h-screen w-full overflow-hidden bg-white dark:bg-[#050505] flex items-center justify-center transition-colors duration-500">
       <motion.div style={{ y: y1 }} className="absolute inset-0 z-0">
         <div className="absolute inset-0 bg-gradient-to-t from-white via-transparent to-white/50 dark:from-[#050505] dark:via-transparent dark:to-[#050505]/50 z-10" />
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src={PLACEHOLDER_IMAGES.hero}
-          alt="Studio Abstract"
-          className="w-full h-full object-cover opacity-10 dark:opacity-40 grayscale contrast-125"
-        />
+
+        {useVideo ? (
+          <video
+            autoPlay
+            loop
+            muted
+            playsInline
+            poster={hero.poster || undefined}
+            className="w-full h-full object-cover opacity-10 dark:opacity-40 grayscale contrast-125 motion-reduce:hidden"
+          >
+            {/* Mobile-optimised source first (smaller file), desktop fallback */}
+            {hero.mobileVideoSrc && (
+              <source src={hero.mobileVideoSrc} type="video/mp4" media="(max-width: 767px)" />
+            )}
+            <source src={hero.videoSrc} type="video/mp4" />
+          </video>
+        ) : (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={hero.imageSrc}
+            alt="Studio Abstract"
+            className="w-full h-full object-cover opacity-10 dark:opacity-40 grayscale contrast-125"
+          />
+        )}
+
+        {/* Fallback image for prefers-reduced-motion when video is active */}
+        {useVideo && hero.poster && (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={hero.poster}
+            alt=""
+            className="w-full h-full object-cover opacity-10 dark:opacity-40 grayscale contrast-125 hidden motion-reduce:block absolute inset-0"
+          />
+        )}
       </motion.div>
 
       <div className="absolute inset-0 bg-[linear-gradient(rgba(0,0,0,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(0,0,0,0.03)_1px,transparent_1px)] dark:bg-[linear-gradient(rgba(255,255,255,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.03)_1px,transparent_1px)] bg-[size:100px_100px] pointer-events-none z-10" />

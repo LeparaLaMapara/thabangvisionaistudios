@@ -2,7 +2,7 @@ export const dynamic = 'force-dynamic';
 
 import { NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/auth';
-import { createClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/server';
 import { recalculateAllRankings } from '@/lib/ranking/calculate';
 
 // ─── POST — Recalculate all rental ranking scores (admin only) ──────────────
@@ -12,7 +12,7 @@ export async function POST() {
   if (auth.error) return auth.error;
 
   try {
-    const supabase = await createClient();
+    const supabase = createAdminClient();
     const result = await recalculateAllRankings(supabase);
 
     return NextResponse.json({

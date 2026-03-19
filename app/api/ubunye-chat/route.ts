@@ -2,7 +2,7 @@ export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
 import { NextRequest, NextResponse } from 'next/server';
-import { streamText, convertToModelMessages } from 'ai';
+import { streamText, convertToModelMessages, stepCountIs } from 'ai';
 import { checkRateLimit } from '@/lib/auth';
 import { getModel } from '@/lib/ai';
 import { createClient } from '@/lib/supabase/server';
@@ -142,13 +142,14 @@ export async function POST(req: NextRequest) {
       ? await convertToModelMessages(rawMessages)
       : rawMessages;
 
-    const crewTools = createCrewTools(supabase);
+    const crewTools = createCrewTools(supabase, !!user);
 
     const result = streamText({
       model: getModel(),
       system: systemPrompt,
       messages: modelMessages,
       tools: crewTools,
+      stopWhen: stepCountIs(4),
     });
 
     return result.toUIMessageStreamResponse();

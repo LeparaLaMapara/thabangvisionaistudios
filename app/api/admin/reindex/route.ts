@@ -2,7 +2,7 @@ export const dynamic = 'force-dynamic';
 
 import { NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/auth';
-import { createClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/server';
 import { isRagEnabled, reindexAll } from '@/lib/rag';
 
 // ─── POST — Reindex all content embeddings (admin only) ─────────────────────
@@ -19,7 +19,7 @@ export async function POST() {
   }
 
   try {
-    const supabase = await createClient();
+    const supabase = createAdminClient();
     const result = await reindexAll(supabase);
 
     return NextResponse.json({

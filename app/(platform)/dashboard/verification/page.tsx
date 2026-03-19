@@ -43,8 +43,8 @@ function validateImage(file: File): { valid: boolean; error?: string } {
   if (!['image/jpeg', 'image/png'].includes(file.type)) {
     return { valid: false, error: 'Only JPG and PNG files allowed.' };
   }
-  if (file.size < 200 * 1024) {
-    return { valid: false, error: 'Photo is too small. Please take a clearer photo.' };
+  if (file.size < 50 * 1024) {
+    return { valid: false, error: 'Photo file is too small (under 50KB). Please take a higher resolution photo.' };
   }
   const maxSize = (STUDIO.verification.maxFileSizeMB ?? 5) * 1024 * 1024;
   if (file.size > maxSize) {
@@ -515,7 +515,7 @@ function PhotoDropzone({
             <img
               src={slot.preview}
               alt={slot.label}
-              className="max-h-48 mx-auto object-contain rounded"
+              className="w-full max-h-80 mx-auto object-contain rounded"
             />
             <div className="flex items-center justify-center gap-3">
               <span className="text-xs font-mono text-emerald-400 flex items-center gap-1.5">
