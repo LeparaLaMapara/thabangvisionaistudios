@@ -2,6 +2,7 @@
 
 import { ThemeProvider } from 'next-themes';
 import { AuthProvider } from '@/providers/AuthProvider';
+import { CartProvider } from '@/providers/CartProvider';
 
 type SerializedUser = {
   id: string;
@@ -24,7 +25,9 @@ export function Providers({
       disableTransitionOnChange={false}
     >
       <AuthProvider initialUser={initialUser}>
-        {children}
+        <CartProvider>
+          {children}
+        </CartProvider>
       </AuthProvider>
     </ThemeProvider>
   );

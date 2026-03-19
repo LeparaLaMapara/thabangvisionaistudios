@@ -48,6 +48,7 @@ export default async function DashboardLayout({
           <nav className="space-y-1">
             <DashboardLink href="/dashboard">Overview</DashboardLink>
             <DashboardLink href="/dashboard/profile">Profile</DashboardLink>
+            <DashboardLink href="/dashboard/cart">Cart</DashboardLink>
             <DashboardLink href="/dashboard/bookings">Bookings</DashboardLink>
             <DashboardLink href="/dashboard/creator-requests">My Requests</DashboardLink>
             {isCreator && (

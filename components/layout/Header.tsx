@@ -3,12 +3,13 @@
 import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Search, Menu, X, ChevronDown } from 'lucide-react';
+import { Search, Menu, X, ChevronDown, ShoppingCart } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { MAIN_NAVIGATION } from '@/lib/constants';
 import { GlobalSearch } from '@/components/search/GlobalSearch';
 import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/providers/AuthProvider';
+import { useCart } from '@/providers/CartProvider';
 
 // Pre-computed ray params to avoid hydration mismatch (no Math.random() in render)
 const RAY_LENGTHS = [38, 47, 43, 35, 44, 41, 39, 48, 42];
@@ -219,6 +220,7 @@ const MobileNavSection = ({
 export const Header = () => {
   const router = useRouter();
   const { user, loading: authLoading } = useAuth();
+  const { count: cartCount } = useCart();
   const isLoggedIn = !!user;
 
   const [scrolled, setScrolled] = useState(false);
@@ -323,6 +325,19 @@ export const Header = () => {
             <Search className="w-4 h-4" />
             <kbd className="hidden xl:inline text-[9px] font-mono text-neutral-500 border border-neutral-300 dark:border-neutral-700 px-1 py-0.5 rounded">⌘K</kbd>
           </button>
+          {isLoggedIn && (
+            <Link
+              href="/dashboard/cart"
+              className="relative text-neutral-500 hover:text-black dark:hover:text-white transition-colors"
+            >
+              <ShoppingCart className="w-4 h-4" />
+              {cartCount > 0 && (
+                <span className="absolute -top-1.5 -right-1.5 bg-[#D4A843] text-black text-[8px] font-mono font-bold w-4 h-4 rounded-full flex items-center justify-center">
+                  {cartCount > 9 ? '9+' : cartCount}
+                </span>
+              )}
+            </Link>
+          )}
           <Link href="/contact" className="text-[10px] font-mono font-bold tracking-widest text-white bg-black dark:text-black dark:bg-white px-5 py-2 hover:opacity-80 transition-all duration-300 uppercase">
             Start Project
           </Link>
@@ -362,6 +377,19 @@ export const Header = () => {
           >
             <Search className="w-5 h-5" />
           </button>
+          {isLoggedIn && (
+            <Link
+              href="/dashboard/cart"
+              className="relative text-neutral-500 hover:text-black dark:hover:text-white transition-colors"
+            >
+              <ShoppingCart className="w-5 h-5" />
+              {cartCount > 0 && (
+                <span className="absolute -top-1.5 -right-1.5 bg-[#D4A843] text-black text-[8px] font-mono font-bold w-4 h-4 rounded-full flex items-center justify-center">
+                  {cartCount > 9 ? '9+' : cartCount}
+                </span>
+              )}
+            </Link>
+          )}
           <button
             className="text-black dark:text-white"
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}

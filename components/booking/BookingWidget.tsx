@@ -4,11 +4,12 @@ import { useEffect, useMemo, useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
-import { CalendarDays, Info, LogIn } from 'lucide-react';
+import { CalendarDays, Info, LogIn, ShoppingCart } from 'lucide-react';
 import { DateRangePicker, type DateRange } from '@/components/ui/DateRangePicker';
 import { Button } from '@/components/ui/Button';
 import { Textarea } from '@/components/ui/Textarea';
 import { createClient } from '@/lib/supabase/client';
+import { useCart } from '@/providers/CartProvider';
 import type { SmartRental } from '@/lib/supabase/queries/smartRentals';
 
 interface Props {
@@ -18,7 +19,10 @@ interface Props {
 export function BookingWidget({ rental }: Props) {
   const router = useRouter();
   const pathname = usePathname();
+  const { addToCart: addToCartAction } = useCart();
   const [isLoggedIn, setIsLoggedIn] = useState<boolean | null>(null);
+  const [addedToCart, setAddedToCart] = useState(false);
+  const [addingToCart, setAddingToCart] = useState(false);
 
   useEffect(() => {
     const supabase = createClient();
@@ -266,7 +270,7 @@ export function BookingWidget({ rental }: Props) {
         </span>
       </div>
 
-      {/* Book button — requires auth */}
+      {/* Book / Cart buttons — requires auth */}
       {isLoggedIn === false ? (
         <div className="space-y-3">
           <Link
@@ -281,18 +285,33 @@ export function BookingWidget({ rental }: Props) {
           </p>
         </div>
       ) : (
-        <Button
-          onClick={handleBook}
-          loading={submitting}
-          disabled={isLoggedIn === null || !dateRange.start || !dateRange.end || checking || available === false}
-          className="w-full"
-          size="lg"
-        >
-          <CalendarDays className="w-4 h-4" />
-          {pricing
-            ? `Book Now — ${rental.currency} ${(pricing.total + pricing.deposit).toLocaleString()}`
-            : 'Select Dates to Book'}
-        </Button>
+        <div className="space-y-2">
+          <Button
+            onClick={handleBook}
+            loading={submitting}
+            disabled={isLoggedIn === null || !dateRange.start || !dateRange.end || checking || available === false}
+            className="w-full"
+            size="lg"
+          >
+            <CalendarDays className="w-4 h-4" />
+            {pricing
+              ? `Book Now — ${rental.currency} ${(pricing.total + pricing.deposit).toLocaleString()}`
+              : 'Select Dates to Book'}
+          </Button>
+          <button
+            onClick={async () => {
+              setAddingToCart(true);
+              const ok = await addToCartAction(rental.id);
+              if (ok) setAddedToCart(true);
+              setAddingToCart(false);
+            }}
+            disabled={isLoggedIn === null || addingToCart || addedToCart}
+            className="w-full flex items-center justify-center gap-2 px-6 py-2.5 border border-white/20 text-[10px] font-mono font-bold uppercase tracking-widest text-neutral-400 hover:text-white hover:border-white/40 disabled:opacity-50 transition-all"
+          >
+            <ShoppingCart className="w-3.5 h-3.5" />
+            {addedToCart ? 'Added to Cart' : addingToCart ? 'Adding...' : 'Add to Cart'}
+          </button>
+        </div>
       )}
     </motion.div>
   );

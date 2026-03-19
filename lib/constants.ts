@@ -105,6 +105,13 @@ export const STUDIO = {
     depositPercent: 20,
     maxBookingDays: 30,
     cancellationHours: 24,
+    maxCartItems: 10,
+    bulkDiscount: [
+      { minItems: 1, maxItems: 2, discountPercent: 0 },
+      { minItems: 3, maxItems: 4, discountPercent: 10 },
+      { minItems: 5, maxItems: 6, discountPercent: 15 },
+      { minItems: 7, maxItems: Infinity, discountPercent: 20 },
+    ],
   },
 
   verification: {
