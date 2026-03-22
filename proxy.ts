@@ -21,9 +21,17 @@ export async function proxy(request: NextRequest) {
   if (isApiMutation && !isWebhook) {
     const origin = request.headers.get('origin');
     const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000';
-    const allowedOrigin = new URL(appUrl).origin;
+    const parsedUrl = new URL(appUrl);
+    const allowedOrigins = new Set<string>([parsedUrl.origin]);
 
-    if (origin && origin !== allowedOrigin) {
+    // Allow both www and non-www variants of the same domain
+    if (parsedUrl.hostname.startsWith('www.')) {
+      allowedOrigins.add(`${parsedUrl.protocol}//${parsedUrl.hostname.slice(4)}`);
+    } else if (!['localhost', '127.0.0.1'].includes(parsedUrl.hostname)) {
+      allowedOrigins.add(`${parsedUrl.protocol}//www.${parsedUrl.hostname}`);
+    }
+
+    if (origin && !allowedOrigins.has(origin)) {
       return NextResponse.json(
         { error: 'Invalid origin.' },
         { status: 403 },
