@@ -1,6 +1,7 @@
 export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
+import { checkRateLimit } from '@/lib/auth';
 import { createClient } from '@/lib/supabase/server';
 
 // ─── POST — Submit a rating/review for a completed booking ───────────────────
@@ -17,6 +18,10 @@ export async function POST(
 
   if (!user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  if (!checkRateLimit(`review:${user.id}`, 5, 60_000)) {
+    return NextResponse.json({ error: 'Too many requests. Please wait before trying again.' }, { status: 429 });
   }
 
   const body = await request.json();

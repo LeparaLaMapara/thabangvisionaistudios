@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { checkRateLimit } from '@/lib/auth';
 import { createClient } from '@/lib/supabase/server';
 
 // ─── Name validation ────────────────────────────────────────────────────────
@@ -24,6 +25,10 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
     if (!user) {
       return NextResponse.json({ error: 'Not authenticated.' }, { status: 401 });
+    }
+
+    if (!checkRateLimit(`onboarding:${user.id}`, 3, 60_000)) {
+      return NextResponse.json({ error: 'Too many requests. Please wait before trying again.' }, { status: 429 });
     }
 
     const body = await req.json();
