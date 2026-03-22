@@ -1,6 +1,7 @@
 export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
+import { checkRateLimit } from '@/lib/auth';
 import { createClient } from '@/lib/supabase/server';
 import { STUDIO } from '@/lib/constants';
 
@@ -77,6 +78,10 @@ export async function POST(request: NextRequest) {
 
   if (!user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  if (!checkRateLimit(`listing:${user.id}`, 5, 60_000)) {
+    return NextResponse.json({ error: 'Too many requests. Please wait before trying again.' }, { status: 429 });
   }
 
   // Require verified account to list equipment

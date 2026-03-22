@@ -1,6 +1,7 @@
 export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
+import { checkRateLimit } from '@/lib/auth';
 import { createClient } from '@/lib/supabase/server';
 
 const PAYSTACK_API = 'https://api.paystack.com';
@@ -41,6 +42,10 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+    if (!checkRateLimit(`banking:${user.id}`, 3, 60_000)) {
+      return NextResponse.json({ error: 'Too many requests. Please wait before trying again.' }, { status: 429 });
+    }
 
     const body = await req.json();
     const { bank_name, bank_code, account_number, account_type, account_holder } = body;

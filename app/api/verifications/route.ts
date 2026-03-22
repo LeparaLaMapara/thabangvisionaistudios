@@ -2,6 +2,7 @@ export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'node:crypto';
+import { checkRateLimit } from '@/lib/auth';
 import { createClient } from '@/lib/supabase/server';
 import { getVerificationStatus, submitVerification } from '@/lib/supabase/queries/verifications';
 import { extractPhotoMetadata } from '@/lib/metadata/verification';
@@ -46,6 +47,10 @@ export async function POST(req: NextRequest) {
 
   if (!user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  if (!checkRateLimit(`verification:${user.id}`, 3, 60_000)) {
+    return NextResponse.json({ error: 'Too many requests. Please wait before trying again.' }, { status: 429 });
   }
 
   try {
