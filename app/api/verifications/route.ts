@@ -223,7 +223,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      message: `Documents submitted successfully. We'll review your verification within ${STUDIO.verification.reviewDays}.`,
+      message: 'Documents submitted successfully. Verification is instant.',
       flags_detected: fraudFlags.length,
     });
   } catch (err) {

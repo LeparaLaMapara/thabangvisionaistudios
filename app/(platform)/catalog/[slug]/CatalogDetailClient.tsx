@@ -59,6 +59,7 @@ export default function CatalogDetailClient({ rental }: Props) {
               src={heroImage}
               alt={rental.title}
               fill
+              sizes="100vw"
               className="object-cover"
               priority
             />
@@ -161,6 +162,7 @@ export default function CatalogDetailClient({ rental }: Props) {
                         src={img.url}
                         alt={rental.title}
                         fill
+                        sizes="(max-width: 768px) 50vw, 33vw"
                         className="object-cover"
                       />
                     </div>

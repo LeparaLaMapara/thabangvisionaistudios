@@ -30,8 +30,8 @@ export default function CreatorFilter({ creators }: CreatorFilterProps) {
             onClick={() => setActiveFilter(option)}
             className={`text-[10px] font-mono uppercase tracking-widest px-4 py-2 border transition-all min-h-[36px] ${
               activeFilter === option
-                ? 'bg-white text-black border-white'
-                : 'bg-transparent text-neutral-500 border-white/10 hover:border-white/30'
+                ? 'bg-[#D4A843] text-black border-[#D4A843]'
+                : 'bg-transparent text-neutral-500 border-white/10 hover:border-[#D4A843]/30 hover:text-[#D4A843]'
             }`}
           >
             {option}

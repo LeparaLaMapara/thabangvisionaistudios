@@ -114,7 +114,7 @@ export default function SmartRentalsClient({ rentals }: { rentals: SmartRental[]
   }, [rentals]);
 
   return (
-    <div className="min-h-screen bg-white dark:bg-[#050505] pt-32 pb-20 transition-colors duration-500">
+    <div className="min-h-screen bg-[#050505] pt-32 pb-20 transition-colors duration-500">
 
       {/* ── Header ── */}
       <div className="container mx-auto px-6 mb-24">
@@ -124,7 +124,7 @@ export default function SmartRentalsClient({ rentals }: { rentals: SmartRental[]
           transition={{ duration: 0.8 }}
         >
           <div className="border-l border-black/20 dark:border-white/20 pl-8 md:pl-16 py-4">
-            <span className="text-[10px] font-mono text-neutral-500 dark:text-accent uppercase tracking-widest mb-4 block">
+            <span className="text-[10px] font-mono text-[#D4A843] uppercase tracking-[0.3em] mb-4 block">
               02 // Equipment Fleet
             </span>
             <h1 className="text-5xl md:text-8xl font-display font-medium text-black dark:text-white tracking-tight leading-[0.9] mb-8 uppercase">

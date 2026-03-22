@@ -427,8 +427,8 @@ test.describe('5. Browsing — public pages', () => {
     }
   });
 
-  test('5i. Lab page loads', async ({ page }) => {
-    await safeGoto(page, '/lab');
+  test('5i. About page loads', async ({ page }) => {
+    await safeGoto(page, '/about');
     await expect(page.locator('body')).toBeVisible();
   });
 
@@ -859,7 +859,7 @@ test.describe('11. API validation', () => {
   test('11i. All public pages return 200', async ({ page }) => {
     const publicPages = [
       '/', '/smart-rentals', '/smart-production', '/press', '/pricing',
-      '/contact', '/lab', '/careers', '/locations', '/legal', '/privacy',
+      '/contact', '/about', '/careers', '/locations', '/legal', '/privacy',
       '/login', '/register', '/support/tech', '/ubunye-ai-studio', '/marketplace',
     ];
 

@@ -61,7 +61,7 @@ export default function CreatorRequestsManager({ initialRequests }: Props) {
             onClick={() => setActiveTab(tab)}
             className={`text-[10px] font-mono uppercase tracking-widest px-3 py-2 border transition-all min-h-[36px] ${
               activeTab === tab
-                ? 'bg-white text-black border-white'
+                ? 'bg-[#D4A843] text-black border-[#D4A843]'
                 : 'bg-transparent text-neutral-500 border-white/10 hover:border-white/30'
             }`}
           >

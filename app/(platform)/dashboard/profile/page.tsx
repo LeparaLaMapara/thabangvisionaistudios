@@ -365,6 +365,7 @@ export default function ProfileEditPage() {
                 src={avatarUrl}
                 alt="Avatar"
                 fill
+                sizes="80px"
                 className="object-cover"
               />
             ) : (

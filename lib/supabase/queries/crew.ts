@@ -47,7 +47,7 @@ export type CrewRequest = {
 export type CrewReview = {
   id: string;
   rating: number;
-  review_text: string | null;
+  comment: string | null;
   reviewer_name: string;
   created_at: string;
 };
@@ -119,9 +119,10 @@ export async function getCrewReviews(creatorId: string): Promise<CrewReview[]> {
   const supabase = await createClient();
 
   const { data, error } = await supabase
-    .from('crew_reviews')
-    .select('id, rating, review_text, reviewer_name, created_at')
-    .eq('creator_id', creatorId)
+    .from('reviews')
+    .select('id, rating, comment, reviewer_name, created_at')
+    .eq('review_type', 'crew')
+    .eq('reviewee_id', creatorId)
     .eq('is_published', true)
     .order('created_at', { ascending: false })
     .limit(10);

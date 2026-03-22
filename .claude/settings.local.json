@@ -1,4 +1,7 @@
 {
+  "env": {
+    "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1"
+  },
   "permissions": {
     "allow": [
       "Bash(npm install:*)",
@@ -6,12 +9,35 @@
       "Bash(npx tsc:*)",
       "Bash(ls:*)",
       "Bash(curl:*)",
-      "Bash(git:*)"
+      "Bash(git:*)",
+      "Bash(npm run:*)",
+      "Bash(npx next:*)",
+      "Bash(cp:*)",
+      "Bash(grep -r next/image /c/Users/thabanglukhetho/Documents/gits/thabangvisionaistudios/app --include=*.tsx --include=*.ts)",
+      "Bash(grep -r next/image /c/Users/thabanglukhetho/Documents/gits/thabangvisionaistudios/components --include=*.tsx --include=*.ts)",
+      "Bash(find '/c/Users/thabanglukhetho/Documents/gits/thabangvisionaistudios/app/\\(admin\\)' -type f -name '*.tsx' -o -name '*.ts' -o -name '*.json' -o -name '*.md')",
+      "Bash(grep -r \"next-themes\\\\|ThemeProvider\" /c/Users/thabanglukhetho/Documents/gits/thabangvisionaistudios/app --include=*.tsx --include=*.ts)",
+      "Bash(grep -r text-accent[^-] /c/Users/thabanglukhetho/Documents/gits/thabangvisionaistudios/app /c/Users/thabanglukhetho/Documents/gits/thabangvisionaistudios/components --include=*.tsx)",
+      "Bash(grep -rn bg-white[^/] /c/Users/thabanglukhetho/Documents/gits/thabangvisionaistudios/app /c/Users/thabanglukhetho/Documents/gits/thabangvisionaistudios/components --include=*.tsx)",
+      "Bash(npx -y @vercel/mcp --help)",
+      "Bash(npx -y vercel-mcp-server --help)",
+      "Bash(npm search:*)",
+      "Bash(npx:*)"
     ]
   },
-  "env": {
-    "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1"
-  },
   "autoCommit": true,
-  "autoPush": true
+  "autoPush": true,
+  "mcpServers": {
+    "supabase": {
+      "type": "http",
+      "url": "https://mcp.supabase.com/mcp?project_ref=cuyebedkibucqefvlpsz&features=docs%2Cdatabase%2Cdebugging%2Cdevelopment%2Cfunctions%2Cbranching%2Cstorage%2Caccount"
+    },
+    "vercel": {
+      "command": "npx",
+      "args": ["-y", "vercel-platform-mcp-server"],
+      "env": {
+        "VERCEL_TOKEN": "vcp_1IWl8F0y4YTsGiH92QVl4Ohy6x6UyIzC3nfc35AprsLpkcMckL09zXgw"
+      }
+    }
+  }
 }

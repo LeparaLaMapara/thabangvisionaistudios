@@ -1,8 +1,8 @@
 'use client';
 
-import React from 'react';
+import React, { useState, useCallback } from 'react';
 import Link from 'next/link';
-import { Youtube, Instagram, Facebook, Twitter, Linkedin, Mail } from 'lucide-react';
+import { Youtube, Instagram, Facebook, Twitter, Linkedin, Mail, Loader2, CheckCircle2 } from 'lucide-react';
 import { FOOTER_SECTIONS, SOCIAL_LINKS, SITE_COPYRIGHT, SITE_NAME } from '@/lib/constants';
 
 const IconMap: Record<string, React.ElementType> = {
@@ -15,6 +15,37 @@ const IconMap: Record<string, React.ElementType> = {
 };
 
 export const Footer = () => {
+  const [email, setEmail] = useState('');
+  const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
+  const [errorMsg, setErrorMsg] = useState('');
+
+  const handleSubscribe = useCallback(async (e: React.FormEvent) => {
+    e.preventDefault();
+    const trimmed = email.trim();
+    if (!trimmed || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) {
+      setStatus('error');
+      setErrorMsg('Please enter a valid email address.');
+      return;
+    }
+    setStatus('loading');
+    try {
+      const res = await fetch('/api/newsletter', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: trimmed }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || 'Something went wrong.');
+      }
+      setStatus('success');
+      setEmail('');
+    } catch (err) {
+      setStatus('error');
+      setErrorMsg(err instanceof Error ? err.message : 'Something went wrong.');
+    }
+  }, [email]);
+
   return (
     <footer className="bg-neutral-100 dark:bg-black border-t border-black/5 dark:border-white/10 pt-20 pb-10 transition-colors duration-500">
       <div className="container mx-auto px-6">
@@ -46,14 +77,35 @@ export const Footer = () => {
             <p className="text-neutral-600 dark:text-neutral-500 text-sm mb-6 max-w-md">
               Subscribe to receive the latest technical updates, product releases, and cinematic stories from the {SITE_NAME} world.
             </p>
-            <div className="flex gap-4 border-b border-black/20 dark:border-white/20 pb-2 max-w-md mb-10">
-              <input
-                type="email"
-                placeholder="EMAIL ADDRESS"
-                className="bg-transparent border-none outline-none text-black dark:text-white w-full placeholder-neutral-500 dark:placeholder-neutral-600 text-sm tracking-widest"
-              />
-              <button className="text-black dark:text-white text-xs font-bold tracking-widest hover:text-neutral-600 dark:hover:text-neutral-400">SUBSCRIBE</button>
-            </div>
+            {status === 'success' ? (
+              <div className="flex items-center gap-2 text-green-600 dark:text-green-400 text-sm font-mono mb-10 max-w-md">
+                <CheckCircle2 className="w-4 h-4 flex-shrink-0" />
+                <span>You&apos;re subscribed. Welcome to the {SITE_NAME} world.</span>
+              </div>
+            ) : (
+              <form onSubmit={handleSubscribe} className="max-w-md mb-10">
+                <div className="flex gap-4 border-b border-black/20 dark:border-white/20 pb-2">
+                  <input
+                    type="email"
+                    value={email}
+                    onChange={e => { setEmail(e.target.value); if (status === 'error') setStatus('idle'); }}
+                    placeholder="EMAIL ADDRESS"
+                    required
+                    className="bg-transparent border-none outline-none text-black dark:text-white w-full placeholder-neutral-500 dark:placeholder-neutral-600 text-sm tracking-widest"
+                  />
+                  <button
+                    type="submit"
+                    disabled={status === 'loading'}
+                    className="text-black dark:text-white text-xs font-bold tracking-widest hover:text-neutral-600 dark:hover:text-neutral-400 disabled:opacity-50 flex items-center gap-1.5"
+                  >
+                    {status === 'loading' ? <Loader2 className="w-3 h-3 animate-spin" /> : 'SUBSCRIBE'}
+                  </button>
+                </div>
+                {status === 'error' && (
+                  <p className="text-red-500 text-xs font-mono mt-2">{errorMsg}</p>
+                )}
+              </form>
+            )}
 
             <div className="flex gap-6">
               {SOCIAL_LINKS.map((social) => {

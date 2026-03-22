@@ -26,7 +26,7 @@ export function EmptyState({
     <div
       className={[
         'flex flex-col items-center justify-center text-center',
-        'border border-dashed border-black/10 dark:border-white/10',
+        'border border-dashed border-white/10',
         'p-16',
         className,
       ]
@@ -34,15 +34,15 @@ export function EmptyState({
         .join(' ')}
     >
       {icon && (
-        <div className="text-neutral-300 dark:text-neutral-700 mb-6">{icon}</div>
+        <div className="text-neutral-700 mb-6">{icon}</div>
       )}
 
-      <h3 className="text-sm font-display font-medium uppercase tracking-tight text-black dark:text-white mb-2">
+      <h3 className="text-sm font-display font-medium uppercase tracking-tight text-white mb-2">
         {title}
       </h3>
 
       {description && (
-        <p className="text-xs font-mono text-neutral-500 dark:text-neutral-400 max-w-xs leading-relaxed mb-8">
+        <p className="text-xs font-mono text-neutral-400 max-w-xs leading-relaxed mb-8">
           {description}
         </p>
       )}
@@ -52,14 +52,14 @@ export function EmptyState({
           {action.href ? (
             <Link
               href={action.href}
-              className="inline-block text-[10px] font-mono uppercase tracking-widest text-white dark:text-black bg-black dark:bg-white px-6 py-3 hover:opacity-80 transition-opacity"
+              className="inline-block text-[10px] font-mono uppercase tracking-widest text-black bg-[#D4A843] px-6 py-3 hover:opacity-80 transition-opacity"
             >
               {action.label}
             </Link>
           ) : (
             <button
               onClick={action.onClick}
-              className="text-[10px] font-mono uppercase tracking-widest text-white dark:text-black bg-black dark:bg-white px-6 py-3 hover:opacity-80 transition-opacity"
+              className="text-[10px] font-mono uppercase tracking-widest text-black bg-[#D4A843] px-6 py-3 hover:opacity-80 transition-opacity"
             >
               {action.label}
             </button>

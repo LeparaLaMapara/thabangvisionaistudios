@@ -9,7 +9,7 @@ export default async function LabPage() {
   const featuredCrew = featured.length > 0 ? featured.slice(0, 8) : allCrew.slice(0, 8);
 
   return (
-    <div className="min-h-screen bg-white dark:bg-[#050505] pt-32 pb-20 transition-colors duration-500">
+    <div className="min-h-screen bg-[#050505] pt-32 pb-20">
       <div className="container mx-auto px-6">
         {/* Section 1: The Lab — R&D + Capabilities */}
         <LabContent />

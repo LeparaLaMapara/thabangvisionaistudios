@@ -29,6 +29,20 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  // Verify user is verified before allowing checkout
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('verification_status')
+    .eq('id', user.id)
+    .single();
+
+  if (profile?.verification_status !== 'verified') {
+    return NextResponse.json(
+      { error: 'Identity verification is required to rent equipment.' },
+      { status: 403 },
+    );
+  }
+
   const body = await request.json();
   const { start_date, end_date, notes } = body;
 

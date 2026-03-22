@@ -11,7 +11,7 @@ export default function LoginPage() {
   return (
     <Suspense fallback={
       <div className="flex items-center justify-center py-40">
-        <div className="w-5 h-5 border-2 border-black/20 dark:border-white/20 border-t-black dark:border-t-white rounded-full animate-spin" />
+        <div className="w-5 h-5 border-2 border-white/20 border-t-white rounded-full animate-spin" />
       </div>
     }>
       <LoginForm />
@@ -41,10 +41,6 @@ function LoginForm() {
   const [message, setMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [checking, setChecking] = useState(true);
-  const [showPassword, setShowPassword] = useState(false);
-
-  // Magic link state
-  const [magicEmail, setMagicEmail] = useState('');
   const [magicLoading, setMagicLoading] = useState(false);
 
   // Forgot password state
@@ -58,7 +54,11 @@ function LoginForm() {
     const supabase = createClient();
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session) {
-        window.location.href = redirectTo;
+        if (session.user?.app_metadata?.role === 'admin') {
+          window.location.href = '/admin';
+        } else {
+          window.location.href = redirectTo;
+        }
       } else {
         setChecking(false);
       }
@@ -75,12 +75,11 @@ function LoginForm() {
     });
   };
 
-  const handleMagicLink = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
+  const handleMagicLink = async () => {
     setError(null);
     setMessage(null);
 
-    if (!magicEmail.trim()) {
+    if (!email.trim()) {
       setError('Please enter your email address.');
       return;
     }
@@ -88,7 +87,7 @@ function LoginForm() {
     setMagicLoading(true);
     const supabase = createClient();
     const { error: otpError } = await supabase.auth.signInWithOtp({
-      email: magicEmail,
+      email,
       options: {
         emailRedirectTo: `${window.location.origin}/auth/callback`,
       },
@@ -112,7 +111,7 @@ function LoginForm() {
     setError(null);
 
     const supabase = createClient();
-    const { error: authError } = await supabase.auth.signInWithPassword({
+    const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
       email,
       password,
     });
@@ -121,7 +120,11 @@ function LoginForm() {
       setError(authError.message);
       setLoading(false);
     } else {
-      window.location.href = redirectTo;
+      if (authData.user?.app_metadata?.role === 'admin') {
+        window.location.href = '/admin';
+      } else {
+        window.location.href = redirectTo;
+      }
     }
   };
 
@@ -156,7 +159,7 @@ function LoginForm() {
   if (checking) {
     return (
       <div className="flex items-center justify-center py-40">
-        <div className="w-5 h-5 border-2 border-black/20 dark:border-white/20 border-t-black dark:border-t-white rounded-full animate-spin" />
+        <div className="w-5 h-5 border-2 border-white/20 border-t-white rounded-full animate-spin" />
       </div>
     );
   }
@@ -171,24 +174,24 @@ function LoginForm() {
       >
         {/* Header */}
         <div className="mb-10">
-          <p className="text-[9px] font-mono uppercase tracking-[0.2em] text-neutral-400 dark:text-neutral-600 mb-3">
+          <p className="text-[9px] font-mono uppercase tracking-[0.2em] text-neutral-600 mb-3">
             {STUDIO.shortName.toUpperCase()}
           </p>
-          <h1 className="text-3xl font-display font-medium uppercase tracking-tight text-black dark:text-white">
+          <h1 className="text-3xl font-display font-medium uppercase tracking-tight text-white">
             {showForgot ? 'Reset Password' : 'Sign In'}
           </h1>
-          <div className="w-8 h-px bg-black dark:bg-white mt-5" />
+          <div className="w-8 h-px bg-[#D4A843] mt-5" />
         </div>
 
         {/* Card */}
-        <div className="bg-neutral-50 dark:bg-[#0A0A0B] border border-black/10 dark:border-white/10 p-8">
+        <div className="bg-[#0A0A0B] border border-white/10 p-8">
 
           {showForgot ? (
             /* ── Forgot Password Form ── */
             resetSent ? (
               <div className="space-y-5">
                 <div className="bg-emerald-500/10 border border-emerald-500/30 px-4 py-3">
-                  <p className="text-xs text-emerald-600 dark:text-emerald-400 font-mono leading-relaxed">
+                  <p className="text-xs text-emerald-400 font-mono leading-relaxed">
                     If this email exists, we&apos;ve sent a reset link. Check your inbox and spam folder.
                   </p>
                 </div>
@@ -200,7 +203,7 @@ function LoginForm() {
                     setResetEmail('');
                     setResetError(null);
                   }}
-                  className="w-full bg-black dark:bg-white text-white dark:text-black py-3.5 text-[10px] font-mono font-bold uppercase tracking-widest hover:opacity-80 transition-opacity flex items-center justify-center gap-2"
+                  className="w-full bg-[#D4A843] text-black py-3.5 text-[10px] font-mono font-bold uppercase tracking-widest hover:opacity-80 transition-opacity flex items-center justify-center gap-2"
                 >
                   Back to Sign In
                 </button>
@@ -222,24 +225,24 @@ function LoginForm() {
                     required
                     autoComplete="email"
                     placeholder={STUDIO.email}
-                    className="w-full bg-white dark:bg-neutral-900 border border-black/10 dark:border-white/10 text-black dark:text-white px-4 py-3 min-h-[44px] text-sm font-mono placeholder:text-neutral-300 dark:placeholder:text-neutral-700 focus:outline-none focus:border-black dark:focus:border-white transition-colors"
+                    className="w-full bg-neutral-900 border border-white/10 text-white px-4 py-3 min-h-[44px] text-sm font-mono placeholder:text-neutral-700 focus:outline-none focus:border-[#D4A843] transition-colors"
                   />
                 </div>
                 {resetError && (
                   <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} className="overflow-hidden">
                     <div className="bg-red-500/10 border border-red-500/30 px-4 py-3">
-                      <p className="text-xs text-red-600 dark:text-red-400 font-mono leading-relaxed">{resetError}</p>
+                      <p className="text-xs text-red-400 font-mono leading-relaxed">{resetError}</p>
                     </div>
                   </motion.div>
                 )}
                 <button
                   type="submit"
                   disabled={resetLoading}
-                  className="w-full bg-black dark:bg-white text-white dark:text-black py-3.5 text-[10px] font-mono font-bold uppercase tracking-widest hover:opacity-80 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                  className="w-full bg-[#D4A843] text-black py-3.5 text-[10px] font-mono font-bold uppercase tracking-widest hover:opacity-80 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                 >
                   {resetLoading ? (
                     <>
-                      <span className="w-3.5 h-3.5 border-2 border-white/40 dark:border-black/40 border-t-white dark:border-t-black rounded-full animate-spin" />
+                      <span className="w-3.5 h-3.5 border-2 border-black/40 border-t-black rounded-full animate-spin" />
                       Sending...
                     </>
                   ) : (
@@ -249,7 +252,7 @@ function LoginForm() {
                 <button
                   type="button"
                   onClick={() => { setShowForgot(false); setResetError(null); }}
-                  className="w-full text-xs font-mono text-neutral-500 hover:text-black dark:hover:text-white transition-colors uppercase tracking-widest"
+                  className="w-full text-xs font-mono text-neutral-500 hover:text-white transition-colors uppercase tracking-widest"
                 >
                   Back to Sign In
                 </button>
@@ -260,128 +263,94 @@ function LoginForm() {
             <div className="space-y-5">
 
               {/* Google OAuth */}
-              {/* TODO: Configure Google OAuth in Supabase Dashboard → Authentication → Providers → Google.
-                  Requires Google Cloud Console OAuth credentials (client ID + secret). */}
               <button
                 type="button"
                 onClick={handleGoogleSignIn}
-                className="w-full flex items-center justify-center gap-3 bg-white border border-neutral-300 dark:border-neutral-700 text-neutral-800 py-3.5 text-xs font-mono font-medium tracking-wide hover:bg-neutral-50 transition-colors min-h-[44px]"
+                className="w-full flex items-center justify-center gap-3 bg-white border border-neutral-700 text-neutral-800 py-3.5 text-xs font-mono font-medium tracking-wide hover:bg-neutral-50 transition-colors min-h-[44px]"
               >
                 <GoogleIcon />
                 Sign in with Google
               </button>
 
-              {/* Magic Link */}
-              <form onSubmit={handleMagicLink} noValidate className="space-y-3">
+              {/* Divider */}
+              <div className="flex items-center gap-3 py-1">
+                <div className="flex-1 h-px bg-white/10" />
+                <span className="text-[9px] font-mono uppercase tracking-widest text-neutral-600">
+                  or
+                </span>
+                <div className="flex-1 h-px bg-white/10" />
+              </div>
+
+              {/* Email + Password form */}
+              <form onSubmit={handleSubmit} noValidate className="space-y-4">
                 <div>
-                  <label htmlFor="magicEmail" className="block text-[10px] font-bold uppercase tracking-widest text-neutral-500 mb-2">
+                  <label htmlFor="email" className="block text-[10px] font-bold uppercase tracking-widest text-neutral-500 mb-2">
                     Email
                   </label>
                   <input
-                    id="magicEmail"
+                    id="email"
                     type="email"
-                    value={magicEmail}
-                    onChange={(e) => setMagicEmail(e.target.value)}
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    required
                     autoComplete="email"
                     placeholder="you@example.com"
-                    className="w-full bg-white dark:bg-neutral-900 border border-black/10 dark:border-white/10 text-black dark:text-white px-4 py-3 min-h-[44px] text-sm font-mono placeholder:text-neutral-300 dark:placeholder:text-neutral-700 focus:outline-none focus:border-black dark:focus:border-white transition-colors"
+                    className="w-full bg-neutral-900 border border-white/10 text-white px-4 py-3 min-h-[44px] text-sm font-mono placeholder:text-neutral-700 focus:outline-none focus:border-[#D4A843] transition-colors"
+                  />
+                </div>
+                <div>
+                  <label htmlFor="password" className="block text-[10px] font-bold uppercase tracking-widest text-neutral-500 mb-2">
+                    Password
+                  </label>
+                  <input
+                    id="password"
+                    type="password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    required
+                    autoComplete="current-password"
+                    placeholder="••••••••"
+                    className="w-full bg-neutral-900 border border-white/10 text-white px-4 py-3 min-h-[44px] text-sm font-mono placeholder:text-neutral-700 focus:outline-none focus:border-[#D4A843] transition-colors"
                   />
                 </div>
                 <button
                   type="submit"
-                  disabled={magicLoading}
-                  className="w-full bg-black dark:bg-white text-white dark:text-black py-3.5 text-[10px] font-mono font-bold uppercase tracking-widest hover:opacity-80 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                  disabled={loading}
+                  className="w-full bg-[#D4A843] text-black py-3.5 text-[10px] font-mono font-bold uppercase tracking-widest hover:opacity-80 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                 >
-                  {magicLoading ? (
+                  {loading ? (
                     <>
-                      <span className="w-3.5 h-3.5 border-2 border-white/40 dark:border-black/40 border-t-white dark:border-t-black rounded-full animate-spin" />
-                      Sending...
+                      <span className="w-3.5 h-3.5 border-2 border-black/40 border-t-black rounded-full animate-spin" />
+                      Signing In...
                     </>
                   ) : (
-                    'Send Me a Sign In Link'
+                    'Sign In'
                   )}
                 </button>
               </form>
 
+              {/* Magic link alternative */}
+              <button
+                type="button"
+                onClick={handleMagicLink}
+                disabled={magicLoading}
+                className="w-full text-xs font-mono text-neutral-500 hover:text-white transition-colors uppercase tracking-widest py-2 disabled:opacity-40"
+              >
+                {magicLoading ? 'Sending Link...' : 'Send Me a Sign-In Link Instead'}
+              </button>
+
               {/* Success / Error messages */}
               {message && (
                 <div className="bg-emerald-500/10 border border-emerald-500/30 px-4 py-3">
-                  <p className="text-xs text-emerald-600 dark:text-emerald-400 font-mono leading-relaxed">{message}</p>
+                  <p className="text-xs text-emerald-400 font-mono leading-relaxed">{message}</p>
                 </div>
               )}
               {error && (
                 <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} className="overflow-hidden">
                   <div className="bg-red-500/10 border border-red-500/30 px-4 py-3">
-                    <p className="text-xs text-red-600 dark:text-red-400 font-mono leading-relaxed">{error}</p>
+                    <p className="text-xs text-red-400 font-mono leading-relaxed">{error}</p>
                   </div>
                 </motion.div>
-              )}
-
-              {/* Divider */}
-              <div className="flex items-center gap-3 py-1">
-                <div className="flex-1 h-px bg-neutral-200 dark:bg-white/10" />
-                <span className="text-[9px] font-mono uppercase tracking-widest text-neutral-400 dark:text-neutral-600">
-                  or sign in with password
-                </span>
-                <div className="flex-1 h-px bg-neutral-200 dark:bg-white/10" />
-              </div>
-
-              {/* Password form (collapsible) */}
-              {!showPassword ? (
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(true)}
-                  className="w-full text-xs font-mono text-neutral-500 hover:text-black dark:hover:text-white transition-colors uppercase tracking-widest py-2"
-                >
-                  Use Password
-                </button>
-              ) : (
-                <form onSubmit={handleSubmit} noValidate className="space-y-4">
-                  <div>
-                    <label htmlFor="email" className="block text-[10px] font-bold uppercase tracking-widest text-neutral-500 mb-2">
-                      Email
-                    </label>
-                    <input
-                      id="email"
-                      type="email"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      required
-                      autoComplete="email"
-                      placeholder={STUDIO.email}
-                      className="w-full bg-white dark:bg-neutral-900 border border-black/10 dark:border-white/10 text-black dark:text-white px-4 py-3 min-h-[44px] text-sm font-mono placeholder:text-neutral-300 dark:placeholder:text-neutral-700 focus:outline-none focus:border-black dark:focus:border-white transition-colors"
-                    />
-                  </div>
-                  <div>
-                    <label htmlFor="password" className="block text-[10px] font-bold uppercase tracking-widest text-neutral-500 mb-2">
-                      Password
-                    </label>
-                    <input
-                      id="password"
-                      type="password"
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      required
-                      autoComplete="current-password"
-                      placeholder="••••••••"
-                      className="w-full bg-white dark:bg-neutral-900 border border-black/10 dark:border-white/10 text-black dark:text-white px-4 py-3 min-h-[44px] text-sm font-mono placeholder:text-neutral-300 dark:placeholder:text-neutral-700 focus:outline-none focus:border-black dark:focus:border-white transition-colors"
-                    />
-                  </div>
-                  <button
-                    type="submit"
-                    disabled={loading}
-                    className="w-full bg-black dark:bg-white text-white dark:text-black py-3.5 text-[10px] font-mono font-bold uppercase tracking-widest hover:opacity-80 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                  >
-                    {loading ? (
-                      <>
-                        <span className="w-3.5 h-3.5 border-2 border-white/40 dark:border-black/40 border-t-white dark:border-t-black rounded-full animate-spin" />
-                        Authenticating...
-                      </>
-                    ) : (
-                      'Sign In'
-                    )}
-                  </button>
-                </form>
               )}
             </div>
           )}
@@ -394,9 +363,9 @@ function LoginForm() {
               type="button"
               onClick={() => {
                 setShowForgot(true);
-                setResetEmail(magicEmail || email);
+                setResetEmail(email);
               }}
-              className="text-xs font-mono text-neutral-500 hover:text-black dark:hover:text-white underline underline-offset-2 transition-colors"
+              className="text-xs font-mono text-neutral-500 hover:text-white underline underline-offset-2 transition-colors"
             >
               Forgot Password?
             </button>
@@ -404,11 +373,11 @@ function LoginForm() {
         )}
 
         {/* Footer note */}
-        <p className="text-center text-[9px] font-mono uppercase tracking-[0.2em] text-neutral-400 dark:text-neutral-600 mt-6">
+        <p className="text-center text-[9px] font-mono uppercase tracking-[0.2em] text-neutral-600 mt-6">
           Don&apos;t have an account?{' '}
           <Link
             href="/register"
-            className="text-black dark:text-white underline underline-offset-2 hover:opacity-70 transition-opacity"
+            className="text-white underline underline-offset-2 hover:opacity-70 transition-opacity"
           >
             Create One
           </Link>

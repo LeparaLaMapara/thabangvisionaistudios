@@ -1,17 +1,25 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
-import { ShoppingCart, LogIn, Check, Info } from 'lucide-react';
+import { ShoppingCart, LogIn, Check, Info, ShieldCheck } from 'lucide-react';
 import { useAuth } from '@/providers/AuthProvider';
 import { useCart } from '@/providers/CartProvider';
+import { createClient } from '@/lib/supabase/client';
 import type { SmartRental } from '@/lib/supabase/queries/smartRentals';
 
 interface Props {
   rental: SmartRental;
 }
+
+const VERIFICATION_PERKS = [
+  'Rent professional equipment',
+  'List your own gear on the marketplace and start earning',
+  'Accept gigs and get paid',
+  'Priority support',
+];
 
 export function BookingWidget({ rental }: Props) {
   const pathname = usePathname();
@@ -19,8 +27,26 @@ export function BookingWidget({ rental }: Props) {
   const { addToCart, loading: cartLoading } = useCart();
   const [added, setAdded] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [verified, setVerified] = useState<boolean | null>(null);
 
   const isLoggedIn = !!user;
+
+  // Fetch verification status
+  useEffect(() => {
+    if (!user) {
+      setVerified(null);
+      return;
+    }
+    const supabase = createClient();
+    supabase
+      .from('profiles')
+      .select('verification_status')
+      .eq('id', user.id)
+      .single()
+      .then(({ data }) => {
+        setVerified(data?.verification_status === 'verified');
+      });
+  }, [user]);
 
   const handleAddToCart = async () => {
     setError(null);
@@ -79,14 +105,14 @@ export function BookingWidget({ rental }: Props) {
         <p className="text-[10px] font-mono text-red-400">{error}</p>
       )}
 
-      {/* Add to Cart / Sign In */}
-      {authLoading ? (
+      {/* States: loading / not logged in / unverified / verified+added / verified */}
+      {authLoading || (isLoggedIn && verified === null) ? (
         <div className="h-12" />
       ) : !isLoggedIn ? (
         <div className="space-y-3">
           <Link
             href={`/login?redirect=${encodeURIComponent(pathname)}`}
-            className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-white text-black text-[10px] font-mono font-bold uppercase tracking-widest hover:opacity-80 transition-all"
+            className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-[#D4A843] text-black text-[10px] font-mono font-bold uppercase tracking-widest hover:opacity-80 transition-all"
           >
             <LogIn className="w-4 h-4" />
             Sign In to Rent
@@ -94,6 +120,37 @@ export function BookingWidget({ rental }: Props) {
           <p className="text-[9px] font-mono text-neutral-500 text-center">
             Sign in to add equipment to your cart
           </p>
+        </div>
+      ) : !verified ? (
+        /* Unverified — show perks + CTA */
+        <div className="border border-[#D4A843]/20 bg-[#D4A843]/5 p-5 space-y-4">
+          <div className="flex items-center gap-2">
+            <ShieldCheck className="w-5 h-5 text-[#D4A843]" />
+            <p className="text-sm font-mono font-bold text-white">
+              Get Verified
+            </p>
+          </div>
+          <p className="text-[10px] font-mono text-neutral-400">
+            Verify your identity to unlock the full platform:
+          </p>
+          <ul className="space-y-2">
+            {VERIFICATION_PERKS.map((perk) => (
+              <li
+                key={perk}
+                className="flex items-start gap-2 text-[10px] font-mono text-neutral-300"
+              >
+                <Check className="w-3 h-3 mt-0.5 text-[#D4A843] flex-shrink-0" />
+                {perk}
+              </li>
+            ))}
+          </ul>
+          <Link
+            href="/dashboard/verification"
+            className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-[#D4A843] text-black text-[10px] font-mono font-bold uppercase tracking-widest hover:opacity-80 transition-all"
+          >
+            <ShieldCheck className="w-4 h-4" />
+            Verify Now
+          </Link>
         </div>
       ) : added ? (
         <div className="space-y-3">
@@ -113,7 +170,7 @@ export function BookingWidget({ rental }: Props) {
         <button
           onClick={handleAddToCart}
           disabled={cartLoading}
-          className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-white text-black text-[10px] font-mono font-bold uppercase tracking-widest hover:opacity-80 disabled:opacity-50 transition-all"
+          className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-[#D4A843] text-black text-[10px] font-mono font-bold uppercase tracking-widest hover:opacity-80 disabled:opacity-50 transition-all"
         >
           <ShoppingCart className="w-4 h-4" />
           {cartLoading ? 'Adding...' : 'Add to Cart'}
