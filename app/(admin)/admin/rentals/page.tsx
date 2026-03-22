@@ -591,7 +591,7 @@ export default function AdminRentalsPage() {
           </button>
           <button
             onClick={openCreate}
-            className="flex items-center gap-2 px-4 py-2 bg-white text-black text-[10px] font-mono font-bold uppercase tracking-widest hover:opacity-80 transition-opacity"
+            className="flex items-center gap-2 px-4 py-2 bg-[#D4A843] text-black text-[10px] font-mono font-bold uppercase tracking-widest hover:opacity-80 transition-opacity"
           >
             <Plus className="w-3 h-3" /> New Rental
           </button>
@@ -1020,7 +1020,7 @@ export default function AdminRentalsPage() {
                 <button
                   onClick={save}
                   disabled={saving || isUploading}
-                  className="flex items-center gap-2 px-5 py-2.5 bg-white text-black text-[10px] font-mono font-bold uppercase tracking-widest hover:opacity-80 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed"
+                  className="flex items-center gap-2 px-5 py-2.5 bg-[#D4A843] text-black text-[10px] font-mono font-bold uppercase tracking-widest hover:opacity-80 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   {saving && <Loader2 className="w-3 h-3 animate-spin" />}
                   {saving ? 'Saving…' : 'Save'}

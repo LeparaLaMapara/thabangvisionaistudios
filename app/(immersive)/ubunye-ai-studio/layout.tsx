@@ -5,7 +5,7 @@ export const dynamic = 'force-dynamic';
 export const metadata: Metadata = {
   title: 'Ubunye AI Studio',
   description:
-    'Ubunye AI Studio — AI tools, automation, and creative intelligence for film and virtual production. Explore virtual production, remote systems, lighting science, data workflows, and custom AI labs.',
+    'Ubunye AI Studio — Your AI production assistant. Plan shoots, find gear, hire crew, and get instant quotes for photography and film production across South Africa.',
 };
 
 export default function UbunyeAILayout({

@@ -19,7 +19,7 @@ export default async function SmartCreatorsPage() {
     <div className="max-w-7xl mx-auto px-6 py-16">
       {/* Header */}
       <div className="mb-12">
-        <p className="text-[10px] font-mono uppercase tracking-widest text-neutral-600 mb-3">
+        <p className="text-[10px] font-mono uppercase tracking-[0.3em] text-[#D4A843] mb-3">
           {STUDIO.shortName.toUpperCase()}
         </p>
         <h1 className="text-4xl md:text-5xl font-display font-medium uppercase tracking-tight text-white">
@@ -28,7 +28,7 @@ export default async function SmartCreatorsPage() {
         <p className="text-sm font-mono text-neutral-500 mt-3 max-w-xl leading-relaxed">
           Find verified professionals for your next production. All creators are identity-verified and vetted by {STUDIO.shortName}.
         </p>
-        <div className="w-8 h-px bg-white mt-6" />
+        <div className="w-8 h-px bg-[#D4A843] mt-6" />
       </div>
 
       {/* Filter + Grid */}
@@ -45,7 +45,7 @@ export default async function SmartCreatorsPage() {
           </p>
           <Link
             href="/ubunye-ai-studio?prompt=I%27m%20looking%20for%20a%20creator%20for%20my%20project"
-            className="inline-block text-[10px] font-mono font-bold uppercase tracking-widest bg-white text-black px-6 py-3 hover:opacity-80 transition-opacity"
+            className="inline-block text-[10px] font-mono font-bold uppercase tracking-widest bg-[#D4A843] text-black px-6 py-3 hover:opacity-80 transition-opacity"
           >
             Ask Ubunye
           </Link>

@@ -15,7 +15,46 @@ async function handlePaymentComplete(webhook: WebhookResult) {
 
   const supabase = createAdminClient();
 
-  if (paymentType === 'equipment_booking') {
+  if (paymentType === 'cart_checkout') {
+    // Cart checkout — confirm all bookings in the checkout group
+    const checkoutGroupId = paymentId; // paymentId is the checkout_group_id
+    const userId = raw.custom_str2 ?? '';
+
+    // Fetch all bookings in this checkout group
+    const { data: groupBookings } = await supabase
+      .from('equipment_bookings')
+      .select('id, total_price')
+      .eq('checkout_group_id', checkoutGroupId)
+      .eq('user_id', userId);
+
+    if (!groupBookings || groupBookings.length === 0) {
+      console.error('[webhook] No bookings found for checkout group:', checkoutGroupId);
+      return;
+    }
+
+    // Confirm all bookings in the group
+    const { error: updateErr } = await supabase
+      .from('equipment_bookings')
+      .update({
+        status: 'confirmed',
+        payfast_payment_id: providerPaymentId,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('checkout_group_id', checkoutGroupId);
+
+    if (updateErr) {
+      console.error('[webhook] Failed to confirm cart bookings:', updateErr.message);
+    } else {
+      for (const booking of groupBookings) {
+        await supabase
+          .from('booking_payments')
+          .update({ status: 'complete', payfast_payment_id: providerPaymentId })
+          .eq('booking_id', booking.id)
+          .eq('status', 'pending');
+      }
+      console.log(`[webhook] Cart checkout confirmed: group=${checkoutGroupId} count=${groupBookings.length}`);
+    }
+  } else if (paymentType === 'equipment_booking') {
     // M7: Reconcile payment amount before confirming
     const { data: booking } = await supabase
       .from('equipment_bookings')
@@ -245,7 +284,13 @@ async function handlePaymentFailed(webhook: WebhookResult) {
 
   const supabase = createAdminClient();
 
-  if (paymentType === 'equipment_booking') {
+  if (paymentType === 'cart_checkout') {
+    // Cancel all bookings in the checkout group
+    await supabase
+      .from('equipment_bookings')
+      .update({ status: 'cancelled', updated_at: new Date().toISOString() })
+      .eq('checkout_group_id', paymentId);
+  } else if (paymentType === 'equipment_booking') {
     await supabase
       .from('equipment_bookings')
       .update({ status: 'cancelled', updated_at: new Date().toISOString() })

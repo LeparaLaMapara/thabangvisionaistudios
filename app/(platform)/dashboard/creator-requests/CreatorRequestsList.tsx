@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { MapPin, Calendar, Briefcase, X, User, Clock } from 'lucide-react';
 import { STUDIO } from '@/lib/constants';
@@ -23,6 +24,7 @@ interface CreatorRequestsListProps {
 }
 
 export default function CreatorRequestsList({ requests: initialRequests }: CreatorRequestsListProps) {
+  const router = useRouter();
   const [requests, setRequests] = useState<CrewRequest[]>(initialRequests);
   const [activeTab, setActiveTab] = useState<string>('all');
   const [cancellingId, setCancellingId] = useState<string | null>(null);
@@ -97,10 +99,10 @@ export default function CreatorRequestsList({ requests: initialRequests }: Creat
             const creator = request.creator;
 
             return (
-              <Link
+              <div
                 key={request.id}
-                href={`/dashboard/creator-requests/${request.id}`}
-                className="block bg-[#0A0A0B] border border-white/5 p-5 hover:border-white/10 transition-colors"
+                onClick={() => router.push(`/dashboard/creator-requests/${request.id}`)}
+                className="block bg-[#0A0A0B] border border-white/5 p-5 hover:border-white/10 transition-colors cursor-pointer"
               >
                 <div className="flex items-start justify-between gap-4 mb-3">
                   <div>
@@ -166,7 +168,7 @@ export default function CreatorRequestsList({ requests: initialRequests }: Creat
                     year: 'numeric',
                   })}
                 </p>
-              </Link>
+              </div>
             );
           })}
         </div>

@@ -2,33 +2,49 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import { Menu, X } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
 
 const ADMIN_LINKS = [
+  // Content management
   { label: 'Dashboard', href: '/admin' },
   { label: 'Projects', href: '/admin/projects' },
   { label: 'Rentals', href: '/admin/rentals' },
   { label: 'Import', href: '/admin/rentals/import' },
+  { label: 'Press', href: '/admin/press' },
   { label: 'Careers', href: '/admin/careers' },
+  // Operations
   { label: 'Bookings', href: '/admin/bookings' },
-  { label: 'Users', href: '/admin/users' },
+  { label: 'Service Bookings', href: '/admin/service-bookings' },
   { label: 'Verifications', href: '/admin/verifications' },
   { label: 'Creator Requests', href: '/admin/creator-requests' },
-  { label: 'Press', href: '/admin/press' },
+  { label: 'Users', href: '/admin/users' },
 ];
-
-const LINK_CLASSES = 'text-[10px] font-mono uppercase tracking-widest text-neutral-400 hover:text-white transition-colors flex-shrink-0';
 
 export function AdminNav() {
   const [mobileOpen, setMobileOpen] = useState(false);
+  const pathname = usePathname();
+
+  function isActive(href: string): boolean {
+    if (href === '/admin') return pathname === '/admin';
+    return pathname.startsWith(href);
+  }
 
   return (
     <>
       {/* Desktop nav — hidden on mobile */}
       <nav className="hidden md:flex items-center gap-5 overflow-x-auto scrollbar-hide min-w-0">
         {ADMIN_LINKS.map((link) => (
-          <Link key={link.href} href={link.href} className={LINK_CLASSES}>
+          <Link
+            key={link.href}
+            href={link.href}
+            className={`text-[10px] font-mono uppercase tracking-widest flex-shrink-0 transition-colors ${
+              isActive(link.href)
+                ? 'text-[#D4A843]'
+                : 'text-neutral-400 hover:text-white'
+            }`}
+          >
             {link.label}
           </Link>
         ))}
@@ -59,7 +75,11 @@ export function AdminNav() {
                   key={link.href}
                   href={link.href}
                   onClick={() => setMobileOpen(false)}
-                  className="text-[10px] font-mono uppercase tracking-widest text-neutral-400 hover:text-white transition-colors py-3 border-b border-white/5 last:border-0 min-h-[44px] flex items-center"
+                  className={`text-[10px] font-mono uppercase tracking-widest transition-colors py-3 border-b border-white/5 last:border-0 min-h-[44px] flex items-center ${
+                    isActive(link.href)
+                      ? 'text-[#D4A843]'
+                      : 'text-neutral-400 hover:text-white'
+                  }`}
                 >
                   {link.label}
                 </Link>

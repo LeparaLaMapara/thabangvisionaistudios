@@ -336,7 +336,7 @@ export default function AdminBookingsPage() {
               <h4 className="text-[10px] font-mono font-bold uppercase tracking-widest text-neutral-500 mb-2">
                 Equipment
               </h4>
-              <p className="text-sm font-medium text-black dark:text-white">
+              <p className="text-sm font-medium text-white">
                 {detailBooking.rental_title}
               </p>
               <p className="text-[10px] font-mono text-neutral-500 uppercase tracking-widest">
@@ -349,7 +349,7 @@ export default function AdminBookingsPage() {
               <h4 className="text-[10px] font-mono font-bold uppercase tracking-widest text-neutral-500 mb-2">
                 Customer
               </h4>
-              <p className="text-sm text-black dark:text-white">
+              <p className="text-sm text-white">
                 {detailBooking.user_name ?? 'Unknown'}
               </p>
               <p className="text-xs font-mono text-neutral-500">
@@ -363,7 +363,7 @@ export default function AdminBookingsPage() {
                 <h4 className="text-[10px] font-mono font-bold uppercase tracking-widest text-neutral-500 mb-2">
                   Start Date
                 </h4>
-                <p className="text-sm font-mono text-black dark:text-white">
+                <p className="text-sm font-mono text-white">
                   {new Date(detailBooking.start_date).toLocaleDateString('en-ZA', {
                     year: 'numeric',
                     month: 'long',
@@ -375,7 +375,7 @@ export default function AdminBookingsPage() {
                 <h4 className="text-[10px] font-mono font-bold uppercase tracking-widest text-neutral-500 mb-2">
                   End Date
                 </h4>
-                <p className="text-sm font-mono text-black dark:text-white">
+                <p className="text-sm font-mono text-white">
                   {new Date(detailBooking.end_date).toLocaleDateString('en-ZA', {
                     year: 'numeric',
                     month: 'long',
@@ -391,7 +391,7 @@ export default function AdminBookingsPage() {
                 <h4 className="text-[10px] font-mono font-bold uppercase tracking-widest text-neutral-500 mb-2">
                   Total Price
                 </h4>
-                <p className="text-lg font-mono font-bold text-black dark:text-white">
+                <p className="text-lg font-mono font-bold text-white">
                   {detailBooking.currency} {detailBooking.total_price.toLocaleString()}
                 </p>
               </div>
@@ -399,7 +399,7 @@ export default function AdminBookingsPage() {
                 <h4 className="text-[10px] font-mono font-bold uppercase tracking-widest text-neutral-500 mb-2">
                   Deposit
                 </h4>
-                <p className="text-sm font-mono text-black dark:text-white">
+                <p className="text-sm font-mono text-white">
                   {detailBooking.currency} {detailBooking.deposit_amount.toLocaleString()}
                 </p>
               </div>
@@ -433,7 +433,7 @@ export default function AdminBookingsPage() {
                 <h4 className="text-[10px] font-mono font-bold uppercase tracking-widest text-neutral-500 mb-2">
                   Notes
                 </h4>
-                <p className="text-sm text-neutral-600 dark:text-neutral-400 leading-relaxed whitespace-pre-wrap">
+                <p className="text-sm text-neutral-400 leading-relaxed whitespace-pre-wrap">
                   {detailBooking.notes}
                 </p>
               </div>
@@ -441,7 +441,7 @@ export default function AdminBookingsPage() {
 
             {/* Actions */}
             {detailBooking.status === 'pending' && (
-              <div className="flex gap-3 pt-4 border-t border-black/10 dark:border-white/10">
+              <div className="flex gap-3 pt-4 border-t border-white/10">
                 <button
                   onClick={() => {
                     setDetailBooking(null);
@@ -489,7 +489,7 @@ export default function AdminBookingsPage() {
       >
         {confirmAction && (
           <div className="space-y-6">
-            <p className="text-sm text-neutral-600 dark:text-neutral-400 leading-relaxed">
+            <p className="text-sm text-neutral-400 leading-relaxed">
               {confirmAction.action === 'confirm'
                 ? `Are you sure you want to confirm the booking for "${confirmAction.title}"?`
                 : `Are you sure you want to cancel the booking for "${confirmAction.title}"? This action cannot be undone.`}
@@ -499,7 +499,7 @@ export default function AdminBookingsPage() {
               <button
                 onClick={() => setConfirmAction(null)}
                 disabled={confirmLoading}
-                className="flex-1 border border-black/10 dark:border-white/10 text-black dark:text-white py-2.5 text-[10px] font-mono font-bold uppercase tracking-widest hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors disabled:opacity-40"
+                className="flex-1 border border-white/10 text-white py-2.5 text-[10px] font-mono font-bold uppercase tracking-widest hover:bg-neutral-800 transition-colors disabled:opacity-40"
               >
                 Go Back
               </button>

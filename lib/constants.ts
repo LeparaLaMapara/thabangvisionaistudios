@@ -68,16 +68,16 @@ export const STUDIO = {
       city: 'Johannesburg',
       province: 'Gauteng',
       phone: '',
-      email: 'hello@thabangvision.com',  //'thabangvisionstudios@gmail.com',
+      email: 'hello@thabangvision.com',
       isPrimary: true,
     },
     {
-      name: 'Cape Town Studio',
+      name: 'Pretoria Studio',
       address: '',
-      city: 'Cape Town',
-      province: 'Western Cape',
+      city: 'Pretoria',
+      province: 'Gauteng',
       phone: '',
-      email: 'hello@thabangvision.com',  //'thabangvisionstudios@gmail.com',
+      email: 'hello@thabangvision.com',
       isPrimary: false,
     },
   ],
@@ -92,7 +92,7 @@ export const STUDIO = {
 
   nav: {
     sections: [
-      { id: '01', label: 'The Lab', href: '/lab' },
+      { id: '01', label: 'About', href: '/about' },
       { id: '02', label: 'Capabilities', href: '/ubunye-ai-studio' },
       { id: '03', label: 'Smart Productions', href: '/smart-production' },
       { id: '04', label: 'Smart Rentals', href: '/smart-rentals' },
@@ -105,13 +105,20 @@ export const STUDIO = {
     depositPercent: 20,
     maxBookingDays: 30,
     cancellationHours: 24,
+    maxCartItems: 10,
+    bulkDiscount: [
+      { minItems: 1, maxItems: 2, discountPercent: 0 },
+      { minItems: 3, maxItems: 4, discountPercent: 10 },
+      { minItems: 5, maxItems: 6, discountPercent: 15 },
+      { minItems: 7, maxItems: Infinity, discountPercent: 20 },
+    ],
   },
 
   verification: {
     maxFileSizeMB: 5,
     acceptedTypes: ['image/jpeg', 'image/png'],
     maxAttempts: 3,
-    reviewDays: '1-2 business days',
+    reviewDays: 'instant',
   },
 
   platform: {
@@ -243,38 +250,15 @@ export const SITE_COPYRIGHT = `© ${new Date().getFullYear()} ${SITE_NAME}. ALL 
 // CONFIGURATION FLAGS
 export const SHOW_CAREERS = true;
 
-export const MAIN_NAVIGATION = [
-  {
-    label: 'The Lab',
-    href: '/lab',
-    children: [
-      { label: 'About', href: '/lab' },
-      { label: 'Our Team', href: '/lab#team' },
-    ],
-  },
-  {
-    label: 'Capabilities',
-    href: '/smart-production',
-    children: [
-      { label: 'Smart Productions', href: '/smart-production' },
-      { label: 'Smart Rentals', href: '/smart-rentals' },
-      {
-        label: 'Ubunye AI Studio',
-        href: '/ubunye-ai-studio',
-        children: [
-          { label: 'Virtual Production', href: '/ubunye-ai-studio#vp' },
-          { label: 'Remote Systems', href: '/ubunye-ai-studio#remote' },
-          { label: 'Lighting Science', href: '/ubunye-ai-studio#lighting' },
-          { label: 'Data & Workflow', href: '/ubunye-ai-studio#data' },
-          { label: 'Creative AI Labs', href: '/ubunye-ai-studio#labs' },
-        ],
-      },
-    ],
-  },
-  {
-    label: 'Pricing',
-    href: '/pricing',
-  },
+export const MAIN_NAVIGATION: {
+  label: string;
+  href: string;
+  children?: { label: string; href: string; children?: { label: string; href: string }[] }[];
+}[] = [
+  { label: 'Creators', href: '/smart-creators' },
+  { label: 'Gear', href: '/smart-rentals' },
+  { label: 'Productions', href: '/smart-production' },
+  { label: 'Pricing', href: '/pricing' },
 ];
 
 export const FOOTER_SECTIONS = [
@@ -282,7 +266,7 @@ export const FOOTER_SECTIONS = [
     title: `${STUDIO.shortName} Global`,
     links: [
       { label: 'Locations', href: '/locations' },
-      { label: 'The Lab', href: '/lab' },
+      { label: 'About', href: '/about' },
       ...(SHOW_CAREERS ? [{ label: 'Careers', href: '/careers' }] : []),
       { label: 'Press & News', href: '/press' },
     ],
@@ -328,10 +312,10 @@ export const PLACEHOLDER_IMAGES = {
 // ─── CAPABILITIES (used on home page ServiceGrid) ───────────────────────────
 export const CAPABILITIES = [
   {
-    title: 'Smart Productions',
-    subtitle: 'Creative Services Hub',
-    image: PLACEHOLDER_IMAGES.smartProductions,
-    link: '/smart-production',
+    title: 'Smart Creators',
+    subtitle: 'Verified Professionals for Hire',
+    image: PLACEHOLDER_IMAGES.smartCreators,
+    link: '/smart-creators',
   },
   {
     title: 'Smart Rentals',
@@ -340,28 +324,10 @@ export const CAPABILITIES = [
     link: '/smart-rentals',
   },
   {
-    title: 'Ubunye AI Studio',
-    subtitle: 'AI Tools, Automation & Creative Intelligence',
-    image: PLACEHOLDER_IMAGES.ubunyeAi,
-    link: '/ubunye-ai-studio',
-  },
-  {
-    title: 'Community Gear',
-    subtitle: 'Rent from Verified Creators',
-    image: PLACEHOLDER_IMAGES.communityGear,
-    link: '/smart-rentals',
-  },
-  {
-    title: 'Smart Creators',
-    subtitle: 'Verified Professionals for Hire',
-    image: PLACEHOLDER_IMAGES.smartCreators,
-    link: '/smart-creators',
-  },
-  {
-    title: 'Creator Dashboard',
-    subtitle: 'Manage Your Studio',
-    image: PLACEHOLDER_IMAGES.creatorDashboard,
-    link: '/dashboard',
+    title: 'Smart Productions',
+    subtitle: 'Creative Services Hub',
+    image: PLACEHOLDER_IMAGES.smartProductions,
+    link: '/smart-production',
   },
 ];
 

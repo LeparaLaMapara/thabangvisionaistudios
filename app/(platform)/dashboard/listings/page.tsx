@@ -19,6 +19,7 @@ import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { Card } from '@/components/ui/Card';
 import { EmptyState } from '@/components/ui/EmptyState';
+import BankingDetails from '@/components/dashboard/BankingDetails';
 
 type VerificationStatus = 'unverified' | 'pending' | 'verified' | 'rejected';
 
@@ -71,6 +72,7 @@ const CONDITIONS = ['new', 'like-new', 'good', 'fair'];
 export default function ListingsPage() {
   const [verificationStatus, setVerificationStatus] =
     useState<VerificationStatus | null>(null);
+  const [hasBanking, setHasBanking] = useState<boolean | null>(null);
   const [listings, setListings] = useState<Listing[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
@@ -100,6 +102,19 @@ export default function ListingsPage() {
       }
     } catch {
       setVerificationStatus('unverified');
+    }
+
+    // Check banking details
+    try {
+      const bankRes = await fetch('/api/banking');
+      if (bankRes.ok) {
+        const bankData = await bankRes.json();
+        setHasBanking(!!bankData);
+      } else {
+        setHasBanking(false);
+      }
+    } catch {
+      setHasBanking(false);
     }
 
     // Fetch listings via API
@@ -322,6 +337,30 @@ export default function ListingsPage() {
           action={{ label: 'Go to Verification', href: '/dashboard/verification' }}
           icon={<ShieldCheck className="w-10 h-10" />}
         />
+      </motion.div>
+    );
+  }
+
+  // ── No banking details ─────────────────────────────────────────────────────
+
+  if (verificationStatus === 'verified' && hasBanking === false) {
+    return (
+      <motion.div
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.3 }}
+      >
+        <h2 className="text-lg font-display font-medium uppercase text-white mb-6">
+          List Your Gear
+        </h2>
+        <div className="mb-6">
+          <p className="text-sm font-mono text-neutral-400 mb-4">
+            Add your banking details to receive payouts before listing gear.
+          </p>
+        </div>
+        <div className="max-w-lg">
+          <BankingDetails onSaved={() => setHasBanking(true)} />
+        </div>
       </motion.div>
     );
   }

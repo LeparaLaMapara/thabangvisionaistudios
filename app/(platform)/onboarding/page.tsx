@@ -338,6 +338,7 @@ export default function OnboardingPage() {
                         src={avatarUrl}
                         alt="Profile photo"
                         fill
+                        sizes="128px"
                         className="object-cover"
                       />
                     ) : (
@@ -407,7 +408,7 @@ export default function OnboardingPage() {
                 <div className="flex items-center gap-5 bg-neutral-900 border border-white/5 p-5">
                   {avatarUrl && (
                     <div className="relative w-16 h-16 rounded-full overflow-hidden flex-shrink-0 border border-white/10">
-                      <Image src={avatarUrl} alt="Avatar" fill className="object-cover" />
+                      <Image src={avatarUrl} alt="Avatar" fill sizes="64px" className="object-cover" />
                     </div>
                   )}
                   <div className="min-w-0">

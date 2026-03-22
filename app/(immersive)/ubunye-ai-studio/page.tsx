@@ -14,7 +14,7 @@ import Link from 'next/link';
 
 // ─── Constants ──────────────────────────────────────────────────────────────────
 
-const GUEST_LIMIT = 2;
+const GUEST_LIMIT = 5;
 const SESSION_STORAGE_KEY = 'ubunye_msg_count';
 const CHAT_HISTORY_KEY = 'ubunye_chat_history';
 const HEADER_HEIGHT = '5rem';
@@ -96,7 +96,7 @@ export default function UbunyeAIStudioPage() {
         try {
           const data = JSON.parse(msg);
           const limitMsg = data.plan === 'guest'
-            ? "You've used your 2 free messages. Sign in to continue chatting with Ubunye."
+            ? `You've used your ${GUEST_LIMIT} free messages. Sign in to continue chatting with Ubunye.`
             : `You've reached your daily limit of ${data.limit} messages on the ${data.plan} plan. Upgrade for more messages.`;
           setLimitMessage(limitMsg);
           setLimitReached(true);
@@ -149,7 +149,7 @@ export default function UbunyeAIStudioPage() {
       try { sessionStorage.setItem(SESSION_STORAGE_KEY, String(newCount)); } catch { /* SSR */ }
 
       if (newCount >= GUEST_LIMIT) {
-        setLimitMessage("You've used your 2 free messages. Sign in to continue chatting with Ubunye.");
+        setLimitMessage(`You've used your ${GUEST_LIMIT} free messages. Sign in to continue chatting with Ubunye.`);
         setLimitReached(true);
       }
     }
@@ -188,13 +188,13 @@ export default function UbunyeAIStudioPage() {
     code: ({ children, className }) => {
       if (className?.includes('language-')) {
         return (
-          <code className="block bg-neutral-900/80 rounded-lg px-4 py-3 my-3 text-[13px] font-mono text-neutral-300 overflow-x-auto border border-white/5">
+          <code className="block bg-neutral-900/80 px-4 py-3 my-3 text-[13px] font-mono text-neutral-300 overflow-x-auto border border-white/5">
             {children}
           </code>
         );
       }
       return (
-        <code className="bg-neutral-800/80 px-1.5 py-0.5 rounded text-[13px] font-mono text-[#D4A843]">
+        <code className="bg-neutral-800/80 px-1.5 py-0.5 text-[13px] font-mono text-[#D4A843]">
           {children}
         </code>
       );
@@ -255,7 +255,7 @@ export default function UbunyeAIStudioPage() {
   const doSend = useCallback((text: string) => {
     if (!text.trim() || limitReached || isLoading) return;
     if (!isAuthenticated && guestMessageCount >= GUEST_LIMIT) {
-      setLimitMessage("You've used your 2 free messages. Sign in to continue chatting with Ubunye.");
+      setLimitMessage(`You've used your ${GUEST_LIMIT} free messages. Sign in to continue chatting with Ubunye.`);
       setLimitReached(true);
       return;
     }
@@ -387,7 +387,7 @@ export default function UbunyeAIStudioPage() {
                   <button
                     key={action.label}
                     onClick={() => sendQuickAction(action.prompt)}
-                    className="px-3 py-1.5 md:px-4 md:py-2 text-xs md:text-sm text-neutral-500 rounded-full border border-neutral-800 hover:border-[#D4A843]/50 hover:text-[#D4A843] transition-all duration-200 hover:bg-[#D4A843]/5"
+                    className="px-3 py-1.5 md:px-4 md:py-2 text-xs md:text-sm text-neutral-500 border border-neutral-800 hover:border-[#D4A843]/50 hover:text-[#D4A843] transition-all duration-200 hover:bg-[#D4A843]/5"
                   >
                     {action.label}
                   </button>
@@ -468,14 +468,14 @@ export default function UbunyeAIStudioPage() {
                   <div className="flex gap-2 mt-3 pl-4">
                     <Link
                       href="/login"
-                      className="flex items-center gap-1.5 px-4 py-2 bg-[#D4A843] text-black text-xs font-semibold rounded-full hover:bg-[#E8C96A] transition-colors"
+                      className="flex items-center gap-1.5 px-4 py-2 bg-[#D4A843] text-black text-xs font-mono font-bold uppercase tracking-widest hover:opacity-80 transition-opacity"
                     >
                       <LogIn className="w-3.5 h-3.5" />
                       Sign In
                     </Link>
                     <Link
                       href="/register"
-                      className="flex items-center gap-1.5 px-4 py-2 border border-neutral-700 text-neutral-400 text-xs font-semibold rounded-full hover:border-[#D4A843]/50 hover:text-[#D4A843] transition-colors"
+                      className="flex items-center gap-1.5 px-4 py-2 border border-neutral-700 text-neutral-400 text-xs font-mono font-bold uppercase tracking-widest hover:border-[#D4A843]/50 hover:text-[#D4A843] transition-colors"
                     >
                       <UserPlus className="w-3.5 h-3.5" />
                       Create Account
@@ -485,7 +485,7 @@ export default function UbunyeAIStudioPage() {
                   <div className="flex gap-2 mt-3 pl-4">
                     <Link
                       href="/pricing"
-                      className="flex items-center gap-1.5 px-4 py-2 bg-[#D4A843] text-black text-xs font-semibold rounded-full hover:bg-[#E8C96A] transition-colors"
+                      className="flex items-center gap-1.5 px-4 py-2 bg-[#D4A843] text-black text-xs font-mono font-bold uppercase tracking-widest hover:opacity-80 transition-opacity"
                     >
                       <ArrowUpRight className="w-3.5 h-3.5" />
                       Upgrade Plan
@@ -536,7 +536,7 @@ export default function UbunyeAIStudioPage() {
         {/* ── Input bar + footer ── */}
         <div className="pb-4 pt-3 flex-shrink-0">
           <form onSubmit={handleSubmit}>
-            <div className={`flex items-center rounded-2xl bg-neutral-900/80 border border-transparent transition-all duration-200 ${
+            <div className={`flex items-center bg-neutral-900/80 border border-transparent transition-all duration-200 ${
               limitReached
                 ? 'opacity-40'
                 : 'focus-within:border-[#D4A843]/40 focus-within:ring-1 focus-within:ring-[#D4A843]/20'
@@ -553,7 +553,7 @@ export default function UbunyeAIStudioPage() {
               <button
                 type="submit"
                 disabled={!input.trim() || isLoading || limitReached}
-                className={`mr-2 w-9 h-9 rounded-full flex items-center justify-center transition-all duration-200 ${
+                className={`mr-2 w-9 h-9 flex items-center justify-center transition-all duration-200 ${
                   input.trim() && !isLoading && !limitReached
                     ? 'bg-[#D4A843] text-black hover:bg-[#E8C96A] scale-100'
                     : 'bg-neutral-800 text-neutral-600 opacity-50'

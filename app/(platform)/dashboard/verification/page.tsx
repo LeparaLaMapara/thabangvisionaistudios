@@ -234,7 +234,7 @@ export default function VerificationPage() {
               Documents submitted successfully.
             </p>
             <p className="text-xs font-mono text-emerald-400/70 mt-1">
-              We&apos;ll review your verification within {REVIEW_DAYS}.
+              Verification is instant. You&apos;ll be verified momentarily.
             </p>
           </div>
         </motion.div>
@@ -280,7 +280,7 @@ export default function VerificationPage() {
             Pending Review
           </Badge>
           <p className="text-xs font-mono text-neutral-500">
-            Your documents are under review. We&apos;ll notify you within {REVIEW_DAYS}.
+            Your documents are being processed. Verification is instant.
           </p>
           {verification?.verification_submitted_at && (
             <p className="text-[10px] font-mono text-neutral-400 mt-4">

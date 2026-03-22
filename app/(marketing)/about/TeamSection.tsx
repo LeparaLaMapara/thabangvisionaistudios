@@ -47,8 +47,8 @@ export default function TeamSection({
         viewport={{ once: true }}
         className="max-w-5xl mb-20"
       >
-        <span className="text-[10px] font-mono text-neutral-500 uppercase tracking-widest mb-4 block">
-          02 // The People
+        <span className="text-[10px] font-mono text-[#D4A843] uppercase tracking-[0.3em] mb-4 block">
+          The People
         </span>
         <h2 className="text-5xl md:text-8xl font-display font-medium text-white tracking-tighter uppercase mb-8 leading-[0.9]">
           Our <span className="text-neutral-600">Team</span>
@@ -134,7 +134,7 @@ export default function TeamSection({
         <div className="flex flex-col sm:flex-row gap-4 justify-center">
           <Link
             href="/careers"
-            className="inline-flex items-center justify-center gap-3 bg-white text-black px-8 py-4 text-xs font-mono font-bold uppercase tracking-widest hover:opacity-80 transition-opacity"
+            className="inline-flex items-center justify-center gap-3 bg-[#D4A843] text-black px-8 py-4 text-xs font-mono font-bold uppercase tracking-widest hover:opacity-80 transition-opacity"
           >
             Open Positions <ArrowRight className="w-4 h-4" />
           </Link>

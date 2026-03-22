@@ -19,14 +19,14 @@ export const ServiceGrid = () => {
              whileInView={{ opacity: 1, y: 0 }}
              viewport={{ once: true }}
           >
-            <span className="text-[10px] font-mono text-neutral-500 dark:text-accent uppercase tracking-widest mb-4 block">02 // Core Competencies</span>
+            <span className="text-[10px] font-mono text-neutral-500 dark:text-accent uppercase tracking-widest mb-4 block">02 // Core Capabilities</span>
             <h2 className="text-4xl md:text-6xl font-display font-medium text-black dark:text-white tracking-tight">
-              STUDIO <span className="text-neutral-400 dark:text-neutral-500">CAPABILITIES</span>
+              WHAT WE <span className="text-neutral-400 dark:text-neutral-500">OFFER</span>
             </h2>
           </motion.div>
           <div className="max-w-md mt-8 md:mt-0">
             <p className="text-neutral-500 dark:text-neutral-400 font-light leading-relaxed">
-              We operate at the intersection of creative vision and engineering precision. Our specialized divisions support productions from prototype to final pixel.
+              Verified creators, professional equipment, and full production services — everything you need to bring your creative vision to life.
             </p>
           </div>
         </div>
@@ -47,6 +47,7 @@ export const ServiceGrid = () => {
                     src={item.image}
                     alt={item.title}
                     fill
+                    sizes="(max-width: 768px) 100vw, 33vw"
                     className="object-cover grayscale-0 md:grayscale md:group-hover:grayscale-0 scale-100 group-hover:scale-105 transition-all duration-700 ease-out"
                   />
                   <div className="absolute inset-0 z-20 flex flex-col justify-between p-8">

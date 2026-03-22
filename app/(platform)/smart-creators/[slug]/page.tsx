@@ -70,7 +70,7 @@ export default async function CreatorDetailPage({ params }: Props) {
       {/* Back link */}
       <Link
         href="/smart-creators"
-        className="text-[10px] font-mono uppercase tracking-widest text-neutral-500 hover:text-white transition-colors mb-8 inline-block"
+        className="text-[10px] font-mono uppercase tracking-widest text-[#D4A843]/60 hover:text-[#D4A843] transition-colors mb-8 inline-block"
       >
         &larr; Back to Smart Creators
       </Link>
@@ -84,6 +84,7 @@ export default async function CreatorDetailPage({ params }: Props) {
               src={creator.avatar_url}
               alt={creator.display_name || 'Creator'}
               fill
+              sizes="160px"
               className="object-cover"
             />
           ) : (
@@ -209,9 +210,9 @@ export default async function CreatorDetailPage({ params }: Props) {
                     />
                   ))}
                 </div>
-                {review.review_text && (
+                {review.comment && (
                   <p className="text-xs font-mono text-neutral-300 leading-relaxed mb-2">
-                    &ldquo;{review.review_text}&rdquo;
+                    &ldquo;{review.comment}&rdquo;
                   </p>
                 )}
                 <p className="text-[9px] font-mono text-neutral-500">
@@ -255,7 +256,7 @@ export default async function CreatorDetailPage({ params }: Props) {
       <div className="mt-12 text-center">
         <Link
           href={`/ubunye-ai-studio?prompt=${bookPrompt}`}
-          className="inline-block bg-white text-black px-8 py-4 text-[10px] font-mono font-bold uppercase tracking-widest hover:opacity-80 transition-opacity"
+          className="inline-block bg-[#D4A843] text-black px-8 py-4 text-[10px] font-mono font-bold uppercase tracking-widest hover:opacity-80 transition-opacity"
         >
           Book via Ubunye
         </Link>

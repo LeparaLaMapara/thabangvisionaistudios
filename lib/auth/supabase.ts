@@ -56,6 +56,11 @@ export const supabaseAuth: AuthProvider = {
       const { createClient } = await import('@/lib/supabase/server');
       const supabase = await createClient();
 
+      // Primary: check app_metadata.role from JWT (set via Supabase dashboard or service role)
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user?.app_metadata?.role === 'admin') return true;
+
+      // Secondary: check profiles.role column
       const { data } = await supabase
         .from('profiles')
         .select('role')
@@ -67,7 +72,7 @@ export const supabaseAuth: AuthProvider = {
       // DB check failed — fall through to constant fallback
     }
 
-    // Fallback: check ADMIN_EMAILS constant so you're never locked out
+    // Emergency fallback: ADMIN_EMAILS constant so you're never locked out
     if (email && ADMIN_EMAILS.includes(email.toLowerCase())) return true;
 
     return false;

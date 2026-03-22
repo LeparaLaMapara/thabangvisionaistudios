@@ -88,6 +88,7 @@ export default function CreatorProfileClient({
               src={profile.avatar_url}
               alt=""
               fill
+              sizes="100vw"
               className="object-cover blur-2xl scale-110 opacity-40"
               priority
             />
@@ -126,6 +127,7 @@ export default function CreatorProfileClient({
                   src={profile.avatar_url}
                   alt={profile.display_name ?? 'Creator'}
                   fill
+                  sizes="112px"
                   className="object-cover"
                   priority
                 />

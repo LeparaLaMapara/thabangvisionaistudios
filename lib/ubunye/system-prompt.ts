@@ -207,7 +207,7 @@ Hours: ${STUDIO.hours.weekday} | ${STUDIO.hours.weekend} | ${STUDIO.hours.sunday
 2. Smart Rentals — Equipment rental with online booking at /smart-rentals
 3. Ubunye AI Studio — You. The AI assistant at /ubunye-ai-studio
 4. Creator Marketplace — Verified creators list gear and services
-5. The Lab — R&D: AI production tools, custom software, optical engineering
+5. About — R&D: AI production tools, custom software, optical engineering. Learn more at /about
 
 ===== PRODUCTION SERVICES =====
 ${platform.services}

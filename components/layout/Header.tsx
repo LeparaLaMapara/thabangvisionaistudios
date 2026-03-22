@@ -3,98 +3,21 @@
 import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Search, Menu, X, ChevronDown } from 'lucide-react';
+import { Search, Menu, X, ChevronDown, ShoppingCart } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { MAIN_NAVIGATION } from '@/lib/constants';
 import { GlobalSearch } from '@/components/search/GlobalSearch';
 import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/providers/AuthProvider';
+import { useCart } from '@/providers/CartProvider';
 
-// Pre-computed ray params to avoid hydration mismatch (no Math.random() in render)
-const RAY_LENGTHS = [38, 47, 43, 35, 44, 41, 39, 48, 42];
-const RAY_DURATIONS = [2.4, 3.1, 2.7, 2.2, 3.5, 2.9, 2.6, 3.3, 2.8];
-
-// --- CUSTOM LOGO COMPONENT ---
+// --- BRAND LOGO ---
 const ThabangLogo = () => (
-  <div className="flex items-center tracking-tighter font-display font-bold text-xl md:text-2xl text-black dark:text-white relative group select-none">
-    <span>THA</span>
-    <div className="relative mx-1 flex items-center justify-center w-[1.6em] h-[1.6em] -mt-1.5">
-       <svg viewBox="0 0 100 110" className="w-[200%] h-[200%] absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 overflow-visible">
-            <defs>
-              <linearGradient id="bladeGrad" x1="0" y1="0" x2="1" y2="1">
-                 <stop offset="0%" stopColor="#444" />
-                 <stop offset="50%" stopColor="#222" />
-                 <stop offset="100%" stopColor="#111" />
-              </linearGradient>
-              <radialGradient id="glareGrad" cx="50%" cy="50%" r="50%">
-                <stop offset="0%" stopColor="white" stopOpacity="0.8" />
-                <stop offset="70%" stopColor="white" stopOpacity="0" />
-              </radialGradient>
-            </defs>
-
-            {/* 1. Rays Behind Lens - Clustered Top-Left */}
-            <g transform="translate(52, 34)">
-                {RAY_LENGTHS.map((length, i) => {
-                     const angleStart = 195;
-                     const angleStep = 15;
-                     const rotation = angleStart + (i * angleStep);
-
-                     return (
-                        <motion.line
-                           key={i}
-                           x1="26" y1="0"
-                           x2={26 + length} y2="0"
-                           stroke="currentColor"
-                           strokeWidth={i % 2 === 0 ? 2 : 1}
-                           transform={`rotate(${rotation})`}
-                           className="text-black dark:text-white"
-                           initial={{ opacity: 0.5, scaleX: 0.9 }}
-                           animate={{ opacity: [0.5, 1, 0.5], scaleX: [0.9, 1.1, 0.9] }}
-                           transition={{ duration: RAY_DURATIONS[i], repeat: Infinity }}
-                        />
-                     )
-                })}
-            </g>
-
-            {/* 2. Serif B Structure */}
-            <g className="text-black dark:text-white fill-current drop-shadow-sm">
-                {/* Vertical Stem with Serifs */}
-                <path d="M22 10 H42 V20 H36 V90 H48 V100 H18 V90 H28 V20 H22 V10 Z" />
-
-                {/* Bottom Bowl - Classic Serif Curve */}
-                <path d="M36 54 H54 C74 54 84 64 84 77 C84 92 72 100 52 100 H36 V54 Z M48 90 C58 90 66 86 66 77 C66 68 58 64 48 64 H36 V90 H48 Z" />
-            </g>
-
-            {/* 3. The Lens (Integrated Top Loop) */}
-            <g transform="translate(52, 34)">
-                 {/* Outer Housing Ring */}
-                 <circle cx="0" cy="0" r="23" fill="#0A0A0A" stroke="currentColor" strokeWidth="1.5" />
-                 <circle cx="0" cy="0" r="20" fill="none" stroke="#333" strokeWidth="0.5" />
-
-                 {/* Aperture Blades */}
-                 <g>
-                    {[0, 60, 120, 180, 240, 300].map(deg => (
-                        <path
-                           key={deg}
-                           d="M0 0 C10 5 18 16 20 20 L0 20 Z"
-                           fill="url(#bladeGrad)"
-                           stroke="#444"
-                           strokeWidth="0.5"
-                           transform={`rotate(${deg})`}
-                        />
-                    ))}
-                 </g>
-
-                 {/* Center Eye / Glare */}
-                 <circle cx="0" cy="0" r="7" fill="#000" stroke="#222" strokeWidth="1" />
-                 <circle cx="-2.5" cy="-2.5" r="2.5" fill="white" className="animate-pulse" />
-                 <circle cx="0" cy="0" r="20" fill="url(#glareGrad)" opacity="0.25" style={{ mixBlendMode: 'screen' }} />
-            </g>
-       </svg>
-    </div>
-    <span>ANGVISION</span>
-    <span className="text-neutral-500 font-light text-sm ml-1">.LAB</span>
-  </div>
+  <svg viewBox="0 0 260 36" xmlns="http://www.w3.org/2000/svg" className="h-8 md:h-10 w-auto select-none">
+    <text y="26" fontFamily="Arial, Helvetica, sans-serif" fontSize="26" letterSpacing="-1">
+      <tspan fontWeight="900" fill="#e8e8e8">THA</tspan><tspan fontWeight="900" fill="#D4A843">BANG</tspan><tspan fontWeight="200" fill="#444444">VISION</tspan>
+    </text>
+  </svg>
 );
 
 // Shared style constants
@@ -219,11 +142,17 @@ const MobileNavSection = ({
 export const Header = () => {
   const router = useRouter();
   const { user, loading: authLoading } = useAuth();
+  const { count: cartCount } = useCart();
   const isLoggedIn = !!user;
 
   const [scrolled, setScrolled] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
+  const [isMac, setIsMac] = useState(false);
+
+  useEffect(() => {
+    setIsMac(navigator.platform?.toUpperCase().includes('MAC') || navigator.userAgent?.includes('Mac'));
+  }, []);
   const [signingOut, setSigningOut] = useState(false);
 
   const closeSearch = useCallback(() => setSearchOpen(false), []);
@@ -321,9 +250,22 @@ export const Header = () => {
             className="text-neutral-500 hover:text-black dark:hover:text-white transition-colors flex items-center gap-1.5"
           >
             <Search className="w-4 h-4" />
-            <kbd className="hidden xl:inline text-[9px] font-mono text-neutral-500 border border-neutral-300 dark:border-neutral-700 px-1 py-0.5 rounded">⌘K</kbd>
+            <kbd className="hidden xl:inline text-[9px] font-mono text-neutral-500 border border-neutral-300 dark:border-neutral-700 px-1 py-0.5 rounded">{isMac ? '⌘K' : 'Ctrl+K'}</kbd>
           </button>
-          <Link href="/contact" className="text-[10px] font-mono font-bold tracking-widest text-white bg-black dark:text-black dark:bg-white px-5 py-2 hover:opacity-80 transition-all duration-300 uppercase">
+          {isLoggedIn && (
+            <Link
+              href="/dashboard/cart"
+              className="relative text-neutral-500 hover:text-black dark:hover:text-white transition-colors"
+            >
+              <ShoppingCart className="w-4 h-4" />
+              {cartCount > 0 && (
+                <span className="absolute -top-1.5 -right-1.5 bg-[#D4A843] text-black text-[8px] font-mono font-bold w-4 h-4 rounded-full flex items-center justify-center">
+                  {cartCount > 9 ? '9+' : cartCount}
+                </span>
+              )}
+            </Link>
+          )}
+          <Link href="/ubunye-ai-studio" className="text-[10px] font-mono font-bold tracking-widest text-white bg-black dark:text-black dark:bg-white px-5 py-2 hover:opacity-80 transition-all duration-300 uppercase">
             Start Project
           </Link>
           {authLoading ? (
@@ -349,7 +291,7 @@ export const Header = () => {
               href="/login"
               className="text-[10px] font-mono font-medium tracking-widest text-neutral-600 dark:text-neutral-400 hover:text-black dark:hover:text-white border border-neutral-300 dark:border-white/30 px-5 py-2 hover:opacity-80 transition-all duration-300 uppercase"
             >
-              Login
+              Sign In
             </Link>
           )}
         </div>
@@ -362,6 +304,19 @@ export const Header = () => {
           >
             <Search className="w-5 h-5" />
           </button>
+          {isLoggedIn && (
+            <Link
+              href="/dashboard/cart"
+              className="relative text-neutral-500 hover:text-black dark:hover:text-white transition-colors"
+            >
+              <ShoppingCart className="w-5 h-5" />
+              {cartCount > 0 && (
+                <span className="absolute -top-1.5 -right-1.5 bg-[#D4A843] text-black text-[8px] font-mono font-bold w-4 h-4 rounded-full flex items-center justify-center">
+                  {cartCount > 9 ? '9+' : cartCount}
+                </span>
+              )}
+            </Link>
+          )}
           <button
             className="text-black dark:text-white"
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
@@ -409,16 +364,10 @@ export const Header = () => {
 
               <div className="mt-6 px-6 w-full flex flex-col gap-3">
                 <button
-                  onClick={() => mobileNavigate('/contact')}
+                  onClick={() => mobileNavigate('/ubunye-ai-studio')}
                   className={`${ACTION_BTN} bg-[#D4A843] text-black border border-[#D4A843] min-h-[44px]`}
                 >
                   Start Project
-                </button>
-                <button
-                  onClick={() => mobileNavigate('/contact')}
-                  className={`${ACTION_BTN} bg-transparent text-white border border-white/30 min-h-[44px]`}
-                >
-                  Contact
                 </button>
                 {authLoading ? (
                   <div className="h-[44px]" />
@@ -439,20 +388,12 @@ export const Header = () => {
                     </button>
                   </>
                 ) : (
-                  <>
-                    <button
-                      onClick={() => mobileNavigate('/login')}
-                      className={`${ACTION_BTN} bg-transparent text-white border border-white/30 min-h-[44px]`}
-                    >
-                      Sign In
-                    </button>
-                    <button
-                      onClick={() => mobileNavigate('/register')}
-                      className={`${ACTION_BTN} bg-transparent text-white border border-white/30 min-h-[44px]`}
-                    >
-                      Register
-                    </button>
-                  </>
+                  <button
+                    onClick={() => mobileNavigate('/login')}
+                    className={`${ACTION_BTN} bg-transparent text-white border border-white/30 min-h-[44px]`}
+                  >
+                    Sign In
+                  </button>
                 )}
               </div>
             </motion.div>

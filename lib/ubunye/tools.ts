@@ -124,8 +124,8 @@ export function createCrewTools(supabase: SupabaseClient, isAuthenticated = fals
             .eq('user_id', creator.id).eq('is_published', true).is('deleted_at', null).limit(5),
           supabase.from('smart_productions').select('id, title, slug, project_type')
             .contains('crew_ids', [creator.id]).limit(5),
-          supabase.from('crew_reviews').select('rating, review_text, reviewer_name, created_at')
-            .eq('creator_id', creator.id).eq('is_published', true)
+          supabase.from('reviews').select('rating, comment, reviewer_name, created_at')
+            .eq('review_type', 'crew').eq('reviewee_id', creator.id).eq('is_published', true)
             .order('created_at', { ascending: false }).limit(5),
         ]);
 

@@ -3,7 +3,7 @@ import { Footer } from '@/components/layout/Footer';
 
 /**
  * Marketing layout — wraps all public-facing pages:
- *   /  /lab  /contact  /careers  /locations  /press
+ *   /  /about  /contact  /careers  /locations  /press
  *   /privacy  /support/tech  /login  /legal
  *
  * Renders the public Header and Footer.

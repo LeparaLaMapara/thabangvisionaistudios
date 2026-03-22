@@ -27,8 +27,6 @@ export default function RegisterPage() {
   const [message, setMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [checking, setChecking] = useState(true);
-  const [showPassword, setShowPassword] = useState(false);
-  const [magicEmail, setMagicEmail] = useState('');
   const [magicLoading, setMagicLoading] = useState(false);
 
   useEffect(() => {
@@ -52,12 +50,11 @@ export default function RegisterPage() {
     });
   };
 
-  const handleMagicLink = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
+  const handleMagicLink = async () => {
     setError(null);
     setMessage(null);
 
-    if (!magicEmail.trim()) {
+    if (!email.trim()) {
       setError('Please enter your email address.');
       return;
     }
@@ -65,7 +62,7 @@ export default function RegisterPage() {
     setMagicLoading(true);
     const supabase = createClient();
     const { error: otpError } = await supabase.auth.signInWithOtp({
-      email: magicEmail,
+      email,
       options: {
         emailRedirectTo: `${window.location.origin}/auth/callback`,
       },
@@ -122,7 +119,7 @@ export default function RegisterPage() {
   if (checking) {
     return (
       <div className="flex items-center justify-center py-40">
-        <div className="w-5 h-5 border-2 border-black/20 dark:border-white/20 border-t-black dark:border-t-white rounded-full animate-spin" />
+        <div className="w-5 h-5 border-2 border-white/20 border-t-white rounded-full animate-spin" />
       </div>
     );
   }
@@ -137,191 +134,153 @@ export default function RegisterPage() {
       >
         {/* Header */}
         <div className="mb-10">
-          <p className="text-[9px] font-mono uppercase tracking-[0.2em] text-neutral-400 dark:text-neutral-600 mb-3">
+          <p className="text-[9px] font-mono uppercase tracking-[0.2em] text-neutral-600 mb-3">
             {STUDIO.shortName.toUpperCase()}
           </p>
-          <h1 className="text-3xl font-display font-medium uppercase tracking-tight text-black dark:text-white">
+          <h1 className="text-3xl font-display font-medium uppercase tracking-tight text-white">
             Create Account
           </h1>
-          <div className="w-8 h-px bg-black dark:bg-white mt-5" />
+          <div className="w-8 h-px bg-[#D4A843] mt-5" />
         </div>
 
         {/* Card */}
-        <div className="bg-neutral-50 dark:bg-[#0A0A0B] border border-black/10 dark:border-white/10 p-8">
+        <div className="bg-[#0A0A0B] border border-white/10 p-8">
           <div className="space-y-5">
 
             {/* Google OAuth */}
             <button
               type="button"
               onClick={handleGoogleSignIn}
-              className="w-full flex items-center justify-center gap-3 bg-white border border-neutral-300 dark:border-neutral-700 text-neutral-800 py-3.5 text-xs font-mono font-medium tracking-wide hover:bg-neutral-50 transition-colors min-h-[44px]"
+              className="w-full flex items-center justify-center gap-3 bg-white border border-neutral-700 text-neutral-800 py-3.5 text-xs font-mono font-medium tracking-wide hover:bg-neutral-50 transition-colors min-h-[44px]"
             >
               <GoogleIcon />
               Sign up with Google
             </button>
 
-            {/* Magic Link */}
-            <form onSubmit={handleMagicLink} noValidate className="space-y-3">
+            {/* Divider */}
+            <div className="flex items-center gap-3 py-1">
+              <div className="flex-1 h-px bg-white/10" />
+              <span className="text-[9px] font-mono uppercase tracking-widest text-neutral-600">
+                or
+              </span>
+              <div className="flex-1 h-px bg-white/10" />
+            </div>
+
+            {/* Email + Password form */}
+            <form onSubmit={handleSubmit} noValidate className="space-y-4">
               <div>
-                <label htmlFor="magicEmail" className="block text-[10px] font-bold uppercase tracking-widest text-neutral-500 mb-2">
+                <label htmlFor="email" className="block text-[10px] font-bold uppercase tracking-widest text-neutral-500 mb-2">
                   Email
                 </label>
                 <input
-                  id="magicEmail"
+                  id="email"
                   type="email"
-                  value={magicEmail}
-                  onChange={(e) => setMagicEmail(e.target.value)}
+                  value={email}
+                  onChange={e => setEmail(e.target.value)}
+                  required
                   autoComplete="email"
                   placeholder="you@example.com"
-                  className="w-full bg-white dark:bg-neutral-900 border border-black/10 dark:border-white/10 text-black dark:text-white px-4 py-3 min-h-[44px] text-sm font-mono placeholder:text-neutral-300 dark:placeholder:text-neutral-700 focus:outline-none focus:border-black dark:focus:border-white transition-colors"
+                  className="w-full bg-neutral-900 border border-white/10 text-white px-4 py-3 min-h-[44px] text-sm font-mono placeholder:text-neutral-700 focus:outline-none focus:border-[#D4A843] transition-colors"
                 />
+              </div>
+              <div>
+                <label htmlFor="password" className="block text-[10px] font-bold uppercase tracking-widest text-neutral-500 mb-2">
+                  Password
+                </label>
+                <input
+                  id="password"
+                  type="password"
+                  value={password}
+                  onChange={e => setPassword(e.target.value)}
+                  required
+                  autoComplete="new-password"
+                  placeholder={`Min ${STUDIO.platform.minPasswordLength} characters`}
+                  className="w-full bg-neutral-900 border border-white/10 text-white px-4 py-3 min-h-[44px] text-sm font-mono placeholder:text-neutral-700 focus:outline-none focus:border-[#D4A843] transition-colors"
+                />
+              </div>
+              <div>
+                <label htmlFor="confirmPassword" className="block text-[10px] font-bold uppercase tracking-widest text-neutral-500 mb-2">
+                  Confirm Password
+                </label>
+                <input
+                  id="confirmPassword"
+                  type="password"
+                  value={confirmPassword}
+                  onChange={e => setConfirmPassword(e.target.value)}
+                  required
+                  autoComplete="new-password"
+                  placeholder="Repeat password"
+                  className="w-full bg-neutral-900 border border-white/10 text-white px-4 py-3 min-h-[44px] text-sm font-mono placeholder:text-neutral-700 focus:outline-none focus:border-[#D4A843] transition-colors"
+                />
+              </div>
+              <div>
+                <label className="flex items-start gap-3 cursor-pointer group min-h-[44px] py-2">
+                  <input
+                    type="checkbox"
+                    checked={agreedToTerms}
+                    onChange={(e) => setAgreedToTerms(e.target.checked)}
+                    className="mt-0.5 w-5 h-5 min-w-[20px] border border-white/20 bg-neutral-900 accent-[#D4A843] cursor-pointer"
+                  />
+                  <span className="text-xs font-mono text-neutral-500 leading-relaxed">
+                    I agree to the{' '}
+                    <Link href="/legal" className="text-white underline underline-offset-2 hover:opacity-70 transition-opacity">
+                      Terms of Service
+                    </Link>{' '}
+                    and{' '}
+                    <Link href="/privacy" className="text-white underline underline-offset-2 hover:opacity-70 transition-opacity">
+                      Privacy Policy
+                    </Link>
+                  </span>
+                </label>
               </div>
               <button
                 type="submit"
-                disabled={magicLoading}
-                className="w-full bg-black dark:bg-white text-white dark:text-black py-3.5 text-[10px] font-mono font-bold uppercase tracking-widest hover:opacity-80 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                disabled={loading}
+                className="w-full bg-[#D4A843] text-black py-3.5 text-[10px] font-mono font-bold uppercase tracking-widest hover:opacity-80 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
               >
-                {magicLoading ? (
+                {loading ? (
                   <>
-                    <span className="w-3.5 h-3.5 border-2 border-white/40 dark:border-black/40 border-t-white dark:border-t-black rounded-full animate-spin" />
-                    Sending...
+                    <span className="w-3.5 h-3.5 border-2 border-black/40 border-t-black rounded-full animate-spin" />
+                    Creating Account...
                   </>
                 ) : (
-                  'Send Me a Sign In Link'
+                  'Create Account'
                 )}
               </button>
             </form>
 
+            {/* Magic link alternative */}
+            <button
+              type="button"
+              onClick={handleMagicLink}
+              disabled={magicLoading}
+              className="w-full text-xs font-mono text-neutral-500 hover:text-white transition-colors uppercase tracking-widest py-2 disabled:opacity-40"
+            >
+              {magicLoading ? 'Sending Link...' : 'Send Me a Sign-In Link Instead'}
+            </button>
+
             {/* Success / Error messages */}
             {message && (
               <div className="bg-emerald-500/10 border border-emerald-500/30 px-4 py-3">
-                <p className="text-xs text-emerald-600 dark:text-emerald-400 font-mono leading-relaxed">{message}</p>
+                <p className="text-xs text-emerald-400 font-mono leading-relaxed">{message}</p>
               </div>
             )}
-            {error && !showPassword && (
+            {error && (
               <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} className="overflow-hidden">
                 <div className="bg-red-500/10 border border-red-500/30 px-4 py-3">
-                  <p className="text-xs text-red-600 dark:text-red-400 font-mono leading-relaxed">{error}</p>
+                  <p className="text-xs text-red-400 font-mono leading-relaxed">{error}</p>
                 </div>
               </motion.div>
-            )}
-
-            {/* Divider */}
-            <div className="flex items-center gap-3 py-1">
-              <div className="flex-1 h-px bg-neutral-200 dark:bg-white/10" />
-              <span className="text-[9px] font-mono uppercase tracking-widest text-neutral-400 dark:text-neutral-600">
-                or register with password
-              </span>
-              <div className="flex-1 h-px bg-neutral-200 dark:bg-white/10" />
-            </div>
-
-            {!showPassword ? (
-              <button
-                type="button"
-                onClick={() => setShowPassword(true)}
-                className="w-full text-xs font-mono text-neutral-500 hover:text-black dark:hover:text-white transition-colors uppercase tracking-widest py-2"
-              >
-                Use Password
-              </button>
-            ) : (
-              <form onSubmit={handleSubmit} noValidate className="space-y-4">
-                <div>
-                  <label htmlFor="email" className="block text-[10px] font-bold uppercase tracking-widest text-neutral-500 mb-2">
-                    Email
-                  </label>
-                  <input
-                    id="email"
-                    type="email"
-                    value={email}
-                    onChange={e => setEmail(e.target.value)}
-                    required
-                    autoComplete="email"
-                    placeholder="you@example.com"
-                    className="w-full bg-white dark:bg-neutral-900 border border-black/10 dark:border-white/10 text-black dark:text-white px-4 py-3 min-h-[44px] text-sm font-mono placeholder:text-neutral-300 dark:placeholder:text-neutral-700 focus:outline-none focus:border-black dark:focus:border-white transition-colors"
-                  />
-                </div>
-                <div>
-                  <label htmlFor="password" className="block text-[10px] font-bold uppercase tracking-widest text-neutral-500 mb-2">
-                    Password
-                  </label>
-                  <input
-                    id="password"
-                    type="password"
-                    value={password}
-                    onChange={e => setPassword(e.target.value)}
-                    required
-                    autoComplete="new-password"
-                    placeholder={`Min ${STUDIO.platform.minPasswordLength} characters`}
-                    className="w-full bg-white dark:bg-neutral-900 border border-black/10 dark:border-white/10 text-black dark:text-white px-4 py-3 min-h-[44px] text-sm font-mono placeholder:text-neutral-300 dark:placeholder:text-neutral-700 focus:outline-none focus:border-black dark:focus:border-white transition-colors"
-                  />
-                </div>
-                <div>
-                  <label htmlFor="confirmPassword" className="block text-[10px] font-bold uppercase tracking-widest text-neutral-500 mb-2">
-                    Confirm Password
-                  </label>
-                  <input
-                    id="confirmPassword"
-                    type="password"
-                    value={confirmPassword}
-                    onChange={e => setConfirmPassword(e.target.value)}
-                    required
-                    autoComplete="new-password"
-                    placeholder="Repeat password"
-                    className="w-full bg-white dark:bg-neutral-900 border border-black/10 dark:border-white/10 text-black dark:text-white px-4 py-3 min-h-[44px] text-sm font-mono placeholder:text-neutral-300 dark:placeholder:text-neutral-700 focus:outline-none focus:border-black dark:focus:border-white transition-colors"
-                  />
-                </div>
-                <div>
-                  <label className="flex items-start gap-3 cursor-pointer group min-h-[44px] py-2">
-                    <input
-                      type="checkbox"
-                      checked={agreedToTerms}
-                      onChange={(e) => setAgreedToTerms(e.target.checked)}
-                      className="mt-0.5 w-5 h-5 min-w-[20px] border border-black/20 dark:border-white/20 bg-white dark:bg-neutral-900 accent-black dark:accent-white cursor-pointer"
-                    />
-                    <span className="text-xs font-mono text-neutral-500 leading-relaxed">
-                      I agree to the{' '}
-                      <Link href="/legal" className="text-black dark:text-white underline underline-offset-2 hover:opacity-70 transition-opacity">
-                        Terms of Service
-                      </Link>{' '}
-                      and{' '}
-                      <Link href="/privacy" className="text-black dark:text-white underline underline-offset-2 hover:opacity-70 transition-opacity">
-                        Privacy Policy
-                      </Link>
-                    </span>
-                  </label>
-                </div>
-                {error && (
-                  <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} className="overflow-hidden">
-                    <div className="bg-red-500/10 border border-red-500/30 px-4 py-3">
-                      <p className="text-xs text-red-600 dark:text-red-400 font-mono leading-relaxed">{error}</p>
-                    </div>
-                  </motion.div>
-                )}
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className="w-full bg-black dark:bg-white text-white dark:text-black py-3.5 text-[10px] font-mono font-bold uppercase tracking-widest hover:opacity-80 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                >
-                  {loading ? (
-                    <>
-                      <span className="w-3.5 h-3.5 border-2 border-white/40 dark:border-black/40 border-t-white dark:border-t-black rounded-full animate-spin" />
-                      Creating Account...
-                    </>
-                  ) : (
-                    'Create Account'
-                  )}
-                </button>
-              </form>
             )}
           </div>
         </div>
 
         {/* Footer */}
-        <p className="text-center text-[9px] font-mono uppercase tracking-[0.2em] text-neutral-400 dark:text-neutral-600 mt-6">
+        <p className="text-center text-[9px] font-mono uppercase tracking-[0.2em] text-neutral-600 mt-6">
           Already have an account?{' '}
           <Link
             href="/login"
-            className="text-black dark:text-white underline underline-offset-2 hover:opacity-70 transition-opacity"
+            className="text-white underline underline-offset-2 hover:opacity-70 transition-opacity"
           >
             Sign In
           </Link>

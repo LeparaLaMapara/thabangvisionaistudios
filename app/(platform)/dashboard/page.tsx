@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
 import { auth } from '@/lib/auth';
 import { getProfileById } from '@/lib/supabase/queries/profiles';
-import { Calendar, Package, ShoppingBag, ArrowRight, User, Search, ShieldCheck, Clock, Briefcase, FileText } from 'lucide-react';
+import { Calendar, Package, ShoppingBag, ArrowRight, Users, Search, ShieldCheck, Clock, Briefcase, FileText, Settings } from 'lucide-react';
 
 export const metadata = {
   title: 'Dashboard',
@@ -82,7 +82,7 @@ export default async function DashboardPage() {
     <div>
       {/* Welcome hero */}
       <div className="mb-10">
-        <span className="text-[10px] font-mono text-neutral-500 dark:text-accent uppercase tracking-widest mb-3 block">
+        <span className="text-[10px] font-mono text-[#D4A843] uppercase tracking-[0.3em] mb-3 block">
           Dashboard
         </span>
         <h1 className="text-3xl md:text-4xl font-display font-medium uppercase text-black dark:text-white tracking-tight">
@@ -95,24 +95,55 @@ export default async function DashboardPage() {
         </p>
       </div>
 
-      {/* Become a Creator CTA (unverified users only) */}
-      {!isVerified && (
+      {/* Get Verified CTA (unverified users only) — first thing they see */}
+      {!isVerified && verificationStatus !== 'pending' && (
         <div className="bg-[#0A0A0B] border border-[#D4A843]/30 p-8 mb-10">
-          <div className="flex items-start gap-4">
-            <ShieldCheck className="w-8 h-8 text-[#D4A843] flex-shrink-0 mt-0.5" />
-            <div>
-              <h3 className="text-sm font-display font-medium uppercase text-white mb-2">
-                Become a Creator
+          <div className="flex items-start gap-5">
+            <ShieldCheck className="w-10 h-10 text-[#D4A843] flex-shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <h3 className="text-lg font-display font-medium uppercase text-white mb-1">
+                Get Verified
               </h3>
-              <p className="text-xs font-mono text-neutral-400 mb-4 leading-relaxed">
-                Get verified to list gear, receive gig requests, and earn money on the platform. Verification takes 1-2 business days.
+              <p className="text-xs font-mono text-neutral-400 mb-5 leading-relaxed">
+                Verify your identity to unlock the full platform. It only takes a minute.
               </p>
+              <ul className="space-y-3 mb-6">
+                {[
+                  'Rent professional equipment',
+                  'List your own gear on the marketplace and start earning',
+                  'Accept gigs and get paid',
+                  'Priority support',
+                ].map((perk) => (
+                  <li key={perk} className="flex items-start gap-2.5 text-xs font-mono text-neutral-300">
+                    <svg className="w-4 h-4 text-[#D4A843] flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                    </svg>
+                    {perk}
+                  </li>
+                ))}
+              </ul>
               <Link
                 href="/dashboard/verification"
-                className="inline-flex items-center gap-2 text-[10px] font-mono uppercase tracking-widest px-5 py-2.5 bg-[#D4A843] text-black hover:bg-[#E5B954] transition-colors"
+                className="inline-flex items-center gap-2 text-[10px] font-mono font-bold uppercase tracking-widest px-6 py-3 bg-[#D4A843] text-black hover:bg-[#E5B954] transition-colors"
               >
-                Get Verified <ArrowRight className="w-3 h-3" />
+                <ShieldCheck className="w-4 h-4" />
+                Verify Now
               </Link>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Verification pending banner */}
+      {verificationStatus === 'pending' && (
+        <div className="bg-[#0A0A0B] border border-amber-500/30 p-6 mb-10">
+          <div className="flex items-center gap-4">
+            <Clock className="w-6 h-6 text-amber-500 flex-shrink-0" />
+            <div>
+              <p className="text-sm font-mono font-bold text-amber-400">Verification processing</p>
+              <p className="text-xs font-mono text-neutral-500 mt-1">
+                Your documents are being processed. Verification is instant.
+              </p>
             </div>
           </div>
         </div>
@@ -162,7 +193,7 @@ export default async function DashboardPage() {
               }
               description={
                 verificationStatus === 'pending'
-                  ? 'Your documents are under review.'
+                  ? 'Your documents are being processed. This is instant.'
                   : verificationStatus === 'rejected'
                     ? 'Verification was rejected. Please resubmit.'
                     : 'Verification lets you list gear, accept gigs, and earn on the platform.'
@@ -202,13 +233,13 @@ export default async function DashboardPage() {
         ) : (
           <>
             <QuickAction
-              icon={User}
+              icon={Users}
               title="Hire a Creator"
               description="Find verified creators for your project."
               href="/smart-creators"
             />
             <QuickAction
-              icon={User}
+              icon={Settings}
               title="Edit Profile"
               description="Update your name, phone, and details."
               href="/dashboard/profile"

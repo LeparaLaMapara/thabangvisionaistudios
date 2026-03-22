@@ -201,7 +201,7 @@ function RentalCard({ rental, category }: { rental: SmartRental; category: strin
           {rental.is_available ? (
             <Link
               href={`/smart-rentals/${category}/${rental.slug}`}
-              className="w-full py-3 text-[10px] font-mono font-bold uppercase tracking-widest transition-all relative overflow-hidden group/btn bg-black text-white dark:bg-white dark:text-black border border-black dark:border-white hover:bg-neutral-800 dark:hover:bg-neutral-200 flex items-center justify-center gap-2"
+              className="w-full py-3 text-[10px] font-mono font-bold uppercase tracking-widest transition-all relative overflow-hidden group/btn bg-[#D4A843] text-black border border-[#D4A843] hover:opacity-80 flex items-center justify-center gap-2"
             >
               View Details
               <ArrowRight className="w-3 h-3 group-hover/btn:translate-x-1 transition-transform" />
@@ -228,14 +228,6 @@ export default function RentalCategoryClient({
   rentals: SmartRental[];
   category: string;
 }) {
-  const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
-  const [selectedBrands,    setSelectedBrands]    = useState<string[]>([]);
-  const [selectedTypes,     setSelectedTypes]      = useState<string[]>([]);
-  const [maxPrice,          setMaxPrice]           = useState<number>(0);
-  const [onlyAvailable,     setOnlyAvailable]      = useState(false);
-  const [sourceFilter,      setSourceFilter]       = useState<'all' | 'studio' | 'community'>('all');
-  const [sortBy,            setSortBy]             = useState<SortKey>('recommended');
-
   // Derive filter options entirely from DB data — never static
   const uniqueBrands = useMemo(
     () => Array.from(new Set(rentals.map(r => r.brand).filter(Boolean) as string[])).sort(),
@@ -252,7 +244,15 @@ export default function RentalCategoryClient({
     [rentals],
   );
 
-  // Initialise slider to the real max price when data loads
+  const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
+  const [selectedBrands,    setSelectedBrands]    = useState<string[]>([]);
+  const [selectedTypes,     setSelectedTypes]      = useState<string[]>([]);
+  const [maxPrice,          setMaxPrice]           = useState<number>(maxCatalogPrice);
+  const [onlyAvailable,     setOnlyAvailable]      = useState(false);
+  const [sourceFilter,      setSourceFilter]       = useState<'all' | 'studio' | 'community'>('all');
+  const [sortBy,            setSortBy]             = useState<SortKey>('recommended');
+
+  // Sync slider when catalog data changes (e.g. navigating between categories)
   useEffect(() => {
     setMaxPrice(maxCatalogPrice);
   }, [maxCatalogPrice]);
@@ -263,10 +263,11 @@ export default function RentalCategoryClient({
   useEffect(() => {
     setSelectedBrands([]);
     setSelectedTypes([]);
+    setMaxPrice(maxCatalogPrice);
     setOnlyAvailable(false);
     setSourceFilter('all');
     setSortBy('recommended');
-  }, [category]);
+  }, [category, maxCatalogPrice]);
 
   const filtered = useMemo(() => {
     return rentals
@@ -312,12 +313,12 @@ export default function RentalCategoryClient({
               <div
                 className={`w-4 h-4 border flex items-center justify-center transition-colors flex-shrink-0 ${
                   selectedBrands.includes(brand)
-                    ? 'bg-black border-black dark:bg-white dark:border-white'
+                    ? 'bg-[#D4A843] border-[#D4A843]'
                     : 'border-neutral-400'
                 }`}
               >
                 {selectedBrands.includes(brand) && (
-                  <Check className="w-3 h-3 text-white dark:text-black" />
+                  <Check className="w-3 h-3 text-black" />
                 )}
               </div>
               <input
@@ -345,12 +346,12 @@ export default function RentalCategoryClient({
               <div
                 className={`w-4 h-4 border flex items-center justify-center transition-colors flex-shrink-0 ${
                   selectedTypes.includes(type)
-                    ? 'bg-black border-black dark:bg-white dark:border-white'
+                    ? 'bg-[#D4A843] border-[#D4A843]'
                     : 'border-neutral-400'
                 }`}
               >
                 {selectedTypes.includes(type) && (
-                  <Check className="w-3 h-3 text-white dark:text-black" />
+                  <Check className="w-3 h-3 text-black" />
                 )}
               </div>
               <input
@@ -378,14 +379,14 @@ export default function RentalCategoryClient({
               type="range"
               min={0}
               max={maxCatalogPrice}
-              step={Math.max(1, Math.round(maxCatalogPrice / 100))}
+              step={1}
               value={maxPrice}
               onChange={e => setMaxPrice(Number(e.target.value))}
-              className="w-full h-1 bg-neutral-200 dark:bg-neutral-800 appearance-none cursor-pointer accent-black dark:accent-white rounded-lg"
+              className="w-full h-1 bg-neutral-200 dark:bg-neutral-800 appearance-none cursor-pointer accent-[#D4A843] rounded-lg"
             />
             <div className="flex justify-between mt-4 font-mono text-xs text-neutral-500">
               <span>0</span>
-              <span className="text-black dark:text-white font-bold">
+              <span className="text-[#D4A843] font-bold">
                 Max: {rentals[0]?.currency ?? 'ZAR'} {maxPrice.toLocaleString()}
               </span>
             </div>
@@ -400,7 +401,7 @@ export default function RentalCategoryClient({
           </span>
           <div
             className={`w-10 h-5 rounded-full relative transition-colors ${
-              onlyAvailable ? 'bg-black dark:bg-white' : 'bg-neutral-200 dark:bg-neutral-800'
+              onlyAvailable ? 'bg-[#D4A843]' : 'bg-neutral-200 dark:bg-neutral-800'
             }`}
           >
             <input
@@ -425,12 +426,12 @@ export default function RentalCategoryClient({
               <div
                 className={`w-4 h-4 rounded-full border flex items-center justify-center transition-colors flex-shrink-0 ${
                   sourceFilter === opt
-                    ? 'bg-black border-black dark:bg-white dark:border-white'
+                    ? 'bg-[#D4A843] border-[#D4A843]'
                     : 'border-neutral-400'
                 }`}
               >
                 {sourceFilter === opt && (
-                  <div className="w-1.5 h-1.5 rounded-full bg-white dark:bg-black" />
+                  <div className="w-1.5 h-1.5 rounded-full bg-black" />
                 )}
               </div>
               <input
@@ -586,7 +587,7 @@ export default function RentalCategoryClient({
             <div className="p-6 border-t border-black/10 dark:border-white/10 bg-neutral-50 dark:bg-[#080808]">
               <button
                 onClick={() => setMobileFiltersOpen(false)}
-                className="w-full bg-black text-white dark:bg-white dark:text-black py-4 text-xs font-mono font-bold uppercase tracking-widest"
+                className="w-full bg-[#D4A843] text-black py-4 text-xs font-mono font-bold uppercase tracking-widest hover:opacity-80 transition-opacity"
               >
                 Show {filtered.length} Result{filtered.length !== 1 ? 's' : ''}
               </button>

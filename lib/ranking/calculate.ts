@@ -132,8 +132,9 @@ export async function recalculateAllRankings(
   const reviewMap = new Map<string, { rating: number }[]>();
 
   const { data: reviews } = await supabase
-    .from('rental_reviews')
+    .from('reviews')
     .select('rental_id, rating')
+    .eq('review_type', 'rental')
     .in('rental_id', rentalIds);
 
   for (const rev of reviews ?? []) {
