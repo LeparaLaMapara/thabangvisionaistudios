@@ -1,11 +1,13 @@
 'use client';
 
-import { useMemo, useState, useCallback, useEffect, useRef } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 import Link from 'next/link';
 import Image from 'next/image';
-import { ArrowUpRight } from 'lucide-react';
-import { PRODUCTION_CATEGORIES, PLACEHOLDER_IMAGES } from '@/lib/constants';
+import { ArrowUpRight, Camera } from 'lucide-react';
+import { PLACEHOLDER_IMAGES } from '@/lib/constants';
+import type { ProductionCategory } from '@/types/production';
+import type { SmartProduction } from '@/lib/supabase/queries/smartProductions';
 
 // ─── Image shimmer skeleton ───────────────────────────────────────────────────
 function ImageSkeleton(): React.ReactElement {
@@ -49,89 +51,52 @@ function useSequentialReveal(total: number) {
   return { onImageLoaded, isRevealed };
 }
 
-// ─── Category metadata ────────────────────────────────────────────────────────
+// ─── Category metadata (fallback images) ─────────────────────────────────────
 
-type CategoryMeta = {
-  label: string;
-  subtitle: string;
-  description: string;
-  fallbackImage: string;
+const FALLBACK_IMAGES: Record<string, string> = {
+  photography: PLACEHOLDER_IMAGES.camerasOptics,
+  'video-production': PLACEHOLDER_IMAGES.gripMotion,
+  'weddings-ceremonies': PLACEHOLDER_IMAGES.specializedSolutions,
+  'event-coverage': PLACEHOLDER_IMAGES.lightingPower,
+  'content-creation': PLACEHOLDER_IMAGES.dataStorage,
+  'corporate-brand': PLACEHOLDER_IMAGES.audio,
 };
 
-const CATEGORY_META: Record<string, CategoryMeta> = {
-  photography: {
-    label: 'Photography',
-    subtitle: 'Portraits, Product & Editorial',
-    description: 'Professional photo sessions for portraits, products, fashion, and real estate.',
-    fallbackImage: PLACEHOLDER_IMAGES.camerasOptics,
-  },
-  'video-production': {
-    label: 'Video Production',
-    subtitle: 'Music Videos, Docs & Short Films',
-    description: 'Cinematic video from music videos to documentaries and short films.',
-    fallbackImage: PLACEHOLDER_IMAGES.gripMotion,
-  },
-  'weddings-ceremonies': {
-    label: 'Weddings & Ceremonies',
-    subtitle: 'Photo + Video Packages',
-    description: 'Full coverage for weddings, lobola, matric dances, and celebrations.',
-    fallbackImage: PLACEHOLDER_IMAGES.specializedSolutions,
-  },
-  'event-coverage': {
-    label: 'Event Coverage',
-    subtitle: 'Corporate, Launches & Festivals',
-    description: 'Capture every moment at corporate events, product launches, and festivals.',
-    fallbackImage: PLACEHOLDER_IMAGES.lightingPower,
-  },
-  'content-creation': {
-    label: 'Content Creation',
-    subtitle: 'Social Media & Brand Content',
-    description: 'Social media, YouTube, and brand content optimized for engagement.',
-    fallbackImage: PLACEHOLDER_IMAGES.dataStorage,
-  },
-  'corporate-brand': {
-    label: 'Corporate & Brand',
-    subtitle: 'Headshots, Culture & Brand Films',
-    description: 'Team headshots, office culture, product photography, and brand films.',
-    fallbackImage: PLACEHOLDER_IMAGES.audio,
-  },
+const CATEGORY_SUBTITLES: Record<string, string> = {
+  photography: 'Portraits, Product & Editorial',
+  'video-production': 'Music Videos, Docs & Short Films',
+  'weddings-ceremonies': 'Photo + Video Packages',
+  'event-coverage': 'Corporate, Launches & Festivals',
+  'content-creation': 'Social Media & Brand Content',
+  'corporate-brand': 'Headshots, Culture & Brand Films',
 };
-
-function getCategoryMeta(slug: string): CategoryMeta {
-  return CATEGORY_META[slug] ?? {
-    label: slug.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase()),
-    subtitle: 'Production Services',
-    description: '',
-    fallbackImage: PLACEHOLDER_IMAGES.camerasOptics,
-  };
-}
 
 // ─── Category Card ────────────────────────────────────────────────────────────
 
 function CategoryCard({
-  slug,
-  meta,
+  category,
   index,
-  startingRate,
+  productionCount,
   revealed,
   onImageReady,
 }: {
-  slug: string;
-  meta: CategoryMeta;
+  category: ProductionCategory;
   index: number;
-  startingRate: number;
+  productionCount: number;
   revealed: boolean;
   onImageReady: () => void;
 }): React.ReactElement {
   const onLoad = useCallback(() => onImageReady(), [onImageReady]);
+  const imageUrl = category.coverImageUrl || FALLBACK_IMAGES[category.slug] || PLACEHOLDER_IMAGES.camerasOptics;
+  const subtitle = CATEGORY_SUBTITLES[category.slug] || category.subTypes.slice(0, 3).join(', ');
 
   return (
     <div className="relative h-[450px] overflow-hidden bg-[#0A0A0B]">
       {!revealed && <ImageSkeleton />}
 
       <Image
-        src={meta.fallbackImage}
-        alt={meta.label}
+        src={imageUrl}
+        alt={category.name}
         fill
         sizes="(max-width: 768px) 100vw, (max-width: 1024px) 50vw, 33vw"
         className="object-cover opacity-0 pointer-events-none absolute"
@@ -145,12 +110,12 @@ function CategoryCard({
         transition={{ duration: 0.6, ease: 'easeOut' }}
         className="absolute inset-0 group cursor-pointer"
       >
-        <Link href={`/smart-production/category/${slug}`} className="block w-full h-full relative">
+        <Link href={`/smart-production/category/${category.slug}`} className="block w-full h-full relative">
           <div className="absolute inset-0 z-10 bg-black/30 md:bg-black/60 group-hover:bg-black/30 transition-colors duration-500" />
 
           <Image
-            src={meta.fallbackImage}
-            alt={meta.label}
+            src={imageUrl}
+            alt={category.name}
             fill
             sizes="(max-width: 768px) 100vw, (max-width: 1024px) 50vw, 33vw"
             className="object-cover grayscale-0 md:grayscale md:group-hover:grayscale-0 scale-100 group-hover:scale-105 transition-all duration-700 ease-out"
@@ -166,16 +131,24 @@ function CategoryCard({
             </div>
             <div className="transform translate-y-4 group-hover:translate-y-0 transition-transform duration-500">
               <h3 className="text-2xl font-display font-medium tracking-wide text-white uppercase mb-2">
-                {meta.label}
+                {category.name}
               </h3>
-              <p className="text-xs font-mono text-white/60 uppercase tracking-widest mb-4">
-                {meta.subtitle}
-                <span className="ml-2 text-[#D4A843]">
-                  from R{startingRate.toLocaleString('en-ZA')}/hr
-                </span>
+              <p className="text-xs font-mono text-white/60 uppercase tracking-widest mb-1">
+                {subtitle}
               </p>
+              <div className="flex items-center gap-3 mb-4">
+                <span className="text-xs font-mono text-[#D4A843]">
+                  from R{category.startingRate.toLocaleString('en-ZA')}/{category.startingUnit}
+                </span>
+                {productionCount > 0 && (
+                  <span className="flex items-center gap-1 text-[10px] font-mono text-white/40">
+                    <Camera className="w-3 h-3" />
+                    {productionCount} project{productionCount !== 1 ? 's' : ''}
+                  </span>
+                )}
+              </div>
               <p className="text-sm text-neutral-300 opacity-0 group-hover:opacity-100 transition-opacity duration-500 delay-100 leading-relaxed border-t border-white/20 pt-4">
-                {meta.description}
+                {category.description}
               </p>
             </div>
           </div>
@@ -185,10 +158,54 @@ function CategoryCard({
   );
 }
 
+// ─── Featured Production Card ─────────────────────────────────────────────────
+
+function FeaturedProductionCard({ production }: { production: SmartProduction }) {
+  const [imgLoaded, setImgLoaded] = useState(false);
+  const imageUrl = production.thumbnail_url || production.gallery?.[0]?.url;
+
+  if (!imageUrl) return null;
+
+  return (
+    <Link
+      href={`/smart-production/${production.slug}`}
+      className="group block relative aspect-[3/4] overflow-hidden bg-[#0A0A0B] border border-white/5 hover:border-[#D4A843]/30 transition-colors"
+    >
+      {!imgLoaded && <ImageSkeleton />}
+      <Image
+        src={imageUrl}
+        alt={production.title}
+        fill
+        sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 20vw"
+        className={`object-cover grayscale group-hover:grayscale-0 transition-all duration-500 ${imgLoaded ? 'opacity-100' : 'opacity-0'}`}
+        onLoad={() => setImgLoaded(true)}
+        unoptimized
+      />
+      <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent z-10" />
+      <div className="absolute bottom-0 left-0 right-0 p-4 z-20">
+        <p className="text-[9px] font-mono text-[#D4A843] uppercase tracking-widest mb-1">
+          {production.project_type} {production.year && `· ${production.year}`}
+        </p>
+        <h4 className="text-sm font-display font-medium text-white group-hover:text-[#D4A843] transition-colors line-clamp-2">
+          {production.title}
+        </h4>
+        {production.client && (
+          <p className="text-[10px] font-mono text-neutral-500 mt-1">{production.client}</p>
+        )}
+      </div>
+    </Link>
+  );
+}
+
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export default function SmartProductionClient() {
-  const categories = PRODUCTION_CATEGORIES;
+interface Props {
+  categories: ProductionCategory[];
+  productionCounts: Record<string, number>;
+  featuredProductions: SmartProduction[];
+}
+
+export default function SmartProductionClient({ categories, productionCounts, featuredProductions }: Props) {
   const { onImageLoaded, isRevealed } = useSequentialReveal(categories.length);
 
   return (
@@ -226,10 +243,9 @@ export default function SmartProductionClient() {
             {categories.map((cat, index) => (
               <CategoryCard
                 key={cat.slug}
-                slug={cat.slug}
-                meta={getCategoryMeta(cat.slug)}
+                category={cat}
                 index={index}
-                startingRate={cat.startingRate}
+                productionCount={productionCounts[cat.projectType] ?? 0}
                 revealed={isRevealed(index)}
                 onImageReady={() => onImageLoaded(index)}
               />
@@ -237,6 +253,35 @@ export default function SmartProductionClient() {
           </div>
         </div>
       </section>
+
+      {/* ── Featured Productions ── */}
+      {featuredProductions.length > 0 && (
+        <section className="container mx-auto px-6 mt-24">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.6 }}
+          >
+            <div className="flex items-end justify-between mb-8">
+              <div>
+                <span className="text-[10px] font-mono text-[#D4A843] uppercase tracking-[0.3em] mb-2 block">
+                  02 // Portfolio
+                </span>
+                <h2 className="text-3xl md:text-5xl font-display font-medium text-white uppercase tracking-tight">
+                  Featured Work
+                </h2>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-3">
+              {featuredProductions.map((prod) => (
+                <FeaturedProductionCard key={prod.id} production={prod} />
+              ))}
+            </div>
+          </motion.div>
+        </section>
+      )}
     </div>
   );
 }

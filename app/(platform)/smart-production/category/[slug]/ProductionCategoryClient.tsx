@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import type { ProductionCategory } from '@/types/production';
 import type { CrewMember } from '@/lib/supabase/queries/crew';
+import type { SmartProduction } from '@/lib/supabase/queries/smartProductions';
 import { PRODUCTION_PACKAGES, PRODUCTION_SERVICES } from '@/lib/constants';
 import { formatZAR } from '@/lib/productions/pricing';
 
@@ -101,9 +102,10 @@ function calculatePackagePrice(services: { type: string; subType: string; hours:
 interface Props {
   category: ProductionCategory;
   crew: CrewMember[];
+  productions?: SmartProduction[];
 }
 
-export default function ProductionCategoryClient({ category, crew }: Props) {
+export default function ProductionCategoryClient({ category, crew, productions = [] }: Props) {
   const [serviceFilter, setServiceFilter] = useState<ServiceFilter>('all');
   const [sourceFilter, setSourceFilter] = useState<SourceFilter>('all');
   const [sortBy, setSortBy] = useState<SortOption>('recommended');
@@ -323,6 +325,53 @@ export default function ProductionCategoryClient({ category, crew }: Props) {
         {filtered.length === 0 && (
           <div className="py-20 text-center">
             <p className="text-neutral-500 font-mono text-sm">No results for this filter.</p>
+          </div>
+        )}
+
+        {/* ── Portfolio Section ── */}
+        {productions.length > 0 && (
+          <div className="mt-16 border-t border-white/5 pt-12">
+            <h2 className="text-2xl font-display font-medium text-white uppercase tracking-tight mb-2">
+              Our Work
+            </h2>
+            <p className="text-[10px] font-mono text-neutral-500 uppercase tracking-widest mb-8">
+              {productions.length} project{productions.length !== 1 ? 's' : ''} in {category.name}
+            </p>
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+              {productions.map((prod) => {
+                const imgUrl = prod.thumbnail_url || prod.gallery?.[0]?.url;
+                return (
+                  <Link
+                    key={prod.id}
+                    href={`/smart-production/${prod.slug}`}
+                    className="group block relative aspect-[3/4] overflow-hidden bg-[#0A0A0B] border border-white/5 hover:border-[#D4A843]/30 transition-colors"
+                  >
+                    {imgUrl && (
+                      <Image
+                        src={imgUrl}
+                        alt={prod.title}
+                        fill
+                        sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
+                        className="object-cover grayscale group-hover:grayscale-0 transition-all duration-500"
+                        unoptimized
+                      />
+                    )}
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent z-10" />
+                    <div className="absolute bottom-0 left-0 right-0 p-3 z-20">
+                      <p className="text-[9px] font-mono text-[#D4A843] uppercase tracking-widest mb-1">
+                        {prod.year}
+                      </p>
+                      <h4 className="text-xs font-display font-medium text-white group-hover:text-[#D4A843] transition-colors line-clamp-2">
+                        {prod.title}
+                      </h4>
+                      {prod.client && (
+                        <p className="text-[9px] font-mono text-neutral-500 mt-0.5">{prod.client}</p>
+                      )}
+                    </div>
+                  </Link>
+                );
+              })}
+            </div>
           </div>
         )}
 
