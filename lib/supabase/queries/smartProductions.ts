@@ -110,6 +110,28 @@ export async function getArchivedProductions(): Promise<SmartProduction[]> {
   return (data as SmartProduction[]) ?? [];
 }
 
+/**
+ * Returns published productions filtered by project_type.
+ * Used on category detail pages like /smart-production/category/[slug].
+ */
+export async function getProductionsByType(projectType: string): Promise<SmartProduction[]> {
+  const supabase = await createClient();
+
+  const { data, error } = await supabase
+    .from('smart_productions')
+    .select('*')
+    .eq('is_published', true)
+    .eq('project_type', projectType)
+    .order('year', { ascending: false, nullsFirst: false });
+
+  if (error) {
+    console.error('[getProductionsByType]', error.message);
+    return [];
+  }
+
+  return (data as SmartProduction[]) ?? [];
+}
+
 export async function getProductionBySlug(
   slug: string,
 ): Promise<SmartProduction | null> {

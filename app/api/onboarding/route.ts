@@ -35,6 +35,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     const {
       firstName,
       lastName,
+      phone,
       streetAddress,
       city,
       province,
@@ -71,6 +72,10 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       return NextResponse.json({ error: 'Province is required.' }, { status: 400 });
     }
 
+    if (!phone?.trim() || phone.trim().length < 10) {
+      return NextResponse.json({ error: 'A valid phone number is required.' }, { status: 400 });
+    }
+
     if (!avatarUrl?.trim()) {
       return NextResponse.json({ error: 'Profile photo is required.' }, { status: 400 });
     }
@@ -88,6 +93,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         first_name: firstName.trim(),
         last_name: lastName.trim(),
         display_name: displayName,
+        phone: phone.trim(),
         street_address: streetAddress.trim(),
         city: city.trim(),
         province: province.trim(),

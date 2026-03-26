@@ -25,6 +25,16 @@ type GalleryItem = CloudinaryAsset; // { url; public_id }
 
 type MetadataEntry = { url: string } & ImageMetadata;
 
+type ProductionCategoryOption = {
+  id: string;
+  slug: string;
+  name: string;
+  project_type: string;
+  sub_types: string[];
+  starting_rate: number;
+  starting_unit: string;
+};
+
 type Production = {
   id: string;
   title: string;
@@ -45,6 +55,9 @@ type Production = {
   is_featured: boolean;
   created_at: string;
   deleted_at: string | null;
+  production_category_id: string | null;
+  price: number | null;
+  currency: string;
 };
 
 type Form = {
@@ -63,13 +76,15 @@ type Form = {
   image_metadata: MetadataEntry[];
   is_published: boolean;
   is_featured: boolean;
+  production_category_id: string;
+  price: string;
 };
 
 const EMPTY_FORM: Form = {
   title: '',
   slug: '',
   client: '',
-  project_type: 'film',
+  project_type: '',
   sub_category: '',
   description: '',
   video_provider: '',
@@ -81,6 +96,8 @@ const EMPTY_FORM: Form = {
   image_metadata: [],
   is_published: false,
   is_featured: false,
+  production_category_id: '',
+  price: '',
 };
 
 // ─── Pure helpers ─────────────────────────────────────────────────────────────
@@ -168,44 +185,48 @@ async function extractExifFromFile(file: File): Promise<ImageMetadata> {
 
 function formToPayload(f: Form, existingYear?: number | null) {
   return {
-    title:           f.title.trim(),
-    slug:            f.slug.trim(),
-    client:          f.client.trim()       || null,
-    year:            existingYear ?? new Date().getFullYear(),
-    project_type:    f.project_type,
-    sub_category:    f.sub_category.trim() || null,
-    description:     f.description.trim()  || null,
-    video_provider:  f.video_provider      || null,
-    video_url:       f.video_url.trim()    || null,
-    tags:            f.tags.trim()
+    title:                  f.title.trim(),
+    slug:                   f.slug.trim(),
+    client:                 f.client.trim()       || null,
+    year:                   existingYear ?? new Date().getFullYear(),
+    project_type:           f.project_type,
+    sub_category:           f.sub_category.trim() || null,
+    description:            f.description.trim()  || null,
+    video_provider:         f.video_provider      || null,
+    video_url:              f.video_url.trim()    || null,
+    tags:                   f.tags.trim()
       ? f.tags.split(',').map(t => t.trim()).filter(Boolean)
       : null,
-    thumbnail_url:   f.thumbnail_url   || null,
-    cover_public_id: f.cover_public_id || null,
-    gallery:         f.gallery.length > 0 ? f.gallery : null,
-    image_metadata:  f.image_metadata.length > 0 ? f.image_metadata : null,
-    is_published:    f.is_published,
-    is_featured:     f.is_featured,
+    thumbnail_url:          f.thumbnail_url   || null,
+    cover_public_id:        f.cover_public_id || null,
+    gallery:                f.gallery.length > 0 ? f.gallery : null,
+    image_metadata:         f.image_metadata.length > 0 ? f.image_metadata : null,
+    is_published:           f.is_published,
+    is_featured:            f.is_featured,
+    production_category_id: f.production_category_id || null,
+    price:                  f.price ? parseInt(f.price, 10) : null,
   };
 }
 
 function productionToForm(p: Production): Form {
   return {
-    title:           p.title,
-    slug:            p.slug,
-    client:          p.client          ?? '',
-    project_type:    p.project_type,
-    sub_category:    p.sub_category    ?? '',
-    description:     p.description     ?? '',
-    video_provider:  p.video_provider  ?? '',
-    video_url:       p.video_url       ?? '',
-    tags:            (p.tags ?? []).join(', '),
-    thumbnail_url:   p.thumbnail_url   ?? '',
-    cover_public_id: p.cover_public_id ?? '',
-    gallery:         p.gallery         ?? [],
-    image_metadata:  p.image_metadata  ?? [],
-    is_published:    p.is_published,
-    is_featured:     p.is_featured,
+    title:                  p.title,
+    slug:                   p.slug,
+    client:                 p.client          ?? '',
+    project_type:           p.project_type,
+    sub_category:           p.sub_category    ?? '',
+    description:            p.description     ?? '',
+    video_provider:         p.video_provider  ?? '',
+    video_url:              p.video_url       ?? '',
+    tags:                   (p.tags ?? []).join(', '),
+    thumbnail_url:          p.thumbnail_url   ?? '',
+    cover_public_id:        p.cover_public_id ?? '',
+    gallery:                p.gallery         ?? [],
+    image_metadata:         p.image_metadata  ?? [],
+    is_published:           p.is_published,
+    is_featured:            p.is_featured,
+    production_category_id: p.production_category_id ?? '',
+    price:                  p.price != null ? String(p.price) : '',
   };
 }
 
@@ -247,6 +268,9 @@ export default function AdminProjectsPage() {
   const [confirmMedia,  setConfirmMedia]  = useState<string | null>(null);
   const [deletingMedia, setDeletingMedia] = useState<Set<string>>(new Set());
 
+  // Production categories from DB
+  const [categories, setCategories] = useState<ProductionCategoryOption[]>([]);
+
   // Crop modal state
   // cropSourceUrl: original (pre-crop) image URL fed to the Cropper
   const [showCropModal,     setShowCropModal]     = useState(false);
@@ -284,7 +308,14 @@ export default function AdminProjectsPage() {
     }
   };
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    load();
+    // Fetch production categories for the dropdown
+    fetch('/api/admin/production-categories')
+      .then(r => r.ok ? r.json() : [])
+      .then((data: ProductionCategoryOption[]) => setCategories(data ?? []))
+      .catch(() => setCategories([]));
+  }, []);
 
   // ── Form helpers ────────────────────────────────────────────────────────────
 
@@ -847,20 +878,70 @@ export default function AdminProjectsPage() {
               <Section label="Classification">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <SelectField
-                    label="Project Type"
-                    value={form.project_type}
-                    onChange={v => setF('project_type', v)}
-                    options={[
-                      { value: 'film',        label: 'Film' },
-                      { value: 'photography', label: 'Photography' },
-                    ]}
+                    label="Category *"
+                    value={form.production_category_id}
+                    onChange={v => {
+                      const cat = categories.find(c => c.id === v);
+                      setForm(f => ({
+                        ...f,
+                        production_category_id: v,
+                        project_type: cat?.project_type ?? f.project_type,
+                        sub_category: '',
+                      }));
+                    }}
+                    options={categories.map(c => ({ value: c.id, label: c.name }))}
                   />
+                  {(() => {
+                    const selectedCat = categories.find(c => c.id === form.production_category_id);
+                    const subTypes = selectedCat?.sub_types ?? [];
+                    if (subTypes.length > 0) {
+                      return (
+                        <SelectField
+                          label="Sub-Category"
+                          value={form.sub_category}
+                          onChange={v => setF('sub_category', v)}
+                          options={[
+                            { value: '', label: '— Select —' },
+                            ...subTypes.map(s => ({ value: s, label: s })),
+                          ]}
+                        />
+                      );
+                    }
+                    return (
+                      <Field
+                        label="Sub-Category"
+                        value={form.sub_category}
+                        onChange={v => setF('sub_category', v)}
+                        placeholder="Narrative / Commercial / Portrait…"
+                      />
+                    );
+                  })()}
+                </div>
+              </Section>
+
+              {/* ── Pricing ── */}
+              <Section label="Pricing">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <Field
-                    label="Sub-Category"
-                    value={form.sub_category}
-                    onChange={v => setF('sub_category', v)}
-                    placeholder="Narrative / Commercial / Portrait…"
+                    label="Price (ZAR)"
+                    value={form.price}
+                    onChange={v => setF('price', v)}
+                    placeholder="15000"
+                    type="number"
                   />
+                  {(() => {
+                    const selectedCat = categories.find(c => c.id === form.production_category_id);
+                    if (selectedCat) {
+                      return (
+                        <div className="flex items-end pb-2">
+                          <p className="text-[10px] font-mono text-neutral-500">
+                            Category starting rate: <span className="text-[#D4A843]">R{selectedCat.starting_rate.toLocaleString('en-ZA')}/{selectedCat.starting_unit}</span>
+                          </p>
+                        </div>
+                      );
+                    }
+                    return null;
+                  })()}
                 </div>
               </Section>
 
@@ -1330,10 +1411,11 @@ export default function AdminProjectsPage() {
       ) : (
         <>
           {/* Column header */}
-          <div className="hidden md:grid grid-cols-[40px_1fr_100px_64px_90px_40px_160px] gap-4 px-4 py-3 text-[9px] font-mono uppercase tracking-widest text-neutral-700 border-b border-white/5">
+          <div className="hidden md:grid grid-cols-[40px_1fr_100px_80px_64px_90px_40px_160px] gap-4 px-4 py-3 text-[9px] font-mono uppercase tracking-widest text-neutral-700 border-b border-white/5">
             <span></span>
             <span>Title</span>
-            <span>Type</span>
+            <span>Category</span>
+            <span>Price</span>
             <span>Year</span>
             <span>Status</span>
             <span></span>
@@ -1352,7 +1434,7 @@ export default function AdminProjectsPage() {
                   transition={{ duration: 0.18 }}
                   className="overflow-hidden"
                 >
-                  <div className="grid grid-cols-1 md:grid-cols-[40px_1fr_100px_64px_90px_40px_160px] gap-4 items-center px-4 py-4 bg-neutral-900 border border-white/5 hover:border-white/10 transition-colors">
+                  <div className="grid grid-cols-1 md:grid-cols-[40px_1fr_100px_80px_64px_90px_40px_160px] gap-4 items-center px-4 py-4 bg-neutral-900 border border-white/5 hover:border-white/10 transition-colors">
 
                     {/* Thumbnail */}
                     <div className="hidden md:block w-10 h-7 bg-neutral-800 flex-shrink-0 overflow-hidden">
@@ -1377,9 +1459,14 @@ export default function AdminProjectsPage() {
                       )}
                     </div>
 
-                    {/* Type */}
+                    {/* Category */}
                     <span className="hidden md:block text-[10px] font-mono uppercase tracking-widest text-neutral-500 truncate">
-                      {item.project_type}
+                      {categories.find(c => c.id === item.production_category_id)?.name ?? item.project_type}
+                    </span>
+
+                    {/* Price */}
+                    <span className="hidden md:block text-[10px] font-mono text-[#D4A843]">
+                      {item.price != null ? `R${item.price.toLocaleString('en-ZA')}` : '—'}
                     </span>
 
                     {/* Year */}
@@ -1553,6 +1640,7 @@ function Field({
   placeholder,
   mono = false,
   disabled = false,
+  type = 'text',
 }: {
   label?: string;
   value: string;
@@ -1560,6 +1648,7 @@ function Field({
   placeholder?: string;
   mono?: boolean;
   disabled?: boolean;
+  type?: string;
 }) {
   return (
     <div>
@@ -1569,7 +1658,7 @@ function Field({
         </label>
       )}
       <input
-        type="text"
+        type={type}
         value={value}
         onChange={e => onChange(e.target.value)}
         placeholder={placeholder}

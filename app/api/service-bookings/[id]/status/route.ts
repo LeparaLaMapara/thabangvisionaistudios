@@ -5,11 +5,19 @@ import { createClient } from '@/lib/supabase/server';
 import { email as emailProvider } from '@/lib/email';
 import { STUDIO } from '@/lib/constants';
 import { checkRateLimit } from '@/lib/auth';
+import { triggerCreatorPayout } from '@/lib/payments/payout';
+import { logEvent } from '@/lib/data/events';
 
-// Allowed status transitions
-const ALLOWED_TRANSITIONS: Record<string, string[]> = {
-  paid: ['accepted', 'cancelled'],
-  accepted: ['completed', 'cancelled'],
+// Allowed status transitions per role
+const CREATOR_TRANSITIONS: Record<string, string[]> = {
+  paid: ['accepted'],
+  accepted: ['delivered'],
+};
+
+const CLIENT_TRANSITIONS: Record<string, string[]> = {
+  delivered: ['completed'],
+  paid: ['cancelled'],
+  accepted: ['cancelled'],
 };
 
 export async function PATCH(
@@ -40,7 +48,7 @@ export async function PATCH(
   // Fetch booking
   const { data: booking, error: fetchError } = await supabase
     .from('bookings')
-    .select('id, client_id, client_email, creator_id, project_category, status, total, creator_amount, reference')
+    .select('id, client_id, client_email, creator_id, project_category, status, total, creator_amount, reference, payment_status')
     .eq('id', id)
     .single();
 
@@ -55,35 +63,30 @@ export async function PATCH(
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
-  // Creator can accept paid bookings, client can mark complete or cancel
-  if (isCreator && !isClient) {
-    if (status === 'accepted' && booking.status !== 'paid') {
-      return NextResponse.json({ error: 'Can only accept paid bookings' }, { status: 400 });
-    }
-    if (status !== 'accepted') {
-      return NextResponse.json({ error: 'Creators can only accept bookings' }, { status: 403 });
+  // Block users who are both creator and client (should not happen, but prevents self-payout exploit)
+  if (isCreator && isClient) {
+    return NextResponse.json({ error: 'Cannot update status on self-assigned bookings' }, { status: 403 });
+  }
+
+  // Validate transitions based on role
+  if (isCreator) {
+    const allowed = CREATOR_TRANSITIONS[booking.status];
+    if (!allowed || !allowed.includes(status)) {
+      return NextResponse.json(
+        { error: `Creators cannot transition from '${booking.status}' to '${status}'` },
+        { status: 400 },
+      );
     }
   }
 
-  if (isClient && !isCreator) {
-    if (status === 'completed' && booking.status !== 'accepted') {
-      return NextResponse.json({ error: 'Can only complete accepted bookings' }, { status: 400 });
+  if (isClient) {
+    const allowed = CLIENT_TRANSITIONS[booking.status];
+    if (!allowed || !allowed.includes(status)) {
+      return NextResponse.json(
+        { error: `Cannot transition from '${booking.status}' to '${status}'` },
+        { status: 400 },
+      );
     }
-    if (status === 'cancelled' && !['paid', 'accepted'].includes(booking.status)) {
-      return NextResponse.json({ error: 'Cannot cancel this booking' }, { status: 400 });
-    }
-    if (!['completed', 'cancelled'].includes(status)) {
-      return NextResponse.json({ error: 'Clients can only complete or cancel bookings' }, { status: 403 });
-    }
-  }
-
-  // Validate transition
-  const allowed = ALLOWED_TRANSITIONS[booking.status];
-  if (!allowed || !allowed.includes(status)) {
-    return NextResponse.json(
-      { error: `Cannot transition from '${booking.status}' to '${status}'` },
-      { status: 400 },
-    );
   }
 
   // Build update
@@ -93,6 +96,7 @@ export async function PATCH(
   };
 
   if (status === 'accepted') update.accepted_at = new Date().toISOString();
+  if (status === 'delivered') update.delivered_at = new Date().toISOString();
   if (status === 'completed') update.completed_at = new Date().toISOString();
   if (status === 'cancelled') {
     update.cancelled_at = new Date().toISOString();
@@ -109,10 +113,16 @@ export async function PATCH(
     return NextResponse.json({ error: 'Failed to update booking' }, { status: 500 });
   }
 
-  // Notifications
+  logEvent({
+    eventType: `booking_${status}`,
+    eventCategory: 'booking',
+    userId: user.id,
+    metadata: { bookingId: id, reference: booking.reference, from: booking.status, to: status, role: isCreator ? 'creator' : 'client' },
+  });
+
+  // ─── Side effects ────────────────────────────────────────────────────────
   try {
     if (status === 'accepted' && isCreator) {
-      // Notify client
       await supabase.from('notifications').insert({
         user_id: booking.client_id,
         type: 'booking_accepted',
@@ -128,28 +138,57 @@ export async function PATCH(
       });
     }
 
+    if (status === 'delivered' && isCreator) {
+      await supabase.from('notifications').insert({
+        user_id: booking.client_id,
+        type: 'booking_delivered',
+        title: 'Work Delivered — Review Required',
+        body: `Your ${booking.project_category} booking (${booking.reference}) has been delivered! Please review and approve.`,
+        link: '/dashboard/bookings',
+      });
+
+      await emailProvider.sendEmail({
+        to: booking.client_email,
+        subject: `Delivery Ready — ${STUDIO.name}`,
+        text: `Your ${booking.project_category} booking (${booking.reference}) has been delivered by the creator.\n\nPlease log in to review the deliverables and approve the work.\n\nIf you don't respond within 7 days, the delivery will be auto-approved.\n\nThank you,\n${STUDIO.name}`,
+      });
+    }
+
     if (status === 'completed' && isClient) {
+      // Auto-trigger payout
+      if (booking.creator_id && booking.payment_status === 'paid') {
+        const payoutResult = await triggerCreatorPayout({
+          bookingId: booking.id,
+          reference: booking.reference,
+          creatorId: booking.creator_id,
+          creatorAmount: booking.creator_amount,
+          projectCategory: booking.project_category,
+        });
+
+        if (!payoutResult.success) {
+          // Payout failed — notify admin for manual intervention
+          console.error('[auto-payout] Failed:', payoutResult.error);
+          await emailProvider.sendEmail({
+            to: STUDIO.bookingEmail,
+            subject: `Auto-payout failed: ${booking.reference}`,
+            text: `Auto-payout failed for booking ${booking.reference}.\n\nCreator amount: R${booking.creator_amount}\nReason: ${payoutResult.error}\n\nPlease trigger manually from admin dashboard.`,
+          });
+        }
+      }
+
       // Notify creator
       if (booking.creator_id) {
         await supabase.from('notifications').insert({
           user_id: booking.creator_id,
           type: 'booking_completed',
-          title: 'Gig Marked Complete',
-          body: `Your ${booking.project_category} gig (${booking.reference}) has been marked complete. Payout of R${booking.creator_amount} is pending admin approval.`,
+          title: 'Client Approved Your Work',
+          body: `Your ${booking.project_category} gig (${booking.reference}) has been approved! Payout of R${booking.creator_amount} is being processed.`,
           link: '/dashboard/gigs',
         });
       }
-
-      // Notify admin
-      await emailProvider.sendEmail({
-        to: STUDIO.bookingEmail,
-        subject: `Booking completed: ${booking.reference} — ready for payout`,
-        text: `Booking ${booking.reference} (${booking.project_category}) has been marked complete by the client.\n\nCreator payout: R${booking.creator_amount}\n\nTrigger payout from admin dashboard.`,
-      });
     }
 
     if (status === 'cancelled') {
-      // Notify the other party
       const notifyUserId = isClient ? booking.creator_id : booking.client_id;
       if (notifyUserId) {
         await supabase.from('notifications').insert({
@@ -161,7 +200,6 @@ export async function PATCH(
         });
       }
 
-      // Notify admin for potential refund
       await emailProvider.sendEmail({
         to: STUDIO.bookingEmail,
         subject: `Booking cancelled: ${booking.reference} — review refund`,

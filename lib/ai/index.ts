@@ -5,17 +5,28 @@ import type { LanguageModel } from 'ai';
 
 // ─── Vercel AI SDK Provider Wrapper ─────────────────────────────────────────
 
+const MODEL_MAP: Record<string, string> = {
+  anthropic: 'claude-sonnet-4-20250514',
+  openai: 'gpt-4o',
+  gemini: 'gemini-2.0-flash',
+};
+
+export function getModelId(): string {
+  const provider = (process.env.AI_PROVIDER ?? 'anthropic').toLowerCase();
+  return MODEL_MAP[provider] ?? MODEL_MAP.anthropic;
+}
+
 export function getModel(): LanguageModel {
   const provider = (process.env.AI_PROVIDER ?? 'anthropic').toLowerCase();
 
   switch (provider) {
     case 'anthropic':
-      return anthropic('claude-sonnet-4-20250514');
+      return anthropic(MODEL_MAP.anthropic);
     case 'openai':
-      return openai('gpt-4o');
+      return openai(MODEL_MAP.openai);
     case 'gemini':
-      return google('gemini-2.0-flash');
+      return google(MODEL_MAP.gemini);
     default:
-      return anthropic('claude-sonnet-4-20250514');
+      return anthropic(MODEL_MAP.anthropic);
   }
 }

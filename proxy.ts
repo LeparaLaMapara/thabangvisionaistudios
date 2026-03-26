@@ -31,7 +31,10 @@ export async function proxy(request: NextRequest) {
       allowedOrigins.add(`${parsedUrl.protocol}//www.${parsedUrl.hostname}`);
     }
 
-    if (origin && !allowedOrigins.has(origin)) {
+    // Allow Vercel preview deployments
+    const isVercelPreview = origin?.endsWith('.vercel.app') && origin.includes('thabangvision');
+
+    if (origin && !allowedOrigins.has(origin) && !isVercelPreview) {
       return NextResponse.json(
         { error: 'Invalid origin.' },
         { status: 403 },

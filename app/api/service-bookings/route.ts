@@ -8,6 +8,7 @@ import { STUDIO } from '@/lib/constants';
 import { checkRateLimit } from '@/lib/auth';
 import { getHourlyRate } from '@/lib/supabase/queries/service-bookings';
 import { email as emailProvider } from '@/lib/email';
+import { logEvent } from '@/lib/data/events';
 
 // ─── POST — Create a service booking + get Paystack payment URL ──────────────
 
@@ -39,6 +40,11 @@ export async function POST(request: NextRequest) {
     location,
     preferred_dates,
   } = body;
+
+  // Prevent self-booking (creator cannot be the client — prevents self-payout exploit)
+  if (creator_id && creator_id === user.id) {
+    return NextResponse.json({ error: 'Cannot book yourself as creator' }, { status: 400 });
+  }
 
   // Validate required fields
   if (!project_category || !project_description || !deliverables || !duration_hours) {
@@ -134,6 +140,13 @@ export async function POST(request: NextRequest) {
         text: `A new service booking has been created.\n\nReference: ${reference}\nClient: ${user.email}\nCategory: ${project_category}\nDuration: ${duration_hours} hours\nTotal: R${total}\n\nThe client has been redirected to Paystack to pay.\n\nView in admin: ${baseUrl}/admin/service-bookings`,
       });
     } catch { /* don't block */ }
+
+    logEvent({
+      eventType: 'booking_created',
+      eventCategory: 'booking',
+      userId: user.id,
+      metadata: { reference, project_category, duration_hours, total, has_creator: !!creator_id },
+    });
 
     return NextResponse.json({
       success: true,

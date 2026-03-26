@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
 import { auth } from '@/lib/auth';
 import { getProfileById } from '@/lib/supabase/queries/profiles';
-import { Calendar, Package, ShoppingBag, ArrowRight, Users, Search, ShieldCheck, Clock, Briefcase, FileText, Settings } from 'lucide-react';
+import { Calendar, Package, ShoppingBag, ArrowRight, Users, Search, ShieldCheck, Clock, Briefcase, FileText, Settings, Camera } from 'lucide-react';
 
 export const metadata = {
   title: 'Dashboard',
@@ -77,6 +77,13 @@ export default async function DashboardPage() {
 
   const displayName = profile?.display_name || user?.email?.split('@')[0] || 'Creator';
   const hasRequiredProfile = profile && (profile.display_name && profile.phone);
+
+  // Profile completeness for verified creators
+  const missingProfileFields: string[] = [];
+  if (profile && isVerified) {
+    if (!profile.bio) missingProfileFields.push('Bio');
+    if (!profile.skills || profile.skills.length === 0) missingProfileFields.push('Skills');
+  }
 
   return (
     <div>
@@ -162,6 +169,27 @@ export default async function DashboardPage() {
         )}
       </div>
 
+      {/* Profile completeness prompt (verified creators missing bio/skills) */}
+      {isVerified && missingProfileFields.length > 0 && (
+        <div className="bg-[#0A0A0B] border border-[#D4A843]/20 p-6 mb-10">
+          <div className="flex items-start gap-4">
+            <Settings className="w-5 h-5 text-[#D4A843] flex-shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <h3 className="text-sm font-mono font-bold text-white mb-1">Complete Your Profile</h3>
+              <p className="text-xs font-mono text-neutral-400 mb-3">
+                Add {missingProfileFields.join(' and ').toLowerCase()} to appear in crew searches and stand out to clients.
+              </p>
+              <Link
+                href="/dashboard/profile"
+                className="inline-flex items-center gap-2 text-[10px] font-mono font-bold uppercase tracking-widest text-[#D4A843] hover:text-[#E5B954] transition-colors"
+              >
+                Edit Profile <ArrowRight className="w-3 h-3" />
+              </Link>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Onboarding checklist (unverified users only) */}
       {!isVerified && (
         <div className="mb-10">
@@ -210,41 +238,31 @@ export default async function DashboardPage() {
       </h2>
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <QuickAction
+          icon={Camera}
+          title="Book a Shoot"
+          description="Hire a creator for your next production."
+          href="/smart-production"
+        />
+        <QuickAction
           icon={Search}
-          title="Book Equipment"
+          title="Rent Equipment"
           description="Browse and reserve professional gear."
           href="/smart-rentals"
         />
         {isVerified ? (
-          <>
-            <QuickAction
-              icon={Package}
-              title="List Your Gear"
-              description="Earn by renting out your equipment."
-              href="/dashboard/listings"
-            />
-            <QuickAction
-              icon={Briefcase}
-              title="View Gigs"
-              description="See incoming gig requests from clients."
-              href="/dashboard/gigs"
-            />
-          </>
+          <QuickAction
+            icon={Briefcase}
+            title="View Gigs"
+            description="See incoming gig requests from clients."
+            href="/dashboard/gigs"
+          />
         ) : (
-          <>
-            <QuickAction
-              icon={Users}
-              title="Hire a Creator"
-              description="Find verified creators for your project."
-              href="/smart-creators"
-            />
-            <QuickAction
-              icon={Settings}
-              title="Edit Profile"
-              description="Update your name, phone, and details."
-              href="/dashboard/profile"
-            />
-          </>
+          <QuickAction
+            icon={Users}
+            title="Hire a Creator"
+            description="Find verified creators for your project."
+            href="/smart-rentals/crew-services"
+          />
         )}
       </div>
     </div>

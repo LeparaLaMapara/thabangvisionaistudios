@@ -114,15 +114,73 @@ lib/
 
 ## Branch Strategy
 - `main` — production, auto-deploys to Vercel
-- `v2/*` — V2 architecture branches
-- `v3/*` — V3 intelligence branches
-- Always branch from main, merge back only after build + tests pass
+- `develop` — integration branch, auto-deploys to Vercel Preview (uses dev Supabase)
+- `feature/*` — branch from develop, merge back via PR
+- `hotfix/*` — branch from main for urgent fixes
+- Always merge to main only after build + tests pass
 
 ## Testing
 - `npm run test` — vitest unit tests
 - `npm run test:e2e` — playwright e2e tests
 - `npm run build` — production build
 - ALL THREE must pass before merging to main
+
+## Documentation
+- `docs/processes/` — business process design docs (payment flows, payout logic, data engine, AI architecture, smart productions)
+- `docs/tasks/` — task tracking (`done/` completed, `todo/` pending)
+- `docs/design/` — historical design audits
+- `docs/architecture.md` — provider abstraction layers
+- `docs/security.md` — security audit and status
+- `docs/strategy.md` — company vision, revenue model, platform roadmap
+
+## Agent Teams
+
+Use parallel agent teams when a task is large enough to benefit from concurrent work. Three teams are defined:
+
+### Team: research
+**When:** Any task that references a process doc or needs database/codebase context before coding.
+**What:** Front-load all context gathering in parallel so coding starts immediately.
+```
+Spawn agents to read in parallel:
+  - Relevant docs/processes/ files
+  - Supabase table schemas (via MCP)
+  - Existing code patterns in lib/ and app/
+  - Related type definitions in types/
+Return: summarized context to coordinator
+```
+
+### Team: build
+**When:** A task touches 3+ independent file groups (e.g. API routes + frontend components + lib utilities).
+**What:** Split work across isolated worktrees so agents code in parallel without conflicts.
+```
+Agent "api" (worktree):     API routes in app/api/
+Agent "frontend" (worktree): Page components in app/
+Agent "infra" (worktree):    Shared lib code, types, cron jobs, email templates
+Coordinator:                 Merge worktrees, resolve conflicts, final integration
+```
+Each agent follows all CLAUDE.md rules independently. Each worktree must pass `npm run build` before merge.
+
+### Team: qa
+**When:** Every coding task. Run in background alongside build work.
+**What:** Continuous quality checks that catch issues while code is still being written.
+```
+Background checks (run after each file change):
+  - npm run build (type errors, import errors)
+  - npm run test (regression)
+  - /check-constants (no hardcoded business values)
+  - /verify-abstractions (no direct SDK imports)
+  - /security-check (no auth bypasses, no exposed secrets)
+Report: flag issues immediately so the coding agent can fix inline
+```
+
+### Routing Rules
+```
+Task size < 3 files         → work solo (no teams)
+Task size 3-6 files         → research + qa teams
+Task size 7+ files          → research + build + qa teams
+Task references process doc → always spawn research team
+/pre-merge                  → qa team runs all checks in parallel
+```
 
 ## Do NOT
 - Modify files outside the scope of the current task

@@ -1,4 +1,4 @@
-export type BookingStatus = 'pending' | 'paid' | 'accepted' | 'completed' | 'paid_out' | 'cancelled' | 'disputed';
+export type BookingStatus = 'pending' | 'paid' | 'accepted' | 'delivered' | 'completed' | 'paid_out' | 'cancelled' | 'disputed';
 export type PaymentStatus = 'unpaid' | 'paid' | 'refunded';
 export type PayoutStatus = 'pending' | 'processing' | 'paid' | 'failed';
 export type BookingType = 'production' | 'rental' | 'crew';
@@ -33,6 +33,9 @@ export interface Booking {
   status: BookingStatus;
   client_rating: number | null;
   client_review: string | null;
+  delivery_url: string | null;
+  delivery_message: string | null;
+  delivered_at: string | null;
   admin_notes: string | null;
   created_at: string;
   updated_at: string;

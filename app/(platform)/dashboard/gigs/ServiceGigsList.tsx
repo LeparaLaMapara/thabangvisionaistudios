@@ -26,6 +26,7 @@ interface ServiceGig {
 const STATUS_COLORS: Record<string, string> = {
   paid: 'text-blue-400 border-blue-500/30',
   accepted: 'text-emerald-400 border-emerald-500/30',
+  delivered: 'text-cyan-400 border-cyan-500/30',
   completed: 'text-green-400 border-green-500/30',
   paid_out: 'text-purple-400 border-purple-500/30',
   cancelled: 'text-red-400 border-red-500/30',
@@ -34,6 +35,7 @@ const STATUS_COLORS: Record<string, string> = {
 const STATUS_LABELS: Record<string, string> = {
   paid: 'New — Accept or Decline',
   accepted: 'In Progress',
+  delivered: 'Delivered — Awaiting Approval',
   completed: 'Completed',
   paid_out: 'Paid Out',
   cancelled: 'Cancelled',
@@ -48,9 +50,13 @@ const PAYOUT_LABELS: Record<string, string> = {
 
 export default function ServiceGigsList({ gigs }: { gigs: ServiceGig[] }) {
   const [updating, setUpdating] = useState<string | null>(null);
+  const [deliveringId, setDeliveringId] = useState<string | null>(null);
+  const [deliveryUrl, setDeliveryUrl] = useState('');
+  const [deliveryMessage, setDeliveryMessage] = useState('');
+  const [deliveryError, setDeliveryError] = useState('');
 
   const actionable = gigs.filter((g) => g.status === 'paid');
-  const active = gigs.filter((g) => g.status === 'accepted');
+  const active = gigs.filter((g) => ['accepted', 'delivered'].includes(g.status));
   const completed = gigs.filter((g) => ['completed', 'paid_out'].includes(g.status));
 
   async function handleAction(gigId: string, status: 'accepted' | 'cancelled') {
@@ -63,6 +69,35 @@ export default function ServiceGigsList({ gigs }: { gigs: ServiceGig[] }) {
       });
       if (res.ok) window.location.reload();
     } catch { /* ignore */ }
+    setUpdating(null);
+  }
+
+  async function handleDeliver(gigId: string) {
+    if (!deliveryUrl.trim()) {
+      setDeliveryError('Please provide a delivery URL');
+      return;
+    }
+
+    setUpdating(gigId);
+    setDeliveryError('');
+    try {
+      const res = await fetch(`/api/service-bookings/${gigId}/deliver`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          delivery_url: deliveryUrl.trim(),
+          delivery_message: deliveryMessage.trim() || null,
+        }),
+      });
+      if (res.ok) {
+        window.location.reload();
+      } else {
+        const data = await res.json();
+        setDeliveryError(data.error || 'Failed to submit delivery');
+      }
+    } catch {
+      setDeliveryError('Something went wrong');
+    }
     setUpdating(null);
   }
 
@@ -97,7 +132,27 @@ export default function ServiceGigsList({ gigs }: { gigs: ServiceGig[] }) {
           <h3 className="mb-3 text-sm font-medium uppercase tracking-wider text-emerald-400">Active Gigs</h3>
           <div className="space-y-3">
             {active.map((gig) => (
-              <GigCard key={gig.id} gig={gig} updating={updating} onAction={handleAction} />
+              <GigCard
+                key={gig.id}
+                gig={gig}
+                updating={updating}
+                onAction={handleAction}
+                showDeliver={gig.status === 'accepted'}
+                deliveringId={deliveringId}
+                onStartDeliver={() => {
+                  setDeliveringId(gig.id);
+                  setDeliveryUrl('');
+                  setDeliveryMessage('');
+                  setDeliveryError('');
+                }}
+                onCancelDeliver={() => setDeliveringId(null)}
+                deliveryUrl={deliveryUrl}
+                deliveryMessage={deliveryMessage}
+                deliveryError={deliveryError}
+                onDeliveryUrlChange={setDeliveryUrl}
+                onDeliveryMessageChange={setDeliveryMessage}
+                onSubmitDelivery={() => handleDeliver(gig.id)}
+              />
             ))}
           </div>
         </section>
@@ -123,12 +178,34 @@ function GigCard({
   updating,
   onAction,
   showActions = false,
+  showDeliver = false,
+  deliveringId,
+  onStartDeliver,
+  onCancelDeliver,
+  deliveryUrl,
+  deliveryMessage,
+  deliveryError,
+  onDeliveryUrlChange,
+  onDeliveryMessageChange,
+  onSubmitDelivery,
 }: {
   gig: ServiceGig;
   updating: string | null;
   onAction: (id: string, status: 'accepted' | 'cancelled') => void;
   showActions?: boolean;
+  showDeliver?: boolean;
+  deliveringId?: string | null;
+  onStartDeliver?: () => void;
+  onCancelDeliver?: () => void;
+  deliveryUrl?: string;
+  deliveryMessage?: string;
+  deliveryError?: string;
+  onDeliveryUrlChange?: (v: string) => void;
+  onDeliveryMessageChange?: (v: string) => void;
+  onSubmitDelivery?: () => void;
 }) {
+  const isDelivering = deliveringId === gig.id;
+
   return (
     <div className="rounded-xl border border-neutral-800 bg-neutral-900/50 p-5">
       <div className="flex items-start justify-between gap-4">
@@ -174,7 +251,7 @@ function GigCard({
         </div>
       )}
 
-      {/* Actions */}
+      {/* Accept/Decline actions */}
       {showActions && (
         <div className="mt-4 flex gap-3">
           <button
@@ -195,6 +272,66 @@ function GigCard({
           >
             Decline
           </button>
+        </div>
+      )}
+
+      {/* Deliver button for accepted gigs */}
+      {showDeliver && !isDelivering && (
+        <div className="mt-4">
+          <button
+            onClick={onStartDeliver}
+            className="rounded-lg bg-[#D4A843] px-4 py-2 text-sm font-medium text-black hover:bg-[#c49a3a]"
+          >
+            Deliver Work
+          </button>
+        </div>
+      )}
+
+      {/* Delivery form */}
+      {isDelivering && (
+        <div className="mt-4 rounded-lg border border-neutral-700 bg-neutral-800 p-4">
+          <p className="mb-3 text-sm font-medium text-white">Submit Delivery</p>
+          <input
+            type="url"
+            value={deliveryUrl}
+            onChange={(e) => onDeliveryUrlChange?.(e.target.value)}
+            placeholder="Delivery link (Google Drive, Dropbox, etc.)"
+            className="mb-2 w-full rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-2 text-sm text-white placeholder-neutral-500 focus:border-[#D4A843] focus:outline-none"
+          />
+          <textarea
+            value={deliveryMessage}
+            onChange={(e) => onDeliveryMessageChange?.(e.target.value)}
+            placeholder="Message to client (optional)"
+            className="mb-2 w-full rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-2 text-sm text-white placeholder-neutral-500 focus:border-[#D4A843] focus:outline-none"
+            rows={2}
+          />
+          {deliveryError && (
+            <p className="mb-2 text-xs text-red-400">{deliveryError}</p>
+          )}
+          <div className="flex gap-2">
+            <button
+              onClick={onSubmitDelivery}
+              disabled={updating === gig.id}
+              className="rounded-lg bg-[#D4A843] px-4 py-2 text-sm font-medium text-black hover:bg-[#c49a3a] disabled:opacity-50"
+            >
+              {updating === gig.id ? 'Submitting...' : 'Submit Delivery'}
+            </button>
+            <button
+              onClick={onCancelDeliver}
+              className="rounded-lg border border-neutral-700 px-4 py-2 text-sm text-neutral-400 hover:bg-neutral-800"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Delivered status info */}
+      {gig.status === 'delivered' && (
+        <div className="mt-3 rounded-lg border border-cyan-500/20 bg-cyan-500/5 p-3">
+          <p className="text-xs text-cyan-400">
+            Delivered — waiting for client approval
+          </p>
         </div>
       )}
     </div>

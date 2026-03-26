@@ -21,6 +21,9 @@ interface ServiceBooking {
   payment_status: string;
   payout_status: string;
   status: BookingStatus;
+  delivery_url: string | null;
+  delivery_message: string | null;
+  delivered_at: string | null;
   client_rating: number | null;
   created_at: string;
   creator: {
@@ -35,6 +38,7 @@ const STATUS_COLORS: Record<string, string> = {
   pending: 'text-yellow-400 border-yellow-500/30',
   paid: 'text-blue-400 border-blue-500/30',
   accepted: 'text-emerald-400 border-emerald-500/30',
+  delivered: 'text-cyan-400 border-cyan-500/30',
   completed: 'text-green-400 border-green-500/30',
   paid_out: 'text-purple-400 border-purple-500/30',
   cancelled: 'text-red-400 border-red-500/30',
@@ -45,13 +49,14 @@ const STATUS_LABELS: Record<string, string> = {
   pending: 'Pending Payment',
   paid: 'Paid',
   accepted: 'Accepted',
+  delivered: 'Delivered — Review Required',
   completed: 'Completed',
   paid_out: 'Paid Out',
   cancelled: 'Cancelled',
   disputed: 'Disputed',
 };
 
-const TABS: BookingStatus[] = ['paid', 'accepted', 'completed', 'cancelled'];
+const TABS: BookingStatus[] = ['delivered', 'paid', 'accepted', 'completed', 'cancelled'];
 
 export default function ServiceBookingsList({ bookings }: { bookings: ServiceBooking[] }) {
   const [activeTab, setActiveTab] = useState<BookingStatus | 'all'>('all');
@@ -64,14 +69,17 @@ export default function ServiceBookingsList({ bookings }: { bookings: ServiceBoo
     ? bookings
     : bookings.filter((b) => b.status === activeTab);
 
-  async function handleMarkComplete(bookingId: string) {
+  async function handleApprove(bookingId: string) {
+    if (!confirm('Approve this delivery? This will release payment to the creator.')) return;
     try {
       const res = await fetch(`/api/service-bookings/${bookingId}/status`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: 'completed' }),
       });
-      if (res.ok) window.location.reload();
+      if (res.ok) {
+        setRatingBookingId(bookingId);
+      }
     } catch { /* ignore */ }
   }
 
@@ -126,10 +134,10 @@ export default function ServiceBookingsList({ bookings }: { bookings: ServiceBoo
         <div className="py-12 text-center text-neutral-500">
           <p>No service bookings yet.</p>
           <p className="mt-2 text-sm">
-            <Link href="/ubunye-ai-studio" className="text-[#D4A843] underline">
-              Chat with Ubunye
+            <Link href="/smart-production" className="text-[#D4A843] underline">
+              Browse production packages
             </Link>{' '}
-            to book a production service.
+            to book a service.
           </p>
         </div>
       ) : (
@@ -165,26 +173,46 @@ export default function ServiceBookingsList({ bookings }: { bookings: ServiceBoo
                 )}
               </div>
 
+              {/* Delivery info */}
+              {booking.status === 'delivered' && booking.delivery_url && (
+                <div className="mt-4 rounded-lg border border-cyan-500/20 bg-cyan-500/5 p-4">
+                  <p className="text-sm font-medium text-cyan-400 mb-2">
+                    Deliverables Ready
+                  </p>
+                  {booking.delivery_message && (
+                    <p className="text-sm text-neutral-300 mb-3 italic">
+                      &quot;{booking.delivery_message}&quot;
+                    </p>
+                  )}
+                  <a
+                    href={booking.delivery_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 text-sm text-[#D4A843] underline hover:text-[#E5B954]"
+                  >
+                    View Deliverables &rarr;
+                  </a>
+                  {booking.delivered_at && (
+                    <p className="mt-2 text-[10px] text-neutral-500">
+                      Delivered {new Date(booking.delivered_at).toLocaleDateString('en-ZA', { day: 'numeric', month: 'short', year: 'numeric' })}
+                    </p>
+                  )}
+                </div>
+              )}
+
               {/* Actions */}
               <div className="mt-4 flex gap-3">
-                {booking.status === 'accepted' && (
+                {/* Approve delivery */}
+                {booking.status === 'delivered' && (
                   <button
-                    onClick={() => handleMarkComplete(booking.id)}
+                    onClick={() => handleApprove(booking.id)}
                     className="rounded-lg bg-[#D4A843] px-4 py-2 text-sm font-medium text-black hover:bg-[#c49a3a]"
                   >
-                    Mark as Complete
+                    Approve &amp; Release Payment
                   </button>
                 )}
 
-                {booking.status === 'completed' && !booking.client_rating && (
-                  <button
-                    onClick={() => setRatingBookingId(booking.id)}
-                    className="rounded-lg border border-[#D4A843] px-4 py-2 text-sm font-medium text-[#D4A843] hover:bg-[#D4A843]/10"
-                  >
-                    Rate Creator
-                  </button>
-                )}
-
+                {/* Cancel */}
                 {['paid', 'accepted'].includes(booking.status) && (
                   <button
                     onClick={() => handleCancel(booking.id)}
@@ -194,10 +222,21 @@ export default function ServiceBookingsList({ bookings }: { bookings: ServiceBoo
                   </button>
                 )}
 
+                {/* Show rating */}
                 {booking.client_rating && (
                   <span className="flex items-center gap-1 text-sm text-yellow-400">
                     {'★'.repeat(booking.client_rating)}{'☆'.repeat(5 - booking.client_rating)}
                   </span>
+                )}
+
+                {/* Rate after completion (if no rating yet) */}
+                {booking.status === 'completed' && !booking.client_rating && ratingBookingId !== booking.id && (
+                  <button
+                    onClick={() => setRatingBookingId(booking.id)}
+                    className="rounded-lg border border-[#D4A843] px-4 py-2 text-sm font-medium text-[#D4A843] hover:bg-[#D4A843]/10"
+                  >
+                    Rate Creator
+                  </button>
                 )}
               </div>
 

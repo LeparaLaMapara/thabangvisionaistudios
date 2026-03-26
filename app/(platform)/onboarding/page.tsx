@@ -18,6 +18,7 @@ export default function OnboardingPage() {
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [address, setAddress] = useState<AddressResult | null>(null);
+  const [phone, setPhone] = useState('');
   const [avatarUrl, setAvatarUrl] = useState('');
   const [avatarPublicId, setAvatarPublicId] = useState('');
   const [uploading, setUploading] = useState(false);
@@ -52,7 +53,7 @@ export default function OnboardingPage() {
       case 1:
         return !validateName(firstName) && !validateName(lastName);
       case 2:
-        return !!(address?.streetAddress?.trim() && address?.city?.trim() && address?.province?.trim());
+        return !!(address?.streetAddress?.trim() && address?.city?.trim() && address?.province?.trim() && phone.trim().length >= 10);
       case 3:
         return !!avatarUrl;
       default:
@@ -146,6 +147,7 @@ export default function OnboardingPage() {
         body: JSON.stringify({
           firstName: firstName.trim(),
           lastName: lastName.trim(),
+          phone: phone.trim(),
           streetAddress: address?.streetAddress || '',
           city: address?.city || '',
           province: address?.province || '',
@@ -308,6 +310,24 @@ export default function OnboardingPage() {
                     postalCode: address.postalCode,
                   } : undefined}
                 />
+
+                <div>
+                  <label htmlFor="phone" className="block text-[10px] font-bold uppercase tracking-widest text-neutral-500 mb-2">
+                    Phone Number *
+                  </label>
+                  <input
+                    id="phone"
+                    type="tel"
+                    value={phone}
+                    onChange={(e) => setPhone(e.target.value)}
+                    autoComplete="tel"
+                    placeholder="e.g. 0812345678"
+                    className="w-full bg-neutral-900 border border-white/10 text-white px-4 py-3 min-h-[44px] text-sm font-mono placeholder:text-neutral-700 focus:outline-none focus:border-white transition-colors"
+                  />
+                  {phone && phone.trim().length < 10 && (
+                    <p className="text-[9px] font-mono text-red-400 mt-1">Enter a valid SA phone number (at least 10 digits).</p>
+                  )}
+                </div>
               </motion.div>
             )}
 

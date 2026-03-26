@@ -6,10 +6,8 @@ Quick project status check:
 4. Build: npm run build 2>&1 | tail -5
 5. Tests: npm run test 2>&1 | tail -10
 
-6. Read MEMORY.md and report:
-   - Which sessions are COMPLETE
-   - Which session is next
+6. Check docs/tasks/todo/ for pending tasks
+7. Report:
+   - Build and test status
+   - Pending tasks from docs/tasks/todo/
    - Any blockers or prerequisites
-
-7. Read TODO_BY_THABANG.md and report:
-   - Which manual tasks are still pending

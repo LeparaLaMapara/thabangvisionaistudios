@@ -4,10 +4,11 @@ export const maxDuration = 60;
 import { NextRequest, NextResponse } from 'next/server';
 import { streamText, convertToModelMessages, stepCountIs } from 'ai';
 import { checkRateLimit } from '@/lib/auth';
-import { getModel } from '@/lib/ai';
-import { createClient } from '@/lib/supabase/server';
+import { getModel, getModelId } from '@/lib/ai';
+import { createClient, createAdminClient } from '@/lib/supabase/server';
 import { buildSystemPrompt, fetchPlatformData, fetchUserContext } from '@/lib/ubunye/system-prompt';
 import { createCrewTools } from '@/lib/ubunye/tools';
+import { STUDIO } from '@/lib/constants';
 
 // ─── Plan Limits ────────────────────────────────────────────────────────────
 
@@ -143,6 +144,7 @@ export async function POST(req: NextRequest) {
       : rawMessages;
 
     const crewTools = createCrewTools(supabase, !!user);
+    const modelId = getModelId();
 
     const result = streamText({
       model: getModel(),
@@ -150,6 +152,30 @@ export async function POST(req: NextRequest) {
       messages: modelMessages,
       tools: crewTools,
       stopWhen: stepCountIs(4),
+      onFinish: ({ totalUsage }) => {
+        // Fire-and-forget token usage logging
+        const inputTokens = totalUsage.inputTokens ?? 0;
+        const outputTokens = totalUsage.outputTokens ?? 0;
+        const total = inputTokens + outputTokens;
+
+        if (total > 0) {
+          const pricing = STUDIO.ai.pricing[modelId];
+          const inputCost = pricing ? (inputTokens / 1_000_000) * pricing.input : 0;
+          const outputCost = pricing ? (outputTokens / 1_000_000) * pricing.output : 0;
+
+          const adminClient = createAdminClient();
+          adminClient.from('ai_token_usage').insert({
+            user_id: user?.id ?? null,
+            model: modelId,
+            input_tokens: inputTokens,
+            output_tokens: outputTokens,
+            total_tokens: total,
+            estimated_cost: inputCost + outputCost,
+          }).then(({ error }) => {
+            if (error) console.error('[ai-usage] Insert error:', error.message);
+          });
+        }
+      },
     });
 
     return result.toUIMessageStreamResponse();

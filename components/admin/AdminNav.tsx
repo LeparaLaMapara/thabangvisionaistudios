@@ -10,6 +10,7 @@ const ADMIN_LINKS = [
   // Content management
   { label: 'Dashboard', href: '/admin' },
   { label: 'Projects', href: '/admin/projects' },
+  { label: 'Categories', href: '/admin/production-categories' },
   { label: 'Rentals', href: '/admin/rentals' },
   { label: 'Import', href: '/admin/rentals/import' },
   { label: 'Press', href: '/admin/press' },

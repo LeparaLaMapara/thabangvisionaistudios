@@ -149,3 +149,12 @@ export function smartProductionFolder(subCategory?: string | null): string {
   const category = subCategory?.trim().toLowerCase().replace(/\s+/g, '-') || 'general';
   return `thabangvision_usecase/media/smartproductions/${category}`;
 }
+
+/**
+ * Build the canonical Cloudinary folder for a creator's portfolio.
+ *
+ * Convention:  thabangvision_usecase/media/portfolios/{userId}/{projectId}
+ */
+export function portfolioFolder(userId: string, projectId: string): string {
+  return `thabangvision_usecase/media/portfolios/${userId}/${projectId}`;
+}

@@ -1,13 +1,33 @@
 'use client';
 
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useCallback } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ChevronDown, SlidersHorizontal, X, Check, ArrowRight, Users, Star, ShieldCheck, Building2 } from 'lucide-react';
 import type { SmartRental } from '@/lib/supabase/queries/smartRentals';
 
+// ─── Cloudinary thumbnail helper ──────────────────────────────────────────────
+// Rewrites a Cloudinary URL to request a smaller, optimised thumbnail.
+function cloudinaryThumb(url: string, width = 600): string {
+  // Matches .../upload/v1234/... and inserts transforms after /upload/
+  return url.replace(
+    /\/upload\/(?:v\d+\/)?/,
+    `/upload/w_${width},c_fill,f_auto,q_auto/`,
+  );
+}
+
+// ─── Image shimmer skeleton ───────────────────────────────────────────────────
+function ImageSkeleton(): React.ReactElement {
+  return (
+    <div className="absolute inset-0 bg-neutral-900 animate-pulse">
+      <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent animate-[shimmer_1.5s_infinite]" />
+    </div>
+  );
+}
+
 // ─── Category label map ───────────────────────────────────────────────────────
-// Owned locally — no data.ts dependency.
+// Owned locally. No data.ts dependency.
 
 const CATEGORY_LABELS: Record<string, string> = {
   'cameras-optics':        'Cameras & Optics',
@@ -71,6 +91,9 @@ function FilterSection({
 // ─── Rental card ─────────────────────────────────────────────────────────────
 
 function RentalCard({ rental, category }: { rental: SmartRental; category: string }) {
+  const [imageLoaded, setImageLoaded] = useState(false);
+  const onLoad = useCallback(() => setImageLoaded(true), []);
+
   // Top 3 features used as spec chips; fall back to metadata keys
   const specs = useMemo(() => {
     if (rental.features && rental.features.length > 0) return rental.features.slice(0, 3);
@@ -128,15 +151,23 @@ function RentalCard({ rental, category }: { rental: SmartRental; category: strin
         </div>
       )}
 
-      {/* Preview image — first gallery image */}
-      <div className="relative aspect-square overflow-hidden bg-neutral-100 dark:bg-neutral-900">
+      {/* Preview image: first gallery image */}
+      <div className="relative aspect-square overflow-hidden bg-neutral-900">
         {rental.gallery && rental.gallery.length > 0 ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={rental.gallery[0].url}
-            alt={rental.title}
-            className="w-full h-full object-cover grayscale-0 md:grayscale md:group-hover:grayscale-0 scale-95 group-hover:scale-105 transition-all duration-700 ease-out"
-          />
+          <>
+            {!imageLoaded && <ImageSkeleton />}
+            <Image
+              src={cloudinaryThumb(rental.gallery[0].url)}
+              alt={rental.title}
+              fill
+              sizes="(max-width: 768px) 100vw, (max-width: 1280px) 50vw, 33vw"
+              className={`object-cover grayscale-0 md:grayscale md:group-hover:grayscale-0 scale-95 group-hover:scale-105 transition-all duration-700 ease-out ${
+                imageLoaded ? 'opacity-100' : 'opacity-0'
+              }`}
+              onLoad={onLoad}
+              unoptimized
+            />
+          </>
         ) : (
           <div className="w-full h-full flex items-center justify-center">
             <span className="text-[10px] font-mono text-neutral-500 uppercase tracking-widest">
@@ -228,7 +259,7 @@ export default function RentalCategoryClient({
   rentals: SmartRental[];
   category: string;
 }) {
-  // Derive filter options entirely from DB data — never static
+  // Derive filter options entirely from DB data, never static
   const uniqueBrands = useMemo(
     () => Array.from(new Set(rentals.map(r => r.brand).filter(Boolean) as string[])).sort(),
     [rentals],
@@ -288,7 +319,7 @@ export default function RentalCategoryClient({
         if (sortBy === 'priceAsc')  return (a.price_per_day ?? 0) - (b.price_per_day ?? 0);
         if (sortBy === 'priceDesc') return (b.price_per_day ?? 0) - (a.price_per_day ?? 0);
         if (sortBy === 'name')      return a.title.localeCompare(b.title);
-        // newest — sort by created_at DESC
+        // Newest: sort by created_at DESC
         return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
       });
   }, [rentals, selectedBrands, selectedTypes, maxPrice, onlyAvailable, sourceFilter, sortBy]);
@@ -522,8 +553,8 @@ export default function RentalCategoryClient({
                   <option value="recommended">Recommended</option>
                   <option value="newest">Newest</option>
                   <option value="name">Name (A–Z)</option>
-                  <option value="priceAsc">Price: Low → High</option>
-                  <option value="priceDesc">Price: High → Low</option>
+                  <option value="priceAsc">Price: Low to High</option>
+                  <option value="priceDesc">Price: High to Low</option>
                 </select>
               </div>
             </div>

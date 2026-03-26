@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/Button';
 import { DateRangePicker, type DateRange } from '@/components/ui/DateRangePicker';
 import { useCart } from '@/providers/CartProvider';
 import { STUDIO } from '@/lib/constants';
+import { DashboardSubTabs, ACTIVITY_TABS } from '@/components/dashboard/DashboardSubTabs';
 import type { CartItemWithRental, CartPricingSummary } from '@/types/cart';
 
 export default function CartPage() {
@@ -214,9 +215,10 @@ export default function CartPage() {
 
   return (
     <div className="space-y-8">
+      <DashboardSubTabs tabs={ACTIVITY_TABS} />
       <div>
         <p className="text-[10px] font-mono uppercase tracking-widest text-neutral-500 mb-2">
-          Equipment Cart
+          Rental Cart
         </p>
         <h2 className="text-xl font-display font-medium text-white">
           {items.length} item{items.length !== 1 ? 's' : ''} in cart

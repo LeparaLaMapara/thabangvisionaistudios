@@ -25,8 +25,8 @@ export default function CreatorCard({ member, avgRating, totalReviews = 0 }: Cre
   const primarySpec = member.specializations?.[0] || 'Creative Professional';
 
   const href = member.crew_slug
-    ? `/smart-creators/${member.crew_slug}`
-    : `/smart-creators/${member.id}`;
+    ? `/smart-rentals/crew-services/${member.crew_slug}`
+    : `/smart-rentals/crew-services/${member.id}`;
 
   return (
     <Link href={href} className="group block">

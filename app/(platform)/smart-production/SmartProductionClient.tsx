@@ -1,270 +1,287 @@
 'use client';
 
-import { useState, useMemo, useRef, useCallback } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
-import { FilterBar, ProjectCard } from '@/components/projects/ProjectsComponents';
-import {
-  Video, Camera, Mic2, Search, X,
-  Film, Image, Users, Heart, ShoppingBag, Building2, Sparkles,
-  Music, Briefcase, PartyPopper, BookOpen, Play,
-  ChevronRight, ArrowRight,
-} from 'lucide-react';
 import Link from 'next/link';
+import Image from 'next/image';
+import { ArrowUpRight, Camera } from 'lucide-react';
+import { PLACEHOLDER_IMAGES } from '@/lib/constants';
+import type { ProductionCategory } from '@/types/production';
 import type { SmartProduction } from '@/lib/supabase/queries/smartProductions';
-import type { Project } from '@/types/equipment';
-import { PRODUCTION_SERVICES } from '@/lib/constants';
-import PackagePricing from '@/components/productions/PackagePricing';
-import BriefForm from '@/components/productions/BriefForm';
 
-// ─── Static data ──────────────────────────────────────────────────────────────
-
-const WHAT_WE_SHOOT = [
-  { title: 'Weddings',          icon: Heart,       desc: 'Photography & cinematic film' },
-  { title: 'Music Videos',      icon: Music,       desc: 'Multi-setup shoots, SFX, cinema glass' },
-  { title: 'Corporate',         icon: Briefcase,   desc: 'Brand films, training, interviews' },
-  { title: 'Portraits',         icon: Users,       desc: 'Headshots, editorial, lifestyle' },
-  { title: 'Events',            icon: PartyPopper, desc: 'Conferences, launches, concerts' },
-  { title: 'Content Creation',  icon: Camera,      desc: 'Social media, product, lookbook' },
-  { title: 'Documentaries',     icon: BookOpen,    desc: 'Long-form storytelling' },
-  { title: 'Short-Form Video',  icon: Play,        desc: 'Reels, TikTok, YouTube Shorts' },
-];
-
-// ─── Adapter ──────────────────────────────────────────────────────────────────
-
-function toProject(p: SmartProduction): Project {
-  return {
-    id:          p.id,
-    slug:        p.slug,
-    title:       p.title,
-    client:      p.client      ?? undefined,
-    year:        p.year != null ? String(p.year) : undefined,
-    type:        p.project_type as 'film' | 'photography',
-    subCategory: p.sub_category ?? '',
-    thumbnail:   p.thumbnail_url ?? '',
-    tags:        p.tags         ?? [],
-    description: p.description  ?? undefined,
-  };
+// ─── Image shimmer skeleton ───────────────────────────────────────────────────
+function ImageSkeleton(): React.ReactElement {
+  return (
+    <div className="absolute inset-0 bg-neutral-900 animate-pulse">
+      <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent animate-[shimmer_1.5s_infinite]" />
+    </div>
+  );
 }
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
+// ─── Sequential reveal hook ───────────────────────────────────────────────────
+function useSequentialReveal(total: number) {
+  const [revealedCount, setRevealedCount] = useState(0);
+  const loadedRef = useRef<Set<number>>(new Set());
 
-function formatRate(rate: number): string {
-  return `R${rate.toLocaleString('en-ZA')}`;
+  const tryRevealNext = useCallback(() => {
+    setRevealedCount(prev => {
+      let next = prev;
+      while (loadedRef.current.has(next)) next++;
+      return next;
+    });
+  }, []);
+
+  const onImageLoaded = useCallback((index: number) => {
+    loadedRef.current.add(index);
+    tryRevealNext();
+  }, [tryRevealNext]);
+
+  useEffect(() => {
+    if (revealedCount < total && loadedRef.current.has(revealedCount)) {
+      const timer = setTimeout(tryRevealNext, 150);
+      return () => clearTimeout(timer);
+    }
+  }, [revealedCount, total, tryRevealNext]);
+
+  const isRevealed = useCallback(
+    (index: number) => index < revealedCount,
+    [revealedCount],
+  );
+
+  return { onImageLoaded, isRevealed };
+}
+
+// ─── Category metadata (fallback images) ─────────────────────────────────────
+
+const FALLBACK_IMAGES: Record<string, string> = {
+  photography: PLACEHOLDER_IMAGES.camerasOptics,
+  'video-production': PLACEHOLDER_IMAGES.gripMotion,
+  'weddings-ceremonies': PLACEHOLDER_IMAGES.specializedSolutions,
+  'event-coverage': PLACEHOLDER_IMAGES.lightingPower,
+  'content-creation': PLACEHOLDER_IMAGES.dataStorage,
+  'corporate-brand': PLACEHOLDER_IMAGES.audio,
+};
+
+const CATEGORY_SUBTITLES: Record<string, string> = {
+  photography: 'Portraits, Product & Editorial',
+  'video-production': 'Music Videos, Docs & Short Films',
+  'weddings-ceremonies': 'Photo + Video Packages',
+  'event-coverage': 'Corporate, Launches & Festivals',
+  'content-creation': 'Social Media & Brand Content',
+  'corporate-brand': 'Headshots, Culture & Brand Films',
+};
+
+// ─── Category Card ────────────────────────────────────────────────────────────
+
+function CategoryCard({
+  category,
+  index,
+  productionCount,
+  revealed,
+  onImageReady,
+}: {
+  category: ProductionCategory;
+  index: number;
+  productionCount: number;
+  revealed: boolean;
+  onImageReady: () => void;
+}): React.ReactElement {
+  const onLoad = useCallback(() => onImageReady(), [onImageReady]);
+  const imageUrl = category.coverImageUrl || FALLBACK_IMAGES[category.slug] || PLACEHOLDER_IMAGES.camerasOptics;
+  const subtitle = CATEGORY_SUBTITLES[category.slug] || category.subTypes.slice(0, 3).join(', ');
+
+  return (
+    <div className="relative h-[450px] overflow-hidden bg-[#0A0A0B]">
+      {!revealed && <ImageSkeleton />}
+
+      <Image
+        src={imageUrl}
+        alt={category.name}
+        fill
+        sizes="(max-width: 768px) 100vw, (max-width: 1024px) 50vw, 33vw"
+        className="object-cover opacity-0 pointer-events-none absolute"
+        onLoad={onLoad}
+        unoptimized
+      />
+
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={revealed ? { opacity: 1 } : { opacity: 0 }}
+        transition={{ duration: 0.6, ease: 'easeOut' }}
+        className="absolute inset-0 group cursor-pointer"
+      >
+        <Link href={`/smart-production/category/${category.slug}`} className="block w-full h-full relative">
+          <div className="absolute inset-0 z-10 bg-black/30 md:bg-black/60 group-hover:bg-black/30 transition-colors duration-500" />
+
+          <Image
+            src={imageUrl}
+            alt={category.name}
+            fill
+            sizes="(max-width: 768px) 100vw, (max-width: 1024px) 50vw, 33vw"
+            className="object-cover grayscale-0 md:grayscale md:group-hover:grayscale-0 scale-100 group-hover:scale-105 transition-all duration-700 ease-out"
+            unoptimized
+          />
+
+          <div className="absolute inset-0 z-20 flex flex-col justify-between p-8">
+            <div className="flex justify-between items-start">
+              <span className="text-[10px] font-mono text-white/70 group-hover:text-white transition-colors">
+                0{index + 1}
+              </span>
+              <ArrowUpRight className="text-white opacity-0 -translate-y-2 group-hover:translate-y-0 group-hover:opacity-100 transition-all duration-500 w-5 h-5" />
+            </div>
+            <div className="transform translate-y-4 group-hover:translate-y-0 transition-transform duration-500">
+              <h3 className="text-2xl font-display font-medium tracking-wide text-white uppercase mb-2">
+                {category.name}
+              </h3>
+              <p className="text-xs font-mono text-white/60 uppercase tracking-widest mb-1">
+                {subtitle}
+              </p>
+              <div className="flex items-center gap-3 mb-4">
+                <span className="text-xs font-mono text-[#D4A843]">
+                  from R{category.startingRate.toLocaleString('en-ZA')}/{category.startingUnit}
+                </span>
+                {productionCount > 0 && (
+                  <span className="flex items-center gap-1 text-[10px] font-mono text-white/40">
+                    <Camera className="w-3 h-3" />
+                    {productionCount} project{productionCount !== 1 ? 's' : ''}
+                  </span>
+                )}
+              </div>
+              <p className="text-sm text-neutral-300 opacity-0 group-hover:opacity-100 transition-opacity duration-500 delay-100 leading-relaxed border-t border-white/20 pt-4">
+                {category.description}
+              </p>
+            </div>
+          </div>
+        </Link>
+      </motion.div>
+    </div>
+  );
+}
+
+// ─── Featured Production Card ─────────────────────────────────────────────────
+
+function FeaturedProductionCard({ production }: { production: SmartProduction }) {
+  const [imgLoaded, setImgLoaded] = useState(false);
+  const imageUrl = production.thumbnail_url || production.gallery?.[0]?.url;
+
+  if (!imageUrl) return null;
+
+  return (
+    <Link
+      href={`/smart-production/${production.slug}`}
+      className="group block relative aspect-[3/4] overflow-hidden bg-[#0A0A0B] border border-white/5 hover:border-[#D4A843]/30 transition-colors"
+    >
+      {!imgLoaded && <ImageSkeleton />}
+      <Image
+        src={imageUrl}
+        alt={production.title}
+        fill
+        sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 20vw"
+        className={`object-cover grayscale group-hover:grayscale-0 transition-all duration-500 ${imgLoaded ? 'opacity-100' : 'opacity-0'}`}
+        onLoad={() => setImgLoaded(true)}
+        unoptimized
+      />
+      <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent z-10" />
+      <div className="absolute bottom-0 left-0 right-0 p-4 z-20">
+        <p className="text-[9px] font-mono text-[#D4A843] uppercase tracking-widest mb-1">
+          {production.project_type} {production.year && `· ${production.year}`}
+        </p>
+        <h4 className="text-sm font-display font-medium text-white group-hover:text-[#D4A843] transition-colors line-clamp-2">
+          {production.title}
+        </h4>
+        {production.client && (
+          <p className="text-[10px] font-mono text-neutral-500 mt-1">{production.client}</p>
+        )}
+      </div>
+    </Link>
+  );
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export default function SmartProductionClient({
-  productions,
-}: {
-  productions: SmartProduction[];
-}) {
-  const [activeType,      setActiveType]      = useState<'ALL' | 'FILM' | 'PHOTOGRAPHY'>('ALL');
-  const [activeSubFilter, setActiveSubFilter] = useState<string | null>(null);
-  const [searchQuery,     setSearchQuery]     = useState('');
-  const [debouncedSearch, setDebouncedSearch] = useState('');
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+interface Props {
+  categories: ProductionCategory[];
+  productionCounts: Record<string, number>;
+  featuredProductions: SmartProduction[];
+}
 
-  const handleSearchChange = useCallback((value: string) => {
-    setSearchQuery(value);
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => {
-      setDebouncedSearch(value);
-    }, 300);
-  }, []);
-
-  const availableSubFilters = useMemo(() => {
-    if (activeType === 'ALL') return [];
-    const typeLower = activeType === 'FILM' ? 'film' : 'photography';
-    const subCats = new Set(
-      productions
-        .filter(p => p.project_type === typeLower)
-        .map(p => p.sub_category ?? '')
-        .filter(Boolean),
-    );
-    return Array.from(subCats).sort();
-  }, [activeType, productions]);
-
-  const filteredProductions = useMemo(() => {
-    const q = debouncedSearch.toLowerCase().trim();
-    return productions.filter(p => {
-      if (activeType !== 'ALL' && p.project_type !== (activeType === 'FILM' ? 'film' : 'photography')) return false;
-      if (activeSubFilter && p.sub_category !== activeSubFilter) return false;
-      if (q) {
-        const matchTitle = p.title.toLowerCase().includes(q);
-        const matchClient = (p.client ?? '').toLowerCase().includes(q);
-        const matchDesc = (p.description ?? '').toLowerCase().includes(q);
-        const matchTags = (p.tags ?? []).some(tag => tag.toLowerCase().includes(q));
-        if (!matchTitle && !matchClient && !matchDesc && !matchTags) return false;
-      }
-      return true;
-    });
-  }, [productions, activeType, activeSubFilter, debouncedSearch]);
-
-  const photographyRate = PRODUCTION_SERVICES.photography.portrait.rate;
-  const cinematographyRate = PRODUCTION_SERVICES.cinematography.shortForm.rate;
+export default function SmartProductionClient({ categories, productionCounts, featuredProductions }: Props) {
+  const { onImageLoaded, isRevealed } = useSequentialReveal(categories.length);
 
   return (
-    <div className="min-h-screen bg-[#050505] pt-20 transition-colors duration-500">
+    <div className="min-h-screen bg-[#050505] pt-32 pb-20">
 
-      {/* ── 1. Hero — Clear value prop ── */}
-      <section className="relative min-h-[50vh] flex items-center border-b border-white/5 bg-[#080808] py-20">
-        <div className="container mx-auto px-6 max-w-4xl text-center">
-          <motion.span
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="text-[10px] font-mono text-[#D4A843] uppercase tracking-[0.3em] mb-4 block"
-          >
-            Photography &amp; Film Production
-          </motion.span>
-          <motion.h1
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.1 }}
-            className="text-4xl sm:text-5xl md:text-7xl font-black text-white tracking-tighter uppercase mb-6 leading-none"
-          >
-            We Shoot Weddings, <br />
-            <span className="text-neutral-500">Music Videos, Corporate Films &amp; Content</span>
-          </motion.h1>
-          <motion.p
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.2 }}
-            className="text-sm md:text-base text-neutral-400 max-w-2xl mx-auto font-light leading-relaxed mb-8"
-          >
-            Professional photography and film production across South Africa.
-            Transparent hourly rates. No hidden fees. From {formatRate(photographyRate)}/hr.
-          </motion.p>
-
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.3 }}
-            className="flex flex-wrap justify-center gap-3"
-          >
-            <a
-              href="#brief-form"
-              className="inline-flex items-center gap-2 text-xs font-mono font-bold uppercase tracking-widest bg-[#D4A843] text-black px-6 py-3 hover:opacity-80 transition-opacity"
-            >
-              Get a Quote <ChevronRight className="w-3 h-3" />
-            </a>
-            <a
-              href="#portfolio"
-              className="inline-flex items-center gap-2 text-xs font-mono font-bold uppercase tracking-widest bg-white text-black px-6 py-3 hover:opacity-80 transition-opacity"
-            >
-              View Our Work <ChevronRight className="w-3 h-3" />
-            </a>
-          </motion.div>
-        </div>
-      </section>
-
-      {/* ── 2. Our Work (portfolio) — social proof first ── */}
-      <div id="portfolio">
-        <FilterBar
-          activeType={activeType}
-          onTypeChange={setActiveType}
-          activeSubFilter={activeSubFilter}
-          onSubFilterChange={setActiveSubFilter}
-          availableSubFilters={availableSubFilters}
-        />
-      </div>
-
-      {/* Search bar */}
-      <div className="container mx-auto px-6 mb-8">
-        <div className="relative max-w-md">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-400" />
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => handleSearchChange(e.target.value)}
-            placeholder="Search by title, client, description, or tags..."
-            className="w-full bg-neutral-900 border border-white/10 text-white pl-10 pr-9 py-2.5 text-sm font-mono placeholder:text-neutral-600 focus:outline-none focus:border-white transition-colors"
-          />
-          {searchQuery && (
-            <button
-              onClick={() => handleSearchChange('')}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-white transition-colors"
-            >
-              <X className="w-4 h-4" />
-            </button>
-          )}
-        </div>
-      </div>
-
-      {/* Portfolio grid */}
-      <div className="container mx-auto px-6 pb-20">
-        <motion.div layout className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-          {filteredProductions.map((p, index) => (
-            <ProjectCard key={p.id} project={toProject(p)} index={index} />
-          ))}
-        </motion.div>
-
-        {filteredProductions.length === 0 && (
-          <div className="py-20 text-center">
-            <p className="text-neutral-500 font-mono text-xs uppercase tracking-widest">
-              {debouncedSearch
-                ? 'No projects match your search.'
-                : 'No projects found in this category.'}
-            </p>
-            {debouncedSearch && (
-              <button
-                onClick={() => handleSearchChange('')}
-                className="mt-4 text-xs font-bold underline text-neutral-500 hover:text-white transition-colors"
-              >
-                Clear Search
-              </button>
-            )}
-          </div>
-        )}
-      </div>
-
-      {/* ── 3. What We Shoot — combined categories ── */}
-      <section className="py-20 border-t border-white/5">
-        <div className="container mx-auto px-6">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            className="text-center mb-12"
-          >
-            <span className="text-[10px] font-mono text-[#D4A843] uppercase tracking-[0.3em] mb-3 block">
-              Services
+      {/* ── Header ── */}
+      <div className="container mx-auto px-6 mb-24">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.8 }}
+        >
+          <div className="border-l border-white/20 pl-8 md:pl-16 py-4">
+            <span className="text-[10px] font-mono text-[#D4A843] uppercase tracking-[0.3em] mb-4 block">
+              01 // Production Services
             </span>
-            <h2 className="text-3xl md:text-5xl font-black text-white tracking-tighter uppercase leading-none mb-4">
-              What We Shoot
-            </h2>
-            <p className="text-neutral-400 max-w-lg mx-auto text-sm">
-              Photography from {formatRate(photographyRate)}/hr. Film &amp; video from {formatRate(cinematographyRate)}/hr. All rates transparent — no hidden fees.
+            <h1 className="text-5xl md:text-8xl font-display font-medium text-white tracking-tight leading-[0.9] mb-8 uppercase">
+              Smart <br />
+              <span className="text-neutral-500">Productions</span>
+            </h1>
+            <p className="max-w-2xl text-lg text-neutral-300 font-light leading-relaxed">
+              Book production services from our in-house studio team or verified community creators.
+              Studio sets the benchmark. Community brings the range.
             </p>
-          </motion.div>
+          </div>
+        </motion.div>
+      </div>
 
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
-            {WHAT_WE_SHOOT.map((cat, idx) => (
-              <motion.div
-                key={cat.title}
-                initial={{ opacity: 0, y: 15 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ delay: idx * 0.05 }}
-                className="group bg-[#0A0A0B] border border-white/5 p-6 flex flex-col items-center text-center hover:border-[#D4A843]/30 transition-colors"
-              >
-                <cat.icon className="w-7 h-7 text-[#D4A843] mb-3 opacity-70 group-hover:opacity-100 transition-opacity" />
-                <h3 className="text-xs font-bold uppercase tracking-widest text-white mb-1">{cat.title}</h3>
-                <p className="text-[10px] font-mono text-neutral-500">{cat.desc}</p>
-              </motion.div>
+      {/* ── Category Grid ── */}
+      <section className="relative bg-[#050505] border-t border-white/5">
+        <div className="absolute inset-0 bg-[linear-gradient(to_right,#ffffff05_1px,transparent_1px),linear-gradient(to_bottom,#ffffff05_1px,transparent_1px)] bg-[size:4rem_4rem] pointer-events-none" />
+
+        <div className="container mx-auto px-6 py-12 relative z-10">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-px bg-white/10 border border-white/10">
+            {categories.map((cat, index) => (
+              <CategoryCard
+                key={cat.slug}
+                category={cat}
+                index={index}
+                productionCount={productionCounts[cat.projectType] ?? 0}
+                revealed={isRevealed(index)}
+                onImageReady={() => onImageLoaded(index)}
+              />
             ))}
           </div>
         </div>
       </section>
 
-      {/* ── 4. Package Pricing ── */}
-      <PackagePricing />
+      {/* ── Featured Productions ── */}
+      {featuredProductions.length > 0 && (
+        <section className="container mx-auto px-6 mt-24">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.6 }}
+          >
+            <div className="flex items-end justify-between mb-8">
+              <div>
+                <span className="text-[10px] font-mono text-[#D4A843] uppercase tracking-[0.3em] mb-2 block">
+                  02 // Portfolio
+                </span>
+                <h2 className="text-3xl md:text-5xl font-display font-medium text-white uppercase tracking-tight">
+                  Featured Work
+                </h2>
+              </div>
+            </div>
 
-      {/* ── 5. Brief Form ── */}
-      <div id="brief-form">
-        <BriefForm />
-      </div>
-
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-3">
+              {featuredProductions.map((prod) => (
+                <FeaturedProductionCard key={prod.id} production={prod} />
+              ))}
+            </div>
+          </motion.div>
+        </section>
+      )}
     </div>
   );
 }

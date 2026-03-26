@@ -5,6 +5,7 @@ import { auth } from '@/lib/auth';
 import { createClient } from '@/lib/supabase/server';
 import { getClientCrewRequests, expireStaleRequests } from '@/lib/supabase/queries/crew';
 import CreatorRequestsList from './CreatorRequestsList';
+import { DashboardSubTabs, ACTIVITY_TABS } from '@/components/dashboard/DashboardSubTabs';
 
 export const metadata = {
   title: 'My Creator Requests',
@@ -29,9 +30,10 @@ export default async function CreatorRequestsPage() {
 
   return (
     <div>
+      <DashboardSubTabs tabs={ACTIVITY_TABS} />
       <div className="mb-8">
         <h2 className="text-lg font-display font-medium uppercase text-white">
-          My Creator Requests
+          My Hires
         </h2>
         <p className="text-xs font-mono text-neutral-500 mt-2">
           Track requests you have submitted for creators.

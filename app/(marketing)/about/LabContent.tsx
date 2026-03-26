@@ -1,7 +1,7 @@
 'use client';
 
 import { motion } from 'framer-motion';
-import { Sparkles, Camera, Bot, Store, Workflow, Code, Aperture, ArrowRight } from 'lucide-react';
+import { Sparkles, Camera, Bot, Store, Workflow, Code, ArrowRight } from 'lucide-react';
 import Link from 'next/link';
 import { STUDIO } from '@/lib/constants';
 
@@ -17,7 +17,6 @@ const CAPABILITIES = [
   { title: 'Creator Marketplace', icon: Store, desc: 'A community-driven marketplace where verified creators list gear for rent, offer crew services, and connect with productions looking for talent. Smart matching powered by Ubunye AI.', poweredByAI: true },
   { title: 'Content Automation', icon: Workflow, desc: 'Automated thumbnail generation, metadata tagging, SEO optimization, and social media content creation for productions and press.', poweredByAI: true },
   { title: 'Custom Software', icon: Code, desc: 'Developing proprietary plugins, tools, and integrations for production software like DaVinci Resolve, Premiere Pro, and After Effects to solve real-world production challenges.', poweredByAI: false },
-  { title: 'Optical Engineering', icon: Aperture, desc: 'Building custom camera systems from scratch — designing proprietary lenses, sensors, and optical assemblies engineered for the unique demands of African filmmaking and content creation.', poweredByAI: false },
 ];
 
 export default function LabContent() {

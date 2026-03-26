@@ -2,6 +2,7 @@
 
 import { motion } from 'framer-motion';
 import BankingDetails from '@/components/dashboard/BankingDetails';
+import { DashboardSubTabs, ACCOUNT_TABS_CREATOR } from '@/components/dashboard/DashboardSubTabs';
 
 export default function BankingPage() {
   return (
@@ -10,6 +11,7 @@ export default function BankingPage() {
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3 }}
     >
+      <DashboardSubTabs tabs={ACCOUNT_TABS_CREATOR} />
       <div className="mb-8">
         <p className="text-[10px] font-mono uppercase tracking-widest text-neutral-500 mb-2">
           Payouts

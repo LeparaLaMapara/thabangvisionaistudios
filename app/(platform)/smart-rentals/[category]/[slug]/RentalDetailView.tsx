@@ -57,7 +57,7 @@ export default function RentalDetailView({
 }) {
   const categoryLabel = getCategoryLabel(category);
 
-  // Build image list from gallery — first image is the hero/preview
+  // Build image list from gallery. First image is the hero/preview.
   const allImages: { url: string; id: string }[] = (rental.gallery ?? []).map(g => ({ url: g.url, id: g.public_id }));
   const heroImage = allImages[0]?.url ?? null;
 
@@ -114,7 +114,7 @@ export default function RentalDetailView({
         </div>
       </div>
 
-      {/* ── Hero section — first gallery image as hero ── */}
+      {/* ── Hero section: first gallery image as hero ── */}
       {heroImage && (
         <section className="relative h-[60vh] md:h-[70vh] w-full overflow-hidden">
           <motion.div
@@ -200,7 +200,7 @@ export default function RentalDetailView({
 
           {/* ── LEFT: Media gallery ── */}
           <div>
-            {/* Hero media — image or video (shown when no gallery images for hero) */}
+            {/* Hero media: image or video (shown when no gallery images for hero) */}
             {!heroImage && (
               <motion.div
                 key={activeMedia.type === 'video' ? '__video__' : activeMedia.type === 'image' ? activeMedia.src : ''}
@@ -234,7 +234,7 @@ export default function RentalDetailView({
               </motion.div>
             )}
 
-            {/* Gallery — displayed when hero is active */}
+            {/* Gallery: displayed when hero is active */}
             {heroImage && (
               <motion.div
                 key={activeMedia.type === 'video' ? '__video__' : activeMedia.type === 'image' ? activeMedia.src : ''}
@@ -268,7 +268,7 @@ export default function RentalDetailView({
               </motion.div>
             )}
 
-            {/* Thumbnail strip — images + optional video thumb */}
+            {/* Thumbnail strip: images and optional video thumb */}
             {(allImages.length > 1 || !!videoEmbedUrl) && (
               <div className="flex gap-2 overflow-x-auto pb-2 -mx-1 px-1">
                 {/* Image thumbnails */}
@@ -292,7 +292,7 @@ export default function RentalDetailView({
                   </button>
                 ))}
 
-                {/* Video thumbnail — only when a video exists */}
+                {/* Video thumbnail: only when a video exists */}
                 {videoEmbedUrl && (
                   <button
                     onClick={() => setActiveMedia({ type: 'video' })}
@@ -418,7 +418,7 @@ export default function RentalDetailView({
               </p>
             )}
 
-            {/* Description — only when no hero (hero shows description) */}
+            {/* Description: only when no hero (hero shows description) */}
             {!heroImage && rental.description && (
               <div className="mb-6 pb-6 border-b border-black/5 dark:border-white/5">
                 <p className="text-sm text-neutral-600 dark:text-neutral-400 leading-relaxed whitespace-pre-line">
@@ -500,7 +500,7 @@ export default function RentalDetailView({
               </div>
             )}
 
-            {/* ── Booking Widget — always visible in sidebar ── */}
+            {/* ── Booking Widget: always visible in sidebar ── */}
             <div className="mb-8 border border-black/10 dark:border-white/10 p-5 bg-neutral-50 dark:bg-[#0A0A0B]">
               <h3 className="text-[10px] font-mono font-bold uppercase tracking-widest text-neutral-500 mb-4 border-b border-black/5 dark:border-white/5 pb-3">
                 Book This Equipment
@@ -542,7 +542,7 @@ export default function RentalDetailView({
                     href={`/smart-rentals/${item.category}/${item.slug}`}
                     className="block bg-white dark:bg-[#0A0A0B] group hover:bg-neutral-50 dark:hover:bg-white/5 transition-colors"
                   >
-                    {/* Preview — first gallery image */}
+                    {/* Preview: first gallery image */}
                     <div className="relative aspect-[4/3] overflow-hidden bg-neutral-100 dark:bg-neutral-900">
                       {item.gallery && item.gallery.length > 0 ? (
                         <Image

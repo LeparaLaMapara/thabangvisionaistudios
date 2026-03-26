@@ -152,6 +152,15 @@ export const STUDIO = {
       expired: 'Expired',
     },
     requestExpiryHours: 48,
+    portfolio: {
+      maxProjects: 3,
+      maxPhotosPerProject: 3,
+      maxPhotoSizeMB: 10,
+      maxVideoSizeMB: 50,
+      maxVideoDurationSeconds: 30,
+      acceptedImageTypes: ['image/jpeg', 'image/png'],
+      acceptedVideoTypes: ['video/mp4'],
+    },
     projectTypes: [
       'Photography',
       'Cinematography',
@@ -172,6 +181,18 @@ export const STUDIO = {
     ],
   },
 
+  ai: {
+    budget: {
+      monthlyBudgetZAR: 500,         // R500/month AI spend cap
+      alertThresholds: [80, 100],     // Alert at 80% and 100%
+    },
+    // Cost per 1M tokens in ZAR (approximate, using ~R18/USD exchange rate)
+    pricing: {
+      'claude-sonnet-4-20250514': { input: 54, output: 216 },   // $3/$12 per 1M
+      'gpt-4o':                    { input: 45, output: 270 },   // $2.50/$15 per 1M
+      'gemini-2.0-flash':          { input: 1.35, output: 5.4 }, // $0.075/$0.30 per 1M
+    } as Record<string, { input: number; output: number }>,
+  },
 
   booking: {
     platformCommission: 15,
@@ -255,9 +276,8 @@ export const MAIN_NAVIGATION: {
   href: string;
   children?: { label: string; href: string; children?: { label: string; href: string }[] }[];
 }[] = [
-  { label: 'Creators', href: '/smart-creators' },
-  { label: 'Gear', href: '/smart-rentals' },
-  { label: 'Productions', href: '/smart-production' },
+  { label: 'Smart Rentals', href: '/smart-rentals' },
+  { label: 'Smart Productions', href: '/smart-production' },
   { label: 'Pricing', href: '/pricing' },
 ];
 
@@ -283,7 +303,7 @@ export const FOOTER_SECTIONS = [
     title: 'Support',
     links: [
       { label: 'Contact', href: '/contact' },
-      { label: 'Report an Issue', href: '/support/tech' },
+      { label: 'Report a Bug', href: '/support/report-bug' },
       { label: 'Legal / Terms', href: '/legal' },
       { label: 'Privacy Policy', href: '/privacy' },
     ],
@@ -311,12 +331,6 @@ export const PLACEHOLDER_IMAGES = {
 
 // ─── CAPABILITIES (used on home page ServiceGrid) ───────────────────────────
 export const CAPABILITIES = [
-  {
-    title: 'Smart Creators',
-    subtitle: 'Verified Professionals for Hire',
-    image: PLACEHOLDER_IMAGES.smartCreators,
-    link: '/smart-creators',
-  },
   {
     title: 'Smart Rentals',
     subtitle: 'AI-Optimized Gear',
@@ -356,6 +370,75 @@ export const SA_BANKS = [
   { name: 'TymeBank', code: '678910' },
 ] as const;
 
+// ─── Production Categories ───────────────────────────────────────────────────
+// The 6 service types ThabangVision offers. Drives the category grid on /smart-production.
+// Each slug maps to smart_productions.project_type for filtering.
+
+import type { ProductionCategory, ProductionPackage } from '@/types/production';
+
+export const PRODUCTION_CATEGORIES: ProductionCategory[] = [
+  {
+    slug: 'photography',
+    name: 'Photography',
+    description: 'Professional photo sessions for portraits, products, fashion, and real estate.',
+    subTypes: ['Portrait & Headshot', 'Product & Commercial', 'Real Estate & Interior', 'Fashion & Editorial'],
+    startingRate: 1500,
+    startingUnit: 'session',
+    projectType: 'photography',
+    creatorKeywords: ['Photography', 'Portrait', 'Product Photography', 'Real Estate Photography'],
+  },
+  {
+    slug: 'video-production',
+    name: 'Video Production',
+    description: 'Cinematic video from music videos to documentaries and short films.',
+    subTypes: ['Music Video', 'Documentary', 'Short Film', 'Promo & Ad'],
+    startingRate: 2850,
+    startingUnit: 'project',
+    projectType: 'film',
+    creatorKeywords: ['Cinematography', 'Music Video', 'Documentary', 'Filmmaking'],
+  },
+  {
+    slug: 'weddings-ceremonies',
+    name: 'Weddings & Ceremonies',
+    description: 'Full photo and video coverage for weddings, lobola, matric dances, and more.',
+    subTypes: ['Wedding (Photo + Video)', 'Lobola & Umembeso', 'Matric Dance', 'Graduation', 'Baby Shower'],
+    startingRate: 9000,
+    startingUnit: 'package',
+    projectType: 'wedding',
+    creatorKeywords: ['Wedding', 'Photography', 'Cinematography', 'Event'],
+  },
+  {
+    slug: 'event-coverage',
+    name: 'Event Coverage',
+    description: 'Capture every moment at corporate events, product launches, and festivals.',
+    subTypes: ['Corporate Conference', 'Product Launch', 'Concert & Festival', 'Birthday & Private'],
+    startingRate: 5000,
+    startingUnit: 'event',
+    projectType: 'event',
+    creatorKeywords: ['Event', 'Corporate', 'Photography', 'Cinematography'],
+  },
+  {
+    slug: 'content-creation',
+    name: 'Content Creation',
+    description: 'Social media, YouTube, and brand content optimized for engagement.',
+    subTypes: ['Social Media (IG/TikTok)', 'YouTube', 'Brand Content', 'Influencer Shoot'],
+    startingRate: 1500,
+    startingUnit: 'session',
+    projectType: 'content',
+    creatorKeywords: ['Content Creation', 'Social Media', 'Photography', 'Short-Form Video'],
+  },
+  {
+    slug: 'corporate-brand',
+    name: 'Corporate & Brand',
+    description: 'Team headshots, office culture, product photography, and brand films.',
+    subTypes: ['Team Headshots', 'Office & Culture', 'Product Photography', 'Annual Report', 'Brand Film'],
+    startingRate: 2850,
+    startingUnit: 'project',
+    projectType: 'corporate',
+    creatorKeywords: ['Corporate', 'Photography', 'Cinematography', 'Product Photography'],
+  },
+];
+
 export const PRODUCTION_SERVICES = {
   photography: {
     portrait: { rate: 1500, unit: "hour", description: "Portrait / Headshot — Studio or on-location, includes lighting setup" },
@@ -392,3 +475,77 @@ export const PRODUCTION_SERVICES = {
     "Intellectual Property: Full commercial usage licence granted upon final payment",
   ],
 };
+
+// ─── Production Packages ─────────────────────────────────────────────────────
+// Pre-built service bundles. Prices auto-calculated from PRODUCTION_SERVICES rates.
+// Each package links to a PRODUCTION_CATEGORIES slug via `category`.
+
+export const PRODUCTION_PACKAGES: ProductionPackage[] = [
+  {
+    id: 'headshot-session',
+    name: 'Headshot Session',
+    description: '1-hour portrait photography session',
+    category: 'photography',
+    services: [
+      { type: 'photography', subType: 'portrait', hours: 1 },
+    ],
+    deliverables: ['5 retouched images', 'Online delivery'],
+  },
+  {
+    id: 'content-creator-day',
+    name: 'Content Creator Day',
+    description: '4-hour lifestyle photography session',
+    category: 'content-creation',
+    services: [
+      { type: 'photography', subType: 'lifestyle', hours: 4 },
+    ],
+    deliverables: ['20 edited images', 'Social media formats', 'Online gallery'],
+  },
+  {
+    id: 'wedding-photo-video',
+    name: 'Wedding Photo + Video',
+    description: 'Full-day wedding photography and cinematic film',
+    category: 'weddings-ceremonies',
+    services: [
+      { type: 'photography', subType: 'portrait', hours: 8 },
+      { type: 'cinematography', subType: 'musicVideo', hours: 8 },
+      { type: 'postProduction', subType: 'photoRetouch', hours: 4 },
+      { type: 'postProduction', subType: 'videoEdit', hours: 6 },
+    ],
+    deliverables: ['200+ edited photos', '5-min highlight film', 'Full ceremony edit', 'Online gallery'],
+    popular: true,
+  },
+  {
+    id: 'music-video',
+    name: 'Music Video',
+    description: '6-hour music video production with post',
+    category: 'video-production',
+    services: [
+      { type: 'cinematography', subType: 'musicVideo', hours: 6 },
+      { type: 'postProduction', subType: 'cinemaGrade', hours: 3 },
+    ],
+    deliverables: ['Multi-setup shoot', 'Cinema colour grade', '2 revision rounds'],
+  },
+  {
+    id: 'corporate-package',
+    name: 'Corporate Package',
+    description: '4-hour shoot + 2-hour post-production',
+    category: 'corporate-brand',
+    services: [
+      { type: 'cinematography', subType: 'corporate', hours: 4 },
+      { type: 'postProduction', subType: 'videoEdit', hours: 2 },
+    ],
+    deliverables: ['2-camera setup', 'Script support', 'Edited deliverable'],
+  },
+  {
+    id: 'event-half-day',
+    name: 'Event Half-Day',
+    description: '4-hour event photo and video coverage',
+    category: 'event-coverage',
+    services: [
+      { type: 'photography', subType: 'commercial', hours: 4 },
+      { type: 'cinematography', subType: 'shortForm', hours: 4 },
+    ],
+    deliverables: ['50+ edited photos', 'Highlight reel', 'Social media clips'],
+  },
+];
