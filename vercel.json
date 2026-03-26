@@ -7,7 +7,7 @@
     },
     {
       "path": "/api/cron/hourly-checks",
-      "schedule": "0 * * * *"
+      "schedule": "0 6 * * *"
     },
     {
       "path": "/api/cron/weekly-reports",
@@ -15,7 +15,7 @@
     },
     {
       "path": "/api/cron/ai-budget-checks",
-      "schedule": "0 */6 * * *"
+      "schedule": "0 12 * * *"
     }
   ]
 }
