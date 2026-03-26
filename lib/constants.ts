@@ -283,7 +283,7 @@ export const FOOTER_SECTIONS = [
     title: 'Support',
     links: [
       { label: 'Contact', href: '/contact' },
-      { label: 'Report an Issue', href: '/support/tech' },
+      { label: 'Report a Bug', href: '/support/report-bug' },
       { label: 'Legal / Terms', href: '/legal' },
       { label: 'Privacy Policy', href: '/privacy' },
     ],

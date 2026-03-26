@@ -1,6 +1,6 @@
 # Security Audit Report — Thabang Vision AI Studios
 
-**Date:** 2026-03-09 (Updated: 2026-03-13)
+**Date:** 2026-03-09 (Updated: 2026-03-26)
 **Auditor:** Claude Code (Automated Codebase Security Review)
 **Scope:** Full codebase — all API routes, middleware, auth, database queries, client components, file uploads, payment integration
 
@@ -869,13 +869,40 @@ Pre-commit security review of booking system, payment webhooks, cron jobs, deliv
 - **Issue:** The Paystack webhook only handled `equipment_booking` and `subscription` payment types. Service bookings sent `customStr1: 'service_booking'` but this fell through silently — paid bookings were never confirmed, leaving them stuck as `pending`/`unpaid`. The daily cron would then auto-cancel them after 72 hours, losing valid paid orders.
 - **Fix:** Added `service_booking` handler in both `handlePaymentComplete` (updates booking to `paid` status) and `handlePaymentFailed` (updates booking to `cancelled` with `payment_status: 'failed'`).
 
+---
+
+## Security Review — 2026-03-26 — Bug Reporting Feature (TASK-040)
+
+**Scope:** Bug report API routes, admin management, user form
+
+### SR3: Silent No-Op on PATCH to Non-Existent Bug Report — FIXED
+
+- **Severity:** Medium
+- **File:** `app/api/admin/bug-reports/[id]/route.ts`
+- **Issue:** PATCH to a non-existent UUID returned `200 { success: true }` instead of 404, giving false confirmation.
+- **Fix:** Added `.select('id')` to the update query and return 404 when no rows matched.
+
+### SR4: page_url Stored Without Protocol Validation — FIXED
+
+- **Severity:** Medium
+- **File:** `app/api/bug-reports/route.ts`
+- **Issue:** `page_url` field accepted any string including `javascript:` and `data:` URIs. The existing `isSafeUrl()` utility was not called.
+- **Fix:** Added `isSafeUrl()` validation before insert. Invalid URLs rejected with 400.
+
+### SR5: No Maximum Length on Free-Text Fields — FIXED
+
+- **Severity:** Medium
+- **File:** `app/api/bug-reports/route.ts`
+- **Issue:** Title and description had min-length checks but no max. Optional fields (steps_to_reproduce, expected/actual behaviour) had no limits at all.
+- **Fix:** Title capped at 200 chars, description at 5000 chars, optional fields silently truncated to 5000 chars.
+
 ### Updated Totals
 
 | Severity | Found | Fixed | Pending |
 |----------|-------|-------|---------|
 | Critical | 5 | 5 | 0 |
 | High | 15 | 15 | 0 |
-| Medium | 11 | 10 | 1 |
+| Medium | 14 | 13 | 1 |
 | Low | 7 | 6 | 1 |
 
-*Updated: 2026-03-26 — Pre-commit security review found 2 HIGH issues (self-payout exploit, missing webhook handler). Both fixed.*
+*Updated: 2026-03-26 — Bug reporting feature reviewed. 3 MEDIUM issues found and fixed (SR3–SR5).*
