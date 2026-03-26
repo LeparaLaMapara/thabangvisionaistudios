@@ -143,10 +143,10 @@ export default function SmartProductionClient({
             className="flex flex-wrap justify-center gap-3"
           >
             <a
-              href="#brief-form"
+              href="#packages"
               className="inline-flex items-center gap-2 text-xs font-mono font-bold uppercase tracking-widest bg-[#D4A843] text-black px-6 py-3 hover:opacity-80 transition-opacity"
             >
-              Get a Quote <ChevronRight className="w-3 h-3" />
+              Book a Shoot <ChevronRight className="w-3 h-3" />
             </a>
             <a
               href="#portfolio"

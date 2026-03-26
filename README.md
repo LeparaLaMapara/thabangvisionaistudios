@@ -477,7 +477,7 @@ Key protections:
 | [`CLAUDE.md`](./CLAUDE.md) | AI agent instructions: architecture rules, code style, "Do NOT" list |
 | [`docs/architecture.md`](./docs/architecture.md) | Provider abstraction layers: AI, auth, payments, storage, email, search |
 | [`docs/security.md`](./docs/security.md) | Security audit: 29 findings (all fixed), auth module documentation |
-| [`docs/design-v1-audit.md`](./docs/design-v1-audit.md) | Original design audit (2026-03-09) — baseline scores |
-| [`docs/design-v2-audit.md`](./docs/design-v2-audit.md) | Post-fix re-audit with 5-dimension scoring |
-| [`docs/test-results.md`](./docs/test-results.md) | Test snapshot: 97 tests (25 API + 72 E2E) |
-| [`tasks/`](./tasks/) | Task tracking: `done/` (25 completed), `todo/` (8 remaining) |
+| [`docs/design/v1-audit.md`](./docs/design/v1-audit.md) | Original design audit (2026-03-09) — baseline scores |
+| [`docs/design/v2-audit.md`](./docs/design/v2-audit.md) | Post-fix re-audit with 5-dimension scoring |
+| [`docs/design/test-results.md`](./docs/design/test-results.md) | Test snapshot: 97 tests (25 API + 72 E2E) |
+| [`docs/tasks/`](./docs/tasks/) | Task tracking: `done/` (33 completed), `todo/` (7 remaining) |

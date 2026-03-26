@@ -108,3 +108,8 @@ Read CLAUDE.md and MEMORY.md first.
 After all fixes: npm run build must pass. 
 Do NOT change any backend functionality.
 This is purely frontend and content fixes.
+
+
+For database managemant I would like to make sure tthe table match what i see in the front matches the backend tables. like smart productions has a table called smart_productions...etc. Have a look at the DATABASE_AUDIT.md to see what is there on suapabse.
+
+I want to have a prod and non-prod enviroemnt split on the repo using best practice  help here

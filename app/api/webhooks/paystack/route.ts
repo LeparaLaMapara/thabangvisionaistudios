@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/server';
 import { payments, type WebhookResult } from '@/lib/payments';
+import { logEvent } from '@/lib/data/events';
 
 export const dynamic = 'force-dynamic';
 
@@ -62,6 +63,25 @@ async function handlePaymentComplete(webhook: WebhookResult) {
 
       console.log(`[paystack-webhook] Booking confirmed: ref=${paymentId}`);
     }
+  } else if (paymentType === 'service_booking') {
+    // Service booking — confirm payment by reference
+    const bookingId = raw.custom_str2 ?? raw.customStr2 ?? '';
+
+    const { error: bookingErr } = await supabase
+      .from('bookings')
+      .update({
+        status: 'paid',
+        payment_status: 'paid',
+        paystack_reference: providerPaymentId,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('reference', paymentId);
+
+    if (bookingErr) {
+      console.error('[paystack-webhook] Failed to confirm service booking:', bookingErr.message);
+    } else {
+      console.log(`[paystack-webhook] Service booking confirmed: ref=${paymentId} booking=${bookingId}`);
+    }
   } else if (paymentType === 'subscription') {
     const userId = raw.custom_str2 ?? raw.customStr2 ?? '';
 
@@ -96,6 +116,11 @@ async function handlePaymentFailed(webhook: WebhookResult) {
       .from('equipment_bookings')
       .update({ status: 'cancelled', updated_at: new Date().toISOString() })
       .eq('id', paymentId);
+  } else if (paymentType === 'service_booking') {
+    await supabase
+      .from('bookings')
+      .update({ status: 'cancelled', payment_status: 'failed', updated_at: new Date().toISOString() })
+      .eq('reference', paymentId);
   } else if (paymentType === 'subscription') {
     await supabase
       .from('subscriptions')
@@ -125,6 +150,12 @@ export async function POST(request: NextRequest) {
   if (!webhook.valid) {
     return NextResponse.json({ error: 'Invalid signature' }, { status: 401 });
   }
+
+  logEvent({
+    eventType: `payment_${webhook.status.toLowerCase()}`,
+    eventCategory: 'payment',
+    metadata: { paymentId: webhook.paymentId, status: webhook.status, provider: 'paystack', amount: webhook.amountGross },
+  });
 
   try {
     switch (webhook.status) {

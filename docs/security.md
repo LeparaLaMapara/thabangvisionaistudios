@@ -847,13 +847,35 @@ UUIDs can't contain injection characters, so this is safe in practice but doesn'
 
 ---
 
+---
+
+## Security Review — 2026-03-26
+
+Pre-commit security review of booking system, payment webhooks, cron jobs, delivery workflow, and event logging.
+
+### SR1. Self-Booking Enables Self-Payout (Authorization Bypass)
+
+- **Severity:** HIGH
+- **Status:** FIXED
+- **Files modified:** `app/api/service-bookings/route.ts`, `app/api/service-bookings/[id]/status/route.ts`
+- **Issue:** The booking creation endpoint accepted any `creator_id` from the request body, including the user's own ID. Combined with a gap in status transition validation (when `isCreator && isClient` both true, neither CREATOR_TRANSITIONS nor CLIENT_TRANSITIONS checks executed), a user could create a self-booking, skip transition validation, set status to `completed`, and trigger auto-payout to themselves.
+- **Fix:** (1) Added `creator_id !== user.id` check in POST handler. (2) Added explicit block when `isCreator && isClient` in status PATCH handler. (3) Simplified role guards from `isCreator && !isClient` to just `isCreator` since the dual-role case is now blocked above.
+
+### SR2. Paystack Webhook Missing `service_booking` Handler
+
+- **Severity:** HIGH
+- **Status:** FIXED
+- **File modified:** `app/api/webhooks/paystack/route.ts`
+- **Issue:** The Paystack webhook only handled `equipment_booking` and `subscription` payment types. Service bookings sent `customStr1: 'service_booking'` but this fell through silently — paid bookings were never confirmed, leaving them stuck as `pending`/`unpaid`. The daily cron would then auto-cancel them after 72 hours, losing valid paid orders.
+- **Fix:** Added `service_booking` handler in both `handlePaymentComplete` (updates booking to `paid` status) and `handlePaymentFailed` (updates booking to `cancelled` with `payment_status: 'failed'`).
+
 ### Updated Totals
 
 | Severity | Found | Fixed | Pending |
 |----------|-------|-------|---------|
 | Critical | 5 | 5 | 0 |
-| High | 13 | 13 | 0 |
+| High | 15 | 15 | 0 |
 | Medium | 11 | 10 | 1 |
 | Low | 7 | 6 | 1 |
 
-*Updated: 2026-03-19 — 3 new issues found and fixed, 2 lower-priority items pending.*
+*Updated: 2026-03-26 — Pre-commit security review found 2 HIGH issues (self-payout exploit, missing webhook handler). Both fixed.*

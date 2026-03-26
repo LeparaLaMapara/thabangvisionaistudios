@@ -6,6 +6,9 @@ type Package = {
   name: string;
   description: string;
   price: number | null;
+  hours: number;
+  category: string;
+  deliverables: string;
   includes: string[];
   featured?: boolean;
 };
@@ -15,6 +18,9 @@ const packages: Package[] = [
     name: 'Headshot Session',
     description: '1-hour photography portrait session',
     price: PRODUCTION_SERVICES.photography.portrait.rate * 1,
+    hours: 1,
+    category: 'Portrait Photography',
+    deliverables: '5 retouched images',
     includes: [
       '1-hour studio session',
       '5 retouched images',
@@ -25,6 +31,9 @@ const packages: Package[] = [
     name: 'Content Creator Day',
     description: '4-hour lifestyle photography session',
     price: PRODUCTION_SERVICES.photography.lifestyle.rate * 4,
+    hours: 4,
+    category: 'Content Creation',
+    deliverables: '20 edited images, social media formats',
     includes: [
       '4-hour session',
       '20 edited images',
@@ -35,6 +44,9 @@ const packages: Package[] = [
     name: 'Wedding Film',
     description: '8-hour cinematic wedding coverage',
     price: PRODUCTION_SERVICES.cinematography.musicVideo.rate * 8,
+    hours: 8,
+    category: 'Wedding Cinematography',
+    deliverables: 'Cinematic edit, highlight reel',
     includes: [
       'Full-day coverage',
       'Cinematic edit',
@@ -45,6 +57,9 @@ const packages: Package[] = [
     name: 'Music Video',
     description: '6-hour music video production',
     price: PRODUCTION_SERVICES.cinematography.musicVideo.rate * 6,
+    hours: 6,
+    category: 'Music Video',
+    deliverables: 'Multi-setup shoot, color grade, 2 revisions',
     includes: [
       'Multi-setup shoot',
       'Color grade',
@@ -58,6 +73,9 @@ const packages: Package[] = [
     price:
       PRODUCTION_SERVICES.cinematography.corporate.rate * 4 +
       PRODUCTION_SERVICES.postProduction.videoEdit.rate * 2,
+    hours: 6,
+    category: 'Corporate Video',
+    deliverables: '2-camera setup, script support, edited deliverable',
     includes: [
       '2-camera setup',
       'Script support',
@@ -68,6 +86,9 @@ const packages: Package[] = [
     name: 'Custom Project',
     description: 'Tailored to your vision and budget',
     price: null,
+    hours: 0,
+    category: '',
+    deliverables: '',
     includes: [
       'Bespoke scope & timeline',
       'Dedicated project manager',
@@ -173,7 +194,7 @@ export default function PackagePricing() {
                   </a>
                 ) : (
                   <a
-                    href="/contact"
+                    href={`/book?category=${encodeURIComponent(pkg.category)}&hours=${pkg.hours}&deliverables=${encodeURIComponent(pkg.deliverables)}`}
                     className={`block w-full text-center py-3 rounded-lg font-semibold text-sm transition-colors ${
                       isFeatured
                         ? 'bg-[#D4A843] text-black hover:bg-[#c49a3a]'

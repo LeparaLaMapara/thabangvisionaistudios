@@ -1,3 +1,17 @@
 {
-  "framework": "nextjs"
+  "framework": "nextjs",
+  "crons": [
+    {
+      "path": "/api/cron/daily-maintenance",
+      "schedule": "0 0 * * *"
+    },
+    {
+      "path": "/api/cron/hourly-checks",
+      "schedule": "0 * * * *"
+    },
+    {
+      "path": "/api/cron/weekly-reports",
+      "schedule": "0 6 * * 1"
+    }
+  ]
 }

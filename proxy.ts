@@ -23,7 +23,15 @@ export async function proxy(request: NextRequest) {
     const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000';
     const allowedOrigin = new URL(appUrl).origin;
 
-    if (origin && origin !== allowedOrigin) {
+    // Allow: exact match, localhost dev, and Vercel preview deployments
+    const isAllowed =
+      !origin ||
+      origin === allowedOrigin ||
+      origin === 'http://localhost:3000' ||
+      origin === 'http://localhost:3001' ||
+      (origin.endsWith('.vercel.app') && origin.includes('thabangvision'));
+
+    if (!isAllowed) {
       return NextResponse.json(
         { error: 'Invalid origin.' },
         { status: 403 },

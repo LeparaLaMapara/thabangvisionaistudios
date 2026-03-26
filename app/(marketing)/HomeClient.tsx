@@ -4,7 +4,7 @@ import { motion, useScroll, useTransform } from 'framer-motion';
 import Link from 'next/link';
 import { ServiceGrid } from '@/components/cinematic/ServiceGrid';
 import { LatestWorkCarousel, type CarouselItem } from '@/components/cinematic/LatestWorkCarousel';
-import { ChevronRight, ArrowRight, Camera, Calendar, Users, Search, CreditCard, Sparkles, MessageCircle } from 'lucide-react';
+import { ChevronRight, ArrowRight, Camera, Calendar, Users, Search, CreditCard, Sparkles, MessageCircle, ShieldCheck, BadgeCheck, Lock, Star } from 'lucide-react';
 import { SITE_NAME, STUDIO, PLACEHOLDER_IMAGES } from '@/lib/constants';
 
 // ─── Hero ────────────────────────────────────────────────────────────────────
@@ -280,6 +280,29 @@ const BookingCTA = () => (
   </section>
 );
 
+// ─── Trust Signals ───────────────────────────────────────────────────────────
+
+const TrustSignals = () => (
+  <section className="py-16 bg-[#050505] border-t border-white/5">
+    <div className="container mx-auto px-6">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+        {[
+          { icon: BadgeCheck, label: 'Identity-Verified Creators', detail: 'Every creator passes ID verification' },
+          { icon: Lock, label: 'Secure Payments', detail: 'Protected by PayFast & Paystack' },
+          { icon: ShieldCheck, label: 'Deposit Protection', detail: 'Your deposit is secured until delivery' },
+          { icon: Star, label: 'Rated & Reviewed', detail: 'Real reviews from real clients' },
+        ].map((item) => (
+          <div key={item.label} className="text-center p-4">
+            <item.icon className="w-6 h-6 text-accent mx-auto mb-3" />
+            <p className="text-sm font-display font-medium text-white uppercase mb-1">{item.label}</p>
+            <p className="text-[11px] font-mono text-neutral-500">{item.detail}</p>
+          </div>
+        ))}
+      </div>
+    </div>
+  </section>
+);
+
 // ─── Ubunye AI Section ───────────────────────────────────────────────────────
 
 const UbunyeSection = () => (
@@ -325,6 +348,8 @@ export default function HomeClient({ carouselItems }: { carouselItems: CarouselI
       <CommunitySection />
       {/* 5. Smart Rentals */}
       <BookingCTA />
+      {/* 5.5 Trust Signals */}
+      <TrustSignals />
       {/* 6. Recent Work (productions only) */}
       <LatestWorkCarousel items={carouselItems} />
       {/* 7. Ubunye AI */}
