@@ -79,7 +79,7 @@ const Hero = () => {
               Photography. Film. Production. Verified creators. Professional equipment. All in one platform.
             </p>
             <div className="flex flex-wrap gap-4">
-              <Link href="/smart-creators" className="group inline-flex items-center gap-2 min-h-[44px] bg-white text-black px-8 py-4 text-[10px] font-mono font-bold uppercase tracking-widest hover:opacity-80 transition-opacity">
+              <Link href="/smart-rentals/crew-services" className="group inline-flex items-center gap-2 min-h-[44px] bg-white text-black px-8 py-4 text-[10px] font-mono font-bold uppercase tracking-widest hover:opacity-80 transition-opacity">
                 Book a Creator <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
               </Link>
               <Link href="/smart-rentals" className="group inline-flex items-center gap-2 min-h-[44px] border border-white/20 text-white px-8 py-4 text-[10px] font-mono font-bold uppercase tracking-widest hover:bg-white/5 transition-colors">

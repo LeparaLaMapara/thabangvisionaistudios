@@ -10,6 +10,7 @@ import { createClient } from '@/lib/supabase/server';
 import { STUDIO } from '@/lib/constants';
 import GigsList from './GigsList';
 import ServiceGigsList from './ServiceGigsList';
+import { DashboardSubTabs, STUDIO_TABS } from '@/components/dashboard/DashboardSubTabs';
 
 export const metadata = {
   title: 'My Gigs',
@@ -33,9 +34,10 @@ export default async function GigsPage() {
 
   return (
     <div>
+      <DashboardSubTabs tabs={STUDIO_TABS} />
       <div className="mb-8">
         <h2 className="text-lg font-display font-medium uppercase text-white">
-          Your Gigs
+          Gigs
         </h2>
         <p className="text-xs font-mono text-neutral-500 mt-2">
           Gig requests are managed by {STUDIO.shortName}. We handle all client communication.

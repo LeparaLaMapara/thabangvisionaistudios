@@ -1,18 +1,16 @@
 export const revalidate = 60;
 
-import { getPublishedProductions } from '@/lib/supabase/queries/smartProductions';
 import SmartProductionClient from './SmartProductionClient';
 import { AskUbunyeButton } from '@/components/ubunye/AskUbunyeButton';
 
 export const metadata = {
-  title: 'Smart Productions — Photography & Film Production',
+  title: 'Smart Productions — Photography & Video Production Services',
 };
 
-export default async function SmartProductionPage() {
-  const productions = await getPublishedProductions();
+export default function SmartProductionPage() {
   return (
     <>
-      <SmartProductionClient productions={productions} />
+      <SmartProductionClient />
       <AskUbunyeButton prompt="I need a quote for a production" label="Get an instant AI quote" />
     </>
   );

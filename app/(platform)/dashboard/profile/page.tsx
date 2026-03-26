@@ -4,8 +4,12 @@ import { useEffect, useState } from 'react';
 import Image from 'next/image';
 import { motion } from 'framer-motion';
 import { Camera, Loader2, X, Plus } from 'lucide-react';
+import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
 import type { Profile } from '@/lib/supabase/queries/profiles';
+import { hasCompletePortfolio } from '@/lib/portfolio/validation';
+import { DashboardSubTabs, ACCOUNT_TABS_CREATOR, ACCOUNT_TABS_USER } from '@/components/dashboard/DashboardSubTabs';
+import type { PortfolioProject } from '@/types/portfolio';
 import { Input } from '@/components/ui/Input';
 import { Textarea } from '@/components/ui/Textarea';
 import { Button } from '@/components/ui/Button';
@@ -41,6 +45,7 @@ export default function ProfileEditPage() {
   const [isVerified, setIsVerified] = useState(false);
 
   const [hasBanking, setHasBanking] = useState(false);
+  const [hasPortfolio, setHasPortfolio] = useState(false);
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -102,6 +107,7 @@ export default function ProfileEditPage() {
       setYearsExperience(String((data as Record<string, unknown>).years_experience ?? ''));
       setSpecializations((data as Record<string, unknown>).specializations as string[] ?? []);
       setIsVerified((data as Record<string, unknown>).verification_status === 'verified');
+      setHasPortfolio(hasCompletePortfolio((data as Record<string, unknown>).portfolio_projects as PortfolioProject[] | null));
 
       if (profile.street_address || profile.city || profile.province) {
         setAddress({
@@ -230,9 +236,14 @@ export default function ProfileEditPage() {
     setSaving(true);
     setMessage(null);
 
-    // Block save if available for hire without banking details
+    // Block save if available for hire without banking details or portfolio
     if (availableForHire && !hasBanking) {
       setMessage({ type: 'error', text: 'You must add your banking details before going available for hire.' });
+      setSaving(false);
+      return;
+    }
+    if (availableForHire && !hasPortfolio) {
+      setMessage({ type: 'error', text: 'You must upload at least 1 portfolio project with 3 photos before going available for hire.' });
       setSaving(false);
       return;
     }
@@ -352,8 +363,9 @@ export default function ProfileEditPage() {
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3 }}
     >
+      <DashboardSubTabs tabs={isVerified ? ACCOUNT_TABS_CREATOR : ACCOUNT_TABS_USER} />
       <h2 className="text-lg font-display font-medium uppercase text-white mb-8">
-        Edit Profile
+        Profile
       </h2>
 
       <form onSubmit={handleSubmit} className="space-y-10">
@@ -504,12 +516,12 @@ export default function ProfileEditPage() {
               </div>
               <button
                 type="button"
-                disabled={!hasBanking}
+                disabled={!hasBanking || !hasPortfolio}
                 onClick={() => {
-                  if (hasBanking) setAvailableForHire(!availableForHire);
+                  if (hasBanking && hasPortfolio) setAvailableForHire(!availableForHire);
                 }}
                 className={`relative w-10 h-5 rounded-full transition-colors ${
-                  !hasBanking
+                  !hasBanking || !hasPortfolio
                     ? 'bg-neutral-800 cursor-not-allowed opacity-50'
                     : availableForHire
                       ? 'bg-emerald-500'
@@ -518,22 +530,34 @@ export default function ProfileEditPage() {
               >
                 <span
                   className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-transform ${
-                    availableForHire && hasBanking ? 'translate-x-5' : 'translate-x-0.5'
+                    availableForHire && hasBanking && hasPortfolio ? 'translate-x-5' : 'translate-x-0.5'
                   }`}
                 />
               </button>
             </div>
-            {!hasBanking && (
-              <p className="text-[9px] font-mono text-[#D4A843] mb-5 px-1">
-                You must add your banking details before going available for hire.{' '}
-                <span className="underline cursor-pointer" onClick={() => {
-                  document.getElementById('banking-details-section')?.scrollIntoView({ behavior: 'smooth' });
-                }}>
-                  Go to Banking Details
-                </span>
-              </p>
+            {(!hasBanking || !hasPortfolio) && (
+              <div className="text-[9px] font-mono text-[#D4A843] mb-5 px-1 space-y-1">
+                {!hasBanking && (
+                  <p>
+                    You must add your banking details before going available for hire.{' '}
+                    <span className="underline cursor-pointer" onClick={() => {
+                      document.getElementById('banking-details-section')?.scrollIntoView({ behavior: 'smooth' });
+                    }}>
+                      Go to Banking Details
+                    </span>
+                  </p>
+                )}
+                {!hasPortfolio && (
+                  <p>
+                    You must upload at least 1 portfolio project with 3 photos.{' '}
+                    <Link href="/dashboard/portfolio" className="underline">
+                      Go to Portfolio
+                    </Link>
+                  </p>
+                )}
+              </div>
             )}
-            {hasBanking && <div className="mb-5" />}
+            {hasBanking && hasPortfolio && <div className="mb-5" />}
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mb-5">
               <Input

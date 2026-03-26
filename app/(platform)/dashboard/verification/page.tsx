@@ -16,6 +16,7 @@ import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { Card } from '@/components/ui/Card';
 import { STUDIO } from '@/lib/constants';
+import { DashboardSubTabs, ACCOUNT_TABS_USER } from '@/components/dashboard/DashboardSubTabs';
 
 type VerificationStatus = 'unverified' | 'pending' | 'verified' | 'rejected';
 
@@ -207,6 +208,7 @@ export default function VerificationPage() {
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3 }}
     >
+      <DashboardSubTabs tabs={ACCOUNT_TABS_USER} />
       <h2 className="text-lg font-display font-medium uppercase text-white mb-2">
         Identity Verification
       </h2>

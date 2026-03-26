@@ -23,6 +23,7 @@ const BASE_LINKS: NavLink[] = [
 ];
 
 const CREATOR_LINKS: NavLink[] = [
+  { href: '/dashboard/portfolio', label: 'Portfolio' },
   { href: '/dashboard/gigs', label: 'Gigs' },
   { href: '/dashboard/listings', label: 'List Your Gear' },
   { href: '/dashboard/orders', label: 'Orders' },

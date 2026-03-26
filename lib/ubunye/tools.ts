@@ -61,7 +61,7 @@ export function createCrewTools(supabase: SupabaseClient, isAuthenticated = fals
           location: c.location, years_experience: c.years_experience,
           featured: c.crew_featured, bio: c.crew_bio,
           available: !busyIds.has(c.id),
-          profile_url: `/smart-creators/${c.crew_slug}`,
+          profile_url: `/smart-rentals/crew-services/${c.crew_slug}`,
         })) };
       },
     },
@@ -139,7 +139,7 @@ export function createCrewTools(supabase: SupabaseClient, isAuthenticated = fals
             id: creator.id, name: creator.display_name, slug: creator.crew_slug,
             bio: creator.crew_bio || creator.bio, specializations: creator.specializations,
             hourly_rate: creator.hourly_rate, location: creator.location,
-            years_experience: creator.years_experience, profile_url: `/smart-creators/${creator.crew_slug}`,
+            years_experience: creator.years_experience, profile_url: `/smart-rentals/crew-services/${creator.crew_slug}`,
             avg_rating: avgRating, total_reviews: ratings.length,
             available: !isBusy,
             status: isBusy ? 'Currently busy with an active gig' : 'Available for hire',

@@ -13,6 +13,7 @@ import {
   X,
   ImagePlus,
 } from 'lucide-react';
+import { DashboardSubTabs, STUDIO_TABS } from '@/components/dashboard/DashboardSubTabs';
 import { uploadFile, type CloudinaryAsset } from '@/lib/cloudinary/upload';
 import { STUDIO } from '@/lib/constants';
 import { Button } from '@/components/ui/Button';
@@ -373,9 +374,10 @@ export default function ListingsPage() {
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3 }}
     >
+      <DashboardSubTabs tabs={STUDIO_TABS} />
       <div className="flex items-center justify-between mb-6">
-        <h2 className="text-lg font-display font-medium uppercase text-black dark:text-white">
-          List Your Gear
+        <h2 className="text-lg font-display font-medium uppercase text-white">
+          Listings
         </h2>
         <Button size="sm" onClick={openCreate}>
           <Plus className="w-3 h-3" />

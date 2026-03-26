@@ -6,6 +6,7 @@ import Image from 'next/image';
 import { motion } from 'framer-motion';
 import { Calendar, Eye } from 'lucide-react';
 import { Tabs } from '@/components/ui/Tabs';
+import { DashboardSubTabs, ACTIVITY_TABS } from '@/components/dashboard/DashboardSubTabs';
 import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { EmptyState } from '@/components/ui/EmptyState';
@@ -62,8 +63,9 @@ export default function BookingsPage() {
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3 }}
     >
+      <DashboardSubTabs tabs={ACTIVITY_TABS} />
       <h2 className="text-lg font-display font-medium uppercase text-white mb-6">
-        My Bookings
+        My Rentals
       </h2>
 
       {/* Type toggle */}

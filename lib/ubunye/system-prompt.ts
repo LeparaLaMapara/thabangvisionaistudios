@@ -122,7 +122,7 @@ export async function fetchPlatformData(supabase: any): Promise<CachedData> {
     ).join('\n') || 'Contact for pricing',
 
     crew: crew.data?.map((c: Record<string, unknown>) =>
-      `${c.display_name} — ${(c.specializations as string[])?.join(', ') || 'General'} — R${c.hourly_rate || '?'}/hr — ${c.location || 'SA'} — ${c.years_experience || '?'} yrs — Profile: /smart-creators/${c.crew_slug}`
+      `${c.display_name} — ${(c.specializations as string[])?.join(', ') || 'General'} — R${c.hourly_rate || '?'}/hr — ${c.location || 'SA'} — ${c.years_experience || '?'} yrs — Profile: /smart-rentals/crew-services/${c.crew_slug}`
     ).join('\n') || 'No crew available yet',
 
     services: formatServices(),
@@ -319,7 +319,7 @@ CREATOR RULES:
 
 ===== HOW TO GUIDE USERS =====
 - Rent gear → /smart-rentals
-- Hire creators → /smart-creators (or ask Ubunye to search)
+- Hire creators → /smart-rentals/crew-services (or ask Ubunye to search)
 - Book production → /contact
 - List gear → /register → /dashboard/verification → /dashboard/listings
 - View portfolio → /smart-production

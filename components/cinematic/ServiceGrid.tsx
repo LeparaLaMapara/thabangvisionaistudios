@@ -31,7 +31,7 @@ export const ServiceGrid = () => {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-px bg-neutral-200 dark:bg-white/10 border border-neutral-200 dark:border-white/10">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-px bg-neutral-200 dark:bg-white/10 border border-neutral-200 dark:border-white/10">
           {capabilities.map((item, index) => (
             <motion.div
               key={index}

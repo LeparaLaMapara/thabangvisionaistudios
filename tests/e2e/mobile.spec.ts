@@ -89,9 +89,9 @@ test.describe('Mobile navigation', () => {
     await expect(mobileMenu.first()).toBeVisible({ timeout: 3000 });
 
     // Click nav button — mobileNavigate() calls router.push() then closes menu
-    const creatorsBtn = mobileMenu.getByRole('button', { name: 'CREATORS' });
-    await creatorsBtn.click();
-    await page.waitForURL(/\/smart-creators/, { timeout: 30000, waitUntil: 'domcontentloaded' });
+    const gearBtn = mobileMenu.getByRole('button', { name: 'GEAR' });
+    await gearBtn.click();
+    await page.waitForURL(/\/smart-rentals/, { timeout: 30000, waitUntil: 'domcontentloaded' });
   });
 });
 
