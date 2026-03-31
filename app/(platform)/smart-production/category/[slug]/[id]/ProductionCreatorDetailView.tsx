@@ -581,13 +581,13 @@ export default function ProductionCreatorDetailView({
                 Book This Creator
               </h3>
               <p className="text-xs text-neutral-400 mb-4 leading-relaxed">
-                Identity is revealed after your booking is confirmed and paid. Submit a brief to get started.
+                Identity is revealed after your booking is confirmed and paid.
               </p>
               <Link
-                href="/smart-production#brief-form"
+                href={`/ubunye-ai-studio?prompt=${encodeURIComponent(`I want to book a ${category.name} shoot with creator ${crew.display_name ?? crew.crew_slug ?? crew.id}`)}`}
                 className="w-full py-3 text-[10px] font-mono font-bold uppercase tracking-widest bg-[#D4A843] text-black hover:opacity-80 transition-opacity flex items-center justify-center gap-2"
               >
-                Submit a Brief
+                Book Now
               </Link>
             </div>
 

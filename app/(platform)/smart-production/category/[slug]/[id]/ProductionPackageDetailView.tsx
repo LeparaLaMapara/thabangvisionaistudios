@@ -443,14 +443,14 @@ export default function ProductionPackageDetailView({
                 Book This Package
               </h3>
               <p className="text-xs text-neutral-400 mb-4 leading-relaxed">
-                Submit a brief with your project details and preferred dates.
+                Share your project details and preferred dates.
                 We&apos;ll confirm availability and send you a quote.
               </p>
               <Link
-                href="/smart-production#brief-form"
+                href={`/ubunye-ai-studio?prompt=${encodeURIComponent(`I want to book the ${pkg.name} package under ${category.name}`)}`}
                 className="w-full py-3 text-[10px] font-mono font-bold uppercase tracking-widest bg-[#D4A843] text-black hover:opacity-80 transition-opacity flex items-center justify-center gap-2"
               >
-                Submit a Brief
+                Book Now
               </Link>
             </div>
 

@@ -278,7 +278,7 @@ function PackageCard({
         </ul>
 
         <a
-          href={`/book?package=${pkg.id}&category=${encodeURIComponent(pkg.category)}`}
+          href={`/ubunye-ai-studio?prompt=${encodeURIComponent(`I want to book the ${pkg.name} package under ${pkg.category}`)}`}
           className={`block w-full text-center py-3 text-[10px] font-mono font-bold uppercase tracking-widest transition-colors ${
             isFeatured
               ? 'bg-[#D4A843] text-black hover:bg-[#c49a3a]'

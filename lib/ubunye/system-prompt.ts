@@ -230,7 +230,7 @@ ${platform.rentals}
 ===== PRODUCTIONS =====
 ${platform.productions}
 
-===== SMART CREATORS =====
+===== CREW SERVICES =====
 ${platform.crew}
 
 ===== VERIFIED CREATORS =====

@@ -181,6 +181,10 @@ export const STUDIO = {
     ],
   },
 
+  session: {
+    idleTimeoutMinutes: 30, // Auto-logout after 30 minutes of inactivity
+  },
+
   ai: {
     budget: {
       monthlyBudgetZAR: 500,         // R500/month AI spend cap

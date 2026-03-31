@@ -183,6 +183,15 @@ function LoginForm() {
           <div className="w-8 h-px bg-[#D4A843] mt-5" />
         </div>
 
+        {/* Idle logout notice */}
+        {searchParams.get('reason') === 'idle' && (
+          <div className="bg-amber-500/10 border border-amber-500/30 px-4 py-3 mb-6">
+            <p className="text-xs text-amber-400 font-mono leading-relaxed">
+              You were signed out due to inactivity. Please sign in again.
+            </p>
+          </div>
+        )}
+
         {/* Card */}
         <div className="bg-[#0A0A0B] border border-white/10 p-8">
 

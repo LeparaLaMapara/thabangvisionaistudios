@@ -1,17 +1,17 @@
 'use client';
 
-import { useState, useMemo, useRef, useCallback } from 'react';
+import { useState, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import Link from 'next/link';
 import {
   Search,
-  X,
   ShoppingBag,
   Wrench,
   SlidersHorizontal,
   MapPin,
   ChevronRight,
   Tag,
+  Command,
 } from 'lucide-react';
 import type { Listing, ListingType } from '@/types/marketplace';
 import { STUDIO } from '@/lib/constants';
@@ -160,17 +160,7 @@ export default function MarketplaceClient({
 }) {
   const [typeFilter, setTypeFilter] = useState<TypeFilter>('all');
   const [categoryFilter, setCategoryFilter] = useState<string | null>(null);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [debouncedSearch, setDebouncedSearch] = useState('');
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const handleSearchChange = useCallback((value: string) => {
-    setSearchQuery(value);
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => {
-      setDebouncedSearch(value);
-    }, 300);
-  }, []);
 
   // Extract unique categories
   const categories = useMemo(() => {
@@ -184,23 +174,12 @@ export default function MarketplaceClient({
 
   // Filter listings
   const filtered = useMemo(() => {
-    const q = debouncedSearch.toLowerCase().trim();
     return listings.filter((l) => {
       if (typeFilter !== 'all' && l.type !== typeFilter) return false;
       if (categoryFilter && l.category !== categoryFilter) return false;
-      if (q) {
-        const matchTitle = l.title.toLowerCase().includes(q);
-        const matchDesc = (l.description ?? '').toLowerCase().includes(q);
-        const matchTags = (l.tags ?? []).some((t) =>
-          t.toLowerCase().includes(q),
-        );
-        const matchLocation = (l.location ?? '').toLowerCase().includes(q);
-        if (!matchTitle && !matchDesc && !matchTags && !matchLocation)
-          return false;
-      }
       return true;
     });
-  }, [listings, typeFilter, categoryFilter, debouncedSearch]);
+  }, [listings, typeFilter, categoryFilter]);
 
   const counts = useMemo(
     () => ({
@@ -364,26 +343,18 @@ export default function MarketplaceClient({
         </div>
       </div>
 
-      {/* ── Search ── */}
+      {/* ── Search hint (opens global search) ── */}
       <div className="container mx-auto px-6 mt-8 mb-8">
-        <div className="relative max-w-md">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-400" />
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => handleSearchChange(e.target.value)}
-            placeholder="Search gear, services, tags, location..."
-            className="w-full bg-white dark:bg-neutral-900 border border-black/10 dark:border-white/10 text-black dark:text-white pl-10 pr-9 py-2.5 text-sm font-mono placeholder:text-neutral-400 dark:placeholder:text-neutral-600 focus:outline-none focus:border-black dark:focus:border-white transition-colors"
-          />
-          {searchQuery && (
-            <button
-              onClick={() => handleSearchChange('')}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-black dark:hover:text-white transition-colors"
-            >
-              <X className="w-4 h-4" />
-            </button>
-          )}
-        </div>
+        <button
+          onClick={() => window.dispatchEvent(new CustomEvent('toggle-search'))}
+          className="flex items-center gap-2 max-w-md w-full px-3 py-2.5 bg-white dark:bg-neutral-900 border border-black/10 dark:border-white/10 text-neutral-400 dark:text-neutral-600 text-sm font-mono hover:border-black/20 dark:hover:border-white/20 transition-colors"
+        >
+          <Search className="w-4 h-4" />
+          <span className="flex-1 text-left">Search gear, services, creators...</span>
+          <kbd className="hidden sm:flex items-center gap-0.5 text-[10px] font-mono border border-black/10 dark:border-white/10 px-1.5 py-0.5">
+            <Command className="w-2.5 h-2.5" />K
+          </kbd>
+        </button>
       </div>
 
       {/* ── Grid ── */}
@@ -401,21 +372,10 @@ export default function MarketplaceClient({
           <div className="py-20 text-center">
             <ShoppingBag className="w-12 h-12 text-neutral-300 dark:text-neutral-700 mx-auto mb-4" />
             <p className="text-neutral-500 font-mono text-xs uppercase tracking-widest mb-2">
-              {debouncedSearch
-                ? 'No listings match your search.'
-                : 'No listings found.'}
+              No listings found.
             </p>
             <p className="text-neutral-400 font-mono text-xs">
-              {debouncedSearch ? (
-                <button
-                  onClick={() => handleSearchChange('')}
-                  className="underline hover:text-black dark:hover:text-white transition-colors"
-                >
-                  Clear search
-                </button>
-              ) : (
-                'Be the first to list your gear or services.'
-              )}
+              Be the first to list your gear or services.
             </p>
           </div>
         )}

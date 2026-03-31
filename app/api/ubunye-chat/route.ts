@@ -4,11 +4,12 @@ export const maxDuration = 60;
 import { NextRequest, NextResponse } from 'next/server';
 import { streamText, convertToModelMessages, stepCountIs } from 'ai';
 import { checkRateLimit } from '@/lib/auth';
-import { getModel, getModelId } from '@/lib/ai';
+import { getModel, getModelId, routeQuery } from '@/lib/ai';
 import { createClient, createAdminClient } from '@/lib/supabase/server';
 import { buildSystemPrompt, fetchPlatformData, fetchUserContext } from '@/lib/ubunye/system-prompt';
 import { createCrewTools } from '@/lib/ubunye/tools';
 import { STUDIO } from '@/lib/constants';
+import { isRagEnabled, searchSimilar, formatRetrievalContext } from '@/lib/rag';
 
 // ─── Plan Limits ────────────────────────────────────────────────────────────
 
@@ -136,6 +137,32 @@ export async function POST(req: NextRequest) {
     systemPrompt += `\n\nThis is the user's very first message. Introduce yourself warmly as Ubunye. Mention you can help with production planning, equipment, crew hiring, creative briefs, and SA industry pricing. Subtly mention they can sign in for more access. Be energetic and welcoming. Use their message as a springboard.`;
   }
 
+  // ── RAG: retrieve relevant context from vector store ──
+  if (isRagEnabled()) {
+    const lastUserMsg = [...rawMessages].reverse().find(
+      (m: { role: string }) => m.role === 'user',
+    );
+    const queryText = typeof lastUserMsg?.content === 'string'
+      ? lastUserMsg.content
+      : Array.isArray(lastUserMsg?.parts)
+        ? lastUserMsg.parts.filter((p: { type: string }) => p.type === 'text').map((p: { text: string }) => p.text).join(' ')
+        : '';
+
+    if (queryText) {
+      try {
+        const adminClient = createAdminClient();
+        const ragResults = await searchSimilar(adminClient, queryText, { limit: 5, threshold: 0.5 });
+        const ragContext = formatRetrievalContext(ragResults);
+        if (ragContext) {
+          systemPrompt += `\n\n${ragContext}`;
+        }
+      } catch (err) {
+        console.error('[ubunye-chat] RAG retrieval error:', err instanceof Error ? err.message : err);
+        // Continue without RAG — non-blocking
+      }
+    }
+  }
+
   try {
     // Convert UIMessage[] (from useChat frontend) or CoreMessage[] (from curl) to ModelMessage[]
     const isUIFormat = rawMessages.some((m: { parts?: unknown }) => Array.isArray(m.parts));
@@ -144,10 +171,24 @@ export async function POST(req: NextRequest) {
       : rawMessages;
 
     const crewTools = createCrewTools(supabase, !!user);
-    const modelId = getModelId();
+
+    // Route to cheap or smart model based on query complexity
+    const lastUserText = [...rawMessages].reverse().find(
+      (m: { role: string }) => m.role === 'user',
+    );
+    const queryText = typeof lastUserText?.content === 'string'
+      ? lastUserText.content
+      : '';
+    const route = routeQuery(queryText);
+    // If tools might be needed (complex query), always use smart model
+    const { model: routedModel, modelId, tier } = route;
+
+    if (tier === 'fast') {
+      console.log(`[ubunye-chat] Routed to ${modelId} (fast tier)`);
+    }
 
     const result = streamText({
-      model: getModel(),
+      model: routedModel,
       system: systemPrompt,
       messages: modelMessages,
       tools: crewTools,
