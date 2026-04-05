@@ -129,10 +129,11 @@ export const STUDIO = {
   },
 
   hero: {
-    type: 'image' as 'image' | 'video',  // switch to 'video' when ready
+    type: 'video',  // 'video' | 'image'
+    colorMode: 'color' as const,  // 'bw' = black & white (grayscale) | 'color' = full color
     imageSrc: 'https://res.cloudinary.com/dzymetqjr/image/upload/v1773909281/hero_image_erskic.avif',
-    videoSrc: '',                          // Cloudinary video URL (desktop)
-    mobileVideoSrc: '',                    // Smaller video for mobile (falls back to videoSrc)
+    videoSrc: 'https://res.cloudinary.com/dzymetqjr/video/upload/q_auto/f_auto/v1775368307/hero_htn3xp.mp4',                          // Cloudinary video URL (desktop)
+    mobileVideoSrc: 'https://res.cloudinary.com/dzymetqjr/video/upload/q_auto/f_auto/v1775368307/hero_htn3xp.mp4',                    // Smaller video for mobile (falls back to videoSrc)
     poster: 'https://res.cloudinary.com/dzymetqjr/image/upload/v1773909281/hero_image_erskic.avif',                            // Static image shown while video loads
   },
 
@@ -193,8 +194,8 @@ export const STUDIO = {
     // Cost per 1M tokens in ZAR (approximate, using ~R18/USD exchange rate)
     pricing: {
       'claude-sonnet-4-20250514': { input: 54, output: 216 },   // $3/$12 per 1M
-      'gpt-4o':                    { input: 45, output: 270 },   // $2.50/$15 per 1M
-      'gemini-2.0-flash':          { input: 1.35, output: 5.4 }, // $0.075/$0.30 per 1M
+      'gpt-4o': { input: 45, output: 270 },   // $2.50/$15 per 1M
+      'gemini-2.0-flash': { input: 1.35, output: 5.4 }, // $0.075/$0.30 per 1M
     } as Record<string, { input: number; output: number }>,
   },
 
@@ -280,10 +281,10 @@ export const MAIN_NAVIGATION: {
   href: string;
   children?: { label: string; href: string; children?: { label: string; href: string }[] }[];
 }[] = [
-  { label: 'Smart Rentals', href: '/smart-rentals' },
-  { label: 'Smart Productions', href: '/smart-production' },
-  { label: 'Pricing', href: '/pricing' },
-];
+    { label: 'Smart Rentals', href: '/smart-rentals' },
+    { label: 'Smart Productions', href: '/smart-production' },
+    { label: 'Pricing', href: '/pricing' },
+  ];
 
 export const FOOTER_SECTIONS = [
   {

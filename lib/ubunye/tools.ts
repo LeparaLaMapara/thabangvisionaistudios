@@ -1,8 +1,20 @@
 import { jsonSchema } from 'ai';
-import { STUDIO } from '@/lib/constants';
+import { STUDIO, PRODUCTION_SERVICES } from '@/lib/constants';
 import { email as emailProvider } from '@/lib/email';
 import { escapeIlike } from '@/lib/search/types';
 import { getHourlyRate } from '@/lib/supabase/queries/service-bookings';
+
+// ─── Brief Analysis Helpers ────────────────────────────────────────────────
+
+const BRIEF_REQUIRED_FIELDS = [
+  { key: 'event_type', question: 'What type of event or project is this? (e.g., wedding, corporate event, music video, brand shoot)' },
+  { key: 'date', question: 'When do you need this? (specific date or date range)' },
+  { key: 'location', question: 'Where will the shoot take place? (city, venue, or area)' },
+  { key: 'budget', question: 'What is your approximate budget range? (e.g., under R5k, R5k-R15k, R15k-R50k, R50k+)' },
+  { key: 'deliverables', question: 'What deliverables do you need? (e.g., edited photos, highlight video, full film, raw footage)' },
+  { key: 'duration', question: 'How long do you need coverage for? (e.g., 4 hours, full day, multi-day)' },
+  { key: 'style', question: 'Do you have a preferred style? (e.g., documentary, cinematic, editorial, candid)' },
+] as const;
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type SupabaseClient = any;
@@ -338,6 +350,144 @@ export function createCrewTools(supabase: SupabaseClient, isAuthenticated = fals
         return {
           success: true, request_id: data.id,
           message: `Booking submitted! Confirmation sent to ${params.client_email}. Reference: ${data.id.slice(0, 8).toUpperCase()}. ${STUDIO.name} will reach out within 24 hours.`,
+        };
+      },
+    },
+
+    improve_brief: {
+      description:
+        'Analyze a client brief and identify missing information. Call this when a client describes a project but their brief is vague or incomplete. Returns structured questions to ask.',
+      inputSchema: jsonSchema({
+        type: 'object' as const,
+        properties: {
+          brief_text: { type: 'string', description: 'The client\'s project description or brief as they described it' },
+        },
+        required: ['brief_text'],
+      }),
+      execute: async ({ brief_text }: { brief_text: string }) => {
+        const lower = brief_text.toLowerCase();
+        const missingFields: { field: string; question: string }[] = [];
+
+        // Detect which fields are missing from the brief
+        const hasEventType = /wedding|corporate|music.?video|brand|portrait|event|documentary|commercial|matric|lobola|umembeso|graduation|birthday|funeral|conference/.test(lower);
+        if (!hasEventType) missingFields.push({ field: 'event_type', question: BRIEF_REQUIRED_FIELDS[0].question });
+
+        const hasDate = /\d{1,2}[\s/.-]\w+[\s/.-]\d{2,4}|january|february|march|april|may|june|july|august|september|october|november|december|next\s+\w+|this\s+\w+|tomorrow|weekend/.test(lower);
+        if (!hasDate) missingFields.push({ field: 'date', question: BRIEF_REQUIRED_FIELDS[1].question });
+
+        const hasLocation = /johannesburg|joburg|jozi|pretoria|cape\s?town|durban|bloemfontein|port\s?elizabeth|gqeberha|east\s?london|soweto|sandton|midrand|centurion|rosebank|studio|outdoor|venue|church|hotel/.test(lower);
+        if (!hasLocation) missingFields.push({ field: 'location', question: BRIEF_REQUIRED_FIELDS[2].question });
+
+        const hasBudget = /r\s?\d|budget|afford|cost|price|spend|thousand|k\b|rand/.test(lower);
+        if (!hasBudget) missingFields.push({ field: 'budget', question: BRIEF_REQUIRED_FIELDS[3].question });
+
+        const hasDeliverables = /photo|video|film|edit|raw|highlight|reel|album|gallery|footage|drone|aerial/.test(lower);
+        if (!hasDeliverables) missingFields.push({ field: 'deliverables', question: BRIEF_REQUIRED_FIELDS[4].question });
+
+        const hasDuration = /\d+\s*hours?|half.?day|full.?day|multi.?day|whole\s+day|morning|afternoon|all\s+day/.test(lower);
+        if (!hasDuration) missingFields.push({ field: 'duration', question: BRIEF_REQUIRED_FIELDS[5].question });
+
+        const hasStyle = /cinematic|documentary|editorial|candid|moody|bright|natural|creative|traditional|modern|vintage/.test(lower);
+        if (!hasStyle) missingFields.push({ field: 'style', question: BRIEF_REQUIRED_FIELDS[6].question });
+
+        const completenessScore = Math.round(((BRIEF_REQUIRED_FIELDS.length - missingFields.length) / BRIEF_REQUIRED_FIELDS.length) * 100);
+
+        // Suggest relevant production service type
+        const serviceTypes = ['photography', 'cinematography', 'postProduction'] as const;
+        const matchedCategory = serviceTypes.find(s => lower.includes(s.toLowerCase()))
+          ?? (/(photo|headshot|portrait|product|brand)/.test(lower) ? 'photography' : null)
+          ?? (/(video|film|cinema|drone|music.?video|corporate.?video)/.test(lower) ? 'cinematography' : null)
+          ?? (/(edit|retouch|grade|colour|color|vfx|sfx)/.test(lower) ? 'postProduction' : null);
+
+        return {
+          completeness_score: completenessScore,
+          status: completenessScore >= 70 ? 'good' : completenessScore >= 40 ? 'needs_more_info' : 'very_incomplete',
+          detected_fields: BRIEF_REQUIRED_FIELDS.length - missingFields.length,
+          total_fields: BRIEF_REQUIRED_FIELDS.length,
+          missing_fields: missingFields,
+          suggested_category: matchedCategory || null,
+          tip: completenessScore >= 70
+            ? 'Brief looks solid — you can proceed to quoting.'
+            : `Ask the client the ${missingFields.length} question(s) above to build a complete brief. A complete brief leads to better quotes and fewer revisions.`,
+        };
+      },
+    },
+
+    generate_social_content: {
+      description:
+        'Generate social media post content from a completed production. Call this when admin or a creator wants to create social posts for Instagram, Twitter/X, or LinkedIn from their portfolio work.',
+      inputSchema: jsonSchema({
+        type: 'object' as const,
+        properties: {
+          production_slug: { type: 'string', description: 'The slug of the smart_production to generate content for' },
+          platforms: {
+            type: 'array',
+            items: { type: 'string' },
+            description: 'Target platforms: instagram, twitter, linkedin. Defaults to all three.',
+          },
+          tone: { type: 'string', description: 'Tone: professional, casual, hype, storytelling. Defaults to professional.' },
+        },
+        required: ['production_slug'],
+      }),
+      execute: async ({ production_slug, platforms, tone }: {
+        production_slug: string; platforms?: string[]; tone?: string;
+      }) => {
+        const { data: production, error } = await supabase
+          .from('smart_productions')
+          .select('title, description, project_type, sub_category, tags, year, client')
+          .eq('slug', production_slug)
+          .eq('is_published', true)
+          .is('deleted_at', null)
+          .single();
+
+        if (error || !production) {
+          return { error: 'Production not found or not published.' };
+        }
+
+        const targetPlatforms = platforms ?? ['instagram', 'twitter', 'linkedin'];
+        const contentTone = tone ?? 'professional';
+        const tags = (production.tags ?? []) as string[];
+        const hashtags = [
+          '#ThabangVision',
+          '#SouthAfricanCreatives',
+          `#${(production.project_type ?? '').replace(/\s+/g, '')}`,
+          ...tags.slice(0, 3).map((t: string) => `#${t.replace(/\s+/g, '')}`),
+        ].join(' ');
+
+        const posts: Record<string, { text: string; character_count: number; hashtags: string }> = {};
+
+        const productionUrl = `${STUDIO.meta.url}/smart-production/${production_slug}`;
+
+        if (targetPlatforms.includes('instagram')) {
+          const caption = contentTone === 'hype'
+            ? `${production.title} just dropped. This ${production.project_type} project hit different.\n\n${production.description?.slice(0, 200) ?? ''}\n\nSee the full project — link in bio.\n\n${hashtags}`
+            : contentTone === 'storytelling'
+            ? `Behind every frame is a story. "${production.title}" — a ${production.project_type} project${production.client ? ` for ${production.client}` : ''}${production.year ? ` (${production.year})` : ''}.\n\n${production.description?.slice(0, 200) ?? ''}\n\nFull project on our website — link in bio.\n\n${hashtags}`
+            : `${production.title} — ${production.project_type}${production.client ? ` | ${production.client}` : ''}${production.year ? ` (${production.year})` : ''}\n\n${production.description?.slice(0, 200) ?? ''}\n\nView the full project — link in bio.\n\n${hashtags}`;
+
+          posts.instagram = { text: caption, character_count: caption.length, hashtags };
+        }
+
+        if (targetPlatforms.includes('twitter')) {
+          const tweet = contentTone === 'hype'
+            ? `${production.title} is LIVE.\n\n${production.project_type}${production.client ? ` for ${production.client}` : ''}.\n\n${productionUrl}\n\n${hashtags.split(' ').slice(0, 3).join(' ')}`
+            : `New work: "${production.title}" — ${production.project_type}${production.year ? ` (${production.year})` : ''}\n\n${productionUrl}\n\n${hashtags.split(' ').slice(0, 3).join(' ')}`;
+
+          posts.twitter = { text: tweet, character_count: tweet.length, hashtags: hashtags.split(' ').slice(0, 3).join(' ') };
+        }
+
+        if (targetPlatforms.includes('linkedin')) {
+          const post = `Proud to share our latest ${production.project_type} production: "${production.title}"${production.client ? ` for ${production.client}` : ''}${production.year ? ` (${production.year})` : ''}.\n\n${production.description?.slice(0, 300) ?? ''}\n\nAt ${STUDIO.name}, we bring creative visions to life through world-class production.\n\n${productionUrl}\n\n${hashtags}`;
+
+          posts.linkedin = { text: post, character_count: post.length, hashtags };
+        }
+
+        return {
+          production_title: production.title,
+          project_type: production.project_type,
+          tone: contentTone,
+          posts,
+          tip: 'Copy-paste these posts to your social accounts. Add your best photo/video from the production as the media.',
         };
       },
     },

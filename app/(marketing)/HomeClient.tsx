@@ -15,6 +15,7 @@ const Hero = () => {
   const opacity = useTransform(scrollY, [0, 300], [1, 0]);
   const { hero } = STUDIO;
   const useVideo = hero.type === 'video' && !!hero.videoSrc;
+  const filterClass = hero.colorMode === 'bw' ? 'grayscale contrast-125' : 'contrast-110 saturate-[0.85]';
 
   return (
     <div className="relative h-screen w-full overflow-hidden bg-[#050505] flex items-center justify-center transition-colors duration-500">
@@ -28,7 +29,7 @@ const Hero = () => {
             muted
             playsInline
             poster={hero.poster || undefined}
-            className="w-full h-full object-cover opacity-40 grayscale contrast-125 motion-reduce:hidden"
+            className={`w-full h-full object-cover opacity-40 ${filterClass} motion-reduce:hidden`}
           >
             {hero.mobileVideoSrc && (
               <source src={hero.mobileVideoSrc} type="video/mp4" media="(max-width: 767px)" />
@@ -40,7 +41,7 @@ const Hero = () => {
           <img
             src={hero.imageSrc}
             alt="Studio Abstract"
-            className="w-full h-full object-cover opacity-40 grayscale contrast-125"
+            className={`w-full h-full object-cover opacity-40 ${filterClass}`}
           />
         )}
 
@@ -49,7 +50,7 @@ const Hero = () => {
           <img
             src={hero.poster}
             alt=""
-            className="w-full h-full object-cover opacity-40 grayscale contrast-125 hidden motion-reduce:block absolute inset-0"
+            className={`w-full h-full object-cover opacity-40 ${filterClass} hidden motion-reduce:block absolute inset-0`}
           />
         )}
       </motion.div>
