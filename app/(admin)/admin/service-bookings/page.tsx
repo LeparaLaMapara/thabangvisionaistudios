@@ -30,16 +30,16 @@ interface Booking {
 }
 
 const STATUS_COLORS: Record<string, string> = {
-  pending: 'bg-yellow-500/10 text-yellow-400',
   paid: 'bg-blue-500/10 text-blue-400',
   accepted: 'bg-emerald-500/10 text-emerald-400',
+  delivered: 'bg-cyan-500/10 text-cyan-400',
   completed: 'bg-green-500/10 text-green-400',
   paid_out: 'bg-purple-500/10 text-purple-400',
   cancelled: 'bg-red-500/10 text-red-400',
   disputed: 'bg-orange-500/10 text-orange-400',
 };
 
-const TABS = ['all', 'pending', 'paid', 'accepted', 'completed', 'paid_out', 'cancelled'];
+const TABS = ['all', 'paid', 'accepted', 'delivered', 'completed', 'paid_out', 'cancelled'];
 
 export default function AdminServiceBookingsPage() {
   const [bookings, setBookings] = useState<Booking[]>([]);

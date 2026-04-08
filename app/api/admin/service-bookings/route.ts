@@ -12,9 +12,11 @@ export async function GET() {
 
   const supabase = createAdminClient();
 
+  // Only show paid bookings to admin — unpaid/pending auto-cancel after 72h
   const { data, error } = await supabase
     .from('bookings')
     .select('*, creator:profiles!creator_id(id, display_name, avatar_url, crew_slug)')
+    .neq('status', 'pending')
     .order('created_at', { ascending: false });
 
   if (error) {

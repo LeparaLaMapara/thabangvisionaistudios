@@ -130,7 +130,7 @@ export const STUDIO = {
 
   hero: {
     type: 'video',  // 'video' | 'image'
-    colorMode: 'color' as const,  // 'bw' = black & white (grayscale) | 'color' = full color
+    colorMode: 'color' as 'bw' | 'color',  // 'bw' = black & white (grayscale) | 'color' = full color
     imageSrc: 'https://res.cloudinary.com/dzymetqjr/image/upload/v1773909281/hero_image_erskic.avif',
     videoSrc: 'https://res.cloudinary.com/dzymetqjr/video/upload/q_auto/f_auto/v1775368307/hero_htn3xp.mp4',                          // Cloudinary video URL (desktop)
     mobileVideoSrc: 'https://res.cloudinary.com/dzymetqjr/video/upload/q_auto/f_auto/v1775368307/hero_htn3xp.mp4',                    // Smaller video for mobile (falls back to videoSrc)

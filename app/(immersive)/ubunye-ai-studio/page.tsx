@@ -218,6 +218,48 @@ export default function UbunyeAIStudioPage() {
   }), []);
 
   // ─── Auth & session ──
+  const handleAuthUser = useCallback(async (user: { id: string; user_metadata: Record<string, string> } | null) => {
+    if (user) {
+      const wasGuest = !isAuthenticatedRef.current;
+      setIsAuthenticated(true);
+      const meta = user.user_metadata;
+      const name = meta?.display_name || meta?.full_name || meta?.name || null;
+      setUserName(name);
+
+      // Clear guest limits and notify when user signs in mid-conversation
+      if (wasGuest) {
+        setLimitReached(false);
+        setLimitMessage(null);
+        setGuestMessageCount(0);
+        try { sessionStorage.removeItem(SESSION_STORAGE_KEY); } catch { /* SSR */ }
+
+        // Inject a visible assistant message so the AI (and user) knows auth state changed
+        setMessages(prev => {
+          if (prev.length === 0) return prev;
+          return [...prev, {
+            id: `auth-${Date.now()}`,
+            role: 'assistant' as const,
+            parts: [{ type: 'text' as const, text: `Welcome back${name ? `, ${name}` : ''}! You're now signed in. I can see your account and help you with bookings, quotes, and payments. Where were we?` }],
+          }];
+        });
+      }
+
+      try {
+        const res = await fetch('/api/subscriptions/me');
+        const sub = await res.json();
+        if (sub?.subscription_plans?.slug) {
+          const slug = sub.subscription_plans.slug;
+          setUserPlan(slug);
+          const limits: Record<string, number> = { free: 20, starter: 20, pro: 100, 'pro-creator': 100, studio: -1 };
+          setDailyLimit(limits[slug] ?? 20);
+        }
+      } catch { /* fallback to free */ }
+    } else {
+      setIsAuthenticated(false);
+      setUserName(null);
+    }
+  }, [setMessages]);
+
   useEffect(() => {
     const supabase = createClient();
 
@@ -226,25 +268,16 @@ export default function UbunyeAIStudioPage() {
       if (stored) setGuestMessageCount(parseInt(stored, 10) || 0);
     } catch { /* SSR safety */ }
 
-    supabase.auth.getUser().then(async ({ data }) => {
-      if (data.user) {
-        setIsAuthenticated(true);
-        const meta = data.user.user_metadata;
-        setUserName(meta?.display_name || meta?.full_name || meta?.name || null);
+    // Initial auth check
+    supabase.auth.getUser().then(({ data }) => handleAuthUser(data.user));
 
-        try {
-          const res = await fetch('/api/subscriptions/me');
-          const sub = await res.json();
-          if (sub?.subscription_plans?.slug) {
-            const slug = sub.subscription_plans.slug;
-            setUserPlan(slug);
-            const limits: Record<string, number> = { free: 20, starter: 20, pro: 100, 'pro-creator': 100, studio: -1 };
-            setDailyLimit(limits[slug] ?? 20);
-          }
-        } catch { /* fallback to free */ }
-      }
+    // Listen for auth state changes (login from another tab, redirect back, etc.)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      handleAuthUser(session?.user ?? null);
     });
-  }, []);
+
+    return () => { subscription.unsubscribe(); };
+  }, [handleAuthUser]);
 
   // Auto-scroll
   useEffect(() => {

@@ -33,7 +33,6 @@ const STATUS_VARIANT: Record<BookingStatus, 'default' | 'warning' | 'success' | 
 
 const STATUS_OPTIONS = [
   { value: '', label: 'All Statuses' },
-  { value: 'pending', label: 'Pending' },
   { value: 'confirmed', label: 'Confirmed' },
   { value: 'active', label: 'Active' },
   { value: 'completed', label: 'Completed' },
@@ -42,7 +41,7 @@ const STATUS_OPTIONS = [
 
 const TABS = [
   { id: 'all', label: 'All' },
-  { id: 'pending', label: 'Pending' },
+  { id: 'confirmed', label: 'Confirmed' },
   { id: 'active', label: 'Active' },
   { id: 'completed', label: 'Completed' },
 ];

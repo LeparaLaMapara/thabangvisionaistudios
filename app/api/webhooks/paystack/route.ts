@@ -5,6 +5,69 @@ import { logEvent } from '@/lib/data/events';
 
 export const dynamic = 'force-dynamic';
 
+// ─── Transfer (payout) handlers ──────────────────────────────────────────────
+
+async function handleTransferSuccess(raw: Record<string, unknown>) {
+  const reference = (raw.reference as string) || '';
+  if (!reference) return;
+
+  console.log(`[paystack-webhook] TRANSFER SUCCESS: ref=${reference}`);
+
+  const supabase = createAdminClient();
+  const now = new Date().toISOString();
+
+  const { data: booking, error: updateError } = await supabase
+    .from('bookings')
+    .update({
+      payout_status: 'paid',
+      status: 'paid_out',
+      paid_out_at: now,
+      updated_at: now,
+    })
+    .eq('payout_reference', reference)
+    .select('id, reference, creator_id, creator_amount, project_category')
+    .single();
+
+  if (updateError) {
+    console.error('[paystack-webhook] Transfer success update failed:', updateError.message);
+    return;
+  }
+
+  // Notify creator
+  if (booking?.creator_id) {
+    try {
+      await supabase.from('notifications').insert({
+        user_id: booking.creator_id,
+        type: 'payout_complete',
+        title: 'Payout Complete',
+        body: `R${booking.creator_amount} has been transferred to your bank account for ${booking.project_category} (${booking.reference}).`,
+        link: '/dashboard/gigs',
+      });
+    } catch { /* don't block */ }
+  }
+}
+
+async function handleTransferFailed(raw: Record<string, unknown>) {
+  const reference = (raw.reference as string) || '';
+  if (!reference) return;
+
+  console.error(`[paystack-webhook] TRANSFER FAILED: ref=${reference}`);
+
+  const supabase = createAdminClient();
+
+  const { error } = await supabase
+    .from('bookings')
+    .update({
+      payout_status: 'failed',
+      updated_at: new Date().toISOString(),
+    })
+    .eq('payout_reference', reference);
+
+  if (error) {
+    console.error('[paystack-webhook] Transfer failed update error:', error.message);
+  }
+}
+
 // ─── Payment handlers ────────────────────────────────────────────────────────
 
 async function handlePaymentComplete(webhook: WebhookResult) {
@@ -151,6 +214,30 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Invalid signature' }, { status: 401 });
   }
 
+  // ── Handle transfer (payout) events before charge events ──
+  const event = (webhook.raw.event as string) ?? '';
+  if (event === 'transfer.success' || event === 'transfer.failed' || event === 'transfer.reversed') {
+    logEvent({
+      eventType: event === 'transfer.success' ? 'transfer_success' : 'transfer_failed',
+      eventCategory: 'payout',
+      metadata: { reference: webhook.raw.reference, event, provider: 'paystack' },
+    });
+
+    try {
+      if (event === 'transfer.success') {
+        await handleTransferSuccess(webhook.raw);
+      } else {
+        await handleTransferFailed(webhook.raw);
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Unknown error';
+      console.error(`[paystack-webhook] Transfer event error: ${message}`);
+    }
+
+    return new NextResponse('OK', { status: 200 });
+  }
+
+  // ── Handle charge (payment) events ──
   logEvent({
     eventType: `payment_${webhook.status.toLowerCase()}`,
     eventCategory: 'payment',
