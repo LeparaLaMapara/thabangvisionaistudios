@@ -1,6 +1,17 @@
 import { createClient } from '@/lib/supabase/server';
 import type { ProductionCategoryRow } from '@/types/production';
 import { toProductionCategory, type ProductionCategory } from '@/types/production';
+import { PRODUCTION_CATEGORIES } from '@/lib/constants';
+
+/** Merge DB category with constants.ts fallback (e.g. coverImageUrl). */
+function withConstantsFallback(cat: ProductionCategory): ProductionCategory {
+  const fallback = PRODUCTION_CATEGORIES.find((c) => c.slug === cat.slug);
+  if (!fallback) return cat;
+  return {
+    ...cat,
+    coverImageUrl: cat.coverImageUrl || fallback.coverImageUrl || null,
+  };
+}
 
 // ─── Public Queries ──────────────────────────────────────────────────────────
 
@@ -19,7 +30,7 @@ export async function getPublishedCategories(): Promise<ProductionCategory[]> {
     return [];
   }
 
-  return (data as ProductionCategoryRow[]).map(toProductionCategory);
+  return (data as ProductionCategoryRow[]).map(toProductionCategory).map(withConstantsFallback);
 }
 
 /** Returns a single category by slug, or null. */
@@ -40,7 +51,7 @@ export async function getCategoryBySlug(slug: string): Promise<ProductionCategor
     return null;
   }
 
-  return toProductionCategory(data as ProductionCategoryRow);
+  return withConstantsFallback(toProductionCategory(data as ProductionCategoryRow));
 }
 
 // ─── Admin Queries ───────────────────────────────────────────────────────────

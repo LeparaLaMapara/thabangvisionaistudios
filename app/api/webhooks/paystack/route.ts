@@ -14,6 +14,19 @@ async function handleTransferSuccess(raw: Record<string, unknown>) {
   console.log(`[paystack-webhook] TRANSFER SUCCESS: ref=${reference}`);
 
   const supabase = createAdminClient();
+
+  // Idempotency: skip if already paid out
+  const { data: existing } = await supabase
+    .from('bookings')
+    .select('id, payout_status')
+    .eq('payout_reference', reference)
+    .single();
+
+  if (existing?.payout_status === 'paid') {
+    console.log(`[paystack-webhook] Transfer already processed: ref=${reference}`);
+    return;
+  }
+
   const now = new Date().toISOString();
 
   const { data: booking, error: updateError } = await supabase
@@ -54,6 +67,18 @@ async function handleTransferFailed(raw: Record<string, unknown>) {
   console.error(`[paystack-webhook] TRANSFER FAILED: ref=${reference}`);
 
   const supabase = createAdminClient();
+
+  // Idempotency: skip if already paid (success arrived first) or already marked failed
+  const { data: existing } = await supabase
+    .from('bookings')
+    .select('id, payout_status')
+    .eq('payout_reference', reference)
+    .single();
+
+  if (existing?.payout_status === 'paid' || existing?.payout_status === 'failed') {
+    console.log(`[paystack-webhook] Transfer already processed (${existing.payout_status}): ref=${reference}`);
+    return;
+  }
 
   const { error } = await supabase
     .from('bookings')
