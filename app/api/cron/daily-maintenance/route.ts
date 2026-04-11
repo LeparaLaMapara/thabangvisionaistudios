@@ -18,6 +18,8 @@ import { STUDIO } from '@/lib/constants';
  * 5. Auto-complete stale accepted bookings (30+ days)
  * 6. Expire stale crew requests
  * 7. Auto-reassign unresponsive creators (48h with no acknowledgement)
+ * 8. Auto-detect overdue rentals
+ * 9. Auto-escalate unreturned gear to disputes (14+ days overdue)
  */
 export async function GET(request: NextRequest): Promise<NextResponse> {
   const authError = validateCronAuth(request);
@@ -288,6 +290,49 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   } catch (err) {
     console.error('[daily-maintenance] overdue rental detection failed:', err);
     results.overdueRentals = { error: String(err) };
+  }
+
+  // ─── 9. Auto-escalate unreturned gear to disputes (14+ days overdue) ──────
+  try {
+    const fourteenDaysAgo = new Date();
+    fourteenDaysAgo.setDate(fourteenDaysAgo.getDate() - 14);
+    const cutoff = fourteenDaysAgo.toISOString().split('T')[0];
+
+    const { data: unreturned } = await supabase
+      .from('equipment_bookings')
+      .select('id, user_id, rental_id')
+      .eq('status', 'overdue')
+      .lt('end_date', cutoff);
+
+    let escalated = 0;
+    for (const booking of unreturned ?? []) {
+      // Check no existing dispute
+      const { data: existing } = await supabase
+        .from('disputes')
+        .select('id')
+        .eq('equipment_booking_id', booking.id)
+        .eq('dispute_type', 'gear_not_returned')
+        .maybeSingle();
+
+      if (!existing) {
+        await supabase.from('disputes').insert({
+          dispute_type: 'gear_not_returned',
+          equipment_booking_id: booking.id,
+          filed_by: booking.user_id,
+          reason: 'Gear not returned after 14+ days overdue. Auto-escalated.',
+          status: 'open',
+        });
+        await supabase
+          .from('equipment_bookings')
+          .update({ status: 'disputed', disputed_at: new Date().toISOString() })
+          .eq('id', booking.id);
+        escalated++;
+      }
+    }
+    results.disputeEscalation = { escalated };
+  } catch (err) {
+    console.error('[daily-maintenance] dispute escalation failed:', err);
+    results.disputeEscalation = { error: String(err) };
   }
 
   console.log('[daily-maintenance] Results:', JSON.stringify(results));
