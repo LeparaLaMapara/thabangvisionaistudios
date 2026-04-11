@@ -27,6 +27,10 @@ When we launch, "AI-powered onboarding" is the headline feature. Not "coming soo
 
 ## Architecture — Hybrid AI Strategy
 
+> Full agent architecture: **`docs/processes/ubunye-agents.md`**
+> This task builds 2 of the 5 Ubunye agents: **Onboarding** and **Portfolios** (both Gemma 4, free).
+> It also touches **Rates** (Claude Sonnet, P2).
+
 ```
 GEMMA 4 VISION (free via Google AI Studio):
   ✓ Identify gear from photos OF equipment (camera bodies, lenses, lights, drones)
@@ -161,30 +165,42 @@ Then update all consumers to import from constants:
 
 ## The Five-Step Onboarding Flow
 
-### STEP 1 — Identity Pre-Fill (30 seconds)
+### STEP 1 — Identity Capture (30 seconds) — MANDATORY
 
-**Aim:** Pre-fill creator profile from ID document. NOT verification — labelled as "pre-fill" with manual fallback.
+**Aim:** Capture creator identity via ID document. Required for all users who list gear or rent gear. Gemma pre-fills fields from the photo to reduce typing.
+
+**Who must complete this:**
+- Creators listing gear for rent — before their first listing goes live
+- Renters booking gear — before their first booking is confirmed
+- You cannot transact on ThabangVision without completing this step
 
 **Flow:**
 ```
 Creator lands on /onboarding
-"Let's set up your profile — upload your ID to skip the typing"
+"Upload your SA ID — we need this to protect both you and renters"
 
-Upload ID front → Gemma Vision extracts:
-  ✓ First name
-  ✓ Last name
-  ✓ ID number
-  ✓ Date of birth
+OPTION A — Upload ID photo (fastest):
+  Upload ID front → Gemma Vision extracts:
+    ✓ First name
+    ✓ Last name
+    ✓ ID number
+    ✓ Date of birth
+  All fields auto-fill. Creator reviews and confirms.
 
-All fields auto-fill. Creator can edit any field manually.
-"Skip" option always visible for creators who prefer to type.
+OPTION B — Type manually (fallback if photo extraction fails):
+  Creator types first name, last name, ID number, date of birth.
+  All fields are required. No skipping.
+
+Either way, ID details are captured and stored.
 Creator clicks "Confirm" button.
 Done.
 ```
 
-**Important:** This is NOT identity verification. It is convenience pre-fill only. True KYC (liveness detection, fraud prevention) is deferred to a future task with a proper provider (e.g., Smile Identity). The UI must NOT say "verified" — it says "profile completed."
+**Important:** This is identity CAPTURE, not full KYC verification. Gemma pre-fills to reduce friction, but it does not do liveness detection or fraud checks. True KYC (liveness, face match, fraud prevention) is deferred to Phase 6 with a proper provider (e.g., Smile Identity). For launch, we store the ID data and the uploaded photo for manual review if disputes arise.
 
-**What it solves:** Removes 2 minutes of typing for creators who have their ID handy.
+**Why mandatory:** If someone rents gear and damages it or doesn't return it, we need to know who they are. No ID = no transactions.
+
+**What it solves:** Captures identity with minimal friction (AI pre-fill vs manual typing).
 
 ---
 
@@ -333,19 +349,17 @@ PRIORITY 0 (PRE-REQUISITE):
   This unblocks everything else.
 
 PRIORITY 1 (MUST HAVE FOR LAUNCH):
+  ✓ Step 1: ID capture (mandatory — no transactions without ID)
   ✓ Step 2: Portfolio upload + Gemma scene tagging
   ✓ Step 3: Skills detection from portfolio
   ✓ Step 5: Gear-to-rental auto-listing (constrained to RENTAL_CATEGORIES)
 
-  These three are the strongest value prop and lowest risk.
-  Launch with these.
+  All four are required for launch. ID is non-negotiable for trust/safety.
 
 PRIORITY 2 (WEEK 2 AFTER LAUNCH):
   ✓ Step 4: Claude rate suggestions
-  ✓ Step 1: ID pre-fill (convenience, not verification)
 
   Rate suggestions add business value but can come after first creators sign up.
-  ID pre-fill is nice-to-have — most creators can type their name.
 
 PRIORITY 3 (MONTH 2):
   True KYC with a proper provider (Smile Identity or similar)
@@ -358,29 +372,33 @@ PRIORITY 3 (MONTH 2):
 
 ## Implementation
 
-### 1. Google AI Studio Setup (Gemma 4 Vision)
+### 1. Google AI Studio Setup (Gemma 4)
 
-**Get free API key:**
-- Go to https://aistudio.google.com/apikey
-- Create API key (free tier: 1,500 requests/day)
-- Add to `.env.local`: `GOOGLE_AI_API_KEY=xxx`
+**API key:** Already configured as `GEMINI_API_KEY` in `.env.local`
+- Free tier: 15 RPM, 256K context window, no credit card required
+- Same `@google/generative-ai` SDK used for both Gemma and Gemini models
+- Model ID: `gemma-4-31b-it` (31B dense, multimodal with full vision support)
 
 **Install SDK:**
 ```bash
 npm install @google/generative-ai
 ```
 
-### 2. Vision Provider
+### 2. Gemma 4 Vision Tools
 
-Create `lib/ai/providers/gemma-vision.ts`:
+Create `lib/agents/tools/vision.ts`:
 
 ```typescript
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { RENTAL_CATEGORIES, type RentalCategorySlug } from '@/lib/constants';
 
-const client = new GoogleGenerativeAI(process.env.GOOGLE_AI_API_KEY!);
+const client = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
+
+// Gemma 4 models available via Google AI Studio:
+//   'gemma-4-31b-it'      — 31B dense, highest quality (gear ID, scene tagging)
+//   'gemma-4-26b-a4b-it'  — 26B MoE, faster/lighter
 const model = client.getGenerativeModel({
-  model: 'gemini-2.0-flash-exp'
+  model: 'gemma-4-31b-it'
 });
 
 const CATEGORY_LIST = RENTAL_CATEGORIES.map(c => `"${c.value}" (${c.label})`).join(', ');
@@ -449,52 +467,35 @@ export async function extractIdDocument(imageUrl: string) {
 }
 ```
 
-### 3. Add to Agent Registry
+### 3. Agent Layer Setup
 
-Update `lib/constants.ts`:
+> See `docs/processes/ubunye-agents.md` for full architecture.
 
-```typescript
-AGENTS: {
-  // ... existing
+Create the agent framework and register the onboarding + portfolios agents:
 
-  'portfolio-analyzer': {
-    status: 'active',
-    name: 'Portfolio Analyzer',
-    defaultModel: 'gemini-2.0-flash-exp',
-    endpoint: '/api/onboarding/analyze-portfolio',
-    costTier: 'free',
-    budgetDailyUsd: 0,
-    tools: [],
-  },
-  'gear-classifier': {
-    status: 'active',
-    name: 'Gear Category Classifier',
-    defaultModel: 'gemini-2.0-flash-exp',
-    endpoint: '/api/onboarding/classify-gear',
-    costTier: 'free',
-    budgetDailyUsd: 0,
-    tools: [],
-  },
-  'rate-suggester': {
-    status: 'active',
-    name: 'Rate Suggester',
-    defaultModel: 'claude-sonnet-4-20250514',
-    endpoint: '/api/onboarding/suggest-rates',
-    costTier: 'medium',
-    budgetDailyUsd: 5,
-    tools: [],
-  },
-}
+```
+lib/agents/
+├── types.ts                  # UbunyeAgent, AgentTool, AgentContext interfaces
+├── registry.ts               # UBUNYE_AGENTS map
+├── runtime.ts                # Shared: auth → rate limit → prompt → execute → cost
+├── agents/
+│   ├── onboarding.ts         # Gemma 4 — ID capture, gear ID, category mapping
+│   └── portfolios.ts         # Gemma 4 — scene tagging, skills detection
+└── tools/
+    ├── vision.ts             # identify_gear, classify_category, extract_id
+    └── portfolio.ts          # analyze_scene, score_quality, detect_skills
 ```
 
-### 5. API Routes
+### 4. API Routes
 
-- `POST /api/onboarding/analyze-portfolio` — Gemma scene tagging for portfolio photos
-- `POST /api/onboarding/detect-skills` — aggregate portfolio into skill percentages
-- `POST /api/onboarding/identify-gear` — Gemma identifies gear from photo, maps to RENTAL_CATEGORIES
-- `POST /api/onboarding/create-rentals` — auto-create rental listings from identified gear
-- `POST /api/onboarding/suggest-rates` — Claude generates rate suggestions (P2)
-- `POST /api/onboarding/prefill-id` — Gemma extracts fields from ID photo (P2)
+Each agent gets its own endpoint (explicit routing, not auto-routing):
+
+- `POST /api/agents/onboarding` — Ubunye Onboarding agent (Gemma 4)
+  - Actions: `capture-id`, `identify-gear`, `classify-gear-category`, `create-rentals`
+- `POST /api/agents/portfolios` — Ubunye Portfolios agent (Gemma 4)
+  - Actions: `analyze-portfolio`, `detect-skills`
+- `POST /api/agents/rates` — Ubunye Rates agent (Claude Sonnet, P2)
+  - Actions: `suggest-rates`
 
 ### 6. Database Schema
 
@@ -538,8 +539,8 @@ create table onboarding_progress (
 - `components/onboarding/StepPortfolioUpload.tsx` — drag-and-drop + Gemma scene analysis
 - `components/onboarding/StepSkillsDetection.tsx` — skill breakdown with edit
 - `components/onboarding/StepGearRentals.tsx` — gear-to-rental with category mapping
+- `components/onboarding/StepIdCapture.tsx` — mandatory ID upload/manual entry
 - `components/onboarding/StepRateSuggestions.tsx` — Claude rate suggestions (P2)
-- `components/onboarding/StepIdPrefill.tsx` — ID pre-fill (P2)
 
 Use Cloudinary for all image uploads. Use `react-dropzone` for drag-and-drop.
 
@@ -551,22 +552,26 @@ Use Cloudinary for all image uploads. Use `react-dropzone` for drag-and-drop.
 
 2. **Constrained category classification.** Gemma picks from the 9 `RENTAL_CATEGORIES` defined in constants.ts. If it returns an invalid value, fallback to `specialized-solutions`. No hallucinated categories.
 
-3. **ID upload is pre-fill, not verification.** We don't claim to verify identity. The UI says "pre-fill your profile" with a manual fallback always visible. True KYC is a separate future task with a real provider.
+3. **ID capture is mandatory, not optional.** No transactions (listing or renting) without ID on file. Gemma pre-fills fields from the photo to reduce friction, but manual typing is the fallback — not skipping. True KYC (liveness, face match) is a separate future task with a proper provider.
 
 4. **5 photos minimum, not 20.** SA mobile data is expensive. 5 good photos is enough for skill detection. Creators can add more later.
 
-5. **Build order: categories → portfolio → skills → gear listings → rates → ID.** Start with the highest-value, lowest-risk features. ID pre-fill and rate suggestions come later.
+5. **Build order: categories → agent framework → Gemma tools → ID capture → portfolio → skills → gear listings → rates.** Agent framework first so all agents share the same runtime. ID capture is mandatory and comes early. Rate suggestions can come after launch.
+
+6. **Agent abstraction layer.** Ubunye is 5 specialized agents, not one monolith. Each has focused tools and its own model. They share auth, rate limiting, cost tracking, and streaming through `lib/agents/runtime.ts`. See `docs/processes/ubunye-agents.md`.
 
 ---
 
 ## Acceptance Criteria
 
 - [ ] RENTAL_CATEGORIES centralized in lib/constants.ts (all consumers updated)
+- [ ] ID capture is mandatory — cannot list gear or book rentals without it
+- [ ] Gemma pre-fills ID fields from photo, manual typing as fallback (not skip)
 - [ ] Creator can complete onboarding in under 5 minutes
 - [ ] Gemma identifies gear brand/model from uploaded gear photos
 - [ ] Gemma scene classification accuracy > 85% for scene types
 - [ ] Gear-to-category mapping always produces a valid RENTAL_CATEGORIES value
-- [ ] All Gemma calls use free Google AI Studio tier
+- [ ] All Gemma 4 calls use free Google AI Studio tier (gemma-4-31b-it, 15 RPM)
 - [ ] Claude only used for rate suggestions and descriptions
 - [ ] Progress indicator shows creator where they are
 - [ ] Creator can edit auto-tags and category mappings if wrong
@@ -579,8 +584,7 @@ Use Cloudinary for all image uploads. Use `react-dropzone` for drag-and-drop.
 
 ## Out of Scope
 
-- True KYC / identity verification (future task with proper provider)
-- Face matching / liveness detection
+- True KYC with liveness detection and face matching (Phase 6 — proper provider like Smile Identity)
 - Voice input (Phase 2)
 - Portfolio quality coaching (Phase 2)
 - Multi-language ID extraction (Phase 2 — SA IDs only for now)
@@ -611,12 +615,13 @@ This is the difference between
 ## Commit Strategy
 
 1. `refactor: centralize RENTAL_CATEGORIES in lib/constants.ts`
-2. `feat: add Gemma vision provider via Google AI Studio`
-3. `feat: portfolio upload + scene tagging API + UI`
-4. `feat: skills detection from portfolio`
-5. `feat: gear identification + auto-listing with category mapping`
-6. `feat: onboarding flow with progress tracking`
-7. `feat: Claude rate suggestion API` (P2)
-8. `feat: ID pre-fill with Gemma vision` (P2)
+2. `feat: Ubunye agent framework (types, registry, runtime, router)`
+3. `feat: Gemma 4 vision tools (identify gear, classify category, extract ID)`
+4. `feat: Ubunye Onboarding agent — mandatory ID capture with Gemma pre-fill`
+5. `feat: Ubunye Portfolios agent — portfolio upload + scene tagging`
+6. `feat: skills detection from portfolio analysis`
+7. `feat: gear identification + auto-listing with category mapping`
+8. `feat: onboarding flow with progress tracking`
+9. `feat: Ubunye Rates agent — Claude rate suggestions` (P2)
 
-PR title: "TASK-035: AI-powered creator onboarding (Gemma Vision + Claude)"
+PR title: "TASK-035: AI-powered creator onboarding (Ubunye Onboarding + Portfolios agents)"

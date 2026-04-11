@@ -36,6 +36,7 @@ All external services go through abstraction layers in `lib/`. Each layer has a 
 | Layer | File | Env Var | Active Provider | Alternatives |
 |-------|------|---------|-----------------|--------------|
 | AI | `lib/ai/index.ts` | `AI_PROVIDER=anthropic` | Anthropic Claude | OpenAI, Gemini |
+| Agents | `lib/agents/index.ts` | `AGENT_*_ENABLED=true` | 5 Ubunye agents | See `docs/processes/ubunye-agents.md` |
 | Auth | `lib/auth/index.ts` | `AUTH_PROVIDER=supabase` | Supabase | (extensible) |
 | Payments | `lib/payments/index.ts` | `PAYMENT_PROVIDER=payfast` | PayFast | Paystack |
 | Storage | `lib/storage/index.ts` | `STORAGE_PROVIDER=cloudinary` | Cloudinary | Supabase Storage (stub), S3 (stub) |
@@ -199,6 +200,32 @@ lib/search/
 ```
 
 **Input sanitization:** All search queries strip PostgREST special characters (`%`, `_`, `\`) before `ilike` queries.
+
+---
+
+## 7. Agent Layer (`lib/agents/`)
+
+Five specialized Ubunye agents sharing a common runtime. Full design doc: **`docs/processes/ubunye-agents.md`**
+
+```
+lib/agents/
+  types.ts        UbunyeAgent interface, AgentTool, AgentContext
+  registry.ts     All 5 agents registered
+  runtime.ts      Shared: auth → rate limit → prompt → execute → cost
+  router.ts       Assistant → specialist hand-off
+  agents/         One file per agent (assistant, booking, onboarding, portfolios, rates)
+  tools/          Shared tool implementations (search, booking, vision, portfolio, pricing)
+```
+
+| Agent | Model | Cost | Endpoint |
+|-------|-------|------|----------|
+| Assistant | Claude + Gemini routing | Medium | `/api/agents/assistant` |
+| Booking | Claude Sonnet | Medium | `/api/agents/booking` |
+| Onboarding | Gemma 4 (free) | Free | `/api/agents/onboarding` |
+| Portfolios | Gemma 4 (free) | Free | `/api/agents/portfolios` |
+| Rates | Claude Sonnet | Medium | `/api/agents/rates` |
+
+**Key principle:** Onboarding and Portfolios use Gemma 4 via Google AI Studio (free tier, 15 RPM). The highest-volume agents cost nothing. Claude is reserved for reasoning tasks (booking, rates).
 
 ---
 
