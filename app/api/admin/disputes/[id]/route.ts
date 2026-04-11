@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/auth';
 import { createAdminClient } from '@/lib/supabase/server';
 import { refundPayment } from '@/lib/payments/paystack';
+import { sendDisputeResolved } from '@/lib/email';
 
 const VALID_STATUSES = ['open', 'investigating', 'resolved', 'escalated', 'dismissed'];
 const VALID_RESOLUTIONS = [
@@ -283,6 +284,30 @@ export async function PATCH(
         });
       } catch {
         // Don't block
+      }
+    }
+
+    // Send resolution email to filer
+    if (resolution && status === 'resolved') {
+      try {
+        const { data: filerProfile } = await supabase
+          .from('profiles')
+          .select('email, display_name')
+          .eq('id', dispute.filed_by)
+          .single();
+
+        if (filerProfile?.email) {
+          await sendDisputeResolved({
+            email: filerProfile.email,
+            displayName: filerProfile.display_name || '',
+            disputeType: dispute.dispute_type,
+            resolution,
+            resolutionNotes: resolution_notes ?? undefined,
+            refundAmount: resolution_amount ?? undefined,
+          });
+        }
+      } catch {
+        // Email failure shouldn't block
       }
     }
 

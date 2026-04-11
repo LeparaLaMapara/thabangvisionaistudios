@@ -3,6 +3,7 @@ export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/auth';
 import { createAdminClient } from '@/lib/supabase/server';
+import { sendAccountReinstated } from '@/lib/email';
 
 // ─── POST — Reinstate a suspended user (admin only) ─────────────────────────
 
@@ -82,6 +83,24 @@ export async function POST(
 
     if (logError) {
       console.error('[admin/users/reinstate] Log error:', logError.message);
+    }
+
+    // Send reinstatement email
+    try {
+      const { data: userProfile } = await supabase
+        .from('profiles')
+        .select('email, display_name')
+        .eq('id', targetUserId)
+        .single();
+
+      if (userProfile?.email) {
+        await sendAccountReinstated({
+          email: userProfile.email,
+          displayName: userProfile.display_name || '',
+        });
+      }
+    } catch {
+      // Email failure shouldn't block the response
     }
 
     return NextResponse.json({ success: true, message: 'User reinstated.' });

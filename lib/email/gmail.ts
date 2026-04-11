@@ -7,6 +7,10 @@ import type {
   VerificationApprovedParams,
   VerificationRejectedParams,
   BookingConfirmationParams,
+  AccountSuspendedParams,
+  AccountReinstatedParams,
+  DisputeFiledParams,
+  DisputeResolvedParams,
 } from './types';
 
 // ─── Gmail / Nodemailer Provider ────────────────────────────────────────────
@@ -157,6 +161,130 @@ export const gmail: EmailProvider = {
           <tr><td style="padding: 4px 12px 4px 0; font-weight: bold;">Total</td><td>${escapeHtml(formattedTotal)}</td></tr>
         </table>
         <p>Thank you for choosing ${STUDIO.name}.</p>
+        <br />
+        <p>— ${STUDIO.name}</p>
+      `,
+    });
+  },
+
+  async sendAccountSuspended({
+    email,
+    displayName,
+    reason,
+    expiresAt,
+    supportEmail,
+  }: AccountSuspendedParams): Promise<void> {
+    const greeting = displayName || 'there';
+    const duration = expiresAt
+      ? `Your suspension is effective until ${new Date(expiresAt).toLocaleDateString('en-ZA', { day: 'numeric', month: 'long', year: 'numeric' })}.`
+      : 'This suspension is effective immediately and has no set end date.';
+
+    await this.sendEmail({
+      to: email,
+      subject: `Account Suspended — ${STUDIO.name}`,
+      text: `Hi ${greeting},\n\nYour account on ${STUDIO.name} has been suspended.\n\nReason: ${reason}\n\n${duration}\n\nYou can still log in to view your history, but you cannot make new transactions.\n\nTo appeal, contact ${supportEmail}.\n\n— ${STUDIO.name}`,
+      html: `
+        <h2>Account Suspended</h2>
+        <p>Hi ${escapeHtml(greeting)},</p>
+        <p>Your account on ${STUDIO.name} has been <strong>suspended</strong>.</p>
+        <p><strong>Reason:</strong> ${escapeHtml(reason)}</p>
+        <p>${escapeHtml(duration)}</p>
+        <p>You can still log in to view your history, but you cannot make new transactions.</p>
+        <p>To appeal, contact <a href="mailto:${escapeHtml(supportEmail)}">${escapeHtml(supportEmail)}</a>.</p>
+        <br />
+        <p>— ${STUDIO.name}</p>
+      `,
+    });
+  },
+
+  async sendAccountReinstated({
+    email,
+    displayName,
+  }: AccountReinstatedParams): Promise<void> {
+    const greeting = displayName || 'there';
+
+    await this.sendEmail({
+      to: email,
+      subject: `Account Reinstated — ${STUDIO.name}`,
+      text: `Hi ${greeting},\n\nGreat news! Your account on ${STUDIO.name} has been reinstated. You now have full access to all platform features again.\n\nPlease review and republish any listings that were deactivated during your suspension.\n\nThank you.\n\n— ${STUDIO.name}`,
+      html: `
+        <h2>Account Reinstated</h2>
+        <p>Hi ${escapeHtml(greeting)},</p>
+        <p>Great news! Your account on ${STUDIO.name} has been <strong>reinstated</strong>. You now have full access to all platform features again.</p>
+        <p>Please review and republish any listings that were deactivated during your suspension.</p>
+        <p>Thank you.</p>
+        <br />
+        <p>— ${STUDIO.name}</p>
+      `,
+    });
+  },
+
+  async sendDisputeFiled({
+    email,
+    displayName,
+    disputeType,
+    disputeId,
+    role,
+  }: DisputeFiledParams): Promise<void> {
+    const greeting = displayName || 'there';
+    const typeLabel = disputeType.replace(/_/g, ' ');
+    const ref = disputeId.slice(0, 8).toUpperCase();
+
+    const roleMessage = role === 'filer'
+      ? 'Your dispute has been submitted and our team will review it shortly.'
+      : role === 'admin'
+      ? `A new ${typeLabel} dispute (${ref}) requires your review.`
+      : `A ${typeLabel} dispute (${ref}) has been filed on a booking you are part of. Our team will review it and keep you informed.`;
+
+    await this.sendEmail({
+      to: email,
+      subject: `Dispute Filed — ${ref} — ${STUDIO.name}`,
+      text: `Hi ${greeting},\n\n${roleMessage}\n\nDispute Reference: ${ref}\nType: ${typeLabel}\n\nYou can view the dispute details and add comments in your dashboard.\n\n— ${STUDIO.name}`,
+      html: `
+        <h2>Dispute Filed</h2>
+        <p>Hi ${escapeHtml(greeting)},</p>
+        <p>${escapeHtml(roleMessage)}</p>
+        <table style="border-collapse: collapse; margin: 16px 0;">
+          <tr><td style="padding: 4px 12px 4px 0; font-weight: bold;">Reference</td><td>${ref}</td></tr>
+          <tr><td style="padding: 4px 12px 4px 0; font-weight: bold;">Type</td><td>${escapeHtml(typeLabel)}</td></tr>
+        </table>
+        <p>You can view the dispute details and add comments in your dashboard.</p>
+        <br />
+        <p>— ${STUDIO.name}</p>
+      `,
+    });
+  },
+
+  async sendDisputeResolved({
+    email,
+    displayName,
+    disputeType,
+    resolution,
+    resolutionNotes,
+    refundAmount,
+  }: DisputeResolvedParams): Promise<void> {
+    const greeting = displayName || 'there';
+    const typeLabel = disputeType.replace(/_/g, ' ');
+    const resolutionLabel = resolution.replace(/_/g, ' ');
+    const refundLine = refundAmount && refundAmount > 0
+      ? `\nRefund Amount: R${refundAmount.toLocaleString('en-ZA')}`
+      : '';
+    const notesLine = resolutionNotes ? `\nNotes: ${resolutionNotes}` : '';
+
+    await this.sendEmail({
+      to: email,
+      subject: `Dispute Resolved — ${STUDIO.name}`,
+      text: `Hi ${greeting},\n\nYour ${typeLabel} dispute has been resolved.\n\nResolution: ${resolutionLabel}${refundLine}${notesLine}\n\nIf you have any questions about this resolution, please contact our support team.\n\n— ${STUDIO.name}`,
+      html: `
+        <h2>Dispute Resolved</h2>
+        <p>Hi ${escapeHtml(greeting)},</p>
+        <p>Your <strong>${escapeHtml(typeLabel)}</strong> dispute has been resolved.</p>
+        <table style="border-collapse: collapse; margin: 16px 0;">
+          <tr><td style="padding: 4px 12px 4px 0; font-weight: bold;">Resolution</td><td>${escapeHtml(resolutionLabel)}</td></tr>
+          ${refundAmount && refundAmount > 0 ? `<tr><td style="padding: 4px 12px 4px 0; font-weight: bold;">Refund</td><td>R${refundAmount.toLocaleString('en-ZA')}</td></tr>` : ''}
+          ${resolutionNotes ? `<tr><td style="padding: 4px 12px 4px 0; font-weight: bold;">Notes</td><td>${escapeHtml(resolutionNotes)}</td></tr>` : ''}
+        </table>
+        <p>If you have any questions about this resolution, please contact our support team.</p>
         <br />
         <p>— ${STUDIO.name}</p>
       `,

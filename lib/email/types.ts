@@ -35,6 +35,36 @@ export type BookingConfirmationParams = {
   currency: string;
 };
 
+export type AccountSuspendedParams = {
+  email: string;
+  displayName: string;
+  reason: string;
+  expiresAt?: string; // ISO date, null = permanent
+  supportEmail: string;
+};
+
+export type AccountReinstatedParams = {
+  email: string;
+  displayName: string;
+};
+
+export type DisputeFiledParams = {
+  email: string;
+  displayName: string;
+  disputeType: string;
+  disputeId: string;
+  role: 'filer' | 'other_party' | 'admin';
+};
+
+export type DisputeResolvedParams = {
+  email: string;
+  displayName: string;
+  disputeType: string;
+  resolution: string;
+  resolutionNotes?: string;
+  refundAmount?: number;
+};
+
 /**
  * Unified email provider interface.
  *
@@ -62,4 +92,16 @@ export interface EmailProvider {
 
   /** Send a booking confirmation to the customer. */
   sendBookingConfirmation(params: BookingConfirmationParams): Promise<void>;
+
+  /** Notify a user their account has been suspended. */
+  sendAccountSuspended(params: AccountSuspendedParams): Promise<void>;
+
+  /** Notify a user their account has been reinstated. */
+  sendAccountReinstated(params: AccountReinstatedParams): Promise<void>;
+
+  /** Notify parties that a dispute has been filed. */
+  sendDisputeFiled(params: DisputeFiledParams): Promise<void>;
+
+  /** Notify parties of a dispute resolution. */
+  sendDisputeResolved(params: DisputeResolvedParams): Promise<void>;
 }

@@ -1,770 +1,362 @@
-# TASK-038: Verification Redesign — Selfie + ID with EXIF Fraud Detection
-## Priority: HIGH | Phase: V3 | Depends on: TASK-036 (auth fixes), avatar upload working
-## Created: 2026-03-18
+# TASK-038 — User Suspension & Admin Moderation
+
+## Branch
+feature/task-038-user-moderation
+
+## Mission
+Give admins the ability to suspend bad actors. Right now you can verify users and change roles, but you can't stop someone from transacting after they've damaged gear, filed fake disputes, or violated platform rules. One toggle and a reason — that's the minimum.
 
 ---
 
-## Pre-Session Setup
+## What Already Exists
 
-```
-/new-session
-```
-Branch name: `feature/task-038-verification-redesign`
+| Component | Status | Location |
+|-----------|--------|----------|
+| Role system: `user`, `admin`, `moderator` | Works | `supabase/migrations/20260312000005_admin_roles.sql` |
+| Admin users page | Lists users, changes roles | `app/(admin)/admin/users/page.tsx` |
+| Admin users API | GET list, PATCH role | `app/api/admin/users/route.ts` |
+| ID verification review | Admin reviews submitted IDs | `app/(admin)/admin/verifications/page.tsx` |
+| Fraud detection columns | `verification_fraud_flags`, `id_document_hash`, IP, user agent | `supabase/migrations/20260312000008_verification_redesign.sql` |
+| Auth middleware | Checks session + admin email | `lib/auth/` |
+| ADMIN_EMAILS | Controls admin access | `lib/constants.ts` |
 
-Read these files first:
-```
-Read CLAUDE.md
-Read MEMORY.md
-Read lib/constants.ts
-Read app/(platform)/dashboard/verification/page.tsx
-Read app/api/verifications/route.ts (or wherever verification submission is handled)
-Read app/(admin)/admin/verifications/page.tsx (or wherever admin reviews verifications)
-Read lib/supabase/queries/verifications.ts (if exists)
-```
+## What's Missing
 
----
-
-## Context
-
-Current verification requires 3 certified documents (SA ID front, SA ID back, proof of address). Real users find this confusing and difficult. Simplify to: take a photo of your ID (front + back) and a selfie holding your ID. Platform extracts EXIF metadata from photos and runs automated fraud detection to assist admin review. Admin sees full metadata, fraud flags, and documents before approving or rejecting.
-
-> **V5 follow-up:** AI screening with Claude Vision (face matching, ID readability, auto-extraction of ID number/name) will be added in a future task. The `verification_ai_check` column is included in the migration so it's ready when needed.
+- No `is_suspended` or `suspended_at` column on profiles
+- No suspension reason tracking
+- No suspension UI for admins
+- No enforcement — suspended users can still log in, book, list
+- No suspension history / audit log
+- No appeal or reinstatement process
+- No automated suspension triggers
+- No listing deactivation when user is suspended
 
 ---
 
-## Database Migration
+## Database Changes
 
-Create `lib/migrations/008-verification-redesign.sql`:
+### Migration: Add suspension columns to `profiles`
 
 ```sql
--- ═══ 0. Drop legacy proof_of_address column ═══
-alter table profiles drop column if exists proof_of_address_path;
+ALTER TABLE profiles
+  ADD COLUMN IF NOT EXISTS is_suspended BOOLEAN DEFAULT false,
+  ADD COLUMN IF NOT EXISTS suspended_at TIMESTAMPTZ,
+  ADD COLUMN IF NOT EXISTS suspended_by UUID REFERENCES profiles(id),
+  ADD COLUMN IF NOT EXISTS suspension_reason TEXT,
+  ADD COLUMN IF NOT EXISTS suspension_expires_at TIMESTAMPTZ;  -- null = permanent
 
--- ═══ 1. Add new verification columns ═══
+CREATE INDEX idx_profiles_suspended ON profiles(is_suspended) WHERE is_suspended = true;
+```
 
--- Selfie with ID path
-alter table profiles add column if not exists
-  selfie_with_id_path text;
+### New table: `moderation_log`
 
--- EXIF metadata from all verification photos
-alter table profiles add column if not exists
-  verification_metadata jsonb default null;
+```sql
+CREATE TABLE IF NOT EXISTS moderation_log (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES profiles(id),
+  action TEXT NOT NULL CHECK (action IN (
+    'suspended', 'reinstated', 'warning_issued', 'listing_removed', 'verification_rejected'
+  )),
+  reason TEXT NOT NULL,
+  admin_id UUID NOT NULL REFERENCES profiles(id),
+  dispute_id UUID REFERENCES disputes(id),    -- Optional link to dispute
+  metadata JSONB DEFAULT '{}',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
 
--- AI screening results from Claude Vision
-alter table profiles add column if not exists
-  verification_ai_check jsonb default null;
-
--- Fraud flags detected by automated checks
-alter table profiles add column if not exists
-  verification_fraud_flags jsonb default '[]';
-
--- Hash of ID document for duplicate detection
-alter table profiles add column if not exists
-  id_document_hash text;
-
--- IP and device info from submission
-alter table profiles add column if not exists
-  verification_ip text;
-
-alter table profiles add column if not exists
-  verification_user_agent text;
-
--- Number of submission attempts
-alter table profiles add column if not exists
-  verification_attempts integer default 0;
-
--- Index for duplicate hash detection
-create index if not exists idx_profiles_id_hash
-  on profiles (id_document_hash)
-  where id_document_hash is not null;
+CREATE INDEX idx_moderation_log_user ON moderation_log(user_id);
+CREATE INDEX idx_moderation_log_action ON moderation_log(action);
 ```
 
 ---
 
-## Implementation
+## What Suspension Blocks
 
-### PART 1: Verification Page Redesign
+When `is_suspended = true`, the user CANNOT:
 
-#### 1A. Update verification page — `app/(platform)/dashboard/verification/page.tsx`
+| Action | Where enforced |
+|--------|----------------|
+| Book gear | `POST /api/cart/checkout` — check `is_suspended` |
+| Book a creator | `POST /api/service-bookings` — check `is_suspended` |
+| List gear for rent | `POST /api/rentals` — check `is_suspended` |
+| Accept bookings | `PATCH /api/service-bookings/[id]` — check `is_suspended` |
+| Chat with Ubunye Booking | Agent runtime — check `is_suspended` |
+| Upload to portfolio | `POST /api/agents/portfolios` — check `is_suspended` |
 
-Replace the current 3-document upload with a guided 3-step flow:
+When `is_suspended = true`, the user CAN:
 
-**Status-aware rendering:**
-```typescript
-// Check current verification status first
-const status = profile.verification_status;
+| Action | Why |
+|--------|-----|
+| Log in | So they can see the suspension notice and contact support |
+| View the suspension reason | Transparency |
+| View their booking history | Their data is still theirs |
+| File an appeal (future) | Fair process |
 
-if (status === 'verified') {
-  // Show green verified badge, hide form
-  return <VerifiedBadge verifiedDate={profile.verification_reviewed_at} />;
-}
-
-if (status === 'pending') {
-  // Show pending status, hide form
-  return <PendingStatus submittedDate={profile.verification_submitted_at} />;
-}
-
-if (status === 'rejected') {
-  // Show rejection reason + form to resubmit
-  return <RejectedStatus reason={profile.verification_rejected_reason} />;
-  // Then show the upload form below
-}
-
-// status === 'unverified' — show upload form
-```
-
-**Upload form — 3 steps with preview:**
-
-```
-VERIFY YOUR IDENTITY
-Get verified to list equipment and join our crew.
-
-STEP 1 OF 3 — SA ID Smart Card (Front)
-Take a clear photo of the front of your SA ID Smart Card.
-Tips: Good lighting, flat surface, all text readable.
-┌─────────────────────────┐
-│                         │
-│  [Upload or Take Photo] │
-│                         │
-└─────────────────────────┘
-[Preview shown after upload]
-
-STEP 2 OF 3 — SA ID Smart Card (Back)
-Take a clear photo of the back of your SA ID Smart Card.
-┌─────────────────────────┐
-│                         │
-│  [Upload or Take Photo] │
-│                         │
-└─────────────────────────┘
-[Preview shown after upload]
-
-STEP 3 OF 3 — Selfie with your ID
-Hold your ID next to your face and take a photo.
-We need to see both your face and your ID clearly.
-
-HOW TO TAKE THIS PHOTO:
-┌──────────────────────┐
-│                      │
-│   😊  ┌────────┐    │
-│  Your  │  Your  │    │
-│  face  │  ID    │    │
-│        │  card  │    │
-│        └────────┘    │
-│                      │
-└──────────────────────┘
-
-┌─────────────────────────┐
-│                         │
-│  [Upload or Take Photo] │
-│                         │
-└─────────────────────────┘
-[Preview shown after upload]
-
-[ ] I confirm this is my real SA ID and the selfie is of me.
-
-[SUBMIT FOR VERIFICATION]
-```
-
-**Mobile camera access:**
-```html
-<!-- Opens phone camera directly on mobile -->
-<input 
-  type="file" 
-  accept="image/jpeg,image/png" 
-  capture="environment"  <!-- back camera for ID photos -->
-/>
-
-<!-- For selfie step -->
-<input 
-  type="file" 
-  accept="image/jpeg,image/png" 
-  capture="user"  <!-- front camera for selfie -->
-/>
-```
-
-**Client-side validation before upload:**
-```typescript
-function validateImage(file: File): { valid: boolean; error?: string } {
-  // Must be image
-  if (!['image/jpeg', 'image/png'].includes(file.type)) {
-    return { valid: false, error: 'Only JPG and PNG files allowed.' };
-  }
-  
-  // Minimum 200KB (reject tiny/blank images)
-  if (file.size < 200 * 1024) {
-    return { valid: false, error: 'Photo is too small. Please take a clearer photo.' };
-  }
-  
-  // Maximum 10MB
-  if (file.size > 10 * 1024 * 1024) {
-    return { valid: false, error: 'Photo is too large. Maximum 10MB.' };
-  }
-  
-  return { valid: true };
-}
-```
-
----
-
-### PART 2: EXIF Metadata Extraction
-
-#### 2A. Create `lib/metadata/verification.ts`
+### Enforcement Helper
 
 ```typescript
-import exifr from 'exifr';
+// lib/auth/index.ts — add to existing auth helpers
 
-export interface PhotoMetadata {
-  dateTaken: string | null;
-  gps: { latitude: number; longitude: number } | null;
-  device: string | null;
-  software: string | null;
-  imageWidth: number | null;
-  imageHeight: number | null;
-}
-
-export interface VerificationMetadata {
-  id_front: PhotoMetadata;
-  id_back: PhotoMetadata;
-  selfie: PhotoMetadata;
-}
-
-export async function extractPhotoMetadata(
-  fileBuffer: ArrayBuffer
-): Promise<PhotoMetadata> {
-  try {
-    const exif = await exifr.parse(fileBuffer, {
-      pick: [
-        'DateTimeOriginal', 'GPSLatitude', 'GPSLongitude',
-        'Make', 'Model', 'Software', 'ImageWidth', 'ImageHeight'
-      ]
-    });
-
-    if (!exif) return emptyMetadata();
-
-    return {
-      dateTaken: exif.DateTimeOriginal?.toISOString() || null,
-      gps: exif.GPSLatitude && exif.GPSLongitude
-        ? { latitude: exif.GPSLatitude, longitude: exif.GPSLongitude }
-        : null,
-      device: exif.Make && exif.Model
-        ? `${exif.Make} ${exif.Model}`.trim() : null,
-      software: exif.Software || null,
-      imageWidth: exif.ImageWidth || null,
-      imageHeight: exif.ImageHeight || null,
-    };
-  } catch {
-    return emptyMetadata();
-  }
-}
-
-function emptyMetadata(): PhotoMetadata {
-  return {
-    dateTaken: null, gps: null, device: null,
-    software: null, imageWidth: null, imageHeight: null,
-  };
-}
-```
-
-Dependency `exifr` is already installed in package.json — no install needed.
-
-#### 2B. Fraud Flag Detection — `lib/metadata/fraud-detection.ts`
-
-```typescript
-import { VerificationMetadata } from './verification';
-
-export interface FraudFlag {
-  severity: 'low' | 'medium' | 'high';
-  code: string;
-  message: string;
-}
-
-export function detectFraudFlags(metadata: VerificationMetadata): FraudFlag[] {
-  const flags: FraudFlag[] = [];
-  const { id_front, id_back, selfie } = metadata;
-
-  // 1. No EXIF at all on selfie = likely screenshot or edited
-  if (!selfie.dateTaken && !selfie.device) {
-    flags.push({
-      severity: 'high',
-      code: 'NO_EXIF_SELFIE',
-      message: 'Selfie has no EXIF data — possible screenshot or edited image',
-    });
-  }
-
-  // 2. Selfie older than 24 hours
-  if (selfie.dateTaken) {
-    const age = Date.now() - new Date(selfie.dateTaken).getTime();
-    if (age > 24 * 60 * 60 * 1000) {
-      flags.push({
-        severity: 'medium',
-        code: 'SELFIE_OLD',
-        message: `Selfie taken ${Math.round(age / (60 * 60 * 1000))} hours ago`,
-      });
-    }
-  }
-
-  // 3. Different devices for selfie and ID
-  if (selfie.device && id_front.device && selfie.device !== id_front.device) {
-    flags.push({
-      severity: 'medium',
-      code: 'DIFFERENT_DEVICES',
-      message: `Selfie: ${selfie.device}, ID: ${id_front.device}`,
-    });
-  }
-
-  // 4. GPS outside South Africa
-  if (selfie.gps) {
-    const { latitude, longitude } = selfie.gps;
-    const inSA = latitude >= -35 && latitude <= -22 && longitude >= 16 && longitude <= 33;
-    if (!inSA) {
-      flags.push({
-        severity: 'high',
-        code: 'GPS_OUTSIDE_SA',
-        message: `Location: ${latitude.toFixed(2)}, ${longitude.toFixed(2)} — outside South Africa`,
-      });
-    }
-  }
-
-  // 5. Editing software detected
-  if (selfie.software && /photoshop|gimp|canva|picsart|snapseed/i.test(selfie.software)) {
-    flags.push({
-      severity: 'high',
-      code: 'EDITING_SOFTWARE',
-      message: `Selfie processed with: ${selfie.software}`,
-    });
-  }
-
-  // 6. ID photos taken at very different times (more than 10 minutes apart)
-  if (id_front.dateTaken && selfie.dateTaken) {
-    const diff = Math.abs(
-      new Date(selfie.dateTaken).getTime() - new Date(id_front.dateTaken).getTime()
-    );
-    if (diff > 10 * 60 * 1000) {
-      flags.push({
-        severity: 'low',
-        code: 'TIME_MISMATCH',
-        message: `ID and selfie taken ${Math.round(diff / 60000)} minutes apart`,
-      });
-    }
-  }
-
-  // 7. No EXIF on any photo
-  if (!id_front.dateTaken && !id_front.device && 
-      !id_back.dateTaken && !id_back.device &&
-      !selfie.dateTaken && !selfie.device) {
-    flags.push({
-      severity: 'high',
-      code: 'NO_EXIF_ALL',
-      message: 'No EXIF metadata on any photo — all may be screenshots or downloads',
-    });
-  }
-
-  return flags;
-}
-```
-
-#### 2C. SA ID Number Validation — `lib/metadata/sa-id-validation.ts`
-
-```typescript
-export function validateSAID(id: string): {
-  valid: boolean;
-  dateOfBirth?: string;
-  gender?: string;
-  citizenship?: string;
-  error?: string;
-} {
-  if (!id || id.length !== 13) {
-    return { valid: false, error: 'SA ID must be exactly 13 digits' };
-  }
-
-  if (!/^\d{13}$/.test(id)) {
-    return { valid: false, error: 'SA ID must contain only numbers' };
-  }
-
-  // Date of birth: YYMMDD
-  const year = parseInt(id.substring(0, 2));
-  const month = parseInt(id.substring(2, 4));
-  const day = parseInt(id.substring(4, 6));
-
-  if (month < 1 || month > 12) return { valid: false, error: 'Invalid month in ID' };
-  if (day < 1 || day > 31) return { valid: false, error: 'Invalid day in ID' };
-
-  // Gender: digits 7-10 (0000-4999 = female, 5000-9999 = male)
-  const genderDigits = parseInt(id.substring(6, 10));
-  const gender = genderDigits < 5000 ? 'female' : 'male';
-
-  // Citizenship: digit 11 (0 = SA citizen, 1 = permanent resident)
-  const citizenshipDigit = parseInt(id[10]);
-  if (citizenshipDigit !== 0 && citizenshipDigit !== 1) {
-    return { valid: false, error: 'Invalid citizenship digit' };
-  }
-  const citizenship = citizenshipDigit === 0 ? 'SA Citizen' : 'Permanent Resident';
-
-  // Luhn checksum on digit 13
-  let sum = 0;
-  for (let i = 0; i < 12; i++) {
-    let digit = parseInt(id[i]);
-    if (i % 2 !== 0) {
-      digit *= 2;
-      if (digit > 9) digit -= 9;
-    }
-    sum += digit;
-  }
-  const checkDigit = (10 - (sum % 10)) % 10;
-  if (checkDigit !== parseInt(id[12])) {
-    return { valid: false, error: 'Invalid ID checksum — ID number may be fake' };
-  }
-
-  // Full year
-  const fullYear = year >= 0 && year <= 26 ? 2000 + year : 1900 + year;
-  const dateOfBirth = `${fullYear}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-
-  return { valid: true, dateOfBirth, gender, citizenship };
-}
-```
-
----
-
-### PART 3: Verification API Route
-
-#### 3A. Update `app/api/verifications/route.ts`
-
-```typescript
-import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
-import { extractPhotoMetadata } from '@/lib/metadata/verification';
-import { detectFraudFlags } from '@/lib/metadata/fraud-detection';
-import crypto from 'node:crypto';
-
-export async function POST(req: NextRequest) {
-  // 1. Auth check
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-
-  // 2. Rate limit: max 3 attempts
-  const { data: profile } = await supabase
+export async function checkNotSuspended(userId: string): Promise<{
+  suspended: boolean;
+  reason?: string;
+}> {
+  const { data } = await supabase
     .from('profiles')
-    .select('verification_attempts, verification_status')
-    .eq('id', user.id)
+    .select('is_suspended, suspension_reason, suspension_expires_at')
+    .eq('id', userId)
     .single();
 
-  if (profile.verification_status === 'pending') {
-    return Response.json({ error: 'Verification already pending review.' }, { status: 400 });
+  if (!data?.is_suspended) return { suspended: false };
+
+  // Check if suspension has expired
+  if (data.suspension_expires_at && new Date(data.suspension_expires_at) < new Date()) {
+    // Auto-reinstate
+    await supabase.from('profiles')
+      .update({ is_suspended: false, suspended_at: null, suspension_reason: null })
+      .eq('id', userId);
+    return { suspended: false };
   }
 
-  if (profile.verification_status === 'verified') {
-    return Response.json({ error: 'Account already verified.' }, { status: 400 });
-  }
+  return { suspended: true, reason: data.suspension_reason };
+}
+```
 
-  if (profile.verification_attempts >= 3) {
-    return Response.json({ 
-      error: 'Maximum submission attempts reached. Contact support.' 
-    }, { status: 429 });
-  }
+### Usage in API Routes
 
-  // 3. Parse files from FormData
-  const formData = await req.formData();
-  const idFront = formData.get('id_front') as File;
-  const idBack = formData.get('id_back') as File;
-  const selfie = formData.get('selfie_with_id') as File;
-  const confirmed = formData.get('confirmed') === 'true';
-
-  if (!idFront || !idBack || !selfie) {
-    return Response.json({ error: 'All three photos required.' }, { status: 400 });
-  }
-
-  if (!confirmed) {
-    return Response.json({ error: 'You must confirm the photos are real.' }, { status: 400 });
-  }
-
-  // 4. Validate file sizes
-  for (const [name, file] of [['ID Front', idFront], ['ID Back', idBack], ['Selfie', selfie]]) {
-    if ((file as File).size < 200 * 1024) {
-      return Response.json({ error: `${name} is too small. Take a clearer photo.` }, { status: 400 });
-    }
-    if ((file as File).size > 10 * 1024 * 1024) {
-      return Response.json({ error: `${name} is too large. Maximum 10MB.` }, { status: 400 });
-    }
-  }
-
-  // 5. Extract EXIF metadata BEFORE uploading to storage
-  const idFrontBuffer = await idFront.arrayBuffer();
-  const idBackBuffer = await idBack.arrayBuffer();
-  const selfieBuffer = await selfie.arrayBuffer();
-
-  const metadata = {
-    id_front: await extractPhotoMetadata(idFrontBuffer),
-    id_back: await extractPhotoMetadata(idBackBuffer),
-    selfie: await extractPhotoMetadata(selfieBuffer),
-  };
-
-  // 6. Generate document hash for duplicate detection
-  const idHash = crypto
-    .createHash('sha256')
-    .update(Buffer.from(idFrontBuffer))
-    .digest('hex');
-
-  // Check for duplicate
-  const { data: duplicate } = await supabase
-    .from('profiles')
-    .select('id, display_name')
-    .eq('id_document_hash', idHash)
-    .neq('id', user.id)
-    .single();
-
-  // 7. Detect fraud flags from metadata
-  const fraudFlags = detectFraudFlags(metadata);
-
-  if (duplicate) {
-    fraudFlags.push({
-      severity: 'high',
-      code: 'DUPLICATE_ID',
-      message: `Same ID document submitted by another account`,
-    });
-  }
-
-  // 8. Upload files to Supabase Storage (fixed filenames per user)
-  const storagePaths = {
-    id_front: `verifications/${user.id}/id-front`,
-    id_back: `verifications/${user.id}/id-back`,
-    selfie: `verifications/${user.id}/selfie-with-id`,
-  };
-
-  // Delete old files if resubmitting
-  await supabase.storage.from('verifications').remove([
-    storagePaths.id_front, storagePaths.id_back, storagePaths.selfie
-  ]);
-
-  // Upload new files
-  await supabase.storage.from('verifications')
-    .upload(storagePaths.id_front, idFrontBuffer, { contentType: idFront.type, upsert: true });
-  await supabase.storage.from('verifications')
-    .upload(storagePaths.id_back, idBackBuffer, { contentType: idBack.type, upsert: true });
-  await supabase.storage.from('verifications')
-    .upload(storagePaths.selfie, selfieBuffer, { contentType: selfie.type, upsert: true });
-
-  // 9. Get request metadata
-  const ip = req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip') || 'unknown';
-  const userAgent = req.headers.get('user-agent') || 'unknown';
-
-  // 10. Update profile
-  await supabase.from('profiles').update({
-    verification_status: 'pending',
-    verification_submitted_at: new Date().toISOString(),
-    id_front_path: storagePaths.id_front,
-    id_back_path: storagePaths.id_back,
-    selfie_with_id_path: storagePaths.selfie,
-    verification_metadata: metadata,
-    verification_ai_check: null, // V5: will be populated by AI screening
-    verification_fraud_flags: fraudFlags,
-    id_document_hash: idHash,
-    verification_ip: ip,
-    verification_user_agent: userAgent,
-    verification_attempts: (profile.verification_attempts || 0) + 1,
-    // Clear any previous rejection
-    verification_rejected_reason: null,
-    verification_reviewed_at: null,
-  }).eq('id', user.id);
-
-  // 11. Return response
-  return Response.json({
-    success: true,
-    message: 'Documents submitted successfully. We\'ll review your verification within 1-2 business days.',
-    flags_detected: fraudFlags.length,
-  });
+```typescript
+// Example: cart checkout
+const { suspended, reason } = await checkNotSuspended(user.id);
+if (suspended) {
+  return NextResponse.json(
+    { error: 'Account suspended', reason },
+    { status: 403 }
+  );
 }
 ```
 
 ---
 
-### PART 4: Admin Verification Review Page
+## Suspension Triggers
 
-#### 4A. Redesign `app/(admin)/admin/verifications/page.tsx`
+### Manual (admin action)
+- Admin clicks "Suspend" on user management page
+- Admin resolves dispute with "suspend user" resolution (TASK-037)
+- Admin rejects verification and decides to suspend
 
-For each verification submission, show:
+### Automatic (future, rules-based)
+These are stretch goals, not launch requirements:
 
 ```
-┌─────────────────────────────────────────────────────────┐
-│ VERIFICATION REVIEW                                      │
-│                                                          │
-│ ┌─ USER INFO ─────────────────────────────────────────┐ │
-│ │ [Avatar] Thabang Mokwena          ⏳ PENDING         │ │
-│ │ thabang@email.com | 079 xxx xxxx                    │ │
-│ │ Member since: 16 Mar 2026                           │ │
-│ │ Bio: Cinematographer and photographer               │ │
-│ │ Skills: [LIGHTROOM] [PREMIERE PRO]                  │ │
-│ │ Submission attempt: 1 of 3                          │ │
-│ └─────────────────────────────────────────────────────┘ │
-│                                                          │
-│ ┌─ PHOTO METADATA ────────────────────────────────────┐ │
-│ │                                                      │ │
-│ │ Selfie with ID:                                      │ │
-│ │   Taken: 18 Mar 2026, 14:32                         │ │
-│ │   Device: Samsung SM-S911B (Galaxy S24)              │ │
-│ │   Location: -26.20, 28.04 (Johannesburg) 📍         │ │
-│ │                                                      │ │
-│ │ ID Front:                                            │ │
-│ │   Taken: 18 Mar 2026, 14:31                         │ │
-│ │   Device: Samsung SM-S911B (Galaxy S24)              │ │
-│ │   Location: -26.20, 28.04 (Johannesburg) 📍         │ │
-│ │                                                      │ │
-│ │ ID Back:                                             │ │
-│ │   Taken: 18 Mar 2026, 14:31                         │ │
-│ │   Device: Samsung SM-S911B (Galaxy S24)              │ │
-│ │   Location: -26.20, 28.04 (Johannesburg) 📍         │ │
-│ │                                                      │ │
-│ │ CONSISTENCY:                                         │ │
-│ │   Same device:  ✅ Yes                               │ │
-│ │   Same location: ✅ Yes                              │ │
-│ │   Same time (< 5 min): ✅ Yes                       │ │
-│ │   Fresh (< 24hrs): ✅ Yes                           │ │
-│ │   Editing software: ✅ None detected                │ │
-│ └─────────────────────────────────────────────────────┘ │
-│                                                          │
-│ ┌─ FRAUD FLAGS ───────────────────────────────────────┐ │
-│ │ ✅ No flags detected                                │ │
-│ │                                                      │ │
-│ │ OR:                                                  │ │
-│ │ 🔴 HIGH: Selfie processed with Photoshop            │ │
-│ │ 🟡 MEDIUM: Selfie and ID taken on different devices │ │
-│ │ 🔵 LOW: Photos taken 8 minutes apart                │ │
-│ └─────────────────────────────────────────────────────┘ │
-│                                                          │
-│ ┌─ DOCUMENTS ─────────────────────────────────────────┐ │
-│ │ [ID FRONT]      [ID BACK]      [SELFIE + ID]       │ │
-│ │  Open full ↗     Open full ↗    Open full ↗        │ │
-│ └─────────────────────────────────────────────────────┘ │
-│                                                          │
-│ ┌─ ADMIN CHECKLIST ───────────────────────────────────┐ │
-│ │ [ ] Face in selfie matches face on ID               │ │
-│ │ [ ] ID is clearly readable                          │ │
-│ │ [ ] ID appears valid and not expired                │ │
-│ │ [ ] Name on ID matches profile name                 │ │
-│ │ [ ] No signs of tampering or editing                │ │
-│ └─────────────────────────────────────────────────────┘ │
-│                                                          │
-│ Admin notes: [textarea]                                  │
-│                                                          │
-│ [✅ APPROVE]    [❌ REJECT]                              │
-│                                                          │
-│ Rejection reason: [required if rejecting]                │
-└─────────────────────────────────────────────────────────┘
+Rule: 3+ disputes filed against user → auto-flag for review
+Rule: Gear overdue > 30 days → auto-suspend
+Rule: 3+ rejected verifications → auto-suspend
+Rule: Verified fraud flags → auto-suspend
 ```
 
-**Document viewing:**
-- Generate signed URLs from Supabase Storage: `supabase.storage.from('verifications').createSignedUrl(path, 3600)`
-- Open in new tab or show inline with zoom
-- Signed URLs expire after 1 hour
-
-**GPS location display:**
-- If GPS available, show reverse-geocoded location (or just lat/lon with a Google Maps link)
-- Link: `https://www.google.com/maps?q=${lat},${lon}`
+For launch, only manual suspension is needed.
 
 ---
 
-### PART 5: Duplicate ID Detection Across Users
+## API Routes
 
-When admin views a verification with DUPLICATE_ID flag:
+### `POST /api/admin/users/[id]/suspend` — Suspend a user
 
 ```
-🔴 DUPLICATE ID DETECTED
-This document hash matches another account:
-User: [other user display_name]
-Status: [their verification status]
-[View other user's verification →]
+Auth: admin only
+Input: {
+  reason: string,
+  expires_at?: string,     // ISO date, null = permanent
+  dispute_id?: string      // Optional link to dispute that triggered this
+}
+Actions:
+  - Set is_suspended = true, suspended_at, suspended_by, suspension_reason
+  - Deactivate all active listings (is_published = false, is_available = false)
+  - Cancel all pending/confirmed bookings (both as renter and creator)
+  - Notify user via email: "Your account has been suspended. Reason: ..."
+  - Log to moderation_log
+Output: { success: true, affected_listings, affected_bookings }
 ```
 
-Admin can then investigate and decide which account is legitimate.
+### `POST /api/admin/users/[id]/reinstate` — Reinstate a user
+
+```
+Auth: admin only
+Input: {
+  reason: string          // Why they're being reinstated
+}
+Actions:
+  - Set is_suspended = false, clear suspension fields
+  - DO NOT auto-reactivate listings (user should review and republish)
+  - Notify user via email: "Your account has been reinstated"
+  - Log to moderation_log
+Output: { success: true }
+```
+
+### `GET /api/admin/users/[id]/moderation-log` — View user's moderation history
+
+```
+Auth: admin only
+Output: [{ action, reason, admin, dispute_id, created_at }]
+```
 
 ---
 
-### PART 6: Rejected Resubmission Flow
+## Frontend
 
-When verification_status = 'rejected':
+### Admin Users Page — Add Suspension Controls
 
-1. User sees rejection reason on verification page
-2. Upload form is shown again
-3. On resubmit:
-   - Old files deleted from storage (fixed filenames overwrite)
-   - New metadata extracted
-   - New fraud flags detected
-   - verification_attempts incremented
-   - Status reset to 'pending'
-4. After 3 failed attempts:
-   - Form hidden
-   - Message: "Maximum attempts reached. Contact support at [STUDIO.email]"
+Update existing `/admin/users` page:
+
+```
+┌──────────────────────────────────────────────────────────────┐
+│ Users                                                         │
+│                                                               │
+│ [All] [Active] [Suspended (2)] [Unverified]                 │
+│                                                               │
+│ ┌──────────────────────────────────────────────────────────┐ │
+│ │ 🔴 Thabo M.     thabo@email.com     SUSPENDED            │ │
+│ │ Role: User      Suspended: 15 Apr 2026                   │ │
+│ │ Reason: "Gear returned damaged, 2nd offense"             │ │
+│ │ [View History] [Reinstate]                               │ │
+│ ├──────────────────────────────────────────────────────────┤ │
+│ │ 🟢 Sarah K.     sarah@email.com     ACTIVE               │ │
+│ │ Role: User      Verified: 10 Mar 2026                    │ │
+│ │ [View History] [Suspend]                                 │ │
+│ └──────────────────────────────────────────────────────────┘ │
+└──────────────────────────────────────────────────────────────┘
+```
+
+### Suspend Modal
+
+```
+┌─────────────────────────────────────┐
+│ Suspend Thabo M.                    │
+│                                     │
+│ Reason (required):                  │
+│ [_________________________________] │
+│                                     │
+│ Duration:                           │
+│ (•) Permanent                       │
+│ ( ) 7 days                          │
+│ ( ) 30 days                         │
+│ ( ) Custom: [____]                  │
+│                                     │
+│ This will:                          │
+│ • Deactivate all their listings     │
+│ • Cancel pending bookings           │
+│ • Block new transactions            │
+│ • Notify them via email             │
+│                                     │
+│ [Cancel]  [Confirm Suspension]      │
+└─────────────────────────────────────┘
+```
+
+### Suspended User Experience
+
+When a suspended user logs in, they see a banner on every page:
+
+```
+┌──────────────────────────────────────────────────────────────┐
+│ ⚠ Your account has been suspended.                           │
+│ Reason: "Gear returned damaged, 2nd offense"                 │
+│ You can view your history but cannot make new transactions.  │
+│ Contact support@thabangvision.co.za to appeal.               │
+└──────────────────────────────────────────────────────────────┘
+```
+
+### Moderation History
+
+On admin user detail page:
+
+```
+┌─────────────────────────────────────┐
+│ Moderation History — Thabo M.       │
+│                                     │
+│ 15 Apr 2026 — SUSPENDED             │
+│ By: Admin                           │
+│ Reason: "Gear returned damaged"     │
+│ Linked to: Dispute #D-003           │
+│                                     │
+│ 02 Mar 2026 — WARNING ISSUED        │
+│ By: Admin                           │
+│ Reason: "Late return, first offense"│
+│                                     │
+│ 15 Feb 2026 — VERIFICATION REJECTED │
+│ By: Admin                           │
+│ Reason: "Blurry ID photo"           │
+└─────────────────────────────────────┘
+```
 
 ---
 
-## Files to Create/Modify
+## Side Effects of Suspension
+
+When a user is suspended, the system must handle their active state:
 
 ```
-CREATE:
-  lib/metadata/verification.ts          — EXIF extraction
-  lib/metadata/fraud-detection.ts       — fraud flag detection
-  lib/metadata/sa-id-validation.ts      — SA ID Luhn validation
-  lib/migrations/008-verification-redesign.sql
+User suspended
+    │
+    ├─→ All published listings → is_published = false
+    │   (gear disappears from marketplace)
+    │
+    ├─→ All pending equipment_bookings (as renter) → cancelled
+    │   (deposits refunded via Paystack)
+    │
+    ├─→ All pending bookings (as creator) → unassigned
+    │   (reassigned to another creator or cancelled)
+    │
+    ├─→ Active rentals → flagged for admin
+    │   (can't cancel mid-rental, admin must handle)
+    │
+    └─→ Email sent to user with reason + contact info
+```
 
-MODIFY:
-  app/(platform)/dashboard/verification/page.tsx   — new 3-step upload
-  app/api/verifications/route.ts                   — new submission handler
-  app/(admin)/admin/verifications/page.tsx          — redesigned review page
-  package.json                                      — exifr already installed, no changes needed
+---
+
+## Notification Types to Add
+
+```typescript
+'account_suspended'    // → user: "Your account has been suspended. Reason: ..."
+'account_reinstated'   // → user: "Your account has been reinstated"
+'moderation_warning'   // → user: "A warning has been issued on your account"
 ```
 
 ---
 
 ## Acceptance Criteria
 
-- [ ] Verification page shows 3-step upload: ID front, ID back, selfie with ID
-- [ ] Mobile camera opens directly for photo capture
-- [ ] Client-side validation rejects tiny/large/wrong format files
-- [ ] EXIF metadata extracted from all 3 photos before upload
-- [ ] Fraud flags auto-detected from metadata (device mismatch, old photos, editing software, GPS outside SA)
-- [ ] Duplicate ID hash detection across all users
-- [ ] SA ID number validation utility with Luhn checksum (ready for V5 AI integration)
-- [ ] Rate limited to 3 attempts per user
-- [ ] Pending status blocks resubmission
-- [ ] Verified status hides the form completely
-- [ ] Rejected status shows reason + allows resubmission
-- [ ] Admin review page shows: user info, metadata, fraud flags, documents, checklist
-- [ ] Admin can approve or reject with notes
-- [ ] Signed URLs for secure document viewing
-- [ ] All old certified document references removed
-- [ ] npm run build passes
-- [ ] Existing tests still pass
+- [ ] Admin can suspend a user with reason (permanent or timed)
+- [ ] Admin can reinstate a suspended user
+- [ ] Suspended users cannot: book gear, book creators, list gear, accept bookings
+- [ ] Suspended users can: log in, view history, see suspension reason
+- [ ] All active listings deactivated on suspension
+- [ ] Pending bookings cancelled/refunded on suspension
+- [ ] Moderation log records all admin actions with timestamps
+- [ ] Suspension banner shown to suspended users on every page
+- [ ] Timed suspensions auto-expire (checked in `checkNotSuspended()`)
+- [ ] Admin users page shows suspension status with filter
+- [ ] Email notification sent on suspend and reinstate
+- [ ] `checkNotSuspended()` helper available for all API routes
+- [ ] Dispute resolution can trigger suspension (links to TASK-037)
+- [ ] Suspension constants (contact email) from constants.ts
 
 ---
 
-## Update MEMORY.md
+## Dependencies
 
-After completion, append:
-
-```
-## Session: TASK-038 — Verification Redesign (2026-03-XX)
-### Branch: feature/task-038-verification-redesign
-### Built:
-- 3-step verification: ID front, ID back, selfie with ID
-- EXIF metadata extraction with exifr
-- Fraud flag detection (7 checks: no EXIF, old photo, device mismatch, GPS outside SA, editing software, time mismatch, duplicate hash)
-- SA ID number validation utility (Luhn checksum, DOB, gender, citizenship)
-- Duplicate ID detection across users
-- Rate limiting (3 attempts max)
-- Admin review page with full metadata, fraud flags, documents, checklist
-- Rejection + resubmission flow
-- V5 follow-up: AI screening with Claude Vision (verification_ai_check column ready)
-### Database: 008-verification-redesign.sql migration (drops proof_of_address_path, adds selfie + AI columns)
-### Dependencies: exifr (already installed)
-### Tests: [results]
-### Notes: [blockers or follow-ups]
-```
+- **TASK-037** (Disputes) — "suspend user" is a dispute resolution option
+- None for launch — this can be built independently
 
 ---
 
-## Post-Session
+## Commit Strategy
 
-```
-/pre-merge
-```
-Verify CI passes. Merge to main. Run `/end-session`.
+1. `feat: add suspension columns to profiles + moderation_log table`
+2. `feat: checkNotSuspended() auth helper + enforce in API routes`
+3. `feat: admin suspend/reinstate API routes`
+4. `feat: admin users page — suspension UI + moderation history`
+5. `feat: suspension side effects (deactivate listings, cancel bookings)`
+6. `feat: suspended user banner + notification types`
+
+PR title: "TASK-038: User suspension & admin moderation"

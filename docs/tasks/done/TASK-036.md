@@ -1,339 +1,347 @@
-# TASK-036: Bug Fixes + Auth Improvements — Agent Teams Session
-## Priority: CRITICAL | Phase: V2/V3 | Sprint: Testing Week
-## Created: 2026-03-18
+# TASK-036 — Gear Return Flow + Deposit Release
+
+## Branch
+feature/task-036-gear-return
+
+## Mission
+Close the rental lifecycle. Right now a renter can book gear and pay, but there's no structured way to return it, check condition, or release the deposit. This is a launch blocker — you can't hold deposits with no mechanism to give them back.
 
 ---
 
-## Pre-Session Setup
+## What Already Exists
 
-Before starting, run:
+| Component | Status | Location |
+|-----------|--------|----------|
+| `equipment_bookings` table | Has `status`, `deposit_amount`, `total_price` | `supabase/migrations/20260311000000_base_schema.sql:201-219` |
+| Booking status enum | `pending, confirmed, active, completed, cancelled, overdue` | Same migration |
+| `smart_rentals` table | Has `condition` enum (`new, like_new, good, fair, for_parts`) | Same migration, lines 83-114 |
+| Cart checkout | Creates bookings + payment via Paystack | `app/api/cart/checkout/route.ts` |
+| Availability check | Checks date conflicts | `app/api/rentals/[id]/availability/route.ts` |
+| Admin rentals page | List/create/update rentals | `app/(admin)/admin/rentals/page.tsx` |
+| Paystack refunds | `refundPayment(reference, amount?)` | `lib/payments/paystack.ts:292-319` |
+| Cloudinary uploads | Signed upload flow already works | `lib/storage/cloudinary.ts`, `lib/cloudinary/upload.ts` |
+
+## What's Missing
+
+- No return initiation route
+- No condition check (before/after)
+- No deposit release/deduction workflow
+- No `returned_at`, `condition_at_checkout`, `condition_at_return`, `return_photos` columns
+- No return confirmation from either party
+- No overdue detection or late fee logic
+
+---
+
+## The Return Flow
+
+### Who Does What
+
 ```
-/new-session
+RENTER                          PLATFORM                        OWNER/ADMIN
+───────                         ────────                        ───────────
+Booking status: "active"
+(renter has the gear)
+        │
+        ▼
+Return date arrives
+        │
+        ▼
+Clicks "Return Gear"           
+on booking page                 
+        │
+        ▼
+Uploads return photos ────────→ Stored in Cloudinary
+(showing gear condition)        Linked to booking
+        │
+        ▼
+Adds return notes ────────────→ Saved to booking
+("All good, thanks")
+        │
+        ▼
+Submits return ───────────────→ Status → "return_pending"
+                                                                │
+                                                                ▼
+                                                    Owner/admin reviews:
+                                                    - Return photos
+                                                    - Condition comparison
+                                                    - Original checkout condition
+                                                                │
+                                        ┌───────────────────────┼──────────────────┐
+                                        ▼                       ▼                  ▼
+                                   GOOD CONDITION          MINOR DAMAGE        MAJOR DAMAGE
+                                        │                       │                  │
+                                        ▼                       ▼                  ▼
+                                   Full deposit            Partial deposit     No deposit
+                                   released via            released, rest      Owner keeps deposit
+                                   Paystack refund         kept as fee         Status → "disputed"
+                                        │                       │              (see TASK-037)
+                                        ▼                       ▼
+                                   Status → "completed"    Status → "completed"
+                                   Both parties notified   Both parties notified
 ```
-Branch name: `fix/task-036-testing-bugs`
 
-Then read these files first:
+---
+
+## Database Changes
+
+### Migration: Add return columns to `equipment_bookings`
+
+```sql
+-- Add return tracking columns
+ALTER TABLE equipment_bookings
+  ADD COLUMN IF NOT EXISTS condition_at_checkout TEXT 
+    CHECK (condition_at_checkout IN ('new', 'like_new', 'good', 'fair', 'for_parts')),
+  ADD COLUMN IF NOT EXISTS condition_at_return TEXT 
+    CHECK (condition_at_return IN ('new', 'like_new', 'good', 'fair', 'for_parts')),
+  ADD COLUMN IF NOT EXISTS return_photos JSONB DEFAULT '[]',
+  ADD COLUMN IF NOT EXISTS checkout_photos JSONB DEFAULT '[]',
+  ADD COLUMN IF NOT EXISTS return_notes TEXT,
+  ADD COLUMN IF NOT EXISTS returned_at TIMESTAMPTZ,
+  ADD COLUMN IF NOT EXISTS deposit_released NUMERIC DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS deposit_released_at TIMESTAMPTZ,
+  ADD COLUMN IF NOT EXISTS late_fee NUMERIC DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS return_reviewed_by UUID REFERENCES profiles(id),
+  ADD COLUMN IF NOT EXISTS return_reviewed_at TIMESTAMPTZ;
+
+-- Expand status enum to include return states
+-- Current: 'pending', 'confirmed', 'active', 'completed', 'cancelled', 'overdue'
+-- New: add 'return_pending', 'return_reviewed'
+ALTER TABLE equipment_bookings
+  DROP CONSTRAINT IF EXISTS equipment_bookings_status_check;
+ALTER TABLE equipment_bookings
+  ADD CONSTRAINT equipment_bookings_status_check
+  CHECK (status IN (
+    'pending', 'confirmed', 'active',
+    'return_pending', 'return_reviewed', 'completed',
+    'cancelled', 'overdue', 'disputed'
+  ));
 ```
-Read CLAUDE.md
-Read MEMORY.md
-Read lib/constants.ts
-Read app/(marketing)/login/page.tsx
-Read app/(marketing)/register/page.tsx
-Read middleware.ts
-Read lib/auth/supabase.ts
+
+---
+
+## API Routes
+
+### `POST /api/rentals/[id]/return` — Renter initiates return
+
+```
+Auth: renter must own this booking
+Input: {
+  condition: 'new' | 'like_new' | 'good' | 'fair' | 'for_parts',
+  photos: string[],        // Cloudinary URLs of return condition photos
+  notes?: string
+}
+Actions:
+  - Validate booking status is 'active' or 'overdue'
+  - Save condition_at_return, return_photos, return_notes, returned_at
+  - Update status → 'return_pending'
+  - Calculate late_fee if return date > end_date
+  - Notify owner/admin that return is pending review
+Output: { success: true, booking }
 ```
 
----
+### `POST /api/admin/rentals/[id]/review-return` — Admin reviews return
 
-## Context
-
-User testing revealed 10 bugs and 3 auth improvements needed. Real users (family testers) reported: registration failures, login flicker, password reset confusion, avatar upload broken, admin mobile nav broken. One tester said: "I can't get by the registration part, I've tried 2 emails already." Another hit "email rate limit exceeded" on password reset.
-
-Platform is live at: https://thabangvisionnonprod.vercel.app
-Supabase project: https://zbdsqvpxpsygbuqnuekm.supabase.co
-Stack: Next.js 16, React 19, TypeScript 5, Tailwind v4, Supabase, Vercel AI SDK, Cloudinary
-
----
-
-## Fixes — Priority Order
-
-### FIX 1: Registration Failing (CRITICAL)
-**Bug:** New users cannot register. Tester tried 2 different emails and couldn't get past registration.
-**Likely cause:** RLS policy on profiles table blocks INSERT, or auth trigger missing/broken.
-
-- Read `app/(marketing)/register/page.tsx`
-- Check if Supabase auth trigger `handle_new_user` exists — if not, create it:
-  ```sql
-  create or replace function handle_new_user()
-  returns trigger as $$
-  begin
-    insert into profiles (id, email)
-    values (new.id, new.email)
-    on conflict (id) do nothing;
-    return new;
-  end;
-  $$ language plpgsql security definer;
-
-  create trigger on_auth_user_created
-    after insert on auth.users
-    for each row execute function handle_new_user();
-  ```
-- The register page should ONLY call `supabase.auth.signUp()` — do NOT insert into profiles from the frontend. Let the trigger handle it.
-- If the register page still inserts into profiles, change it to upsert or remove it entirely.
-- Check RLS policies: `SELECT * FROM pg_policies WHERE tablename = 'profiles';`
-- Test: register with a new test email and confirm it works.
-
-**Acceptance:** New user can register with email and password. No errors. Profile created automatically.
-
----
-
-### FIX 2: Login → Dashboard Redirect Broken (CRITICAL)
-**Bug:** After login, navigating to /dashboard doesn't work until manual page refresh. Auth state is stale.
-
-- Read `app/(marketing)/login/page.tsx`
-- Find `router.push('/dashboard')` and change to `window.location.href = '/dashboard'`
-- Do the same in register page: change `router.push` to `window.location.href`
-- Do the same for sign out: change `router.push('/')` to `window.location.href = '/'`
-- Reason: `router.push` does client-side navigation without re-evaluating middleware cookies. `window.location.href` forces a full server request with fresh auth cookies.
-
-**Acceptance:** Login → immediately see dashboard. No refresh needed. Sign out → immediately see home page.
-
----
-
-### FIX 3: Whole Page Auth Flicker (HIGH)
-**Bug:** Entire page flickers between logged-out and logged-in state on every page load.
-
-- Create `providers/AuthProvider.tsx`:
-  - Takes `initialUser` prop from server
-  - Uses `createContext` with `{ user, loading }` state
-  - Initializes from `initialUser` (no flash)
-  - Listens to `onAuthStateChange` for updates
-- Update `app/layout.tsx` (server component):
-  - Get user from cookies: `const { data: { user } } = await supabase.auth.getUser()`
-  - Pass to `<AuthProvider initialUser={user}>`
-- Update Header component:
-  - Use `useAuth()` hook instead of local auth state
-  - While `loading === true`, render invisible placeholder
-  - Show correct buttons only after loading resolves
-- Apply to desktop header AND mobile menu
-
-**Acceptance:** No flicker on any page load. Auth state correct on first render.
-
----
-
-### FIX 4: Password Reset Error Message (HIGH)
-**Bug:** Shows raw "email rate limit exceeded" when user clicks reset too many times.
-
-- Read forgot password handler on login page
-- Catch the rate limit error and show user-friendly message:
-  `"We've already sent a reset link. Please check your inbox and spam folder. You can try again in 60 minutes."`
-- For non-existent emails, always show: `"If this email exists, we've sent a reset link. Check your inbox and spam folder."` (don't reveal if account exists)
-
-**Acceptance:** No raw Supabase error messages visible to users. Always friendly text.
-
----
-
-### FIX 5: Add Magic Link Login (HIGH)
-**Bug:** Users (especially non-technical) struggle with passwords.
-
-- Add magic link option to login page:
-  ```
-  [Enter your email]
-  [SEND ME A SIGN IN LINK]
+```
+Auth: admin only
+Input: {
+  condition_accepted: boolean,
+  deposit_action: 'full_release' | 'partial_release' | 'no_release' | 'dispute',
+  deposit_release_amount?: number,    // For partial release
+  admin_notes?: string
+}
+Actions:
+  If deposit_action === 'full_release':
+    - Call refundPayment(paystack_reference, deposit_amount)
+    - Set deposit_released = deposit_amount
+    - Status → 'completed'
+  If deposit_action === 'partial_release':
+    - Call refundPayment(paystack_reference, deposit_release_amount)
+    - Set deposit_released = deposit_release_amount
+    - Status → 'completed'
+  If deposit_action === 'no_release':
+    - deposit_released = 0
+    - Status → 'completed'
+  If deposit_action === 'dispute':
+    - Status → 'disputed'
+    - Create dispute record (see TASK-037)
   
-  ── or sign in with password ──
-  
-  [Email]
-  [Password]
-  [SIGN IN]
-  ```
-- Implementation:
-  ```typescript
-  const handleMagicLink = async () => {
-    const { error } = await supabase.auth.signInWithOtp({
-      email,
-      options: {
-        emailRedirectTo: `${process.env.NEXT_PUBLIC_APP_URL}/auth/callback`,
-      },
-    });
-    if (error) setError(error.message);
-    else setMessage('Check your email for a sign-in link. No password needed.');
-  };
-  ```
-- Create `/auth/callback/route.ts`:
-  ```typescript
-  export async function GET(request: Request) {
-    const { searchParams } = new URL(request.url);
-    const code = searchParams.get('code');
-    if (code) {
-      const supabase = await createServerClient();
-      await supabase.auth.exchangeCodeForSession(code);
-    }
-    // Check if profile has display_name
-    const { data: { user } } = await supabase.auth.getUser();
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('display_name')
-      .eq('id', user.id)
-      .single();
-    
-    if (!profile || !profile.display_name) {
-      return NextResponse.redirect(new URL('/onboarding', request.url));
-    }
-    return NextResponse.redirect(new URL('/dashboard', request.url));
-  }
-  ```
-- Simplify register page: same magic link option + optional password
-- Make sure Supabase has Email OTP enabled: Authentication → Providers → Email
-
-**Acceptance:** User can enter email, receive link, click it, arrive at dashboard. No password needed.
-
----
-
-### FIX 6: Add Google OAuth (HIGH)
-**Bug:** One-click sign-in is the easiest option for non-technical users.
-
-- Add Google sign-in button to login and register pages:
-  ```typescript
-  const handleGoogleSignIn = async () => {
-    await supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: {
-        redirectTo: `${process.env.NEXT_PUBLIC_APP_URL}/auth/callback`,
-      },
-    });
-  };
-  ```
-- Button: white bg, Google G icon, text "Sign in with Google"
-- Same `/auth/callback` route handles Google redirect → check profile → onboarding or dashboard
-- Login page order: Google button → magic link → password (collapsed under "or sign in with password")
-- Note: Google OAuth credentials must be configured in Supabase by the admin. Add a TODO comment with setup instructions.
-
-**Acceptance:** Google sign-in button visible. Flow works if Google OAuth is configured in Supabase.
-
----
-
-### FIX 7: Onboarding Flow for New Users (MEDIUM)
-**Bug:** Magic link and Google users have no profile data on first sign-in.
-
-- Create `app/(platform)/onboarding/page.tsx`:
-  - Only accessible when logged in
-  - Form fields:
-    - Display name (required)
-    - What do you do? (optional, multi-select pills: Photography, Cinematography, Editing, Sound, Directing, Other)
-    - Phone (optional)
-  - On submit: upsert profile with display_name, specializations, phone → redirect to /dashboard
-  - "Skip for now" link → redirect to /dashboard
-- Auth callback route checks for display_name:
-  - Has display_name → /dashboard
-  - No display_name → /onboarding
-- Register page: remove display_name field. Only email + password (optional). Onboarding handles the rest.
-
-**Acceptance:** New user (any method) → onboarding → fill name → dashboard. Only shows once.
-
----
-
-### FIX 8: Avatar Upload Failing (MEDIUM)
-**Bug:** Profile page shows "Failed to upload avatar."
-
-- Read the profile page and avatar upload handler
-- Check if `/api/cloudinary/sign` requires auth — if so, ensure auth cookie is sent
-- Check if Cloudinary environment variables are set in Vercel
-- Check if the upload handler sends the correct file format
-- If using Supabase Storage instead of Cloudinary, check bucket policies
-- Show initials fallback when avatar is null/missing
-
-**Acceptance:** User can upload avatar from profile page. Avatar displays correctly. Initials shown as fallback.
-
----
-
-### FIX 9: Admin Mobile Nav Broken (MEDIUM)
-**Bug:** Admin page icons overflow on mobile screens.
-
-- Read `app/(admin)/layout.tsx` or admin nav component
-- On mobile (< 768px): collapse admin nav into a hamburger menu
-- Same pattern as the main site mobile nav
-- Admin nav items: Dashboard, Rentals, Press, Careers, Bookings, Verifications, Users
-- Hamburger toggles open/closed
-
-**Acceptance:** Admin panel fully usable on mobile. No overflow. Hamburger menu works.
-
----
-
-### FIX 10: Mobile Menu Close (MEDIUM)
-**Bug:** Main site mobile menu has no way to close once opened.
-
-- Read the header/mobile menu component
-- Hamburger icon should TOGGLE: tap to open, tap again to close
-- Same icon, same position, always visible (z-index above overlay)
-- Clicking any nav link closes the menu
-- Clicking any CTA button closes the menu
-- Header z-index: 300, menu overlay z-index: 200
-
-**Acceptance:** Mobile menu opens and closes with hamburger. Clicking any link closes menu.
-
----
-
-### FIX 11: Ubunye Links Not Clickable (LOW)
-**Bug:** Ubunye writes paths as plain text (/smart-production) instead of clickable markdown links.
-
-- Read `lib/ubunye/system-prompt.ts`
-- Add to behaviour rules in system prompt:
-  ```
-  "When sharing page links, ALWAYS format them as markdown links: [Page Name](/path).
-  Example: [View our portfolio](/smart-production) NOT /smart-production
-  Example: [Sony Alpha A7 III](/smart-rentals/cameras-optics/sony-alpha-a7-iii) NOT just the path.
-  Never write raw URLs or paths — always wrap in markdown link syntax."
-  ```
-
-**Acceptance:** Ubunye responses contain clickable links that navigate within the app.
-
----
-
-### FIX 12: Ubunye Uses Emojis (LOW)
-**Bug:** Ubunye uses emojis which look unprofessional for a premium platform.
-
-- Read `lib/ubunye/system-prompt.ts`
-- Add to behaviour rules: `"Never use emojis in responses. Keep the tone professional, clean, and direct."`
-
-**Acceptance:** Ubunye responses contain zero emojis.
-
----
-
-## Post-Fix Verification
-
-After all fixes, run:
-```bash
-npm run build
-npm run test
-npm run test:e2e
+  - Set return_reviewed_by, return_reviewed_at
+  - Notify renter of outcome
+  - Notify owner of outcome
+Output: { success: true, booking, refund_result? }
 ```
 
-All must pass. Then:
-
-1. Test registration with a new email
-2. Test login → dashboard redirect (no refresh needed)
-3. Test magic link flow
-4. Test sign out → home redirect
-5. Test mobile menu open/close
-6. Test admin on mobile
-7. Test Ubunye chat — verify links are clickable and no emojis
-8. Test avatar upload
-9. Test forgot password error messages
-
-Report results for each test.
-
----
-
-## Update MEMORY.md
-
-After all fixes are complete, append to MEMORY.md:
+### `POST /api/rentals/[id]/checkout-condition` — Record condition at pickup
 
 ```
-## Session: TASK-036 — Bug Fixes + Auth Improvements (2026-03-18)
-### Branch: fix/task-036-testing-bugs
-### Fixes Applied:
-- Registration: auth trigger creates profile, frontend only calls signUp()
-- Login redirect: window.location.href replaces router.push for auth transitions
-- Auth flicker: AuthProvider with initialUser from server eliminates page flash
-- Password reset: user-friendly error messages, no raw Supabase errors
-- Magic link login: passwordless sign-in via email OTP
-- Google OAuth: one-click sign-in (requires Google Console setup)
-- Onboarding: new users fill profile on first login, works for all auth methods
-- Avatar upload: [describe fix]
-- Admin mobile nav: hamburger menu for admin on mobile
-- Mobile menu: hamburger toggle open/close
-- Ubunye: system prompt updated — markdown links required, no emojis
-### Tests: [X/Y passed]
-### Notes: [any blockers or follow-ups]
+Auth: admin or owner
+Input: {
+  condition: 'new' | 'like_new' | 'good' | 'fair',
+  photos: string[]     // Cloudinary URLs of gear before handover
+}
+Actions:
+  - Save condition_at_checkout, checkout_photos
+  - Status → 'active' (gear is now with renter)
+  - Notify renter that booking is active
+Output: { success: true }
 ```
 
 ---
 
-## Post-Session
+## Overdue Detection
+
+Add to existing daily maintenance cron (`app/api/cron/daily-maintenance/route.ts`):
+
+```typescript
+// Mark overdue rentals
+const { data: overdue } = await supabase
+  .from('equipment_bookings')
+  .update({ status: 'overdue', updated_at: new Date().toISOString() })
+  .eq('status', 'active')
+  .lt('end_date', today)
+  .select();
+
+// Notify renters with overdue gear
+for (const booking of overdue ?? []) {
+  await notify(booking.user_id, {
+    type: 'rental_overdue',
+    title: 'Your rental is overdue',
+    body: `Please return your gear. Late fees may apply.`,
+    link: `/dashboard/rentals/${booking.id}`,
+  });
+}
+```
+
+### Late Fee Calculation
+
+```typescript
+// In constants.ts
+RENTAL: {
+  depositPercent: 50,
+  lateFeePerDay: 150,  // R150/day late fee (ZAR)
+  maxLateDays: 14,     // After 14 days, escalate to dispute
+}
+```
+
+---
+
+## Frontend
+
+### Renter's Booking Page — `/dashboard/rentals/[id]`
 
 ```
-/pre-merge
+Status: Active
+┌─────────────────────────────────────┐
+│ Sony A7 III                         │
+│ Booked: 12 Apr - 15 Apr 2026       │
+│ Deposit: R750                       │
+│ Status: Active                      │
+│                                     │
+│ [Return Gear]                       │
+└─────────────────────────────────────┘
+
+After clicking "Return Gear":
+┌─────────────────────────────────────┐
+│ Return Condition Check              │
+│                                     │
+│ Condition: [Good ▼]                 │
+│                                     │
+│ Upload photos of gear:              │
+│ [📷 Drop photos here]              │
+│                                     │
+│ Notes (optional):                   │
+│ [________________________]          │
+│                                     │
+│ [Submit Return]                     │
+└─────────────────────────────────────┘
 ```
 
-Verify CI passes. Then merge to main. Run `/end-session`.
+### Admin Return Review — `/admin/rentals/[id]/return`
+
+```
+┌─────────────────────────────────────────────────────┐
+│ Return Review — Sony A7 III                         │
+│ Renter: Thabo M.                                    │
+│                                                     │
+│ CHECKOUT CONDITION        RETURN CONDITION           │
+│ ┌──────────┐              ┌──────────┐              │
+│ │ [photo]  │  Like New    │ [photo]  │  Good        │
+│ │ [photo]  │              │ [photo]  │              │
+│ └──────────┘              └──────────┘              │
+│                                                     │
+│ Renter notes: "Small scratch on body, was there     │
+│ when I picked it up"                                │
+│                                                     │
+│ Deposit: R750                                       │
+│ Late fee: R0 (returned on time)                     │
+│                                                     │
+│ Decision:                                           │
+│ (•) Full deposit release — R750                     │
+│ ( ) Partial release — R[___]                        │
+│ ( ) No release — keep full deposit                  │
+│ ( ) Escalate to dispute                             │
+│                                                     │
+│ Admin notes: [________________________]             │
+│                                                     │
+│ [Confirm Decision]                                  │
+└─────────────────────────────────────────────────────┘
+```
+
+---
+
+## Notification Types to Add
+
+```typescript
+// Add to notification types
+'rental_return_pending'   // → admin: "Thabo submitted a return for Sony A7 III"
+'rental_return_approved'  // → renter: "Your deposit of R750 has been released"
+'rental_return_partial'   // → renter: "R500 of your R750 deposit has been released"
+'rental_overdue'          // → renter: "Your rental is overdue. Late fees apply."
+'rental_completed'        // → owner: "Sony A7 III has been returned in good condition"
+```
+
+---
+
+## The Full Rental Lifecycle
+
+```
+BROWSE → BOOK → PAY → PICKUP → USE → RETURN → REVIEW
+  │        │      │      │       │       │        │
+  │        │      │      │       │       │        └─ Reviews (DONE - exists)
+  │        │      │      │       │       └─ THIS TASK
+  │        │      │      │       └─ Status: active
+  │        │      │      └─ Checkout condition recorded
+  │        │      └─ Paystack payment (DONE - exists)
+  │        └─ Cart checkout (DONE - exists)
+  └─ Smart rentals browse (DONE - exists)
+```
+
+---
+
+## Acceptance Criteria
+
+- [ ] Renter can initiate return with condition + photos
+- [ ] Admin can review return with before/after comparison
+- [ ] Full deposit release triggers Paystack refund
+- [ ] Partial deposit release triggers partial Paystack refund
+- [ ] Overdue rentals auto-detected by daily cron
+- [ ] Late fees calculated at R150/day (from constants.ts)
+- [ ] Late fee constants in constants.ts, not hardcoded
+- [ ] All status transitions validated (can't return a cancelled booking)
+- [ ] Both parties notified at each step
+- [ ] Checkout condition recorded with photos before handover
+- [ ] Mobile-friendly return form (most renters use phones)
+- [ ] Dispute escalation hands off to TASK-037 workflow
+
+---
+
+## Commit Strategy
+
+1. `feat: add return columns to equipment_bookings migration`
+2. `feat: checkout condition recording API + UI`
+3. `feat: renter return submission API + UI`
+4. `feat: admin return review with deposit release/refund`
+5. `feat: overdue detection in daily maintenance cron`
+6. `feat: return notification types + email alerts`
+
+PR title: "TASK-036: Gear return flow with deposit release"

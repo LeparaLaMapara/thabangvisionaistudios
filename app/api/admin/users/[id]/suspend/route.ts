@@ -3,6 +3,8 @@ export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/auth';
 import { createAdminClient } from '@/lib/supabase/server';
+import { sendAccountSuspended } from '@/lib/email';
+import { STUDIO } from '@/lib/constants';
 
 // ─── POST — Suspend a user (admin only) ─────────────────────────────────────
 
@@ -115,6 +117,27 @@ export async function POST(
     if (logError) {
       console.error('[admin/users/suspend] Log error:', logError.message);
       // Don't fail the request — suspension was applied
+    }
+
+    // Send suspension email to the user
+    try {
+      const { data: userProfile } = await supabase
+        .from('profiles')
+        .select('email, display_name')
+        .eq('id', targetUserId)
+        .single();
+
+      if (userProfile?.email) {
+        await sendAccountSuspended({
+          email: userProfile.email,
+          displayName: userProfile.display_name || '',
+          reason: reason.trim(),
+          expiresAt: expiresAt ?? undefined,
+          supportEmail: STUDIO.email,
+        });
+      }
+    } catch {
+      // Email failure shouldn't block the response
     }
 
     return NextResponse.json({ success: true, message: 'User suspended.' });

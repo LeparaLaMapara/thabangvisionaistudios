@@ -9,6 +9,10 @@ export type {
   VerificationApprovedParams,
   VerificationRejectedParams,
   BookingConfirmationParams,
+  AccountSuspendedParams,
+  AccountReinstatedParams,
+  DisputeFiledParams,
+  DisputeResolvedParams,
 } from './types';
 
 // ─── Provider Registry ───────────────────────────────────────────────────────
@@ -63,4 +67,28 @@ export function sendBookingConfirmation(
   ...args: Parameters<EmailProvider['sendBookingConfirmation']>
 ): ReturnType<EmailProvider['sendBookingConfirmation']> {
   return email.sendBookingConfirmation(...args);
+}
+
+export function sendAccountSuspended(
+  ...args: Parameters<EmailProvider['sendAccountSuspended']>
+): ReturnType<EmailProvider['sendAccountSuspended']> {
+  return email.sendAccountSuspended(...args);
+}
+
+export function sendAccountReinstated(
+  ...args: Parameters<EmailProvider['sendAccountReinstated']>
+): ReturnType<EmailProvider['sendAccountReinstated']> {
+  return email.sendAccountReinstated(...args);
+}
+
+export function sendDisputeFiled(
+  ...args: Parameters<EmailProvider['sendDisputeFiled']>
+): ReturnType<EmailProvider['sendDisputeFiled']> {
+  return email.sendDisputeFiled(...args);
+}
+
+export function sendDisputeResolved(
+  ...args: Parameters<EmailProvider['sendDisputeResolved']>
+): ReturnType<EmailProvider['sendDisputeResolved']> {
+  return email.sendDisputeResolved(...args);
 }

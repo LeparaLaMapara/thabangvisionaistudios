@@ -1,6 +1,12 @@
 import type { UbunyeAgent } from './types';
+import { assistantAgent } from './agents/assistant';
+import { bookingAgent } from './agents/booking';
 
 export const UBUNYE_AGENTS: Record<string, UbunyeAgent> = {
+  assistant: assistantAgent,
+
+  booking: bookingAgent,
+
   onboarding: {
     id: 'onboarding',
     name: 'Ubunye Onboarding',

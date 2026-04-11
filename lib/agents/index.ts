@@ -6,3 +6,6 @@ export type {
   IdExtractionResult,
   SkillDetectionResult,
 } from './types';
+export { executeAgent } from './runtime';
+export { classifyIntent } from './router';
+export type { AgentIntent } from './router';

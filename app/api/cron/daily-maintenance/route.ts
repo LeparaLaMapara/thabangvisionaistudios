@@ -20,6 +20,8 @@ import { STUDIO } from '@/lib/constants';
  * 7. Auto-reassign unresponsive creators (48h with no acknowledgement)
  * 8. Auto-detect overdue rentals
  * 9. Auto-escalate unreturned gear to disputes (14+ days overdue)
+ * 10. Auto-flag/suspend users with 3+ active disputes
+ * 11. Auto-suspend users with gear overdue 30+ days
  */
 export async function GET(request: NextRequest): Promise<NextResponse> {
   const authError = validateCronAuth(request);
@@ -333,6 +335,126 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   } catch (err) {
     console.error('[daily-maintenance] dispute escalation failed:', err);
     results.disputeEscalation = { error: String(err) };
+  }
+
+  // ─── 10. Auto-flag users with 3+ disputes for review ─────────────────────
+  try {
+    // Find users with 3+ open/investigating disputes filed against their bookings
+    const { data: allDisputes } = await supabase
+      .from('disputes')
+      .select('booking_id, equipment_booking_id')
+      .in('status', ['open', 'investigating']);
+
+    // Count disputes per user (as the other party, not the filer)
+    const userDisputeCounts = new Map<string, number>();
+
+    for (const dispute of allDisputes ?? []) {
+      if (dispute.equipment_booking_id) {
+        const { data: eb } = await supabase
+          .from('equipment_bookings')
+          .select('user_id')
+          .eq('id', dispute.equipment_booking_id)
+          .single();
+        if (eb?.user_id) {
+          userDisputeCounts.set(eb.user_id, (userDisputeCounts.get(eb.user_id) ?? 0) + 1);
+        }
+      }
+      if (dispute.booking_id) {
+        const { data: bk } = await supabase
+          .from('bookings')
+          .select('creator_id')
+          .eq('id', dispute.booking_id)
+          .single();
+        if (bk?.creator_id) {
+          userDisputeCounts.set(bk.creator_id, (userDisputeCounts.get(bk.creator_id) ?? 0) + 1);
+        }
+      }
+    }
+
+    let autoSuspended = 0;
+    for (const [userId, count] of userDisputeCounts.entries()) {
+      if (count >= 3) {
+        // Check if user is already suspended
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('is_suspended')
+          .eq('id', userId)
+          .single();
+
+        if (profile && !profile.is_suspended) {
+          await supabase.from('profiles').update({
+            is_suspended: true,
+            suspended_at: new Date().toISOString(),
+            suspension_reason: `Auto-suspended: ${count} active disputes filed against this user.`,
+          }).eq('id', userId);
+
+          await supabase.from('moderation_log').insert({
+            user_id: userId,
+            action: 'suspended',
+            reason: `Auto-suspended: ${count} active disputes.`,
+            admin_id: userId, // system action
+            metadata: { trigger: 'auto_dispute_count', dispute_count: count },
+          });
+
+          // Deactivate listings
+          await supabase.from('smart_rentals').update({ is_available: false }).eq('owner_id', userId);
+          autoSuspended++;
+        }
+      }
+    }
+    results.autoSuspension = { flaggedUsers: userDisputeCounts.size, autoSuspended };
+  } catch (err) {
+    console.error('[daily-maintenance] auto-suspension failed:', err);
+    results.autoSuspension = { error: String(err) };
+  }
+
+  // ─── 11. Auto-suspend users with gear overdue 30+ days ────────────────────
+  try {
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    const cutoff30 = thirtyDaysAgo.toISOString().split('T')[0];
+
+    const { data: severeOverdue } = await supabase
+      .from('equipment_bookings')
+      .select('user_id')
+      .in('status', ['overdue', 'disputed'])
+      .lt('end_date', cutoff30);
+
+    let suspended30 = 0;
+    const seen = new Set<string>();
+    for (const booking of severeOverdue ?? []) {
+      if (seen.has(booking.user_id)) continue;
+      seen.add(booking.user_id);
+
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('is_suspended')
+        .eq('id', booking.user_id)
+        .single();
+
+      if (profile && !profile.is_suspended) {
+        await supabase.from('profiles').update({
+          is_suspended: true,
+          suspended_at: new Date().toISOString(),
+          suspension_reason: 'Auto-suspended: gear overdue for 30+ days.',
+        }).eq('id', booking.user_id);
+
+        await supabase.from('moderation_log').insert({
+          user_id: booking.user_id,
+          action: 'suspended',
+          reason: 'Auto-suspended: gear overdue 30+ days.',
+          admin_id: booking.user_id,
+          metadata: { trigger: 'auto_overdue_30_days' },
+        });
+
+        await supabase.from('smart_rentals').update({ is_available: false }).eq('owner_id', booking.user_id);
+        suspended30++;
+      }
+    }
+    results.overdueAutoSuspension = { checked: severeOverdue?.length ?? 0, suspended: suspended30 };
+  } catch (err) {
+    console.error('[daily-maintenance] 30-day overdue suspension failed:', err);
+    results.overdueAutoSuspension = { error: String(err) };
   }
 
   console.log('[daily-maintenance] Results:', JSON.stringify(results));

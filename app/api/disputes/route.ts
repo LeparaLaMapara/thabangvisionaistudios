@@ -3,6 +3,7 @@ export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth, checkNotSuspended } from '@/lib/auth';
 import { createClient, createAdminClient } from '@/lib/supabase/server';
+import { sendDisputeFiled } from '@/lib/email';
 
 const VALID_DISPUTE_TYPES = [
   'gear_damage',
@@ -209,6 +210,27 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       }
     } catch {
       // Don't block on notification failure
+    }
+
+    // Send dispute filed emails
+    try {
+      const { data: filerProfile } = await adminClient
+        .from('profiles')
+        .select('email, display_name')
+        .eq('id', auth.user.id)
+        .single();
+
+      if (filerProfile?.email) {
+        await sendDisputeFiled({
+          email: filerProfile.email,
+          displayName: filerProfile.display_name || '',
+          disputeType: dispute_type,
+          disputeId: dispute.id,
+          role: 'filer',
+        });
+      }
+    } catch {
+      // Email failure shouldn't block
     }
 
     return NextResponse.json({ id: dispute.id }, { status: 201 });
