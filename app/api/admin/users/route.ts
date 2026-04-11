@@ -16,7 +16,7 @@ export async function GET() {
 
     const { data: profiles, error } = await supabase
       .from('profiles')
-      .select('id, display_name, avatar_url, role, is_verified, created_at')
+      .select('id, display_name, avatar_url, role, is_verified, is_suspended, suspended_at, suspension_reason, suspension_expires_at, created_at')
       .order('created_at', { ascending: false });
 
     if (error) {

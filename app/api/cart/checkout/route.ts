@@ -3,7 +3,7 @@ export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient, createAdminClient } from '@/lib/supabase/server';
 import { payments } from '@/lib/payments';
-import { checkRateLimit } from '@/lib/auth';
+import { checkRateLimit, checkNotSuspended } from '@/lib/auth';
 import { STUDIO } from '@/lib/constants';
 import { getCartItems, clearCart } from '@/lib/supabase/queries/cart';
 import { calculateCartPricing } from '@/lib/cart/pricing';
@@ -20,6 +20,15 @@ export async function POST(request: NextRequest) {
 
   if (!user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  // Check if user is suspended
+  const { suspended, reason: suspensionReason } = await checkNotSuspended(user.id);
+  if (suspended) {
+    return NextResponse.json(
+      { error: 'Account suspended', reason: suspensionReason },
+      { status: 403 },
+    );
   }
 
   if (!checkRateLimit(`checkout:${user.id}`, 3, 60_000)) {

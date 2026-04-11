@@ -4,7 +4,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { payments } from '@/lib/payments';
 import { STUDIO } from '@/lib/constants';
-import { checkRateLimit } from '@/lib/auth';
+import { checkRateLimit, checkNotSuspended } from '@/lib/auth';
 
 export async function GET() {
   const supabase = await createClient();
@@ -38,6 +38,15 @@ export async function POST(request: NextRequest) {
 
   if (!user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  // Check if user is suspended
+  const { suspended, reason: suspensionReason } = await checkNotSuspended(user.id);
+  if (suspended) {
+    return NextResponse.json(
+      { error: 'Account suspended', reason: suspensionReason },
+      { status: 403 },
+    );
   }
 
   // H3: Rate limit booking creation — 5 requests per minute per user

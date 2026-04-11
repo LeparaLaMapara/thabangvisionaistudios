@@ -5,7 +5,7 @@ import { nanoid } from 'nanoid';
 import { createClient } from '@/lib/supabase/server';
 import { payments } from '@/lib/payments';
 import { STUDIO } from '@/lib/constants';
-import { checkRateLimit } from '@/lib/auth';
+import { checkRateLimit, checkNotSuspended } from '@/lib/auth';
 import { getHourlyRate } from '@/lib/supabase/queries/service-bookings';
 import { email as emailProvider } from '@/lib/email';
 import { logEvent } from '@/lib/data/events';
@@ -20,6 +20,15 @@ export async function POST(request: NextRequest) {
 
   if (!user) {
     return NextResponse.json({ error: 'Must be logged in to book' }, { status: 401 });
+  }
+
+  // Check if user is suspended
+  const { suspended, reason: suspensionReason } = await checkNotSuspended(user.id);
+  if (suspended) {
+    return NextResponse.json(
+      { error: 'Account suspended', reason: suspensionReason },
+      { status: 403 },
+    );
   }
 
   if (!checkRateLimit(`service-booking:${user.id}`, 5, 60_000)) {

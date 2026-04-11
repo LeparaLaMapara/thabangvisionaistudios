@@ -1,5 +1,6 @@
 import type { AuthProvider } from './types';
 import { supabaseAuth } from './supabase';
+import { createClient } from '@/lib/supabase/server';
 
 // Re-export types for convenience
 export type { AuthProvider, AuthUser, AuthResult } from './types';
@@ -40,6 +41,38 @@ export async function requireAdmin() {
 
 export function isAdmin(userId: string, email?: string) {
   return auth.isAdmin(userId, email);
+}
+
+// ─── Suspension Check ───────────────────────────────────────────────────────
+
+export async function checkNotSuspended(userId: string): Promise<{
+  suspended: boolean;
+  reason?: string;
+}> {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from('profiles')
+    .select('is_suspended, suspension_reason, suspension_expires_at')
+    .eq('id', userId)
+    .single();
+
+  if (!data?.is_suspended) return { suspended: false };
+
+  // Auto-reinstate if suspension expired
+  if (data.suspension_expires_at && new Date(data.suspension_expires_at) < new Date()) {
+    await supabase
+      .from('profiles')
+      .update({
+        is_suspended: false,
+        suspended_at: null,
+        suspension_reason: null,
+        suspension_expires_at: null,
+      })
+      .eq('id', userId);
+    return { suspended: false };
+  }
+
+  return { suspended: true, reason: data.suspension_reason ?? undefined };
 }
 
 // ─── Rate Limiting (provider-agnostic) ───────────────────────────────────────
