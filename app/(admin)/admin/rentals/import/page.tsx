@@ -8,7 +8,7 @@ import {
   FileUp, Loader2, Package, Upload, X,
 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
-import { STUDIO } from '@/lib/constants';
+import { STUDIO, RENTAL_CATEGORIES } from '@/lib/constants';
 import { escapeIlike } from '@/lib/search/types';
 import {
   uploadFile,
@@ -43,17 +43,7 @@ type ImportItem = ExtractedItem & {
 
 // ─── Constants ──────────────────────────────────────────────────────────────────
 
-const VALID_CATEGORIES = [
-  { value: 'cameras-optics', label: 'Cameras & Optics' },
-  { value: 'audio', label: 'Audio' },
-  { value: 'lighting-power', label: 'Lighting & Power' },
-  { value: 'grip-motion', label: 'Grip & Motion' },
-  { value: 'data-storage', label: 'Data & Storage' },
-  { value: 'crew-services', label: 'Crew Services' },
-  { value: 'specialized-solutions', label: 'Specialized Solutions' },
-  { value: 'aerial-support', label: 'Aerial Support' },
-  { value: 'sound-reinforcement', label: 'Sound Reinforcement' },
-];
+const VALID_CATEGORIES = RENTAL_CATEGORIES;
 
 function autoSlug(title: string): string {
   return title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');

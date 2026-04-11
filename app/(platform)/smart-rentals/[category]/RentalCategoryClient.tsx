@@ -6,6 +6,7 @@ import Image from 'next/image';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ChevronDown, SlidersHorizontal, X, Check, ArrowRight, Users, Star, ShieldCheck, Building2 } from 'lucide-react';
 import type { SmartRental } from '@/lib/supabase/queries/smartRentals';
+import { RENTAL_CATEGORIES } from '@/lib/constants';
 
 // ─── Cloudinary thumbnail helper ──────────────────────────────────────────────
 // Rewrites a Cloudinary URL to request a smaller, optimised thumbnail.
@@ -29,15 +30,9 @@ function ImageSkeleton(): React.ReactElement {
 // ─── Category label map ───────────────────────────────────────────────────────
 // Owned locally. No data.ts dependency.
 
-const CATEGORY_LABELS: Record<string, string> = {
-  'cameras-optics':        'Cameras & Optics',
-  'lighting-power':        'Lighting & Power',
-  'audio':                 'Audio',
-  'grip-motion':           'Grip & Motion',
-  'data-storage':          'Data & Storage',
-  'crew-services':         'Crew Services',
-  'specialized-solutions': 'Specialized Solutions',
-};
+const CATEGORY_LABELS: Record<string, string> = Object.fromEntries(
+  RENTAL_CATEGORIES.map(c => [c.value, c.label]),
+);
 
 function getCategoryLabel(slug: string): string {
   return (

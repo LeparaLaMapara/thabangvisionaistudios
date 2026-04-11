@@ -8,7 +8,7 @@ import {
   Pencil, Plus, RefreshCw, Star, Trash2, X,
 } from 'lucide-react';
 import { uploadFile, type CloudinaryAsset } from '@/lib/cloudinary/upload';
-import { STUDIO } from '@/lib/constants';
+import { STUDIO, RENTAL_CATEGORIES as RENTAL_CATEGORIES_CONST } from '@/lib/constants';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -152,16 +152,10 @@ function extractVideoId(provider: string, url: string): string | null {
   return null;
 }
 
-const RENTAL_CATEGORIES: { value: string; label: string }[] = [
-  { value: '',                      label: '— Select category —' },
-  { value: 'cameras-optics',        label: 'Cameras & Optics' },
-  { value: 'lighting-power',        label: 'Lighting & Power' },
-  { value: 'audio',                 label: 'Audio' },
-  { value: 'grip-motion',           label: 'Grip & Motion' },
-  { value: 'data-storage',          label: 'Data & Storage' },
-  { value: 'crew-services',         label: 'Crew Services' },
-  { value: 'specialized-solutions', label: 'Specialized Solutions' },
-  { value: '__other__',             label: 'Other…' },
+const RENTAL_CATEGORIES_SELECT: { value: string; label: string }[] = [
+  { value: '',           label: '— Select category —' },
+  ...RENTAL_CATEGORIES_CONST.map(c => ({ value: c.value, label: c.label })),
+  { value: '__other__',  label: 'Other…' },
 ];
 
 function formToPayload(f: Form) {
@@ -211,7 +205,7 @@ function formToPayload(f: Form) {
 }
 
 function rentalToForm(r: Rental): Form {
-  const knownCats = RENTAL_CATEGORIES.map(c => c.value).filter(v => v && v !== '__other__');
+  const knownCats = RENTAL_CATEGORIES_SELECT.map(c => c.value).filter(v => v && v !== '__other__');
   const isKnown   = knownCats.includes(r.category);
   return {
     title:           r.title,
@@ -653,7 +647,7 @@ export default function AdminRentalsPage() {
                       label="Category *"
                       value={form.category}
                       onChange={v => { setF('category', v); if (v !== '__other__') setF('category_other', ''); }}
-                      options={RENTAL_CATEGORIES}
+                      options={RENTAL_CATEGORIES_SELECT}
                     />
                     {form.category === '__other__' && (
                       <Field

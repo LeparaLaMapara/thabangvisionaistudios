@@ -6,7 +6,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { ArrowUpRight } from 'lucide-react';
 import type { SmartRental } from '@/lib/supabase/queries/smartRentals';
-import { PLACEHOLDER_IMAGES } from '@/lib/constants';
+import { PLACEHOLDER_IMAGES, RENTAL_CATEGORIES } from '@/lib/constants';
 
 // ─── Image shimmer skeleton ───────────────────────────────────────────────────
 function ImageSkeleton(): React.ReactElement {
@@ -151,62 +151,9 @@ type CategoryMeta = {
   fallbackImage: string;
 };
 
-const CATEGORY_META: Record<string, CategoryMeta> = {
-  'cameras-optics': {
-    label:         'Cameras & Optics',
-    subtitle:      'High-end Cinema Systems',
-    description:   'Cinema cameras, prime and zoom lens sets, and anamorphics for every format.',
-    fallbackImage: PLACEHOLDER_IMAGES.camerasOptics,
-  },
-  'lighting-power': {
-    label:         'Lighting & Power',
-    subtitle:      'Fixtures & Distribution',
-    description:   'LED panels, HMIs, generators, power distribution, and battery solutions.',
-    fallbackImage: PLACEHOLDER_IMAGES.lightingPower,
-  },
-  'audio': {
-    label:         'Audio',
-    subtitle:      'Capture & Monitoring',
-    description:   'Microphones, field recorders, mixers, wireless systems, and IEM monitoring.',
-    fallbackImage: PLACEHOLDER_IMAGES.audio,
-  },
-  'grip-motion': {
-    label:         'Grip & Motion',
-    subtitle:      'Support & Stabilization',
-    description:   'Dollies, cranes, gimbals, sliders, and remote heads.',
-    fallbackImage: PLACEHOLDER_IMAGES.gripMotion,
-  },
-  'data-storage': {
-    label:         'Data & Storage',
-    subtitle:      'Media Management',
-    description:   'RAID arrays, NVMe drives, on-set DITs, and cloud backup solutions.',
-    fallbackImage: PLACEHOLDER_IMAGES.dataStorage,
-  },
-  'crew-services': {
-    label:         'Crew Services',
-    subtitle:      'Technical Personnel',
-    description:   'DPs, gaffers, sound operators, grips, and full-package crew for any scale.',
-    fallbackImage: PLACEHOLDER_IMAGES.crewServices,
-  },
-  'specialized-solutions': {
-    label:         'Specialized Solutions',
-    subtitle:      'Emerging Tech & VP',
-    description:   'LED volumes, virtual production tools, VR/AR rigs, and drone packages.',
-    fallbackImage: PLACEHOLDER_IMAGES.specializedSolutions,
-  },
-  'aerial-support': {
-    label:         'Aerial Support',
-    subtitle:      'Drone & Aerial Systems',
-    description:   'Professional drone rigs, aerial camera systems, and licensed pilot services.',
-    fallbackImage: PLACEHOLDER_IMAGES.gripMotion,
-  },
-  'sound-reinforcement': {
-    label:         'Sound Reinforcement',
-    subtitle:      'Live Sound & PA Systems',
-    description:   'PA systems, stage monitors, mixing consoles, and live sound engineering packages.',
-    fallbackImage: PLACEHOLDER_IMAGES.soundReinforcement,
-  },
-};
+const CATEGORY_META: Record<string, CategoryMeta> = Object.fromEntries(
+  RENTAL_CATEGORIES.map(c => [c.value, { label: c.label, subtitle: c.subtitle, description: c.description, fallbackImage: c.fallbackImage }]),
+);
 
 function getCategoryMeta(slug: string): CategoryMeta {
   return (

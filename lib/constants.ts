@@ -334,6 +334,87 @@ export const PLACEHOLDER_IMAGES = {
   creatorDashboard: 'https://res.cloudinary.com/dzymetqjr/image/upload/v1773355513/creator_dashboard_xolw82.png',
 } as const;
 
+// ─── RENTAL CATEGORIES ─────────────────────────────────────────────────────
+export const RENTAL_CATEGORIES = [
+  {
+    value: 'cameras-optics',
+    label: 'Cameras & Optics',
+    subtitle: 'High-end Cinema Systems',
+    description: 'Cinema cameras, prime and zoom lens sets, and anamorphics for every format.',
+    fallbackImage: PLACEHOLDER_IMAGES.camerasOptics,
+  },
+  {
+    value: 'lighting-power',
+    label: 'Lighting & Power',
+    subtitle: 'Fixtures & Distribution',
+    description: 'LED panels, HMIs, generators, power distribution, and battery solutions.',
+    fallbackImage: PLACEHOLDER_IMAGES.lightingPower,
+  },
+  {
+    value: 'audio',
+    label: 'Audio',
+    subtitle: 'Capture & Monitoring',
+    description: 'Microphones, field recorders, mixers, wireless systems, and IEM monitoring.',
+    fallbackImage: PLACEHOLDER_IMAGES.audio,
+  },
+  {
+    value: 'grip-motion',
+    label: 'Grip & Motion',
+    subtitle: 'Support & Stabilization',
+    description: 'Dollies, cranes, gimbals, sliders, and remote heads.',
+    fallbackImage: PLACEHOLDER_IMAGES.gripMotion,
+  },
+  {
+    value: 'data-storage',
+    label: 'Data & Storage',
+    subtitle: 'Media Management',
+    description: 'RAID arrays, NVMe drives, on-set DITs, and cloud backup solutions.',
+    fallbackImage: PLACEHOLDER_IMAGES.dataStorage,
+  },
+  {
+    value: 'crew-services',
+    label: 'Crew Services',
+    subtitle: 'Technical Personnel',
+    description: 'DPs, gaffers, sound operators, grips, and full-package crew for any scale.',
+    fallbackImage: PLACEHOLDER_IMAGES.crewServices,
+  },
+  {
+    value: 'specialized-solutions',
+    label: 'Specialized Solutions',
+    subtitle: 'Emerging Tech & VP',
+    description: 'LED volumes, virtual production tools, VR/AR rigs, and drone packages.',
+    fallbackImage: PLACEHOLDER_IMAGES.specializedSolutions,
+  },
+  {
+    value: 'aerial-support',
+    label: 'Aerial Support',
+    subtitle: 'Drone & Aerial Systems',
+    description: 'Professional drone rigs, aerial camera systems, and licensed pilot services.',
+    fallbackImage: PLACEHOLDER_IMAGES.gripMotion,
+  },
+  {
+    value: 'sound-reinforcement',
+    label: 'Sound Reinforcement',
+    subtitle: 'Live Sound & PA Systems',
+    description: 'PA systems, stage monitors, mixing consoles, and live sound engineering packages.',
+    fallbackImage: PLACEHOLDER_IMAGES.soundReinforcement,
+  },
+] as const;
+
+export const RENTAL_CATEGORY_VALUES = RENTAL_CATEGORIES.map(c => c.value);
+export type RentalCategorySlug = (typeof RENTAL_CATEGORIES)[number]['value'];
+
+export const LISTING_TO_RENTAL_CATEGORY: Record<string, RentalCategorySlug> = {
+  cameras: 'cameras-optics',
+  lenses: 'cameras-optics',
+  lighting: 'lighting-power',
+  audio: 'audio',
+  grip: 'grip-motion',
+  accessories: 'specialized-solutions',
+  drones: 'aerial-support',
+  other: 'specialized-solutions',
+};
+
 // ─── CAPABILITIES (used on home page ServiceGrid) ───────────────────────────
 export const CAPABILITIES = [
   {

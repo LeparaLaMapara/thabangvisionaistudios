@@ -1,5 +1,5 @@
 import { createClient } from '@/lib/supabase/server';
-import { STUDIO } from '@/lib/constants';
+import { STUDIO, LISTING_TO_RENTAL_CATEGORY } from '@/lib/constants';
 
 // ─── DB row type ──────────────────────────────────────────────────────────────
 
@@ -39,19 +39,6 @@ export type SmartRental = {
   review_count: number;
   /** 'studio' for official gear, 'community' for user-listed gear */
   source?: 'studio' | 'community';
-};
-
-// ─── Community listing → smart rental category mapping ────────────────────────
-// Maps user listing categories to the smart_rentals category slugs.
-
-const LISTING_TO_RENTAL_CATEGORY: Record<string, string> = {
-  cameras:     'cameras-optics',
-  lenses:      'cameras-optics',
-  lighting:    'lighting-power',
-  audio:       'audio',
-  grip:        'grip-motion',
-  accessories: 'specialized-solutions',
-  other:       'specialized-solutions',
 };
 
 // Selected columns used for list views (omit heavy gallery blob)
