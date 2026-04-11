@@ -261,6 +261,35 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     results.autoReassignedError = String(err);
   }
 
+  // ─── 8. Auto-detect overdue rentals ──────────────────────────────────────────
+  try {
+    const today = new Date().toISOString().split('T')[0];
+    const { data: overdueRentals, error: overdueError } = await supabase
+      .from('equipment_bookings')
+      .update({ status: 'overdue', updated_at: new Date().toISOString() })
+      .eq('status', 'active')
+      .lt('end_date', today)
+      .select('id, user_id');
+
+    if (overdueError) throw overdueError;
+
+    // Notify renters
+    for (const booking of overdueRentals ?? []) {
+      await supabase.from('notifications').insert({
+        user_id: booking.user_id,
+        type: 'rental_overdue',
+        title: 'Your rental is overdue',
+        body: 'Please return your gear. Late fees may apply.',
+        link: `/dashboard/rentals/${booking.id}`,
+      });
+    }
+
+    results.overdueRentals = { marked: overdueRentals?.length ?? 0 };
+  } catch (err) {
+    console.error('[daily-maintenance] overdue rental detection failed:', err);
+    results.overdueRentals = { error: String(err) };
+  }
+
   console.log('[daily-maintenance] Results:', JSON.stringify(results));
 
   return NextResponse.json({

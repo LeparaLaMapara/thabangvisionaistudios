@@ -401,6 +401,14 @@ export const RENTAL_CATEGORIES = [
   },
 ] as const;
 
+// ─── RENTAL POLICIES ─────────────────────────────────────────────────────────
+export const RENTAL_POLICIES = {
+  depositPercent: 50,
+  lateFeePerDayZar: 150,
+  maxLateDays: 14,
+  supportEmail: STUDIO.supportEmail,
+} as const;
+
 export const RENTAL_CATEGORY_VALUES = RENTAL_CATEGORIES.map(c => c.value);
 export type RentalCategorySlug = (typeof RENTAL_CATEGORIES)[number]['value'];
 
