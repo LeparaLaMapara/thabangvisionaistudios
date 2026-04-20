@@ -5,8 +5,9 @@ import crypto from 'node:crypto';
 import { checkRateLimit } from '@/lib/auth';
 import { createClient } from '@/lib/supabase/server';
 import { getVerificationStatus, submitVerification } from '@/lib/supabase/queries/verifications';
-import { extractPhotoMetadata } from '@/lib/metadata/verification';
+import { extractPhotoMetadata, type VerificationMetadata } from '@/lib/metadata/verification';
 import { detectFraudFlags } from '@/lib/metadata/fraud-detection';
+import { matchFaces } from '@/lib/agents/tools';
 import { STUDIO } from '@/lib/constants';
 
 // Fixed filenames per user — resubmission overwrites automatically via upsert.
@@ -153,10 +154,11 @@ export async function POST(req: NextRequest) {
     const idBackBuffer = await idBack.arrayBuffer();
     const selfieBuffer = await selfie.arrayBuffer();
 
-    const metadata = {
+    const metadata: VerificationMetadata = {
       id_front: await extractPhotoMetadata(idFrontBuffer),
       id_back: await extractPhotoMetadata(idBackBuffer),
       selfie: await extractPhotoMetadata(selfieBuffer),
+      face_match: null,
     };
 
     // ── Generate document hash for duplicate detection ──────────────────
@@ -172,17 +174,6 @@ export async function POST(req: NextRequest) {
       .eq('id_document_hash', idHash)
       .neq('id', user.id)
       .single();
-
-    // ── Detect fraud flags from metadata ────────────────────────────────
-    const fraudFlags = detectFraudFlags(metadata);
-
-    if (duplicate) {
-      fraudFlags.push({
-        severity: 'high',
-        code: 'DUPLICATE_ID',
-        message: 'Same ID document submitted by another account',
-      });
-    }
 
     // ── If resubmitting (rejected), delete old files first ──────────────
     if (current?.verification_status === 'rejected') {
@@ -217,6 +208,41 @@ export async function POST(req: NextRequest) {
         { error: 'Failed to upload documents. Please try again.' },
         { status: 500 },
       );
+    }
+
+    // ── Face match: selfie vs. ID front (via short-lived signed URLs) ──
+    try {
+      const [selfieUrlRes, idFrontUrlRes] = await Promise.all([
+        supabase.storage.from('verifications').createSignedUrl(storagePaths.selfie, 300),
+        supabase.storage.from('verifications').createSignedUrl(storagePaths.id_front, 300),
+      ]);
+
+      const selfieUrl = selfieUrlRes.data?.signedUrl;
+      const idFrontUrl = idFrontUrlRes.data?.signedUrl;
+
+      if (selfieUrl && idFrontUrl) {
+        const faceMatch = await matchFaces(selfieUrl, idFrontUrl, user.id);
+        metadata.face_match = {
+          match: faceMatch.match,
+          confidence: faceMatch.confidence,
+          reasoning: faceMatch.reasoning,
+          checked_at: new Date().toISOString(),
+        };
+      }
+    } catch (faceErr) {
+      // Non-fatal: admins can still review manually.
+      console.error('[verifications] Face match failed:', faceErr);
+    }
+
+    // ── Detect fraud flags from metadata + face match ───────────────────
+    const fraudFlags = detectFraudFlags(metadata, metadata.face_match);
+
+    if (duplicate) {
+      fraudFlags.push({
+        severity: 'high',
+        code: 'DUPLICATE_ID',
+        message: 'Same ID document submitted by another account',
+      });
     }
 
     // ── Get request metadata ────────────────────────────────────────────

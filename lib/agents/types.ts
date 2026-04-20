@@ -58,3 +58,9 @@ export interface SkillDetectionResult {
     percentage: number;
   }>;
 }
+
+export interface FaceMatchResult {
+  match: boolean;
+  confidence: number;
+  reasoning: string;
+}
