@@ -4,7 +4,7 @@
 AI-powered creative production and equipment rental platform for South African filmmakers and photographers.
 Built by ThabangVision (Pty) Ltd, trading as ThabangVision Labs.
 
-**Stack:** Next.js 16, React 19, TypeScript 5, Tailwind v4, Supabase, Cloudinary, PayFast, Anthropic Claude
+**Stack:** Next.js 16, React 19, TypeScript 5, Tailwind v4, Supabase, Cloudinary, Paystack (active) / PayFast (supported), Anthropic Claude
 **Repo:** https://github.com/LeparaLaMapara/thabangvision
 **Live:** https://nonprodthabangvisionaistudios.vercel.app
 **Supabase:** https://zbdsqvpxpsygbuqnuekm.supabase.co
@@ -25,7 +25,7 @@ Built by ThabangVision (Pty) Ltd, trading as ThabangVision Labs.
 - `lib/search/` → Search providers (Supabase, Algolia)
 - Env vars control which provider is active:
   - `AI_PROVIDER=anthropic`
-  - `PAYMENT_PROVIDER=payfast`
+  - `PAYMENT_PROVIDER=paystack` (currently active; `payfast` is also supported by the abstraction)
   - `STORAGE_PROVIDER=cloudinary`
   - `EMAIL_PROVIDER=gmail`
   - `SEARCH_PROVIDER=supabase`
@@ -53,38 +53,28 @@ Built by ThabangVision (Pty) Ltd, trading as ThabangVision Labs.
 
 ```
 lib/
-├── constants.ts          # STUDIO, PRODUCTION_SERVICES, ADMIN_EMAILS — single source of truth
-├── ai/                   # AI provider abstraction (Vercel AI SDK)
-│   └── index.ts          # getModel() — returns provider based on AI_PROVIDER env var
-├── payments/             # Payment provider abstraction
-│   ├── types.ts
-│   ├── payfast.ts
-│   ├── paystack.ts
-│   └── index.ts
-├── storage/              # Storage provider abstraction
-│   ├── types.ts
-│   ├── cloudinary.ts
-│   └── index.ts
-├── email/                # Email provider abstraction
-│   ├── types.ts
-│   ├── gmail.ts
-│   └── index.ts
-├── search/               # Search provider abstraction
-│   ├── types.ts
-│   ├── supabase.ts
-│   └── index.ts
-├── rag/                  # Vector search infrastructure
-│   ├── embeddings.ts
-│   ├── indexer.ts
-│   ├── retrieval.ts
-│   └── index.ts
-├── ubunye/               # Ubunye AI system prompt builder
-│   └── system-prompt.ts
-├── ranking/              # Gear marketplace ranking
-│   └── calculate.ts
-└── supabase/             # Supabase client helpers
-    ├── client.ts
-    └── server.ts
+├── constants.ts   # STUDIO, PRODUCTION_SERVICES, ADMIN_EMAILS — single source of truth
+├── agents/        # Agent framework: registry, router, runtime, tools, agents/*
+├── ai/            # AI provider abstraction (Vercel AI SDK) — getModel() by AI_PROVIDER
+├── auth/          # requireAuth, requireAdmin, rate limiting, URL safety
+├── cart/          # Cart state helpers
+├── cloudinary/    # Cloudinary server helpers (signing, deletion)
+├── cron/          # Scheduled job logic (invoked via Vercel cron)
+├── data/          # Shared data fetchers / aggregations
+├── email/         # Email provider abstraction (Gmail/Nodemailer)
+├── metadata/      # EXIF extraction, SA ID validation, fraud detection
+├── migrations/    # SQL migrations (run MANUALLY in Supabase SQL Editor)
+├── payments/      # Payment abstraction — paystack.ts (active), payfast.ts, payout.ts
+├── pdf/           # PDF generation (invoices, quotes)
+├── portfolio/     # Portfolio / showcase helpers
+├── productions/   # Smart productions domain logic
+├── rag/           # Vector search (embeddings, indexer, retrieval) — gated by RAG_ENABLED
+├── ranking/       # Gear marketplace ranking algorithm
+├── search/        # Search provider abstraction
+├── storage/       # Storage provider abstraction (Cloudinary)
+├── supabase/      # client.ts, server.ts, queries/* per domain
+├── ubunye/        # Ubunye AI system prompt + tool definitions
+└── whatsapp/      # WhatsApp gateway abstraction (not yet active)
 ```
 
 ## Code Style
@@ -107,10 +97,12 @@ lib/
 
 ### Pricing
 - All prices in ZAR
+- Booking amounts (bookings, booking_payments) stored as integer **ZAR cents** to avoid floating-point drift
 - Production rates come from PRODUCTION_SERVICES in constants.ts
 - Equipment rates come from Supabase smart_rentals table
 - VAT: PRODUCTION_SERVICES.billing.vatRate (currently 15%)
 - Deposit: STUDIO.rental.depositPercent (currently 50%)
+- Active payment provider: **Paystack** (checkout + creator payouts via Transfers API). PayFast code is kept in `lib/payments/payfast.ts` as a switchable alternative — do not wire new flows to it without instruction.
 
 ## Branch Strategy
 - `main` — production, auto-deploys to Vercel
@@ -119,18 +111,32 @@ lib/
 - `hotfix/*` — branch from main for urgent fixes
 - Always merge to main only after build + tests pass
 
-## Testing
+## Commands
+- `npm run dev` — Next.js dev server on localhost:3000
+- `npm run build` — production build (type + import errors surface here)
+- `npm run lint` — ESLint
+- `npx tsc --noEmit` — TypeScript type check without emit
 - `npm run test` — vitest unit tests
-- `npm run test:e2e` — playwright e2e tests
-- `npm run build` — production build
-- ALL THREE must pass before merging to main
+- `npm run test:watch` — vitest in watch mode
+- `npm run test:e2e` — playwright E2E tests
+- `npm run test:e2e:ui` — playwright with UI inspector
+- Single unit test: `npx vitest run <path> -t "<test name>"`
+- Single E2E test: `npx playwright test <path> -g "<name>"`
+- `npm run build`, `npm run test`, and `npm run test:e2e` must all pass before merging to main.
+
+## Platform Conventions
+- **Proxy, not middleware** — Next.js 16 uses `proxy.ts` at repo root and exports a function named `proxy` (not `middleware`). It handles Supabase session refresh + CSRF Origin validation.
+- **Pending migrations are manual** — migrations live in `lib/migrations/` and are applied by hand in the Supabase SQL Editor. Before assuming a table exists (e.g. `bookings`), check `docs/tasks/` or the README migration table — 013 (expired status), 014 (booking system), and the pgvector/marketplace-ranking migrations may still be pending.
+- **Supabase clients** — use `@/lib/supabase/server` in server components / API routes and `@/lib/supabase/client` in client components. `createAdminClient` (service role) is only for admin operations.
+- **Auth bridge** — `providers/AuthProvider.tsx` bridges server-resolved session to the client to prevent auth flicker; don't replace it with client-only auth state.
 
 ## Documentation
-- `docs/processes/` — business process design docs (payment flows, payout logic, data engine, AI architecture, smart productions)
-- `docs/tasks/` — task tracking (`done/` completed, `todo/` pending)
+- `README.md` — authoritative reference: full DB schema, money flow diagrams, API route inventory, env var list, migration status
+- `docs/processes/` — business process design docs (client payment, creator payout, data engine, AI architecture, smart productions, ubunye agents)
+- `docs/tasks/done/` + `docs/tasks/todo/` — task tracking
 - `docs/design/` — historical design audits
 - `docs/architecture.md` — provider abstraction layers
-- `docs/security.md` — security audit and status
+- `docs/security.md` — security audit (29 findings, all fixed)
 - `docs/strategy.md` — company vision, revenue model, platform roadmap
 
 ## Agent Teams
