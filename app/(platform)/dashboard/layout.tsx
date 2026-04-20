@@ -7,6 +7,7 @@ import SignOutButton from '@/components/dashboard/SignOutButton';
 import NotificationBell from '@/components/notifications/NotificationBell';
 import { DashboardTabBar } from '@/components/dashboard/DashboardTabBar';
 import { DashboardSidebar } from '@/components/dashboard/DashboardSidebar';
+import { SuspensionBanner } from '@/components/dashboard/SuspensionBanner';
 
 export default async function DashboardLayout({
   children,
@@ -20,11 +21,13 @@ export default async function DashboardLayout({
   const supabase = await createClient();
   const { data: profile } = await supabase
     .from('profiles')
-    .select('verification_status')
+    .select('verification_status, is_suspended, suspension_reason')
     .eq('id', user.id)
     .single();
 
   const isCreator = profile?.verification_status === 'verified';
+  const isSuspended = profile?.is_suspended === true;
+  const suspensionReason = (profile?.suspension_reason as string) ?? null;
 
   return (
     <div className="min-h-[calc(100vh-200px)]">
@@ -38,6 +41,10 @@ export default async function DashboardLayout({
             <NotificationBell />
           </div>
         </div>
+
+        {isSuspended && (
+          <SuspensionBanner reason={suspensionReason} />
+        )}
 
         <div className="grid grid-cols-1 md:grid-cols-[200px_1fr] gap-10">
           {/* Desktop sidebar — grouped sections */}
