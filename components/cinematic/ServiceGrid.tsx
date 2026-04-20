@@ -3,10 +3,12 @@
 import { motion } from 'framer-motion';
 import Link from 'next/link';
 import Image from 'next/image';
-import { CAPABILITIES as capabilities } from '@/lib/constants';
+import { CAPABILITIES } from '@/lib/constants';
 import { ArrowUpRight } from 'lucide-react';
 
-export const ServiceGrid = () => {
+type Capability = (typeof CAPABILITIES)[number];
+
+export const ServiceGrid = ({ capabilities = CAPABILITIES }: { capabilities?: readonly Capability[] } = {}) => {
   return (
     <section className="py-32 bg-neutral-50 dark:bg-[#050505] relative border-t border-black/5 dark:border-white/5 transition-colors duration-500">
        {/* Background Grid */}

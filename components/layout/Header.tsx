@@ -82,11 +82,13 @@ const NavItem = ({ label, to, items }: { label: string; to?: string; items?: any
   );
 };
 
+type NavigationItem = (typeof MAIN_NAVIGATION)[number];
+
 const MobileNavSection = ({
   item,
   onNavigate,
 }: {
-  item: (typeof MAIN_NAVIGATION)[number];
+  item: NavigationItem;
   onNavigate: (href: string) => void;
 }) => {
   const [open, setOpen] = useState(false);
@@ -143,7 +145,7 @@ const MobileNavSection = ({
   );
 };
 
-export const Header = () => {
+export const Header = ({ navigation = MAIN_NAVIGATION }: { navigation?: readonly NavigationItem[] } = {}) => {
   const router = useRouter();
   const { user, loading: authLoading } = useAuth();
   const { count: cartCount } = useCart();
@@ -237,7 +239,7 @@ export const Header = () => {
 
         {/* Desktop Nav */}
         <nav className="hidden lg:flex items-center h-full gap-1">
-          {MAIN_NAVIGATION.map((item) => (
+          {navigation.map((item) => (
             <NavItem
               key={item.label}
               label={item.label}
@@ -358,7 +360,7 @@ export const Header = () => {
                 <X className="w-6 h-6" />
               </button>
 
-              {MAIN_NAVIGATION.map((item) => (
+              {navigation.map((item) => (
                 <MobileNavSection
                   key={item.label}
                   item={item}

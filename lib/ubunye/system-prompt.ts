@@ -1,10 +1,14 @@
 import { STUDIO, PRODUCTION_SERVICES } from '@/lib/constants';
 
+export type UbunyeFlagsSnapshot = {
+  smart_productions: boolean;
+};
+
 // ─── Types ──────────────────────────────────────────────────────────────────
 
 export type CachedData = {
   rentals: string;
-  productions: string;
+  productions: string | null;
   press: string;
   careers: string;
   creators: string;
@@ -14,10 +18,14 @@ export type CachedData = {
   crew: string;
 };
 
-// ─── Platform Data Cache (5 minutes) ────────────────────────────────────────
+// ─── Platform Data Cache (5 minutes, keyed by flag snapshot) ───────────────
 
-let platformCache: { data: CachedData; expiresAt: number } | null = null;
+const platformCacheByKey = new Map<string, { data: CachedData; expiresAt: number }>();
 const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
+function flagsCacheKey(flags: UbunyeFlagsSnapshot): string {
+  return `sp:${flags.smart_productions ? 1 : 0}`;
+}
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -41,10 +49,20 @@ export function formatServices(): string {
 // ─── Fetch Platform Data (cached 5 minutes) ────────────────────────────────
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export async function fetchPlatformData(supabase: any): Promise<CachedData> {
-  if (platformCache && Date.now() < platformCache.expiresAt) {
-    return platformCache.data;
+export async function fetchPlatformData(supabase: any, flags: UbunyeFlagsSnapshot): Promise<CachedData> {
+  const cacheKey = flagsCacheKey(flags);
+  const cached = platformCacheByKey.get(cacheKey);
+  if (cached && Date.now() < cached.expiresAt) {
+    return cached.data;
   }
+
+  const productionsQuery = flags.smart_productions
+    ? supabase
+        .from('smart_productions')
+        .select('title, client, project_type, year, description, slug')
+        .eq('is_published', true)
+        .is('deleted_at', null)
+    : Promise.resolve({ data: null });
 
   const [rentals, productions, press, careers, creators, listings, plans, crew] = await Promise.all([
     supabase
@@ -52,11 +70,7 @@ export async function fetchPlatformData(supabase: any): Promise<CachedData> {
       .select('title, brand, model, price_per_day, price_per_week, deposit_amount, is_available, category, slug, description, features')
       .eq('is_published', true)
       .is('deleted_at', null),
-    supabase
-      .from('smart_productions')
-      .select('title, client, project_type, year, description, slug')
-      .eq('is_published', true)
-      .is('deleted_at', null),
+    productionsQuery,
     supabase
       .from('press')
       .select('title, excerpt, published_at, slug')
@@ -96,9 +110,11 @@ export async function fetchPlatformData(supabase: any): Promise<CachedData> {
       `${r.title} (${r.brand} ${r.model}) — R${r.price_per_day}/day | R${r.price_per_week}/week | Deposit: R${r.deposit_amount} — ${r.is_available ? 'Available' : 'Unavailable'} — Book: /smart-rentals/${r.category}/${r.slug}`
     ).join('\n') || 'No equipment listed yet',
 
-    productions: productions.data?.map((p: Record<string, unknown>) =>
-      `${p.title} — ${p.client} (${p.year}) [${p.project_type}] — View: /smart-production/${p.slug}`
-    ).join('\n') || 'No productions yet',
+    productions: flags.smart_productions
+      ? (productions.data?.map((p: Record<string, unknown>) =>
+          `${p.title} — ${p.client} (${p.year}) [${p.project_type}] — View: /smart-production/${p.slug}`
+        ).join('\n') || 'No productions yet')
+      : null,
 
     press: press.data?.map((p: Record<string, unknown>) =>
       `${p.title} (${p.published_at}) — ${p.excerpt || ''} — Read: /press/${p.slug}`
@@ -128,7 +144,7 @@ export async function fetchPlatformData(supabase: any): Promise<CachedData> {
     services: formatServices(),
   };
 
-  platformCache = { data, expiresAt: Date.now() + CACHE_TTL };
+  platformCacheByKey.set(cacheKey, { data, expiresAt: Date.now() + CACHE_TTL });
   return data;
 }
 
@@ -188,7 +204,19 @@ ${listingLines}`;
 
 // ─── Build System Prompt ────────────────────────────────────────────────────
 
-export function buildSystemPrompt(platform: CachedData, userContext: string | null): string {
+export function buildSystemPrompt(
+  platform: CachedData,
+  userContext: string | null,
+  flags: UbunyeFlagsSnapshot,
+): string {
+  const productionsLine = flags.smart_productions
+    ? '1. Smart Productions — Professional film, video, photography. Portfolio at /smart-production'
+    : '';
+  const productionsSection = flags.smart_productions && platform.productions
+    ? `===== PRODUCTIONS =====\n${platform.productions}\n`
+    : '';
+  const portfolioGuide = flags.smart_productions ? '- View portfolio → /smart-production\n' : '';
+
   return `You are Ubunye, the AI brain behind ${STUDIO.name} — ${STUDIO.location.city}, ${STUDIO.location.country}.
 
 ===== ABOUT =====
@@ -203,11 +231,10 @@ Website: ${STUDIO.meta.url}
 Hours: ${STUDIO.hours.weekday} | ${STUDIO.hours.weekend} | ${STUDIO.hours.sunday}
 
 ===== WHAT WE OFFER =====
-1. Smart Productions — Professional film, video, photography. Portfolio at /smart-production
-2. Smart Rentals — Equipment rental with online booking at /smart-rentals
-3. Ubunye AI Studio — You. The AI assistant at /ubunye-ai-studio
-4. Creator Marketplace — Verified creators list gear and services
-5. About — R&D: AI production tools, custom software, optical engineering. Learn more at /about
+${productionsLine}${productionsLine ? '\n' : ''}- Smart Rentals — Equipment rental with online booking at /smart-rentals
+- Ubunye AI Studio — You. The AI assistant at /ubunye-ai-studio
+- Creator Marketplace — Verified creators list gear and services
+- About — R&D: AI production tools, custom software, optical engineering. Learn more at /about
 
 ===== PRODUCTION SERVICES =====
 ${platform.services}
@@ -227,10 +254,7 @@ ${platform.plans}
 ===== EQUIPMENT CATALOGUE =====
 ${platform.rentals}
 
-===== PRODUCTIONS =====
-${platform.productions}
-
-===== CREW SERVICES =====
+${productionsSection}===== CREW SERVICES =====
 ${platform.crew}
 
 ===== VERIFIED CREATORS =====
@@ -265,8 +289,7 @@ CREATOR RULES:
 - Hire creators → /smart-rentals/crew-services (or ask Ubunye to search)
 - Book production → /book (or ask Ubunye to help)
 - List gear → /register → /dashboard/verification → /dashboard/listings
-- View portfolio → /smart-production
-- Apply for job → /careers
+${portfolioGuide}- Apply for job → /careers
 - Tech support → /support/tech
 - Subscribe → /pricing
 

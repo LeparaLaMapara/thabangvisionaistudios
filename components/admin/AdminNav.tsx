@@ -21,6 +21,7 @@ const ADMIN_LINKS = [
   { label: 'Verifications', href: '/admin/verifications' },
   { label: 'Creator Requests', href: '/admin/creator-requests' },
   { label: 'Users', href: '/admin/users' },
+  { label: 'Flags', href: '/admin/flags' },
 ];
 
 export function AdminNav() {

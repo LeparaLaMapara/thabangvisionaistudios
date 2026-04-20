@@ -25,8 +25,12 @@ const BRIEF_REQUIRED_FIELDS = [
  * Includes quote calculation, booking submission, availability check, brief analysis, and social content.
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function createBookingTools(supabase: SupabaseClient, isAuthenticated: boolean): Record<string, any> {
-  return {
+export function createBookingTools(
+  supabase: SupabaseClient,
+  isAuthenticated: boolean,
+  flags: { smart_productions: boolean } = { smart_productions: false },
+): Record<string, any> {
+  const tools: Record<string, any> = {
     search_creators: {
       description:
         'Search for verified, available-for-hire creators on the platform. Call this when a client describes what kind of creative professional they need.',
@@ -131,8 +135,10 @@ export function createBookingTools(supabase: SupabaseClient, isAuthenticated: bo
         const [gear, productions, reviews] = await Promise.all([
           supabase.from('listings').select('id, title, price, pricing_model, category')
             .eq('user_id', creator.id).eq('is_published', true).is('deleted_at', null).limit(5),
-          supabase.from('smart_productions').select('id, title, slug, project_type')
-            .contains('crew_ids', [creator.id]).limit(5),
+          flags.smart_productions
+            ? supabase.from('smart_productions').select('id, title, slug, project_type')
+                .contains('crew_ids', [creator.id]).limit(5)
+            : Promise.resolve({ data: null }),
           supabase.from('reviews').select('rating, comment, reviewer_name, created_at')
             .eq('review_type', 'crew').eq('reviewee_id', creator.id).eq('is_published', true)
             .order('created_at', { ascending: false }).limit(5),
@@ -156,7 +162,9 @@ export function createBookingTools(supabase: SupabaseClient, isAuthenticated: bo
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           equipment: gear.data?.map((g: any) => ({ title: g.title, rate: g.price, pricing_model: g.pricing_model, category: g.category })) ?? [],
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          recent_work: productions.data?.map((p: any) => ({ title: p.title, type: p.project_type, url: `/smart-production/${p.slug}` })) ?? [],
+          recent_work: flags.smart_productions
+            ? (productions.data?.map((p: any) => ({ title: p.title, type: p.project_type, url: `/smart-production/${p.slug}` })) ?? [])
+            : [],
           reviews: reviews.data ?? [],
         };
       },
@@ -555,4 +563,10 @@ export function createBookingTools(supabase: SupabaseClient, isAuthenticated: bo
       },
     },
   };
+
+  if (!flags.smart_productions) {
+    delete tools.generate_social_content;
+  }
+
+  return tools;
 }

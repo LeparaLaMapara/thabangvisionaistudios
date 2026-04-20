@@ -5,6 +5,7 @@ import { getArchivedProductions } from '@/lib/supabase/queries/smartProductions'
 import { getArchivedRentals } from '@/lib/supabase/queries/smartRentals';
 import ArchiveClient from './ArchiveClient';
 import { STUDIO } from '@/lib/constants';
+import { getFlag } from '@/lib/features';
 
 export const metadata = {
   title: `Archive — ${STUDIO.name}`,
@@ -12,8 +13,9 @@ export const metadata = {
 };
 
 export default async function ArchivePage() {
+  const smartProductionsEnabled = await getFlag('smart_productions');
   const [productions, rentals] = await Promise.all([
-    getArchivedProductions(),
+    smartProductionsEnabled ? getArchivedProductions() : Promise.resolve([]),
     getArchivedRentals(),
   ]);
 

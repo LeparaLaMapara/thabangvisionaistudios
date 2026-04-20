@@ -117,13 +117,18 @@ export async function POST(req: NextRequest) {
     }
   }
 
+  // ── Fetch feature flags ──
+  const { getFlags } = await import('@/lib/features');
+  const flagsState = await getFlags(['smart_productions']);
+  const flags = { smart_productions: flagsState.smart_productions };
+
   // ── Build context-aware system prompt ──
   const [platformData, userContext] = await Promise.all([
-    fetchPlatformData(supabase),
+    fetchPlatformData(supabase, flags),
     user ? fetchUserContext(supabase, user.id) : Promise.resolve(null),
   ]);
 
-  let systemPrompt = buildSystemPrompt(platformData, userContext);
+  let systemPrompt = buildSystemPrompt(platformData, userContext, flags);
 
   // Enrich first guest message with intro instructions
   if (isFirstGuestMessage) {

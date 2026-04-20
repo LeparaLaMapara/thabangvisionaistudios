@@ -24,7 +24,11 @@ type SupabaseClient = any;
 // Uses jsonSchema() for parameter schemas (Zod 4 + AI SDK v6 type inference workaround).
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function createCrewTools(supabase: SupabaseClient, isAuthenticated = false): Record<string, any> {
+export function createCrewTools(
+  supabase: SupabaseClient,
+  isAuthenticated = false,
+  flags: { smart_productions: boolean } = { smart_productions: false },
+): Record<string, any> {
   return {
     search_creators: {
       description:
@@ -134,8 +138,10 @@ export function createCrewTools(supabase: SupabaseClient, isAuthenticated = fals
         const [gear, productions, reviews] = await Promise.all([
           supabase.from('listings').select('id, title, price, pricing_model, category')
             .eq('user_id', creator.id).eq('is_published', true).is('deleted_at', null).limit(5),
-          supabase.from('smart_productions').select('id, title, slug, project_type')
-            .contains('crew_ids', [creator.id]).limit(5),
+          flags.smart_productions
+            ? supabase.from('smart_productions').select('id, title, slug, project_type')
+                .contains('crew_ids', [creator.id]).limit(5)
+            : Promise.resolve({ data: null }),
           supabase.from('reviews').select('rating, comment, reviewer_name, created_at')
             .eq('review_type', 'crew').eq('reviewee_id', creator.id).eq('is_published', true)
             .order('created_at', { ascending: false }).limit(5),
@@ -159,7 +165,9 @@ export function createCrewTools(supabase: SupabaseClient, isAuthenticated = fals
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           equipment: gear.data?.map((g: any) => ({ title: g.title, rate: g.price, pricing_model: g.pricing_model, category: g.category })) ?? [],
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          recent_work: productions.data?.map((p: any) => ({ title: p.title, type: p.project_type, url: `/smart-production/${p.slug}` })) ?? [],
+          recent_work: flags.smart_productions
+            ? (productions.data?.map((p: any) => ({ title: p.title, type: p.project_type, url: `/smart-production/${p.slug}` })) ?? [])
+            : [],
           reviews: reviews.data ?? [],
         };
       },

@@ -12,8 +12,11 @@ type SupabaseClient = any;
  * Includes creator search, gear search, production search, and press search.
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function createSearchTools(supabase: SupabaseClient): Record<string, any> {
-  return {
+export function createSearchTools(
+  supabase: SupabaseClient,
+  flags: { smart_productions: boolean } = { smart_productions: false },
+): Record<string, any> {
+  const tools: Record<string, any> = {
     search_creators: {
       description:
         'Search for verified, available-for-hire creators on the platform. Call this when a client describes what kind of creative professional they need.',
@@ -177,4 +180,10 @@ export function createSearchTools(supabase: SupabaseClient): Record<string, any>
       },
     },
   };
+
+  if (!flags.smart_productions) {
+    delete tools.search_productions;
+  }
+
+  return tools;
 }

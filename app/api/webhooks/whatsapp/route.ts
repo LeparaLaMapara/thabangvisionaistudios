@@ -51,8 +51,11 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   try {
     // Build system prompt with platform data
     const supabase = createAdminClient();
-    const platformData = await fetchPlatformData(supabase);
-    let systemPrompt = buildSystemPrompt(platformData, null);
+    const { getFlags } = await import('@/lib/features');
+    const flagsState = await getFlags(['smart_productions']);
+    const flags = { smart_productions: flagsState.smart_productions };
+    const platformData = await fetchPlatformData(supabase, flags);
+    let systemPrompt = buildSystemPrompt(platformData, null, flags);
     systemPrompt += '\n\nYou are responding via WhatsApp. Keep responses concise (under 1000 characters). Use plain text, no markdown. Be warm and helpful. The user\'s name is ' + (message.profileName || 'there') + '.';
 
     // Build message history

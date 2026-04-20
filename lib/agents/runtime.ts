@@ -6,7 +6,8 @@ import { checkRateLimit } from '@/lib/auth';
 import { getModel, getModelId, routeQuery } from '@/lib/ai';
 import { logTokenUsage } from '@/lib/ai/tracked';
 import { createClient, createAdminClient } from '@/lib/supabase/server';
-import { fetchPlatformData, fetchUserContext } from '@/lib/ubunye/system-prompt';
+import { fetchPlatformData, fetchUserContext, type UbunyeFlagsSnapshot } from '@/lib/ubunye/system-prompt';
+import { getFlags } from '@/lib/features';
 import { isRagEnabled, searchSimilar, formatRetrievalContext } from '@/lib/rag';
 import { UBUNYE_AGENTS } from '@/lib/agents/registry';
 import { createSearchTools } from '@/lib/agents/tools/search';
@@ -58,12 +59,12 @@ function resolveLimit(
 // ─── Agent Tool Factory ─────────────────────────────────────────────────────
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-function getToolsForAgent(agentId: string, supabase: any, isAuthenticated: boolean, hasPreSelectedCreator = false): Record<string, any> {
+function getToolsForAgent(agentId: string, supabase: any, isAuthenticated: boolean, flags: UbunyeFlagsSnapshot, hasPreSelectedCreator = false): Record<string, any> {
   switch (agentId) {
     case 'assistant':
-      return createSearchTools(supabase);
+      return createSearchTools(supabase, flags);
     case 'booking': {
-      const tools = createBookingTools(supabase, isAuthenticated);
+      const tools = createBookingTools(supabase, isAuthenticated, flags);
       // Remove search tools when creator is already selected — no searching needed
       if (hasPreSelectedCreator) {
         delete tools.search_creators;
@@ -85,9 +86,10 @@ async function buildPromptForAgent(
   supabase: any,
   userId: string | null,
   isFirstGuestMessage: boolean,
+  flags: UbunyeFlagsSnapshot,
 ): Promise<string> {
   const [platformData, userContext] = await Promise.all([
-    fetchPlatformData(supabase),
+    fetchPlatformData(supabase, flags),
     userId ? fetchUserContext(supabase, userId) : Promise.resolve(null),
   ]);
 
@@ -95,15 +97,15 @@ async function buildPromptForAgent(
 
   switch (agentId) {
     case 'assistant':
-      systemPrompt = buildAssistantPrompt(platformData, userContext);
+      systemPrompt = buildAssistantPrompt(platformData, userContext, flags);
       break;
     case 'booking':
-      systemPrompt = buildBookingPrompt(platformData, userContext);
+      systemPrompt = buildBookingPrompt(platformData, userContext, flags);
       break;
     default:
       // Fallback: use the base system prompt from ubunye module
       const { buildSystemPrompt } = await import('@/lib/ubunye/system-prompt');
-      systemPrompt = buildSystemPrompt(platformData, userContext);
+      systemPrompt = buildSystemPrompt(platformData, userContext, flags);
       break;
   }
 
@@ -236,8 +238,12 @@ export async function executeAgent(
     }
   }
 
+  // ── Fetch feature flags (shared for prompt + tools) ──
+  const flagsState = await getFlags(['smart_productions']);
+  const flags: UbunyeFlagsSnapshot = { smart_productions: flagsState.smart_productions };
+
   // ── Build context-aware system prompt ──
-  let systemPrompt = await buildPromptForAgent(agentId, supabase, user?.id ?? null, isFirstGuestMessage);
+  let systemPrompt = await buildPromptForAgent(agentId, supabase, user?.id ?? null, isFirstGuestMessage, flags);
 
   // ── Pre-selected creator context (from "Book Now" on creator page) ──
   if (preSelectedCreatorId) {
@@ -292,7 +298,7 @@ Only ask: how many hours, when, and where. Then quote and book.`;
       ? await convertToModelMessages(rawMessages)
       : rawMessages;
 
-    const tools = getToolsForAgent(agentId, supabase, !!user, !!preSelectedCreatorId);
+    const tools = getToolsForAgent(agentId, supabase, !!user, flags, !!preSelectedCreatorId);
 
     // Route to model based on agent config and query complexity
     const lastUserText = [...rawMessages].reverse().find(

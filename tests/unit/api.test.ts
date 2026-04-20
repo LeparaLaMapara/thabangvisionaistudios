@@ -119,6 +119,17 @@ vi.mock('@/lib/supabase/server', () => ({
     auth: { getUser: () => mockGetUser() },
     from: (...args: unknown[]) => mockSupabaseFrom(...args),
   }),
+  createAdminClient: vi.fn().mockReturnValue({
+    from: (...args: unknown[]) => mockSupabaseFrom(...args),
+  }),
+}));
+
+// unstable_cache needs the Next request context — bypass it in unit tests.
+vi.mock('next/cache', () => ({
+  unstable_cache: <T>(fn: T) => fn,
+  revalidateTag: vi.fn(),
+  revalidatePath: vi.fn(),
+  updateTag: vi.fn(),
 }));
 
 // Mock the Vercel AI SDK's generateText
