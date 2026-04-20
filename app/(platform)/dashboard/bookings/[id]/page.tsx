@@ -12,6 +12,8 @@ import {
   FileText,
   AlertTriangle,
   XCircle,
+  Flag,
+  X,
 } from 'lucide-react';
 import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
@@ -47,6 +49,10 @@ export default function BookingDetailPage() {
   const [booking, setBooking] = useState<BookingWithRental | null>(null);
   const [loading, setLoading] = useState(true);
   const [cancelling, setCancelling] = useState(false);
+  const [showDisputeModal, setShowDisputeModal] = useState(false);
+  const [disputeSubmitting, setDisputeSubmitting] = useState(false);
+  const [disputeError, setDisputeError] = useState<string | null>(null);
+  const [disputeSuccess, setDisputeSuccess] = useState(false);
 
   useEffect(() => {
     fetch(`/api/bookings/${id}`)
@@ -85,6 +91,48 @@ export default function BookingDetailPage() {
     ),
   );
   const canCancel = ['pending', 'confirmed'].includes(booking.status);
+  const canDispute = ['active', 'completed'].includes(booking.status) && !disputeSuccess;
+
+  const handleDisputeSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setDisputeSubmitting(true);
+    setDisputeError(null);
+
+    const form = new FormData(e.currentTarget);
+    const disputeType = form.get('dispute_type') as string;
+    const description = form.get('description') as string;
+
+    if (!disputeType || !description?.trim()) {
+      setDisputeError('Please fill in all required fields.');
+      setDisputeSubmitting(false);
+      return;
+    }
+
+    try {
+      const res = await fetch('/api/disputes', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          booking_id: booking.id,
+          dispute_type: disputeType,
+          description: description.trim(),
+        }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => null);
+        setDisputeError(data?.error ?? 'Failed to submit dispute. Please try again.');
+        return;
+      }
+
+      setDisputeSuccess(true);
+      setShowDisputeModal(false);
+    } catch {
+      setDisputeError('Network error. Please try again.');
+    } finally {
+      setDisputeSubmitting(false);
+    }
+  };
 
   const handleCancel = async () => {
     if (!confirm('Are you sure you want to cancel this booking?')) return;
@@ -157,17 +205,29 @@ export default function BookingDetailPage() {
             {booking.rental_category ?? 'Equipment'}
           </p>
         </div>
-        {canCancel && (
-          <Button
-            variant="danger"
-            size="sm"
-            loading={cancelling}
-            onClick={handleCancel}
-          >
-            <AlertTriangle className="w-3 h-3" />
-            Cancel Booking
-          </Button>
-        )}
+        <div className="flex items-center gap-2">
+          {canDispute && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setShowDisputeModal(true)}
+            >
+              <Flag className="w-3 h-3" />
+              Report Issue
+            </Button>
+          )}
+          {canCancel && (
+            <Button
+              variant="danger"
+              size="sm"
+              loading={cancelling}
+              onClick={handleCancel}
+            >
+              <AlertTriangle className="w-3 h-3" />
+              Cancel Booking
+            </Button>
+          )}
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-10">
@@ -251,6 +311,19 @@ export default function BookingDetailPage() {
           </div>
         </Card>
       </div>
+
+      {/* Dispute filed success */}
+      {disputeSuccess && (
+        <div className="flex items-center gap-3 p-4 mb-6 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400">
+          <CheckCircle2 className="w-5 h-5 flex-shrink-0" />
+          <div>
+            <p className="text-sm font-mono font-bold">Issue reported</p>
+            <p className="text-[10px] font-mono text-emerald-400/70">
+              Your dispute has been filed. Our team will review it and get back to you.
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Notes */}
       {booking.notes && (
@@ -363,6 +436,83 @@ export default function BookingDetailPage() {
           </div>
         )}
       </div>
+
+      {/* ── Dispute Modal ── */}
+      {showDisputeModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="bg-neutral-900 border border-white/10 w-full max-w-md p-6">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-sm font-mono font-bold uppercase tracking-widest text-white">
+                Report an Issue
+              </h3>
+              <button
+                onClick={() => { setShowDisputeModal(false); setDisputeError(null); }}
+                className="text-neutral-500 hover:text-white transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleDisputeSubmit} className="space-y-4">
+              <div>
+                <label className="block text-[10px] font-mono uppercase tracking-widest text-neutral-500 mb-2">
+                  Issue Type *
+                </label>
+                <select
+                  name="dispute_type"
+                  required
+                  className="w-full bg-neutral-800 border border-white/10 text-white text-sm font-mono px-3 py-2 focus:outline-none focus:border-[#D4A843]/50"
+                >
+                  <option value="">Select type...</option>
+                  <option value="damage">Equipment Damage</option>
+                  <option value="late_return">Late Return</option>
+                  <option value="missing_item">Missing Item</option>
+                  <option value="billing">Billing Issue</option>
+                  <option value="quality">Quality Issue</option>
+                  <option value="other">Other</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-mono uppercase tracking-widest text-neutral-500 mb-2">
+                  Description *
+                </label>
+                <textarea
+                  name="description"
+                  required
+                  rows={4}
+                  placeholder="Describe the issue in detail..."
+                  className="w-full bg-neutral-800 border border-white/10 text-white text-sm font-mono px-3 py-2 placeholder-neutral-600 focus:outline-none focus:border-[#D4A843]/50 resize-none"
+                />
+              </div>
+
+              {disputeError && (
+                <p className="text-[11px] font-mono text-red-400">{disputeError}</p>
+              )}
+
+              <div className="flex items-center gap-3 pt-2">
+                <Button
+                  type="submit"
+                  variant="primary"
+                  size="sm"
+                  loading={disputeSubmitting}
+                >
+                  <Flag className="w-3 h-3" />
+                  Submit Report
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => { setShowDisputeModal(false); setDisputeError(null); }}
+                >
+                  Cancel
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </motion.div>
   );
 }
