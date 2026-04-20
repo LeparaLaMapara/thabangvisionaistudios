@@ -1,5 +1,6 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { trackedCompletion } from '@/lib/ai/tracked';
+import { mapScenesToSkills } from '@/lib/ubunye/skill-taxonomy';
 import type { SceneAnalysisResult, SkillDetectionResult } from '../types';
 
 const MODEL_ID = 'gemma-4-31b-it';
@@ -68,5 +69,7 @@ export async function detectSkills(
     }))
     .sort((a, b) => b.percentage - a.percentage);
 
-  return { skills };
+  const platformSkills = mapScenesToSkills(analyses.map((a) => ({ sceneType: a.sceneType })));
+
+  return { skills, platformSkills };
 }

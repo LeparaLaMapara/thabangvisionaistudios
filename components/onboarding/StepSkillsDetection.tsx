@@ -9,10 +9,17 @@ interface StepSkillsDetectionProps {
   onComplete: (skills: SkillDetectionResult) => void;
 }
 
+interface SelectableSkill {
+  id: string;
+  name: string;
+  percentage: number;
+  selected: boolean;
+}
+
 export default function StepSkillsDetection({ analyses, onComplete }: StepSkillsDetectionProps) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [skills, setSkills] = useState<Array<{ name: string; percentage: number; selected: boolean }>>([]);
+  const [skills, setSkills] = useState<SelectableSkill[]>([]);
 
   const detectSkills = useCallback(async () => {
     setLoading(true);
@@ -30,7 +37,17 @@ export default function StepSkillsDetection({ analyses, onComplete }: StepSkills
       if (!res.ok) throw new Error(data.error || 'Skills detection failed.');
 
       const result = data.data as SkillDetectionResult;
-      setSkills(result.skills.map(s => ({ ...s, selected: true })));
+      // Prefer mapped platform skills (e.g. wedding_photography) over raw scene types.
+      const mapped: SelectableSkill[] =
+        result.platformSkills && result.platformSkills.length > 0
+          ? result.platformSkills.map((s) => ({
+              id: s.id,
+              name: s.label,
+              percentage: s.percentage,
+              selected: true,
+            }))
+          : result.skills.map((s) => ({ id: s.name, ...s, selected: true }));
+      setSkills(mapped);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to detect skills.');
     } finally {
@@ -95,7 +112,7 @@ export default function StepSkillsDetection({ analyses, onComplete }: StepSkills
       <div className="space-y-3">
         {skills.map((skill, index) => (
           <button
-            key={skill.name}
+            key={skill.id}
             type="button"
             onClick={() => toggleSkill(index)}
             className={`w-full flex items-center gap-4 p-4 border transition-colors ${
