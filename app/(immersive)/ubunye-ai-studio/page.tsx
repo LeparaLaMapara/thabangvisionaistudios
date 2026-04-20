@@ -67,6 +67,9 @@ export default function UbunyeAIStudioPage() {
   useEffect(() => { guestCountRef.current = guestMessageCount; }, [guestMessageCount]);
   useEffect(() => { isAuthenticatedRef.current = isAuthenticated; }, [isAuthenticated]);
 
+  // ─── Pre-selected creator from URL (set after searchParams is initialized below) ──
+  const creatorIdRef = useRef<string | null>(null);
+
   // ─── Transport with dynamic body ──
   const transportRef = useRef(
     new DefaultChatTransport({
@@ -74,6 +77,7 @@ export default function UbunyeAIStudioPage() {
       body: () => ({
         ...(!isAuthenticatedRef.current && { sessionMessageCount: guestCountRef.current }),
         ...(!isAuthenticatedRef.current && guestCountRef.current === 0 && { isFirstGuestMessage: true }),
+        ...(creatorIdRef.current && { creator_id: creatorIdRef.current }),
       }),
     })
   );
@@ -312,6 +316,12 @@ export default function UbunyeAIStudioPage() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const promptSentRef = useRef(false);
+
+  // Set pre-selected creator_id from URL (e.g. "Book Now" on creator page)
+  if (!creatorIdRef.current) {
+    const cid = searchParams.get('creator_id');
+    if (cid) creatorIdRef.current = cid;
+  }
 
   useEffect(() => {
     const promptParam = searchParams.get('prompt');

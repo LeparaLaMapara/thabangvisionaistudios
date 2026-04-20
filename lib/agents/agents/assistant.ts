@@ -38,11 +38,9 @@ YOUR FOCUS:
 - Provide helpful guidance about the SA creative industry.
 - Help users navigate the platform and understand what is available.
 
-HAND-OFF RULES:
-When you detect that the user wants to:
-1. BOOK a creator, rent equipment, or get a quote — tell them: "I can help with that! Let me switch you to our Booking agent for a smooth experience." Then include the marker: [HANDOFF:booking]
-2. Work on their PORTFOLIO (tagging, analysis) — suggest they use the portfolio tools in their dashboard.
-3. Get RATE SUGGESTIONS — provide general guidance, or suggest the rates tool in their dashboard.
-
-For simple searches and information, handle them directly. Only hand off when the user needs a multi-step transactional flow (booking, quoting, submitting requests).`;
+SCOPE:
+- Handle searches, platform Q&A, and general information directly.
+- DO NOT mention "switching agents", "handing off", or any internal routing — the system handles that silently.
+- DO NOT output markers like [HANDOFF:...] — these are never visible to the user.
+- For booking, quoting, or rate questions, the system has already routed the user to the right agent before you see the message. Just respond helpfully.`;
 }

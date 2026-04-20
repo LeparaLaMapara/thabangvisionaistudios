@@ -58,12 +58,19 @@ function resolveLimit(
 // ─── Agent Tool Factory ─────────────────────────────────────────────────────
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-function getToolsForAgent(agentId: string, supabase: any, isAuthenticated: boolean): Record<string, any> {
+function getToolsForAgent(agentId: string, supabase: any, isAuthenticated: boolean, hasPreSelectedCreator = false): Record<string, any> {
   switch (agentId) {
     case 'assistant':
       return createSearchTools(supabase);
-    case 'booking':
-      return createBookingTools(supabase, isAuthenticated);
+    case 'booking': {
+      const tools = createBookingTools(supabase, isAuthenticated);
+      // Remove search tools when creator is already selected — no searching needed
+      if (hasPreSelectedCreator) {
+        delete tools.search_creators;
+        delete tools.get_creator_detail;
+      }
+      return tools;
+    }
     default:
       return {};
   }
@@ -133,6 +140,7 @@ export async function executeAgent(
   let rawMessages: any[];
   let sessionMessageCount = 0;
   let isFirstGuestMessage = false;
+  let preSelectedCreatorId: string | null = null;
 
   try {
     const body = await req.json();
@@ -150,6 +158,7 @@ export async function executeAgent(
 
     if (typeof body.sessionMessageCount === 'number') sessionMessageCount = body.sessionMessageCount;
     if (body.isFirstGuestMessage === true) isFirstGuestMessage = true;
+    if (typeof body.creator_id === 'string' && body.creator_id) preSelectedCreatorId = body.creator_id;
   } catch {
     return NextResponse.json({ error: 'Invalid JSON body.' }, { status: 400 });
   }
@@ -230,6 +239,27 @@ export async function executeAgent(
   // ── Build context-aware system prompt ──
   let systemPrompt = await buildPromptForAgent(agentId, supabase, user?.id ?? null, isFirstGuestMessage);
 
+  // ── Pre-selected creator context (from "Book Now" on creator page) ──
+  if (preSelectedCreatorId) {
+    const adminClient = createAdminClient();
+    const { data: preCreator } = await adminClient
+      .from('profiles')
+      .select('id, display_name, crew_slug, specializations, hourly_rate, location, years_experience')
+      .eq('id', preSelectedCreatorId)
+      .eq('verification_status', 'verified')
+      .single();
+
+    if (preCreator) {
+      systemPrompt += `\n\n===== PRE-SELECTED CREATOR =====
+The client selected this creator from their work on smart-production. Creator and category are ALREADY KNOWN.
+Do NOT call search_creators. Do NOT ask "any specific creator?" or "what type of shoot?"
+Creator: ${preCreator.display_name} (ID: ${preCreator.id}, slug: ${preCreator.crew_slug})
+Specializations: ${(preCreator.specializations ?? []).join(', ')}
+Rate: R${preCreator.hourly_rate ?? 0}/hr | Location: ${preCreator.location ?? 'SA'} | Experience: ${preCreator.years_experience ?? 0} years
+Only ask: how many hours, when, and where. Then quote and book.`;
+    }
+  }
+
   // ── RAG: retrieve relevant context from vector store ──
   if (isRagEnabled()) {
     const lastUserMsg = [...rawMessages].reverse().find(
@@ -262,7 +292,7 @@ export async function executeAgent(
       ? await convertToModelMessages(rawMessages)
       : rawMessages;
 
-    const tools = getToolsForAgent(agentId, supabase, !!user);
+    const tools = getToolsForAgent(agentId, supabase, !!user, !!preSelectedCreatorId);
 
     // Route to model based on agent config and query complexity
     const lastUserText = [...rawMessages].reverse().find(
