@@ -71,7 +71,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         // Process each image sequentially to avoid rate limits
         for (const imageUrl of imageUrls) {
           try {
-            const analysis = await analyzeScene(imageUrl);
+            const analysis = await analyzeScene(imageUrl, user.id);
             results.push(analysis);
 
             // Save to portfolio_analysis table

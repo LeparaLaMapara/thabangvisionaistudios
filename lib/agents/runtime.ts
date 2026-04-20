@@ -4,9 +4,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { streamText, convertToModelMessages, stepCountIs } from 'ai';
 import { checkRateLimit } from '@/lib/auth';
 import { getModel, getModelId, routeQuery } from '@/lib/ai';
+import { logTokenUsage } from '@/lib/ai/tracked';
 import { createClient, createAdminClient } from '@/lib/supabase/server';
 import { fetchPlatformData, fetchUserContext } from '@/lib/ubunye/system-prompt';
-import { STUDIO } from '@/lib/constants';
 import { isRagEnabled, searchSimilar, formatRetrievalContext } from '@/lib/rag';
 import { UBUNYE_AGENTS } from '@/lib/agents/registry';
 import { createSearchTools } from '@/lib/agents/tools/search';
@@ -326,28 +326,16 @@ Only ask: how many hours, when, and where. Then quote and book.`;
       tools,
       stopWhen: stepCountIs(4),
       onFinish: ({ totalUsage }) => {
-        // Fire-and-forget token usage logging
-        const inputTokens = totalUsage.inputTokens ?? 0;
-        const outputTokens = totalUsage.outputTokens ?? 0;
-        const total = inputTokens + outputTokens;
-
-        if (total > 0) {
-          const pricing = STUDIO.ai.pricing[modelId];
-          const inputCost = pricing ? (inputTokens / 1_000_000) * pricing.input : 0;
-          const outputCost = pricing ? (outputTokens / 1_000_000) * pricing.output : 0;
-
-          const adminClient = createAdminClient();
-          adminClient.from('ai_token_usage').insert({
-            user_id: user?.id ?? null,
-            model: modelId,
-            input_tokens: inputTokens,
-            output_tokens: outputTokens,
-            total_tokens: total,
-            estimated_cost: inputCost + outputCost,
-          }).then(({ error }: { error: { message: string } | null }) => {
-            if (error) console.error('[ai-usage] Insert error:', error.message);
-          });
-        }
+        logTokenUsage({
+          agentId,
+          provider: (process.env.AI_PROVIDER ?? 'anthropic').toLowerCase(),
+          model: modelId,
+          userId: user?.id ?? null,
+          usage: {
+            inputTokens: totalUsage.inputTokens ?? 0,
+            outputTokens: totalUsage.outputTokens ?? 0,
+          },
+        });
       },
     });
 
