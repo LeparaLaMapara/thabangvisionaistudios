@@ -2,6 +2,7 @@ import type { UbunyeAgent } from './types';
 import { assistantAgent } from './agents/assistant';
 import { bookingAgent } from './agents/booking';
 import { bioWriterAgent } from './agents/bio-writer';
+import { listingDescriberAgent } from './agents/listing-describer';
 
 export const UBUNYE_AGENTS: Record<string, UbunyeAgent> = {
   assistant: assistantAgent,
@@ -9,6 +10,8 @@ export const UBUNYE_AGENTS: Record<string, UbunyeAgent> = {
   booking: bookingAgent,
 
   'bio-writer': bioWriterAgent,
+
+  'listing-describer': listingDescriberAgent,
 
   onboarding: {
     id: 'onboarding',

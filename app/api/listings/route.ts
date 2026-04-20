@@ -119,6 +119,7 @@ export async function POST(request: NextRequest) {
     }
 
     const category = CATEGORY_MAP[formCategory] ?? 'specialized-solutions';
+    const isPublished = body.is_published === false ? false : true;
 
     const { data, error } = await supabase
       .from('smart_rentals')
@@ -138,7 +139,7 @@ export async function POST(request: NextRequest) {
           : null,
         owner_type: 'community',
         owner_id: user.id,
-        is_published: true,
+        is_published: isPublished,
         is_available: true,
         quantity: 1,
         ranking_score: 0,
@@ -203,6 +204,7 @@ export async function PUT(request: NextRequest) {
       metadata: (body.location as string | undefined)
         ? { location: body.location as string }
         : null,
+      ...(typeof body.is_published === 'boolean' && { is_published: body.is_published }),
       updated_at: new Date().toISOString(),
     };
 

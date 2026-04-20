@@ -154,11 +154,53 @@ export default function StepGearRentals({ onComplete, onSkip }: StepGearRentalsP
     setItems(prev => prev.filter((_, i) => i !== index));
   }, []);
 
-  const handleListAll = () => {
+  const [creatingDrafts, setCreatingDrafts] = useState(false);
+  const [draftResult, setDraftResult] = useState<{ created: number; failed: number } | null>(null);
+
+  const handleListAll = async () => {
     if (validItems.length === 0) {
       setError('Add at least one gear item with a name.');
       return;
     }
+
+    const aiIdentified = validItems
+      .filter((i) => i.identification && i.identification.confidence >= 70)
+      .map((i) => ({
+        brand: i.identification!.brand,
+        model: i.identification!.model,
+        category: i.identification!.category,
+        equipmentType: i.identification!.equipmentType,
+        condition: i.condition,
+        confidence: i.identification!.confidence / 100,
+        thumbnailUrl: i.imageUrl,
+      }));
+
+    if (aiIdentified.length > 0) {
+      setCreatingDrafts(true);
+      setError(null);
+      try {
+        const res = await fetch('/api/onboarding/create-rentals', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ items: aiIdentified }),
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          throw new Error(data.error || 'Failed to draft listings.');
+        }
+        setDraftResult({
+          created: (data.created as unknown[])?.length ?? 0,
+          failed: (data.failed as unknown[])?.length ?? 0,
+        });
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to draft listings.');
+        setCreatingDrafts(false);
+        return;
+      }
+      setCreatingDrafts(false);
+    }
+
     onComplete(validItems);
   };
 
@@ -309,13 +351,33 @@ export default function StepGearRentals({ onComplete, onSkip }: StepGearRentalsP
           <button
             type="button"
             onClick={handleListAll}
-            className="flex-1 bg-[#D4A843] text-black py-3 px-6 text-[10px] font-mono font-bold uppercase tracking-widest hover:opacity-80 transition-opacity min-h-[44px] flex items-center justify-center gap-2"
+            disabled={creatingDrafts}
+            className="flex-1 bg-[#D4A843] text-black py-3 px-6 text-[10px] font-mono font-bold uppercase tracking-widest hover:opacity-80 transition-opacity min-h-[44px] flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
           >
-            <Upload className="w-3.5 h-3.5" />
-            List All ({validItems.length})
+            {creatingDrafts ? (
+              <>
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                Drafting listings...
+              </>
+            ) : (
+              <>
+                <Upload className="w-3.5 h-3.5" />
+                List All ({validItems.length})
+              </>
+            )}
           </button>
         )}
       </div>
+
+      {draftResult && (
+        <div className="bg-[#D4A843]/5 border border-[#D4A843]/30 px-4 py-3">
+          <p className="text-xs text-[#D4A843] font-mono">
+            {draftResult.created} draft listing{draftResult.created === 1 ? '' : 's'} created.
+            {draftResult.failed > 0 && ` ${draftResult.failed} failed.`}
+            {' '}Review and publish from the Listings dashboard.
+          </p>
+        </div>
+      )}
 
       {error && (
         <div className="bg-red-500/10 border border-red-500/30 px-4 py-3">
