@@ -584,7 +584,7 @@ export default function ProductionCreatorDetailView({
                 Identity is revealed after your booking is confirmed and paid.
               </p>
               <Link
-                href={`/ubunye-ai-studio?prompt=${encodeURIComponent(`I want to book a ${category.name} shoot with creator ${crew.display_name ?? crew.crew_slug ?? crew.id}`)}`}
+                href={`/book?creator_id=${crew.id}&category=${encodeURIComponent(category.name)}`}
                 className="w-full py-3 text-[10px] font-mono font-bold uppercase tracking-widest bg-[#D4A843] text-black hover:opacity-80 transition-opacity flex items-center justify-center gap-2"
               >
                 Book Now

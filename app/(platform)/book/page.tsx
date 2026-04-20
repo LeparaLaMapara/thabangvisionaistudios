@@ -37,9 +37,42 @@ export default async function BookPage({ searchParams }: BookPageProps) {
   const creatorId = params.creator_id || null;
   const description = params.description || '';
 
-  // Validate minimum required params
-  if (!category || !hours || hours < STUDIO.booking.minBookingHours) {
-    redirect('/ubunye-ai-studio');
+  // Get creator info if assigned
+  let creatorName: string | null = null;
+  let creatorRate: number | null = null;
+  let creatorSpecializations: string[] = [];
+  if (creatorId) {
+    const { data: creator } = await supabase
+      .from('profiles')
+      .select('display_name, hourly_rate, specializations')
+      .eq('id', creatorId)
+      .single();
+    creatorName = creator?.display_name ?? null;
+    creatorRate = (creator?.hourly_rate as number) ?? null;
+    creatorSpecializations = (creator?.specializations as string[]) ?? [];
+  }
+
+  // If missing required booking details → show the booking form
+  const hasAllDetails = category && hours >= STUDIO.booking.minBookingHours && dates;
+  if (!hasAllDetails) {
+    const { BookingForm } = await import('./BookingForm');
+    const hourlyRate = category ? getHourlyRate(category) : (creatorRate ?? 0);
+    return (
+      <BookingForm
+        creatorId={creatorId}
+        creatorName={creatorName}
+        creatorRate={creatorRate}
+        creatorSpecializations={creatorSpecializations}
+        initialCategory={category}
+        initialHours={hours || STUDIO.booking.minBookingHours}
+        initialLocation={location}
+        initialDates={dates}
+        hourlyRate={hourlyRate}
+        vatRate={STUDIO.booking.vatRate}
+        minHours={STUDIO.booking.minBookingHours}
+        maxHours={STUDIO.booking.maxBookingHours}
+      />
+    );
   }
 
   // Calculate pricing
@@ -47,17 +80,6 @@ export default async function BookPage({ searchParams }: BookPageProps) {
   const subtotal = Math.round(hourlyRate * hours);
   const vat = Math.round(subtotal * (STUDIO.booking.vatRate / 100));
   const total = subtotal + vat;
-
-  // Get creator info if assigned
-  let creatorName: string | null = null;
-  if (creatorId) {
-    const { data: creator } = await supabase
-      .from('profiles')
-      .select('display_name')
-      .eq('id', creatorId)
-      .single();
-    creatorName = creator?.display_name ?? null;
-  }
 
   return (
     <BookConfirmation
