@@ -39,6 +39,10 @@ export const STUDIO = {
     companyName: 'Ubunye AI Ecosystems (Pty) Ltd',
     tradingAs: 'Thabang Vision AI Studios',
     registrationNumber: '',
+    popia: {
+      version: '2026.04.20',
+      retentionDays: 30, // Delete verification storage objects 30 days after review
+    },
   },
 
   meta: {

@@ -54,6 +54,23 @@ export async function POST(req: NextRequest) {
   }
 
   try {
+    // ── Guard: POPIA consent required before upload ────────────────────
+    const { data: consentRow } = await supabase
+      .from('profiles')
+      .select('popia_consent_at')
+      .eq('id', user.id)
+      .single();
+
+    if (!consentRow?.popia_consent_at) {
+      return NextResponse.json(
+        {
+          error: 'You must accept the privacy notice before uploading ID documents.',
+          code: 'POPIA_CONSENT_REQUIRED',
+        },
+        { status: 400 },
+      );
+    }
+
     // ── Guard: check current status and attempt count ──────────────────
     const current = await getVerificationStatus(user.id);
 
