@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { Search, Menu, X, ChevronDown, ShoppingCart } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -11,13 +12,16 @@ import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/providers/AuthProvider';
 import { useCart } from '@/providers/CartProvider';
 
-// --- BRAND LOGO ---
 const ThabangLogo = () => (
-  <svg viewBox="0 0 260 36" xmlns="http://www.w3.org/2000/svg" className="h-8 md:h-10 w-auto select-none">
-    <text y="26" fontFamily="Arial, Helvetica, sans-serif" fontSize="26" letterSpacing="-1">
-      <tspan fontWeight="900" fill="#e8e8e8">THA</tspan><tspan fontWeight="900" fill="#D4A843">BANG</tspan><tspan fontWeight="200" fill="#444444">VISION</tspan>
-    </text>
-  </svg>
+  <Image
+    src="/logo-header.png"
+    alt="ThabangVision"
+    width={260}
+    height={36}
+    priority
+    unoptimized
+    className="h-8 md:h-10 w-auto select-none"
+  />
 );
 
 // Shared style constants

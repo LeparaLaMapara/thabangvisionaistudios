@@ -44,6 +44,21 @@ export const metadata: Metadata = {
   },
   description: STUDIO.meta.description,
   metadataBase: new URL(STUDIO.meta.url),
+  icons: {
+    icon: [
+      { url: '/favicon.ico', sizes: 'any' },
+      { url: '/logo-favicon-32.png', type: 'image/png', sizes: '32x32' },
+    ],
+    apple: [
+      { url: '/logo-favicon-180.png', sizes: '180x180' },
+    ],
+  },
+  openGraph: {
+    type: 'website',
+    url: STUDIO.meta.url,
+    siteName: STUDIO.shortName,
+    images: [{ url: '/logo-black-bg.png', alt: STUDIO.shortName }],
+  },
 };
 
 /**

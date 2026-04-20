@@ -15,6 +15,12 @@ export interface VerificationMetadata {
   id_front: PhotoMetadata;
   id_back: PhotoMetadata;
   selfie: PhotoMetadata;
+  face_match?: {
+    match: boolean;
+    confidence: number;
+    reasoning: string;
+    checked_at: string;
+  } | null;
 }
 
 // ─── EXIF Extraction ────────────────────────────────────────────────────────

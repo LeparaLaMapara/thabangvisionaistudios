@@ -5,6 +5,19 @@ import Image from 'next/image';
 import { Upload, X, Loader2, ImageIcon } from 'lucide-react';
 import type { SceneAnalysisResult } from '@/lib/agents/types';
 
+const SCENE_OPTIONS = [
+  'wedding',
+  'portrait',
+  'corporate',
+  'product',
+  'event',
+  'landscape',
+  'fashion',
+  'food',
+  'real_estate',
+  'other',
+] as const;
+
 interface PortfolioItem {
   url: string;
   analysis: SceneAnalysisResult | null;
@@ -164,6 +177,40 @@ export default function StepPortfolioUpload({ onComplete }: StepPortfolioUploadP
     }
   }, [items]);
 
+  const correctTag = useCallback(async (index: number, newTag: string) => {
+    const item = items[index];
+    if (!item?.analysis || !item.url) return;
+    const originalTag = item.analysis.sceneType;
+    if (originalTag === newTag) return;
+
+    setItems(prev => {
+      const updated = [...prev];
+      if (updated[index].analysis) {
+        updated[index] = {
+          ...updated[index],
+          analysis: { ...updated[index].analysis!, sceneType: newTag },
+        };
+      }
+      return updated;
+    });
+
+    try {
+      await fetch('/api/agents/portfolios', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          action: 'correct-tag',
+          photoUrl: item.url,
+          originalTag,
+          correctedTag: newTag,
+        }),
+      });
+    } catch (err) {
+      console.warn('Tag correction failed silently:', err);
+    }
+  }, [items]);
+
   const handleProceed = () => {
     if (!canProceed) return;
     onComplete(validAnalyses);
@@ -251,12 +298,22 @@ export default function StepPortfolioUpload({ onComplete }: StepPortfolioUploadP
                   >
                     <X className="w-3 h-3 text-white" />
                   </button>
-                  {/* Analysis overlay */}
+                  {/* Analysis overlay (editable tag) */}
                   {item.analysis && (
                     <div className="absolute bottom-0 left-0 right-0 bg-black/80 px-2 py-1.5">
-                      <p className="text-[8px] font-mono text-[#D4A843] uppercase">
-                        {item.analysis.sceneType}
-                      </p>
+                      <select
+                        value={item.analysis.sceneType}
+                        onChange={(e) => correctTag(index, e.target.value)}
+                        onClick={(e) => e.stopPropagation()}
+                        className="w-full bg-transparent text-[8px] font-mono text-[#D4A843] uppercase cursor-pointer focus:outline-none"
+                        aria-label="Scene type"
+                      >
+                        {SCENE_OPTIONS.map((opt) => (
+                          <option key={opt} value={opt} className="bg-black text-[#D4A843]">
+                            {opt}
+                          </option>
+                        ))}
+                      </select>
                       <p className="text-[7px] font-mono text-neutral-400 truncate">
                         {item.analysis.description}
                       </p>

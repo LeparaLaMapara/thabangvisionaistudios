@@ -49,12 +49,12 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
     switch (action) {
       case 'capture-id': {
-        const result = await extractIdFields(imageUrl);
+        const result = await extractIdFields(imageUrl, user.id);
         return NextResponse.json({ success: true, data: result });
       }
 
       case 'identify-gear': {
-        const result = await identifyGear(imageUrl);
+        const result = await identifyGear(imageUrl, user.id);
         return NextResponse.json({ success: true, data: result });
       }
 

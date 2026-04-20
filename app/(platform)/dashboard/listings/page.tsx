@@ -12,6 +12,8 @@ import {
   Loader2,
   X,
   ImagePlus,
+  Sparkles,
+  Globe,
 } from 'lucide-react';
 import { DashboardSubTabs, STUDIO_TABS } from '@/components/dashboard/DashboardSubTabs';
 import { uploadFile, type CloudinaryAsset } from '@/lib/cloudinary/upload';
@@ -36,6 +38,7 @@ type Listing = {
   gallery: { url: string; public_id: string }[] | null;
   metadata: { location?: string } | null;
   is_published: boolean;
+  is_ai_generated?: boolean;
   created_at: string;
   deleted_at: string | null;
 };
@@ -286,6 +289,40 @@ export default function ListingsPage() {
     }
 
     setSaving(false);
+  };
+
+  const publishDraft = async (listing: Listing) => {
+    setError(null);
+    try {
+      const payload = {
+        id: listing.id,
+        title: listing.title,
+        description: listing.description,
+        category: listing.category,
+        price_per_day: listing.price_per_day,
+        condition: listing.sub_category,
+        location: listing.metadata?.location ?? null,
+        thumbnail_url: listing.thumbnail_url,
+        cover_public_id: null,
+        gallery: listing.gallery,
+        is_published: true,
+      };
+      const res = await fetch('/api/listings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => null);
+        setError(body?.error ?? 'Failed to publish listing.');
+        return;
+      }
+      setListings((prev) =>
+        prev.map((l) => (l.id === listing.id ? { ...l, is_published: true } : l)),
+      );
+    } catch {
+      setError('Failed to publish listing.');
+    }
   };
 
   const softDelete = async (id: string) => {
@@ -607,13 +644,19 @@ export default function ListingsPage() {
                 )}
                 <div className="flex items-start justify-between gap-4 flex-1 min-w-0 p-5">
                   <div className="min-w-0">
-                    <div className="flex items-center gap-2 mb-1">
+                    <div className="flex items-center gap-2 mb-1 flex-wrap">
                       <h3 className="text-sm font-medium text-black dark:text-white truncate">
                         {listing.title}
                       </h3>
                       <Badge variant={listing.is_published ? 'success' : 'warning'}>
                         {listing.is_published ? 'Active' : 'Draft'}
                       </Badge>
+                      {listing.is_ai_generated && (
+                        <span className="inline-flex items-center gap-1 text-[9px] font-mono uppercase tracking-widest text-[#D4A843] border border-[#D4A843]/30 px-1.5 py-0.5">
+                          <Sparkles className="w-2.5 h-2.5" />
+                          AI drafted
+                        </span>
+                      )}
                     </div>
                     <p className="text-[10px] font-mono uppercase tracking-widest text-neutral-500">
                       {listing.category}
@@ -628,6 +671,15 @@ export default function ListingsPage() {
                       </p>
                     )}
                     <div className="flex items-center gap-1">
+                      {!listing.is_published && (
+                        <button
+                          onClick={() => publishDraft(listing)}
+                          title="Publish"
+                          className="p-2 border border-[#D4A843]/30 text-[#D4A843] hover:bg-[#D4A843]/5 hover:border-[#D4A843]/60 transition-colors"
+                        >
+                          <Globe className="w-3.5 h-3.5" />
+                        </button>
+                      )}
                       <button
                         onClick={() => openEdit(listing)}
                         title="Edit"

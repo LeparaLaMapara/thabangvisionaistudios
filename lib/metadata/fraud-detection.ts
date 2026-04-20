@@ -8,9 +8,21 @@ export interface FraudFlag {
   message: string;
 }
 
+export interface FaceMatchInput {
+  match: boolean;
+  confidence: number;
+  reasoning?: string;
+}
+
+// Confidence below this threshold on the selfie↔ID face match raises a flag.
+const FACE_MATCH_CONFIDENCE_THRESHOLD = 0.9;
+
 // ─── Fraud Detection ────────────────────────────────────────────────────────
 
-export function detectFraudFlags(metadata: VerificationMetadata): FraudFlag[] {
+export function detectFraudFlags(
+  metadata: VerificationMetadata,
+  faceMatch?: FaceMatchInput | null,
+): FraudFlag[] {
   const flags: FraudFlag[] = [];
   const { id_front, id_back, selfie } = metadata;
 
@@ -100,6 +112,25 @@ export function detectFraudFlags(metadata: VerificationMetadata): FraudFlag[] {
       message:
         'No EXIF metadata on any photo — all may be screenshots or downloads',
     });
+  }
+
+  // 8. Low face-match confidence (selfie vs. ID photo)
+  if (faceMatch) {
+    if (!faceMatch.match) {
+      flags.push({
+        severity: 'high',
+        code: 'FACE_MISMATCH',
+        message: faceMatch.reasoning
+          ? `Selfie and ID appear to be different people — ${faceMatch.reasoning}`
+          : 'Selfie and ID appear to be different people',
+      });
+    } else if (faceMatch.confidence < FACE_MATCH_CONFIDENCE_THRESHOLD) {
+      flags.push({
+        severity: 'medium',
+        code: 'LOW_FACE_MATCH',
+        message: `Face-match confidence only ${(faceMatch.confidence * 100).toFixed(0)}% (threshold ${FACE_MATCH_CONFIDENCE_THRESHOLD * 100}%)`,
+      });
+    }
   }
 
   return flags;

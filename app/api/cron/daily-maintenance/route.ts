@@ -457,6 +457,56 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     results.overdueAutoSuspension = { error: String(err) };
   }
 
+  // ─── 12. POPIA: delete verification storage objects past retention ────────
+  try {
+    const retentionMs = STUDIO.legal.popia.retentionDays * 24 * 60 * 60 * 1000;
+    const retentionCutoff = new Date(now.getTime() - retentionMs).toISOString();
+
+    const { data: expired } = await supabase
+      .from('profiles')
+      .select('id, id_front_path, id_back_path, selfie_with_id_path, verification_reviewed_at')
+      .in('verification_status', ['verified', 'rejected'])
+      .lt('verification_reviewed_at', retentionCutoff)
+      .not('id_front_path', 'is', null);
+
+    let filesDeleted = 0;
+    let profilesCleaned = 0;
+
+    for (const profile of expired ?? []) {
+      const paths = [
+        profile.id_front_path,
+        profile.id_back_path,
+        profile.selfie_with_id_path,
+      ].filter(Boolean) as string[];
+
+      if (paths.length > 0) {
+        const { error: removeErr } = await supabase.storage.from('verifications').remove(paths);
+        if (!removeErr) {
+          filesDeleted += paths.length;
+          // Null out the path columns so we don't try again
+          await supabase
+            .from('profiles')
+            .update({
+              id_front_path: null,
+              id_back_path: null,
+              selfie_with_id_path: null,
+            })
+            .eq('id', profile.id);
+          profilesCleaned++;
+        }
+      }
+    }
+
+    results.popiaRetention = {
+      profilesCleaned,
+      filesDeleted,
+      retentionDays: STUDIO.legal.popia.retentionDays,
+    };
+  } catch (err) {
+    console.error('[daily-maintenance] POPIA retention failed:', err);
+    results.popiaRetention = { error: String(err) };
+  }
+
   console.log('[daily-maintenance] Results:', JSON.stringify(results));
 
   return NextResponse.json({

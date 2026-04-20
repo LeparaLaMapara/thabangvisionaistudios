@@ -31,6 +31,18 @@ Built by ThabangVision (Pty) Ltd, trading as ThabangVision Labs.
   - `SEARCH_PROVIDER=supabase`
   - `RAG_ENABLED=false`
 
+### AI Cost Tracking (`trackedCompletion`)
+- NEVER call `generateText`, `streamText`, or provider SDKs directly from a route or tool. Wrap every AI call with `trackedCompletion()` from `lib/ai/tracked.ts`.
+- For streaming (`streamText`), use `logTokenUsage()` inside the `onFinish` callback instead.
+- `trackedCompletion()` captures `{ agentId, provider, model, userId }` plus token usage and writes one row per call to `ai_token_usage` (cost accounting). Per-user daily message caps still live in `ubunye_usage`.
+- Agents are registered in `lib/agents/registry.ts`. Current roster:
+  - `assistant` — Ubunye chat (Claude Sonnet)
+  - `booking` — booking-flow tool agent (Claude Sonnet)
+  - `bio-writer` — auto-bio from portfolio + profile (Claude Sonnet)
+  - `listing-describer` — draft rental listing title/description/includes (Claude Sonnet)
+  - `onboarding`, `portfolios`, `rates` — Gemma / vision helpers
+- Model pricing: `lib/ai/pricing.ts`. When adding a new model, add its cost there too so budget alerts work.
+
 ### Authentication & Authorization
 - Admin access controlled by `ADMIN_EMAILS` array in `lib/constants.ts`
 - All `/api/admin/*` routes: check session AND check email in ADMIN_EMAILS

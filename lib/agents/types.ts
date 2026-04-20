@@ -57,4 +57,15 @@ export interface SkillDetectionResult {
     name: string;
     percentage: number;
   }>;
+  platformSkills?: Array<{
+    id: string;
+    label: string;
+    percentage: number;
+  }>;
+}
+
+export interface FaceMatchResult {
+  match: boolean;
+  confidence: number;
+  reasoning: string;
 }

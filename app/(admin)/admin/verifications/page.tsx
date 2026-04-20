@@ -63,7 +63,17 @@ interface VerificationRecord {
   id_front_path: string | null;
   id_back_path: string | null;
   selfie_with_id_path: string | null;
-  verification_metadata: { id_front: PhotoMetadata; id_back: PhotoMetadata; selfie: PhotoMetadata } | null;
+  verification_metadata: {
+    id_front: PhotoMetadata;
+    id_back: PhotoMetadata;
+    selfie: PhotoMetadata;
+    face_match?: {
+      match: boolean;
+      confidence: number;
+      reasoning: string;
+      checked_at: string;
+    } | null;
+  } | null;
   verification_fraud_flags: FraudFlag[];
   verification_attempts: number;
   verification_ip: string | null;
@@ -549,6 +559,27 @@ export default function AdminVerificationsPage() {
 
                             {/* Consistency checks */}
                             <ConsistencyChecks metadata={sub.verification_metadata} />
+
+                            {/* Face match result */}
+                            {sub.verification_metadata.face_match && (
+                              <div className="mt-2 px-3 py-2 border border-white/10 bg-white/[0.02] text-xs font-mono">
+                                <div className="flex items-center justify-between">
+                                  <span className="text-neutral-500">Selfie ↔ ID face match</span>
+                                  <span className={sub.verification_metadata.face_match.match
+                                    ? 'text-emerald-400'
+                                    : 'text-red-400'}>
+                                    {sub.verification_metadata.face_match.match ? 'MATCH' : 'NO MATCH'}
+                                    {' · '}
+                                    {(sub.verification_metadata.face_match.confidence * 100).toFixed(0)}%
+                                  </span>
+                                </div>
+                                {sub.verification_metadata.face_match.reasoning && (
+                                  <p className="text-[10px] text-neutral-400 mt-1">
+                                    {sub.verification_metadata.face_match.reasoning}
+                                  </p>
+                                )}
+                              </div>
+                            )}
                           </div>
                         )}
 

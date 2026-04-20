@@ -17,6 +17,7 @@ import { Badge } from '@/components/ui/Badge';
 import { Card } from '@/components/ui/Card';
 import { STUDIO } from '@/lib/constants';
 import { DashboardSubTabs, ACCOUNT_TABS_USER } from '@/components/dashboard/DashboardSubTabs';
+import { ConsentStep } from '@/components/verification/ConsentStep';
 
 type VerificationStatus = 'unverified' | 'pending' | 'verified' | 'rejected';
 
@@ -61,6 +62,7 @@ export default function VerificationPage() {
   const [justSubmitted, setJustSubmitted] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [confirmed, setConfirmed] = useState(false);
+  const [consented, setConsented] = useState<boolean | null>(null);
   const [files, setFiles] = useState<FileSlot[]>([
     {
       label: 'SA ID Smart Card (Front)',
@@ -90,7 +92,22 @@ export default function VerificationPage() {
 
   useEffect(() => {
     fetchVerification();
+    fetchConsent();
   }, []);
+
+  async function fetchConsent() {
+    try {
+      const res = await fetch('/api/popia-consent');
+      if (res.ok) {
+        const data = await res.json();
+        setConsented(!!data.consented);
+      } else {
+        setConsented(false);
+      }
+    } catch {
+      setConsented(false);
+    }
+  }
 
   // Clean up object URLs on unmount
   useEffect(() => {
@@ -334,28 +351,36 @@ export default function VerificationPage() {
             </div>
           </Card>
           {!maxReached && (
-            <UploadForm
-              files={files}
-              confirmed={confirmed}
-              onConfirmedChange={setConfirmed}
-              onFileChange={handleFileChange}
-              onSubmit={handleSubmit}
-              submitting={submitting}
-            />
+            consented === false ? (
+              <ConsentStep onConsented={() => setConsented(true)} />
+            ) : consented === true ? (
+              <UploadForm
+                files={files}
+                confirmed={confirmed}
+                onConfirmedChange={setConfirmed}
+                onFileChange={handleFileChange}
+                onSubmit={handleSubmit}
+                submitting={submitting}
+              />
+            ) : null
           )}
         </div>
       )}
 
       {/* ── Unverified ──────────────────────────────────────────────── */}
       {status === 'unverified' && (
-        <UploadForm
-          files={files}
-          confirmed={confirmed}
-          onConfirmedChange={setConfirmed}
-          onFileChange={handleFileChange}
-          onSubmit={handleSubmit}
-          submitting={submitting}
-        />
+        consented === false ? (
+          <ConsentStep onConsented={() => setConsented(true)} />
+        ) : consented === true ? (
+          <UploadForm
+            files={files}
+            confirmed={confirmed}
+            onConfirmedChange={setConfirmed}
+            onFileChange={handleFileChange}
+            onSubmit={handleSubmit}
+            submitting={submitting}
+          />
+        ) : null
       )}
     </motion.div>
   );

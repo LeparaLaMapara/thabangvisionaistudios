@@ -1,0 +1,234 @@
+export const dynamic = 'force-dynamic';
+export const maxDuration = 60;
+
+import { NextRequest, NextResponse } from 'next/server';
+import { generateText } from 'ai';
+import { anthropic } from '@ai-sdk/anthropic';
+import { requireAuth, checkNotSuspended, checkRateLimit } from '@/lib/auth';
+import { createAdminClient } from '@/lib/supabase/server';
+import { STUDIO } from '@/lib/constants';
+import { trackedCompletion } from '@/lib/ai/tracked';
+import {
+  listingDescriberAgent,
+  buildListingDescriberPrompt,
+  parseListingDescriberOutput,
+  type ListingDescriberInput,
+  type ListingDescriberOutput,
+} from '@/lib/agents/agents/listing-describer';
+
+const MIN_CONFIDENCE = 0.7;
+
+interface DetectedGearItem {
+  brand: string;
+  model: string;
+  category: string;
+  equipmentType?: string;
+  condition?: string;
+  confidence: number;
+  thumbnailUrl?: string | null;
+}
+
+function slugify(text: string): string {
+  return text
+    .toLowerCase()
+    .trim()
+    .replace(/[^\w\s-]/g, '')
+    .replace(/[\s_]+/g, '-')
+    .replace(/-+/g, '-');
+}
+
+async function describeListing(
+  input: ListingDescriberInput,
+  userId: string,
+): Promise<ListingDescriberOutput | null> {
+  try {
+    return await trackedCompletion<ListingDescriberOutput>({
+      agentId: listingDescriberAgent.id,
+      provider: 'anthropic',
+      model: listingDescriberAgent.model,
+      userId,
+      call: async () => {
+        const res = await generateText({
+          model: anthropic(listingDescriberAgent.model),
+          prompt: buildListingDescriberPrompt(input),
+          temperature: 0.6,
+        });
+        return {
+          result: parseListingDescriberOutput(res.text),
+          usage: {
+            inputTokens: res.usage.inputTokens ?? 0,
+            outputTokens: res.usage.outputTokens ?? 0,
+          },
+        };
+      },
+    });
+  } catch (err) {
+    console.error('[create-rentals] describe failed for', input.brand, input.model, err);
+    return null;
+  }
+}
+
+// Rough daily rate heuristic from condition + category.
+// Owners can edit before publishing; this is just a starting point.
+function estimateDailyRate(category: string, condition: string): number {
+  const base: Record<string, number> = {
+    'cameras-optics': 650,
+    'lighting-power': 400,
+    'audio': 350,
+    'grip-motion': 450,
+    'specialized-solutions': 300,
+  };
+  const conditionMultiplier: Record<string, number> = {
+    new: 1.1,
+    like_new: 1.0,
+    good: 0.9,
+    fair: 0.75,
+    for_parts: 0.4,
+  };
+  const categoryBase = base[category] ?? 400;
+  const mult = conditionMultiplier[condition] ?? 0.9;
+  return Math.round(categoryBase * mult);
+}
+
+export async function POST(req: NextRequest): Promise<NextResponse> {
+  const auth = await requireAuth();
+  if (auth.error) return auth.error;
+
+  const suspension = await checkNotSuspended(auth.user.id);
+  if (suspension.suspended) {
+    return NextResponse.json(
+      { error: `Account suspended: ${suspension.reason ?? 'Contact support.'}` },
+      { status: 403 },
+    );
+  }
+
+  if (!checkRateLimit(`create-rentals:${auth.user.id}`, 2, 60_000)) {
+    return NextResponse.json(
+      { error: 'Please wait before drafting listings again.' },
+      { status: 429 },
+    );
+  }
+
+  const supabase = createAdminClient();
+
+  // Require verified account to list equipment (same rule as /api/listings)
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('verification_status, location')
+    .eq('id', auth.user.id)
+    .single();
+
+  if (profile?.verification_status !== 'verified') {
+    return NextResponse.json(
+      { error: 'Account must be verified to list equipment.' },
+      { status: 403 },
+    );
+  }
+
+  try {
+    const body = await req.json();
+    const items = body.items as DetectedGearItem[] | undefined;
+
+    if (!items || !Array.isArray(items) || items.length === 0) {
+      return NextResponse.json(
+        { error: 'items must be a non-empty array.' },
+        { status: 400 },
+      );
+    }
+
+    // Dedupe by brand+model, keep highest confidence
+    const dedup = new Map<string, DetectedGearItem>();
+    for (const item of items) {
+      if (!item.brand || !item.model) continue;
+      if (item.confidence < MIN_CONFIDENCE) continue;
+      const key = `${item.brand.trim().toLowerCase()}|${item.model.trim().toLowerCase()}`;
+      const existing = dedup.get(key);
+      if (!existing || item.confidence > existing.confidence) {
+        dedup.set(key, item);
+      }
+    }
+
+    const unique = Array.from(dedup.values());
+    if (unique.length === 0) {
+      return NextResponse.json(
+        { error: `No gear items met the ${MIN_CONFIDENCE * 100}% confidence threshold.` },
+        { status: 400 },
+      );
+    }
+
+    const created: Array<{ id: string; title: string; brand: string; model: string }> = [];
+    const failed: Array<{ brand: string; model: string; reason: string }> = [];
+
+    for (const item of unique) {
+      const condition = item.condition ?? 'good';
+      const described = await describeListing(
+        {
+          brand: item.brand,
+          model: item.model,
+          category: item.category,
+          condition,
+          city: profile?.location ?? null,
+        },
+        auth.user.id,
+      );
+
+      const fallbackTitle = `${item.brand} ${item.model}`.trim();
+      const title = described?.title || fallbackTitle;
+      const description = described?.description ?? null;
+      const rentalIncludes = described?.rentalIncludes ?? [];
+
+      const pricePerDay = estimateDailyRate(item.category, condition);
+      const pricePerWeek = Math.round(pricePerDay * 5); // SA market norm: 7 days billed as 5
+      const depositAmount = Math.round(pricePerDay * (STUDIO.rental.depositPercent / 100) * 3);
+
+      const { data, error } = await supabase
+        .from('smart_rentals')
+        .insert({
+          title,
+          slug: slugify(`${title}-${Date.now()}`),
+          description,
+          category: item.category,
+          sub_category: item.equipmentType ?? null,
+          brand: item.brand,
+          model: item.model,
+          price_per_day: pricePerDay,
+          price_per_week: pricePerWeek,
+          deposit_amount: depositAmount,
+          currency: STUDIO.currency.code,
+          thumbnail_url: item.thumbnailUrl ?? null,
+          rental_includes: rentalIncludes,
+          metadata: {
+            ai_generated: true,
+            detection_confidence: item.confidence,
+            suggested_upsells: described?.suggestedUpsells ?? [],
+            location: profile?.location ?? null,
+          },
+          owner_type: 'community',
+          owner_id: auth.user.id,
+          is_published: false,
+          is_available: true,
+          is_ai_generated: true,
+          quantity: 1,
+          ranking_score: 0,
+        })
+        .select('id, title')
+        .single();
+
+      if (error || !data) {
+        failed.push({
+          brand: item.brand,
+          model: item.model,
+          reason: error?.message ?? 'Insert failed',
+        });
+        continue;
+      }
+
+      created.push({ id: data.id, title: data.title, brand: item.brand, model: item.model });
+    }
+
+    return NextResponse.json({ created, failed, totalConsidered: items.length });
+  } catch (err) {
+    console.error('[POST /api/onboarding/create-rentals]', err);
+    return NextResponse.json({ error: 'Failed to draft listings.' }, { status: 500 });
+  }
+}
