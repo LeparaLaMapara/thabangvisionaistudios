@@ -40,6 +40,7 @@ const TABS: Tab[] = [
     matchPaths: [
       '/dashboard/bookings',
       '/dashboard/creator-requests',
+      '/dashboard/disputes',
       '/dashboard/cart',
     ],
   },
@@ -53,6 +54,7 @@ const TABS: Tab[] = [
       '/dashboard/gigs',
       '/dashboard/listings',
       '/dashboard/orders',
+      '/dashboard/pricing',
     ],
     creatorOnly: true,
   },

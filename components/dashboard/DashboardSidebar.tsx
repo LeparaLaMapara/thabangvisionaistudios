@@ -27,6 +27,7 @@ const NAV_GROUPS: NavGroup[] = [
       { href: '/dashboard', label: 'Overview', exact: true },
       { href: '/dashboard/bookings', label: 'Rentals' },
       { href: '/dashboard/creator-requests', label: 'Hires' },
+      { href: '/dashboard/disputes', label: 'Disputes' },
       { href: '/dashboard/cart', label: 'Cart' },
     ],
   },
@@ -38,6 +39,7 @@ const NAV_GROUPS: NavGroup[] = [
       { href: '/dashboard/gigs', label: 'Gigs' },
       { href: '/dashboard/listings', label: 'Listings' },
       { href: '/dashboard/orders', label: 'Orders' },
+      { href: '/dashboard/pricing', label: 'Pricing Guide' },
     ],
   },
   {
