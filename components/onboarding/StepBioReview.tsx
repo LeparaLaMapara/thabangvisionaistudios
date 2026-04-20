@@ -1,0 +1,164 @@
+'use client';
+
+import { useState, useEffect, useCallback } from 'react';
+import { Loader2, RefreshCw } from 'lucide-react';
+import { createClient } from '@/lib/supabase/client';
+
+const MAX_BIO_CHARS = 280;
+
+interface StepBioReviewProps {
+  onComplete: (bio: string) => void;
+}
+
+export default function StepBioReview({ onComplete }: StepBioReviewProps) {
+  const [bio, setBio] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [regenerating, setRegenerating] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [samples, setSamples] = useState<number>(0);
+
+  const generate = useCallback(async () => {
+    setError(null);
+    try {
+      const res = await fetch('/api/agents/bio-writer', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({}),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Bio generation failed.');
+      setBio((data.bio as string) ?? '');
+      setSamples((data.samples as number) ?? 0);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to generate bio.');
+    }
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      setLoading(true);
+      await generate();
+      if (!cancelled) setLoading(false);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [generate]);
+
+  const handleRegenerate = async () => {
+    setRegenerating(true);
+    await generate();
+    setRegenerating(false);
+  };
+
+  const handleSave = async () => {
+    const trimmed = bio.trim();
+    if (!trimmed) {
+      setError('Bio cannot be empty.');
+      return;
+    }
+    if (trimmed.length > MAX_BIO_CHARS) {
+      setError(`Bio must be ${MAX_BIO_CHARS} characters or fewer.`);
+      return;
+    }
+
+    setSaving(true);
+    setError(null);
+    try {
+      const supabase = createClient();
+      const { data: userData } = await supabase.auth.getUser();
+      if (!userData.user) throw new Error('Not signed in.');
+
+      const { error: updateError } = await supabase
+        .from('profiles')
+        .update({ bio: trimmed })
+        .eq('id', userData.user.id);
+
+      if (updateError) throw updateError;
+      onComplete(trimmed);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to save bio.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h2 className="text-sm font-mono font-bold uppercase tracking-widest text-white mb-1">
+            Writing Your Bio
+          </h2>
+          <p className="text-[10px] font-mono text-neutral-500 leading-relaxed">
+            Drafting a short intro from your portfolio and profile...
+          </p>
+        </div>
+        <div className="flex items-center justify-center gap-3 py-12">
+          <Loader2 className="w-6 h-6 text-[#D4A843] animate-spin" />
+          <p className="text-xs font-mono text-neutral-400">Generating bio...</p>
+        </div>
+      </div>
+    );
+  }
+
+  const charsLeft = MAX_BIO_CHARS - bio.length;
+  const overLimit = charsLeft < 0;
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h2 className="text-sm font-mono font-bold uppercase tracking-widest text-white mb-1">
+          Your Bio
+        </h2>
+        <p className="text-[10px] font-mono text-neutral-500 leading-relaxed">
+          Edit freely, regenerate if you want a different angle, then save.
+          {samples > 0 && ` Drafted from ${samples} portfolio scene${samples === 1 ? '' : 's'}.`}
+        </p>
+      </div>
+
+      <div>
+        <textarea
+          value={bio}
+          onChange={(e) => setBio(e.target.value)}
+          rows={5}
+          className="w-full bg-neutral-900 border border-white/10 focus:border-[#D4A843]/50 outline-none p-4 text-sm font-mono text-white leading-relaxed resize-none"
+          placeholder="Your bio will appear here..."
+          disabled={regenerating || saving}
+        />
+        <div className="flex justify-between items-center mt-2">
+          <p className={`text-[10px] font-mono ${overLimit ? 'text-red-400' : 'text-neutral-500'}`}>
+            {charsLeft} character{charsLeft === 1 ? '' : 's'} {overLimit ? 'over' : 'left'}
+          </p>
+          <button
+            type="button"
+            onClick={handleRegenerate}
+            disabled={regenerating || saving}
+            className="flex items-center gap-1.5 text-[10px] font-mono uppercase tracking-widest text-neutral-400 hover:text-[#D4A843] transition-colors disabled:opacity-40 disabled:cursor-not-allowed min-h-[44px] px-2"
+          >
+            <RefreshCw className={`w-3 h-3 ${regenerating ? 'animate-spin' : ''}`} />
+            {regenerating ? 'Regenerating' : 'Regenerate'}
+          </button>
+        </div>
+      </div>
+
+      <button
+        type="button"
+        onClick={handleSave}
+        disabled={saving || regenerating || overLimit || !bio.trim()}
+        className="w-full bg-[#D4A843] text-black py-3 px-6 text-[10px] font-mono font-bold uppercase tracking-widest hover:opacity-80 transition-opacity disabled:opacity-20 disabled:cursor-not-allowed min-h-[44px]"
+      >
+        {saving ? 'Saving...' : 'Save Bio'}
+      </button>
+
+      {error && (
+        <div className="bg-red-500/10 border border-red-500/30 px-4 py-3">
+          <p className="text-xs text-red-400 font-mono">{error}</p>
+        </div>
+      )}
+    </div>
+  );
+}

@@ -9,16 +9,18 @@ import OnboardingProgress from './OnboardingProgress';
 import StepIdCapture from './StepIdCapture';
 import StepPortfolioUpload from './StepPortfolioUpload';
 import StepSkillsDetection from './StepSkillsDetection';
+import StepBioReview from './StepBioReview';
 import StepGearRentals from './StepGearRentals';
 import type { SceneAnalysisResult, SkillDetectionResult } from '@/lib/agents/types';
 
-const TOTAL_STEPS = 5;
-const STEP_LABELS = ['Identity', 'Portfolio', 'Skills', 'Review', 'Gear'];
+const TOTAL_STEPS = 6;
+const STEP_LABELS = ['Identity', 'Portfolio', 'Skills', 'Bio', 'Review', 'Gear'];
 
 interface OnboardingData {
   idData: { firstName: string; lastName: string; idNumber: string; dateOfBirth: string } | null;
   analyses: SceneAnalysisResult[];
   skills: SkillDetectionResult | null;
+  bio: string | null;
   gear: unknown[];
 }
 
@@ -31,6 +33,7 @@ export default function OnboardingFlow() {
     idData: null,
     analyses: [],
     skills: null,
+    bio: null,
     gear: [],
   });
 
@@ -105,20 +108,27 @@ export default function OnboardingFlow() {
     setStep(4);
   }, [saveProgress]);
 
-  // Step 4: Review — just advance
-  const handleReviewComplete = useCallback(async () => {
+  // Step 4: Bio review complete
+  const handleBioComplete = useCallback(async (bio: string) => {
+    setData(prev => ({ ...prev, bio }));
     await saveProgress(4);
     setStep(5);
   }, [saveProgress]);
 
-  // Step 5: Gear listing complete
+  // Step 5: Review — just advance
+  const handleReviewComplete = useCallback(async () => {
+    await saveProgress(5);
+    setStep(6);
+  }, [saveProgress]);
+
+  // Step 6: Gear listing complete
   const handleGearComplete = useCallback(async (gear: unknown[]) => {
     setSaving(true);
     setError(null);
 
     try {
       setData(prev => ({ ...prev, gear }));
-      await saveProgress(5, { detected_gear: gear, completed_at: new Date().toISOString() });
+      await saveProgress(6, { detected_gear: gear, completed_at: new Date().toISOString() });
       window.location.href = '/dashboard';
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save.');
@@ -129,7 +139,7 @@ export default function OnboardingFlow() {
   const handleGearSkip = useCallback(async () => {
     setSaving(true);
     try {
-      await saveProgress(5, { completed_at: new Date().toISOString() });
+      await saveProgress(6, { completed_at: new Date().toISOString() });
       window.location.href = '/dashboard';
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save.');
@@ -209,6 +219,10 @@ export default function OnboardingFlow() {
               )}
 
               {step === 4 && (
+                <StepBioReview onComplete={handleBioComplete} />
+              )}
+
+              {step === 5 && (
                 <div className="space-y-6">
                   <div>
                     <h2 className="text-sm font-mono font-bold uppercase tracking-widest text-white mb-1">
@@ -257,6 +271,16 @@ export default function OnboardingFlow() {
                     </div>
                   )}
 
+                  {/* Bio summary */}
+                  {data.bio && (
+                    <div className="bg-neutral-900 border border-white/5 p-4">
+                      <p className="text-[9px] font-mono uppercase tracking-widest text-neutral-500 mb-2">Bio</p>
+                      <p className="text-sm font-mono text-white leading-relaxed whitespace-pre-wrap">
+                        {data.bio}
+                      </p>
+                    </div>
+                  )}
+
                   <button
                     type="button"
                     onClick={handleReviewComplete}
@@ -267,7 +291,7 @@ export default function OnboardingFlow() {
                 </div>
               )}
 
-              {step === 5 && (
+              {step === 6 && (
                 <StepGearRentals
                   onComplete={handleGearComplete}
                   onSkip={handleGearSkip}
@@ -291,7 +315,7 @@ export default function OnboardingFlow() {
           )}
 
           {/* Back button */}
-          {step > 1 && step < 5 && (
+          {step > 1 && step < 6 && (
             <div className="mt-6 pt-4 border-t border-white/5">
               <button
                 type="button"
