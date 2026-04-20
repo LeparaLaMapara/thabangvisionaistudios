@@ -3,6 +3,9 @@ export const revalidate = 60;
 import { getFeaturedProductions } from '@/lib/supabase/queries/smartProductions';
 import HomeClient from './HomeClient';
 import type { CarouselItem } from '@/components/cinematic/LatestWorkCarousel';
+import { CAPABILITIES } from '@/lib/constants';
+import { filterCapabilitiesForFlags } from '@/lib/nav';
+import { getFlag } from '@/lib/features';
 
 /** Build a Cloudinary delivery URL from a public_id. */
 function cloudinaryUrl(publicId: string): string {
@@ -26,7 +29,9 @@ function resolveImage(
 }
 
 export default async function Home() {
-  const productions = await getFeaturedProductions(8);
+  const smartProductionsEnabled = await getFlag('smart_productions');
+
+  const productions = smartProductionsEnabled ? await getFeaturedProductions(8) : [];
 
   const carouselItems: CarouselItem[] = productions.map((p) => ({
     id: p.id,
@@ -41,5 +46,7 @@ export default async function Home() {
     created_at: p.created_at,
   })).sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
-  return <HomeClient carouselItems={carouselItems} />;
+  const capabilities = await filterCapabilitiesForFlags(CAPABILITIES);
+
+  return <HomeClient carouselItems={carouselItems} capabilities={capabilities} />;
 }

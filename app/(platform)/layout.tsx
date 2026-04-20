@@ -1,5 +1,7 @@
 import { Header } from '@/components/layout/Header';
 import { Footer } from '@/components/layout/Footer';
+import { MAIN_NAVIGATION } from '@/lib/constants';
+import { filterNavForFlags } from '@/lib/nav';
 
 /**
  * Platform layout — wraps capability pages:
@@ -12,14 +14,15 @@ import { Footer } from '@/components/layout/Footer';
  * Kept as a separate group so platform pages can gain their own
  * layout chrome independently in the future.
  */
-export default function PlatformLayout({
+export default async function PlatformLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  const navigation = await filterNavForFlags(MAIN_NAVIGATION);
   return (
     <div className="flex flex-col min-h-screen bg-neutral-50 dark:bg-[#0A0A0B] text-neutral-900 dark:text-white selection:bg-black selection:text-white dark:selection:bg-white dark:selection:text-black transition-colors duration-500">
-      <Header />
+      <Header navigation={navigation} />
       <main className="flex-grow">
         {children}
       </main>

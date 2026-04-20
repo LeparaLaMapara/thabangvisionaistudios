@@ -5,7 +5,9 @@ import Link from 'next/link';
 import { ServiceGrid } from '@/components/cinematic/ServiceGrid';
 import { LatestWorkCarousel, type CarouselItem } from '@/components/cinematic/LatestWorkCarousel';
 import { ChevronRight, ArrowRight, Camera, Calendar, Users, Search, CreditCard, Sparkles, MessageCircle, ShieldCheck, BadgeCheck, Lock, Star } from 'lucide-react';
-import { SITE_NAME, STUDIO, PLACEHOLDER_IMAGES } from '@/lib/constants';
+import { SITE_NAME, STUDIO, PLACEHOLDER_IMAGES, CAPABILITIES } from '@/lib/constants';
+
+type Capability = (typeof CAPABILITIES)[number];
 
 // ─── Hero ────────────────────────────────────────────────────────────────────
 
@@ -336,7 +338,7 @@ const UbunyeSection = () => (
 
 // ─── Main Export ──────────────────────────────────────────────────────────────
 
-export default function HomeClient({ carouselItems }: { carouselItems: CarouselItem[] }) {
+export default function HomeClient({ carouselItems, capabilities }: { carouselItems: CarouselItem[]; capabilities: readonly Capability[] }) {
   return (
     <div className="min-h-screen bg-[#050505] transition-colors duration-500">
       {/* 1. Hero */}
@@ -344,7 +346,7 @@ export default function HomeClient({ carouselItems }: { carouselItems: CarouselI
       {/* 2. How It Works */}
       <HowItWorks />
       {/* 3. Studio Capabilities (3 cards) */}
-      <ServiceGrid />
+      <ServiceGrid capabilities={capabilities} />
       {/* 4. Creator Network */}
       <CommunitySection />
       {/* 5. Smart Rentals */}

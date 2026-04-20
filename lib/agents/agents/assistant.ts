@@ -1,5 +1,5 @@
 import type { UbunyeAgent } from '@/lib/agents/types';
-import type { CachedData } from '@/lib/ubunye/system-prompt';
+import type { CachedData, UbunyeFlagsSnapshot } from '@/lib/ubunye/system-prompt';
 import { buildSystemPrompt } from '@/lib/ubunye/system-prompt';
 
 // ─── Assistant Agent Configuration ────────────────────────────────────────────
@@ -24,8 +24,9 @@ export const assistantAgent: UbunyeAgent = {
 export function buildAssistantPrompt(
   platformData: CachedData,
   userContext: string | null,
+  flags: UbunyeFlagsSnapshot,
 ): string {
-  const basePrompt = buildSystemPrompt(platformData, userContext);
+  const basePrompt = buildSystemPrompt(platformData, userContext, flags);
 
   return `${basePrompt}
 
