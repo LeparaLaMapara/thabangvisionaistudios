@@ -1,5 +1,5 @@
-import { unstable_cache, revalidateTag } from 'next/cache';
-import { createClient } from '@/lib/supabase/server';
+import { unstable_cache } from 'next/cache';
+import { createAdminClient, createClient } from '@/lib/supabase/server';
 
 export const FEATURE_KEYS = [
   'smart_productions',
@@ -28,7 +28,10 @@ export function isFeatureKey(key: string): key is FeatureKey {
 }
 
 async function readAllFlagsFromDb(): Promise<FeatureFlag[]> {
-  const supabase = await createClient();
+  // Use admin client so the cached fn doesn't read cookies.
+  // Flags are globally readable (RLS "anyone_reads_flags") — service role
+  // just sidesteps the cookie access that unstable_cache forbids.
+  const supabase = createAdminClient();
   const { data, error } = await supabase
     .from('feature_flags')
     .select('key, enabled, description, updated_at, updated_by')
@@ -76,6 +79,6 @@ export async function setFlag(
     .eq('key', key);
 
   if (error) throw new Error(`Failed to toggle flag ${key}: ${error.message}`);
-
-  revalidateTag(FLAGS_CACHE_TAG);
 }
+
+export const FEATURE_FLAGS_CACHE_TAG = FLAGS_CACHE_TAG;

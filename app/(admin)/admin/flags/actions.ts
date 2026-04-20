@@ -1,8 +1,8 @@
 'use server';
 
-import { revalidatePath, revalidateTag } from 'next/cache';
+import { revalidatePath, updateTag } from 'next/cache';
 import { requireAdmin } from '@/lib/auth';
-import { isFeatureKey, setFlag } from '@/lib/features';
+import { FEATURE_FLAGS_CACHE_TAG, isFeatureKey, setFlag } from '@/lib/features';
 
 export async function toggleFlag(key: string, enabled: boolean): Promise<{ ok: true } | { ok: false; error: string }> {
   const auth = await requireAdmin();
@@ -12,7 +12,7 @@ export async function toggleFlag(key: string, enabled: boolean): Promise<{ ok: t
 
   try {
     await setFlag(key, enabled);
-    revalidateTag('feature-flags');
+    updateTag(FEATURE_FLAGS_CACHE_TAG);
     revalidatePath('/admin/flags');
     return { ok: true };
   } catch (err) {
