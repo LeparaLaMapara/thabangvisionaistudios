@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth, checkNotSuspended, checkRateLimit } from '@/lib/auth';
-import { createClient } from '@/lib/supabase/server';
+import { createAdminClient, createClient } from '@/lib/supabase/server';
 import { analyzeScene, detectSkills } from '@/lib/agents/tools';
 import type { SceneAnalysisResult } from '@/lib/agents/types';
 
@@ -114,9 +114,46 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         return NextResponse.json({ success: true, data: result });
       }
 
+      case 'correct-tag': {
+        const { photoUrl, originalTag, correctedTag } = body as {
+          photoUrl?: string;
+          originalTag?: string;
+          correctedTag?: string;
+        };
+
+        if (!photoUrl || !originalTag || !correctedTag) {
+          return NextResponse.json(
+            { error: 'photoUrl, originalTag, and correctedTag are required.' },
+            { status: 400 },
+          );
+        }
+        if (originalTag === correctedTag) {
+          return NextResponse.json({ success: true, skipped: true });
+        }
+
+        const adminClient = createAdminClient();
+
+        // Log the correction for future prompt tuning.
+        await adminClient.from('portfolio_tag_corrections').insert({
+          creator_id: user.id,
+          photo_url: photoUrl,
+          original_tag: originalTag,
+          corrected_tag: correctedTag,
+        });
+
+        // Update the stored analysis so downstream skill detection uses the fix.
+        await adminClient
+          .from('portfolio_analysis')
+          .update({ scene_type: correctedTag })
+          .eq('creator_id', user.id)
+          .eq('photo_url', photoUrl);
+
+        return NextResponse.json({ success: true });
+      }
+
       default:
         return NextResponse.json(
-          { error: `Unknown action: ${action}. Use 'analyze-portfolio' or 'detect-skills'.` },
+          { error: `Unknown action: ${action}. Use 'analyze-portfolio', 'detect-skills', or 'correct-tag'.` },
           { status: 400 },
         );
     }
