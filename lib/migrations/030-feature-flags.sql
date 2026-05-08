@@ -56,7 +56,7 @@ CREATE TRIGGER feature_flags_audit
   FOR EACH ROW EXECUTE FUNCTION log_feature_flag_change();
 
 INSERT INTO feature_flags (key, enabled, description) VALUES
-  ('smart_productions',         false, 'Smart Productions marketplace — hidden until Smart Rentals gains traction'),
+  ('smart_productions',         true,  'Smart Productions marketplace'),
   ('smart_productions_booking', false, 'Smart Productions booking flow — depends on smart_productions'),
   ('studio_crews',              false, 'AI-assembled production crews (V5+)'),
   ('voice_onboarding',          false, 'Voice input for creator onboarding'),

@@ -1,7 +1,7 @@
 export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
-import { requireAdmin } from '@/lib/auth';
+import { requireAdmin, rateLimitAdmin } from '@/lib/auth';
 import { createAdminClient } from '@/lib/supabase/server';
 
 const VALID_ROLES = ['user', 'admin', 'moderator'] as const;
@@ -14,6 +14,8 @@ export async function PATCH(
 ) {
   const auth = await requireAdmin();
   if (auth.error) return auth.error;
+  const limited = rateLimitAdmin(auth.user.id, 'sensitive');
+  if (limited) return limited;
 
   const { id: targetUserId } = await params;
   const body = await req.json();
@@ -38,6 +40,18 @@ export async function PATCH(
   try {
     const supabase = createAdminClient();
 
+    // 1. Set app_metadata.role in auth.users (controls JWT + RLS is_admin())
+    const { error: authError } = await supabase.auth.admin.updateUserById(
+      targetUserId,
+      { app_metadata: { role: newRole } },
+    );
+
+    if (authError) {
+      console.error('[admin/users/role] Auth metadata update error:', authError.message);
+      return NextResponse.json({ error: 'Failed to update auth role.' }, { status: 500 });
+    }
+
+    // 2. Sync profiles.role column (secondary check + admin UI display)
     const { data, error } = await supabase
       .from('profiles')
       .update({ role: newRole, updated_at: new Date().toISOString() })
@@ -46,8 +60,8 @@ export async function PATCH(
       .single();
 
     if (error) {
-      console.error('[admin/users/role] Update error:', error.message);
-      return NextResponse.json({ error: 'Failed to update role.' }, { status: 500 });
+      console.error('[admin/users/role] Profile update error:', error.message);
+      return NextResponse.json({ error: 'Failed to update profile role.' }, { status: 500 });
     }
 
     return NextResponse.json(data);

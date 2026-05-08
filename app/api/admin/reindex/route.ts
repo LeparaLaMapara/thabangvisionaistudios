@@ -1,7 +1,7 @@
 export const dynamic = 'force-dynamic';
 
 import { NextResponse } from 'next/server';
-import { requireAdmin } from '@/lib/auth';
+import { requireAdmin, rateLimitAdmin } from '@/lib/auth';
 import { createAdminClient } from '@/lib/supabase/server';
 import { isRagEnabled, reindexAll } from '@/lib/rag';
 
@@ -10,6 +10,9 @@ import { isRagEnabled, reindexAll } from '@/lib/rag';
 export async function POST() {
   const auth = await requireAdmin();
   if (auth.error) return auth.error;
+
+  const limited = rateLimitAdmin(auth.user.id);
+  if (limited) return limited;
 
   if (!isRagEnabled()) {
     return NextResponse.json(

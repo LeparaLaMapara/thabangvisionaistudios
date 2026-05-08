@@ -28,7 +28,7 @@ export const STUDIO = {
     instagram: 'https://instagram.com/thabangvision',
     twitter: 'https://x.com/thabangvision',
     youtube: 'https://youtube.com/@thabangvision',
-    // linkedin: 'https://linkedin.com/thabangvision',
+    linkedin: 'https://linkedin.com/company/thabangvision',
     // tiktok: 'https://tiktok.com/thabangvision',
     // behance: 'https://behance.net/thabangvisionstudios',
     // vimeo: 'https://vimeo.com/thabangvisionstudios',

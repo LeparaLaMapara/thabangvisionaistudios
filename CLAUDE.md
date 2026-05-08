@@ -1,4 +1,6 @@
-# CLAUDE.md — ThabangVision Labs
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 ## Project Overview
 AI-powered creative production and equipment rental platform for South African filmmakers and photographers.
@@ -42,13 +44,31 @@ Built by ThabangVision (Pty) Ltd, trading as ThabangVision Labs.
   - `listing-describer` — draft rental listing title/description/includes (Claude Sonnet)
   - `onboarding`, `portfolios`, `rates` — Gemma / vision helpers
 - Model pricing: `lib/ai/pricing.ts`. When adding a new model, add its cost there too so budget alerts work.
+- **Agent routing** (`lib/agents/router.ts`): intent classification picks the agent — priority is booking > portfolios > rates > assistant. The booking agent has a pre-selected creator flow (from portfolio page "Book Creator" button) that skips creator search.
+- **Per-agent rate limits**: each agent defines `rateLimit: { guest, free, pro, studio }` (messages/day). `-1` = unlimited. Guest users get 5 assistant messages, 0 booking messages. Tracked in `ubunye_usage` table.
+- **Booking flow** is a strict 3-step script: (1) collect location/date/duration, (2) call `calculate_booking_quote` tool and show ZAR breakdown, (3) confirm and return payment link. Never estimate prices — always use the tool.
+- **System prompt caching**: platform data (equipment, productions, crew) is fetched once and cached in-memory for 5 minutes, keyed by feature flags. Authenticated users get their profile + active bookings + listings injected into context.
+
+### Feature Flags
+- Flags stored in `feature_flags` Supabase table, cached in-memory for 60 seconds via `unstable_cache`
+- `lib/features.ts` provides `getFlags()` — async, returns `{ smart_productions: boolean, ... }`
+- Navigation gating: `lib/nav.ts` filters nav items by flag state (e.g., `/smart-production` routes gated by `smart_productions` flag)
+- Admin UI at `/admin/flags` for toggling flags
+- System prompt cache is keyed by flag values — flag changes automatically refresh AI context
+
+### AI Model Routing (Fast vs. Smart)
+- `lib/ai/index.ts` implements intelligent routing: simple queries (greetings, contact info) go to Gemini Flash (cheap), complex queries (booking, reasoning) go to Claude Sonnet
+- Routing only activates when `AI_PROVIDER=anthropic` AND `GOOGLE_GENERATIVE_AI_API_KEY` is set
+- Pattern matching in `SIMPLE_PATTERNS` and `COMPLEX_PATTERNS` determines tier
+- AI pricing in `lib/constants.ts` (`STUDIO.ai.pricing`) uses assumed ~R18/USD exchange rate — update manually when rates shift
 
 ### Authentication & Authorization
-- Admin access controlled by `ADMIN_EMAILS` array in `lib/constants.ts`
-- All `/api/admin/*` routes: check session AND check email in ADMIN_EMAILS
-- All `/dashboard/*` routes: check session via middleware
-- Ubunye chat: requires login (unauthenticated get 5 free messages)
+- Admin access has 3-level fallback: (1) JWT `app_metadata.role === 'admin'`, (2) `profiles.role` column, (3) `ADMIN_EMAILS` array in `lib/constants.ts`
+- All `/api/admin/*` routes: check session AND check admin status via `requireAdmin()`
+- All `/dashboard/*` routes: check session via proxy
+- Ubunye chat: requires login (unauthenticated get 5 free messages via guest rate limit)
 - Cloudinary delete: admin only. Cloudinary sign: authenticated users only.
+- Idle session timeout: auto-logout after `STUDIO.session.idleTimeoutMinutes` (30 min) of inactivity, tracked in `providers/AuthProvider.tsx`
 
 ### Theming
 - Dark theme ONLY — no light mode, no theme toggle, no "Switch to Light Mode"
@@ -107,9 +127,12 @@ lib/
 - Return proper status codes: 200, 201, 400, 401, 403, 404, 429, 500
 - Never expose stack traces to client in production
 
-### Pricing
+### Pricing & Booking Types
 - All prices in ZAR
 - Booking amounts (bookings, booking_payments) stored as integer **ZAR cents** to avoid floating-point drift
+- **Two distinct booking types:**
+  - **Service bookings** (`bookings` table): time-based production services (photography, video). Handles creator payouts via Paystack Transfers API.
+  - **Equipment bookings** (`equipment_bookings` table): date-based rental of gear from `smart_rentals`. Simpler payment flow.
 - Production rates come from PRODUCTION_SERVICES in constants.ts
 - Equipment rates come from Supabase smart_rentals table
 - VAT: PRODUCTION_SERVICES.billing.vatRate (currently 15%)
@@ -138,9 +161,14 @@ lib/
 
 ## Platform Conventions
 - **Proxy, not middleware** — Next.js 16 uses `proxy.ts` at repo root and exports a function named `proxy` (not `middleware`). It handles Supabase session refresh + CSRF Origin validation.
-- **Pending migrations are manual** — migrations live in `lib/migrations/` and are applied by hand in the Supabase SQL Editor. Before assuming a table exists (e.g. `bookings`), check `docs/tasks/` or the README migration table — 013 (expired status), 014 (booking system), and the pgvector/marketplace-ranking migrations may still be pending.
-- **Supabase clients** — use `@/lib/supabase/server` in server components / API routes and `@/lib/supabase/client` in client components. `createAdminClient` (service role) is only for admin operations.
+- **Pending migrations are manual** — migrations live in `lib/migrations/` (001–030). Applied by hand in the Supabase SQL Editor. Before assuming a table exists, check `docs/tasks/` or the README migration table.
+- **Supabase clients** — three patterns:
+  - `@/lib/supabase/server` (`createClient()`) — async, cookie-based. For Server Components and API routes. Cookies are async in Next.js 16 (`await cookies()`).
+  - `@/lib/supabase/client` (`createClient()`) — `createBrowserClient`. For `'use client'` components.
+  - `createAdminClient()` — service role, bypasses RLS. Only for admin operations.
 - **Auth bridge** — `providers/AuthProvider.tsx` bridges server-resolved session to the client to prevent auth flicker; don't replace it with client-only auth state.
+- **Image optimization** — Next.js `<Image>` uses a custom Cloudinary loader (`lib/cloudinary/loader.ts`) for on-the-fly resize/format conversion.
+- **In-memory rate limiter** (`lib/auth/index.ts`) — `checkRateLimit(key, maxRequests, windowMs)` for contact forms, onboarding, etc. Does NOT persist across restarts — Vercel cold starts reset it.
 
 ## Documentation
 - `README.md` — authoritative reference: full DB schema, money flow diagrams, API route inventory, env var list, migration status

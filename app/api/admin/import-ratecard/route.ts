@@ -1,7 +1,7 @@
 export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
-import { requireAdmin } from '@/lib/auth';
+import { requireAdmin, rateLimitAdmin } from '@/lib/auth';
 import { getModel } from '@/lib/ai';
 import { generateText } from 'ai';
 
@@ -42,6 +42,9 @@ Rate card text:
 export async function POST(req: NextRequest) {
   const auth = await requireAdmin();
   if (auth.error) return auth.error;
+
+  const limited = rateLimitAdmin(auth.user.id);
+  if (limited) return limited;
 
   try {
     const formData = await req.formData();

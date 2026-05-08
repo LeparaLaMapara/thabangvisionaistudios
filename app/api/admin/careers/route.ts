@@ -1,7 +1,7 @@
 export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
-import { requireAdmin } from '@/lib/auth';
+import { requireAdmin, rateLimitAdmin } from '@/lib/auth';
 import { createAdminClient } from '@/lib/supabase/server';
 import { isRagEnabled, indexItem } from '@/lib/rag';
 
@@ -32,6 +32,9 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   const auth = await requireAdmin();
   if (auth.error) return auth.error;
+
+  const limited = rateLimitAdmin(auth.user.id);
+  if (limited) return limited;
 
   try {
     const body = await req.json();
@@ -66,6 +69,9 @@ export async function POST(req: NextRequest) {
 export async function PUT(req: NextRequest) {
   const auth = await requireAdmin();
   if (auth.error) return auth.error;
+
+  const limited = rateLimitAdmin(auth.user.id);
+  if (limited) return limited;
 
   try {
     const body = await req.json();

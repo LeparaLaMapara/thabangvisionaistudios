@@ -1,3 +1,4 @@
+import { NextResponse } from 'next/server';
 import type { AuthProvider } from './types';
 import { supabaseAuth } from './supabase';
 import { createClient } from '@/lib/supabase/server';
@@ -102,6 +103,38 @@ export function checkRateLimit(
 
   entry.count++;
   return true;
+}
+
+// ─── Admin Rate Limiting ────────────────────────────────────────────────────
+
+export type AdminRateTier = 'standard' | 'sensitive';
+
+const ADMIN_RATE_LIMITS: Record<AdminRateTier, { maxRequests: number; windowMs: number }> = {
+  standard:  { maxRequests: 30, windowMs: 60_000 },
+  sensitive: { maxRequests: 5,  windowMs: 60_000 },
+};
+
+/**
+ * Rate-limit an admin write operation. Call AFTER requireAdmin().
+ * Returns a 429 NextResponse if rate-limited, or null if allowed.
+ *
+ * Tiers:
+ *  - standard (30/min): CRUD on content (rentals, productions, press, careers)
+ *  - sensitive (5/min): payouts, suspensions, role changes, dispute resolution
+ */
+export function rateLimitAdmin(
+  userId: string,
+  tier: AdminRateTier = 'standard',
+): NextResponse | null {
+  const { maxRequests, windowMs } = ADMIN_RATE_LIMITS[tier];
+  const key = `admin:${tier}:${userId}`;
+  if (!checkRateLimit(key, maxRequests, windowMs)) {
+    return NextResponse.json(
+      { error: 'Rate limit exceeded. Please try again shortly.' },
+      { status: 429 },
+    );
+  }
+  return null;
 }
 
 /**

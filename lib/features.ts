@@ -1,5 +1,5 @@
 import { unstable_cache } from 'next/cache';
-import { createAdminClient, createClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/server';
 
 export const FEATURE_KEYS = [
   'smart_productions',
@@ -11,6 +11,12 @@ export const FEATURE_KEYS = [
 ] as const;
 
 export type FeatureKey = typeof FEATURE_KEYS[number];
+
+const FLAG_DEFAULTS: Partial<Record<FeatureKey, boolean>> = {
+  smart_productions: true,
+  ai_rate_suggestions: true,
+  ai_portfolio_tagging: true,
+};
 
 export interface FeatureFlag {
   key: FeatureKey;
@@ -54,7 +60,7 @@ export async function getAllFlags(): Promise<FeatureFlag[]> {
 export async function getFlag(key: FeatureKey): Promise<boolean> {
   const flags = await getAllFlagsCached();
   const row = flags.find((f) => f.key === key);
-  return row?.enabled ?? false;
+  return row?.enabled ?? (FLAG_DEFAULTS[key] ?? false);
 }
 
 export async function getFlags(
@@ -63,7 +69,7 @@ export async function getFlags(
   const flags = await getAllFlagsCached();
   const out = {} as Record<FeatureKey, boolean>;
   for (const key of keys) {
-    out[key] = flags.find((f) => f.key === key)?.enabled ?? false;
+    out[key] = flags.find((f) => f.key === key)?.enabled ?? (FLAG_DEFAULTS[key] ?? false);
   }
   return out;
 }
@@ -72,7 +78,7 @@ export async function setFlag(
   key: FeatureKey,
   enabled: boolean,
 ): Promise<void> {
-  const supabase = await createClient();
+  const supabase = createAdminClient();
   const { error } = await supabase
     .from('feature_flags')
     .update({ enabled })

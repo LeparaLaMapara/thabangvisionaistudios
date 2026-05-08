@@ -8,7 +8,7 @@ import {
   rejectVerification,
 } from '@/lib/supabase/queries/verifications';
 import { sendVerificationApproved, sendVerificationRejected } from '@/lib/email';
-import { requireAdmin } from '@/lib/auth';
+import { requireAdmin, rateLimitAdmin } from '@/lib/auth';
 import { generateCrewSlug } from '@/lib/supabase/queries/crew';
 
 type RouteContext = {
@@ -74,6 +74,8 @@ export async function GET(_req: NextRequest, context: RouteContext) {
 export async function PUT(req: NextRequest, context: RouteContext) {
   const auth = await requireAdmin();
   if (auth.error) return auth.error;
+  const limited = rateLimitAdmin(auth.user.id, 'sensitive');
+  if (limited) return limited;
 
   const { id } = await context.params;
 

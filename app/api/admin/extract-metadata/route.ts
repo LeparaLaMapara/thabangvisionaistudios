@@ -1,7 +1,7 @@
 export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
-import { requireAdmin } from '@/lib/auth';
+import { requireAdmin, rateLimitAdmin } from '@/lib/auth';
 import { extractMetadataFromUrl, type ImageMetadata } from '@/lib/metadata/extract';
 
 // ─── POST — Extract EXIF metadata from image URLs (admin only) ──────────────
@@ -9,6 +9,9 @@ import { extractMetadataFromUrl, type ImageMetadata } from '@/lib/metadata/extra
 export async function POST(req: NextRequest) {
   const auth = await requireAdmin();
   if (auth.error) return auth.error;
+
+  const limited = rateLimitAdmin(auth.user.id);
+  if (limited) return limited;
 
   try {
     const body = await req.json();

@@ -39,7 +39,7 @@ const nextConfig: NextConfig = {
         { key: 'Permissions-Policy', value: 'camera=(self), microphone=(), geolocation=()' },
         { key: 'Strict-Transport-Security', value: 'max-age=31536000; includeSubDomains' },
         {
-          key: 'Content-Security-Policy-Report-Only',
+          key: 'Content-Security-Policy',
           value: [
             "default-src 'self'",
             "script-src 'self' 'unsafe-inline'",
@@ -53,6 +53,7 @@ const nextConfig: NextConfig = {
             "object-src 'none'",
             "base-uri 'self'",
             "form-action 'self' https://checkout.paystack.com",
+            "upgrade-insecure-requests",
           ].join('; '),
         },
       ],

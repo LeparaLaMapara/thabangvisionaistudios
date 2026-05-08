@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requireAdmin } from '@/lib/auth';
+import { requireAdmin, rateLimitAdmin } from '@/lib/auth';
 import { updateCrewRequestStatus } from '@/lib/supabase/queries/crew';
 
 interface RouteContext {
@@ -10,6 +10,9 @@ export async function PATCH(req: NextRequest, ctx: RouteContext): Promise<NextRe
   try {
     const auth = await requireAdmin();
     if (auth.error) return auth.error;
+
+    const limited = rateLimitAdmin(auth.user.id);
+    if (limited) return limited;
 
     const { id } = await ctx.params;
     const body = await req.json();

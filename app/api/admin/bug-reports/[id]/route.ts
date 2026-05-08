@@ -1,7 +1,7 @@
 export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
-import { requireAdmin } from '@/lib/auth';
+import { requireAdmin, rateLimitAdmin } from '@/lib/auth';
 import { createAdminClient } from '@/lib/supabase/server';
 
 const VALID_STATUSES = ['open', 'in_progress', 'resolved', 'wont_fix', 'duplicate'] as const;
@@ -14,6 +14,9 @@ export async function PATCH(
 ) {
   const auth = await requireAdmin();
   if (auth.error) return auth.error;
+
+  const limited = rateLimitAdmin(auth.user.id);
+  if (limited) return limited;
 
   const { id } = await params;
   const body = await request.json();

@@ -99,7 +99,7 @@ describe('getFlag fail-closed', () => {
     vi.resetModules();
   });
 
-  it('returns false when the DB read fails', async () => {
+  it('returns false when the DB read fails (flag without custom default)', async () => {
     vi.doMock('next/cache', () => ({
       unstable_cache: (fn: (...args: unknown[]) => unknown) => fn,
       revalidateTag: vi.fn(),
@@ -122,10 +122,36 @@ describe('getFlag fail-closed', () => {
     }));
 
     const { getFlag } = await import('@/lib/features');
-    expect(await getFlag('smart_productions')).toBe(false);
+    expect(await getFlag('studio_crews')).toBe(false);
   });
 
-  it('returns false when the flag row is missing', async () => {
+  it('returns FLAG_DEFAULTS when the DB read fails (flag with custom default)', async () => {
+    vi.doMock('next/cache', () => ({
+      unstable_cache: (fn: (...args: unknown[]) => unknown) => fn,
+      revalidateTag: vi.fn(),
+    }));
+    vi.doMock('@/lib/supabase/server', () => ({
+      createClient: async () => ({
+        from: () => ({
+          select: () => ({
+            order: () => Promise.resolve({ data: null, error: { message: 'boom' } }),
+          }),
+        }),
+      }),
+      createAdminClient: () => ({
+        from: () => ({
+          select: () => ({
+            order: () => Promise.resolve({ data: null, error: { message: 'boom' } }),
+          }),
+        }),
+      }),
+    }));
+
+    const { getFlag } = await import('@/lib/features');
+    expect(await getFlag('smart_productions')).toBe(true);
+  });
+
+  it('returns false when the flag row is missing (flag without custom default)', async () => {
     vi.doMock('next/cache', () => ({
       unstable_cache: (fn: (...args: unknown[]) => unknown) => fn,
       revalidateTag: vi.fn(),
@@ -148,7 +174,7 @@ describe('getFlag fail-closed', () => {
     }));
 
     const { getFlag } = await import('@/lib/features');
-    expect(await getFlag('smart_productions')).toBe(false);
+    expect(await getFlag('studio_crews')).toBe(false);
   });
 
   it('returns the persisted value when the flag is enabled', async () => {

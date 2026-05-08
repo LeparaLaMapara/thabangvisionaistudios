@@ -1,7 +1,7 @@
 export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
-import { requireAdmin } from '@/lib/auth';
+import { requireAdmin, rateLimitAdmin } from '@/lib/auth';
 import { createAdminClient } from '@/lib/supabase/server';
 import { triggerCreatorPayout } from '@/lib/payments/payout';
 
@@ -14,6 +14,8 @@ export async function POST(
   const { id } = await params;
   const auth = await requireAdmin();
   if (auth.error) return auth.error;
+  const limited = rateLimitAdmin(auth.user.id, 'sensitive');
+  if (limited) return limited;
 
   const supabase = createAdminClient();
 
