@@ -9,9 +9,14 @@ import { Trash2, Minus, Plus, ShoppingCart, ArrowRight, AlertTriangle } from 'lu
 import { Button } from '@/components/ui/Button';
 import { DateRangePicker, type DateRange } from '@/components/ui/DateRangePicker';
 import { useCart } from '@/providers/CartProvider';
+import { calculateItemPrice } from '@/lib/cart/pricing';
 import { STUDIO } from '@/lib/constants';
 import { DashboardSubTabs, ACTIVITY_TABS } from '@/components/dashboard/DashboardSubTabs';
-import type { CartItemWithRental, CartPricingSummary } from '@/types/cart';
+import type { CartItemWithRental } from '@/types/cart';
+
+function daysBetween(start: Date, end: Date): number {
+  return Math.max(1, Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)));
+}
 
 export default function CartPage() {
   const router = useRouter();
@@ -22,8 +27,8 @@ export default function CartPage() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [dateRange, setDateRange] = useState<DateRange>({ start: null, end: null });
   const [notes, setNotes] = useState('');
+  const [itemDates, setItemDates] = useState<Map<string, DateRange>>(new Map());
 
   const paymentCancelled = searchParams.get('payment') === 'cancelled';
 
@@ -33,36 +38,60 @@ export default function CartPage() {
     return d;
   }, []);
 
-  const dayCount = useMemo(() => {
-    if (!dateRange.start || !dateRange.end) return 0;
-    const ms = dateRange.end.getTime() - dateRange.start.getTime();
-    return Math.max(1, Math.ceil(ms / (1000 * 60 * 60 * 24)));
-  }, [dateRange]);
+  useEffect(() => {
+    async function fetchCart() {
+      try {
+        const res = await fetch('/api/cart');
+        if (res.ok) {
+          const data = await res.json();
+          const cartItems: CartItemWithRental[] = data.items ?? [];
+          setItems(cartItems);
 
-  // Client-side pricing calculation (mirrors server-side calculateCartPricing)
-  const pricing: CartPricingSummary | null = useMemo(() => {
-    if (items.length === 0 || dayCount <= 0) return null;
+          const dates = new Map<string, DateRange>();
+          for (const item of cartItems) {
+            dates.set(item.id, {
+              start: item.start_date ? new Date(item.start_date) : null,
+              end: item.end_date ? new Date(item.end_date) : null,
+            });
+          }
+          setItemDates(dates);
+        }
+      } catch {
+        setError('Failed to load cart.');
+      } finally {
+        setLoading(false);
+      }
+    }
+    fetchCart();
+  }, []);
+
+  const allDatesSet = useMemo(() => {
+    if (items.length === 0) return false;
+    return items.every((item) => {
+      const d = itemDates.get(item.id);
+      return d?.start && d?.end;
+    });
+  }, [items, itemDates]);
+
+  const pricing = useMemo(() => {
+    if (items.length === 0 || !allDatesSet) return null;
 
     const totalItemCount = items.reduce((sum, item) => sum + item.quantity, 0);
 
     const pricingItems = items.map((item) => {
-      const pricePerDay = item.rental.price_per_day;
-      const pricePerWeek = item.rental.price_per_week;
-      let unitPrice: number;
-
-      if (pricePerWeek && dayCount >= 7) {
-        const fullWeeks = Math.floor(dayCount / 7);
-        const extraDays = dayCount % 7;
-        unitPrice = fullWeeks * pricePerWeek + extraDays * pricePerDay;
-      } else {
-        unitPrice = dayCount * pricePerDay;
-      }
+      const dates = itemDates.get(item.id)!;
+      const days = daysBetween(dates.start!, dates.end!);
+      const unitPrice = calculateItemPrice(
+        item.rental.price_per_day,
+        item.rental.price_per_week,
+        days,
+      );
 
       return {
         rental_id: item.rental_id,
         title: item.rental.title,
         quantity: item.quantity,
-        days: dayCount,
+        days,
         unitPrice,
         subtotal: unitPrice * item.quantity,
         deposit: (item.rental.deposit_amount ?? 0) * item.quantity,
@@ -85,37 +114,33 @@ export default function CartPage() {
     return {
       items: pricingItems,
       itemCount: totalItemCount,
-      dayCount,
       subtotal,
       bulkDiscountPercent,
       bulkDiscountAmount,
       totalDeposit,
       grandTotal: subtotal - bulkDiscountAmount + totalDeposit,
     };
-  }, [items, dayCount]);
+  }, [items, itemDates, allDatesSet]);
 
-  // Fetch cart items
-  useEffect(() => {
-    async function fetchCart() {
-      try {
-        const res = await fetch('/api/cart');
-        if (res.ok) {
-          const data = await res.json();
-          setItems(data.items ?? []);
-        }
-      } catch {
-        setError('Failed to load cart.');
-      } finally {
-        setLoading(false);
-      }
+  const handleDateChange = async (itemId: string, range: DateRange) => {
+    setItemDates((prev) => new Map(prev).set(itemId, range));
+    setError(null);
+
+    if (range.start && range.end) {
+      const startStr = range.start.toISOString().split('T')[0];
+      const endStr = range.end.toISOString().split('T')[0];
+
+      await fetch('/api/cart', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ item_id: itemId, start_date: startStr, end_date: endStr }),
+      });
     }
-    fetchCart();
-  }, []);
+  };
 
   const handleQuantityChange = async (itemId: string, newQty: number) => {
     if (newQty < 1 || newQty > 5) return;
 
-    // Optimistic update
     setItems((prev) =>
       prev.map((item) => (item.id === itemId ? { ...item, quantity: newQty } : item)),
     );
@@ -129,13 +154,18 @@ export default function CartPage() {
 
   const handleRemove = async (itemId: string) => {
     setItems((prev) => prev.filter((item) => item.id !== itemId));
+    setItemDates((prev) => {
+      const next = new Map(prev);
+      next.delete(itemId);
+      return next;
+    });
     await fetch(`/api/cart?item_id=${itemId}`, { method: 'DELETE' });
     refresh();
   };
 
   const handleCheckout = async () => {
-    if (!dateRange.start || !dateRange.end) {
-      setError('Please select rental dates.');
+    if (!allDatesSet) {
+      setError('Please select rental dates for all items.');
       return;
     }
 
@@ -147,8 +177,6 @@ export default function CartPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          start_date: dateRange.start.toISOString().split('T')[0],
-          end_date: dateRange.end.toISOString().split('T')[0],
           notes: notes.trim() || undefined,
         }),
       });
@@ -161,7 +189,6 @@ export default function CartPage() {
         return;
       }
 
-      // Redirect to payment
       if (data.payment_url) {
         try {
           const payUrl = new URL(data.payment_url);
@@ -181,7 +208,6 @@ export default function CartPage() {
         return;
       }
 
-      // No payment — redirect to bookings
       await refresh();
       router.push(`/dashboard/bookings?checkout=${data.checkout_group_id}`);
     } catch {
@@ -239,105 +265,117 @@ export default function CartPage() {
       )}
 
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_360px] gap-8">
-        {/* Cart Items */}
+        {/* Cart Items with per-item date pickers */}
         <div className="space-y-3">
-          {items.map((item) => (
-            <motion.div
-              key={item.id}
-              layout
-              initial={{ opacity: 0, y: 4 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, x: -20 }}
-              className="flex gap-4 p-4 border border-white/10 bg-[#0A0A0B]"
-            >
-              {/* Thumbnail */}
-              <div className="w-20 h-20 flex-shrink-0 bg-neutral-900 overflow-hidden">
-                {item.rental.thumbnail_url ? (
-                  <Image
-                    src={item.rental.thumbnail_url}
-                    alt={item.rental.title}
-                    width={80}
-                    height={80}
-                    className="w-full h-full object-cover"
-                  />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center text-neutral-700 text-[10px] font-mono">
-                    No image
-                  </div>
-                )}
-              </div>
+          {items.map((item) => {
+            const dates = itemDates.get(item.id) ?? { start: null, end: null };
+            const hasDates = !!dates.start && !!dates.end;
+            const days = hasDates ? daysBetween(dates.start!, dates.end!) : 0;
+            const itemTotal = hasDates
+              ? calculateItemPrice(item.rental.price_per_day, item.rental.price_per_week, days) * item.quantity
+              : 0;
 
-              {/* Details */}
-              <div className="flex-1 min-w-0">
-                <Link
-                  href={`/smart-rentals/${item.rental.slug}`}
-                  className="text-sm font-mono font-medium text-white hover:text-[#D4A843] transition-colors truncate block"
-                >
-                  {item.rental.title}
-                </Link>
-                <p className="text-[10px] font-mono text-neutral-500 mt-0.5">
-                  {item.rental.category}{item.rental.brand ? ` / ${item.rental.brand}` : ''}
-                </p>
-                <p className="text-xs font-mono text-neutral-400 mt-1">
-                  {item.rental.currency} {item.rental.price_per_day}/day
-                  {item.rental.price_per_week ? ` · ${item.rental.currency} ${item.rental.price_per_week}/week` : ''}
-                </p>
-
-                {/* Quantity controls */}
-                <div className="flex items-center gap-2 mt-2">
-                  <button
-                    onClick={() => handleQuantityChange(item.id, item.quantity - 1)}
-                    disabled={item.quantity <= 1}
-                    className="w-6 h-6 flex items-center justify-center border border-white/10 text-neutral-400 hover:text-white hover:border-white/30 disabled:opacity-30 transition-colors"
-                  >
-                    <Minus className="w-3 h-3" />
-                  </button>
-                  <span className="text-xs font-mono text-white w-6 text-center">{item.quantity}</span>
-                  <button
-                    onClick={() => handleQuantityChange(item.id, item.quantity + 1)}
-                    disabled={item.quantity >= 5}
-                    className="w-6 h-6 flex items-center justify-center border border-white/10 text-neutral-400 hover:text-white hover:border-white/30 disabled:opacity-30 transition-colors"
-                  >
-                    <Plus className="w-3 h-3" />
-                  </button>
-                </div>
-              </div>
-
-              {/* Remove */}
-              <button
-                onClick={() => handleRemove(item.id)}
-                className="text-neutral-600 hover:text-red-400 transition-colors self-start"
+            return (
+              <motion.div
+                key={item.id}
+                layout
+                initial={{ opacity: 0, y: 4 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, x: -20 }}
+                className="p-4 border border-white/10 bg-[#0A0A0B] space-y-3"
               >
-                <Trash2 className="w-4 h-4" />
-              </button>
-            </motion.div>
-          ))}
+                <div className="flex gap-4">
+                  {/* Thumbnail */}
+                  <div className="w-20 h-20 flex-shrink-0 bg-neutral-900 overflow-hidden">
+                    {item.rental.thumbnail_url ? (
+                      <Image
+                        src={item.rental.thumbnail_url}
+                        alt={item.rental.title}
+                        width={80}
+                        height={80}
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center text-neutral-700 text-[10px] font-mono">
+                        No image
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Details */}
+                  <div className="flex-1 min-w-0">
+                    <Link
+                      href={`/smart-rentals/${item.rental.slug}`}
+                      className="text-sm font-mono font-medium text-white hover:text-[#D4A843] transition-colors truncate block"
+                    >
+                      {item.rental.title}
+                    </Link>
+                    <p className="text-[10px] font-mono text-neutral-500 mt-0.5">
+                      {item.rental.category}{item.rental.brand ? ` / ${item.rental.brand}` : ''}
+                    </p>
+                    <p className="text-xs font-mono text-neutral-400 mt-1">
+                      {item.rental.currency} {item.rental.price_per_day}/day
+                      {item.rental.price_per_week ? ` · ${item.rental.currency} ${item.rental.price_per_week}/week` : ''}
+                    </p>
+
+                    {/* Quantity controls */}
+                    <div className="flex items-center gap-2 mt-2">
+                      <button
+                        onClick={() => handleQuantityChange(item.id, item.quantity - 1)}
+                        disabled={item.quantity <= 1}
+                        className="w-6 h-6 flex items-center justify-center border border-white/10 text-neutral-400 hover:text-white hover:border-white/30 disabled:opacity-30 transition-colors"
+                      >
+                        <Minus className="w-3 h-3" />
+                      </button>
+                      <span className="text-xs font-mono text-white w-6 text-center">{item.quantity}</span>
+                      <button
+                        onClick={() => handleQuantityChange(item.id, item.quantity + 1)}
+                        disabled={item.quantity >= 5}
+                        className="w-6 h-6 flex items-center justify-center border border-white/10 text-neutral-400 hover:text-white hover:border-white/30 disabled:opacity-30 transition-colors"
+                      >
+                        <Plus className="w-3 h-3" />
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Remove + Item total */}
+                  <div className="flex flex-col items-end justify-between">
+                    <button
+                      onClick={() => handleRemove(item.id)}
+                      className="text-neutral-600 hover:text-red-400 transition-colors"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                    {hasDates && (
+                      <p className="text-xs font-mono font-bold text-white">
+                        R {itemTotal.toLocaleString()}
+                      </p>
+                    )}
+                  </div>
+                </div>
+
+                {/* Per-item date picker */}
+                <div className="border-t border-white/5 pt-3">
+                  <DateRangePicker
+                    value={dates}
+                    onChange={(range) => handleDateChange(item.id, range)}
+                    minDate={today}
+                    label="Rental dates"
+                  />
+                  {hasDates && (
+                    <p className="text-[10px] font-mono text-neutral-500 mt-1.5">
+                      {days} day{days !== 1 ? 's' : ''}
+                      {days >= 7 ? ` (${Math.floor(days / 7)}w ${days % 7}d)` : ''}
+                    </p>
+                  )}
+                </div>
+              </motion.div>
+            );
+          })}
         </div>
 
-        {/* Sidebar: Date picker + Pricing */}
+        {/* Sidebar: Pricing + Checkout */}
         <div className="space-y-5 lg:sticky lg:top-28 self-start">
-          <div className="border border-white/10 bg-[#0A0A0B] p-5 space-y-5">
-            <p className="text-[10px] font-mono uppercase tracking-widest text-neutral-500">
-              Rental Period
-            </p>
-            <DateRangePicker
-              label="Select dates for all items"
-              value={dateRange}
-              onChange={(range) => {
-                setDateRange(range);
-                setError(null);
-              }}
-              minDate={today}
-            />
-
-            {dayCount > 0 && (
-              <p className="text-xs font-mono text-neutral-400">
-                {dayCount} day{dayCount !== 1 ? 's' : ''}
-                {dayCount >= 7 ? ` (${Math.floor(dayCount / 7)}w ${dayCount % 7}d)` : ''}
-              </p>
-            )}
-          </div>
-
           {/* Pricing breakdown */}
           {pricing && (
             <div className="border border-white/10 bg-[#0A0A0B] p-5 space-y-3">
@@ -348,7 +386,7 @@ export default function CartPage() {
               {pricing.items.map((pi) => (
                 <div key={pi.rental_id} className="flex justify-between text-xs font-mono">
                   <span className="text-neutral-400 truncate mr-2">
-                    {pi.title} {pi.quantity > 1 ? `x${pi.quantity}` : ''}
+                    {pi.title} {pi.quantity > 1 ? `x${pi.quantity}` : ''} · {pi.days}d
                   </span>
                   <span className="text-white flex-shrink-0">
                     R {pi.subtotal.toLocaleString()}
@@ -390,6 +428,14 @@ export default function CartPage() {
             </div>
           )}
 
+          {!allDatesSet && items.length > 0 && (
+            <div className="border border-white/10 bg-[#0A0A0B] p-5">
+              <p className="text-xs font-mono text-neutral-500 text-center">
+                Select rental dates for each item to see pricing
+              </p>
+            </div>
+          )}
+
           {/* Notes */}
           <textarea
             value={notes}
@@ -404,7 +450,7 @@ export default function CartPage() {
           <Button
             onClick={handleCheckout}
             loading={submitting}
-            disabled={!dateRange.start || !dateRange.end || items.length === 0}
+            disabled={!allDatesSet || items.length === 0}
             className="w-full"
             size="lg"
           >
@@ -414,7 +460,8 @@ export default function CartPage() {
           </Button>
 
           <p className="text-[9px] font-mono text-neutral-600 text-center">
-            All items share the same rental period. Deposits are refundable.
+            Each item has its own rental period. Deposits are refundable.
+            Bulk discounts apply on 3+ items.
           </p>
         </div>
       </div>

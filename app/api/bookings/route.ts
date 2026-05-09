@@ -87,13 +87,12 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  // M8: Maximum booking duration of 365 days
   const bookingDays = Math.ceil(
     (end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24),
   );
-  if (bookingDays > 365) {
+  if (bookingDays > STUDIO.rental.maxDirectBookingDays) {
     return NextResponse.json(
-      { error: 'Maximum booking duration is 365 days.' },
+      { error: `Maximum booking duration is ${STUDIO.rental.maxDirectBookingDays} days.` },
       { status: 400 },
     );
   }

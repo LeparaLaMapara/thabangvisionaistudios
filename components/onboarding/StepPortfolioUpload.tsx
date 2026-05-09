@@ -41,7 +41,7 @@ export default function StepPortfolioUpload({ onComplete }: StepPortfolioUploadP
     .map(i => i.analysis)
     .filter((a): a is SceneAnalysisResult => a !== null && a.qualityScore > 0);
 
-  const canProceed = validAnalyses.length >= 5;
+  const canProceed = validAnalyses.length >= 2;
 
   const handleFileSelect = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
@@ -72,9 +72,8 @@ export default function StepPortfolioUpload({ onComplete }: StepPortfolioUploadP
     setItems(prev => [...prev, ...newItems]);
     const startIndex = items.length;
 
-    // Upload each file to Cloudinary
-    for (let i = 0; i < validFiles.length; i++) {
-      const file = validFiles[i];
+    // Upload all files in parallel
+    const uploads = validFiles.map(async (file, i) => {
       const itemIndex = startIndex + i;
 
       try {
@@ -119,7 +118,9 @@ export default function StepPortfolioUpload({ onComplete }: StepPortfolioUploadP
           return updated;
         });
       }
-    }
+    });
+
+    await Promise.all(uploads);
 
     // Reset file input
     if (fileInputRef.current) fileInputRef.current.value = '';
@@ -134,8 +135,8 @@ export default function StepPortfolioUpload({ onComplete }: StepPortfolioUploadP
       .filter(i => i.url && !i.uploading && !i.error)
       .map(i => i.url);
 
-    if (uploadedUrls.length < 5) {
-      setError('Upload at least 5 photos before analyzing.');
+    if (uploadedUrls.length < 2) {
+      setError('Upload at least 2 photos before analyzing.');
       return;
     }
 
@@ -225,7 +226,7 @@ export default function StepPortfolioUpload({ onComplete }: StepPortfolioUploadP
           Portfolio Upload
         </h2>
         <p className="text-[10px] font-mono text-neutral-500 leading-relaxed">
-          Upload at least 5 of your best photos. Our AI will analyze each one to detect your skills and specialties.
+          Upload at least 2 of your best photos. Our AI will analyze each one to detect your skills and specialties. More photos = better skill detection.
         </p>
       </div>
 
@@ -255,7 +256,7 @@ export default function StepPortfolioUpload({ onComplete }: StepPortfolioUploadP
         <div className="flex items-center justify-between">
           <p className="text-[10px] font-mono text-neutral-400">
             {uploadedCount} photo{uploadedCount !== 1 ? 's' : ''} uploaded
-            {uploadedCount < 5 && ` (need at least 5)`}
+            {uploadedCount < 2 && ` (need at least 2)`}
           </p>
           {analyzing && (
             <p className="text-[10px] font-mono text-[#D4A843]">
@@ -332,7 +333,7 @@ export default function StepPortfolioUpload({ onComplete }: StepPortfolioUploadP
 
       {/* Action buttons */}
       <div className="flex gap-3">
-        {!analyzing && uploadedCount >= 5 && validAnalyses.length === 0 && (
+        {!analyzing && uploadedCount >= 2 && validAnalyses.length === 0 && (
           <button
             type="button"
             onClick={handleAnalyze}

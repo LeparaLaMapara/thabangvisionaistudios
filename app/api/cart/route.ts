@@ -10,6 +10,7 @@ import {
   addToCart,
   removeFromCart,
   updateCartQuantity,
+  updateCartItemDates,
   clearCart,
 } from '@/lib/supabase/queries/cart';
 
@@ -47,13 +48,20 @@ export async function POST(request: NextRequest) {
   }
 
   const body = await request.json();
-  const { rental_id, quantity } = body;
+  const { rental_id, quantity, start_date, end_date } = body;
 
   if (!rental_id || typeof rental_id !== 'string') {
     return NextResponse.json({ error: 'rental_id is required.' }, { status: 400 });
   }
 
   const qty = typeof quantity === 'number' ? Math.max(1, Math.min(5, Math.floor(quantity))) : 1;
+
+  if ((start_date && !end_date) || (!start_date && end_date)) {
+    return NextResponse.json(
+      { error: 'Both start_date and end_date must be provided together.' },
+      { status: 400 },
+    );
+  }
 
   // Check cart size limit
   const currentCount = await getCartItemCount(user.id);
@@ -77,7 +85,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Rental not found or unavailable.' }, { status: 404 });
   }
 
-  const item = await addToCart(user.id, rental_id, qty);
+  const item = await addToCart(user.id, rental_id, qty, start_date, end_date);
 
   if (!item) {
     return NextResponse.json({ error: 'Failed to add item to cart.' }, { status: 500 });
@@ -98,14 +106,30 @@ export async function PATCH(request: NextRequest) {
   }
 
   const body = await request.json();
-  const { item_id, quantity } = body;
+  const { item_id, quantity, start_date, end_date } = body;
 
-  if (!item_id || typeof quantity !== 'number') {
-    return NextResponse.json({ error: 'item_id and quantity are required.' }, { status: 400 });
+  if (!item_id) {
+    return NextResponse.json({ error: 'item_id is required.' }, { status: 400 });
   }
 
-  const qty = Math.max(1, Math.min(5, Math.floor(quantity)));
-  const item = await updateCartQuantity(user.id, item_id, qty);
+  let item = null;
+
+  if (typeof quantity === 'number') {
+    const qty = Math.max(1, Math.min(5, Math.floor(quantity)));
+    item = await updateCartQuantity(user.id, item_id, qty);
+  }
+
+  if (start_date !== undefined || end_date !== undefined) {
+    const sd = start_date ?? null;
+    const ed = end_date ?? null;
+    if ((sd && !ed) || (!sd && ed)) {
+      return NextResponse.json(
+        { error: 'Both start_date and end_date must be provided together, or both null.' },
+        { status: 400 },
+      );
+    }
+    item = await updateCartItemDates(user.id, item_id, sd, ed);
+  }
 
   if (!item) {
     return NextResponse.json({ error: 'Cart item not found.' }, { status: 404 });

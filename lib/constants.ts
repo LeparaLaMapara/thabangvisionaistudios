@@ -108,6 +108,7 @@ export const STUDIO = {
   rental: {
     depositPercent: 20,
     maxBookingDays: 30,
+    maxDirectBookingDays: 365,
     cancellationHours: 24,
     maxCartItems: 10,
     bulkDiscount: [

@@ -3,14 +3,17 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Loader2, RefreshCw } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
+import type { SceneAnalysisResult, SkillDetectionResult } from '@/lib/agents/types';
 
 const MAX_BIO_CHARS = 280;
 
 interface StepBioReviewProps {
+  analyses: SceneAnalysisResult[];
+  skills: SkillDetectionResult | null;
   onComplete: (bio: string) => void;
 }
 
-export default function StepBioReview({ onComplete }: StepBioReviewProps) {
+export default function StepBioReview({ analyses, skills, onComplete }: StepBioReviewProps) {
   const [bio, setBio] = useState('');
   const [loading, setLoading] = useState(true);
   const [regenerating, setRegenerating] = useState(false);
@@ -112,15 +115,43 @@ export default function StepBioReview({ onComplete }: StepBioReviewProps) {
     <div className="space-y-6">
       <div>
         <h2 className="text-sm font-mono font-bold uppercase tracking-widest text-white mb-1">
-          Your Bio
+          Bio & Review
         </h2>
         <p className="text-[10px] font-mono text-neutral-500 leading-relaxed">
-          Edit freely, regenerate if you want a different angle, then save.
+          Review your profile summary and edit your bio before continuing.
           {samples > 0 && ` Drafted from ${samples} portfolio scene${samples === 1 ? '' : 's'}.`}
         </p>
       </div>
 
+      {/* Profile summary */}
+      <div className="space-y-3">
+        <div className="bg-neutral-900 border border-white/5 p-4">
+          <p className="text-[9px] font-mono uppercase tracking-widest text-neutral-500 mb-2">Portfolio</p>
+          <p className="text-sm font-mono text-white">
+            {analyses.length} photo{analyses.length !== 1 ? 's' : ''} analyzed
+          </p>
+        </div>
+
+        {skills && (
+          <div className="bg-neutral-900 border border-white/5 p-4">
+            <p className="text-[9px] font-mono uppercase tracking-widest text-neutral-500 mb-2">Skills</p>
+            <div className="flex flex-wrap gap-2">
+              {skills.skills.map(s => (
+                <span
+                  key={s.name}
+                  className="text-[10px] font-mono text-[#D4A843] border border-[#D4A843]/20 px-2 py-1"
+                >
+                  {s.name} ({s.percentage}%)
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Bio editor */}
       <div>
+        <p className="text-[9px] font-mono uppercase tracking-widest text-neutral-500 mb-2">Bio</p>
         <textarea
           value={bio}
           onChange={(e) => setBio(e.target.value)}
@@ -151,7 +182,7 @@ export default function StepBioReview({ onComplete }: StepBioReviewProps) {
         disabled={saving || regenerating || overLimit || !bio.trim()}
         className="w-full bg-[#D4A843] text-black py-3 px-6 text-[10px] font-mono font-bold uppercase tracking-widest hover:opacity-80 transition-opacity disabled:opacity-20 disabled:cursor-not-allowed min-h-[44px]"
       >
-        {saving ? 'Saving...' : 'Save Bio'}
+        {saving ? 'Saving...' : 'Looks Good — Continue'}
       </button>
 
       {error && (

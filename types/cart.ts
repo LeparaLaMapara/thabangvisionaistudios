@@ -3,6 +3,8 @@ export interface CartItem {
   user_id: string;
   rental_id: string;
   quantity: number;
+  start_date: string | null;
+  end_date: string | null;
   created_at: string;
 }
 
@@ -42,6 +44,16 @@ export interface CartPricingSummary {
   items: CartPricingItem[];
   itemCount: number;
   dayCount: number;
+  subtotal: number;
+  bulkDiscountPercent: number;
+  bulkDiscountAmount: number;
+  totalDeposit: number;
+  grandTotal: number;
+}
+
+export interface CartPerItemPricingSummary {
+  items: CartPricingItem[];
+  itemCount: number;
   subtotal: number;
   bulkDiscountPercent: number;
   bulkDiscountAmount: number;

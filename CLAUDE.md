@@ -38,11 +38,12 @@ Built by ThabangVision (Pty) Ltd, trading as ThabangVision Labs.
 - For streaming (`streamText`), use `logTokenUsage()` inside the `onFinish` callback instead.
 - `trackedCompletion()` captures `{ agentId, provider, model, userId }` plus token usage and writes one row per call to `ai_token_usage` (cost accounting). Per-user daily message caps still live in `ubunye_usage`.
 - Agents are registered in `lib/agents/registry.ts`. Current roster:
-  - `assistant` — Ubunye chat (Claude Sonnet)
-  - `booking` — booking-flow tool agent (Claude Sonnet)
-  - `bio-writer` — auto-bio from portfolio + profile (Claude Sonnet)
-  - `listing-describer` — draft rental listing title/description/includes (Claude Sonnet)
-  - `onboarding`, `portfolios`, `rates` — Gemma / vision helpers
+  - `assistant` — Ubunye chat (`claude-sonnet-4-20250514`)
+  - `booking` — booking-flow tool agent (`claude-sonnet-4-20250514`)
+  - `bio-writer` — auto-bio from portfolio + profile (`claude-sonnet-4-20250514`)
+  - `listing-describer` — draft rental listing title/description/includes (`claude-sonnet-4-20250514`)
+  - `onboarding`, `portfolios` — vision/tagging helpers (`gemma-4-31b-it`, free tier)
+  - `rates` — market-aligned rate suggestions (`claude-sonnet-4-20250514`)
 - Model pricing: `lib/ai/pricing.ts`. When adding a new model, add its cost there too so budget alerts work.
 - **Agent routing** (`lib/agents/router.ts`): intent classification picks the agent — priority is booking > portfolios > rates > assistant. The booking agent has a pre-selected creator flow (from portfolio page "Book Creator" button) that skips creator search.
 - **Per-agent rate limits**: each agent defines `rateLimit: { guest, free, pro, studio }` (messages/day). `-1` = unlimited. Guest users get 5 assistant messages, 0 booking messages. Tracked in `ubunye_usage` table.
@@ -61,6 +62,7 @@ Built by ThabangVision (Pty) Ltd, trading as ThabangVision Labs.
 - Routing only activates when `AI_PROVIDER=anthropic` AND `GOOGLE_GENERATIVE_AI_API_KEY` is set
 - Pattern matching in `SIMPLE_PATTERNS` and `COMPLEX_PATTERNS` determines tier
 - AI pricing in `lib/constants.ts` (`STUDIO.ai.pricing`) uses assumed ~R18/USD exchange rate — update manually when rates shift
+- **Two Google AI env vars**: `GOOGLE_GENERATIVE_AI_API_KEY` is read by `@ai-sdk/google` (model routing in `lib/ai/index.ts`). `GEMINI_API_KEY` is read by `@google/generative-ai` (vision/portfolio tools, RAG embeddings). Both need the same API key.
 
 ### Authentication & Authorization
 - Admin access has 3-level fallback: (1) JWT `app_metadata.role === 'admin'`, (2) `profiles.role` column, (3) `ADMIN_EMAILS` array in `lib/constants.ts`
@@ -75,6 +77,15 @@ Built by ThabangVision (Pty) Ltd, trading as ThabangVision Labs.
 - Background: #050505, accent: #D4A843 (warm gold)
 - Never use bg-white, text-black, bg-gray-50 in any component
 
+### Route Groups
+The `app/` directory uses four Next.js route groups:
+- `(marketing)` — public pages: home, about, contact, careers, press, auth flows (login, register, reset-password), legal, privacy
+- `(platform)` — product pages: smart-production, smart-rentals, ubunye-ai-studio, catalog, resources. Public Header/Footer, but separate group for future layout divergence
+- `(admin)` — admin dashboard (`/admin/*`). Layout guards: redirects unauthenticated → `/login`, non-admin → `/dashboard`
+- `(immersive)` — standalone immersive experiences (Ubunye AI studio)
+- Root-level `api/` — all API routes
+- Root-level `auth/` — Supabase OAuth callback
+
 ### Rendering Strategy
 - `force-dynamic`: dashboard/, admin/, ubunye-ai-studio/, pricing/, api/ routes
 - `revalidate = 60`: smart-rentals/, smart-production/, press/, careers/, contact, lab, home
@@ -86,6 +97,8 @@ Built by ThabangVision (Pty) Ltd, trading as ThabangVision Labs.
 ```
 lib/
 ├── constants.ts   # STUDIO, PRODUCTION_SERVICES, ADMIN_EMAILS — single source of truth
+├── features.ts    # getFlags() — feature flag reader with 60s cache
+├── nav.ts         # filterNavForFlags() — nav items gated by feature flags
 ├── agents/        # Agent framework: registry, router, runtime, tools, agents/*
 ├── ai/            # AI provider abstraction (Vercel AI SDK) — getModel() by AI_PROVIDER
 ├── auth/          # requireAuth, requireAdmin, rate limiting, URL safety
@@ -107,7 +120,21 @@ lib/
 ├── supabase/      # client.ts, server.ts, queries/* per domain
 ├── ubunye/        # Ubunye AI system prompt + tool definitions
 └── whatsapp/      # WhatsApp gateway abstraction (not yet active)
+
+types/             # Domain type definitions
+├── booking-system.ts  # Comprehensive booking types (service + equipment)
+├── cart.ts            # Shopping cart types
+├── equipment.ts       # Rental equipment types
+├── marketplace.ts     # Marketplace listing types
+├── order.ts           # Order types
+├── portfolio.ts       # Creator portfolio types
+└── production.ts      # Production service types
 ```
+
+### Supabase Query Modules
+Database access is organized by domain in `lib/supabase/queries/`:
+- `banking.ts`, `bookings.ts`, `cart.ts`, `crew.ts`, `marketplace.ts`, `notifications.ts`, `profiles.ts`, `service-bookings.ts`, `smartProductions.ts`, `smartRentals.ts`, `verifications.ts`, `creatorReviews.ts`, `productionCategories.ts`, `careers.ts`, `press.ts`
+- Import queries from these modules — don't write raw Supabase queries in API routes or components
 
 ## Code Style
 
@@ -153,15 +180,19 @@ lib/
 - `npx tsc --noEmit` — TypeScript type check without emit
 - `npm run test` — vitest unit tests
 - `npm run test:watch` — vitest in watch mode
-- `npm run test:e2e` — playwright E2E tests
-- `npm run test:e2e:ui` — playwright with UI inspector
+- `npm run test:e2e` — Playwright E2E tests (builds prod first, runs against `localhost:3000`)
+- `npm run test:e2e:ui` — Playwright with UI inspector
 - Single unit test: `npx vitest run <path> -t "<test name>"`
 - Single E2E test: `npx playwright test <path> -g "<name>"`
 - `npm run build`, `npm run test`, and `npm run test:e2e` must all pass before merging to main.
+- Unit tests live in `tests/unit/*.test.ts` (jsdom env, `@` alias works, vitest globals enabled)
+- E2E tests live in `tests/e2e/*.spec.ts` (Playwright, 60s timeout)
+- E2E runs two projects: `chromium` (desktop) and `mobile` (iPhone 14 emulation, 393×852). Mobile tests live in `mobile.spec.ts` — all other specs run desktop only.
+- Test setup: `tests/setup.ts` (auto-loaded by vitest)
 
 ## Platform Conventions
 - **Proxy, not middleware** — Next.js 16 uses `proxy.ts` at repo root and exports a function named `proxy` (not `middleware`). It handles Supabase session refresh + CSRF Origin validation.
-- **Pending migrations are manual** — migrations live in `lib/migrations/` (001–030). Applied by hand in the Supabase SQL Editor. Before assuming a table exists, check `docs/tasks/` or the README migration table.
+- **Pending migrations are manual** — migrations live in `lib/migrations/` (001–031). Applied by hand in the Supabase SQL Editor. Before assuming a table exists, check `docs/tasks/` or the README migration table.
 - **Supabase clients** — three patterns:
   - `@/lib/supabase/server` (`createClient()`) — async, cookie-based. For Server Components and API routes. Cookies are async in Next.js 16 (`await cookies()`).
   - `@/lib/supabase/client` (`createClient()`) — `createBrowserClient`. For `'use client'` components.
@@ -169,6 +200,8 @@ lib/
 - **Auth bridge** — `providers/AuthProvider.tsx` bridges server-resolved session to the client to prevent auth flicker; don't replace it with client-only auth state.
 - **Image optimization** — Next.js `<Image>` uses a custom Cloudinary loader (`lib/cloudinary/loader.ts`) for on-the-fly resize/format conversion.
 - **In-memory rate limiter** (`lib/auth/index.ts`) — `checkRateLimit(key, maxRequests, windowMs)` for contact forms, onboarding, etc. Does NOT persist across restarts — Vercel cold starts reset it.
+- **Security headers** — `next.config.ts` sets CSP, HSTS, X-Frame-Options, etc. When adding a new external service, update the CSP `connect-src` (API calls), `img-src` (images), or `frame-src` (iframes) directives there.
+- **Environment setup** — copy `.env.example` to `.env.local` and fill in real values. See `.env.example` for all provider-specific variables grouped by service.
 
 ## Documentation
 - `README.md` — authoritative reference: full DB schema, money flow diagrams, API route inventory, env var list, migration status

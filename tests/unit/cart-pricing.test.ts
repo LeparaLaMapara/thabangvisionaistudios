@@ -9,6 +9,8 @@ function makeItem(overrides: Partial<CartItemWithRental['rental']> & { quantity?
     user_id: 'user-1',
     rental_id: rentalOverrides.id ?? crypto.randomUUID(),
     quantity,
+    start_date: null,
+    end_date: null,
     created_at: new Date().toISOString(),
     rental: {
       id: crypto.randomUUID(),

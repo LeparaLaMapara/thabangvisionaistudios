@@ -28,14 +28,41 @@ export async function addToCart(
   userId: string,
   rentalId: string,
   quantity: number = 1,
+  startDate?: string,
+  endDate?: string,
+): Promise<CartItem | null> {
+  const supabase = await createClient();
+  const row: Record<string, unknown> = {
+    user_id: userId,
+    rental_id: rentalId,
+    quantity,
+  };
+  if (startDate && endDate) {
+    row.start_date = startDate;
+    row.end_date = endDate;
+  }
+
+  const { data } = await supabase
+    .from('cart_items')
+    .upsert(row, { onConflict: 'user_id,rental_id' })
+    .select()
+    .single();
+
+  return data as CartItem | null;
+}
+
+export async function updateCartItemDates(
+  userId: string,
+  itemId: string,
+  startDate: string | null,
+  endDate: string | null,
 ): Promise<CartItem | null> {
   const supabase = await createClient();
   const { data } = await supabase
     .from('cart_items')
-    .upsert(
-      { user_id: userId, rental_id: rentalId, quantity },
-      { onConflict: 'user_id,rental_id' },
-    )
+    .update({ start_date: startDate, end_date: endDate })
+    .eq('id', itemId)
+    .eq('user_id', userId)
     .select()
     .single();
 

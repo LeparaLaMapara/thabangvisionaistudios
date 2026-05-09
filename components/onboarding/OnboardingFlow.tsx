@@ -6,21 +6,21 @@ import { ChevronLeft } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { STUDIO } from '@/lib/constants';
 import OnboardingProgress from './OnboardingProgress';
-import StepIdCapture from './StepIdCapture';
 import StepPortfolioUpload from './StepPortfolioUpload';
 import StepSkillsDetection from './StepSkillsDetection';
 import StepBioReview from './StepBioReview';
+import StepIdCapture from './StepIdCapture';
 import StepGearRentals from './StepGearRentals';
 import type { SceneAnalysisResult, SkillDetectionResult } from '@/lib/agents/types';
 
-const TOTAL_STEPS = 6;
-const STEP_LABELS = ['Identity', 'Portfolio', 'Skills', 'Bio', 'Review', 'Gear'];
+const TOTAL_STEPS = 5;
+const STEP_LABELS = ['Portfolio', 'Skills', 'Bio & Review', 'Verify ID', 'Gear'];
 
 interface OnboardingData {
-  idData: { firstName: string; lastName: string; idNumber: string; dateOfBirth: string } | null;
   analyses: SceneAnalysisResult[];
   skills: SkillDetectionResult | null;
   bio: string | null;
+  idData: { firstName: string; lastName: string; idNumber: string; dateOfBirth: string } | null;
   gear: unknown[];
 }
 
@@ -30,14 +30,13 @@ export default function OnboardingFlow() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [data, setData] = useState<OnboardingData>({
-    idData: null,
     analyses: [],
     skills: null,
     bio: null,
+    idData: null,
     gear: [],
   });
 
-  // Check auth and load existing progress
   useEffect(() => {
     const supabase = createClient();
     supabase.auth.getUser().then(async ({ data: { user } }) => {
@@ -46,7 +45,6 @@ export default function OnboardingFlow() {
         return;
       }
 
-      // Load existing progress
       try {
         const { data: progress } = await supabase
           .from('onboarding_progress')
@@ -55,7 +53,10 @@ export default function OnboardingFlow() {
           .single();
 
         if (progress) {
-          setStep(progress.current_step || 1);
+          // Map old 6-step progress to new 5-step flow
+          const oldStep = progress.current_step || 1;
+          const mapped = oldStep <= 2 ? 1 : oldStep <= 3 ? 2 : oldStep <= 4 ? 3 : oldStep <= 5 ? 4 : 5;
+          setStep(mapped);
           if (progress.detected_skills) {
             setData(prev => ({ ...prev, skills: progress.detected_skills as SkillDetectionResult }));
           }
@@ -68,7 +69,6 @@ export default function OnboardingFlow() {
     });
   }, []);
 
-  // Save progress to Supabase
   const saveProgress = useCallback(async (currentStep: number, extraData?: Record<string, unknown>) => {
     const supabase = createClient();
     const { data: { user } } = await supabase.auth.getUser();
@@ -87,48 +87,37 @@ export default function OnboardingFlow() {
       .upsert(progressData, { onConflict: 'creator_id' });
   }, []);
 
-  // Step 1: ID capture complete
-  const handleIdComplete = useCallback(async (idData: OnboardingData['idData']) => {
-    setData(prev => ({ ...prev, idData }));
+  const handlePortfolioComplete = useCallback(async (analyses: SceneAnalysisResult[]) => {
+    setData(prev => ({ ...prev, analyses }));
     await saveProgress(1);
     setStep(2);
   }, [saveProgress]);
 
-  // Step 2: Portfolio upload complete
-  const handlePortfolioComplete = useCallback(async (analyses: SceneAnalysisResult[]) => {
-    setData(prev => ({ ...prev, analyses }));
-    await saveProgress(2);
+  const handleSkillsComplete = useCallback(async (skills: SkillDetectionResult) => {
+    setData(prev => ({ ...prev, skills }));
+    await saveProgress(2, { detected_skills: skills });
     setStep(3);
   }, [saveProgress]);
 
-  // Step 3: Skills detection complete
-  const handleSkillsComplete = useCallback(async (skills: SkillDetectionResult) => {
-    setData(prev => ({ ...prev, skills }));
-    await saveProgress(3, { detected_skills: skills });
+  const handleBioComplete = useCallback(async (bio: string) => {
+    setData(prev => ({ ...prev, bio }));
+    await saveProgress(3);
     setStep(4);
   }, [saveProgress]);
 
-  // Step 4: Bio review complete
-  const handleBioComplete = useCallback(async (bio: string) => {
-    setData(prev => ({ ...prev, bio }));
+  const handleIdComplete = useCallback(async (idData: OnboardingData['idData']) => {
+    setData(prev => ({ ...prev, idData }));
     await saveProgress(4);
     setStep(5);
   }, [saveProgress]);
 
-  // Step 5: Review — just advance
-  const handleReviewComplete = useCallback(async () => {
-    await saveProgress(5);
-    setStep(6);
-  }, [saveProgress]);
-
-  // Step 6: Gear listing complete
   const handleGearComplete = useCallback(async (gear: unknown[]) => {
     setSaving(true);
     setError(null);
 
     try {
       setData(prev => ({ ...prev, gear }));
-      await saveProgress(6, { detected_gear: gear, completed_at: new Date().toISOString() });
+      await saveProgress(5, { detected_gear: gear, completed_at: new Date().toISOString() });
       window.location.href = '/dashboard';
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save.');
@@ -139,7 +128,7 @@ export default function OnboardingFlow() {
   const handleGearSkip = useCallback(async () => {
     setSaving(true);
     try {
-      await saveProgress(6, { completed_at: new Date().toISOString() });
+      await saveProgress(5, { completed_at: new Date().toISOString() });
       window.location.href = '/dashboard';
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save.');
@@ -179,7 +168,7 @@ export default function OnboardingFlow() {
             Join the Network
           </h1>
           <p className="text-xs font-mono text-neutral-500 mt-3 leading-relaxed">
-            Complete these steps to set up your creator profile and start earning.
+            Show us your work and we&apos;ll build your creator profile.
           </p>
           <div className="w-8 h-px bg-[#D4A843] mt-5" />
         </div>
@@ -204,94 +193,29 @@ export default function OnboardingFlow() {
               transition={{ duration: 0.2 }}
             >
               {step === 1 && (
-                <StepIdCapture onComplete={handleIdComplete} />
-              )}
-
-              {step === 2 && (
                 <StepPortfolioUpload onComplete={handlePortfolioComplete} />
               )}
 
-              {step === 3 && (
+              {step === 2 && (
                 <StepSkillsDetection
                   analyses={data.analyses}
                   onComplete={handleSkillsComplete}
                 />
               )}
 
+              {step === 3 && (
+                <StepBioReview
+                  analyses={data.analyses}
+                  skills={data.skills}
+                  onComplete={handleBioComplete}
+                />
+              )}
+
               {step === 4 && (
-                <StepBioReview onComplete={handleBioComplete} />
+                <StepIdCapture onComplete={handleIdComplete} />
               )}
 
               {step === 5 && (
-                <div className="space-y-6">
-                  <div>
-                    <h2 className="text-sm font-mono font-bold uppercase tracking-widest text-white mb-1">
-                      Profile Review
-                    </h2>
-                    <p className="text-[10px] font-mono text-neutral-500 leading-relaxed">
-                      Here&apos;s a summary of your onboarding so far.
-                    </p>
-                  </div>
-
-                  {/* ID summary */}
-                  {data.idData && (
-                    <div className="bg-neutral-900 border border-white/5 p-4">
-                      <p className="text-[9px] font-mono uppercase tracking-widest text-neutral-500 mb-2">Identity</p>
-                      <p className="text-sm font-mono text-white">
-                        {data.idData.firstName} {data.idData.lastName}
-                      </p>
-                      <p className="text-[10px] font-mono text-neutral-400 mt-1">
-                        DOB: {data.idData.dateOfBirth}
-                      </p>
-                    </div>
-                  )}
-
-                  {/* Portfolio summary */}
-                  <div className="bg-neutral-900 border border-white/5 p-4">
-                    <p className="text-[9px] font-mono uppercase tracking-widest text-neutral-500 mb-2">Portfolio</p>
-                    <p className="text-sm font-mono text-white">
-                      {data.analyses.length} photos analyzed
-                    </p>
-                  </div>
-
-                  {/* Skills summary */}
-                  {data.skills && (
-                    <div className="bg-neutral-900 border border-white/5 p-4">
-                      <p className="text-[9px] font-mono uppercase tracking-widest text-neutral-500 mb-2">Skills</p>
-                      <div className="flex flex-wrap gap-2">
-                        {data.skills.skills.map(s => (
-                          <span
-                            key={s.name}
-                            className="text-[10px] font-mono text-[#D4A843] border border-[#D4A843]/20 px-2 py-1"
-                          >
-                            {s.name} ({s.percentage}%)
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Bio summary */}
-                  {data.bio && (
-                    <div className="bg-neutral-900 border border-white/5 p-4">
-                      <p className="text-[9px] font-mono uppercase tracking-widest text-neutral-500 mb-2">Bio</p>
-                      <p className="text-sm font-mono text-white leading-relaxed whitespace-pre-wrap">
-                        {data.bio}
-                      </p>
-                    </div>
-                  )}
-
-                  <button
-                    type="button"
-                    onClick={handleReviewComplete}
-                    className="w-full bg-[#D4A843] text-black py-3 px-6 text-[10px] font-mono font-bold uppercase tracking-widest hover:opacity-80 transition-opacity min-h-[44px]"
-                  >
-                    Continue to Gear Listing
-                  </button>
-                </div>
-              )}
-
-              {step === 6 && (
                 <StepGearRentals
                   onComplete={handleGearComplete}
                   onSkip={handleGearSkip}
@@ -315,7 +239,7 @@ export default function OnboardingFlow() {
           )}
 
           {/* Back button */}
-          {step > 1 && step < 6 && (
+          {step > 1 && step < 5 && (
             <div className="mt-6 pt-4 border-t border-white/5">
               <button
                 type="button"

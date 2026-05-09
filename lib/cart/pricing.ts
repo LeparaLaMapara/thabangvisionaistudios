@@ -1,11 +1,11 @@
 import { STUDIO } from '@/lib/constants';
-import type { CartItemWithRental, CartPricingItem, CartPricingSummary } from '@/types/cart';
+import type { CartItemWithRental, CartPricingItem, CartPricingSummary, CartPerItemPricingSummary } from '@/types/cart';
 
 /**
  * Calculate the rental price for a single item over a number of days.
  * Uses weekly rate when >= 7 days, plus daily rate for remainder.
  */
-function calculateItemPrice(
+export function calculateItemPrice(
   pricePerDay: number,
   pricePerWeek: number | null,
   days: number,
@@ -84,6 +84,67 @@ export function calculateCartPricing(
     items: pricingItems,
     itemCount: totalItemCount,
     dayCount: days,
+    subtotal,
+    bulkDiscountPercent,
+    bulkDiscountAmount,
+    totalDeposit,
+    grandTotal,
+  };
+}
+
+export function calculateCartPricingPerItem(
+  items: CartItemWithRental[],
+): CartPerItemPricingSummary {
+  if (items.length === 0) {
+    return {
+      items: [],
+      itemCount: 0,
+      subtotal: 0,
+      bulkDiscountPercent: 0,
+      bulkDiscountAmount: 0,
+      totalDeposit: 0,
+      grandTotal: 0,
+    };
+  }
+
+  const totalItemCount = items.reduce((sum, item) => sum + item.quantity, 0);
+
+  const pricingItems: CartPricingItem[] = items.map((item) => {
+    const start = item.start_date ? new Date(item.start_date) : null;
+    const end = item.end_date ? new Date(item.end_date) : null;
+    const days =
+      start && end
+        ? Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24))
+        : 0;
+
+    const unitPrice = calculateItemPrice(
+      item.rental.price_per_day,
+      item.rental.price_per_week,
+      days,
+    );
+    const subtotal = unitPrice * item.quantity;
+    const deposit = (item.rental.deposit_amount ?? 0) * item.quantity;
+
+    return {
+      rental_id: item.rental_id,
+      title: item.rental.title,
+      quantity: item.quantity,
+      days,
+      unitPrice,
+      subtotal,
+      deposit,
+    };
+  });
+
+  const subtotal = pricingItems.reduce((sum, pi) => sum + pi.subtotal, 0);
+  const totalDeposit = pricingItems.reduce((sum, pi) => sum + pi.deposit, 0);
+  const bulkDiscountPercent = getBulkDiscountPercent(totalItemCount);
+  const bulkDiscountAmount = Math.round(subtotal * (bulkDiscountPercent / 100) * 100) / 100;
+  const grandTotal = subtotal - bulkDiscountAmount + totalDeposit;
+
+  return {
+    items: pricingItems,
+    itemCount: totalItemCount,
     subtotal,
     bulkDiscountPercent,
     bulkDiscountAmount,
