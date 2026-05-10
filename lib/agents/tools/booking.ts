@@ -305,7 +305,7 @@ export function createBookingTools(
             };
           }
 
-          const { paymentUrl } = await payments.createCheckout({
+          const { paymentUrl, accessCode } = await payments.createCheckout({
             paymentId: reference,
             amount: total,
             itemName: `Booking: ${params.project_category}`,
@@ -321,7 +321,7 @@ export function createBookingTools(
 
           await supabase
             .from('bookings')
-            .update({ paystack_reference: reference })
+            .update({ paystack_reference: reference, paystack_access_code: accessCode || null })
             .eq('id', booking.id);
 
           // Notify admin
@@ -340,11 +340,14 @@ export function createBookingTools(
             metadata: { reference, project_category: params.project_category, duration_hours: params.duration_hours, total, has_creator: !!params.creator_id, source: 'ubunye' },
           });
 
+          const payUrl = `${baseUrl}/dashboard/bookings/pay?ref=${encodeURIComponent(reference)}`;
+
           return {
             success: true,
             booking_reference: reference,
             total_zar: total,
-            payment_url: paymentUrl,
+            payment_url: payUrl,
+            paystack_redirect: paymentUrl,
             message: `Booking created! Reference: ${reference}. Total: R${total}. Complete payment to confirm your booking.`,
             dashboard_url: '/dashboard/bookings',
           };

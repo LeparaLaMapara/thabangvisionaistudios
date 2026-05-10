@@ -31,6 +31,8 @@ export type CheckoutParams = {
 export type CheckoutResult = {
   /** Full URL to redirect the browser to */
   paymentUrl: string;
+  /** Access code for Paystack Inline popup (Paystack only) */
+  accessCode?: string;
 };
 
 /** Parsed + validated webhook payload. */

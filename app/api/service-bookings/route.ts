@@ -121,7 +121,7 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    const { paymentUrl } = await payments.createCheckout({
+    const { paymentUrl, accessCode } = await payments.createCheckout({
       paymentId: reference,
       amount: total,
       itemName: `Booking: ${project_category}`,
@@ -135,10 +135,10 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    // Save access code
+    // Save access code + reference
     await supabase
       .from('bookings')
-      .update({ paystack_reference: reference })
+      .update({ paystack_reference: reference, paystack_access_code: accessCode || null })
       .eq('id', booking.id);
 
     // Email admin about new booking

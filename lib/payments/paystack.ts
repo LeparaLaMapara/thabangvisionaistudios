@@ -154,7 +154,7 @@ export const paystack: PaymentProvider = {
       },
     });
 
-    return { paymentUrl: res.data.authorization_url };
+    return { paymentUrl: res.data.authorization_url, accessCode: res.data.access_code };
   },
 
   async createSubscriptionCheckout(params: SubscriptionCheckoutParams): Promise<CheckoutResult> {
