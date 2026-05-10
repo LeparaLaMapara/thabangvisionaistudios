@@ -33,6 +33,10 @@ export type SmartProduction = {
   is_published: boolean;
   is_featured: boolean;
   created_at: string;
+  price: number | null;
+  currency: string | null;
+  price_unit: string;
+  creator_id: string | null;
 };
 
 // ─── Queries ──────────────────────────────────────────────────────────────────

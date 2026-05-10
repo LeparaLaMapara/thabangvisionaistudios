@@ -1,8 +1,11 @@
 import { jsonSchema } from 'ai';
+import { nanoid } from 'nanoid';
 import { STUDIO } from '@/lib/constants';
+import { payments } from '@/lib/payments';
 import { email as emailProvider } from '@/lib/email';
 import { escapeIlike } from '@/lib/search/types';
 import { getHourlyRate } from '@/lib/supabase/queries/service-bookings';
+import { logEvent } from '@/lib/data/events';
 
 // ─── Booking Tools for Booking Agent ──────────────────────────────────────────
 // Tools focused on booking flows, quotes, and request submission.
@@ -207,147 +210,147 @@ export function createBookingTools(
       },
     },
 
-    submit_creator_request: {
+    create_service_booking: {
       description:
-        'Submit a creator booking request. ONLY call this after you have ALL required info AND the client has explicitly confirmed they want to book. Required: creator_id, client_name, client_email, project_type, description (min 20 chars).',
+        'Create a paid service booking with Paystack payment. ONLY call this after calculate_booking_quote AND the client has explicitly confirmed. Returns a payment URL. Required: project_category, project_description (min 20 chars), deliverables, duration_hours. Optional: creator_id, location, preferred_dates.',
       inputSchema: jsonSchema({
         type: 'object' as const,
         properties: {
-          creator_id: { type: 'string', description: 'The creator UUID from search results' },
-          client_name: { type: 'string', description: 'Client full name' },
-          client_email: { type: 'string', description: 'Client email address' },
-          client_phone: { type: 'string', description: 'Client phone number' },
-          project_type: { type: 'string', description: 'photography, cinematography, wedding, corporate, music_video, event, documentary, content_creation, other' },
-          preferred_dates: { type: 'string', description: 'When the client needs the work done' },
+          creator_id: { type: 'string', description: 'The creator UUID (from search results or pre-selected production)' },
+          project_category: { type: 'string', description: 'The project category used in the quote (e.g. Wedding Photography, Music Video)' },
+          project_description: { type: 'string', description: 'What the client needs — min 20 characters' },
+          deliverables: { type: 'string', description: 'What the client will receive (e.g. edited photos, highlight video)' },
+          duration_hours: { type: 'number', description: 'Number of hours (must match the quote)' },
           location: { type: 'string', description: 'Where the shoot will happen' },
-          duration: { type: 'string', description: 'half_day, full_day, multi_day' },
-          description: { type: 'string', description: 'What the client needs — min 20 characters' },
-          budget_range: { type: 'string', description: 'under_5k, 5k_15k, 15k_50k, 50k_plus, flexible' },
+          preferred_dates: { type: 'string', description: 'When the client needs the work done' },
         },
-        required: ['creator_id', 'client_name', 'client_email', 'project_type', 'description'],
+        required: ['project_category', 'project_description', 'deliverables', 'duration_hours'],
       }),
       execute: async (params: {
-        creator_id: string; client_name: string; client_email: string; client_phone?: string;
-        project_type: string; preferred_dates?: string; location?: string; duration?: string;
-        description: string; budget_range?: string;
+        creator_id?: string; project_category: string; project_description: string;
+        deliverables: string; duration_hours: number; location?: string; preferred_dates?: string;
       }) => {
         if (!isAuthenticated) {
-          return { error: 'User must be signed in to book a creator. Please ask them to sign in at /login or register at /register first.' };
+          return { error: 'You must be signed in to book. Please sign in at /login or register at /register first.' };
         }
 
-        const fiveMinAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
-        const { data: existing } = await supabase
-          .from('crew_requests')
-          .select('id')
-          .eq('creator_id', params.creator_id)
-          .eq('client_email', params.client_email)
-          .gte('created_at', fiveMinAgo)
-          .limit(1);
-
-        if (existing && existing.length > 0) {
-          return {
-            error: 'You already submitted a request for this creator. Check your requests at /dashboard/creator-requests',
-          };
+        if (params.project_description.length < 20) {
+          return { error: 'Project description must be at least 20 characters.' };
         }
 
-        const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
-        const { data: recentRequests } = await supabase
-          .from('crew_requests')
-          .select('id')
-          .eq('client_email', params.client_email)
-          .gte('created_at', oneHourAgo);
-
-        if (recentRequests && recentRequests.length >= 5) {
-          return {
-            error: 'You have reached the maximum number of booking requests for this hour. Please try again later.',
-          };
+        if (params.duration_hours < STUDIO.booking.minBookingHours || params.duration_hours > STUDIO.booking.maxBookingHours) {
+          return { error: `Duration must be between ${STUDIO.booking.minBookingHours} and ${STUDIO.booking.maxBookingHours} hours.` };
         }
 
-        const { data: activeGig } = await supabase
-          .from('crew_requests')
-          .select('id, status')
-          .eq('creator_id', params.creator_id)
-          .in('status', ['confirmed', 'paid', 'in_progress'])
-          .limit(1);
-
-        if (activeGig && activeGig.length > 0) {
-          return {
-            error: 'This creator is currently busy with an active gig. They will become available once their current project is complete. Try another creator or check back later.',
-          };
+        // Get authenticated user
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) {
+          return { error: 'Session expired. Please sign in again at /login.' };
         }
 
-        const { data: banking } = await supabase
-          .from('banking_details')
-          .select('id')
-          .eq('user_id', params.creator_id)
-          .limit(1);
-
-        if (!banking || banking.length === 0) {
-          return {
-            error: 'This creator has not set up their banking details yet and cannot accept paid bookings. Please try another creator or check back later.',
-          };
+        // Prevent self-booking
+        if (params.creator_id && params.creator_id === user.id) {
+          return { error: 'You cannot book yourself as a creator.' };
         }
 
-        const { data: creatorProfile } = await supabase
-          .from('profiles')
-          .select('hourly_rate')
-          .eq('id', params.creator_id)
-          .single();
+        // Calculate pricing
+        const hourlyRate = getHourlyRate(params.project_category);
+        const subtotal = Math.round(hourlyRate * params.duration_hours);
+        const vat = Math.round(subtotal * (STUDIO.booking.vatRate / 100));
+        const total = subtotal + vat;
+        const platformAmount = Math.round(total * (STUDIO.booking.platformCommission / 100));
+        const creatorAmount = total - platformAmount;
 
-        const hourlyRate = creatorProfile?.hourly_rate ?? 0;
-        const hoursMap: Record<string, number> = { half_day: 4, full_day: 8, multi_day: 16 };
-        const estimatedHours = hoursMap[params.duration || ''] || 8;
-        const totalAmount = hourlyRate * estimatedHours;
-        const depositAmount = totalAmount * 0.20;
-
-        const { data, error } = await supabase
-          .from('crew_requests')
-          .insert({
-            creator_id: params.creator_id, client_name: params.client_name,
-            client_email: params.client_email, client_phone: params.client_phone || null,
-            project_type: params.project_type, preferred_dates: params.preferred_dates || null,
-            location: params.location || null, duration: params.duration || null,
-            description: params.description, budget_range: params.budget_range || null,
-            booked_via: 'ubunye',
-            quoted_rate: hourlyRate,
-            estimated_hours: estimatedHours,
-            total_amount: totalAmount,
-            deposit_amount: depositAmount,
-          })
-          .select('id').single();
-
-        if (error) return { error: 'Failed to submit request. Please try again.' };
+        const reference = `BK-${nanoid(10)}`;
+        const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://thabangvision.com';
 
         try {
-          await supabase.from('notifications').insert({
-            user_id: params.creator_id,
-            type: 'gig_request',
-            title: 'New Gig Request',
-            body: `New ${params.project_type} request from ${params.client_name}.`,
-            link: '/dashboard/gigs',
-          });
-        } catch { /* notification failure should not block */ }
+          // Insert booking
+          const { data: booking, error } = await supabase
+            .from('bookings')
+            .insert({
+              reference,
+              client_id: user.id,
+              client_email: user.email,
+              creator_id: params.creator_id || null,
+              booking_type: 'production',
+              project_category: params.project_category,
+              project_description: params.project_description,
+              deliverables: params.deliverables,
+              duration_hours: params.duration_hours,
+              location: params.location || null,
+              preferred_dates: params.preferred_dates || null,
+              subtotal, vat, total,
+              platform_commission: STUDIO.booking.platformCommission,
+              platform_amount: platformAmount,
+              creator_amount: creatorAmount,
+              status: 'pending',
+              payment_status: 'unpaid',
+            })
+            .select('id, reference')
+            .single();
 
-        try {
-          await emailProvider.sendEmail({
-            to: STUDIO.bookingEmail,
-            subject: `New creator request: ${params.project_type} — ${params.client_name}`,
-            text: `A new creator request was submitted via Ubunye.\n\nClient: ${params.client_name} (${params.client_email})\nProject: ${params.project_type}\nDates: ${params.preferred_dates || 'TBD'}\nLocation: ${params.location || 'TBD'}\nBudget: ${params.budget_range || 'Not specified'}\n\nDescription:\n${params.description}\n\nView in admin: /admin/creator-requests`,
-          });
-        } catch { /* Email failure should not block */ }
+          if (error || !booking) {
+            return { error: 'Failed to create booking. Please try again.' };
+          }
 
-        try {
-          await emailProvider.sendEmail({
-            to: params.client_email,
-            subject: `Booking Confirmation — ${STUDIO.name}`,
-            text: `Hi ${params.client_name},\n\nYour creator booking request has been submitted successfully!\n\nBooking Reference: ${data.id.slice(0, 8).toUpperCase()}\nProject Type: ${params.project_type}\nPreferred Dates: ${params.preferred_dates || 'To be confirmed'}\nLocation: ${params.location || 'To be confirmed'}\n\nDescription:\n${params.description}\n\nOur team will review your request and reach out within 24 hours to confirm details and next steps.\n\nIf you have any questions, contact us at ${STUDIO.email} or ${STUDIO.phone}.\n\nThank you for choosing ${STUDIO.name}!\n\n—\n${STUDIO.name}\n${STUDIO.meta.url}`,
-          });
-        } catch { /* Email failure should not block */ }
+          // Create Paystack payment
+          if (!payments.isConfigured()) {
+            return {
+              success: true,
+              booking_reference: reference,
+              total_zar: total,
+              message: `Booking ${reference} created (R${total}). Payment provider not configured — contact admin at ${STUDIO.email}.`,
+              dashboard_url: '/dashboard/bookings',
+            };
+          }
 
-        return {
-          success: true, request_id: data.id,
-          message: `Booking submitted! Confirmation sent to ${params.client_email}. Reference: ${data.id.slice(0, 8).toUpperCase()}. ${STUDIO.name} will reach out within 24 hours.`,
-        };
+          const { paymentUrl } = await payments.createCheckout({
+            paymentId: reference,
+            amount: total,
+            itemName: `Booking: ${params.project_category}`,
+            itemDescription: `${params.project_category} — ${params.duration_hours}hrs`,
+            email: user.email!,
+            returnUrl: `${baseUrl}/api/service-bookings/callback?reference=${reference}`,
+            cancelUrl: `${baseUrl}/dashboard/bookings?status=cancelled`,
+            metadata: {
+              customStr1: 'service_booking',
+              customStr2: booking.id,
+            },
+          });
+
+          await supabase
+            .from('bookings')
+            .update({ paystack_reference: reference })
+            .eq('id', booking.id);
+
+          // Notify admin
+          try {
+            await emailProvider.sendEmail({
+              to: STUDIO.bookingEmail,
+              subject: `New booking: ${params.project_category} — ${reference}`,
+              text: `A new service booking was created via Ubunye.\n\nReference: ${reference}\nClient: ${user.email}\nCategory: ${params.project_category}\nDuration: ${params.duration_hours} hours\nTotal: R${total}\nCreator: ${params.creator_id || 'Unassigned'}\n\nView in admin: ${baseUrl}/admin/service-bookings`,
+            });
+          } catch { /* don't block */ }
+
+          logEvent({
+            eventType: 'booking_created',
+            eventCategory: 'booking',
+            userId: user.id,
+            metadata: { reference, project_category: params.project_category, duration_hours: params.duration_hours, total, has_creator: !!params.creator_id, source: 'ubunye' },
+          });
+
+          return {
+            success: true,
+            booking_reference: reference,
+            total_zar: total,
+            payment_url: paymentUrl,
+            message: `Booking created! Reference: ${reference}. Total: R${total}. Complete payment to confirm your booking.`,
+            dashboard_url: '/dashboard/bookings',
+          };
+        } catch {
+          return { error: 'Failed to create booking. Please try again.' };
+        }
       },
     },
 

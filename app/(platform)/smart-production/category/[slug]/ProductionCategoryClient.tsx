@@ -1,54 +1,20 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  SlidersHorizontal, X, Star, ShieldCheck, Building2, Users, ArrowRight, ChevronDown,
+  ChevronDown, ArrowRight, SlidersHorizontal, X, Star,
 } from 'lucide-react';
 import type { ProductionCategory } from '@/types/production';
-import type { CrewMember } from '@/lib/supabase/queries/crew';
 import type { SmartProduction } from '@/lib/supabase/queries/smartProductions';
-import { PRODUCTION_PACKAGES, PRODUCTION_SERVICES } from '@/lib/constants';
 import { formatZAR } from '@/lib/productions/pricing';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
-type ServiceFilter = 'all' | 'photography' | 'video' | 'both';
-type SourceFilter = 'all' | 'studio' | 'community';
-type SortOption = 'recommended' | 'price-low' | 'price-high' | 'rating';
-
-interface StudioPackageCard {
-  kind: 'studio';
-  id: string;
-  name: string;
-  description: string;
-  hourlyRate: number;
-  totalHours: number;
-  totalPrice: number;
-  deliverables: string[];
-  popular?: boolean;
-  serviceType: ServiceFilter;
-}
-
-interface CommunityCreatorCard {
-  kind: 'community';
-  id: string;
-  slug: string;
-  hourlyRate: number;
-  specializations: string[];
-  yearsExperience: number | null;
-  location: string | null;
-  reviewCount: number;
-  averageRating: number;
-  portfolioImage: string | null;
-  hasVideo: boolean;
-  photoCount: number;
-  serviceType: ServiceFilter;
-}
-
-type ListingCard = StudioPackageCard | CommunityCreatorCard;
+type ServiceFilter = 'all' | 'photography' | 'video';
+type SortOption = 'newest' | 'price-low' | 'price-high';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -65,144 +31,57 @@ function ImageSkeleton() {
   );
 }
 
-function classifyCreatorService(specializations: string[]): ServiceFilter {
-  const lower = specializations.map(s => s.toLowerCase());
-  const hasPhoto = lower.some(s => s.includes('photo') || s.includes('portrait') || s.includes('headshot'));
-  const hasVideo = lower.some(s => s.includes('video') || s.includes('cinema') || s.includes('film') || s.includes('documentary'));
-  if (hasPhoto && hasVideo) return 'both';
-  if (hasVideo) return 'video';
-  return 'photography';
-}
-
-function classifyPackageService(pkg: { services: { type: string }[] }): ServiceFilter {
-  const hasPhoto = pkg.services.some(s => s.type === 'photography');
-  const hasVideo = pkg.services.some(s => s.type === 'cinematography');
-  if (hasPhoto && hasVideo) return 'both';
-  if (hasVideo) return 'video';
-  return 'photography';
-}
-
-function calculatePackagePrice(services: { type: string; subType: string; hours: number }[]): { hourlyRate: number; totalHours: number; totalPrice: number } {
-  let total = 0;
-  let totalHours = 0;
-  for (const s of services) {
-    const category = PRODUCTION_SERVICES[s.type as keyof typeof PRODUCTION_SERVICES];
-    if (category && typeof category === 'object' && s.subType in category) {
-      const svc = (category as Record<string, { rate: number }>)[s.subType];
-      total += svc.rate * s.hours;
-      totalHours += s.hours;
-    }
+function classifyProjectType(projectType: string): 'photography' | 'video' {
+  const lower = projectType.toLowerCase();
+  if (lower.includes('video') || lower.includes('film') || lower.includes('cinema') || lower.includes('documentary') || lower.includes('music_video') || lower.includes('commercial')) {
+    return 'video';
   }
-  const hourlyRate = totalHours > 0 ? Math.round(total / totalHours) : 0;
-  return { hourlyRate, totalHours, totalPrice: total };
+  return 'photography';
+}
+
+function priceLabel(unit: string): string {
+  switch (unit) {
+    case 'hour': return '/hr';
+    case 'session': return '/session';
+    case 'event': return '/event';
+    case 'project':
+    default: return '';
+  }
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
 interface Props {
   category: ProductionCategory;
-  crew: CrewMember[];
-  productions?: SmartProduction[];
+  productions: SmartProduction[];
 }
 
-export default function ProductionCategoryClient({ category, crew, productions = [] }: Props) {
+export default function ProductionCategoryClient({ category, productions }: Props) {
   const [serviceFilter, setServiceFilter] = useState<ServiceFilter>('all');
-  const [sourceFilter, setSourceFilter] = useState<SourceFilter>('all');
-  const [sortBy, setSortBy] = useState<SortOption>('recommended');
+  const [sortBy, setSortBy] = useState<SortOption>('newest');
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
 
-  // ─── Build unified listing cards ────────────────────────────────────────────
-
-  const listings = useMemo<ListingCard[]>(() => {
-    const cards: ListingCard[] = [];
-
-    // Studio packages for this category
-    const categoryPackages = PRODUCTION_PACKAGES.filter(p => p.category === category.slug);
-    for (const pkg of categoryPackages) {
-      const { hourlyRate, totalHours, totalPrice } = calculatePackagePrice(pkg.services);
-      cards.push({
-        kind: 'studio',
-        id: pkg.id,
-        name: pkg.name,
-        description: pkg.description,
-        hourlyRate,
-        totalHours,
-        totalPrice,
-        deliverables: pkg.deliverables,
-        popular: pkg.popular,
-        serviceType: classifyPackageService(pkg),
-      });
-    }
-
-    // Community creators
-    for (const c of crew) {
-      const firstImage = c.portfolio_projects?.[0]?.photos?.[0]?.url ?? null;
-
-      const hasVideo = c.portfolio_projects?.some(p => p.video !== null) ?? false;
-      const photoCount = c.portfolio_projects?.reduce((sum, p) => sum + p.photos.length, 0) ?? 0;
-
-      cards.push({
-        kind: 'community',
-        id: c.id,
-        slug: c.crew_slug ?? c.id,
-        hourlyRate: c.hourly_rate ?? 0,
-        specializations: c.specializations ?? [],
-        yearsExperience: c.years_experience,
-        location: c.location,
-        reviewCount: 0, // TODO: wire to reviews
-        averageRating: 0,
-        portfolioImage: firstImage,
-        hasVideo,
-        photoCount,
-        serviceType: classifyCreatorService(c.specializations ?? []),
-      });
-    }
-
-    return cards;
-  }, [category.slug, crew]);
-
-  // ─── Filter + Sort ──────────────────────────────────────────────────────────
-
   const filtered = useMemo(() => {
-    let result = listings;
+    let result = productions;
 
     if (serviceFilter !== 'all') {
-      result = result.filter(c => c.serviceType === serviceFilter || c.serviceType === 'both');
-    }
-    if (sourceFilter !== 'all') {
-      result = result.filter(c => c.kind === sourceFilter);
+      result = result.filter(p => classifyProjectType(p.project_type) === serviceFilter);
     }
 
     switch (sortBy) {
       case 'price-low':
-        result = [...result].sort((a, b) => a.hourlyRate - b.hourlyRate);
+        result = [...result].sort((a, b) => (a.price ?? Infinity) - (b.price ?? Infinity));
         break;
       case 'price-high':
-        result = [...result].sort((a, b) => b.hourlyRate - a.hourlyRate);
+        result = [...result].sort((a, b) => (b.price ?? 0) - (a.price ?? 0));
         break;
-      case 'rating':
-        result = [...result].sort((a, b) => {
-          const rA = a.kind === 'community' ? a.averageRating : 5;
-          const rB = b.kind === 'community' ? b.averageRating : 5;
-          return rB - rA;
-        });
-        break;
-      case 'recommended':
+      case 'newest':
       default:
-        // Studio first, then by rating
-        result = [...result].sort((a, b) => {
-          if (a.kind !== b.kind) return a.kind === 'studio' ? -1 : 1;
-          return 0;
-        });
+        result = [...result].sort((a, b) => (b.year ?? 0) - (a.year ?? 0));
     }
 
     return result;
-  }, [listings, serviceFilter, sourceFilter, sortBy]);
-
-  const studioCount = listings.filter(c => c.kind === 'studio').length;
-  const communityCount = listings.filter(c => c.kind === 'community').length;
-
-  // ─── Render ─────────────────────────────────────────────────────────────────
+  }, [productions, serviceFilter, sortBy]);
 
   return (
     <div className="min-h-screen bg-[#050505] pt-32 pb-20">
@@ -233,7 +112,7 @@ export default function ProductionCategoryClient({ category, crew, productions =
 
           {/* Service type filter pills */}
           <div className="flex flex-wrap gap-2">
-            {(['all', 'photography', 'video', 'both'] as ServiceFilter[]).map(filter => (
+            {(['all', 'photography', 'video'] as ServiceFilter[]).map(filter => (
               <button
                 key={filter}
                 onClick={() => setServiceFilter(filter)}
@@ -243,7 +122,7 @@ export default function ProductionCategoryClient({ category, crew, productions =
                     : 'text-neutral-500 border border-white/10 hover:text-white hover:border-white/20'
                 }`}
               >
-                {filter === 'all' ? 'All' : filter === 'both' ? 'Photo + Video' : filter === 'photography' ? 'Photography' : 'Video'}
+                {filter === 'all' ? 'All' : filter === 'photography' ? 'Photography' : 'Video'}
               </button>
             ))}
           </div>
@@ -252,29 +131,10 @@ export default function ProductionCategoryClient({ category, crew, productions =
         {/* Controls bar */}
         <div className="flex items-center justify-between mb-8">
           <p className="text-[10px] font-mono text-neutral-500 uppercase tracking-widest">
-            {filtered.length} result{filtered.length !== 1 ? 's' : ''}
-            {studioCount > 0 && ` · ${studioCount} studio`}
-            {communityCount > 0 && ` · ${communityCount} community`}
+            {filtered.length} production{filtered.length !== 1 ? 's' : ''}
           </p>
 
           <div className="flex items-center gap-3">
-            {/* Source filter */}
-            <div className="hidden md:flex items-center gap-2">
-              {(['all', 'studio', 'community'] as SourceFilter[]).map(s => (
-                <button
-                  key={s}
-                  onClick={() => setSourceFilter(s)}
-                  className={`text-[9px] font-mono uppercase tracking-wider px-3 py-1 rounded transition-colors ${
-                    sourceFilter === s
-                      ? 'bg-white/10 text-white'
-                      : 'text-neutral-600 hover:text-neutral-400'
-                  }`}
-                >
-                  {s}
-                </button>
-              ))}
-            </div>
-
             {/* Sort */}
             <div className="relative">
               <select
@@ -282,10 +142,9 @@ export default function ProductionCategoryClient({ category, crew, productions =
                 onChange={(e) => setSortBy(e.target.value as SortOption)}
                 className="appearance-none bg-transparent border border-white/10 text-[10px] font-mono text-neutral-400 uppercase tracking-wider px-3 py-1.5 pr-8 rounded cursor-pointer hover:border-white/20"
               >
-                <option value="recommended">Recommended</option>
-                <option value="price-low">Price: Low → High</option>
-                <option value="price-high">Price: High → Low</option>
-                <option value="rating">Top Rated</option>
+                <option value="newest">Newest</option>
+                <option value="price-low">Price: Low to High</option>
+                <option value="price-high">Price: High to Low</option>
               </select>
               <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-3 h-3 text-neutral-500 pointer-events-none" />
             </div>
@@ -303,20 +162,16 @@ export default function ProductionCategoryClient({ category, crew, productions =
         {/* Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           <AnimatePresence mode="popLayout">
-            {filtered.map((card) => (
+            {filtered.map((production) => (
               <motion.div
-                key={card.id}
+                key={production.id}
                 layout
                 initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0, scale: 0.95 }}
                 transition={{ duration: 0.3 }}
               >
-                {card.kind === 'studio' ? (
-                  <StudioCard card={card} categorySlug={category.slug} />
-                ) : (
-                  <CreatorCard card={card} categorySlug={category.slug} />
-                )}
+                <ProductionCard production={production} />
               </motion.div>
             ))}
           </AnimatePresence>
@@ -324,54 +179,7 @@ export default function ProductionCategoryClient({ category, crew, productions =
 
         {filtered.length === 0 && (
           <div className="py-20 text-center">
-            <p className="text-neutral-500 font-mono text-sm">No results for this filter.</p>
-          </div>
-        )}
-
-        {/* ── Portfolio Section ── */}
-        {productions.length > 0 && (
-          <div className="mt-16 border-t border-white/5 pt-12">
-            <h2 className="text-2xl font-display font-medium text-white uppercase tracking-tight mb-2">
-              Our Work
-            </h2>
-            <p className="text-[10px] font-mono text-neutral-500 uppercase tracking-widest mb-8">
-              {productions.length} project{productions.length !== 1 ? 's' : ''} in {category.name}
-            </p>
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-              {productions.map((prod) => {
-                const imgUrl = prod.thumbnail_url || prod.gallery?.[0]?.url;
-                return (
-                  <Link
-                    key={prod.id}
-                    href={`/smart-production/${prod.slug}`}
-                    className="group block relative aspect-[3/4] overflow-hidden bg-[#0A0A0B] border border-white/5 hover:border-[#D4A843]/30 transition-colors"
-                  >
-                    {imgUrl && (
-                      <Image
-                        src={imgUrl}
-                        alt={prod.title}
-                        fill
-                        sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
-                        className="object-cover grayscale group-hover:grayscale-0 transition-all duration-500"
-                        unoptimized
-                      />
-                    )}
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent z-10" />
-                    <div className="absolute bottom-0 left-0 right-0 p-3 z-20">
-                      <p className="text-[9px] font-mono text-[#D4A843] uppercase tracking-widest mb-1">
-                        {prod.year}
-                      </p>
-                      <h4 className="text-xs font-display font-medium text-white group-hover:text-[#D4A843] transition-colors line-clamp-2">
-                        {prod.title}
-                      </h4>
-                      {prod.client && (
-                        <p className="text-[9px] font-mono text-neutral-500 mt-0.5">{prod.client}</p>
-                      )}
-                    </div>
-                  </Link>
-                );
-              })}
-            </div>
+            <p className="text-neutral-500 font-mono text-sm">No productions match this filter.</p>
           </div>
         )}
 
@@ -401,19 +209,19 @@ export default function ProductionCategoryClient({ category, crew, productions =
                 </div>
 
                 <div className="space-y-4">
-                  <p className="text-[9px] font-mono uppercase text-neutral-500">Source</p>
+                  <p className="text-[9px] font-mono uppercase text-neutral-500">Type</p>
                   <div className="flex gap-2">
-                    {(['all', 'studio', 'community'] as SourceFilter[]).map(s => (
+                    {(['all', 'photography', 'video'] as ServiceFilter[]).map(filter => (
                       <button
-                        key={s}
-                        onClick={() => setSourceFilter(s)}
+                        key={filter}
+                        onClick={() => { setServiceFilter(filter); setMobileFiltersOpen(false); }}
                         className={`text-[10px] font-mono uppercase px-3 py-1.5 rounded-full ${
-                          sourceFilter === s
+                          serviceFilter === filter
                             ? 'bg-[#D4A843]/10 text-[#D4A843] border border-[#D4A843]/30'
                             : 'text-neutral-500 border border-white/10'
                         }`}
                       >
-                        {s}
+                        {filter === 'all' ? 'All' : filter}
                       </button>
                     ))}
                   </div>
@@ -427,148 +235,128 @@ export default function ProductionCategoryClient({ category, crew, productions =
   );
 }
 
-// ─── Studio Package Card ────────────────────────────────────────────────────
+// ─── Production Card (marketplace item) ─────────────────────────────────────
 
-function StudioCard({ card, categorySlug }: { card: StudioPackageCard; categorySlug: string }) {
-  return (
-    <Link
-      href={`/smart-production/category/${categorySlug}/${card.id}`}
-      className="group block bg-[#0A0A0B] border border-white/5 hover:border-[#D4A843]/30 transition-all duration-300 overflow-hidden"
-    >
-      {/* Gold accent bar */}
-      <div className="h-1 bg-[#D4A843]" />
-
-      <div className="p-5">
-        {/* Badges */}
-        <div className="flex items-center gap-2 mb-3">
-          <span className="flex items-center gap-1 text-[9px] font-mono uppercase tracking-wider text-[#D4A843] bg-[#D4A843]/10 px-2 py-0.5 rounded-full">
-            <Building2 className="w-3 h-3" />
-            Studio
-          </span>
-          {card.popular && (
-            <span className="text-[9px] font-mono uppercase tracking-wider text-emerald-400 bg-emerald-400/10 px-2 py-0.5 rounded-full">
-              Popular
-            </span>
-          )}
-        </div>
-
-        {/* Title */}
-        <h3 className="text-sm font-display font-medium text-white uppercase mb-1 group-hover:text-[#D4A843] transition-colors">
-          {card.name}
-        </h3>
-        <p className="text-[10px] font-mono text-neutral-500 mb-4">
-          {card.description}
-        </p>
-
-        {/* Deliverables */}
-        <div className="space-y-1 mb-4">
-          {card.deliverables.slice(0, 3).map((d, i) => (
-            <p key={i} className="text-[10px] font-mono text-neutral-400 flex items-start gap-1.5">
-              <span className="text-[#D4A843] mt-0.5">·</span>
-              {d}
-            </p>
-          ))}
-        </div>
-
-        {/* Pricing */}
-        <div className="flex items-end justify-between border-t border-white/5 pt-3">
-          <div>
-            <p className="text-lg font-display font-bold text-[#D4A843]">
-              {formatZAR(card.totalPrice)}
-            </p>
-            <p className="text-[9px] font-mono text-neutral-500">
-              {card.totalHours}hrs · ~{formatZAR(card.hourlyRate)}/hr
-            </p>
-          </div>
-          <ArrowRight className="w-4 h-4 text-neutral-500 group-hover:text-[#D4A843] group-hover:translate-x-1 transition-all" />
-        </div>
-      </div>
-    </Link>
-  );
-}
-
-// ─── Community Creator Card ─────────────────────────────────────────────────
-
-function CreatorCard({ card, categorySlug }: { card: CommunityCreatorCard; categorySlug: string }) {
+function ProductionCard({ production }: { production: SmartProduction }) {
   const [imgLoaded, setImgLoaded] = useState(false);
+  const onLoad = useCallback(() => setImgLoaded(true), []);
+
+  const imgUrl = production.thumbnail_url || production.gallery?.[0]?.url;
+  const hasPrice = production.price != null && production.price > 0;
+  const galleryCount = production.gallery?.length ?? 0;
+  const hasVideo = !!production.video_url;
 
   return (
     <Link
-      href={`/smart-production/category/${categorySlug}/${card.slug}`}
-      className="group block bg-[#0A0A0B] border border-white/5 hover:border-white/20 transition-all duration-300 overflow-hidden"
+      href={`/smart-production/${production.slug}`}
+      className="group relative bg-[#0A0A0B] border border-white/5 hover:border-white/20 transition-all duration-300 flex flex-col overflow-hidden"
     >
-      {/* Portfolio image */}
-      <div className="relative aspect-[4/3] overflow-hidden bg-neutral-900">
-        {!imgLoaded && <ImageSkeleton />}
-        {card.portfolioImage && (
-          <Image
-            src={cloudinaryThumb(card.portfolioImage)}
-            alt="Portfolio work"
-            fill
-            sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
-            className={`object-cover grayscale group-hover:grayscale-0 transition-all duration-500 ${imgLoaded ? 'opacity-100' : 'opacity-0'}`}
-            onLoad={() => setImgLoaded(true)}
-            unoptimized
-          />
+      {/* Status badges */}
+      <div className="absolute top-3 left-3 z-20 flex flex-wrap gap-1.5">
+        {production.is_featured && (
+          <span className="flex items-center gap-1 bg-[#D4A843] text-black text-[9px] font-mono font-bold px-2 py-0.5 uppercase tracking-widest">
+            <Star className="w-2.5 h-2.5" />
+            Featured
+          </span>
         )}
-
-        {/* Overlay badges */}
-        <div className="absolute top-3 left-3 flex items-center gap-1.5 z-10">
-          <span className="flex items-center gap-1 text-[9px] font-mono uppercase tracking-wider text-emerald-400 bg-black/60 backdrop-blur-sm px-2 py-0.5 rounded-full">
-            <Users className="w-3 h-3" />
-            Community
+        {production.sub_category && (
+          <span className="bg-white/10 backdrop-blur-md text-white text-[9px] font-mono font-bold px-2 py-0.5 uppercase tracking-widest">
+            {production.sub_category}
           </span>
-          <span className="flex items-center gap-1 text-[9px] font-mono uppercase tracking-wider text-emerald-400 bg-black/60 backdrop-blur-sm px-2 py-0.5 rounded-full">
-            <ShieldCheck className="w-3 h-3" />
-            Verified
-          </span>
-        </div>
-
-        {/* Photo/video count */}
-        <div className="absolute bottom-3 right-3 flex items-center gap-1.5 z-10">
-          {card.photoCount > 0 && (
-            <span className="text-[9px] font-mono text-white/80 bg-black/60 backdrop-blur-sm px-2 py-0.5 rounded-full">
-              {card.photoCount} photos
-            </span>
-          )}
-          {card.hasVideo && (
-            <span className="text-[9px] font-mono text-white/80 bg-black/60 backdrop-blur-sm px-2 py-0.5 rounded-full">
-              Showreel
-            </span>
-          )}
-        </div>
+        )}
       </div>
 
-      {/* Info */}
-      <div className="p-4">
-        {/* Specialization as title */}
-        <h3 className="text-xs font-display font-medium text-white uppercase mb-1 group-hover:text-[#D4A843] transition-colors">
-          {card.specializations[0] ?? 'Creator'}
-        </h3>
+      {/* Gallery / video count badge */}
+      <div className="absolute top-3 right-3 z-20 flex items-center gap-1.5">
+        {galleryCount > 0 && (
+          <span className="text-[9px] font-mono text-white/80 bg-black/60 backdrop-blur-sm px-2 py-0.5 rounded-full">
+            {galleryCount} photo{galleryCount !== 1 ? 's' : ''}
+          </span>
+        )}
+        {hasVideo && (
+          <span className="text-[9px] font-mono text-white/80 bg-black/60 backdrop-blur-sm px-2 py-0.5 rounded-full">
+            Video
+          </span>
+        )}
+      </div>
 
-        <div className="flex items-center gap-2 text-[9px] font-mono text-neutral-500 mb-3">
-          {card.location && <span>{card.location}</span>}
-          {card.yearsExperience && <span>· {card.yearsExperience}yr exp</span>}
-        </div>
-
-        {/* Rating */}
-        {card.reviewCount > 0 && (
-          <div className="flex items-center gap-1 mb-3">
-            <Star className="w-3 h-3 text-[#D4A843] fill-[#D4A843]" />
-            <span className="text-[10px] font-mono text-white">{card.averageRating.toFixed(1)}</span>
-            <span className="text-[10px] font-mono text-neutral-500">({card.reviewCount})</span>
+      {/* Thumbnail */}
+      <div className="relative aspect-square overflow-hidden bg-neutral-900">
+        {imgUrl ? (
+          <>
+            {!imgLoaded && <ImageSkeleton />}
+            <Image
+              src={cloudinaryThumb(imgUrl)}
+              alt={production.title}
+              fill
+              sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+              className={`object-cover grayscale-0 md:grayscale md:group-hover:grayscale-0 scale-95 group-hover:scale-105 transition-all duration-700 ease-out ${
+                imgLoaded ? 'opacity-100' : 'opacity-0'
+              }`}
+              onLoad={onLoad}
+              unoptimized
+            />
+          </>
+        ) : (
+          <div className="w-full h-full flex items-center justify-center">
+            <span className="text-[10px] font-mono text-neutral-500 uppercase tracking-widest">
+              No image
+            </span>
           </div>
         )}
+      </div>
 
-        {/* Pricing */}
-        <div className="flex items-end justify-between border-t border-white/5 pt-3">
-          <div>
-            <p className="text-lg font-display font-bold text-white">
-              {formatZAR(card.hourlyRate)}
-              <span className="text-[10px] font-mono text-neutral-500 ml-1">/hr</span>
+      {/* Content */}
+      <div className="p-5 flex-grow flex flex-col justify-between">
+        <div>
+          {production.project_type && (
+            <div className="text-[10px] font-mono uppercase tracking-widest text-neutral-500 mb-1">
+              {production.project_type.replace(/_/g, ' ')}
+            </div>
+          )}
+          <h3 className="text-lg font-display font-medium text-white uppercase leading-tight mb-3 group-hover:underline decoration-1 underline-offset-4">
+            {production.title}
+          </h3>
+
+          {production.tags && production.tags.length > 0 && (
+            <div className="flex flex-wrap gap-1.5 mb-6">
+              {production.tags.slice(0, 3).map((tag, i) => (
+                <span
+                  key={i}
+                  className="text-[9px] font-mono text-neutral-400 border border-white/10 px-1.5 py-0.5 bg-white/5 uppercase"
+                >
+                  {tag}
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div>
+          {/* Price */}
+          {hasPrice ? (
+            <div className="flex items-end gap-1 mb-4">
+              <span className="text-sm font-bold text-white">
+                {production.currency ?? 'ZAR'} {production.price!.toLocaleString('en-ZA')}
+              </span>
+              <span className="text-[10px] text-neutral-500 mb-0.5">
+                {priceLabel(production.price_unit)}
+              </span>
+            </div>
+          ) : (
+            <p className="text-[10px] font-mono text-neutral-500 mb-4 uppercase tracking-widest">
+              Contact for pricing
             </p>
-          </div>
-          <ArrowRight className="w-4 h-4 text-neutral-500 group-hover:text-[#D4A843] group-hover:translate-x-1 transition-all" />
+          )}
+
+          {/* CTA */}
+          <Link
+            href={`/smart-production/${production.slug}`}
+            className="w-full py-3 text-[10px] font-mono font-bold uppercase tracking-widest transition-all bg-[#D4A843] text-black border border-[#D4A843] hover:opacity-80 flex items-center justify-center gap-2"
+          >
+            View Details
+            <ArrowRight className="w-3 h-3 group-hover:translate-x-1 transition-transform" />
+          </Link>
         </div>
       </div>
     </Link>

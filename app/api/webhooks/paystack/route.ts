@@ -155,20 +155,49 @@ async function handlePaymentComplete(webhook: WebhookResult) {
     // Service booking — confirm payment by reference
     const bookingId = raw.custom_str2 ?? raw.customStr2 ?? '';
 
-    const { error: bookingErr } = await supabase
+    const { data: updatedBooking, error: bookingErr } = await supabase
       .from('bookings')
       .update({
         status: 'paid',
         payment_status: 'paid',
+        paid_at: new Date().toISOString(),
         paystack_reference: providerPaymentId,
         updated_at: new Date().toISOString(),
       })
-      .eq('reference', paymentId);
+      .eq('reference', paymentId)
+      .select('id, reference, creator_id, client_id, project_category, total, duration_hours')
+      .single();
 
     if (bookingErr) {
       console.error('[paystack-webhook] Failed to confirm service booking:', bookingErr.message);
     } else {
       console.log(`[paystack-webhook] Service booking confirmed: ref=${paymentId} booking=${bookingId}`);
+
+      // Notify the creator they have a new paid gig
+      if (updatedBooking?.creator_id) {
+        try {
+          await supabase.from('notifications').insert({
+            user_id: updatedBooking.creator_id,
+            type: 'gig_request',
+            title: 'New Paid Gig',
+            body: `You have a new ${updatedBooking.project_category} booking (${updatedBooking.reference}). R${updatedBooking.total} — ${updatedBooking.duration_hours}hrs. Accept it in your gigs dashboard.`,
+            link: '/dashboard/gigs',
+          });
+        } catch { /* don't block webhook */ }
+      }
+
+      // Notify the client that payment was confirmed
+      if (updatedBooking?.client_id) {
+        try {
+          await supabase.from('notifications').insert({
+            user_id: updatedBooking.client_id,
+            type: 'booking_confirmed',
+            title: 'Payment Confirmed',
+            body: `Your ${updatedBooking.project_category} booking (${updatedBooking.reference}) is confirmed. The creator will be notified.`,
+            link: '/dashboard/bookings',
+          });
+        } catch { /* don't block webhook */ }
+      }
     }
   } else if (paymentType === 'subscription') {
     const userId = raw.custom_str2 ?? raw.customStr2 ?? '';

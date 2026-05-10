@@ -3,8 +3,10 @@
 import { motion } from 'framer-motion';
 import { ArrowLeft, Aperture, Camera } from 'lucide-react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { PhotographyGallery } from '@/components/projects/ProjectsComponents';
 import { STUDIO } from '@/lib/constants';
+import { formatZAR } from '@/lib/productions/pricing';
 import type { SmartProduction, ImageExifMetadata } from '@/lib/supabase/queries/smartProductions';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -21,10 +23,6 @@ export type MatchedGear = {
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-/**
- * Extracts the YouTube video ID from a watch or short URL.
- * Returns null for any other provider or missing URL.
- */
 function extractVideoId(
   provider: string | null,
   url: string | null,
@@ -46,11 +44,9 @@ export default function ProductionDetailView({
   project: SmartProduction;
   matchedGear?: MatchedGear[];
 }) {
-  // Gallery: DB stores [{ url, public_id }] — PhotographyGallery expects string[]
   const galleryUrls = project.gallery?.map(g => g.url) ?? [];
   const videoId     = extractVideoId(project.video_provider, project.video_url);
 
-  // Deduplicate metadata — show unique camera+lens combos
   const metadata = project.image_metadata ?? [];
   const primaryMeta = metadata.length > 0 ? metadata[0] : null;
   const uniqueGear = getUniqueGear(metadata);
@@ -74,27 +70,64 @@ export default function ProductionDetailView({
         </div>
 
         <div className="pt-40 container mx-auto px-4 md:px-6">
-          {galleryUrls.length > 0 ? (
-            <PhotographyGallery images={galleryUrls} />
-          ) : (
-            <div className="text-center py-20 text-neutral-500 font-mono text-xs">
-              Gallery coming soon.
-            </div>
-          )}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+            {/* Left: gallery + EXIF + gear */}
+            <div className="lg:col-span-8">
+              {galleryUrls.length > 0 ? (
+                <PhotographyGallery images={galleryUrls} />
+              ) : (
+                <div className="text-center py-20 text-neutral-500 font-mono text-xs">
+                  Gallery coming soon.
+                </div>
+              )}
 
-          {/* EXIF Metadata Bar */}
-          {primaryMeta && (
-            <div className="mt-12 mb-8 border-t border-black/5 dark:border-white/5 pt-6">
-              <ShotInfo metadata={metadata} uniqueGear={uniqueGear} />
-            </div>
-          )}
+              {primaryMeta && (
+                <div className="mt-12 mb-8 border-t border-black/5 dark:border-white/5 pt-6">
+                  <ShotInfo metadata={metadata} uniqueGear={uniqueGear} />
+                </div>
+              )}
 
-          {/* Shot With — linked rental gear */}
-          {matchedGear.length > 0 && (
-            <div className="mb-16">
-              <ShotWithSection gear={matchedGear} />
+              {matchedGear.length > 0 && (
+                <div className="mb-16">
+                  <ShotWithSection gear={matchedGear} />
+                </div>
+              )}
             </div>
-          )}
+
+            {/* Right: sticky booking sidebar */}
+            <div className="lg:col-span-4">
+              <div className="lg:sticky lg:top-28 lg:self-start space-y-6">
+                {/* Production info */}
+                <div className="space-y-4">
+                  {project.sub_category && (
+                    <span className="text-[10px] font-mono text-[#D4A843] uppercase tracking-widest">
+                      {project.sub_category}
+                    </span>
+                  )}
+                  {project.description && (
+                    <p className="text-sm text-neutral-400 leading-relaxed">
+                      {project.description}
+                    </p>
+                  )}
+                  {project.tags && project.tags.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5">
+                      {project.tags.map(tag => (
+                        <span
+                          key={tag}
+                          className="px-2 py-0.5 border border-white/10 text-[9px] font-mono uppercase tracking-widest text-neutral-400"
+                        >
+                          {tag}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Booking widget */}
+                <BookingWidget project={project} />
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     );
@@ -167,54 +200,119 @@ export default function ProductionDetailView({
             </div>
           </div>
 
-          {/* Right: meta */}
-          <div className="lg:col-span-4 space-y-8 pt-4">
-            <div className="border-t border-black/10 dark:border-white/10 pt-4">
-              <span className="block text-[10px] font-mono text-neutral-500 uppercase tracking-widest mb-1">
-                Client
-              </span>
-              <span className="text-lg font-display text-black dark:text-white">
-                {project.client ?? 'Internal'}
-              </span>
-            </div>
-
-            <div className="border-t border-black/10 dark:border-white/10 pt-4">
-              <span className="block text-[10px] font-mono text-neutral-500 uppercase tracking-widest mb-1">
-                Year
-              </span>
-              <span className="text-lg font-display text-black dark:text-white">
-                {project.year ?? '2025'}
-              </span>
-            </div>
-
-            {project.sub_category && (
+          {/* Right: sticky sidebar with meta + booking */}
+          <div className="lg:col-span-4">
+            <div className="lg:sticky lg:top-28 lg:self-start space-y-8 pt-4">
               <div className="border-t border-black/10 dark:border-white/10 pt-4">
                 <span className="block text-[10px] font-mono text-neutral-500 uppercase tracking-widest mb-1">
-                  Category
+                  Client
                 </span>
                 <span className="text-lg font-display text-black dark:text-white">
-                  {project.sub_category}
+                  {project.client ?? 'Internal'}
                 </span>
               </div>
-            )}
 
-            {/* Shot info */}
-            {primaryMeta && (
               <div className="border-t border-black/10 dark:border-white/10 pt-4">
-                <ShotInfo metadata={metadata} uniqueGear={uniqueGear} />
+                <span className="block text-[10px] font-mono text-neutral-500 uppercase tracking-widest mb-1">
+                  Year
+                </span>
+                <span className="text-lg font-display text-black dark:text-white">
+                  {project.year ?? '2025'}
+                </span>
               </div>
-            )}
 
-            {/* Shot With — linked rental gear */}
-            {matchedGear.length > 0 && (
-              <div className="border-t border-black/10 dark:border-white/10 pt-4">
-                <ShotWithSection gear={matchedGear} />
-              </div>
-            )}
+              {project.sub_category && (
+                <div className="border-t border-black/10 dark:border-white/10 pt-4">
+                  <span className="block text-[10px] font-mono text-neutral-500 uppercase tracking-widest mb-1">
+                    Category
+                  </span>
+                  <span className="text-lg font-display text-black dark:text-white">
+                    {project.sub_category}
+                  </span>
+                </div>
+              )}
+
+              {/* Booking widget */}
+              <BookingWidget project={project} />
+
+              {/* Shot info */}
+              {primaryMeta && (
+                <div className="border-t border-black/10 dark:border-white/10 pt-4">
+                  <ShotInfo metadata={metadata} uniqueGear={uniqueGear} />
+                </div>
+              )}
+
+              {/* Shot With — linked rental gear */}
+              {matchedGear.length > 0 && (
+                <div className="border-t border-black/10 dark:border-white/10 pt-4">
+                  <ShotWithSection gear={matchedGear} />
+                </div>
+              )}
+            </div>
           </div>
 
         </div>
       </div>
+    </div>
+  );
+}
+
+// ─── Booking Widget ──────────────────────────────────────────────────────────
+
+function priceUnitLabel(unit: string): string {
+  switch (unit) {
+    case 'hour': return '/hr';
+    case 'session': return '/session';
+    case 'event': return '/event';
+    case 'project':
+    default: return '';
+  }
+}
+
+function BookingWidget({ project }: { project: SmartProduction }) {
+  const router = useRouter();
+  const hasPrice = project.price != null && project.price > 0;
+
+  return (
+    <div className="border border-black/10 dark:border-white/10 bg-neutral-50 dark:bg-[#0A0A0B] p-5">
+      <span className="block text-[10px] font-mono font-bold text-neutral-500 uppercase tracking-widest border-b border-black/5 dark:border-white/5 pb-3 mb-4">
+        Book This Production
+      </span>
+
+      {hasPrice ? (
+        <div className="mb-4">
+          <div className="flex items-end gap-1">
+            <span className="text-2xl font-display font-bold text-[#D4A843]">
+              {formatZAR(project.price!)}
+            </span>
+            <span className="text-sm font-mono text-neutral-500 mb-0.5">
+              {priceUnitLabel(project.price_unit)}
+            </span>
+          </div>
+        </div>
+      ) : (
+        <p className="text-[10px] font-mono text-neutral-500 mb-4 uppercase tracking-widest">
+          Contact for pricing
+        </p>
+      )}
+
+      <button
+        onClick={() => {
+          const params = new URLSearchParams({
+            prompt: `I'd like to book the "${project.title}" production`,
+          });
+          if (project.creator_id) params.set('creator_id', project.creator_id);
+          router.push(`/ubunye-ai-studio?${params.toString()}`);
+        }}
+        className="w-full py-3 text-[10px] font-mono font-bold uppercase tracking-widest bg-[#D4A843] text-black border border-[#D4A843] hover:opacity-80 transition-all flex items-center justify-center gap-2"
+      >
+        <span className="w-1.5 h-1.5 rounded-full bg-black animate-pulse" />
+        Book Now
+      </button>
+
+      <p className="text-[9px] font-mono text-neutral-600 mt-3 text-center">
+        Chat with Ubunye AI to finalise your booking
+      </p>
     </div>
   );
 }
@@ -253,7 +351,6 @@ function ShotWithSection({ gear }: { gear: MatchedGear[] }) {
             href={`/smart-rentals/${item.category}/${item.slug}`}
             className="group flex flex-col bg-[#0A0A0B] border border-white/5 hover:border-white/20 transition-all duration-300 overflow-hidden"
           >
-            {/* Thumbnail */}
             <div className="relative aspect-square overflow-hidden bg-neutral-900">
               {item.thumbnail ? (
                 // eslint-disable-next-line @next/next/no-img-element
@@ -267,37 +364,30 @@ function ShotWithSection({ gear }: { gear: MatchedGear[] }) {
                   <Camera className="w-8 h-8 text-neutral-700" />
                 </div>
               )}
-              {/* Studio badge */}
               <span className="absolute top-2 left-2 z-10 text-[8px] font-mono uppercase tracking-widest bg-[#D4A843]/90 text-black px-2 py-0.5">
                 Studio
               </span>
             </div>
 
-            {/* Content */}
             <div className="flex flex-col flex-grow p-4">
-              {/* Brand */}
               {item.brand && (
                 <span className="text-[9px] font-mono uppercase tracking-widest text-neutral-500 mb-1">
                   {item.brand}
                 </span>
               )}
 
-              {/* Title */}
               <h3 className="text-sm font-display font-medium text-white uppercase leading-tight group-hover:underline decoration-[#D4A843] underline-offset-4 transition-colors">
                 {item.title}
               </h3>
 
-              {/* Model */}
               {item.model && (
                 <p className="text-[10px] font-mono text-neutral-600 mt-1">
                   {item.model}
                 </p>
               )}
 
-              {/* Spacer */}
               <div className="flex-grow" />
 
-              {/* Price + CTA */}
               <div className="flex items-end justify-between mt-4 pt-3 border-t border-white/5">
                 <div>
                   <span className="text-base font-display font-medium text-white">
@@ -324,7 +414,6 @@ function ShotInfo({
   metadata: ImageExifMetadata[];
   uniqueGear: { camera: string; lens?: string }[];
 }) {
-  // Aggregate common settings from first image with full data
   const primary = metadata.find(m => m.camera || m.iso) ?? metadata[0];
   if (!primary) return null;
 
@@ -344,7 +433,6 @@ function ShotInfo({
         Shot On
       </span>
 
-      {/* Camera + lens lines */}
       {uniqueGear.map((gear, i) => (
         <div key={i}>
           <span className="text-sm font-display text-black dark:text-white">
@@ -358,14 +446,12 @@ function ShotInfo({
         </div>
       ))}
 
-      {/* Settings line */}
       {settingsLine && (
         <p className="text-[10px] font-mono text-neutral-600 dark:text-neutral-500 tracking-wide">
           {settingsLine}
         </p>
       )}
 
-      {/* Software */}
       {primary.software && (
         <p className="text-[9px] font-mono text-neutral-700 uppercase tracking-widest">
           Edited in {primary.software}
