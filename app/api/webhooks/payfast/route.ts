@@ -32,7 +32,24 @@ async function handlePaymentComplete(webhook: WebhookResult) {
       return;
     }
 
-    // Confirm all bookings in the group
+    const expectedTotal = groupBookings.reduce((sum, b) => sum + (b.total_price ?? 0), 0);
+    if (Math.abs(expectedTotal - amountGross) > 0.01) {
+      console.error('[webhook] Cart checkout amount mismatch:', {
+        expected: expectedTotal,
+        received: amountGross,
+        checkoutGroupId,
+      });
+      await supabase
+        .from('equipment_bookings')
+        .update({
+          status: 'pending',
+          notes: `AMOUNT MISMATCH: expected ${expectedTotal}, received ${amountGross}. Requires manual review.`,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('checkout_group_id', checkoutGroupId);
+      return;
+    }
+
     const { error: updateErr } = await supabase
       .from('equipment_bookings')
       .update({
