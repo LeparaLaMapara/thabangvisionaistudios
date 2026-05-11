@@ -21,7 +21,7 @@ export const ServiceGrid = ({ capabilities = CAPABILITIES }: { capabilities?: re
              whileInView={{ opacity: 1, y: 0 }}
              viewport={{ once: true }}
           >
-            <span className="text-[10px] font-mono text-neutral-500 dark:text-accent uppercase tracking-widest mb-4 block">02 // Core Capabilities</span>
+            <span className="text-[10px] font-mono text-neutral-500 dark:text-accent uppercase tracking-widest mb-4 block">03 // Core Capabilities</span>
             <h2 className="text-4xl md:text-6xl font-display font-medium text-black dark:text-white tracking-tight">
               WHAT WE <span className="text-neutral-400 dark:text-neutral-500">OFFER</span>
             </h2>

@@ -126,10 +126,10 @@ export function LatestWorkCarousel({ items }: { items: CarouselItem[] }) {
       <div className="container mx-auto px-6 mb-16 flex justify-between items-end">
         <div>
           <span className="text-[10px] font-mono text-neutral-500 dark:text-accent uppercase tracking-widest mb-4 block">
-            05 // Portfolio
+            06 // Showcase
           </span>
           <h2 className="text-4xl md:text-5xl font-display font-medium text-black dark:text-white uppercase">
-            Recent <span className="text-neutral-400 dark:text-neutral-500">Work</span>
+            From Our <span className="text-neutral-400 dark:text-neutral-500">Network</span>
           </h2>
         </div>
         <div className="hidden md:flex items-center gap-6">

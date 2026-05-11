@@ -89,6 +89,13 @@ const Hero = () => {
                 Rent Equipment <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
               </Link>
             </div>
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-6">
+              <span className="text-[10px] font-mono text-neutral-500 uppercase tracking-widest">Verified Creators</span>
+              <span className="text-neutral-600 text-[10px]">•</span>
+              <span className="text-[10px] font-mono text-neutral-500 uppercase tracking-widest">Secure Payments</span>
+              <span className="text-neutral-600 text-[10px]">•</span>
+              <span className="text-[10px] font-mono text-neutral-500 uppercase tracking-widest">Insured Rentals</span>
+            </div>
           </motion.div>
         </div>
       </motion.div>
@@ -127,10 +134,13 @@ const HowItWorks = () => {
           viewport={{ once: true }}
           className="text-center mb-16"
         >
-          <span className="text-[10px] font-mono text-accent uppercase tracking-widest mb-4 block">01 // Process</span>
+          <span className="text-[10px] font-mono text-accent uppercase tracking-widest mb-4 block">02 // Process</span>
           <h2 className="text-4xl md:text-5xl font-display font-medium text-white uppercase">
             How It <span className="text-neutral-500">Works</span>
           </h2>
+          <p className="text-neutral-400 font-light leading-relaxed mt-4 max-w-2xl mx-auto">
+            ThabangVision connects clients with verified creators and professional equipment owners through one secure platform.
+          </p>
         </motion.div>
 
         <div className="grid grid-cols-1 min-[380px]:grid-cols-2 md:grid-cols-4 gap-6">
@@ -166,9 +176,9 @@ const CommunitySection = () => (
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
         >
-          <span className="text-[10px] font-mono text-accent uppercase tracking-widest mb-4 block">03 // Community</span>
+          <span className="text-[10px] font-mono text-accent uppercase tracking-widest mb-4 block">05 // Community</span>
           <h2 className="text-4xl md:text-5xl font-display font-medium text-white uppercase">
-            Creator <span className="text-neutral-500">Network</span>
+            For <span className="text-neutral-500">Creators</span>
           </h2>
         </motion.div>
         <Link href="/smart-rentals" className="hidden md:flex items-center gap-2 text-xs font-mono text-neutral-400 hover:text-white transition-colors uppercase tracking-widest mt-6 md:mt-0">
@@ -288,6 +298,9 @@ const BookingCTA = () => (
 const TrustSignals = () => (
   <section className="py-16 bg-[#050505] border-t border-white/5">
     <div className="container mx-auto px-6">
+      <div className="text-center mb-8">
+        <span className="text-[10px] font-mono text-accent uppercase tracking-widest">01 // Trust &amp; Security</span>
+      </div>
       <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
         {[
           { icon: BadgeCheck, label: 'Identity-Verified Creators', detail: 'Every creator passes ID verification' },
@@ -317,7 +330,7 @@ const UbunyeSection = () => (
         viewport={{ once: true }}
         className="max-w-2xl mx-auto text-center"
       >
-        <span className="text-[10px] font-mono text-accent uppercase tracking-widest mb-4 block">06 // AI Assistant</span>
+        <span className="text-[10px] font-mono text-accent uppercase tracking-widest mb-4 block">07 // AI Assistant</span>
         <MessageCircle className="w-10 h-10 text-accent mx-auto mb-6" />
         <h2 className="text-3xl md:text-4xl font-display font-medium text-white uppercase mb-4">
           Need Help <span className="text-neutral-500">Deciding?</span>
@@ -343,24 +356,24 @@ export default function HomeClient({ carouselItems, capabilities }: { carouselIt
     <div className="min-h-screen bg-[#050505] transition-colors duration-500">
       {/* 1. Hero */}
       <Hero />
-      {/* 2. How It Works */}
+      {/* 2. Trust & Security */}
+      <TrustSignals />
+      {/* 3. How It Works */}
       <HowItWorks />
-      {/* 3. Studio Capabilities (3 cards) */}
+      {/* 4. What We Offer */}
       <ServiceGrid capabilities={capabilities} />
-      {/* 4. Creator Network */}
-      <CommunitySection />
       {/* 5. Smart Rentals */}
       <BookingCTA />
-      {/* 5.5 Trust Signals */}
-      <TrustSignals />
-      {/* 6. Recent Work (productions only) */}
+      {/* 6. For Creators */}
+      <CommunitySection />
+      {/* 7. Creator Work */}
       <LatestWorkCarousel items={carouselItems} />
-      {/* 7. Ubunye AI */}
+      {/* 8. Ubunye AI */}
       <UbunyeSection />
-      {/* 8. CTA */}
+      {/* 9. Final CTA */}
       <section className="py-40 relative bg-gradient-to-b from-neutral-950 via-neutral-900 to-neutral-950 overflow-hidden border-t border-white/5 transition-colors duration-500">
         <div className="container mx-auto px-6 relative z-10 text-center">
-          <span className="text-[10px] font-mono text-neutral-400 uppercase tracking-widest mb-6 block">08 // Get Started</span>
+          <span className="text-[10px] font-mono text-neutral-400 uppercase tracking-widest mb-6 block">09 // Get Started</span>
           <h2 className="text-5xl md:text-8xl font-display font-medium text-white tracking-tighter mb-12 uppercase">
             Ready To <br /> Create?
           </h2>
