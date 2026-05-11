@@ -31,9 +31,9 @@ export function HeaderUbunyeBubble() {
         </div>
       </div>
 
-      {/* Label — desktop only, whisper-quiet */}
-      <span className="hidden lg:block text-[10px] font-mono tracking-[0.2em] text-neutral-500 group-hover:text-[#D4A843]/80 transition-colors duration-500 uppercase">
-        Ubunye
+      {/* Label — always visible */}
+      <span className="text-[10px] font-mono tracking-[0.2em] text-neutral-500 group-hover:text-[#D4A843]/80 transition-colors duration-500 uppercase">
+        Ask Ubunye
       </span>
 
       <style jsx>{`
