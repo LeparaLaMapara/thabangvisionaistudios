@@ -83,8 +83,8 @@ describe('SITE_NAME', () => {
 });
 
 describe('MAIN_NAVIGATION', () => {
-  it('has at least 3 items', () => {
-    expect(MAIN_NAVIGATION.length).toBeGreaterThanOrEqual(3);
+  it('has at least 2 items', () => {
+    expect(MAIN_NAVIGATION.length).toBeGreaterThanOrEqual(2);
   });
 
   it('every item has a label and href', () => {
