@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { Inter, Space_Grotesk, Space_Mono, Orbitron } from 'next/font/google';
 import './globals.css';
 
+import { Analytics } from '@vercel/analytics/next';
 import { Providers } from '@/components/layout/Providers';
 import { STUDIO } from '@/lib/constants';
 import { createClient } from '@/lib/supabase/server';
@@ -105,6 +106,7 @@ export default async function RootLayout({
         <Providers initialUser={initialUser}>
           {children}
         </Providers>
+        <Analytics />
       </body>
     </html>
   );
