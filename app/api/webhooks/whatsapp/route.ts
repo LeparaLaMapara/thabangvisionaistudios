@@ -32,10 +32,17 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     return new NextResponse('WhatsApp not configured', { status: 503 });
   }
 
-  // Parse form-encoded body from Twilio
-  const formData = await request.formData();
+  // Parse form-encoded body and verify Twilio signature
+  const rawBody = await request.text();
   const params: Record<string, string> = {};
-  formData.forEach((value, key) => { params[key] = String(value); });
+  new URLSearchParams(rawBody).forEach((value, key) => { params[key] = String(value); });
+
+  const headers: Record<string, string> = {};
+  request.headers.forEach((value, key) => { headers[key] = value; });
+
+  if (!whatsapp.validateWebhook(headers, rawBody)) {
+    return new NextResponse('Invalid signature', { status: 401 });
+  }
 
   const message = whatsapp.parseIncoming(params);
   if (!message) {
