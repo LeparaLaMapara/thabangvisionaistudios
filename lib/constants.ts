@@ -654,3 +654,56 @@ export const PRODUCTION_PACKAGES: ProductionPackage[] = [
     deliverables: ['50+ edited photos', 'Highlight reel', 'Social media clips'],
   },
 ];
+
+// ─── Ubunye AI Studio ────────────────────────────────────────────────────────
+
+import type { QuickAction } from '@/types/ubunye';
+
+export const UBUNYE_QUICK_ACTIONS: readonly QuickAction[] = [
+  {
+    id: 'plan-shoot',
+    label: 'Plan a Shoot',
+    description: `Crew, gear, and shot list for ${STUDIO.location.city}`,
+    icon: 'Clapperboard',
+    prompt: `Help me plan a professional shoot in ${STUDIO.location.city}. I need a shot list, crew recommendations, and equipment.`,
+  },
+  {
+    id: 'find-gear',
+    label: 'Find Gear',
+    description: 'Camera, lens, and lighting packages',
+    icon: 'Camera',
+    prompt: `What camera and lens packages do you recommend for a cinematic corporate video in ${STUDIO.location.country}?`,
+  },
+  {
+    id: 'hire-crew',
+    label: 'Hire Crew',
+    description: `Verified creators and rates in ${STUDIO.currency.code}`,
+    icon: 'Users',
+    prompt: `I need to hire a film crew for a 2-day shoot in ${STUDIO.location.city}. What roles do I need and what are typical rates in ${STUDIO.currency.code}?`,
+  },
+  {
+    id: 'build-package',
+    label: 'Build Package',
+    description: 'Custom production bundles and quotes',
+    icon: 'Package',
+    prompt: `Help me build a full production package for a music video shoot in ${STUDIO.location.city}. Include crew, gear, and post-production.`,
+  },
+  {
+    id: 'compare-pricing',
+    label: 'Compare Pricing',
+    description: `Production costs breakdown in ${STUDIO.currency.code}`,
+    icon: 'Scale',
+    prompt: `Give me a breakdown of typical production costs in ${STUDIO.currency.code} for a 1-minute commercial in ${STUDIO.location.country}.`,
+  },
+] as const;
+
+export const UBUNYE_EXAMPLE_PROMPTS: readonly string[] = [
+  'Build a podcast setup for 3 people.',
+  `Find a photographer in ${STUDIO.location.city}.`,
+  'Compare Sony cameras for documentary filmmaking.',
+  'Create a wedding production package.',
+  `What gear do I need for a rooftop shoot in ${STUDIO.location.city}?`,
+  `Plan a 2-day music video shoot for R50,000.`,
+  'Find an editor for a 5-minute corporate promo.',
+  'What lighting setup works best for product photography?',
+] as const;
