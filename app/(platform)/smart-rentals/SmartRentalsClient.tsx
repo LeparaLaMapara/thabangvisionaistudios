@@ -215,8 +215,7 @@ export default function SmartRentalsClient({ rentals }: { rentals: SmartRental[]
               <span className="text-neutral-400 dark:text-neutral-500">For Seamless Productions</span>
             </h1>
             <p className="max-w-2xl text-lg text-neutral-600 dark:text-neutral-300 font-light leading-relaxed">
-              Our inventory isn&apos;t just maintained; it&apos;s analyzed. Using predictive data, we ensure
-              every camera, lens, and light is calibrated for peak performance before it leaves the depot.
+              Rent professional cameras, lenses, lighting, audio equipment, drones, and studio gear from verified creators across South Africa. Secure bookings, insured rentals, and trusted equipment. All in one platform.
             </p>
           </div>
         </motion.div>

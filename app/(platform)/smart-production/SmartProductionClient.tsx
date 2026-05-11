@@ -227,8 +227,7 @@ export default function SmartProductionClient({ categories, productionCounts, fe
               <span className="text-neutral-500">Productions</span>
             </h1>
             <p className="max-w-2xl text-lg text-neutral-300 font-light leading-relaxed">
-              Book production services from our in-house studio team or verified community creators.
-              Studio sets the benchmark. Community brings the range.
+              Hire trusted photographers, videographers, and production teams from our in-house studio or verified creator network.
             </p>
           </div>
         </motion.div>
