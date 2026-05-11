@@ -288,7 +288,6 @@ export const MAIN_NAVIGATION: {
 }[] = [
     { label: 'Smart Rentals', href: '/smart-rentals' },
     { label: 'Smart Productions', href: '/smart-production' },
-    { label: 'Pricing', href: '/pricing' },
   ];
 
 export const FOOTER_SECTIONS = [
@@ -299,6 +298,7 @@ export const FOOTER_SECTIONS = [
       { label: 'About', href: '/about' },
       ...(SHOW_CAREERS ? [{ label: 'Careers', href: '/careers' }] : []),
       { label: 'Press & News', href: '/press' },
+      { label: 'Pricing', href: '/pricing' },
     ],
   },
   {
