@@ -55,27 +55,30 @@ export default function AdminDisputesPage() {
   const [total, setTotal] = useState(0);
   const [counts, setCounts] = useState<Record<string, number>>({});
 
-  const fetchDisputes = useCallback(() => {
-    setLoading(true);
-    const statusParam = activeTab === 'all' ? '' : `&status=${activeTab}`;
-    fetch(`/api/admin/disputes?page=${page}&limit=${ITEMS_PER_PAGE}${statusParam}`)
-      .then((res) => (res.ok ? res.json() : { disputes: [], total: 0, counts: {} }))
-      .then((data) => {
-        setDisputes(data.disputes ?? []);
-        setTotal(data.total ?? 0);
-        setCounts(data.counts ?? {});
-      })
-      .catch(() => {})
-      .finally(() => setLoading(false));
-  }, [activeTab, page]);
-
-  useEffect(() => {
-    fetchDisputes();
-  }, [fetchDisputes]);
-
-  useEffect(() => {
+  const handleTabChange = useCallback((tab: string) => {
+    setActiveTab(tab);
     setPage(1);
-  }, [activeTab]);
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    const load = async () => {
+      setLoading(true);
+      try {
+        const statusParam = activeTab === 'all' ? '' : `&status=${activeTab}`;
+        const res = await fetch(`/api/admin/disputes?page=${page}&limit=${ITEMS_PER_PAGE}${statusParam}`);
+        const data = res.ok ? await res.json() : { disputes: [], total: 0, counts: {} };
+        if (!cancelled) {
+          setDisputes(data.disputes ?? []);
+          setTotal(data.total ?? 0);
+          setCounts(data.counts ?? {});
+        }
+      } catch { /* silent */ }
+      if (!cancelled) setLoading(false);
+    };
+    load();
+    return () => { cancelled = true; };
+  }, [activeTab, page]);
 
   const tabs = [
     { id: 'all', label: `All (${counts.all ?? 0})` },
@@ -99,7 +102,7 @@ export default function AdminDisputesPage() {
         </h1>
       </div>
 
-      <Tabs tabs={tabs} activeTab={activeTab} onTabChange={setActiveTab} className="mb-6" />
+      <Tabs tabs={tabs} activeTab={activeTab} onTabChange={handleTabChange} className="mb-6" />
 
       {loading ? (
         <LoadingSpinner label="Loading disputes..." className="py-20" />

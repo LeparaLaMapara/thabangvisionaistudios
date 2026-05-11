@@ -36,9 +36,9 @@ export const STUDIO = {
   },
 
   legal: {
-    companyName: 'Ubunye AI Ecosystems (Pty) Ltd',
+    companyName: 'THABANGVISION STUDIO (Pty) Ltd',
     tradingAs: 'Thabang Vision AI Studios',
-    registrationNumber: '',
+    registrationNumber: '2025/742948/07',
     popia: {
       version: '2026.04.20',
       retentionDays: 30, // Delete verification storage objects 30 days after review
@@ -106,7 +106,7 @@ export const STUDIO = {
   },
 
   rental: {
-    depositPercent: 20,
+    depositPercent: 50,
     maxBookingDays: 30,
     maxDirectBookingDays: 365,
     cancellationHours: 24,

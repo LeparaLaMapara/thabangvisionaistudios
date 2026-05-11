@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
   Home,
   ClipboardList,
@@ -84,13 +84,7 @@ export function DashboardTabBar({ isCreator }: DashboardTabBarProps) {
 
   const visibleTabs = TABS.filter((t) => !t.creatorOnly || isCreator);
 
-  useEffect(() => {
-    fetchUnread();
-    const interval = setInterval(fetchUnread, 30_000);
-    return () => clearInterval(interval);
-  }, []);
-
-  async function fetchUnread() {
+  const fetchUnread = useCallback(async () => {
     try {
       const res = await fetch('/api/notifications');
       if (res.ok) {
@@ -100,7 +94,17 @@ export function DashboardTabBar({ isCreator }: DashboardTabBarProps) {
         }
       }
     } catch { /* silent */ }
-  }
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    const poll = async () => {
+      if (active) await fetchUnread();
+    };
+    poll();
+    const interval = setInterval(poll, 30_000);
+    return () => { active = false; clearInterval(interval); };
+  }, [fetchUnread]);
 
   const isActive = (tab: Tab) => {
     if (tab.id === 'home') return pathname === '/dashboard';

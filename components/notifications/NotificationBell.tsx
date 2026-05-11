@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import Link from 'next/link';
 import { Bell } from 'lucide-react';
 
@@ -21,12 +21,24 @@ export default function NotificationBell() {
 
   const unreadCount = notifications.filter(n => !n.is_read).length;
 
+  const fetchNotifications = useCallback(async () => {
+    try {
+      const res = await fetch('/api/notifications');
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data)) setNotifications(data);
+      }
+    } catch {
+      /* fetch failure shouldn't break UI */
+    }
+  }, []);
+
   useEffect(() => {
     fetchNotifications();
     // Poll every 30 seconds
     const interval = setInterval(fetchNotifications, 30_000);
     return () => clearInterval(interval);
-  }, []);
+  }, [fetchNotifications]);
 
   // Close on outside click
   useEffect(() => {
@@ -38,18 +50,6 @@ export default function NotificationBell() {
     document.addEventListener('mousedown', handleClick);
     return () => document.removeEventListener('mousedown', handleClick);
   }, []);
-
-  async function fetchNotifications() {
-    try {
-      const res = await fetch('/api/notifications');
-      if (res.ok) {
-        const data = await res.json();
-        if (Array.isArray(data)) setNotifications(data);
-      }
-    } catch {
-      /* fetch failure shouldn't break UI */
-    }
-  }
 
   async function markAsRead(id: string) {
     await fetch(`/api/notifications/${id}`, { method: 'PATCH' });

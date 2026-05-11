@@ -29,8 +29,8 @@ export default function InlinePayPage() {
   const router = useRouter();
   const ref = searchParams.get('ref');
 
-  const [state, setState] = useState<PayState>('loading');
-  const [errorMsg, setErrorMsg] = useState('');
+  const [state, setState] = useState<PayState>(() => ref ? 'loading' : 'error');
+  const [errorMsg, setErrorMsg] = useState(() => ref ? '' : 'Missing booking reference.');
   const [booking, setBooking] = useState<{
     reference: string;
     accessCode: string;
@@ -56,11 +56,7 @@ export default function InlinePayPage() {
 
   // Fetch booking access code
   useEffect(() => {
-    if (!ref) {
-      setErrorMsg('Missing booking reference.');
-      setState('error');
-      return;
-    }
+    if (!ref) return;
 
     fetch(`/api/service-bookings/pay?ref=${encodeURIComponent(ref)}`)
       .then(async (res) => {
@@ -113,21 +109,20 @@ export default function InlinePayPage() {
     handler.openIframe();
   }, [booking]);
 
-  // Auto-open popup when ready
-  useEffect(() => {
-    if (state === 'ready' && booking && window.PaystackPop) {
-      openPaystack();
-    }
-  }, [state, booking, openPaystack]);
-
-  // Also try opening once SDK loads (race condition handler)
+  // Auto-open popup when ready (poll for SDK availability)
   useEffect(() => {
     if (state !== 'ready' || !booking) return;
-    const interval = setInterval(() => {
+    // Try immediately, then poll every 200ms for SDK load
+    const tryOpen = () => {
       if (window.PaystackPop && !popupOpened.current) {
         openPaystack();
-        clearInterval(interval);
+        return true;
       }
+      return false;
+    };
+    if (tryOpen()) return;
+    const interval = setInterval(() => {
+      if (tryOpen()) clearInterval(interval);
     }, 200);
     return () => clearInterval(interval);
   }, [state, booking, openPaystack]);

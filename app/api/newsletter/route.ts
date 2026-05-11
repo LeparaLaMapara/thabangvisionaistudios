@@ -31,12 +31,9 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       .upsert({ email: trimmed }, { onConflict: 'email' });
 
     if (error) {
-      // Table may not exist — log and succeed gracefully
-      console.log('[newsletter] Subscriber:', trimmed, '| DB error:', error.message);
+      console.log('[newsletter] DB error:', error.message);
       return NextResponse.json({ success: true });
     }
-
-    console.log('[newsletter] Subscribed:', trimmed);
     return NextResponse.json({ success: true });
   } catch {
     return NextResponse.json({ error: 'Something went wrong.' }, { status: 500 });

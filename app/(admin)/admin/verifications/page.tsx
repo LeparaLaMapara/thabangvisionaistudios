@@ -807,8 +807,9 @@ function ConsistencyChecks({ metadata }: { metadata: { id_front: PhotoMetadata; 
     ) / 60000;
   }
 
+  const [now] = useState(() => Date.now());
   const isFresh = selfie.dateTaken
-    ? Date.now() - new Date(selfie.dateTaken).getTime() < 24 * 60 * 60 * 1000
+    ? now - new Date(selfie.dateTaken).getTime() < 24 * 60 * 60 * 1000
     : null;
 
   const noEditingSoftware = !selfie.software || !/photoshop|gimp|canva|picsart|snapseed/i.test(selfie.software);

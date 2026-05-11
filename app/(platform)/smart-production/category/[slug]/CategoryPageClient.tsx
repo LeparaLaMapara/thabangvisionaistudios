@@ -395,7 +395,7 @@ export default function CategoryPageClient({ category, packages, productions, cr
   };
 
   // ── Filter panel ──
-  const FilterContent = () => (
+  const filterContent = (
     <div className="space-y-1">
       {subCategories.length > 0 && (
         <FilterSection title="Type">
@@ -566,7 +566,7 @@ export default function CategoryPageClient({ category, packages, productions, cr
               <h3 className="text-sm font-bold uppercase tracking-widest mb-6 border-b border-white pb-4">
                 Refine
               </h3>
-              <FilterContent />
+              {filterContent}
             </div>
           </div>
 
@@ -746,7 +746,7 @@ export default function CategoryPageClient({ category, packages, productions, cr
               </button>
             </div>
             <div className="flex-grow overflow-y-auto p-6">
-              <FilterContent />
+              {filterContent}
             </div>
             <div className="p-6 border-t border-white/10 bg-[#080808]">
               <button

@@ -68,7 +68,7 @@ export default function AdminBookingsPage() {
   const [confirmLoading, setConfirmLoading] = useState(false);
 
   const fetchBookings = () => {
-    fetch('/api/bookings')
+    fetch('/api/admin/equipment-bookings')
       .then((res) => (res.ok ? res.json() : []))
       .then((data) => {
         if (Array.isArray(data)) setBookings(data);
@@ -105,8 +105,8 @@ export default function AdminBookingsPage() {
 
   const updateBookingStatus = async (id: string, status: string) => {
     try {
-      const res = await fetch(`/api/bookings/${id}`, {
-        method: 'PUT',
+      const res = await fetch(`/api/admin/equipment-bookings/${id}`, {
+        method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status }),
       });
