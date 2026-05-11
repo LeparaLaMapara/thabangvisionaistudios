@@ -11,6 +11,7 @@ import { GlobalSearch } from '@/components/search/GlobalSearch';
 import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/providers/AuthProvider';
 import { useCart } from '@/providers/CartProvider';
+import { HeaderUbunyeBubble } from '@/components/ubunye/HeaderUbunyeBubble';
 
 const ThabangLogo = () => (
   <Image
@@ -258,6 +259,7 @@ export const Header = ({ navigation = MAIN_NAVIGATION }: { navigation?: readonly
             <Search className="w-4 h-4" />
             <kbd className="hidden xl:inline text-[9px] font-mono text-neutral-500 border border-neutral-300 dark:border-neutral-700 px-1 py-0.5 rounded">{isMac ? '⌘K' : 'Ctrl+K'}</kbd>
           </button>
+          <HeaderUbunyeBubble />
           {isLoggedIn && (
             <Link
               href="/dashboard/cart"
@@ -310,6 +312,7 @@ export const Header = ({ navigation = MAIN_NAVIGATION }: { navigation?: readonly
           >
             <Search className="w-5 h-5" />
           </button>
+          <HeaderUbunyeBubble />
           {isLoggedIn && (
             <Link
               href="/dashboard/cart"

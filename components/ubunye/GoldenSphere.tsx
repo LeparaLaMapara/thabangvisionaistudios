@@ -1,5 +1,7 @@
 'use client';
 
+import type { OrbState } from '@/types/ubunye';
+
 // Pre-computed deterministic dust particle values (avoids Math.random() hydration mismatch)
 const DUST_PARTICLES: {
   angle: number;
@@ -23,13 +25,14 @@ const DUST_PARTICLES: {
   { angle: 330, distance: 46, duration: 3.9, delay: -3.5, size: 3.0, opacity: 0.40 },
 ];
 
-/**
- * CSS-only golden sphere with orbiting particles and ambient glow.
- * No Three.js — pure CSS animations for lighter, faster rendering.
- */
-export function GoldenSphere({ className = '' }: { className?: string }) {
+interface GoldenSphereProps {
+  className?: string;
+  state?: OrbState;
+}
+
+export function GoldenSphere({ className = '', state = 'idle' }: GoldenSphereProps) {
   return (
-    <div className={`golden-sphere-container ${className}`}>
+    <div className={`golden-sphere-container ${className}`} data-state={state}>
       {/* Ambient glow layers */}
       <div className="sphere-glow sphere-glow-outer" />
       <div className="sphere-glow sphere-glow-inner" />
@@ -81,6 +84,7 @@ export function GoldenSphere({ className = '' }: { className?: string }) {
           position: absolute;
           border-radius: 50%;
           pointer-events: none;
+          transition: opacity 0.6s ease, transform 0.6s ease;
         }
         .sphere-glow-outer {
           width: 100%;
@@ -116,6 +120,7 @@ export function GoldenSphere({ className = '' }: { className?: string }) {
             0 0 80px rgba(212,168,67,0.15),
             inset 0 0 20px rgba(255,255,255,0.1);
           animation: core-pulse 4s ease-in-out infinite;
+          transition: box-shadow 0.6s ease;
         }
 
         /* ── Orbit rings ── */
@@ -180,15 +185,80 @@ export function GoldenSphere({ className = '' }: { className?: string }) {
           transform: rotate(var(--dust-angle)) translateX(var(--dust-distance));
         }
 
+        /* ── Processing state: faster orbits, stronger glow ── */
+        [data-state="processing"] .sphere-glow-outer {
+          background: radial-gradient(circle, rgba(212,168,67,0.15) 0%, transparent 70%);
+          animation: glow-breathe 2s ease-in-out infinite;
+        }
+        [data-state="processing"] .sphere-glow-inner {
+          animation: glow-breathe 2s ease-in-out infinite 0.3s;
+        }
+        [data-state="processing"] .sphere-core {
+          animation: core-pulse-fast 1.5s ease-in-out infinite;
+          box-shadow:
+            0 0 60px rgba(212,168,67,0.4),
+            0 0 100px rgba(212,168,67,0.2),
+            inset 0 0 20px rgba(255,255,255,0.15);
+        }
+        [data-state="processing"] .orbit-ring-1 {
+          animation: orbit-spin 4s linear infinite;
+        }
+        [data-state="processing"] .orbit-ring-2 {
+          animation: orbit-spin 3s linear infinite reverse;
+        }
+        [data-state="processing"] .orbit-ring-3 {
+          animation: orbit-spin 5s linear infinite;
+        }
+
+        /* ── Streaming state: medium speed, warmer glow ── */
+        [data-state="streaming"] .sphere-glow-outer {
+          background: radial-gradient(circle, rgba(232,201,106,0.12) 0%, transparent 70%);
+          animation: glow-breathe-asym 3s ease-in-out infinite;
+        }
+        [data-state="streaming"] .sphere-glow-inner {
+          background: radial-gradient(circle, rgba(232,201,106,0.18) 0%, transparent 70%);
+          animation: glow-breathe-asym 3s ease-in-out infinite 0.4s;
+        }
+        [data-state="streaming"] .sphere-core {
+          animation: core-pulse 2.5s ease-in-out infinite;
+          box-shadow:
+            0 0 50px rgba(232,201,106,0.35),
+            0 0 90px rgba(212,168,67,0.18),
+            inset 0 0 20px rgba(255,255,255,0.12);
+        }
+        [data-state="streaming"] .orbit-ring-1 {
+          animation: orbit-spin 8s linear infinite;
+        }
+        [data-state="streaming"] .orbit-ring-2 {
+          animation: orbit-spin 6s linear infinite reverse;
+        }
+        [data-state="streaming"] .orbit-ring-3 {
+          animation: orbit-spin 10s linear infinite;
+        }
+        [data-state="streaming"] .dust-particle {
+          opacity: 1;
+        }
+
         /* ── Keyframes ── */
         @keyframes glow-breathe {
           0%, 100% { transform: scale(1); opacity: 1; }
           50% { transform: scale(1.08); opacity: 0.7; }
         }
 
+        @keyframes glow-breathe-asym {
+          0% { transform: scale(1); opacity: 1; }
+          40% { transform: scale(1.1); opacity: 0.75; }
+          100% { transform: scale(1); opacity: 1; }
+        }
+
         @keyframes core-pulse {
           0%, 100% { transform: scale(1); }
           50% { transform: scale(1.06); }
+        }
+
+        @keyframes core-pulse-fast {
+          0%, 100% { transform: scale(1); }
+          50% { transform: scale(1.12); }
         }
 
         @keyframes orbit-spin {
