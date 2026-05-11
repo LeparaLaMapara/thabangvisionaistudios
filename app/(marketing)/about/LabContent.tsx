@@ -8,15 +8,15 @@ import { STUDIO } from '@/lib/constants';
 const HERO_CAPABILITY = {
   title: 'Ubunye AI Studio',
   icon: Bot,
-  desc: `The AI brain behind ${STUDIO.shortName}. Chat with Ubunye to plan productions, find the right gear, discover crew, generate creative assets, get pricing estimates, and manage your projects — all through natural conversation. Powers every AI feature on the platform.`,
+  desc: `The intelligence layer behind ${STUDIO.shortName}. Chat with Ubunye to discover creators, find the right gear, plan productions, get pricing estimates, and manage your projects — all through natural conversation. It connects every part of the platform.`,
 };
 
 const CAPABILITIES = [
-  { title: 'AI-Powered Production', icon: Sparkles, desc: 'Using AI tools for automated editing, color grading, scene analysis, and content generation to accelerate production workflows.', poweredByAI: true },
-  { title: 'AI-Powered Smart Equipment', icon: Camera, desc: 'Intelligent rental platform with real-time availability tracking, automated booking, and equipment matching based on project requirements.', poweredByAI: true },
-  { title: 'Creator Marketplace', icon: Store, desc: 'A community-driven marketplace where verified creators list gear for rent, offer crew services, and connect with productions looking for talent. Smart matching powered by Ubunye AI.', poweredByAI: true },
-  { title: 'Content Automation', icon: Workflow, desc: 'Automated thumbnail generation, metadata tagging, SEO optimization, and social media content creation for productions and press.', poweredByAI: true },
-  { title: 'Custom Software', icon: Code, desc: 'Developing proprietary plugins, tools, and integrations for production software like DaVinci Resolve, Premiere Pro, and After Effects to solve real-world production challenges.', poweredByAI: false },
+  { title: 'Production Workflows', icon: Sparkles, desc: 'Streamlined tools for editing, color grading, scene analysis, and content generation that help creators deliver faster without compromising quality.', poweredByAI: true },
+  { title: 'Smart Rentals Platform', icon: Camera, desc: 'Browse and book professional equipment with real-time availability, instant confirmation, and intelligent gear recommendations matched to your project needs.', poweredByAI: true },
+  { title: 'Creator Marketplace', icon: Store, desc: 'A trusted marketplace where verified creators list gear for rent, offer crew services, and connect with productions looking for talent — with smart matching built in.', poweredByAI: true },
+  { title: 'Creative Workflow Tools', icon: Workflow, desc: 'Automated thumbnail generation, metadata tagging, portfolio optimization, and social media content creation to help creators focus on the work that matters.', poweredByAI: true },
+  { title: 'Production Technology', icon: Code, desc: 'Purpose-built tools and integrations for production software like DaVinci Resolve, Premiere Pro, and After Effects — solving real-world challenges for working creatives.', poweredByAI: false },
 ];
 
 export default function LabContent() {
@@ -24,13 +24,13 @@ export default function LabContent() {
     <>
       {/* Header */}
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="max-w-5xl mb-24">
-        <span className="text-[10px] font-mono text-[#D4A843] uppercase tracking-[0.3em] mb-4 block">R&amp;D Division</span>
+        <span className="text-[10px] font-mono text-[#D4A843] uppercase tracking-[0.3em] mb-4 block">Our Platform</span>
         <h1 className="text-5xl md:text-8xl font-display font-medium text-white tracking-tighter uppercase mb-8 leading-[0.9]">
           The <span className="text-neutral-600">Lab</span>
         </h1>
         <div className="w-8 h-px bg-[#D4A843] mt-6 mb-8" />
         <p className="text-xl md:text-3xl text-neutral-300 font-light leading-relaxed max-w-4xl">
-          {STUDIO.name} combines AI, automation, and creative technology to build tools that empower South African filmmakers, photographers, and content creators. Every AI feature is powered by Ubunye AI Studio.
+          {STUDIO.name} is the creative infrastructure behind South Africa&apos;s filmmakers, photographers, and content creators. We build the tools that power bookings, rentals, productions, and creative workflows — all connected through Ubunye AI.
         </p>
       </motion.div>
 
@@ -87,9 +87,9 @@ export default function LabContent() {
 
       {/* CTA Section */}
       <div className="bg-[#080808] border border-white/5 p-12 md:p-24 text-center">
-        <h2 className="text-3xl md:text-5xl font-display font-bold uppercase mb-8 text-white">Have a technical challenge?</h2>
+        <h2 className="text-3xl md:text-5xl font-display font-bold uppercase mb-8 text-white">Ready to build something?</h2>
         <p className="text-neutral-500 mb-12 max-w-xl mx-auto font-mono text-sm">
-          We partner with production houses and agencies to solve complex imaging problems using our R&amp;D stack.
+          Whether you&apos;re a creator, production house, or studio — we&apos;d love to hear about your next project.
         </p>
         <Link href="/contact" className="inline-flex items-center gap-3 bg-[#D4A843] text-black px-8 py-4 text-xs font-mono font-bold uppercase tracking-widest hover:opacity-80 transition-opacity">
           Get In Touch <ArrowRight className="w-4 h-4" />

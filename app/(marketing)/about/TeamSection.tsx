@@ -1,7 +1,7 @@
 'use client';
 
 import { motion } from 'framer-motion';
-import { Palette, FlaskConical, Cpu, ArrowRight, Users } from 'lucide-react';
+import { Palette, Wrench, Cpu, ArrowRight, Users } from 'lucide-react';
 import Link from 'next/link';
 import { STUDIO } from '@/lib/constants';
 import CreatorCard from '@/components/creators/CreatorCard';
@@ -14,19 +14,19 @@ const DISCIPLINES = [
     icon: Palette,
     title: 'Creative',
     roles: 'Cinematographers, photographers, editors, colorists, art directors',
-    desc: 'The visual storytellers who define the look and feel of every production.',
+    desc: 'The visual storytellers who shape every production and set the creative standard for the platform.',
   },
   {
-    icon: FlaskConical,
-    title: 'Research',
-    roles: 'AI/ML scientists, computer vision engineers, data analysts',
-    desc: 'Pushing the boundaries of what creative technology can do on the African continent.',
+    icon: Wrench,
+    title: 'Operations',
+    roles: 'Production coordinators, equipment specialists, workflow designers',
+    desc: 'The people who make sure every booking, rental, and production runs seamlessly from start to finish.',
   },
   {
     icon: Cpu,
     title: 'Engineering',
-    roles: 'Full-stack developers, DevOps, systems architects, optical engineers',
-    desc: 'Building the platforms, tools, and hardware that power every workflow.',
+    roles: 'Full-stack developers, product engineers, creative technologists',
+    desc: 'Building the platform, tools, and integrations that power every creator workflow.',
   },
 ];
 
@@ -54,7 +54,7 @@ export default function TeamSection({
           Our <span className="text-neutral-600">Team</span>
         </h2>
         <p className="text-xl md:text-2xl text-neutral-300 font-light leading-relaxed max-w-4xl">
-          A diverse team spanning creative experts, research scientists, and engineers
+          Creators, filmmakers, engineers, and production specialists
           — united by the belief that technology should amplify human creativity, not replace it.
         </p>
       </motion.div>
@@ -128,8 +128,8 @@ export default function TeamSection({
           Join the team
         </h3>
         <p className="text-neutral-500 mb-8 max-w-lg mx-auto font-mono text-sm">
-          We&apos;re always looking for exceptional creatives, scientists, and engineers
-          who want to shape the future of production technology in Africa.
+          We&apos;re always looking for exceptional creatives, engineers, and production specialists
+          who want to build the future of Africa&apos;s creative industry.
         </p>
         <div className="flex flex-col sm:flex-row gap-4 justify-center">
           <Link
