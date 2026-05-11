@@ -1,0 +1,380 @@
+
+> thabangvision-next@0.1.0 lint
+> eslint
+
+
+C:\Users\Administrator\Documents\gits\thabangvisionaistudios\app\(admin)\admin\careers\page.tsx
+  44:3  warning  Unused eslint-disable directive (no problems were reported from 'react-hooks/exhaustive-deps')
+
+C:\Users\Administrator\Documents\gits\thabangvisionaistudios\app\(admin)\admin\disputes\[id]\page.tsx
+   10:3   warning  'XCircle' is defined but never used                                                                                                                                                                                                                                                      @typescript-eslint/no-unused-vars
+  272:21  warning  Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+  296:27  warning  Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+  311:27  warning  Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+  350:29  warning  Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+
+C:\Users\Administrator\Documents\gits\thabangvisionaistudios\app\(admin)\admin\disputes\page.tsx
+  60:7  error  Error: Cannot access refs during render
+
+React refs are values that are not needed for rendering. Refs should only be accessed outside of render, such as in event handlers or effects. Accessing a ref value (the `current` property) during render can cause your component not to update as expected (https://react.dev/reference/react/useRef).
+
+C:\Users\Administrator\Documents\gits\thabangvisionaistudios\app\(admin)\admin\disputes\page.tsx:60:7
+  58 |
+  59 |   // Reset page to 1 when tab changes (derived, no effect needed)
+> 60 |   if (prevTabRef.current !== activeTab) {
+     |       ^^^^^^^^^^^^^^^^^^ Cannot access ref value during render
+  61 |     prevTabRef.current = activeTab;
+  62 |     if (page !== 1) {
+  63 |       setPage(1);  react-hooks/refs
+  61:5  error  Error: Cannot access refs during render
+
+React refs are values that are not needed for rendering. Refs should only be accessed outside of render, such as in event handlers or effects. Accessing a ref value (the `current` property) during render can cause your component not to update as expected (https://react.dev/reference/react/useRef).
+
+C:\Users\Administrator\Documents\gits\thabangvisionaistudios\app\(admin)\admin\disputes\page.tsx:61:5
+  59 |   // Reset page to 1 when tab changes (derived, no effect needed)
+  60 |   if (prevTabRef.current !== activeTab) {
+> 61 |     prevTabRef.current = activeTab;
+     |     ^^^^^^^^^^^^^^^^^^ Cannot update ref during render
+  62 |     if (page !== 1) {
+  63 |       setPage(1);
+  64 |     }    react-hooks/refs
+
+C:\Users\Administrator\Documents\gits\thabangvisionaistudios\app\(admin)\admin\press\page.tsx
+  114:3  warning  Unused eslint-disable directive (no problems were reported from 'react-hooks/exhaustive-deps')
+
+C:\Users\Administrator\Documents\gits\thabangvisionaistudios\app\(admin)\admin\rentals\[id]\review-return\page.tsx
+   61:15  warning  'res' is assigned a value but never used                                                                                                                                                                                                                                                 @typescript-eslint/no-unused-vars
+  235:19  warning  Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+  275:19  warning  Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+
+C:\Users\Administrator\Documents\gits\thabangvisionaistudios\app\(admin)\admin\verifications\page.tsx
+  120:7  warning  'SOCIAL_KEYS' is assigned a value but never used                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               @typescript-eslint/no-unused-vars
+  811:7  error    Error: Cannot call impure function during render
+
+`Date.now` is an impure function. Calling an impure function can produce unstable results that update unpredictably when the component happens to re-render. (https://react.dev/reference/rules/components-and-hooks-must-be-pure#components-and-hooks-must-be-idempotent).
+
+C:\Users\Administrator\Documents\gits\thabangvisionaistudios\app\(admin)\admin\verifications\page.tsx:811:7
+  809 |
+  810 |   const isFresh = selfie.dateTaken
+> 811 |     ? Date.now() - new Date(selfie.dateTaken).getTime() < 24 * 60 * 60 * 1000
+      |       ^^^^^^^^^^ Cannot call impure function
+  812 |     : null;
+  813 |
+  814 |   const noEditingSoftware = !selfie.software || !/photoshop|gimp|canva|picsart|snapseed/i.test(selfie.software);  react-hooks/purity
+
+C:\Users\Administrator\Documents\gits\thabangvisionaistudios\app\(immersive)\ubunye-ai-studio\page.tsx
+  221:3  warning  Unused eslint-disable directive (no problems were reported from 'react-hooks/exhaustive-deps')
+
+C:\Users\Administrator\Documents\gits\thabangvisionaistudios\app\(marketing)\HomeClient.tsx
+  8:10  warning  'SITE_NAME' is defined but never used           @typescript-eslint/no-unused-vars
+  8:29  warning  'PLACEHOLDER_IMAGES' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\Administrator\Documents\gits\thabangvisionaistudios\app\(marketing)\about\TeamSection.tsx
+  6:10  warning  'STUDIO' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\Administrator\Documents\gits\thabangvisionaistudios\app\(marketing)\archive\page.tsx
+  3:8  warning  'Link' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\Administrator\Documents\gits\thabangvisionaistudios\app\(platform)\dashboard\bookings\[id]\page.tsx
+  46:9  warning  'router' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\Administrator\Documents\gits\thabangvisionaistudios\app\(platform)\dashboard\bookings\page.tsx
+  5:8  warning  'Image' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\Administrator\Documents\gits\thabangvisionaistudios\app\(platform)\dashboard\creator-requests\[id]\page.tsx
+  93:15  warning  Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+
+C:\Users\Administrator\Documents\gits\thabangvisionaistudios\app\(platform)\dashboard\disputes\[id]\page.tsx
+  178:17  warning  Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+  229:25  warning  Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+
+C:\Users\Administrator\Documents\gits\thabangvisionaistudios\app\(platform)\dashboard\listings\page.tsx
+   4:8  warning  'Link' is defined but never used                                                                @typescript-eslint/no-unused-vars
+  93:5  warning  Unused eslint-disable directive (no problems were reported from 'react-hooks/exhaustive-deps')
+
+C:\Users\Administrator\Documents\gits\thabangvisionaistudios\app\(platform)\dashboard\verification\page.tsx
+  41:7  warning  'REVIEW_DAYS' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\Administrator\Documents\gits\thabangvisionaistudios\app\(platform)\marketplace\[slug]\ListingDetailView.tsx
+  4:29  warning  'Tag' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\Administrator\Documents\gits\thabangvisionaistudios\app\(platform)\resources\tools\page.tsx
+    3:20  warning  'useMemo' is defined but never used                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  @typescript-eslint/no-unused-vars
+    8:3   warning  'Calculator' is defined but never used                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               @typescript-eslint/no-unused-vars
+    9:3   warning  'Camera' is defined but never used                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   @typescript-eslint/no-unused-vars
+   12:3   warning  'Eye' is defined but never used                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      @typescript-eslint/no-unused-vars
+   19:3   warning  'Box' is defined but never used                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      @typescript-eslint/no-unused-vars
+   25:3   warning  'AlertCircle' is defined but never used                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              @typescript-eslint/no-unused-vars
+  102:9   error    Unexpected any. Specify a different type                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             @typescript-eslint/no-explicit-any
+  180:9   warning  'fieldHeight' is assigned a value but never used                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     @typescript-eslint/no-unused-vars
+  858:7   error    Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+C:\Users\Administrator\Documents\gits\thabangvisionaistudios\app\(platform)\resources\tools\page.tsx:858:7
+  856 |     const toolParam = searchParams.get('tool');
+  857 |     if (toolParam) {
+> 858 |       setActiveTool(toolParam);
+      |       ^^^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  859 |       setTimeout(() => {
+  860 |          window.scrollTo({ top: 0, behavior: 'smooth' });
+  861 |       }, 100);  react-hooks/set-state-in-effect
+
+C:\Users\Administrator\Documents\gits\thabangvisionaistudios\app\(platform)\smart-production\[slug]\ProductionDetailView.tsx
+  67:60  error  Comments inside children section of tag should be placed inside braces  react/jsx-no-comment-textnodes
+
+C:\Users\Administrator\Documents\gits\thabangvisionaistudios\app\(platform)\smart-production\category\[slug]\CategoryPageClient.tsx
+  569:16  error  Error: Cannot create components during render
+
+Components created during render will reset their state each time they are created. Declare components outside of render.
+
+C:\Users\Administrator\Documents\gits\thabangvisionaistudios\app\(platform)\smart-production\category\[slug]\CategoryPageClient.tsx:569:16
+  567 |                 Refine
+  568 |               </h3>
+> 569 |               <FilterContent />
+      |                ^^^^^^^^^^^^^ This component is created during render
+  570 |             </div>
+  571 |           </div>
+  572 |
+
+C:\Users\Administrator\Documents\gits\thabangvisionaistudios\app\(platform)\smart-production\category\[slug]\CategoryPageClient.tsx:398:25
+  396 |
+  397 |   // ── Filter panel ──
+> 398 |   const FilterContent = () => (
+      |                         ^^^^^^^
+> 399 |     <div className="space-y-1">
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 400 |       {subCategories.length > 0 && (
+      …
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 462 |     </div>
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 463 |   );
+      | ^^^^ The component is created during render here
+  464 |
+  465 |   return (
+  466 |     <div className="min-h-screen bg-[#050505] text-white pt-20 transition-colors duration-500">                                                                                                                   react-hooks/static-components
+  749:16  error  Error: Cannot create components during render
+
+Components created during render will reset their state each time they are created. Declare components outside of render.
+
+C:\Users\Administrator\Documents\gits\thabangvisionaistudios\app\(platform)\smart-production\category\[slug]\CategoryPageClient.tsx:749:16
+  747 |             </div>
+  748 |             <div className="flex-grow overflow-y-auto p-6">
+> 749 |               <FilterContent />
+      |                ^^^^^^^^^^^^^ This component is created during render
+  750 |             </div>
+  751 |             <div className="p-6 border-t border-white/10 bg-[#080808]">
+  752 |               <button
+
+C:\Users\Administrator\Documents\gits\thabangvisionaistudios\app\(platform)\smart-production\category\[slug]\CategoryPageClient.tsx:398:25
+  396 |
+  397 |   // ── Filter panel ──
+> 398 |   const FilterContent = () => (
+      |                         ^^^^^^^
+> 399 |     <div className="space-y-1">
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 400 |       {subCategories.length > 0 && (
+      …
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 462 |     </div>
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 463 |   );
+      | ^^^^ The component is created during render here
+  464 |
+  465 |   return (
+  466 |     <div className="min-h-screen bg-[#050505] text-white pt-20 transition-colors duration-500">  react-hooks/static-components
+
+C:\Users\Administrator\Documents\gits\thabangvisionaistudios\app\(platform)\smart-production\category\[slug]\ProductionCategoryClient.tsx
+  12:10  warning  'formatZAR' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\Administrator\Documents\gits\thabangvisionaistudios\app\(platform)\smart-production\category\[slug]\[id]\ProductionCreatorDetailView.tsx
+  54:9  warning  The 'ownProjects' logical expression could make the dependencies of useMemo Hook (at line 73) change on every render. To fix this, wrap the initialization of 'ownProjects' in its own useMemo() Hook  react-hooks/exhaustive-deps
+  54:9  warning  The 'ownProjects' logical expression could make the dependencies of useMemo Hook (at line 96) change on every render. To fix this, wrap the initialization of 'ownProjects' in its own useMemo() Hook  react-hooks/exhaustive-deps
+
+C:\Users\Administrator\Documents\gits\thabangvisionaistudios\app\(platform)\smart-rentals\[category]\CrewServicesCategoryClient.tsx
+  81:24  error  Compilation Skipped: Existing memoization could not be preserved
+
+React Compiler has skipped optimizing this component because the existing manual memoization could not be preserved. This value was memoized in source but not in compilation output.
+
+C:\Users\Administrator\Documents\gits\thabangvisionaistudios\app\(platform)\smart-rentals\[category]\CrewServicesCategoryClient.tsx:81:24
+  79 |
+  80 |   // Use first portfolio_projects image, fallback to smart_productions portfolio
+> 81 |   const thumbnailUrl = useMemo(() => {
+     |                        ^^^^^^^^^^^^^^^
+> 82 |     // Prefer creator-uploaded portfolio
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 83 |     for (const p of crew.portfolio_projects ?? []) {
+     …
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 91 |     return null;
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 92 |   }, [crew.portfolio, crew.portfolio_projects]);
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Could not preserve existing memoization
+  93 |
+  94 |   const photoCount = useMemo(() => {
+  95 |     const ownPhotos = (crew.portfolio_projects ?? []).reduce((acc, p) => acc + (p.photos?.length ?? 0), 0);  react-hooks/preserve-manual-memoization
+  81:24  error  Compilation Skipped: Existing memoization could not be preserved
+
+React Compiler has skipped optimizing this component because the existing manual memoization could not be preserved. This value was memoized in source but not in compilation output.
+
+C:\Users\Administrator\Documents\gits\thabangvisionaistudios\app\(platform)\smart-rentals\[category]\CrewServicesCategoryClient.tsx:81:24
+  79 |
+  80 |   // Use first portfolio_projects image, fallback to smart_productions portfolio
+> 81 |   const thumbnailUrl = useMemo(() => {
+     |                        ^^^^^^^^^^^^^^^
+> 82 |     // Prefer creator-uploaded portfolio
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 83 |     for (const p of crew.portfolio_projects ?? []) {
+     …
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 91 |     return null;
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 92 |   }, [crew.portfolio, crew.portfolio_projects]);
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Could not preserve existing memoization
+  93 |
+  94 |   const photoCount = useMemo(() => {
+  95 |     const ownPhotos = (crew.portfolio_projects ?? []).reduce((acc, p) => acc + (p.photos?.length ?? 0), 0);  react-hooks/preserve-manual-memoization
+  81:24  error  Compilation Skipped: Existing memoization could not be preserved
+
+React Compiler has skipped optimizing this component because the existing manual memoization could not be preserved. This value was memoized in source but not in compilation output.
+
+C:\Users\Administrator\Documents\gits\thabangvisionaistudios\app\(platform)\smart-rentals\[category]\CrewServicesCategoryClient.tsx:81:24
+  79 |
+  80 |   // Use first portfolio_projects image, fallback to smart_productions portfolio
+> 81 |   const thumbnailUrl = useMemo(() => {
+     |                        ^^^^^^^^^^^^^^^
+> 82 |     // Prefer creator-uploaded portfolio
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 83 |     for (const p of crew.portfolio_projects ?? []) {
+     …
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 91 |     return null;
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 92 |   }, [crew.portfolio, crew.portfolio_projects]);
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Could not preserve existing memoization
+  93 |
+  94 |   const photoCount = useMemo(() => {
+  95 |     const ownPhotos = (crew.portfolio_projects ?? []).reduce((acc, p) => acc + (p.photos?.length ?? 0), 0);  react-hooks/preserve-manual-memoization
+
+C:\Users\Administrator\Documents\gits\thabangvisionaistudios\app\(platform)\smart-rentals\[category]\[slug]\CrewServiceDetailView.tsx
+  29:9  warning  The 'ownProjects' logical expression could make the dependencies of useMemo Hook (at line 50) change on every render. To fix this, wrap the initialization of 'ownProjects' in its own useMemo() Hook  react-hooks/exhaustive-deps
+  29:9  warning  The 'ownProjects' logical expression could make the dependencies of useMemo Hook (at line 59) change on every render. To fix this, wrap the initialization of 'ownProjects' in its own useMemo() Hook  react-hooks/exhaustive-deps
+
+C:\Users\Administrator\Documents\gits\thabangvisionaistudios\app\api\agents\bio-writer\route.ts
+  69:28  warning  'req' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\Administrator\Documents\gits\thabangvisionaistudios\app\api\cart\checkout\route.ts
+  10:15  warning  'CartItemWithRental' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\Administrator\Documents\gits\thabangvisionaistudios\components\cinematic\LatestWorkCarousel.tsx
+  29:26  warning  '_categorySlug' is defined but never used  @typescript-eslint/no-unused-vars
+  39:26  warning  '_categorySlug' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\Administrator\Documents\gits\thabangvisionaistudios\components\dashboard\DashboardTabBar.tsx
+  100:5  error  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+C:\Users\Administrator\Documents\gits\thabangvisionaistudios\components\dashboard\DashboardTabBar.tsx:100:5
+   98 |
+   99 |   useEffect(() => {
+> 100 |     fetchUnread();
+      |     ^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  101 |     const interval = setInterval(fetchUnread, 30_000);
+  102 |     return () => clearInterval(interval);
+  103 |   }, [fetchUnread]);  react-hooks/set-state-in-effect
+
+C:\Users\Administrator\Documents\gits\thabangvisionaistudios\components\layout\Header.tsx
+   35:78  error    Unexpected any. Specify a different type                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    @typescript-eslint/no-explicit-any
+   35:91  error    Unexpected any. Specify a different type                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    @typescript-eslint/no-explicit-any
+  158:10  warning  'isMacReady' is assigned a value but never used                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             @typescript-eslint/no-unused-vars
+  165:17  error    Error: Cannot access refs during render
+
+React refs are values that are not needed for rendering. Refs should only be accessed outside of render, such as in event handlers or effects. Accessing a ref value (the `current` property) during render can cause your component not to update as expected (https://react.dev/reference/react/useRef).
+
+C:\Users\Administrator\Documents\gits\thabangvisionaistudios\components\layout\Header.tsx:165:17
+  163 |   }, []);
+  164 |
+> 165 |   const isMac = isMacRef.current;
+      |                 ^^^^^^^^^^^^^^^^ Cannot access ref value during render
+  166 |   const [signingOut, setSigningOut] = useState(false);
+  167 |
+  168 |   const closeSearch = useCallback(() => setSearchOpen(false), []);  react-hooks/refs
+
+C:\Users\Administrator\Documents\gits\thabangvisionaistudios\components\notifications\NotificationBell.tsx
+  37:5  error  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+C:\Users\Administrator\Documents\gits\thabangvisionaistudios\components\notifications\NotificationBell.tsx:37:5
+  35 |
+  36 |   useEffect(() => {
+> 37 |     fetchNotifications();
+     |     ^^^^^^^^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  38 |     // Poll every 30 seconds
+  39 |     const interval = setInterval(fetchNotifications, 30_000);
+  40 |     return () => clearInterval(interval);  react-hooks/set-state-in-effect
+
+C:\Users\Administrator\Documents\gits\thabangvisionaistudios\components\projects\ProjectsComponents.tsx
+  97:90  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\Administrator\Documents\gits\thabangvisionaistudios\lib\agents\runtime.ts
+  82:1  warning  Unused eslint-disable directive (no problems were reported from '@typescript-eslint/no-explicit-any')
+
+C:\Users\Administrator\Documents\gits\thabangvisionaistudios\lib\agents\tools\booking.ts
+   30:1   warning  Unused eslint-disable directive (no problems were reported from '@typescript-eslint/no-explicit-any')
+   35:19  error    Unexpected any. Specify a different type                                                               @typescript-eslint/no-explicit-any
+   36:31  error    Unexpected any. Specify a different type                                                               @typescript-eslint/no-explicit-any
+  167:11  warning  Unused eslint-disable directive (no problems were reported from '@typescript-eslint/no-explicit-any')
+  169:42  error    Unexpected any. Specify a different type                                                               @typescript-eslint/no-explicit-any
+
+C:\Users\Administrator\Documents\gits\thabangvisionaistudios\lib\agents\tools\search.ts
+  14:1   warning  Unused eslint-disable directive (no problems were reported from '@typescript-eslint/no-explicit-any')
+  18:19  error    Unexpected any. Specify a different type                                                               @typescript-eslint/no-explicit-any
+  19:31  error    Unexpected any. Specify a different type                                                               @typescript-eslint/no-explicit-any
+
+C:\Users\Administrator\Documents\gits\thabangvisionaistudios\lib\rag\indexer.ts
+   99:1   warning  Unused eslint-disable directive (no problems were reported from '@typescript-eslint/no-explicit-any')
+  101:13  error    Unexpected any. Specify a different type                                                               @typescript-eslint/no-explicit-any
+
+C:\Users\Administrator\Documents\gits\thabangvisionaistudios\lib\rag\retrieval.ts
+  38:1   warning  Unused eslint-disable directive (no problems were reported from '@typescript-eslint/no-explicit-any')
+  40:13  error    Unexpected any. Specify a different type                                                               @typescript-eslint/no-explicit-any
+
+C:\Users\Administrator\Documents\gits\thabangvisionaistudios\lib\ubunye\tools.ts
+    2:18  warning  'PRODUCTION_SERVICES' is defined but never used                                                        @typescript-eslint/no-unused-vars
+   26:1   warning  Unused eslint-disable directive (no problems were reported from '@typescript-eslint/no-explicit-any')
+   31:19  error    Unexpected any. Specify a different type                                                               @typescript-eslint/no-explicit-any
+  167:11  warning  Unused eslint-disable directive (no problems were reported from '@typescript-eslint/no-explicit-any')
+  169:42  error    Unexpected any. Specify a different type                                                               @typescript-eslint/no-explicit-any
+
+C:\Users\Administrator\Documents\gits\thabangvisionaistudios\tests\e2e\booking.spec.ts
+  34:13  warning  'hasPricing' is assigned a value but never used       @typescript-eslint/no-unused-vars
+  55:13  warning  'bookingElements' is assigned a value but never used  @typescript-eslint/no-unused-vars
+  73:11  warning  'totalElement' is assigned a value but never used     @typescript-eslint/no-unused-vars
+
+C:\Users\Administrator\Documents\gits\thabangvisionaistudios\tests\e2e\full-journey.spec.ts
+  256:11  warning  'hasValidation' is assigned a value but never used  @typescript-eslint/no-unused-vars
+  703:13  warning  'hasPricing' is assigned a value but never used     @typescript-eslint/no-unused-vars
+  719:13  warning  'bookingUI' is assigned a value but never used      @typescript-eslint/no-unused-vars
+
+C:\Users\Administrator\Documents\gits\thabangvisionaistudios\tests\unit\payfast.test.ts
+  1:32  warning  'vi' is defined but never used          @typescript-eslint/no-unused-vars
+  1:36  warning  'beforeEach' is defined but never used  @typescript-eslint/no-unused-vars
+
+✖ 85 problems (26 errors, 59 warnings)
+  0 errors and 12 warnings potentially fixable with the `--fix` option.
+

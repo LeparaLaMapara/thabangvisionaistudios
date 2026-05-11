@@ -79,14 +79,14 @@ const Hero = () => {
 
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.8, delay: 0.4 }} className="max-w-xl">
             <p className="text-lg text-neutral-300 font-light leading-relaxed mb-10">
-              Photography. Film. Production. Verified creators. Professional equipment. All in one platform.
+              Find photographers, videographers, production crews, and professional gear. All in one trusted platform.
             </p>
             <div className="flex flex-wrap gap-4">
               <Link href="/smart-rentals/crew-services" className="group inline-flex items-center gap-2 min-h-[44px] bg-white text-black px-8 py-4 text-[10px] font-mono font-bold uppercase tracking-widest hover:opacity-80 transition-opacity">
-                Book a Creator <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                Book Creators <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
               </Link>
               <Link href="/smart-rentals" className="group inline-flex items-center gap-2 min-h-[44px] border border-white/20 text-white px-8 py-4 text-[10px] font-mono font-bold uppercase tracking-widest hover:bg-white/5 transition-colors">
-                Rent Gear <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                Rent Equipment <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
               </Link>
             </div>
           </motion.div>
