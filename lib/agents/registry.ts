@@ -3,6 +3,7 @@ import { assistantAgent } from './agents/assistant';
 import { bookingAgent } from './agents/booking';
 import { bioWriterAgent } from './agents/bio-writer';
 import { listingDescriberAgent } from './agents/listing-describer';
+import { productionDescriberAgent } from './agents/production-describer';
 
 export const UBUNYE_AGENTS: Record<string, UbunyeAgent> = {
   assistant: assistantAgent,
@@ -12,6 +13,8 @@ export const UBUNYE_AGENTS: Record<string, UbunyeAgent> = {
   'bio-writer': bioWriterAgent,
 
   'listing-describer': listingDescriberAgent,
+
+  'production-describer': productionDescriberAgent,
 
   onboarding: {
     id: 'onboarding',
