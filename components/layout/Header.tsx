@@ -4,10 +4,9 @@ import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
-import { Search, Menu, X, ChevronDown, ShoppingCart } from 'lucide-react';
+import { Menu, X, ChevronDown, ShoppingCart } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { MAIN_NAVIGATION } from '@/lib/constants';
-import { GlobalSearch } from '@/components/search/GlobalSearch';
 import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/providers/AuthProvider';
 import { useCart } from '@/providers/CartProvider';
@@ -154,15 +153,7 @@ export const Header = ({ navigation = MAIN_NAVIGATION }: { navigation?: readonly
 
   const [scrolled, setScrolled] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [searchOpen, setSearchOpen] = useState(false);
-  const [isMac, setIsMac] = useState(false);
-
-  useEffect(() => {
-    setIsMac(navigator.platform?.toUpperCase().includes('MAC') || navigator.userAgent?.includes('Mac'));
-  }, []);
   const [signingOut, setSigningOut] = useState(false);
-
-  const closeSearch = useCallback(() => setSearchOpen(false), []);
 
   const handleSignOut = useCallback(async () => {
     setSigningOut(true);
@@ -196,7 +187,6 @@ export const Header = ({ navigation = MAIN_NAVIGATION }: { navigation?: readonly
       if (e.key === 'Escape') setMobileMenuOpen(false);
     };
 
-    // Push a history entry so the back button closes the menu instead of navigating away
     window.history.pushState({ mobileMenu: true }, '');
     const handlePopState = () => setMobileMenuOpen(false);
 
@@ -212,18 +202,6 @@ export const Header = ({ navigation = MAIN_NAVIGATION }: { navigation?: readonly
     const handleScroll = () => setScrolled(window.scrollY > 50);
     window.addEventListener('scroll', handleScroll);
     return () => window.removeEventListener('scroll', handleScroll);
-  }, []);
-
-  // Cmd+K / Ctrl+K to toggle search
-  useEffect(() => {
-    const handleKey = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
-        e.preventDefault();
-        setSearchOpen(prev => !prev);
-      }
-    };
-    window.addEventListener('keydown', handleKey);
-    return () => window.removeEventListener('keydown', handleKey);
   }, []);
 
   return (
@@ -251,15 +229,7 @@ export const Header = ({ navigation = MAIN_NAVIGATION }: { navigation?: readonly
         </nav>
 
         {/* Right Actions */}
-        <div className="hidden lg:flex items-center gap-6">
-          <button
-            onClick={() => setSearchOpen(true)}
-            className="text-neutral-500 hover:text-black dark:hover:text-white transition-colors flex items-center gap-1.5"
-          >
-            <Search className="w-4 h-4" />
-            <kbd className="hidden xl:inline text-[9px] font-mono text-neutral-500 border border-neutral-300 dark:border-neutral-700 px-1 py-0.5 rounded">{isMac ? '⌘K' : 'Ctrl+K'}</kbd>
-          </button>
-          <HeaderUbunyeBubble />
+        <div className="hidden lg:flex items-center gap-5">
           {isLoggedIn && (
             <Link
               href="/dashboard/cart"
@@ -273,9 +243,7 @@ export const Header = ({ navigation = MAIN_NAVIGATION }: { navigation?: readonly
               )}
             </Link>
           )}
-          <Link href="/ubunye-ai-studio" className="text-[10px] font-mono font-bold tracking-widest text-white bg-black dark:text-black dark:bg-white px-5 py-2 hover:opacity-80 transition-all duration-300 uppercase">
-            Start Project
-          </Link>
+          <HeaderUbunyeBubble />
           {authLoading ? (
             <div className="w-24 h-8" />
           ) : isLoggedIn ? (
@@ -306,12 +274,6 @@ export const Header = ({ navigation = MAIN_NAVIGATION }: { navigation?: readonly
 
         {/* Mobile Actions */}
         <div className="lg:hidden flex items-center gap-3 pointer-events-auto">
-          <button
-            onClick={() => setSearchOpen(true)}
-            className="text-neutral-500 hover:text-black dark:hover:text-white transition-colors"
-          >
-            <Search className="w-5 h-5" />
-          </button>
           <HeaderUbunyeBubble />
           {isLoggedIn && (
             <Link
@@ -354,7 +316,7 @@ export const Header = ({ navigation = MAIN_NAVIGATION }: { navigation?: readonly
               className="bg-[#050505] min-h-screen overflow-y-auto flex flex-col justify-center items-center gap-6"
               onClick={(e) => e.stopPropagation()}
             >
-              {/* Close button — fixed top-right, same position as hamburger */}
+              {/* Close button */}
               <button
                 onClick={() => setMobileMenuOpen(false)}
                 className="absolute top-0 right-0 z-10 p-6 min-h-[44px] min-w-[44px] flex items-center justify-center text-white"
@@ -376,7 +338,7 @@ export const Header = ({ navigation = MAIN_NAVIGATION }: { navigation?: readonly
                   onClick={() => mobileNavigate('/ubunye-ai-studio')}
                   className={`${ACTION_BTN} bg-[#D4A843] text-black border border-[#D4A843] min-h-[44px]`}
                 >
-                  Start Project
+                  Ask Ubunye
                 </button>
                 {authLoading ? (
                   <div className="h-[44px]" />
@@ -409,9 +371,6 @@ export const Header = ({ navigation = MAIN_NAVIGATION }: { navigation?: readonly
           </motion.div>
         )}
       </AnimatePresence>
-
-      {/* Global Search Modal */}
-      <GlobalSearch isOpen={searchOpen} onClose={closeSearch} />
     </header>
   );
 };
