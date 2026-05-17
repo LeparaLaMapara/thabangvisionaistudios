@@ -134,7 +134,7 @@ export default function ServiceBookingsList({ bookings }: { bookings: ServiceBoo
         <div className="py-12 text-center text-neutral-500">
           <p>No service bookings yet.</p>
           <p className="mt-2 text-sm">
-            <Link href="/smart-production" className="text-[#D4A843] underline">
+            <Link href="/studio" className="text-[#D4A843] underline">
               Browse production packages
             </Link>{' '}
             to book a service.

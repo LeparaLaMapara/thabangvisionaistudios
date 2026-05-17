@@ -25,12 +25,12 @@ describe('FEATURE_KEYS', () => {
 
 describe('filterNavSync', () => {
   const nav = [
-    { label: 'Smart Rentals', href: '/smart-rentals' },
-    { label: 'Smart Productions', href: '/smart-production' },
+    { label: 'Rentals', href: '/rentals' },
+    { label: 'Studio', href: '/studio' },
     { label: 'Pricing', href: '/pricing' },
   ];
 
-  it('hides /smart-production entries when smart_productions is off', () => {
+  it('hides /studio entries when smart_productions is off', () => {
     const result = filterNavSync(nav, {
       smart_productions: false,
       smart_productions_booking: false,
@@ -39,10 +39,10 @@ describe('filterNavSync', () => {
       ai_rate_suggestions: false,
       ai_portfolio_tagging: false,
     });
-    expect(result.map((i) => i.href)).toEqual(['/smart-rentals', '/pricing']);
+    expect(result.map((i) => i.href)).toEqual(['/rentals', '/pricing']);
   });
 
-  it('keeps /smart-production entries when smart_productions is on', () => {
+  it('keeps /studio entries when smart_productions is on', () => {
     const result = filterNavSync(nav, {
       smart_productions: true,
       smart_productions_booking: false,
@@ -52,17 +52,17 @@ describe('filterNavSync', () => {
       ai_portfolio_tagging: false,
     });
     expect(result.map((i) => i.href)).toEqual([
-      '/smart-rentals',
-      '/smart-production',
+      '/rentals',
+      '/studio',
       '/pricing',
     ]);
   });
 
-  it('also hides nested /smart-production/* hrefs', () => {
+  it('also hides nested /studio/* hrefs', () => {
     const nested = [
-      { href: '/smart-rentals' },
-      { href: '/smart-production/category/film' },
-      { href: '/smart-productionXXX' },
+      { href: '/rentals' },
+      { href: '/studio/category/film' },
+      { href: '/studioXXX' },
     ];
     const result = filterNavSync(nested, {
       smart_productions: false,
@@ -73,8 +73,8 @@ describe('filterNavSync', () => {
       ai_portfolio_tagging: false,
     });
     expect(result.map((i) => i.href)).toEqual([
-      '/smart-rentals',
-      '/smart-productionXXX',
+      '/rentals',
+      '/studioXXX',
     ]);
   });
 

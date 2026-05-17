@@ -73,7 +73,7 @@ test.describe('Mobile navigation', () => {
     // Check for nav buttons inside the mobile menu
     await expect(mobileMenu.getByRole('button', { name: 'PROJECTS' })).toBeVisible();
     await expect(mobileMenu.getByRole('button', { name: 'THE LAB' })).toBeVisible();
-    await expect(mobileMenu.getByRole('button', { name: 'SMART RENTALS' })).toBeVisible();
+    await expect(mobileMenu.getByRole('button', { name: 'RENTALS' })).toBeVisible();
   });
 
   test('tapping a menu link navigates and closes menu', async ({ page }) => {
@@ -91,7 +91,7 @@ test.describe('Mobile navigation', () => {
     // Click nav button — mobileNavigate() calls router.push() then closes menu
     const gearBtn = mobileMenu.getByRole('button', { name: 'GEAR' });
     await gearBtn.click();
-    await page.waitForURL(/\/smart-rentals/, { timeout: 30000, waitUntil: 'domcontentloaded' });
+    await page.waitForURL(/\/rentals/, { timeout: 30000, waitUntil: 'domcontentloaded' });
   });
 });
 
@@ -167,16 +167,16 @@ test.describe('Mobile home page', () => {
   });
 });
 
-// ─── 3. Smart Rentals ─────────────────────────────────────────────────────────
+// ─── 3. Rentals ──────────────────────────────────────────────────────────────
 
-test.describe('Mobile smart rentals', () => {
+test.describe('Mobile rentals', () => {
   test('category cards stack to single column', async ({ page }) => {
-    if (!(await safeGoto(page, '/smart-rentals', { timeout: 45000 }))) {
-      test.skip(true, 'Smart rentals page unavailable');
+    if (!(await safeGoto(page, '/rentals', { timeout: 45000 }))) {
+      test.skip(true, 'Rentals page unavailable');
       return;
     }
 
-    const cards = page.locator('a[href*="/smart-rentals/"]');
+    const cards = page.locator('a[href*="/rentals/"]');
     const count = await cards.count();
 
     if (count >= 2) {
@@ -190,12 +190,12 @@ test.describe('Mobile smart rentals', () => {
   });
 
   test('rental cards are full width on mobile', async ({ page }) => {
-    if (!(await safeGoto(page, '/smart-rentals', { timeout: 45000 }))) {
-      test.skip(true, 'Smart rentals page unavailable');
+    if (!(await safeGoto(page, '/rentals', { timeout: 45000 }))) {
+      test.skip(true, 'Rentals page unavailable');
       return;
     }
 
-    const cards = page.locator('a[href*="/smart-rentals/"]');
+    const cards = page.locator('a[href*="/rentals/"]');
     if ((await cards.count()) > 0) {
       const box = await cards.first().boundingBox();
       if (box) {
@@ -209,12 +209,12 @@ test.describe('Mobile smart rentals', () => {
 
 test.describe('Mobile rental detail', () => {
   test('pricing info does not overflow horizontally', async ({ page }) => {
-    if (!(await safeGoto(page, '/smart-rentals', { timeout: 45000 }))) {
-      test.skip(true, 'Smart rentals page unavailable');
+    if (!(await safeGoto(page, '/rentals', { timeout: 45000 }))) {
+      test.skip(true, 'Rentals page unavailable');
       return;
     }
 
-    const link = page.locator('a[href*="/smart-rentals/"]').first();
+    const link = page.locator('a[href*="/rentals/"]').first();
     if ((await link.count()) > 0) {
       await link.tap();
       await page.waitForLoadState('domcontentloaded');

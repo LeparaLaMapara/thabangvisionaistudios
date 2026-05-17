@@ -207,7 +207,7 @@ export default async function DashboardPage() {
               done={bookingsCount > 0}
               label="Browse equipment"
               description="Explore professional gear available for rent."
-              href="/smart-rentals"
+              href="/rentals"
             />
             <ChecklistItem
               done={isVerified}
@@ -241,13 +241,13 @@ export default async function DashboardPage() {
           icon={Camera}
           title="Book a Shoot"
           description="Hire a creator for your next production."
-          href="/smart-production"
+          href="/studio"
         />
         <QuickAction
           icon={Search}
           title="Rent Equipment"
           description="Browse and reserve professional gear."
-          href="/smart-rentals"
+          href="/rentals"
         />
         {isVerified ? (
           <QuickAction
@@ -261,7 +261,7 @@ export default async function DashboardPage() {
             icon={Users}
             title="Hire a Creator"
             description="Find verified creators for your project."
-            href="/smart-production"
+            href="/studio"
           />
         )}
       </div>

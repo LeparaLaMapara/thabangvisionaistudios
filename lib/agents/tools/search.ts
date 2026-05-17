@@ -63,7 +63,7 @@ export function createSearchTools(
           location: c.location, years_experience: c.years_experience,
           featured: c.crew_featured, bio: c.crew_bio,
           available: !busyIds.has(c.id),
-          profile_url: `/smart-production/category/photography/${c.crew_slug}`,
+          profile_url: `/studio/category/photography/${c.crew_slug}`,
         })) };
       },
     },
@@ -105,7 +105,7 @@ export function createSearchTools(
           id: g.id, title: g.title, brand: g.brand, model: g.model,
           price_per_day: g.price_per_day, price_per_week: g.price_per_week,
           deposit: g.deposit_amount, available: g.is_available,
-          category: g.category, url: `/smart-rentals/${g.category}/${g.slug}`,
+          category: g.category, url: `/rentals/${g.category}/${g.slug}`,
         })) };
       },
     },
@@ -143,7 +143,7 @@ export function createSearchTools(
           id: p.id, title: p.title, client: p.client,
           project_type: p.project_type, year: p.year,
           description: p.description?.slice(0, 200),
-          url: `/smart-production/${p.slug}`,
+          url: `/studio/${p.slug}`,
         })) };
       },
     },

@@ -77,7 +77,7 @@ export function createCrewTools(
           location: c.location, years_experience: c.years_experience,
           featured: c.crew_featured, bio: c.crew_bio,
           available: !busyIds.has(c.id),
-          profile_url: `/smart-production/category/photography/${c.crew_slug}`,
+          profile_url: `/studio/category/photography/${c.crew_slug}`,
         })) };
       },
     },
@@ -157,7 +157,7 @@ export function createCrewTools(
             id: creator.id, name: creator.display_name, slug: creator.crew_slug,
             bio: creator.crew_bio || creator.bio, specializations: creator.specializations,
             hourly_rate: creator.hourly_rate, location: creator.location,
-            years_experience: creator.years_experience, profile_url: `/smart-production/category/photography/${creator.crew_slug}`,
+            years_experience: creator.years_experience, profile_url: `/studio/category/photography/${creator.crew_slug}`,
             avg_rating: avgRating, total_reviews: ratings.length,
             available: !isBusy,
             status: isBusy ? 'Currently busy with an active gig' : 'Available for hire',
@@ -166,7 +166,7 @@ export function createCrewTools(
           equipment: gear.data?.map((g: any) => ({ title: g.title, rate: g.price, pricing_model: g.pricing_model, category: g.category })) ?? [],
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           recent_work: flags.smart_productions
-            ? (productions.data?.map((p: any) => ({ title: p.title, type: p.project_type, url: `/smart-production/${p.slug}` })) ?? [])
+            ? (productions.data?.map((p: any) => ({ title: p.title, type: p.project_type, url: `/studio/${p.slug}` })) ?? [])
             : [],
           reviews: reviews.data ?? [],
         };
@@ -464,7 +464,7 @@ export function createCrewTools(
 
         const posts: Record<string, { text: string; character_count: number; hashtags: string }> = {};
 
-        const productionUrl = `${STUDIO.meta.url}/smart-production/${production_slug}`;
+        const productionUrl = `${STUDIO.meta.url}/studio/${production_slug}`;
 
         if (targetPlatforms.includes('instagram')) {
           const caption = contentTone === 'hype'

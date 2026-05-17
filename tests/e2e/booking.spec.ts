@@ -3,21 +3,21 @@ import { test, expect } from '@playwright/test';
 test.describe('Booking flow', () => {
   test('rental detail page shows pricing information', async ({ page }) => {
     // First navigate to rentals to find a real item
-    await page.goto('/smart-rentals');
+    await page.goto('/rentals');
 
     // Find a rental item link that goes to a detail page
     const rentalLink = page
-      .locator('a[href*="/smart-rentals/"]')
+      .locator('a[href*="/rentals/"]')
       .filter({ hasText: /.+/ })
       .first();
 
     if ((await rentalLink.count()) > 0) {
       await rentalLink.click();
-      await page.waitForURL(/\/smart-rentals\/.+/, { timeout: 10000 });
+      await page.waitForURL(/\/rentals\/.+/, { timeout: 10000 });
 
       // If we're on a category page, click the first item
       const itemLink = page
-        .locator('a[href*="/smart-rentals/"]')
+        .locator('a[href*="/rentals/"]')
         .filter({ hasText: /.+/ })
         .first();
       if ((await itemLink.count()) > 0) {
@@ -41,10 +41,10 @@ test.describe('Booking flow', () => {
 
   test('booking widget shows date picker when present', async ({ page }) => {
     // Navigate to a rental detail page
-    await page.goto('/smart-rentals');
+    await page.goto('/rentals');
 
     const deepLink = page
-      .locator('a[href*="/smart-rentals/"]')
+      .locator('a[href*="/rentals/"]')
       .first();
 
     if ((await deepLink.count()) > 0) {
@@ -66,7 +66,7 @@ test.describe('Booking flow', () => {
   }) => {
     // This test verifies the calculation logic if a BookingWidget is present.
     // Navigate to any rental detail page
-    await page.goto('/smart-rentals');
+    await page.goto('/rentals');
     await page.waitForLoadState('networkidle');
 
     // Look for booking total display

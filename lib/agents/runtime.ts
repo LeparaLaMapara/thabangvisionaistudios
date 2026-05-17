@@ -257,7 +257,7 @@ export async function executeAgent(
 
     if (preCreator) {
       systemPrompt += `\n\n===== PRE-SELECTED CREATOR =====
-The client selected this creator from their work on smart-production. Creator and category are ALREADY KNOWN.
+The client selected this creator from their work on studio. Creator and category are ALREADY KNOWN.
 Do NOT call search_creators. Do NOT ask "any specific creator?" or "what type of shoot?"
 Creator: ${preCreator.display_name} (ID: ${preCreator.id}, slug: ${preCreator.crew_slug})
 Specializations: ${(preCreator.specializations ?? []).join(', ')}

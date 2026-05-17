@@ -342,8 +342,8 @@ test.describe('5. Browsing — public pages', () => {
     expect(bodyText?.length).toBeGreaterThan(100);
   });
 
-  test('5b. Smart Rentals loads with categories', async ({ page }) => {
-    await page.goto('/smart-rentals');
+  test('5b. Rentals loads with categories', async ({ page }) => {
+    await page.goto('/rentals');
     await page.waitForLoadState('networkidle');
     await expect(page.locator('body')).toBeVisible();
 
@@ -353,12 +353,12 @@ test.describe('5. Browsing — public pages', () => {
     expect(hasContent).toBe(true);
   });
 
-  test('5c. Smart Rentals category page loads', async ({ page }) => {
-    await page.goto('/smart-rentals');
+  test('5c. Rentals category page loads', async ({ page }) => {
+    await page.goto('/rentals');
     await page.waitForLoadState('networkidle');
 
     // Find and click a category link
-    const categoryLink = page.locator('a[href*="/smart-rentals/"]').first();
+    const categoryLink = page.locator('a[href*="/rentals/"]').first();
     if ((await categoryLink.count()) > 0) {
       await categoryLink.click();
       await page.waitForLoadState('networkidle');
@@ -366,8 +366,8 @@ test.describe('5. Browsing — public pages', () => {
     }
   });
 
-  test('5d. Smart Productions loads', async ({ page }) => {
-    await page.goto('/smart-production');
+  test('5d. Studio loads', async ({ page }) => {
+    await page.goto('/studio');
     await page.waitForLoadState('networkidle');
     await expect(page.locator('body')).toBeVisible();
 
@@ -680,17 +680,17 @@ test.describe('8. Security — non-admin user', () => {
 
 test.describe('9. Booking flow', () => {
   test('9a. Rental detail page shows pricing', async ({ page }) => {
-    await page.goto('/smart-rentals');
+    await page.goto('/rentals');
     await page.waitForLoadState('networkidle');
 
     // Navigate to a rental item
-    const link = page.locator('a[href*="/smart-rentals/"]').first();
+    const link = page.locator('a[href*="/rentals/"]').first();
     if ((await link.count()) > 0) {
       await link.click();
       await page.waitForLoadState('networkidle');
 
       // Try to go deeper if on category page
-      const deepLink = page.locator('a[href*="/smart-rentals/"]').first();
+      const deepLink = page.locator('a[href*="/rentals/"]').first();
       if ((await deepLink.count()) > 0) {
         const href = await deepLink.getAttribute('href');
         if (href && href.split('/').length > 3) {
@@ -707,10 +707,10 @@ test.describe('9. Booking flow', () => {
   });
 
   test('9b. Booking widget visible on rental detail', async ({ page }) => {
-    await page.goto('/smart-rentals');
+    await page.goto('/rentals');
     await page.waitForLoadState('networkidle');
 
-    const link = page.locator('a[href*="/smart-rentals/"]').first();
+    const link = page.locator('a[href*="/rentals/"]').first();
     if ((await link.count()) > 0) {
       await link.click();
       await page.waitForLoadState('networkidle');
@@ -858,7 +858,7 @@ test.describe('11. API validation', () => {
 
   test('11i. All public pages return 200', async ({ page }) => {
     const publicPages = [
-      '/', '/smart-rentals', '/smart-production', '/press', '/pricing',
+      '/', '/rentals', '/studio', '/press', '/pricing',
       '/contact', '/about', '/careers', '/locations', '/legal', '/privacy',
       '/login', '/register', '/support/tech', '/ubunye-ai-studio', '/marketplace',
     ];

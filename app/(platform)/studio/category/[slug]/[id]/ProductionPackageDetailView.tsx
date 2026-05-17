@@ -96,12 +96,12 @@ export default function ProductionPackageDetailView({
           <div className="flex flex-wrap items-center gap-2 text-[10px] font-mono uppercase tracking-widest text-neutral-500">
             <Link href="/" className="hover:text-white transition-colors">Home</Link>
             <ChevronRight className="w-3 h-3 flex-shrink-0" />
-            <Link href="/smart-production" className="hover:text-white transition-colors">
+            <Link href="/studio" className="hover:text-white transition-colors">
               Smart Productions
             </Link>
             <ChevronRight className="w-3 h-3 flex-shrink-0" />
             <Link
-              href={`/smart-production/category/${category.slug}`}
+              href={`/studio/category/${category.slug}`}
               className="hover:text-white transition-colors"
             >
               {category.name}
@@ -483,7 +483,7 @@ export default function ProductionPackageDetailView({
                     transition={{ duration: 0.3 }}
                   >
                     <Link
-                      href={`/smart-production/category/${category.slug}/${related.id}`}
+                      href={`/studio/category/${category.slug}/${related.id}`}
                       className="group block bg-[#0A0A0B] border border-white/5 hover:border-[#D4A843]/30 transition-all duration-300"
                     >
                       <div className="h-1 bg-[#D4A843]" />
@@ -528,7 +528,7 @@ export default function ProductionPackageDetailView({
         {/* ── Back link ── */}
         <div className="mt-16 pt-8 border-t border-white/5">
           <Link
-            href={`/smart-production/category/${category.slug}`}
+            href={`/studio/category/${category.slug}`}
             className="inline-flex items-center gap-2 text-[10px] font-mono font-bold uppercase tracking-widest text-neutral-500 hover:text-[#D4A843] transition-colors"
           >
             <ArrowLeft className="w-3 h-3" />

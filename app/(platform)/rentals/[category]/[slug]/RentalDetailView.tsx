@@ -95,12 +95,12 @@ export default function RentalDetailView({
               Home
             </Link>
             <ChevronRight className="w-3 h-3 flex-shrink-0" />
-            <Link href="/smart-rentals" className="hover:text-black dark:hover:text-white transition-colors">
+            <Link href="/rentals" className="hover:text-black dark:hover:text-white transition-colors">
               Smart Rentals
             </Link>
             <ChevronRight className="w-3 h-3 flex-shrink-0" />
             <Link
-              href={`/smart-rentals/${category}`}
+              href={`/rentals/${category}`}
               className="hover:text-black dark:hover:text-white transition-colors"
             >
               {categoryLabel}
@@ -538,7 +538,7 @@ export default function RentalDetailView({
                   transition={{ delay: i * 0.1 }}
                 >
                   <Link
-                    href={`/smart-rentals/${item.category}/${item.slug}`}
+                    href={`/rentals/${item.category}/${item.slug}`}
                     className="block bg-white dark:bg-[#0A0A0B] group hover:bg-neutral-50 dark:hover:bg-white/5 transition-colors"
                   >
                     {/* Preview: first gallery image */}
@@ -588,7 +588,7 @@ export default function RentalDetailView({
         {/* ── Back link ── */}
         <div className="mt-16 pt-8 border-t border-black/5 dark:border-white/5">
           <Link
-            href={`/smart-rentals/${category}`}
+            href={`/rentals/${category}`}
             className="inline-flex items-center gap-2 text-[10px] font-mono font-bold uppercase tracking-widest text-neutral-500 hover:text-accent-gold transition-colors"
           >
             <ArrowLeft className="w-3 h-3" />

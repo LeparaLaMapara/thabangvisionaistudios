@@ -184,7 +184,7 @@ function ProductionCard({ production }: { production: SmartProduction }) {
         </div>
 
         <Link
-          href={`/smart-production/${production.slug}`}
+          href={`/studio/${production.slug}`}
           className="w-full py-3 text-[10px] font-mono font-bold uppercase tracking-widest transition-all bg-[#D4A843] text-black border border-[#D4A843] hover:opacity-80 flex items-center justify-center gap-2"
         >
           View Photos &amp; Video
@@ -304,7 +304,7 @@ function CreatorCard({ creator, categorySlug }: { creator: CrewMember; categoryS
 
   return (
     <Link
-      href={`/smart-production/category/${categorySlug}/${creator.crew_slug ?? creator.id}`}
+      href={`/studio/category/${categorySlug}/${creator.crew_slug ?? creator.id}`}
       className="group flex items-center gap-4 bg-[#0A0A0B] border border-white/5 hover:border-[#D4A843]/30 p-4 transition-colors"
     >
       <div className="relative w-12 h-12 rounded-full overflow-hidden bg-neutral-800 flex-shrink-0">
@@ -471,7 +471,7 @@ export default function CategoryPageClient({ category, packages, productions, cr
           <div className="flex items-center gap-2 text-[10px] font-mono uppercase tracking-widest text-neutral-500 mb-6">
             <Link href="/" className="hover:text-white">Home</Link>
             <span>/</span>
-            <Link href="/smart-production" className="hover:text-white">Smart Productions</Link>
+            <Link href="/studio" className="hover:text-white">Smart Productions</Link>
             <span>/</span>
             <span className="text-white">{category.name}</span>
           </div>
@@ -692,7 +692,7 @@ export default function CategoryPageClient({ category, packages, productions, cr
                 </div>
                 <div className="mt-4">
                   <Link
-                    href="/smart-production"
+                    href="/studio"
                     className="inline-flex items-center gap-2 text-[10px] font-mono uppercase tracking-widest text-neutral-400 hover:text-white transition-colors border-b border-transparent hover:border-white pb-0.5"
                   >
                     Browse all creators <ArrowRight className="w-3 h-3" />

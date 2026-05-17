@@ -230,7 +230,7 @@ export default function CartPage() {
         <ShoppingCart className="w-12 h-12 mx-auto text-neutral-600" />
         <p className="text-sm font-mono text-neutral-500">Your cart is empty</p>
         <Link
-          href="/smart-rentals"
+          href="/rentals"
           className="inline-flex items-center gap-2 text-[10px] font-mono font-bold uppercase tracking-widest text-[#D4A843] hover:underline"
         >
           Browse Equipment <ArrowRight className="w-3 h-3" />
@@ -305,7 +305,7 @@ export default function CartPage() {
                   {/* Details */}
                   <div className="flex-1 min-w-0">
                     <Link
-                      href={`/smart-rentals/${item.rental.slug}`}
+                      href={`/rentals/${item.rental.slug}`}
                       className="text-sm font-mono font-medium text-white hover:text-[#D4A843] transition-colors truncate block"
                     >
                       {item.rental.title}

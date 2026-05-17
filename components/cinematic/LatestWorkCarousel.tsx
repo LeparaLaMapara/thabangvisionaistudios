@@ -26,12 +26,12 @@ const CATEGORY_CONFIG = {
   production: {
     label: 'Production',
     icon: Clapperboard,
-    href: (slug: string, _categorySlug?: string) => `/smart-production/${slug}`,
+    href: (slug: string, _categorySlug?: string) => `/studio/${slug}`,
   },
   rental: {
     label: 'Rental',
     icon: Package,
-    href: (slug: string, categorySlug?: string) => `/smart-rentals/${categorySlug || 'cameras-optics'}/${slug}`,
+    href: (slug: string, categorySlug?: string) => `/rentals/${categorySlug || 'cameras-optics'}/${slug}`,
   },
   press: {
     label: 'Press',
@@ -134,7 +134,7 @@ export function LatestWorkCarousel({ items }: { items: CarouselItem[] }) {
         </div>
         <div className="hidden md:flex items-center gap-6">
           <Link
-            href="/smart-production"
+            href="/studio"
             className="flex items-center gap-2 text-xs font-mono text-neutral-500 hover:text-black dark:text-neutral-400 dark:hover:text-white transition-colors uppercase tracking-widest"
           >
             View All Work <ChevronRight className="w-4 h-4" />
@@ -172,7 +172,7 @@ export function LatestWorkCarousel({ items }: { items: CarouselItem[] }) {
       {/* Mobile link */}
       <div className="md:hidden flex justify-center mt-8">
         <Link
-          href="/smart-production"
+          href="/studio"
           className="flex items-center gap-2 text-xs font-mono text-neutral-500 hover:text-black dark:text-neutral-400 dark:hover:text-white transition-colors uppercase tracking-widest"
         >
           View All Work <ChevronRight className="w-4 h-4" />

@@ -104,7 +104,7 @@ export const ProjectCard = ({ project, index }: { project: Project; index: numbe
       transition={{ duration: 0.4, delay: index * 0.05 }}
       className="group relative cursor-pointer"
     >
-      <Link href={`/smart-production/${project.slug}`} className="block h-full">
+      <Link href={`/studio/${project.slug}`} className="block h-full">
         <div className="relative aspect-[3/2] overflow-hidden bg-neutral-100 dark:bg-neutral-900 mb-4">
           <div className="absolute inset-0 bg-black/20 group-hover:bg-black/40 transition-colors z-10" />
 

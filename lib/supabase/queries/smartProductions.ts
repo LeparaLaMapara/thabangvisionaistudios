@@ -118,7 +118,7 @@ export async function getArchivedProductions(): Promise<SmartProduction[]> {
 
 /**
  * Returns published productions filtered by project_type.
- * Used on category detail pages like /smart-production/category/[slug].
+ * Used on category detail pages like /studio/category/[slug].
  */
 export async function getProductionsByType(projectType: string): Promise<SmartProduction[]> {
   const supabase = await createClient();

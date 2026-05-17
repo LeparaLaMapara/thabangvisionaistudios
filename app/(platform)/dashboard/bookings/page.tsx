@@ -100,7 +100,7 @@ export default function BookingsPage() {
           }
           action={
             activeTab === 'upcoming'
-              ? { label: 'Browse Rentals', href: '/smart-rentals' }
+              ? { label: 'Browse Rentals', href: '/rentals' }
               : undefined
           }
           icon={<Calendar className="w-8 h-8" />}

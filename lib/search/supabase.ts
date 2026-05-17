@@ -87,7 +87,7 @@ export const supabaseSearch: SearchProvider = {
         excerpt: truncate(p.description || `Client: ${p.client || '—'}`),
         category: 'productions',
         thumbnail: p.thumbnail_url,
-        href: `/smart-production/${p.slug}`,
+        href: `/studio/${p.slug}`,
       });
     }
 
@@ -98,7 +98,7 @@ export const supabaseSearch: SearchProvider = {
         excerpt: truncate(r.description || [r.brand, r.model].filter(Boolean).join(' ')),
         category: 'equipment',
         thumbnail: r.thumbnail_url,
-        href: `/smart-rentals/${r.category}/${r.slug}`,
+        href: `/rentals/${r.category}/${r.slug}`,
       });
     }
 

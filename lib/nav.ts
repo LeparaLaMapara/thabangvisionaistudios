@@ -3,7 +3,7 @@ import { getFlags, type FeatureKey } from '@/lib/features';
 type HrefEntry = { href: string } & Record<string, unknown>;
 
 const HREF_TO_FLAG: Array<{ pattern: RegExp; flag: FeatureKey }> = [
-  { pattern: /^\/smart-production(\/|$)/, flag: 'smart_productions' },
+  { pattern: /^\/studio(\/|$)/, flag: 'smart_productions' },
 ];
 
 function isGatedHref(href: string, flagsState: Record<FeatureKey, boolean>): boolean {

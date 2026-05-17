@@ -21,44 +21,44 @@ test.describe('Rental browsing', () => {
     await expect(page.locator('footer')).toBeVisible();
   });
 
-  test('Smart Rentals page loads and shows content', async ({ page }) => {
-    await page.goto('/smart-rentals');
+  test('Rentals page loads and shows content', async ({ page }) => {
+    await page.goto('/rentals');
     await expect(page).toHaveTitle(/.+/);
     // Should show some headings or rental categories
     await expect(page.locator('h1, h2').first()).toBeVisible();
   });
 
-  test('Smart Rentals page has category links or filters', async ({
+  test('Rentals page has category links or filters', async ({
     page,
   }) => {
-    await page.goto('/smart-rentals');
+    await page.goto('/rentals');
     // Look for category links (cameras-optics, lighting-power, audio, etc.)
-    const links = page.locator('a[href*="/smart-rentals/"]');
+    const links = page.locator('a[href*="/rentals/"]');
     const count = await links.count();
     expect(count).toBeGreaterThan(0);
   });
 
   test('clicking a category navigates to category page', async ({ page }) => {
-    await page.goto('/smart-rentals');
+    await page.goto('/rentals');
 
-    const categoryLink = page.locator('a[href*="/smart-rentals/"]').first();
+    const categoryLink = page.locator('a[href*="/rentals/"]').first();
     if ((await categoryLink.count()) > 0) {
       await categoryLink.click();
-      await page.waitForURL(/\/smart-rentals\/.+/, { timeout: 10000 });
+      await page.waitForURL(/\/rentals\/.+/, { timeout: 10000 });
       await expect(page.locator('body')).toBeVisible();
     }
   });
 
-  test('Smart Productions page loads', async ({ page }) => {
-    await page.goto('/smart-production');
+  test('Studio page loads', async ({ page }) => {
+    await page.goto('/studio');
     await expect(page).toHaveTitle(/.+/);
     await expect(page.locator('h1, h2').first()).toBeVisible();
   });
 
-  test('Smart Productions page has filter or search functionality', async ({
+  test('Studio page has filter or search functionality', async ({
     page,
   }) => {
-    await page.goto('/smart-production');
+    await page.goto('/studio');
     // Look for filter buttons, search input, or category tabs
     const interactive = page.locator(
       'button, input[type="search"], input[type="text"], [role="tablist"]',
