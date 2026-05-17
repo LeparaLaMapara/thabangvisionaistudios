@@ -210,7 +210,7 @@ export function buildSystemPrompt(
   flags: UbunyeFlagsSnapshot,
 ): string {
   const productionsLine = flags.smart_productions
-    ? '1. Smart Productions — Professional film, video, photography. Portfolio at /studio'
+    ? '1. Studio — Book photographers, videographers & production crews. Browse at /studio'
     : '';
   const productionsSection = flags.smart_productions && platform.productions
     ? `===== PRODUCTIONS =====\n${platform.productions}\n`
@@ -231,7 +231,7 @@ Website: ${STUDIO.meta.url}
 Hours: ${STUDIO.hours.weekday} | ${STUDIO.hours.weekend} | ${STUDIO.hours.sunday}
 
 ===== WHAT WE OFFER =====
-${productionsLine}${productionsLine ? '\n' : ''}- Smart Rentals — Equipment rental with online booking at /rentals
+${productionsLine}${productionsLine ? '\n' : ''}- Rentals — Equipment rental with online booking at /rentals
 - Ubunye AI Studio — You. The AI assistant at /ubunye-ai-studio
 - Creator Marketplace — Verified creators list gear and services
 - About — R&D: AI production tools, custom software, optical engineering. Learn more at /about

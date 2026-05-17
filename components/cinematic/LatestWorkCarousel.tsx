@@ -42,7 +42,7 @@ const CATEGORY_CONFIG = {
 
 const PLACEHOLDER_ITEMS: CarouselItem[] = [
   {
-    id: 'ph-1', slug: '', title: 'Smart Productions',
+    id: 'ph-1', slug: '', title: 'Studio',
     description: 'Cinematic storytelling powered by cutting-edge technology and South African creative talent.',
     thumbnail_url: null, video_url: null, tags: ['Film', 'Photography'],
     category: 'production', meta: STUDIO.shortName, created_at: new Date().toISOString(),
@@ -51,7 +51,7 @@ const PLACEHOLDER_ITEMS: CarouselItem[] = [
     id: 'ph-2', slug: '', title: 'Professional Gear',
     description: 'Cinema cameras, optics, lighting, audio, and grip equipment available for rent.',
     thumbnail_url: null, video_url: null, tags: ['Cameras', 'Lighting'],
-    category: 'rental', meta: 'Smart Rentals', created_at: new Date().toISOString(),
+    category: 'rental', meta: 'Rentals', created_at: new Date().toISOString(),
   },
   {
     id: 'ph-3', slug: '', title: 'Studio News',

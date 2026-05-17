@@ -249,7 +249,7 @@ const BookingCTA = () => (
           whileInView={{ opacity: 1, x: 0 }}
           viewport={{ once: true }}
         >
-          <span className="text-[10px] font-mono text-accent uppercase tracking-widest mb-4 block">04 // Smart Rentals</span>
+          <span className="text-[10px] font-mono text-accent uppercase tracking-widest mb-4 block">04 // Rentals</span>
           <h2 className="text-4xl md:text-5xl font-display font-medium text-white tracking-tighter uppercase mb-6 leading-[0.95]">
             Book <br />
             <span className="text-neutral-500">Professional Gear</span>

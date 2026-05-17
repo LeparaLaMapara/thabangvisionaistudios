@@ -8,7 +8,7 @@ import { PRODUCTION_CATEGORIES } from '@/lib/constants';
 import type { ProductionCategory } from '@/types/production';
 
 export const metadata = {
-  title: 'Smart Productions — Photography & Video Production Services',
+  title: 'Studio — Photography & Video Production Services',
 };
 
 export default async function SmartProductionPage() {

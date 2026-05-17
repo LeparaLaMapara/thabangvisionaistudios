@@ -97,7 +97,7 @@ export default function ProductionPackageDetailView({
             <Link href="/" className="hover:text-white transition-colors">Home</Link>
             <ChevronRight className="w-3 h-3 flex-shrink-0" />
             <Link href="/studio" className="hover:text-white transition-colors">
-              Smart Productions
+              Studio
             </Link>
             <ChevronRight className="w-3 h-3 flex-shrink-0" />
             <Link

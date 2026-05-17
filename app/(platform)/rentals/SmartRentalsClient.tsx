@@ -211,8 +211,8 @@ export default function SmartRentalsClient({ rentals }: { rentals: SmartRental[]
               02 // Equipment Fleet
             </span>
             <h1 className="text-5xl md:text-8xl font-display font-medium text-black dark:text-white tracking-tight leading-[0.9] mb-8 uppercase">
-              AI-Optimized Gear <br />
-              <span className="text-neutral-400 dark:text-neutral-500">For Seamless Productions</span>
+              Professional Gear <br />
+              <span className="text-neutral-400 dark:text-neutral-500">For Every Shoot</span>
             </h1>
             <p className="max-w-2xl text-lg text-neutral-600 dark:text-neutral-300 font-light leading-relaxed">
               Rent professional cameras, lenses, lighting, audio equipment, drones, and studio gear from verified creators across South Africa. Secure bookings, insured rentals, and trusted equipment. All in one platform.
