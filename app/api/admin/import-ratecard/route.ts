@@ -13,7 +13,7 @@ The JSON array should contain objects with this structure:
 [
   {
     "title": "item name",
-    "category": "one of: cameras-optics, audio, lighting-power, grip-motion, data-storage, crew-services, specialized-solutions, aerial-support, sound-reinforcement",
+    "category": "one of: cameras-optics, audio, lighting-power, grip-motion, data-storage, specialized-solutions, aerial-support, sound-reinforcement",
     "sub_category": "subcategory if evident",
     "brand": "manufacturer",
     "model": "model name",
@@ -107,7 +107,7 @@ export async function POST(req: NextRequest) {
     // Validate and normalise each item
     const validCategories = [
       'cameras-optics', 'audio', 'lighting-power', 'grip-motion',
-      'data-storage', 'crew-services', 'specialized-solutions',
+      'data-storage', 'specialized-solutions',
       'aerial-support', 'sound-reinforcement',
     ];
 

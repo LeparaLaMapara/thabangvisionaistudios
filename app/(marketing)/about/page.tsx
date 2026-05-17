@@ -1,10 +1,10 @@
-import { getAvailableCrew } from '@/lib/supabase/queries/crew';
+import { getPublishedCreatorProfiles } from '@/lib/supabase/queries/smartProductions';
 import LabContent from './LabContent';
 import TeamSection from './TeamSection';
 
 export default async function LabPage() {
   // Fetch featured crew — fallback to first 8 if none are featured
-  const allCrew = await getAvailableCrew();
+  const allCrew = await getPublishedCreatorProfiles();
   const featured = allCrew.filter(c => c.crew_featured);
   const featuredCrew = featured.length > 0 ? featured.slice(0, 8) : allCrew.slice(0, 8);
 

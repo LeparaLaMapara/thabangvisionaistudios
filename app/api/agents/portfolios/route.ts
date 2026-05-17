@@ -110,7 +110,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
           );
         }
 
-        const result = detectSkills(analyses);
+        const result = await detectSkills(analyses);
         return NextResponse.json({ success: true, data: result });
       }
 

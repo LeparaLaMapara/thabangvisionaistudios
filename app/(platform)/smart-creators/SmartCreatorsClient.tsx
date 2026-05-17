@@ -5,7 +5,7 @@ import { motion } from 'framer-motion';
 import Image from 'next/image';
 import Link from 'next/link';
 import { MapPin, Star, ArrowUpRight, Search, Filter, X, Command } from 'lucide-react';
-import type { CrewWithPortfolio } from '@/lib/supabase/queries/crew';
+import type { CreatorProfile } from '@/lib/supabase/queries/smartProductions';
 import { STUDIO } from '@/lib/constants';
 import { EmptyState } from '@/components/ui/EmptyState';
 
@@ -21,7 +21,7 @@ function getInitials(name: string | null): string {
     .slice(0, 2);
 }
 
-function getCreatorHref(creator: CrewWithPortfolio): string {
+function getCreatorHref(creator: CreatorProfile): string {
   return creator.crew_slug
     ? `/creators/${creator.crew_slug}`
     : `/creators/${creator.id}`;
@@ -33,13 +33,13 @@ function CreatorCard({
   creator,
   index,
 }: {
-  creator: CrewWithPortfolio;
+  creator: CreatorProfile;
   index: number;
 }) {
   const href = getCreatorHref(creator);
   const specializations = creator.specializations?.slice(0, 3) ?? [];
   const portfolioThumb =
-    creator.portfolio?.[0]?.thumbnail_url ?? creator.avatar_url;
+    creator.portfolio_projects?.[0]?.photos?.[0]?.url ?? creator.avatar_url;
 
   return (
     <motion.div
@@ -136,7 +136,7 @@ function CreatorCard({
 export default function SmartCreatorsClient({
   creators,
 }: {
-  creators: CrewWithPortfolio[];
+  creators: CreatorProfile[];
 }) {
   const [selectedSpec, setSelectedSpec] = useState<string | null>(null);
   const [selectedLocation, setSelectedLocation] = useState<string | null>(null);

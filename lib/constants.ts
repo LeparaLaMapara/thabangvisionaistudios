@@ -377,13 +377,6 @@ export const RENTAL_CATEGORIES = [
     fallbackImage: PLACEHOLDER_IMAGES.dataStorage,
   },
   {
-    value: 'crew-services',
-    label: 'Crew Services',
-    subtitle: 'Technical Personnel',
-    description: 'DPs, gaffers, sound operators, grips, and full-package crew for any scale.',
-    fallbackImage: PLACEHOLDER_IMAGES.crewServices,
-  },
-  {
     value: 'specialized-solutions',
     label: 'Specialized Solutions',
     subtitle: 'Emerging Tech & VP',

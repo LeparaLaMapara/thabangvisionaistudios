@@ -1,10 +1,11 @@
 export const revalidate = 60;
 
 import { notFound } from 'next/navigation';
-import { PRODUCTION_CATEGORIES } from '@/lib/constants';
+import { PRODUCTION_CATEGORIES, PRODUCTION_PACKAGES } from '@/lib/constants';
 import { getCategoryBySlug } from '@/lib/supabase/queries/productionCategories';
-import { getProductionsByType } from '@/lib/supabase/queries/smartProductions';
-import ProductionCategoryClient from './ProductionCategoryClient';
+import { getStudioProductionsByType, getCreatorProductionsByType } from '@/lib/supabase/queries/smartProductions';
+import { getCrewBySpecializations } from '@/lib/supabase/queries/crew';
+import CategoryPageClient from './CategoryPageClient';
 import { AskUbunyeButton } from '@/components/ubunye/AskUbunyeButton';
 
 interface Props {
@@ -31,13 +32,21 @@ export default async function CategoryPage({ params }: Props) {
   const category = dbCategory ?? PRODUCTION_CATEGORIES.find((c) => c.slug === slug);
   if (!category) notFound();
 
-  const productions = await getProductionsByType(category.projectType);
+  const packages = PRODUCTION_PACKAGES.filter((p) => p.category === slug);
+
+  const [productions, creatorProductions, creators] = await Promise.all([
+    getStudioProductionsByType(category.projectType),
+    getCreatorProductionsByType(category.projectType),
+    getCrewBySpecializations(category.creatorKeywords),
+  ]);
 
   return (
     <>
-      <ProductionCategoryClient
+      <CategoryPageClient
         category={category}
-        productions={productions}
+        packages={packages}
+        productions={[...productions, ...creatorProductions]}
+        creators={creators}
       />
       <AskUbunyeButton
         prompt={`I need a quote for ${category.name.toLowerCase()} production services`}

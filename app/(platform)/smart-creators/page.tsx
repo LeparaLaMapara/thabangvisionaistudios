@@ -1,4 +1,4 @@
-import { getAvailableCrewWithPortfolio } from '@/lib/supabase/queries/crew';
+import { getPublishedCreatorProfiles } from '@/lib/supabase/queries/smartProductions';
 import { AskUbunyeButton } from '@/components/ubunye/AskUbunyeButton';
 import SmartCreatorsClient from './SmartCreatorsClient';
 
@@ -11,7 +11,7 @@ export const metadata = {
 };
 
 export default async function SmartCreatorsPage() {
-  const creators = await getAvailableCrewWithPortfolio();
+  const creators = await getPublishedCreatorProfiles();
   return (
     <>
       <SmartCreatorsClient creators={creators} />

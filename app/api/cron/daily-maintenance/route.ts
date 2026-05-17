@@ -7,6 +7,7 @@ import { createAdminClient } from '@/lib/supabase/server';
 import { triggerCreatorPayout } from '@/lib/payments/payout';
 import { email as emailProvider } from '@/lib/email';
 import { STUDIO } from '@/lib/constants';
+import { autoPublishCreatorProductions } from '@/lib/supabase/queries/smartProductions';
 
 /**
  * Daily Maintenance — runs at 2am SAST (00:00 UTC)
@@ -457,7 +458,16 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     results.overdueAutoSuspension = { error: String(err) };
   }
 
-  // ─── 12. POPIA: delete verification storage objects past retention ────────
+  // ─── 12. Auto-publish creator productions pending 7+ days ─────────────────
+  try {
+    const published = await autoPublishCreatorProductions();
+    results.autoPublishedCreators = published;
+  } catch (err) {
+    console.error('[daily-maintenance] auto-publish creators failed:', err);
+    results.autoPublishedCreatorsError = String(err);
+  }
+
+  // ─── 13. POPIA: delete verification storage objects past retention ────────
   try {
     const retentionMs = STUDIO.legal.popia.retentionDays * 24 * 60 * 60 * 1000;
     const retentionCutoff = new Date(now.getTime() - retentionMs).toISOString();

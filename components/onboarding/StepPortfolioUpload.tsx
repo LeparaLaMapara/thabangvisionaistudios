@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import Image from 'next/image';
 import { Upload, X, Loader2, ImageIcon } from 'lucide-react';
 import type { SceneAnalysisResult } from '@/lib/agents/types';
@@ -36,6 +36,7 @@ export default function StepPortfolioUpload({ onComplete }: StepPortfolioUploadP
   const [analyzeProgress, setAnalyzeProgress] = useState({ current: 0, total: 0 });
   const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const autoAnalyzeTriggered = useRef(false);
 
   const validAnalyses = items
     .map(i => i.analysis)
@@ -128,6 +129,7 @@ export default function StepPortfolioUpload({ onComplete }: StepPortfolioUploadP
 
   const removeItem = useCallback((index: number) => {
     setItems(prev => prev.filter((_, i) => i !== index));
+    autoAnalyzeTriggered.current = false;
   }, []);
 
   const handleAnalyze = useCallback(async () => {
@@ -177,6 +179,22 @@ export default function StepPortfolioUpload({ onComplete }: StepPortfolioUploadP
       setAnalyzing(false);
     }
   }, [items]);
+
+  const uploadedItems = items.filter(i => i.url && !i.uploading && !i.error);
+  const anyUploading = items.some(i => i.uploading);
+
+  useEffect(() => {
+    if (
+      uploadedItems.length >= 2 &&
+      !anyUploading &&
+      !analyzing &&
+      validAnalyses.length === 0 &&
+      !autoAnalyzeTriggered.current
+    ) {
+      autoAnalyzeTriggered.current = true;
+      handleAnalyze();
+    }
+  }, [uploadedItems.length, anyUploading, analyzing, validAnalyses.length, handleAnalyze]);
 
   const correctTag = useCallback(async (index: number, newTag: string) => {
     const item = items[index];
@@ -288,7 +306,8 @@ export default function StepPortfolioUpload({ onComplete }: StepPortfolioUploadP
                     src={item.url}
                     alt={`Portfolio photo ${index + 1}`}
                     fill
-                    sizes="(max-width: 640px) 50vw, 33vw"
+                    sizes="(max-width: 640px) 150px, 200px"
+                    loading="eager"
                     className="object-cover"
                   />
                   {/* Remove button */}
@@ -333,17 +352,6 @@ export default function StepPortfolioUpload({ onComplete }: StepPortfolioUploadP
 
       {/* Action buttons */}
       <div className="flex gap-3">
-        {!analyzing && uploadedCount >= 2 && validAnalyses.length === 0 && (
-          <button
-            type="button"
-            onClick={handleAnalyze}
-            className="flex-1 bg-neutral-800 text-white py-3 px-6 text-[10px] font-mono font-bold uppercase tracking-widest hover:bg-neutral-700 transition-colors min-h-[44px] flex items-center justify-center gap-2"
-          >
-            <ImageIcon className="w-3.5 h-3.5" />
-            Analyze Photos
-          </button>
-        )}
-
         {canProceed && (
           <button
             type="button"

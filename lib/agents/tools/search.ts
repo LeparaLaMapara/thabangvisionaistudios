@@ -63,7 +63,7 @@ export function createSearchTools(
           location: c.location, years_experience: c.years_experience,
           featured: c.crew_featured, bio: c.crew_bio,
           available: !busyIds.has(c.id),
-          profile_url: `/smart-rentals/crew-services/${c.crew_slug}`,
+          profile_url: `/smart-production/category/photography/${c.crew_slug}`,
         })) };
       },
     },

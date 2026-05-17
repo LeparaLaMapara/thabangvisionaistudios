@@ -17,7 +17,6 @@ const CATEGORY_LABELS: Record<string, string> = {
   'audio':                 'Audio',
   'grip-motion':           'Grip & Motion',
   'data-storage':          'Data & Storage',
-  'crew-services':         'Crew Services',
   'specialized-solutions': 'Specialized Solutions',
 };
 

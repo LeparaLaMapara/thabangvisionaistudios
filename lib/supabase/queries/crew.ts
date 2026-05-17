@@ -75,92 +75,9 @@ export type CrewPortfolioItem = {
   video_url: string | null;
 };
 
-export type CrewWithPortfolio = CrewMember & {
-  portfolio: CrewPortfolioItem[];
-};
-
 // ─── Public Queries ─────────────────────────────────────────────────────────
 
-export async function getAvailableCrew(): Promise<CrewMember[]> {
-  const supabase = await createClient();
-
-  const { data, error } = await supabase
-    .from('profiles')
-    .select(CREW_COLUMNS)
-    .eq('verification_status', 'verified')
-    .eq('available_for_hire', true)
-    .order('crew_featured', { ascending: false })
-    .order('created_at', { ascending: false });
-
-  if (error) {
-    console.error('[getAvailableCrew]', error.message);
-    return [];
-  }
-
-  // Only show creators who have at least 1 complete portfolio project (photos + showreel)
-  return ((data as unknown as CrewMember[]) ?? []).filter((c) =>
-    hasCompletePortfolio(c.portfolio_projects),
-  );
-}
-
 const PORTFOLIO_COLUMNS = 'id, title, slug, project_type, thumbnail_url, gallery, video_provider, video_url';
-
-/**
- * Returns all available crew members with their portfolio images from smart_productions.
- * Portfolio is derived from productions where crew_ids contains the crew member's profile ID.
- */
-export async function getAvailableCrewWithPortfolio(): Promise<CrewWithPortfolio[]> {
-  const supabase = await createClient();
-
-  const { data: crew, error } = await supabase
-    .from('profiles')
-    .select(CREW_COLUMNS)
-    .eq('verification_status', 'verified')
-    .eq('available_for_hire', true)
-    .order('crew_featured', { ascending: false })
-    .order('created_at', { ascending: false });
-
-  if (error || !crew?.length) {
-    if (error) console.error('[getAvailableCrewWithPortfolio]', error.message);
-    return [];
-  }
-
-  const crewIds = (crew as unknown as CrewMember[]).map((c) => c.id);
-
-  // Fetch all published productions that involve any of these crew members
-  const { data: productions } = await supabase
-    .from('smart_productions')
-    .select(`${PORTFOLIO_COLUMNS}, crew_ids`)
-    .eq('is_published', true)
-    .is('deleted_at', null)
-    .overlaps('crew_ids', crewIds);
-
-  // Map productions to crew members
-  const portfolioMap = new Map<string, CrewPortfolioItem[]>();
-  for (const prod of (productions ?? []) as unknown as (CrewPortfolioItem & { crew_ids: string[] })[]) {
-    for (const cid of prod.crew_ids ?? []) {
-      if (!portfolioMap.has(cid)) portfolioMap.set(cid, []);
-      portfolioMap.get(cid)!.push({
-        id: prod.id,
-        title: prod.title,
-        slug: prod.slug,
-        project_type: prod.project_type,
-        thumbnail_url: prod.thumbnail_url,
-        gallery: prod.gallery,
-        video_provider: prod.video_provider,
-        video_url: prod.video_url,
-      });
-    }
-  }
-
-  // Only show creators who have at least 1 complete portfolio project (photos + showreel)
-  return (crew as unknown as CrewMember[])
-    .filter((c) => hasCompletePortfolio(c.portfolio_projects))
-    .map((c) => ({
-      ...c,
-      portfolio: portfolioMap.get(c.id) ?? [],
-    }));
-}
 
 /**
  * Returns portfolio productions for a single crew member.
