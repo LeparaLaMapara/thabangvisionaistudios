@@ -98,7 +98,7 @@ export default async function DashboardPage() {
         <p className="text-sm text-neutral-500 dark:text-neutral-400 font-mono mt-3">
           {isVerified
             ? 'You are a verified creator. List gear, book equipment, and manage your orders.'
-            : 'Book equipment, hire creators, and explore the platform. Get verified to list your own gear and services.'}
+            : 'Rent equipment, hire photographers, and explore the platform. Get verified to list your own gear and services.'}
         </p>
       </div>
 

@@ -83,7 +83,7 @@ const Hero = () => {
             </p>
             <div className="flex flex-wrap gap-4">
               <Link href="/studio" className="group inline-flex items-center gap-2 min-h-[44px] bg-white text-black px-8 py-4 text-[10px] font-mono font-bold uppercase tracking-widest hover:opacity-80 transition-opacity">
-                Book Creators <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                Hire a Photographer <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
               </Link>
               <Link href="/rentals" className="group inline-flex items-center gap-2 min-h-[44px] border border-white/20 text-white px-8 py-4 text-[10px] font-mono font-bold uppercase tracking-widest hover:bg-white/5 transition-colors">
                 Rent Equipment <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
