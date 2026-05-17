@@ -425,13 +425,13 @@ export const LISTING_TO_RENTAL_CATEGORY: Record<string, RentalCategorySlug> = {
 export const CAPABILITIES = [
   {
     title: 'Rentals',
-    subtitle: 'AI-Optimized Gear',
+    subtitle: 'Professional Gear',
     image: PLACEHOLDER_IMAGES.smartRentals,
     link: '/rentals',
   },
   {
     title: 'Studio',
-    subtitle: 'Creative Services Hub',
+    subtitle: 'Book Professionals For Your Next Project',
     image: PLACEHOLDER_IMAGES.smartProductions,
     link: '/studio',
   },

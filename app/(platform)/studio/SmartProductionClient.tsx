@@ -223,8 +223,8 @@ export default function SmartProductionClient({ categories, productionCounts, fe
               01 // Production Services
             </span>
             <h1 className="text-5xl md:text-8xl font-display font-medium text-white tracking-tight leading-[0.9] mb-8 uppercase">
-              Smart <br />
-              <span className="text-neutral-500">Productions</span>
+              Our <br />
+              <span className="text-neutral-500">Studio</span>
             </h1>
             <p className="max-w-2xl text-lg text-neutral-300 font-light leading-relaxed">
               Hire trusted photographers, videographers, and production teams from our in-house studio or verified creator network.

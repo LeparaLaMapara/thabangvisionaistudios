@@ -20,7 +20,7 @@ export async function generateMetadata({ params }: Props) {
 
   if (!category) return { title: 'Category Not Found' };
   return {
-    title: `${category.name} — Smart Productions`,
+    title: `${category.name} — Studio`,
     description: category.description,
   };
 }

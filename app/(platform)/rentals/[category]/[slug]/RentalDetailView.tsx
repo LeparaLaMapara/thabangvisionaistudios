@@ -96,7 +96,7 @@ export default function RentalDetailView({
             </Link>
             <ChevronRight className="w-3 h-3 flex-shrink-0" />
             <Link href="/rentals" className="hover:text-black dark:hover:text-white transition-colors">
-              Smart Rentals
+              Rentals
             </Link>
             <ChevronRight className="w-3 h-3 flex-shrink-0" />
             <Link

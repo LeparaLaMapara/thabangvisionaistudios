@@ -495,7 +495,7 @@ export default function RentalCategoryClient({
           <div className="flex items-center gap-2 text-[10px] font-mono uppercase tracking-widest text-neutral-500 mb-6">
             <Link href="/" className="hover:text-black dark:hover:text-white">Home</Link>
             <span>/</span>
-            <Link href="/rentals" className="hover:text-black dark:hover:text-white">Smart Rentals</Link>
+            <Link href="/rentals" className="hover:text-black dark:hover:text-white">Rentals</Link>
             <span>/</span>
             <span className="text-black dark:text-white">{categoryLabel}</span>
           </div>

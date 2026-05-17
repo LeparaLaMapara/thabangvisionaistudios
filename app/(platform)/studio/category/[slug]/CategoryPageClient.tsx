@@ -471,7 +471,7 @@ export default function CategoryPageClient({ category, packages, productions, cr
           <div className="flex items-center gap-2 text-[10px] font-mono uppercase tracking-widest text-neutral-500 mb-6">
             <Link href="/" className="hover:text-white">Home</Link>
             <span>/</span>
-            <Link href="/studio" className="hover:text-white">Smart Productions</Link>
+            <Link href="/studio" className="hover:text-white">Studio</Link>
             <span>/</span>
             <span className="text-white">{category.name}</span>
           </div>
