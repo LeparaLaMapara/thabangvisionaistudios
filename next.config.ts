@@ -30,13 +30,23 @@ const nextConfig: NextConfig = {
 
   redirects: async () => [
     {
-      source: '/smart-rentals/crew-services',
-      destination: '/smart-production',
+      source: '/smart-production',
+      destination: '/studio',
       permanent: true,
     },
     {
-      source: '/smart-rentals/crew-services/:slug',
-      destination: '/smart-production',
+      source: '/smart-production/:path*',
+      destination: '/studio/:path*',
+      permanent: true,
+    },
+    {
+      source: '/smart-rentals',
+      destination: '/rentals',
+      permanent: true,
+    },
+    {
+      source: '/smart-rentals/:path*',
+      destination: '/rentals/:path*',
       permanent: true,
     },
   ],

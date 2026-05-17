@@ -82,10 +82,10 @@ const Hero = () => {
               Find photographers, videographers, production crews, and professional gear. All in one trusted platform.
             </p>
             <div className="flex flex-wrap gap-4">
-              <Link href="/smart-production" className="group inline-flex items-center gap-2 min-h-[44px] bg-white text-black px-8 py-4 text-[10px] font-mono font-bold uppercase tracking-widest hover:opacity-80 transition-opacity">
+              <Link href="/studio" className="group inline-flex items-center gap-2 min-h-[44px] bg-white text-black px-8 py-4 text-[10px] font-mono font-bold uppercase tracking-widest hover:opacity-80 transition-opacity">
                 Book Creators <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
               </Link>
-              <Link href="/smart-rentals" className="group inline-flex items-center gap-2 min-h-[44px] border border-white/20 text-white px-8 py-4 text-[10px] font-mono font-bold uppercase tracking-widest hover:bg-white/5 transition-colors">
+              <Link href="/rentals" className="group inline-flex items-center gap-2 min-h-[44px] border border-white/20 text-white px-8 py-4 text-[10px] font-mono font-bold uppercase tracking-widest hover:bg-white/5 transition-colors">
                 Rent Equipment <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
               </Link>
             </div>
@@ -181,7 +181,7 @@ const CommunitySection = () => (
             For <span className="text-neutral-500">Creators</span>
           </h2>
         </motion.div>
-        <Link href="/smart-rentals" className="hidden md:flex items-center gap-2 text-xs font-mono text-neutral-400 hover:text-white transition-colors uppercase tracking-widest mt-6 md:mt-0">
+        <Link href="/rentals" className="hidden md:flex items-center gap-2 text-xs font-mono text-neutral-400 hover:text-white transition-colors uppercase tracking-widest mt-6 md:mt-0">
           Browse All Gear <ChevronRight className="w-4 h-4" />
         </Link>
       </div>
@@ -200,7 +200,7 @@ const CommunitySection = () => (
             title: 'Book Equipment',
             description: 'Reserve professional gear from our catalog or community listings. Real-time availability, instant confirmation.',
             cta: 'View Rentals',
-            href: '/smart-rentals',
+            href: '/rentals',
           },
           {
             icon: Users,
@@ -258,7 +258,7 @@ const BookingCTA = () => (
             From cinema cameras to lighting kits. Check real-time availability, get instant pricing, and secure your gear with our streamlined booking system.
           </p>
           <div className="flex flex-wrap gap-4">
-            <Link href="/smart-rentals" className="inline-flex items-center gap-2 min-h-[44px] bg-white text-black px-8 py-4 text-[10px] font-mono font-bold uppercase tracking-widest hover:opacity-80 transition-opacity">
+            <Link href="/rentals" className="inline-flex items-center gap-2 min-h-[44px] bg-white text-black px-8 py-4 text-[10px] font-mono font-bold uppercase tracking-widest hover:opacity-80 transition-opacity">
               Browse Equipment <ArrowRight className="w-3 h-3" />
             </Link>
             <Link href="/register" className="inline-flex items-center gap-2 min-h-[44px] border border-white/20 text-white px-8 py-4 text-[10px] font-mono font-bold uppercase tracking-widest hover:bg-white/5 transition-colors">
@@ -381,7 +381,7 @@ export default function HomeClient({ carouselItems, capabilities }: { carouselIt
             <Link href="/contact" className="inline-flex items-center justify-center min-h-[44px] bg-white text-black px-12 py-5 text-xs font-mono font-bold tracking-[0.2em] transition-all uppercase hover:opacity-80">
               Start a Project
             </Link>
-            <Link href="/smart-rentals" className="inline-flex items-center justify-center min-h-[44px] border border-white/20 hover:bg-white/5 text-white px-12 py-5 text-xs font-mono font-bold tracking-[0.2em] transition-all uppercase">
+            <Link href="/rentals" className="inline-flex items-center justify-center min-h-[44px] border border-white/20 hover:bg-white/5 text-white px-12 py-5 text-xs font-mono font-bold tracking-[0.2em] transition-all uppercase">
               Browse Gear
             </Link>
           </div>

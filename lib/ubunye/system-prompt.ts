@@ -107,12 +107,12 @@ export async function fetchPlatformData(supabase: any, flags: UbunyeFlagsSnapsho
 
   const data: CachedData = {
     rentals: rentals.data?.map((r: Record<string, unknown>) =>
-      `${r.title} (${r.brand} ${r.model}) — R${r.price_per_day}/day | R${r.price_per_week}/week | Deposit: R${r.deposit_amount} — ${r.is_available ? 'Available' : 'Unavailable'} — Book: /smart-rentals/${r.category}/${r.slug}`
+      `${r.title} (${r.brand} ${r.model}) — R${r.price_per_day}/day | R${r.price_per_week}/week | Deposit: R${r.deposit_amount} — ${r.is_available ? 'Available' : 'Unavailable'} — Book: /rentals/${r.category}/${r.slug}`
     ).join('\n') || 'No equipment listed yet',
 
     productions: flags.smart_productions
       ? (productions.data?.map((p: Record<string, unknown>) =>
-          `${p.title} — ${p.client} (${p.year}) [${p.project_type}] — View: /smart-production/${p.slug}`
+          `${p.title} — ${p.client} (${p.year}) [${p.project_type}] — View: /studio/${p.slug}`
         ).join('\n') || 'No productions yet')
       : null,
 
@@ -138,7 +138,7 @@ export async function fetchPlatformData(supabase: any, flags: UbunyeFlagsSnapsho
     ).join('\n') || 'Contact for pricing',
 
     crew: crew.data?.map((c: Record<string, unknown>) =>
-      `${c.display_name} — ${(c.specializations as string[])?.join(', ') || 'General'} — R${c.hourly_rate || '?'}/hr — ${c.location || 'SA'} — ${c.years_experience || '?'} yrs — Profile: /smart-production/category/photography/${c.crew_slug}`
+      `${c.display_name} — ${(c.specializations as string[])?.join(', ') || 'General'} — R${c.hourly_rate || '?'}/hr — ${c.location || 'SA'} — ${c.years_experience || '?'} yrs — Profile: /studio/category/photography/${c.crew_slug}`
     ).join('\n') || 'No crew available yet',
 
     services: formatServices(),
@@ -210,12 +210,12 @@ export function buildSystemPrompt(
   flags: UbunyeFlagsSnapshot,
 ): string {
   const productionsLine = flags.smart_productions
-    ? '1. Smart Productions — Professional film, video, photography. Portfolio at /smart-production'
+    ? '1. Smart Productions — Professional film, video, photography. Portfolio at /studio'
     : '';
   const productionsSection = flags.smart_productions && platform.productions
     ? `===== PRODUCTIONS =====\n${platform.productions}\n`
     : '';
-  const portfolioGuide = flags.smart_productions ? '- View portfolio → /smart-production\n' : '';
+  const portfolioGuide = flags.smart_productions ? '- View portfolio → /studio\n' : '';
 
   return `You are Ubunye, the AI brain behind ${STUDIO.name} — ${STUDIO.location.city}, ${STUDIO.location.country}.
 
@@ -231,7 +231,7 @@ Website: ${STUDIO.meta.url}
 Hours: ${STUDIO.hours.weekday} | ${STUDIO.hours.weekend} | ${STUDIO.hours.sunday}
 
 ===== WHAT WE OFFER =====
-${productionsLine}${productionsLine ? '\n' : ''}- Smart Rentals — Equipment rental with online booking at /smart-rentals
+${productionsLine}${productionsLine ? '\n' : ''}- Smart Rentals — Equipment rental with online booking at /rentals
 - Ubunye AI Studio — You. The AI assistant at /ubunye-ai-studio
 - Creator Marketplace — Verified creators list gear and services
 - About — R&D: AI production tools, custom software, optical engineering. Learn more at /about
@@ -285,8 +285,8 @@ CREATOR RULES:
 - If no creators match, say so and offer to help with a different search.
 
 ===== HOW TO GUIDE USERS =====
-- Rent gear → /smart-rentals
-- Hire creators → /smart-production (or ask Ubunye to search)
+- Rent gear → /rentals
+- Hire creators → /studio (or ask Ubunye to search)
 - Book production → /book (or ask Ubunye to help)
 - List gear → /register → /dashboard/verification → /dashboard/listings
 ${portfolioGuide}- Apply for job → /careers
@@ -318,6 +318,6 @@ ${portfolioGuide}- Apply for job → /careers
 8. Keep responses concise with clear formatting
 9. If you dont have data to answer, say so honestly
 10. Walk users through booking process step by step when interested
-11. When sharing page links, ALWAYS format them as markdown links: [Page Name](/path). Example: [View our portfolio](/smart-production) NOT /smart-production. Example: [Sony Alpha A7 III](/smart-rentals/cameras-optics/sony-alpha-a7-iii) NOT just the path. Never write raw URLs or paths — always wrap in markdown link syntax.
+11. When sharing page links, ALWAYS format them as markdown links: [Page Name](/path). Example: [View our portfolio](/studio) NOT /studio. Example: [Sony Alpha A7 III](/rentals/cameras-optics/sony-alpha-a7-iii) NOT just the path. Never write raw URLs or paths — always wrap in markdown link syntax.
 12. Never use emojis in responses. Keep the tone professional and clean.`;
 }

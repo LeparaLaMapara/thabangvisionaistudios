@@ -79,7 +79,7 @@ export async function getPublishedRentals(): Promise<SmartRental[]> {
 
 /**
  * Returns published rentals filtered by category slug.
- * Used by the /smart-rentals/[category] server page.
+ * Used by the /rentals/[category] server page.
  */
 export async function getPublishedRentalsByCategory(
   category: string,

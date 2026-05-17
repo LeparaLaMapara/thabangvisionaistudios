@@ -57,7 +57,7 @@ export default function ProductionDetailView({
       <div className="min-h-screen bg-white dark:bg-[#050505] transition-colors duration-500">
         <div className="fixed top-20 left-0 w-full z-40 bg-white/90 dark:bg-[#050505]/90 backdrop-blur-md border-b border-black/5 dark:border-white/5 py-4 px-6 flex justify-between items-center">
           <Link
-            href="/smart-production"
+            href="/studio"
             className="text-[10px] font-mono font-bold tracking-widest text-neutral-500 hover:text-black dark:hover:text-white uppercase flex items-center gap-2 transition-colors"
           >
             <ArrowLeft className="w-3 h-3" /> All Productions
@@ -138,7 +138,7 @@ export default function ProductionDetailView({
     <div className="min-h-screen bg-white dark:bg-[#050505] transition-colors duration-500 pt-20">
       <div className="container mx-auto px-6 py-8">
         <Link
-          href="/smart-production"
+          href="/studio"
           className="inline-flex items-center gap-2 text-[10px] font-mono font-bold tracking-widest text-neutral-500 hover:text-black dark:hover:text-white uppercase mb-8 transition-colors"
         >
           <ArrowLeft className="w-3 h-3" /> Back to Productions
@@ -348,7 +348,7 @@ function ShotWithSection({ gear }: { gear: MatchedGear[] }) {
         {gear.map((item) => (
           <Link
             key={item.slug}
-            href={`/smart-rentals/${item.category}/${item.slug}`}
+            href={`/rentals/${item.category}/${item.slug}`}
             className="group flex flex-col bg-[#0A0A0B] border border-white/5 hover:border-white/20 transition-all duration-300 overflow-hidden"
           >
             <div className="relative aspect-square overflow-hidden bg-neutral-900">

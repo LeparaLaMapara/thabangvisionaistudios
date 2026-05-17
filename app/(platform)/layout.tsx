@@ -5,8 +5,8 @@ import { filterNavForFlags } from '@/lib/nav';
 
 /**
  * Platform layout — wraps capability pages:
- *   /smart-production  /smart-production/[slug]
- *   /smart-rentals     /smart-rentals/[category]
+ *   /studio            /studio/[slug]
+ *   /rentals           /rentals/[category]
  *   /ubunye-ai-studio  /catalog/[slug]
  *   /resources/tools
  *

@@ -98,8 +98,8 @@ export const STUDIO = {
     sections: [
       { id: '01', label: 'About', href: '/about' },
       { id: '02', label: 'Capabilities', href: '/ubunye-ai-studio' },
-      { id: '03', label: 'Smart Productions', href: '/smart-production' },
-      { id: '04', label: 'Smart Rentals', href: '/smart-rentals' },
+      { id: '03', label: 'Studio', href: '/studio' },
+      { id: '04', label: 'Rentals', href: '/rentals' },
       { id: '05', label: 'Press', href: '/press' },
       { id: '06', label: 'Careers', href: '/careers' },
     ],
@@ -286,8 +286,8 @@ export const MAIN_NAVIGATION: {
   href: string;
   children?: { label: string; href: string; children?: { label: string; href: string }[] }[];
 }[] = [
-    { label: 'Smart Rentals', href: '/smart-rentals' },
-    { label: 'Smart Productions', href: '/smart-production' },
+    { label: 'Rentals', href: '/rentals' },
+    { label: 'Studio', href: '/studio' },
   ];
 
 export const FOOTER_SECTIONS = [
@@ -424,16 +424,16 @@ export const LISTING_TO_RENTAL_CATEGORY: Record<string, RentalCategorySlug> = {
 // ─── CAPABILITIES (used on home page ServiceGrid) ───────────────────────────
 export const CAPABILITIES = [
   {
-    title: 'Smart Rentals',
+    title: 'Rentals',
     subtitle: 'AI-Optimized Gear',
     image: PLACEHOLDER_IMAGES.smartRentals,
-    link: '/smart-rentals',
+    link: '/rentals',
   },
   {
-    title: 'Smart Productions',
+    title: 'Studio',
     subtitle: 'Creative Services Hub',
     image: PLACEHOLDER_IMAGES.smartProductions,
-    link: '/smart-production',
+    link: '/studio',
   },
 ];
 
@@ -463,7 +463,7 @@ export const SA_BANKS = [
 ] as const;
 
 // ─── Production Categories ───────────────────────────────────────────────────
-// The 6 service types ThabangVision offers. Drives the category grid on /smart-production.
+// The 6 service types ThabangVision offers. Drives the category grid on /studio.
 // Each slug maps to smart_productions.project_type for filtering.
 
 import type { ProductionCategory, ProductionPackage } from '@/types/production';

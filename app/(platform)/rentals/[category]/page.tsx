@@ -12,7 +12,7 @@ export default async function RentalCategoryPage({
   const { category } = await params;
 
   if (category === 'crew-services') {
-    redirect('/smart-production');
+    redirect('/studio');
   }
 
   const rentals = await getPublishedRentalsByCategory(category);

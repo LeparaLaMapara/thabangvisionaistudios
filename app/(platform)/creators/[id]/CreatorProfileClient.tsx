@@ -218,7 +218,7 @@ export default function CreatorProfileClient({
                 {productions.map((prod) => (
                   <Link
                     key={prod.id}
-                    href={`/smart-production/${prod.slug}`}
+                    href={`/studio/${prod.slug}`}
                     className="group relative aspect-[3/2] overflow-hidden bg-neutral-100 dark:bg-neutral-900 border border-black/5 dark:border-white/5 hover:border-accent-gold/50 transition-all"
                   >
                     {prod.thumbnail_url ? (

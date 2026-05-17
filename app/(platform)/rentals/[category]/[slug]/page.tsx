@@ -13,7 +13,7 @@ export default async function RentalDetailPage({
   const { category, slug } = await params;
 
   if (category === 'crew-services') {
-    redirect('/smart-production');
+    redirect('/studio');
   }
 
   const rental = await getRentalBySlug(slug);

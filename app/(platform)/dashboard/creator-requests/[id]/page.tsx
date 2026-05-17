@@ -98,7 +98,7 @@ export default async function CreatorRequestDetailPage({
             )}
             <div>
               <Link
-                href={`/smart-production/category/photography/${creator?.crew_slug || creator?.id}`}
+                href={`/studio/category/photography/${creator?.crew_slug || creator?.id}`}
                 className="text-sm font-mono text-white hover:text-[#D4A843] transition-colors"
               >
                 {creator?.display_name || 'Unknown'}

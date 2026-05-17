@@ -148,13 +148,13 @@ const TABLES: TableConfig[] = [
     table: 'smart_rentals',
     contentType: 'rental',
     select: 'id, title, brand, model, category, description, price_per_day, price_per_week, features, tags, slug',
-    hrefBuilder: (r) => `/smart-rentals/${r.category}/${r.slug}`,
+    hrefBuilder: (r) => `/rentals/${r.category}/${r.slug}`,
   },
   {
     table: 'smart_productions',
     contentType: 'production',
     select: 'id, title, client, project_type, year, description, tags, slug',
-    hrefBuilder: (p) => `/smart-production/${p.slug}`,
+    hrefBuilder: (p) => `/studio/${p.slug}`,
   },
   {
     table: 'press',

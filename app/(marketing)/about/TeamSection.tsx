@@ -94,7 +94,7 @@ export default function TeamSection({
               Featured Creators
             </span>
             <Link
-              href="/smart-production"
+              href="/studio"
               className="text-[10px] font-mono uppercase tracking-widest text-[#D4A843] hover:text-white transition-colors flex items-center gap-1"
             >
               View all <ArrowRight className="w-3 h-3" />

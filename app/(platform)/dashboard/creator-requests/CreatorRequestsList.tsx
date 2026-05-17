@@ -108,7 +108,7 @@ export default function CreatorRequestsList({ requests: initialRequests }: Creat
                   <div>
                     {creator?.display_name && (
                       <Link
-                        href={`/smart-production/${creator.crew_slug || creator.id}`}
+                        href={`/studio/${creator.crew_slug || creator.id}`}
                         onClick={(e) => e.stopPropagation()}
                         className="text-[10px] font-mono uppercase tracking-widest text-[#D4A843] hover:text-[#D4A843]/80 transition-colors flex items-center gap-1 mb-1"
                       >
@@ -177,8 +177,8 @@ export default function CreatorRequestsList({ requests: initialRequests }: Creat
           <p className="text-sm font-mono">No creator requests yet.</p>
           <p className="text-[10px] font-mono text-neutral-600 mt-1">
             Browse creators at{' '}
-            <Link href="/smart-production" className="text-[#D4A843] hover:text-[#D4A843]/80 transition-colors">
-              /smart-production
+            <Link href="/studio" className="text-[#D4A843] hover:text-[#D4A843]/80 transition-colors">
+              /studio
             </Link>{' '}
             or ask Ubunye to find the perfect match.
           </p>

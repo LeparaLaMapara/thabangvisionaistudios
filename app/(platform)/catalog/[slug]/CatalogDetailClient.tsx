@@ -32,7 +32,7 @@ export default function CatalogDetailClient({ rental }: Props) {
       {/* Breadcrumb */}
       <div className="container mx-auto px-6 py-6 flex items-center gap-4 text-xs tracking-widest text-neutral-500">
         <Link
-          href="/smart-rentals"
+          href="/rentals"
           className="hover:text-black dark:hover:text-white transition-colors flex items-center gap-2"
         >
           <ArrowLeft className="w-3 h-3" /> BACK

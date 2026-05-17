@@ -198,7 +198,7 @@ export async function PATCH(
       await emailProvider.sendEmail({
         to: crewRequest.client_email,
         subject: `Creator Request Update — ${STUDIO.name}`,
-        text: `Hi ${crewRequest.client_name},\n\nUnfortunately, the creator is not available for your ${crewRequest.project_type} request at this time.\n\nWe'd love to help you find another match — visit ${STUDIO.meta.url}/smart-production or chat with Ubunye.\n\nThank you,\n${STUDIO.name}`,
+        text: `Hi ${crewRequest.client_name},\n\nUnfortunately, the creator is not available for your ${crewRequest.project_type} request at this time.\n\nWe'd love to help you find another match — visit ${STUDIO.meta.url}/studio or chat with Ubunye.\n\nThank you,\n${STUDIO.name}`,
       });
     } else if (status === 'completed') {
       await emailProvider.sendEmail({

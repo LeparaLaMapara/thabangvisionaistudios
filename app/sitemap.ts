@@ -14,8 +14,8 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: `${baseUrl}/careers`, changeFrequency: 'weekly', priority: 0.6 },
     { url: `${baseUrl}/press`, changeFrequency: 'weekly', priority: 0.6 },
     { url: `${baseUrl}/locations`, changeFrequency: 'monthly', priority: 0.5 },
-    { url: `${baseUrl}/smart-rentals`, changeFrequency: 'daily', priority: 0.9 },
-    { url: `${baseUrl}/smart-production`, changeFrequency: 'weekly', priority: 0.9 },
+    { url: `${baseUrl}/rentals`, changeFrequency: 'daily', priority: 0.9 },
+    { url: `${baseUrl}/studio`, changeFrequency: 'weekly', priority: 0.9 },
     { url: `${baseUrl}/marketplace`, changeFrequency: 'daily', priority: 0.8 },
     { url: `${baseUrl}/smart-creators`, changeFrequency: 'daily', priority: 0.9 },
     { url: `${baseUrl}/pricing`, changeFrequency: 'monthly', priority: 0.7 },
@@ -34,7 +34,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     .is('deleted_at', null);
 
   const rentalPages: MetadataRoute.Sitemap = (rentals ?? []).map((r) => ({
-    url: `${baseUrl}/smart-rentals/${encodeURIComponent(r.category)}/${encodeURIComponent(r.slug)}`,
+    url: `${baseUrl}/rentals/${encodeURIComponent(r.category)}/${encodeURIComponent(r.slug)}`,
     lastModified: r.updated_at,
     changeFrequency: 'weekly' as const,
     priority: 0.7,
@@ -43,7 +43,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   // Unique rental categories
   const rentalCategories = [...new Set((rentals ?? []).map((r) => r.category))];
   const rentalCategoryPages: MetadataRoute.Sitemap = rentalCategories.map((cat) => ({
-    url: `${baseUrl}/smart-rentals/${encodeURIComponent(cat)}`,
+    url: `${baseUrl}/rentals/${encodeURIComponent(cat)}`,
     changeFrequency: 'weekly' as const,
     priority: 0.8,
   }));
@@ -56,7 +56,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     .is('deleted_at', null);
 
   const productionPages: MetadataRoute.Sitemap = (productions ?? []).map((p) => ({
-    url: `${baseUrl}/smart-production/${encodeURIComponent(p.slug)}`,
+    url: `${baseUrl}/studio/${encodeURIComponent(p.slug)}`,
     lastModified: p.updated_at,
     changeFrequency: 'monthly' as const,
     priority: 0.7,
@@ -69,7 +69,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     .eq('is_published', true);
 
   const categoryPages: MetadataRoute.Sitemap = (categories ?? []).map((c) => ({
-    url: `${baseUrl}/smart-production/category/${encodeURIComponent(c.slug)}`,
+    url: `${baseUrl}/studio/category/${encodeURIComponent(c.slug)}`,
     changeFrequency: 'weekly' as const,
     priority: 0.8,
   }));

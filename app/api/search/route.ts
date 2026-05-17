@@ -149,8 +149,8 @@ function getHrefForRagResult(contentType: string, slugInfo: SlugInfo | undefined
   if (!slugInfo) {
     // Fallback to listing pages
     switch (contentType) {
-      case 'rental': return '/smart-rentals';
-      case 'production': return '/smart-production';
+      case 'rental': return '/rentals';
+      case 'production': return '/studio';
       case 'press': return '/press';
       case 'career': return '/careers';
       default: return '/';
@@ -159,9 +159,9 @@ function getHrefForRagResult(contentType: string, slugInfo: SlugInfo | undefined
 
   switch (contentType) {
     case 'rental':
-      return `/smart-rentals/${slugInfo.category ?? 'all'}/${slugInfo.slug}`;
+      return `/rentals/${slugInfo.category ?? 'all'}/${slugInfo.slug}`;
     case 'production':
-      return `/smart-production/${slugInfo.slug}`;
+      return `/studio/${slugInfo.slug}`;
     case 'press':
       return `/press/${slugInfo.slug}`;
     case 'career':

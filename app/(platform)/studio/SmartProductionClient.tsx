@@ -110,7 +110,7 @@ function CategoryCard({
         transition={{ duration: 0.6, ease: 'easeOut' }}
         className="absolute inset-0 group cursor-pointer"
       >
-        <Link href={`/smart-production/category/${category.slug}`} className="block w-full h-full relative">
+        <Link href={`/studio/category/${category.slug}`} className="block w-full h-full relative">
           <div className="absolute inset-0 z-10 bg-black/30 md:bg-black/60 group-hover:bg-black/30 transition-colors duration-500" />
 
           <Image
@@ -168,7 +168,7 @@ function FeaturedProductionCard({ production }: { production: SmartProduction })
 
   return (
     <Link
-      href={`/smart-production/${production.slug}`}
+      href={`/studio/${production.slug}`}
       className="group block relative aspect-[3/4] overflow-hidden bg-[#0A0A0B] border border-white/5 hover:border-[#D4A843]/30 transition-colors"
     >
       {!imgLoaded && <ImageSkeleton />}
