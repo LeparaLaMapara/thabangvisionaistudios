@@ -294,7 +294,7 @@ function PackageCard({
 
 // ─── Creator Card ────────────────────────────────────────────────────────────
 
-function CreatorCard({ creator }: { creator: CrewMember }) {
+function CreatorCard({ creator, categorySlug }: { creator: CrewMember; categorySlug: string }) {
   const initials = (creator.display_name ?? '?')
     .split(' ')
     .map((n) => n[0])
@@ -304,7 +304,7 @@ function CreatorCard({ creator }: { creator: CrewMember }) {
 
   return (
     <Link
-      href={`/smart-rentals/crew-services/${creator.crew_slug ?? creator.id}`}
+      href={`/smart-production/category/${categorySlug}/${creator.crew_slug ?? creator.id}`}
       className="group flex items-center gap-4 bg-[#0A0A0B] border border-white/5 hover:border-[#D4A843]/30 p-4 transition-colors"
     >
       <div className="relative w-12 h-12 rounded-full overflow-hidden bg-neutral-800 flex-shrink-0">
@@ -643,7 +643,7 @@ export default function CategoryPageClient({ category, packages, productions, cr
                 Portfolio
               </h2>
               <h3 className="text-xl font-bold uppercase tracking-tight mb-6">
-                Our {category.name} Work
+                {category.name} Work
               </h3>
 
               {filteredProductions.length > 0 ? (
@@ -687,12 +687,12 @@ export default function CategoryPageClient({ category, packages, productions, cr
                 </p>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   {creators.map((creator) => (
-                    <CreatorCard key={creator.id} creator={creator} />
+                    <CreatorCard key={creator.id} creator={creator} categorySlug={category.slug} />
                   ))}
                 </div>
                 <div className="mt-4">
                   <Link
-                    href="/smart-rentals/crew-services"
+                    href="/smart-production"
                     className="inline-flex items-center gap-2 text-[10px] font-mono uppercase tracking-widest text-neutral-400 hover:text-white transition-colors border-b border-transparent hover:border-white pb-0.5"
                   >
                     Browse all creators <ArrowRight className="w-3 h-3" />

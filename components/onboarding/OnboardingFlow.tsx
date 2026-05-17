@@ -111,21 +111,29 @@ export default function OnboardingFlow() {
     setStep(5);
   }, [saveProgress]);
 
-  const handleGearComplete = useCallback(async (gear: unknown[]) => {
+  const completeOnboarding = useCallback(async (gear?: unknown[]) => {
     setSaving(true);
     setError(null);
 
     try {
-      const supabase = createClient();
-      const { data: { user } } = await supabase.auth.getUser();
-      setData(prev => ({ ...prev, gear }));
-      await saveProgress(5, { detected_gear: gear, completed_at: new Date().toISOString() });
-      if (user) {
-        await supabase
-          .from('profiles')
-          .update({ onboarding_completed_at: new Date().toISOString() })
-          .eq('id', user.id);
+      if (gear) {
+        setData(prev => ({ ...prev, gear }));
       }
+      await saveProgress(5, {
+        ...(gear ? { detected_gear: gear } : {}),
+        completed_at: new Date().toISOString(),
+      });
+
+      const res = await fetch('/api/onboarding/complete', {
+        method: 'POST',
+        credentials: 'include',
+      });
+
+      if (!res.ok) {
+        const body = await res.json();
+        throw new Error(body.error || 'Failed to complete onboarding.');
+      }
+
       window.location.href = '/dashboard';
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save.');
@@ -133,24 +141,13 @@ export default function OnboardingFlow() {
     }
   }, [saveProgress]);
 
+  const handleGearComplete = useCallback(async (gear: unknown[]) => {
+    await completeOnboarding(gear);
+  }, [completeOnboarding]);
+
   const handleGearSkip = useCallback(async () => {
-    setSaving(true);
-    try {
-      const supabase = createClient();
-      const { data: { user } } = await supabase.auth.getUser();
-      await saveProgress(5, { completed_at: new Date().toISOString() });
-      if (user) {
-        await supabase
-          .from('profiles')
-          .update({ onboarding_completed_at: new Date().toISOString() })
-          .eq('id', user.id);
-      }
-      window.location.href = '/dashboard';
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to save.');
-      setSaving(false);
-    }
-  }, [saveProgress]);
+    await completeOnboarding();
+  }, [completeOnboarding]);
 
   const goBack = () => {
     if (step > 1) {

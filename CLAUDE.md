@@ -75,6 +75,9 @@ Built by ThabangVision (Pty) Ltd, trading as ThabangVision Labs.
 ### Theming
 - Dark theme ONLY — no light mode, no theme toggle, no "Switch to Light Mode"
 - Background: #050505, accent: #D4A843 (warm gold)
+- Typography: `font-display` for headlines, `font-mono` for labels/data
+- Animations: Framer Motion for page transitions and hover effects
+- Mobile-first with 44px minimum touch targets
 - Never use bg-white, text-black, bg-gray-50 in any component
 
 ### Route Groups
@@ -165,6 +168,12 @@ Database access is organized by domain in `lib/supabase/queries/`:
 - VAT: PRODUCTION_SERVICES.billing.vatRate (currently 15%)
 - Deposit: STUDIO.rental.depositPercent (currently 50%)
 - Active payment provider: **Paystack** (checkout + creator payouts via Transfers API). PayFast code is kept in `lib/payments/payfast.ts` as a switchable alternative — do not wire new flows to it without instruction.
+
+## CI Pipeline
+- GitHub Actions (`.github/workflows/ci.yml`) runs on push to `main` and PRs to `main`
+- Pipeline: `npm ci` → `npx tsc --noEmit` → `npm run build` → `npm run test`
+- Separate security-checks job: scans for hardcoded secrets, hardcoded business values in app/, and direct SDK imports in app/
+- CI uses `PAYMENT_PROVIDER=payfast` for build validation — this differs from the active production provider (Paystack)
 
 ## Branch Strategy
 - `main` — production, auto-deploys to Vercel

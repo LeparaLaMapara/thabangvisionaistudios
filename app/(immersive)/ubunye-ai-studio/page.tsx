@@ -1,14 +1,13 @@
 import { Suspense } from 'react';
 import { getFeaturedRentals } from '@/lib/supabase/queries/smartRentals';
-import { getAvailableCrew } from '@/lib/supabase/queries/crew';
-import { getFeaturedProductions } from '@/lib/supabase/queries/smartProductions';
+import { getFeaturedProductions, getPublishedCreatorProfiles } from '@/lib/supabase/queries/smartProductions';
 import UbunyeStudioClient from './UbunyeStudioClient';
 import type { StudioContext, GearSummary, CreatorSummary, ProductionSummary } from '@/types/ubunye';
 
 async function fetchStudioContext(): Promise<StudioContext> {
   const [rentals, crew, productions] = await Promise.all([
     getFeaturedRentals(4).catch(() => []),
-    getAvailableCrew().catch(() => []),
+    getPublishedCreatorProfiles().catch(() => []),
     getFeaturedProductions(4).catch(() => []),
   ]);
 

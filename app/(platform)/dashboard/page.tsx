@@ -261,7 +261,7 @@ export default async function DashboardPage() {
             icon={Users}
             title="Hire a Creator"
             description="Find verified creators for your project."
-            href="/smart-rentals/crew-services"
+            href="/smart-production"
           />
         )}
       </div>

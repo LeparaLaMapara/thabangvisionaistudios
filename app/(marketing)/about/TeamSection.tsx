@@ -5,7 +5,7 @@ import { Palette, Wrench, Cpu, ArrowRight, Users } from 'lucide-react';
 import Link from 'next/link';
 import { STUDIO } from '@/lib/constants';
 import CreatorCard from '@/components/creators/CreatorCard';
-import type { CrewMember } from '@/lib/supabase/queries/crew';
+import type { CreatorProfile } from '@/lib/supabase/queries/smartProductions';
 
 // ─── Discipline Pillars ──────────────────────────────────────────────────────
 
@@ -35,7 +35,7 @@ const DISCIPLINES = [
 export default function TeamSection({
   featuredCrew,
 }: {
-  featuredCrew: CrewMember[];
+  featuredCrew: CreatorProfile[];
 }) {
   return (
     <section id="team" className="scroll-mt-24">
@@ -94,7 +94,7 @@ export default function TeamSection({
               Featured Creators
             </span>
             <Link
-              href="/smart-rentals/crew-services"
+              href="/smart-production"
               className="text-[10px] font-mono uppercase tracking-widest text-[#D4A843] hover:text-white transition-colors flex items-center gap-1"
             >
               View all <ArrowRight className="w-3 h-3" />
@@ -139,7 +139,7 @@ export default function TeamSection({
             Open Positions <ArrowRight className="w-4 h-4" />
           </Link>
           <Link
-            href="/smart-rentals/crew-services"
+            href="/onboarding"
             className="inline-flex items-center justify-center gap-3 border border-white/20 text-white px-8 py-4 text-xs font-mono font-bold uppercase tracking-widest hover:border-white/50 transition-colors"
           >
             Become a Creator <ArrowRight className="w-4 h-4" />

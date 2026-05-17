@@ -3,11 +3,11 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { MapPin, Star } from 'lucide-react';
-import type { CrewMember } from '@/lib/supabase/queries/crew';
+import type { CreatorProfile } from '@/lib/supabase/queries/smartProductions';
 import { STUDIO } from '@/lib/constants';
 
 interface CreatorCardProps {
-  member: CrewMember;
+  member: CreatorProfile;
   avgRating?: number | null;
   totalReviews?: number;
 }
@@ -25,8 +25,8 @@ export default function CreatorCard({ member, avgRating, totalReviews = 0 }: Cre
   const primarySpec = member.specializations?.[0] || 'Creative Professional';
 
   const href = member.crew_slug
-    ? `/smart-rentals/crew-services/${member.crew_slug}`
-    : `/smart-rentals/crew-services/${member.id}`;
+    ? `/smart-production/category/photography/${member.crew_slug}`
+    : `/smart-production/category/photography/${member.id}`;
 
   return (
     <Link href={href} className="group block">

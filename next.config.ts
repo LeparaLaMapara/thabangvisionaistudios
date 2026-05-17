@@ -28,6 +28,19 @@ const nextConfig: NextConfig = {
   // Cloudinary + Gemini secrets: no NEXT_PUBLIC_ prefix →
   // Next.js automatically excludes them from the client bundle.
 
+  redirects: async () => [
+    {
+      source: '/smart-rentals/crew-services',
+      destination: '/smart-production',
+      permanent: true,
+    },
+    {
+      source: '/smart-rentals/crew-services/:slug',
+      destination: '/smart-production',
+      permanent: true,
+    },
+  ],
+
   // M2: Security headers
   headers: async () => [
     {
