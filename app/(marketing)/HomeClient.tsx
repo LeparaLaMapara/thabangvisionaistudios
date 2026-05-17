@@ -101,15 +101,7 @@ const Hero = () => {
       </motion.div>
 
       <motion.div style={{ opacity }} className="absolute bottom-10 right-10 text-right z-20 hidden md:block">
-        <div className="text-[10px] font-mono text-[#D4A843] mb-1">{STUDIO.location.city}, {STUDIO.location.country}</div>
-        <a
-          href={`https://www.google.com/maps/@${STUDIO.location.lat},${STUDIO.location.lng},15z`}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="text-[10px] font-mono text-[#D4A843]/60 hover:text-[#D4A843] transition-colors"
-        >
-          {STUDIO.location.coordsDisplay}
-        </a>
+        <div className="text-[10px] font-mono text-[#D4A843]">{STUDIO.location.city}, {STUDIO.location.country}</div>
       </motion.div>
     </div>
   );
