@@ -174,7 +174,7 @@ export default function SmartRentalsClient({ rentals }: { rentals: SmartRental[]
     const seen = new Set<string>();
     const out: string[] = [];
     for (const r of rentals) {
-      if (r.category && !seen.has(r.category)) {
+      if (r.category && r.category !== 'crew-services' && !seen.has(r.category)) {
         seen.add(r.category);
         out.push(r.category);
       }
