@@ -240,7 +240,7 @@ export async function getPublishedCreatorProfiles(limit?: number): Promise<Creat
   const creatorIds = [...new Set(prods.map((p: { creator_id: string }) => p.creator_id))];
 
   let query = supabase
-    .from('profiles')
+    .from('public_profiles')
     .select('id, display_name, crew_slug, avatar_url, crew_bio, bio, specializations, hourly_rate, location, years_experience, crew_featured, skills, social_links, portfolio_projects')
     .in('id', creatorIds)
     .order('crew_featured', { ascending: false })

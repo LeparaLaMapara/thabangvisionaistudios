@@ -45,7 +45,7 @@ export function createCrewTools(
         specialization?: string; location?: string; budget_max?: number;
       }) => {
         let query = supabase
-          .from('profiles')
+          .from('public_profiles')
           .select('id, display_name, crew_slug, avatar_url, crew_bio, specializations, hourly_rate, location, years_experience, crew_featured')
           .eq('verification_status', 'verified')
           .eq('available_for_hire', true)
@@ -95,10 +95,12 @@ export function createCrewTools(
       execute: async ({ crew_slug, creator_id }: { crew_slug?: string; creator_id?: string }) => {
         let creator = null;
 
+        const SAFE_COLS = 'id, display_name, crew_slug, avatar_url, crew_bio, bio, specializations, hourly_rate, location, years_experience, crew_featured, skills, social_links, portfolio_projects, is_verified, verification_status, available_for_hire';
+
         // Try by slug first, then by id
         if (crew_slug) {
           const { data } = await supabase
-            .from('profiles').select('*')
+            .from('public_profiles').select(SAFE_COLS)
             .eq('crew_slug', crew_slug).eq('verification_status', 'verified')
             .eq('available_for_hire', true).single();
           creator = data;
@@ -106,7 +108,7 @@ export function createCrewTools(
 
         if (!creator && creator_id) {
           const { data } = await supabase
-            .from('profiles').select('*')
+            .from('public_profiles').select(SAFE_COLS)
             .eq('id', creator_id).eq('verification_status', 'verified')
             .eq('available_for_hire', true).single();
           creator = data;
@@ -115,7 +117,7 @@ export function createCrewTools(
         // Fallback: search by display_name if slug looks like a name
         if (!creator && crew_slug && crew_slug.includes(' ')) {
           const { data } = await supabase
-            .from('profiles').select('*')
+            .from('public_profiles').select(SAFE_COLS)
             .ilike('display_name', `%${escapeIlike(crew_slug)}%`)
             .eq('verification_status', 'verified')
             .eq('available_for_hire', true)

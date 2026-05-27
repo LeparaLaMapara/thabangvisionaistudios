@@ -84,7 +84,7 @@ export async function fetchPlatformData(supabase: any, flags: UbunyeFlagsSnapsho
       .eq('is_published', true)
       .is('deleted_at', null),
     supabase
-      .from('profiles')
+      .from('public_profiles')
       .select('display_name, skills, bio, id')
       .eq('is_verified', true),
     supabase
@@ -98,7 +98,7 @@ export async function fetchPlatformData(supabase: any, flags: UbunyeFlagsSnapsho
       .eq('is_active', true)
       .order('price', { ascending: true }),
     supabase
-      .from('profiles')
+      .from('public_profiles')
       .select('display_name, crew_slug, specializations, hourly_rate, location, crew_bio, years_experience, crew_featured')
       .eq('verification_status', 'verified')
       .eq('available_for_hire', true)

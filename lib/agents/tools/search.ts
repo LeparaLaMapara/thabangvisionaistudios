@@ -32,7 +32,7 @@ export function createSearchTools(
         specialization?: string; location?: string; budget_max?: number;
       }) => {
         let query = supabase
-          .from('profiles')
+          .from('public_profiles')
           .select('id, display_name, crew_slug, avatar_url, crew_bio, specializations, hourly_rate, location, years_experience, crew_featured')
           .eq('verification_status', 'verified')
           .eq('available_for_hire', true)
