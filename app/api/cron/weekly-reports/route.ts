@@ -6,6 +6,7 @@ import { validateCronAuth } from '@/lib/cron/auth';
 import { createAdminClient } from '@/lib/supabase/server';
 import { email as emailProvider } from '@/lib/email';
 import { STUDIO } from '@/lib/constants';
+import { indexConversationFaqs } from '@/lib/cron/faq-indexer';
 
 /**
  * Weekly Reports — runs Monday 8am SAST (06:00 UTC)
@@ -119,7 +120,16 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     report.equipmentRentalsError = String(err);
   }
 
-  // ─── 5. Email report to admin ─────────────────────────────────────────────
+  // ─── 5. Index chat conversations into FAQ entries ─────────────────────────
+  try {
+    const faqResult = await indexConversationFaqs();
+    report.faqIndexing = faqResult;
+  } catch (err) {
+    console.error('[weekly-reports] FAQ indexing failed:', err);
+    report.faqIndexingError = String(err);
+  }
+
+  // ─── 6. Email report to admin ─────────────────────────────────────────────
   try {
     const fin = report.financial as { newBookingsCount: number; totalRevenue: number; totalCommission: number; totalPayouts: number; completedCount: number } | undefined;
     const users = report.users as { newThisWeek: number; total: number; verifiedCreators: number } | undefined;
