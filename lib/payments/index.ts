@@ -21,11 +21,11 @@ const providers: Record<string, PaymentProvider> = {
 
 // ─── Active Provider ─────────────────────────────────────────────────────────
 
-const providerName = (process.env.PAYMENT_PROVIDER ?? 'payfast').toLowerCase();
+const providerName = (process.env.PAYMENT_PROVIDER ?? 'paystack').toLowerCase();
 
 if (!providers[providerName]) {
   console.warn(
-    `[payments] Unknown PAYMENT_PROVIDER="${providerName}". Falling back to payfast. ` +
+    `[payments] Unknown PAYMENT_PROVIDER="${providerName}". Falling back to paystack. ` +
     `Valid options: ${Object.keys(providers).join(', ')}`,
   );
 }
@@ -34,4 +34,4 @@ if (!providers[providerName]) {
  * The active payment provider, determined by `PAYMENT_PROVIDER` env var.
  * Defaults to PayFast if not set or unrecognized.
  */
-export const payments: PaymentProvider = providers[providerName] ?? payfast;
+export const payments: PaymentProvider = providers[providerName] ?? paystack;
