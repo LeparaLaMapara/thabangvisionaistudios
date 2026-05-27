@@ -1,6 +1,7 @@
 import type { MetadataRoute } from 'next';
-import { STUDIO } from '@/lib/constants';
+import { STUDIO, RENTAL_CATEGORIES, PRODUCTION_CATEGORIES } from '@/lib/constants';
 import { createAdminClient } from '@/lib/supabase/server';
+import { SA_CITIES, COUNTRY_SLUG } from '@/lib/seo/cities';
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const baseUrl = STUDIO.meta.url;
@@ -102,12 +103,39 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     priority: 0.6,
   }));
 
+  // ── Location Pages: Rentals × Cities ──────────────────────────────────────
+  const locationSlugs = [...SA_CITIES.map((c) => c.slug), COUNTRY_SLUG];
+  const rentalLocationPages: MetadataRoute.Sitemap = [];
+  for (const cat of RENTAL_CATEGORIES) {
+    for (const loc of locationSlugs) {
+      rentalLocationPages.push({
+        url: `${baseUrl}/rentals/${encodeURIComponent(cat.value)}/in/${loc}`,
+        changeFrequency: 'weekly',
+        priority: loc === COUNTRY_SLUG ? 0.8 : 0.7,
+      });
+    }
+  }
+
+  // ── Location Pages: Studio Categories × Cities ───────────────────────────
+  const studioLocationPages: MetadataRoute.Sitemap = [];
+  for (const cat of PRODUCTION_CATEGORIES) {
+    for (const loc of locationSlugs) {
+      studioLocationPages.push({
+        url: `${baseUrl}/studio/category/${encodeURIComponent(cat.slug)}/in/${loc}`,
+        changeFrequency: 'weekly',
+        priority: loc === COUNTRY_SLUG ? 0.8 : 0.7,
+      });
+    }
+  }
+
   return [
     ...staticPages,
     ...rentalCategoryPages,
     ...rentalPages,
+    ...rentalLocationPages,
     ...productionPages,
     ...categoryPages,
+    ...studioLocationPages,
     ...pressPages,
     ...listingPages,
   ];

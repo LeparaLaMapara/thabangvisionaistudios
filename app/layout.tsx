@@ -7,6 +7,7 @@ import { SpeedInsights } from '@vercel/speed-insights/next';
 import { Providers } from '@/components/layout/Providers';
 import { STUDIO } from '@/lib/constants';
 import { createClient } from '@/lib/supabase/server';
+import { organizationJsonLd, localBusinessJsonLd, renderJsonLd } from '@/lib/seo/structured-data';
 
 // ── Google Fonts via next/font ──
 // CSS variables injected into <html>, consumed by @theme in globals.css.
@@ -59,7 +60,25 @@ export const metadata: Metadata = {
     type: 'website',
     url: STUDIO.meta.url,
     siteName: STUDIO.shortName,
-    images: [{ url: '/logo-black-bg.png', alt: STUDIO.shortName }],
+    locale: 'en_ZA',
+    images: [{ url: '/logo-black-bg.png', alt: STUDIO.shortName, width: 1200, height: 630 }],
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: `${STUDIO.shortName.toUpperCase()} | Technology Creative Studio`,
+    description: STUDIO.meta.description,
+    images: ['/logo-black-bg.png'],
+  },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      'max-video-preview': -1,
+      'max-image-preview': 'large' as const,
+      'max-snippet': -1,
+    },
   },
 };
 
@@ -104,6 +123,14 @@ export default async function RootLayout({
         ].join(' ')}
         suppressHydrationWarning
       >
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: renderJsonLd(organizationJsonLd()) }}
+        />
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: renderJsonLd(localBusinessJsonLd()) }}
+        />
         <Providers initialUser={initialUser}>
           {children}
         </Providers>
