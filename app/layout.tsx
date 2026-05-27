@@ -93,8 +93,8 @@ export const metadata: Metadata = {
 /**
  * Root layout — intentionally minimal.
  *
- * Only sets up the HTML/body shell, font CSS variables, and the ThemeProvider
- * (next-themes needs to wrap everything so dark mode works in admin too).
+ * Only sets up the HTML/body shell, font CSS variables, and providers.
+ * Dark mode is hardcoded via className="dark" on <html>.
  *
  * All chrome (Header, Footer, admin topbar) lives in the per-group layouts:
  *   app/(marketing)/layout.tsx  ← Header + Footer for public pages
@@ -118,9 +118,7 @@ export default async function RootLayout({
     // No session — user is null
   }
   return (
-    // suppressHydrationWarning: next-themes sets the theme class on <html>
-    // after SSR which would otherwise trigger a React hydration mismatch.
-    <html lang="en" className="dark" suppressHydrationWarning>
+    <html lang="en" className="dark">
       <body
         className={[
           inter.variable,
@@ -129,7 +127,6 @@ export default async function RootLayout({
           orbitron.variable,
           'font-sans antialiased',
         ].join(' ')}
-        suppressHydrationWarning
       >
         <script
           type="application/ld+json"

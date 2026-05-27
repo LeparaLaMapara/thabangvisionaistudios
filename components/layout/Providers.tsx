@@ -1,6 +1,5 @@
 'use client';
 
-import { ThemeProvider } from 'next-themes';
 import { AuthProvider } from '@/providers/AuthProvider';
 import { CartProvider } from '@/providers/CartProvider';
 
@@ -17,18 +16,10 @@ export function Providers({
   children: React.ReactNode;
 }) {
   return (
-    <ThemeProvider
-      attribute="class"
-      defaultTheme="dark"
-      forcedTheme="dark"
-      enableSystem={false}
-      disableTransitionOnChange={false}
-    >
-      <AuthProvider initialUser={initialUser}>
-        <CartProvider>
-          {children}
-        </CartProvider>
-      </AuthProvider>
-    </ThemeProvider>
+    <AuthProvider initialUser={initialUser}>
+      <CartProvider>
+        {children}
+      </CartProvider>
+    </AuthProvider>
   );
 }

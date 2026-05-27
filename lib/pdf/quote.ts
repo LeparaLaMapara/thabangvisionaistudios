@@ -1,5 +1,6 @@
 import { jsPDF } from 'jspdf';
 import { STUDIO } from '@/lib/constants';
+import { formatZAR } from '@/lib/productions/pricing';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -30,8 +31,8 @@ export type QuoteData = {
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
-function formatZAR(amount: number): string {
-  return `R ${amount.toLocaleString('en-ZA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+function formatZARPrecise(amount: number): string {
+  return formatZAR(amount, { decimals: true, space: true });
 }
 
 function generateQuoteNumber(): string {
@@ -159,8 +160,8 @@ export function generateQuotePDF(data: QuoteData): Buffer {
     doc.setTextColor(DARK);
     doc.text(item.description, margin + 4, y + 1);
     doc.text(String(item.quantity), margin + 100, y + 1, { align: 'center' });
-    doc.text(formatZAR(item.unitPrice), margin + 125, y + 1, { align: 'right' });
-    doc.text(formatZAR(item.total), margin + contentWidth - 4, y + 1, { align: 'right' });
+    doc.text(formatZARPrecise(item.unitPrice), margin + 125, y + 1, { align: 'right' });
+    doc.text(formatZARPrecise(item.total), margin + contentWidth - 4, y + 1, { align: 'right' });
     y += 7;
   }
 
@@ -176,13 +177,13 @@ export function generateQuotePDF(data: QuoteData): Buffer {
   doc.setFontSize(9);
   doc.text('Subtotal', totalsX, y);
   doc.setTextColor(DARK);
-  doc.text(formatZAR(data.subtotal), margin + contentWidth - 4, y, { align: 'right' });
+  doc.text(formatZARPrecise(data.subtotal), margin + contentWidth - 4, y, { align: 'right' });
   y += 6;
 
   doc.setTextColor(GREY);
   doc.text(`VAT (${STUDIO.booking.vatRate}%)`, totalsX, y);
   doc.setTextColor(DARK);
-  doc.text(formatZAR(data.vatAmount), margin + contentWidth - 4, y, { align: 'right' });
+  doc.text(formatZARPrecise(data.vatAmount), margin + contentWidth - 4, y, { align: 'right' });
   y += 6;
 
   doc.setDrawColor('#DDDDDD');
@@ -196,7 +197,7 @@ export function generateQuotePDF(data: QuoteData): Buffer {
   doc.setFont('helvetica', 'bold');
   doc.text('TOTAL', totalsX, y + 2.5);
   doc.setTextColor(GOLD);
-  doc.text(formatZAR(data.total), margin + contentWidth - 4, y + 2.5, { align: 'right' });
+  doc.text(formatZARPrecise(data.total), margin + contentWidth - 4, y + 2.5, { align: 'right' });
 
   y += 18;
 

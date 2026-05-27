@@ -33,7 +33,11 @@ export function calculatePackagePrice(pkg: ProductionPackage): PackagePriceResul
   return { subtotal, vat, total, lineItems };
 }
 
-/** Format a ZAR price for display: "R12,500" */
-export function formatZAR(amount: number): string {
-  return `R${amount.toLocaleString('en-ZA')}`;
+/** Format a ZAR price for display: "R12,500" or "R 12,500.00" with decimals */
+export function formatZAR(amount: number, opts?: { decimals?: boolean; space?: boolean }): string {
+  const prefix = opts?.space ? 'R ' : 'R';
+  const formatted = opts?.decimals
+    ? amount.toLocaleString('en-ZA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+    : amount.toLocaleString('en-ZA');
+  return `${prefix}${formatted}`;
 }

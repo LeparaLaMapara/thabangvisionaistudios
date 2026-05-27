@@ -196,13 +196,24 @@ async function handlePaymentComplete(webhook: WebhookResult) {
     if (bookingErr) {
       console.error('[paystack-webhook] Failed to confirm booking:', bookingErr.message);
     } else {
-      await supabase.from('booking_payments').insert({
-        booking_id: paymentId,
-        payfast_payment_id: providerPaymentId,
-        amount: amountGross,
-        currency: 'ZAR',
-        status: 'complete',
-      });
+      const { data: existingPayment } = await supabase
+        .from('booking_payments')
+        .select('id')
+        .eq('booking_id', paymentId)
+        .eq('payfast_payment_id', providerPaymentId)
+        .maybeSingle();
+
+      if (existingPayment) {
+        console.log(`[paystack-webhook] Payment already recorded: booking=${paymentId} provider=${providerPaymentId}`);
+      } else {
+        await supabase.from('booking_payments').insert({
+          booking_id: paymentId,
+          payfast_payment_id: providerPaymentId,
+          amount: amountGross,
+          currency: 'ZAR',
+          status: 'complete',
+        });
+      }
 
       console.log(`[paystack-webhook] Booking confirmed: ref=${paymentId}`);
     }
