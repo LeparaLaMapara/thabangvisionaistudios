@@ -267,7 +267,6 @@ export function GlobalSearch({ isOpen, onClose }: Props) {
                                     fill
                                     sizes="40px"
                                     className="object-cover"
-                                    unoptimized
                                   />
                                 </div>
                               ) : (

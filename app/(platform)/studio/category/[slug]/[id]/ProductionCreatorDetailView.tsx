@@ -325,7 +325,6 @@ export default function ProductionCreatorDetailView({
                             fill
                             sizes="(max-width: 640px) 100vw, 50vw"
                             className="object-cover grayscale group-hover:grayscale-0 transition-all duration-500"
-                            unoptimized
                           />
                         ) : (
                           <div className="w-full h-full flex items-center justify-center">
@@ -379,8 +378,7 @@ export default function ProductionCreatorDetailView({
                                 fill
                                 sizes="200px"
                                 className="object-cover"
-                                unoptimized
-                              />
+                                  />
                             </button>
                           ))}
                         </div>
@@ -407,8 +405,7 @@ export default function ProductionCreatorDetailView({
                               alt={project.title}
                               fill
                               className="object-cover opacity-50"
-                              unoptimized
-                            />
+                              />
                           )}
                         </button>
                       )}

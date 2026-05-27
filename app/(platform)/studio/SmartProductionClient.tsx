@@ -101,7 +101,6 @@ function CategoryCard({
         sizes="(max-width: 768px) 100vw, (max-width: 1024px) 50vw, 33vw"
         className="object-cover opacity-0 pointer-events-none absolute"
         onLoad={onLoad}
-        unoptimized
       />
 
       <motion.div
@@ -119,8 +118,7 @@ function CategoryCard({
             fill
             sizes="(max-width: 768px) 100vw, (max-width: 1024px) 50vw, 33vw"
             className="object-cover grayscale-0 md:grayscale md:group-hover:grayscale-0 scale-100 group-hover:scale-105 transition-all duration-700 ease-out"
-            unoptimized
-          />
+              />
 
           <div className="absolute inset-0 z-20 flex flex-col justify-between p-8">
             <div className="flex justify-between items-start">
@@ -179,7 +177,6 @@ function FeaturedProductionCard({ production }: { production: SmartProduction })
         sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 20vw"
         className={`object-cover grayscale group-hover:grayscale-0 transition-all duration-500 ${imgLoaded ? 'opacity-100' : 'opacity-0'}`}
         onLoad={() => setImgLoaded(true)}
-        unoptimized
       />
       <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent z-10" />
       <div className="absolute bottom-0 left-0 right-0 p-4 z-20">

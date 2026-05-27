@@ -160,7 +160,6 @@ function RentalCard({ rental, category }: { rental: SmartRental; category: strin
                 imageLoaded ? 'opacity-100' : 'opacity-0'
               }`}
               onLoad={onLoad}
-              unoptimized
             />
           </>
         ) : (

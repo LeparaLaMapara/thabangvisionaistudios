@@ -136,7 +136,6 @@ function ProductionCard({ production }: { production: SmartProduction }) {
                 imageLoaded ? 'opacity-100' : 'opacity-0'
               }`}
               onLoad={onLoad}
-              unoptimized
             />
           </>
         ) : (
@@ -240,7 +239,6 @@ function PackageCard({
                 imageLoaded ? 'opacity-100' : 'opacity-0'
               }`}
               onLoad={onLoad}
-              unoptimized
             />
             <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
           </>

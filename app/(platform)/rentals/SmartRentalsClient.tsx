@@ -88,7 +88,6 @@ function CategoryCard({
         sizes="(max-width: 768px) 100vw, (max-width: 1024px) 50vw, 33vw"
         className="object-cover opacity-0 pointer-events-none absolute"
         onLoad={onLoad}
-        unoptimized
       />
 
       {/* Full card fades in when revealed */}
@@ -107,8 +106,7 @@ function CategoryCard({
             fill
             sizes="(max-width: 768px) 100vw, (max-width: 1024px) 50vw, 33vw"
             className="object-cover grayscale-0 md:grayscale md:group-hover:grayscale-0 scale-100 group-hover:scale-105 transition-all duration-700 ease-out"
-            unoptimized
-          />
+              />
 
           <div className="absolute inset-0 z-20 flex flex-col justify-between p-8">
             <div className="flex justify-between items-start">

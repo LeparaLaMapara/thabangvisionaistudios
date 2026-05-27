@@ -459,7 +459,6 @@ export default function PortfolioPage() {
                       fill
                       className="object-cover"
                       sizes="200px"
-                      unoptimized
                     />
                     <button
                       onClick={() => setConfirmDelete({ projectId: project.id, type: 'photo', index: photoIdx })}
