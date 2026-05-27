@@ -14,13 +14,16 @@ const ADMIN_LINKS = [
   { label: 'Rentals', href: '/admin/rentals' },
   { label: 'Import', href: '/admin/rentals/import' },
   { label: 'Press', href: '/admin/press' },
+  { label: 'Repurpose', href: '/admin/content-repurpose' },
   { label: 'Careers', href: '/admin/careers' },
+  { label: 'FAQs', href: '/admin/faqs' },
   // Operations
   { label: 'Bookings', href: '/admin/bookings' },
   { label: 'Service Bookings', href: '/admin/service-bookings' },
   { label: 'Verifications', href: '/admin/verifications' },
   { label: 'Creator Requests', href: '/admin/creator-requests' },
   { label: 'Users', href: '/admin/users' },
+  { label: 'Outreach', href: '/admin/outreach' },
   { label: 'Flags', href: '/admin/flags' },
 ];
 

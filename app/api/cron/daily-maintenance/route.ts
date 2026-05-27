@@ -308,16 +308,19 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       .lt('end_date', cutoff);
 
     let escalated = 0;
-    for (const booking of unreturned ?? []) {
-      // Check no existing dispute
-      const { data: existing } = await supabase
+    if (unreturned && unreturned.length > 0) {
+      const unreturnedIds = unreturned.map((b) => b.id);
+      const { data: existingDisputes } = await supabase
         .from('disputes')
-        .select('id')
-        .eq('equipment_booking_id', booking.id)
+        .select('equipment_booking_id')
         .eq('dispute_type', 'gear_not_returned')
-        .maybeSingle();
+        .in('equipment_booking_id', unreturnedIds);
 
-      if (!existing) {
+      const disputedBookingIds = new Set((existingDisputes ?? []).map((d) => d.equipment_booking_id));
+
+      for (const booking of unreturned) {
+        if (disputedBookingIds.has(booking.id)) continue;
+
         await supabase.from('disputes').insert({
           dispute_type: 'gear_not_returned',
           equipment_booking_id: booking.id,
@@ -340,67 +343,79 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 
   // ─── 10. Auto-flag users with 3+ disputes for review ─────────────────────
   try {
-    // Find users with 3+ open/investigating disputes filed against their bookings
     const { data: allDisputes } = await supabase
       .from('disputes')
       .select('booking_id, equipment_booking_id')
       .in('status', ['open', 'investigating']);
 
-    // Count disputes per user (as the other party, not the filer)
     const userDisputeCounts = new Map<string, number>();
 
-    for (const dispute of allDisputes ?? []) {
-      if (dispute.equipment_booking_id) {
-        const { data: eb } = await supabase
+    if (allDisputes && allDisputes.length > 0) {
+      // Batch-fetch equipment booking user IDs
+      const ebIds = allDisputes.map((d) => d.equipment_booking_id).filter(Boolean) as string[];
+      if (ebIds.length > 0) {
+        const { data: ebs } = await supabase
           .from('equipment_bookings')
-          .select('user_id')
-          .eq('id', dispute.equipment_booking_id)
-          .single();
-        if (eb?.user_id) {
-          userDisputeCounts.set(eb.user_id, (userDisputeCounts.get(eb.user_id) ?? 0) + 1);
+          .select('id, user_id')
+          .in('id', ebIds);
+        const ebUserMap = new Map((ebs ?? []).map((eb) => [eb.id, eb.user_id]));
+        for (const dispute of allDisputes) {
+          if (dispute.equipment_booking_id) {
+            const uid = ebUserMap.get(dispute.equipment_booking_id);
+            if (uid) userDisputeCounts.set(uid, (userDisputeCounts.get(uid) ?? 0) + 1);
+          }
         }
       }
-      if (dispute.booking_id) {
-        const { data: bk } = await supabase
+
+      // Batch-fetch service booking creator IDs
+      const bkIds = allDisputes.map((d) => d.booking_id).filter(Boolean) as string[];
+      if (bkIds.length > 0) {
+        const { data: bks } = await supabase
           .from('bookings')
-          .select('creator_id')
-          .eq('id', dispute.booking_id)
-          .single();
-        if (bk?.creator_id) {
-          userDisputeCounts.set(bk.creator_id, (userDisputeCounts.get(bk.creator_id) ?? 0) + 1);
+          .select('id, creator_id')
+          .in('id', bkIds);
+        const bkCreatorMap = new Map((bks ?? []).map((bk) => [bk.id, bk.creator_id]));
+        for (const dispute of allDisputes) {
+          if (dispute.booking_id) {
+            const cid = bkCreatorMap.get(dispute.booking_id);
+            if (cid) userDisputeCounts.set(cid, (userDisputeCounts.get(cid) ?? 0) + 1);
+          }
         }
       }
     }
 
+    // Batch-fetch profiles for users with 3+ disputes
+    const flaggedUserIds = [...userDisputeCounts.entries()]
+      .filter(([, count]) => count >= 3)
+      .map(([uid]) => uid);
+
     let autoSuspended = 0;
-    for (const [userId, count] of userDisputeCounts.entries()) {
-      if (count >= 3) {
-        // Check if user is already suspended
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('is_suspended')
-          .eq('id', userId)
-          .single();
+    if (flaggedUserIds.length > 0) {
+      const { data: profiles } = await supabase
+        .from('profiles')
+        .select('id, is_suspended')
+        .in('id', flaggedUserIds);
 
-        if (profile && !profile.is_suspended) {
-          await supabase.from('profiles').update({
-            is_suspended: true,
-            suspended_at: new Date().toISOString(),
-            suspension_reason: `Auto-suspended: ${count} active disputes filed against this user.`,
-          }).eq('id', userId);
+      for (const profile of profiles ?? []) {
+        if (profile.is_suspended) continue;
+        const count = userDisputeCounts.get(profile.id) ?? 0;
 
-          await supabase.from('moderation_log').insert({
-            user_id: userId,
-            action: 'suspended',
-            reason: `Auto-suspended: ${count} active disputes.`,
-            admin_id: userId, // system action
-            metadata: { trigger: 'auto_dispute_count', dispute_count: count },
-          });
+        await supabase.from('profiles').update({
+          is_suspended: true,
+          suspended_at: new Date().toISOString(),
+          suspension_reason: `Auto-suspended: ${count} active disputes filed against this user.`,
+        }).eq('id', profile.id);
 
-          // Deactivate listings
-          await supabase.from('smart_rentals').update({ is_available: false }).eq('owner_id', userId);
-          autoSuspended++;
-        }
+        await supabase.from('moderation_log').insert({
+          user_id: profile.id,
+          action: 'suspended',
+          reason: `Auto-suspended: ${count} active disputes.`,
+          admin_id: profile.id,
+          metadata: { trigger: 'auto_dispute_count', dispute_count: count },
+        });
+
+        await supabase.from('smart_rentals').update({ is_available: false }).eq('owner_id', profile.id);
+        autoSuspended++;
       }
     }
     results.autoSuspension = { flaggedUsers: userDisputeCounts.size, autoSuspended };
@@ -421,34 +436,32 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       .in('status', ['overdue', 'disputed'])
       .lt('end_date', cutoff30);
 
+    const uniqueUserIds = [...new Set((severeOverdue ?? []).map((b) => b.user_id))];
     let suspended30 = 0;
-    const seen = new Set<string>();
-    for (const booking of severeOverdue ?? []) {
-      if (seen.has(booking.user_id)) continue;
-      seen.add(booking.user_id);
 
-      const { data: profile } = await supabase
+    if (uniqueUserIds.length > 0) {
+      const { data: profiles } = await supabase
         .from('profiles')
-        .select('is_suspended')
-        .eq('id', booking.user_id)
-        .single();
+        .select('id, is_suspended')
+        .in('id', uniqueUserIds)
+        .eq('is_suspended', false);
 
-      if (profile && !profile.is_suspended) {
+      for (const profile of profiles ?? []) {
         await supabase.from('profiles').update({
           is_suspended: true,
           suspended_at: new Date().toISOString(),
           suspension_reason: 'Auto-suspended: gear overdue for 30+ days.',
-        }).eq('id', booking.user_id);
+        }).eq('id', profile.id);
 
         await supabase.from('moderation_log').insert({
-          user_id: booking.user_id,
+          user_id: profile.id,
           action: 'suspended',
           reason: 'Auto-suspended: gear overdue 30+ days.',
-          admin_id: booking.user_id,
+          admin_id: profile.id,
           metadata: { trigger: 'auto_overdue_30_days' },
         });
 
-        await supabase.from('smart_rentals').update({ is_available: false }).eq('owner_id', booking.user_id);
+        await supabase.from('smart_rentals').update({ is_available: false }).eq('owner_id', profile.id);
         suspended30++;
       }
     }
@@ -472,16 +485,19 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     const uniqueUsers = [...new Set((staleCarts ?? []).map((c) => c.user_id))];
     let nudged = 0;
 
-    for (const userId of uniqueUsers) {
-      const { data: existing } = await supabase
+    if (uniqueUsers.length > 0) {
+      const { data: recentReminders } = await supabase
         .from('notifications')
-        .select('id')
-        .eq('user_id', userId)
+        .select('user_id')
         .eq('type', 'cart_reminder')
         .gt('created_at', cartCutoff)
-        .maybeSingle();
+        .in('user_id', uniqueUsers);
 
-      if (!existing) {
+      const alreadyNudged = new Set((recentReminders ?? []).map((n) => n.user_id));
+
+      for (const userId of uniqueUsers) {
+        if (alreadyNudged.has(userId)) continue;
+
         await supabase.from('notifications').insert({
           user_id: userId,
           type: 'cart_reminder',

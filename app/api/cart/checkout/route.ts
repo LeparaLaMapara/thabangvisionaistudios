@@ -208,39 +208,57 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Failed to create bookings.' }, { status: 500 });
   }
 
-  // Create payment checkout
+  // Create payment checkout (retry up to 2 times on failure)
   let paymentUrl: string | null = null;
 
   if (payments.isConfigured()) {
-    try {
-      const itemNames = items.map((i) => i.rental.title).slice(0, 3);
-      const itemDescription = items.length > 3
-        ? `${itemNames.join(', ')} +${items.length - 3} more`
-        : itemNames.join(', ');
+    const itemNames = items.map((i) => i.rental.title).slice(0, 3);
+    const itemDescription = items.length > 3
+      ? `${itemNames.join(', ')} +${items.length - 3} more`
+      : itemNames.join(', ');
 
-      const dateLabel = usePerItemDates
-        ? `${items.length} items with individual dates`
-        : `${start_date} to ${end_date}`;
+    const dateLabel = usePerItemDates
+      ? `${items.length} items with individual dates`
+      : `${start_date} to ${end_date}`;
 
-      const checkout = await payments.createCheckout({
-        paymentId: checkoutGroupId,
-        amount: pricing.grandTotal,
-        itemName: `Equipment Rental (${items.length} items)`,
-        itemDescription: `${itemDescription} — ${dateLabel}`,
-        email: user.email ?? undefined,
-        returnUrl: `/dashboard/bookings?checkout=${checkoutGroupId}&payment=success`,
-        cancelUrl: `/dashboard/cart?payment=cancelled`,
-        metadata: {
-          customStr1: 'cart_checkout',
-          customStr2: user.id,
-          customStr3: checkoutGroupId,
-          customStr4: String(pricing.bulkDiscountPercent),
-        },
-      });
-      paymentUrl = checkout.paymentUrl;
-    } catch (err) {
-      console.error('[cart/checkout] Payment error:', err);
+    const checkoutParams = {
+      paymentId: checkoutGroupId,
+      amount: pricing.grandTotal,
+      itemName: `Equipment Rental (${items.length} items)`,
+      itemDescription: `${itemDescription} — ${dateLabel}`,
+      email: user.email ?? undefined,
+      returnUrl: `/dashboard/bookings?checkout=${checkoutGroupId}&payment=success`,
+      cancelUrl: `/dashboard/cart?payment=cancelled`,
+      metadata: {
+        customStr1: 'cart_checkout',
+        customStr2: user.id,
+        customStr3: checkoutGroupId,
+        customStr4: String(pricing.bulkDiscountPercent),
+      },
+    };
+
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        const checkout = await payments.createCheckout(checkoutParams);
+        paymentUrl = checkout.paymentUrl;
+        break;
+      } catch (err) {
+        console.error(`[cart/checkout] Payment init attempt ${attempt + 1}/3 failed:`, err);
+        if (attempt < 2) await new Promise((r) => setTimeout(r, 500 * (attempt + 1)));
+      }
     }
+  }
+
+  // If payment provider is configured but checkout failed, roll back
+  if (payments.isConfigured() && !paymentUrl) {
+    await adminClient
+      .from('equipment_bookings')
+      .delete()
+      .eq('checkout_group_id', checkoutGroupId);
+    return NextResponse.json(
+      { error: 'Payment service unavailable. Please try again.' },
+      { status: 503 },
+    );
   }
 
   // Create payment records
