@@ -458,7 +458,48 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     results.overdueAutoSuspension = { error: String(err) };
   }
 
-  // ─── 12. Auto-publish creator productions pending 7+ days ─────────────────
+  // ─── 12. Abandoned cart recovery notifications ────────────────────────────
+  try {
+    const cartCutoff = new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString();
+    const recentCutoff = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString();
+
+    const { data: staleCarts } = await supabase
+      .from('cart_items')
+      .select('user_id, created_at')
+      .lt('created_at', cartCutoff)
+      .gt('created_at', recentCutoff);
+
+    const uniqueUsers = [...new Set((staleCarts ?? []).map((c) => c.user_id))];
+    let nudged = 0;
+
+    for (const userId of uniqueUsers) {
+      const { data: existing } = await supabase
+        .from('notifications')
+        .select('id')
+        .eq('user_id', userId)
+        .eq('type', 'cart_reminder')
+        .gt('created_at', cartCutoff)
+        .maybeSingle();
+
+      if (!existing) {
+        await supabase.from('notifications').insert({
+          user_id: userId,
+          type: 'cart_reminder',
+          title: 'You left items in your cart',
+          body: 'Your gear selections are still waiting. Complete your booking before availability changes.',
+          link: '/rentals',
+        });
+        nudged++;
+      }
+    }
+
+    results.cartRecovery = { staleCarts: uniqueUsers.length, nudged };
+  } catch (err) {
+    console.error('[daily-maintenance] cart recovery failed:', err);
+    results.cartRecovery = { error: String(err) };
+  }
+
+  // ─── 13. Auto-publish creator productions pending 7+ days ─────────────────
   try {
     const published = await autoPublishCreatorProductions();
     results.autoPublishedCreators = published;

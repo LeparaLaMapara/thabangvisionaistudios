@@ -4,6 +4,7 @@ import type { Metadata } from 'next';
 import { buildPageMetadata } from '@/lib/seo/metadata';
 import { faqPageJsonLd, renderJsonLd } from '@/lib/seo/structured-data';
 import { STUDIO } from '@/lib/constants';
+import { ExitIntentModal } from '@/components/engagement/ExitIntentModal';
 
 export const metadata: Metadata = buildPageMetadata({
   title: 'Pricing — Simple, Transparent Plans',
@@ -48,6 +49,12 @@ export default function PricingLayout({ children }: { children: React.ReactNode 
         dangerouslySetInnerHTML={{ __html: renderJsonLd(jsonLd) }}
       />
       {children}
+      <ExitIntentModal
+        prompt="Help me choose the right plan for my needs"
+        heading="Not sure which plan?"
+        body="Our AI assistant can recommend the perfect plan based on your needs — whether you're a solo creator or a full production house."
+        ctaLabel="Get a recommendation"
+      />
     </>
   );
 }
