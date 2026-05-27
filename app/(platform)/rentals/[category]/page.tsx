@@ -4,6 +4,8 @@ import { RENTAL_CATEGORIES, STUDIO } from '@/lib/constants';
 import { buildPageMetadata } from '@/lib/seo/metadata';
 import { serviceJsonLd, breadcrumbJsonLd, renderJsonLd } from '@/lib/seo/structured-data';
 import RentalCategoryClient from './RentalCategoryClient';
+import { AlsoAvailableIn } from '@/components/seo/AlsoAvailableIn';
+import { RelatedCategories } from '@/components/seo/RelatedCategories';
 
 export const revalidate = 60;
 
@@ -60,6 +62,8 @@ export default async function RentalCategoryPage({
         />
       ))}
       <RentalCategoryClient rentals={rentals} category={category} />
+      <AlsoAvailableIn basePath={`/rentals/${category}`} />
+      <RelatedCategories currentSlug={category} type="rentals" />
     </>
   );
 }

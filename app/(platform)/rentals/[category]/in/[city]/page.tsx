@@ -8,6 +8,8 @@ import { RENTAL_CATEGORIES, STUDIO } from '@/lib/constants';
 import { buildPageMetadata } from '@/lib/seo/metadata';
 import { serviceJsonLd, breadcrumbJsonLd, renderJsonLd } from '@/lib/seo/structured-data';
 import RentalCategoryClient from '../../RentalCategoryClient';
+import { AlsoAvailableIn } from '@/components/seo/AlsoAvailableIn';
+import { RelatedCategories } from '@/components/seo/RelatedCategories';
 
 interface Props {
   params: Promise<{ category: string; city: string }>;
@@ -79,6 +81,8 @@ export default async function RentalLocationPage({ params }: Props) {
         category={category}
         locationName={locationName}
       />
+      <AlsoAvailableIn basePath={`/rentals/${category}`} currentCitySlug={citySlug} />
+      <RelatedCategories currentSlug={category} type="rentals" locationSlug={citySlug} />
     </>
   );
 }

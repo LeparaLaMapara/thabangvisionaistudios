@@ -9,6 +9,8 @@ import { buildPageMetadata } from '@/lib/seo/metadata';
 import { serviceJsonLd, breadcrumbJsonLd, renderJsonLd } from '@/lib/seo/structured-data';
 import CategoryPageClient from './CategoryPageClient';
 import { AskUbunyeButton } from '@/components/ubunye/AskUbunyeButton';
+import { AlsoAvailableIn } from '@/components/seo/AlsoAvailableIn';
+import { RelatedCategories } from '@/components/seo/RelatedCategories';
 
 interface Props {
   params: Promise<{ slug: string }>;
@@ -74,6 +76,8 @@ export default async function CategoryPage({ params }: Props) {
         productions={[...productions, ...creatorProductions]}
         creators={creators}
       />
+      <AlsoAvailableIn basePath={`/studio/category/${slug}`} />
+      <RelatedCategories currentSlug={slug} type="studio" />
       <AskUbunyeButton
         prompt={`I need a quote for ${category.name.toLowerCase()} production services`}
         label="Get an instant AI quote"

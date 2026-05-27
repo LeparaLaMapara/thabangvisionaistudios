@@ -10,6 +10,8 @@ import { buildPageMetadata } from '@/lib/seo/metadata';
 import { serviceJsonLd, breadcrumbJsonLd, renderJsonLd } from '@/lib/seo/structured-data';
 import CategoryPageClient from '../../CategoryPageClient';
 import { AskUbunyeButton } from '@/components/ubunye/AskUbunyeButton';
+import { AlsoAvailableIn } from '@/components/seo/AlsoAvailableIn';
+import { RelatedCategories } from '@/components/seo/RelatedCategories';
 
 interface Props {
   params: Promise<{ slug: string; city: string }>;
@@ -93,6 +95,8 @@ export default async function StudioLocationPage({ params }: Props) {
         creators={creators}
         locationName={locationName}
       />
+      <AlsoAvailableIn basePath={`/studio/category/${slug}`} currentCitySlug={citySlug} />
+      <RelatedCategories currentSlug={slug} type="studio" locationSlug={citySlug} />
       <AskUbunyeButton
         prompt={`I need a quote for ${category.name.toLowerCase()} in ${locationName}`}
         label="Get an instant AI quote"

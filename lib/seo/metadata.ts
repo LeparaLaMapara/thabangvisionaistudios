@@ -8,12 +8,20 @@ interface PageMetaOpts {
   imageUrl?: string;
   imageAlt?: string;
   type?: 'website' | 'article' | 'product';
+  ogType?: string;
   noIndex?: boolean;
+}
+
+function buildOgImageUrl(title: string, subtitle?: string, type?: string): string {
+  const params = new URLSearchParams({ title });
+  if (subtitle) params.set('subtitle', subtitle);
+  if (type) params.set('type', type);
+  return `${STUDIO.meta.url}/api/og?${params.toString()}`;
 }
 
 export function buildPageMetadata(opts: PageMetaOpts): Metadata {
   const url = `${STUDIO.meta.url}${opts.path}`;
-  const image = opts.imageUrl ?? `${STUDIO.meta.url}/logo-black-bg.png`;
+  const image = opts.imageUrl ?? buildOgImageUrl(opts.title, undefined, opts.ogType);
   const imageAlt = opts.imageAlt ?? opts.title;
 
   return {
