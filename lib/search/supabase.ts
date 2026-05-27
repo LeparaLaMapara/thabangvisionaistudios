@@ -64,7 +64,7 @@ export const supabaseSearch: SearchProvider = {
         .limit(limit),
 
       supabase
-        .from('profiles')
+        .from('public_profiles')
         .select('id, display_name, bio, avatar_url, skills')
         .or(`display_name.ilike.${pattern},bio.ilike.${pattern}`)
         .limit(limit),

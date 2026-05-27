@@ -38,7 +38,7 @@ export async function getReviewsForUser(userId: string): Promise<CreatorReview[]
   // Fetch reviewer names in bulk
   const reviewerIds = [...new Set(data.map((r) => r.reviewer_id))];
   const { data: profiles } = await supabase
-    .from('profiles')
+    .from('public_profiles')
     .select('id, display_name')
     .in('id', reviewerIds);
 

@@ -106,7 +106,7 @@ export async function getCrewBySlug(slug: string): Promise<CrewMember | null> {
 
   // Try by crew_slug first
   const { data, error } = await supabase
-    .from('profiles')
+    .from('public_profiles')
     .select(CREW_COLUMNS)
     .eq('crew_slug', slug)
     .eq('verification_status', 'verified')
@@ -124,7 +124,7 @@ export async function getCrewBySlug(slug: string): Promise<CrewMember | null> {
 
   // Fallback: try by profile id (for profiles without a crew_slug)
   const { data: byId, error: idErr } = await supabase
-    .from('profiles')
+    .from('public_profiles')
     .select(CREW_COLUMNS)
     .eq('id', slug)
     .eq('verification_status', 'verified')
@@ -153,7 +153,7 @@ export async function getCrewBySpecializations(
   const supabase = await createClient();
 
   const { data, error } = await supabase
-    .from('profiles')
+    .from('public_profiles')
     .select(CREW_COLUMNS)
     .eq('verification_status', 'verified')
     .eq('available_for_hire', true)
