@@ -347,9 +347,10 @@ interface Props {
   packages: ProductionPackage[];
   productions: SmartProduction[];
   creators: CrewMember[];
+  locationName?: string;
 }
 
-export default function CategoryPageClient({ category, packages, productions, creators }: Props) {
+export default function CategoryPageClient({ category, packages, productions, creators, locationName }: Props) {
   const vatRate = PRODUCTION_SERVICES.billing.vatRate;
 
   // Sub-category filter
@@ -471,7 +472,13 @@ export default function CategoryPageClient({ category, packages, productions, cr
             <span>/</span>
             <Link href="/studio" className="hover:text-white">Studio</Link>
             <span>/</span>
-            <span className="text-white">{category.name}</span>
+            <Link href={`/studio/category/${category.slug}`} className="hover:text-white">{category.name}</Link>
+            {locationName && (
+              <>
+                <span>/</span>
+                <span className="text-white">{locationName}</span>
+              </>
+            )}
           </div>
 
           <motion.h1
@@ -479,7 +486,7 @@ export default function CategoryPageClient({ category, packages, productions, cr
             animate={{ opacity: 1, y: 0 }}
             className="text-4xl md:text-6xl font-display font-medium uppercase tracking-tight mb-4"
           >
-            {category.name}
+            {category.name}{locationName ? ` in ${locationName}` : ''}
           </motion.h1>
           <motion.p
             initial={{ opacity: 0 }}

@@ -172,6 +172,61 @@ export async function getCrewBySpecializations(
   );
 }
 
+export async function getCrewByLocation(
+  locationPattern: string,
+  limit = 20,
+): Promise<CrewMember[]> {
+  const supabase = await createClient();
+
+  const { data, error } = await supabase
+    .from('public_profiles')
+    .select(CREW_COLUMNS)
+    .eq('verification_status', 'verified')
+    .eq('available_for_hire', true)
+    .ilike('location', `%${locationPattern}%`)
+    .order('crew_featured', { ascending: false })
+    .order('created_at', { ascending: false })
+    .limit(limit);
+
+  if (error) {
+    console.error('[getCrewByLocation]', error.message);
+    return [];
+  }
+
+  return ((data as unknown as CrewMember[]) ?? []).filter((c) =>
+    hasCompletePortfolio(c.portfolio_projects),
+  );
+}
+
+export async function getCrewBySpecializationsAndLocation(
+  keywords: string[],
+  locationPattern: string,
+  limit = 20,
+): Promise<CrewMember[]> {
+  if (keywords.length === 0) return [];
+  const supabase = await createClient();
+
+  const { data, error } = await supabase
+    .from('public_profiles')
+    .select(CREW_COLUMNS)
+    .eq('verification_status', 'verified')
+    .eq('available_for_hire', true)
+    .overlaps('specializations', keywords)
+    .ilike('location', `%${locationPattern}%`)
+    .order('crew_featured', { ascending: false })
+    .order('created_at', { ascending: false })
+    .limit(limit);
+
+  if (error) {
+    console.error('[getCrewBySpecializationsAndLocation]', error.message);
+    return [];
+  }
+
+  return ((data as unknown as CrewMember[]) ?? []).filter((c) =>
+    hasCompletePortfolio(c.portfolio_projects),
+  );
+}
+
 export async function getCrewReviews(creatorId: string): Promise<CrewReview[]> {
   const supabase = await createClient();
 

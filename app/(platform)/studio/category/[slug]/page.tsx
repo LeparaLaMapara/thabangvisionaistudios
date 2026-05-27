@@ -1,10 +1,12 @@
 export const revalidate = 60;
 
 import { notFound } from 'next/navigation';
-import { PRODUCTION_CATEGORIES, PRODUCTION_PACKAGES } from '@/lib/constants';
+import { PRODUCTION_CATEGORIES, PRODUCTION_PACKAGES, STUDIO } from '@/lib/constants';
 import { getCategoryBySlug } from '@/lib/supabase/queries/productionCategories';
 import { getStudioProductionsByType, getCreatorProductionsByType } from '@/lib/supabase/queries/smartProductions';
 import { getCrewBySpecializations } from '@/lib/supabase/queries/crew';
+import { buildPageMetadata } from '@/lib/seo/metadata';
+import { serviceJsonLd, breadcrumbJsonLd, renderJsonLd } from '@/lib/seo/structured-data';
 import CategoryPageClient from './CategoryPageClient';
 import { AskUbunyeButton } from '@/components/ubunye/AskUbunyeButton';
 
@@ -19,10 +21,12 @@ export async function generateMetadata({ params }: Props) {
   const category = dbCategory ?? PRODUCTION_CATEGORIES.find((c) => c.slug === slug);
 
   if (!category) return { title: 'Category Not Found' };
-  return {
-    title: `${category.name} — Studio`,
-    description: category.description,
-  };
+  return buildPageMetadata({
+    title: `${category.name} — Production Services`,
+    description: `${category.description} Book ${category.name.toLowerCase()} professionals across South Africa starting from R${category.startingRate}.`,
+    path: `/studio/category/${slug}`,
+    imageUrl: category.coverImageUrl ?? undefined,
+  });
 }
 
 export default async function CategoryPage({ params }: Props) {
@@ -40,8 +44,30 @@ export default async function CategoryPage({ params }: Props) {
     getCrewBySpecializations(category.creatorKeywords),
   ]);
 
+  const jsonLd = [
+    serviceJsonLd({
+      name: `${category.name} Production Services`,
+      description: category.description,
+      url: `${STUDIO.meta.url}/studio/category/${slug}`,
+      startingRate: category.startingRate,
+      imageUrl: category.coverImageUrl ?? undefined,
+    }),
+    breadcrumbJsonLd([
+      { name: 'Home', url: STUDIO.meta.url },
+      { name: 'Studio', url: `${STUDIO.meta.url}/studio` },
+      { name: category.name, url: `${STUDIO.meta.url}/studio/category/${slug}` },
+    ]),
+  ];
+
   return (
     <>
+      {jsonLd.map((ld, i) => (
+        <script
+          key={i}
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: renderJsonLd(ld) }}
+        />
+      ))}
       <CategoryPageClient
         category={category}
         packages={packages}

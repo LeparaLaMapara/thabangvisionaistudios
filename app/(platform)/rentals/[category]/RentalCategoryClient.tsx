@@ -249,9 +249,11 @@ type SortKey = 'recommended' | 'newest' | 'name' | 'priceAsc' | 'priceDesc';
 export default function RentalCategoryClient({
   rentals,
   category,
+  locationName,
 }: {
   rentals: SmartRental[];
   category: string;
+  locationName?: string;
 }) {
   // Derive filter options entirely from DB data, never static
   const uniqueBrands = useMemo(
@@ -497,9 +499,15 @@ export default function RentalCategoryClient({
             <Link href="/rentals" className="hover:text-black dark:hover:text-white">Rentals</Link>
             <span>/</span>
             <span className="text-black dark:text-white">{categoryLabel}</span>
+            {locationName && (
+              <>
+                <span>/</span>
+                <span className="text-black dark:text-white">{locationName}</span>
+              </>
+            )}
           </div>
           <h1 className="text-4xl md:text-5xl font-display font-medium uppercase tracking-tight">
-            {categoryLabel}
+            {categoryLabel}{locationName ? ` in ${locationName}` : ''}
           </h1>
         </div>
       </div>
