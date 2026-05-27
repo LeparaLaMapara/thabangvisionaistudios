@@ -69,6 +69,14 @@ export const metadata: Metadata = {
     description: STUDIO.meta.description,
     images: ['/logo-black-bg.png'],
   },
+  alternates: {
+    types: {
+      'application/rss+xml': `${STUDIO.meta.url}/feed.xml`,
+    },
+    languages: {
+      'en-ZA': STUDIO.meta.url,
+    },
+  },
   robots: {
     index: true,
     follow: true,

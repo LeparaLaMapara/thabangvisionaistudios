@@ -5,6 +5,9 @@ import { notFound } from 'next/navigation';
 import { ArrowLeft } from 'lucide-react';
 import { getPressBySlug } from '@/lib/supabase/queries/press';
 import { STUDIO } from '@/lib/constants';
+import { buildPageMetadata } from '@/lib/seo/metadata';
+import { breadcrumbJsonLd, renderJsonLd } from '@/lib/seo/structured-data';
+import { ShareButtons } from '@/components/social/ShareButtons';
 
 type Props = {
   params: Promise<{ slug: string }>;
@@ -14,10 +17,13 @@ export async function generateMetadata({ params }: Props) {
   const { slug } = await params;
   const article = await getPressBySlug(slug);
   if (!article) return { title: 'Not Found' };
-  return {
+  return buildPageMetadata({
     title: article.title,
-    description: article.excerpt ?? undefined,
-  };
+    description: article.excerpt ?? `${article.title} — ${STUDIO.name} Press`,
+    path: `/press/${slug}`,
+    imageUrl: article.cover_url ?? undefined,
+    type: 'article',
+  });
 }
 
 function formatDate(dateStr: string | null): string {
@@ -35,7 +41,18 @@ export default async function PressArticlePage({ params }: Props) {
 
   if (!article) notFound();
 
+  const jsonLd = breadcrumbJsonLd([
+    { name: 'Home', url: STUDIO.meta.url },
+    { name: 'Press', url: `${STUDIO.meta.url}/press` },
+    { name: article.title, url: `${STUDIO.meta.url}/press/${slug}` },
+  ]);
+
   return (
+    <>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: renderJsonLd(jsonLd) }}
+      />
     <div className="min-h-screen bg-white dark:bg-[#050505] pt-32 pb-20 transition-colors duration-500">
       <div className="container mx-auto px-6">
         {/* Back link */}
@@ -98,16 +115,18 @@ export default async function PressArticlePage({ params }: Props) {
           )}
         </article>
 
-        {/* Footer nav */}
-        <div className="mt-20 pt-12 border-t border-black/10 dark:border-white/10">
+        {/* Share + Footer nav */}
+        <div className="mt-20 pt-12 border-t border-black/10 dark:border-white/10 flex items-center justify-between flex-wrap gap-4">
           <Link
             href="/press"
             className="inline-flex items-center gap-2 text-xs font-mono font-bold text-black dark:text-white uppercase tracking-widest hover:text-neutral-500 transition-colors"
           >
             <ArrowLeft className="w-3 h-3" /> All Articles
           </Link>
+          <ShareButtons title={article.title} path={`/press/${slug}`} />
         </div>
       </div>
     </div>
+    </>
   );
 }

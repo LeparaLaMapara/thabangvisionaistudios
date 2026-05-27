@@ -148,6 +148,58 @@ export function personJsonLd(creator: {
   };
 }
 
+export function aggregateRatingJsonLd(opts: {
+  name: string;
+  url: string;
+  ratingValue: number;
+  reviewCount: number;
+  reviews?: { rating: number; author: string; comment: string | null; date: string }[];
+}): JsonLd {
+  return {
+    '@context': 'https://schema.org',
+    '@type': 'LocalBusiness',
+    name: opts.name,
+    url: opts.url,
+    aggregateRating: {
+      '@type': 'AggregateRating',
+      ratingValue: opts.ratingValue,
+      bestRating: 5,
+      worstRating: 1,
+      reviewCount: opts.reviewCount,
+    },
+    ...(opts.reviews && opts.reviews.length > 0 && {
+      review: opts.reviews.slice(0, 5).map((r) => ({
+        '@type': 'Review',
+        author: { '@type': 'Person', name: r.author },
+        reviewRating: {
+          '@type': 'Rating',
+          ratingValue: r.rating,
+          bestRating: 5,
+        },
+        datePublished: r.date.split('T')[0],
+        ...(r.comment && { reviewBody: r.comment }),
+      })),
+    }),
+  };
+}
+
+export function faqPageJsonLd(
+  questions: { question: string; answer: string }[],
+): JsonLd {
+  return {
+    '@context': 'https://schema.org',
+    '@type': 'FAQPage',
+    mainEntity: questions.map((q) => ({
+      '@type': 'Question',
+      name: q.question,
+      acceptedAnswer: {
+        '@type': 'Answer',
+        text: q.answer,
+      },
+    })),
+  };
+}
+
 export function breadcrumbJsonLd(items: { name: string; url: string }[]): JsonLd {
   return {
     '@context': 'https://schema.org',
