@@ -67,6 +67,9 @@ export default function UbunyeStudioClient({ context }: UbunyeStudioClientProps)
   // ─── Pre-selected creator from URL ──
   const creatorIdRef = useRef<string | null>(null);
 
+  // ─── Conversation ID (persists across messages in one session) ──
+  const conversationIdRef = useRef<string | null>(null);
+
   // ─── Transport with dynamic body ──
   const transportRef = useRef(
     new DefaultChatTransport({
@@ -75,6 +78,7 @@ export default function UbunyeStudioClient({ context }: UbunyeStudioClientProps)
         ...(!isAuthenticatedRef.current && { sessionMessageCount: guestCountRef.current }),
         ...(!isAuthenticatedRef.current && guestCountRef.current === 0 && { isFirstGuestMessage: true }),
         ...(creatorIdRef.current && { creator_id: creatorIdRef.current }),
+        ...(conversationIdRef.current && { conversation_id: conversationIdRef.current }),
       }),
     })
   );
@@ -278,13 +282,33 @@ export default function UbunyeStudioClient({ context }: UbunyeStudioClientProps)
   }, [handleAuthUser]);
 
   // ─── Send message helper ──
-  const doSend = useCallback((text: string) => {
+  const doSend = useCallback(async (text: string) => {
     if (!text.trim() || limitReached || isLoading) return;
     if (!isAuthenticated && guestMessageCount >= GUEST_LIMIT) {
       setLimitMessage(`You've used your ${GUEST_LIMIT} free messages. Sign in to continue chatting with Ubunye.`);
       setLimitReached(true);
       return;
     }
+
+    // Create chat session on first message
+    if (!conversationIdRef.current) {
+      try {
+        const res = await fetch('/api/chat-session', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            ...(creatorIdRef.current && { creator_id: creatorIdRef.current }),
+          }),
+        });
+        const data = await res.json();
+        if (data.conversation_id) {
+          conversationIdRef.current = data.conversation_id;
+        }
+      } catch {
+        // Non-blocking — chat still works without persistence
+      }
+    }
+
     trackGuestMessage();
     sendMessage({ text });
   }, [limitReached, isLoading, isAuthenticated, guestMessageCount, trackGuestMessage, sendMessage]);

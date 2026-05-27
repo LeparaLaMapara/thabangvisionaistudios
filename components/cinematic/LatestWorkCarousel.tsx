@@ -251,7 +251,6 @@ const CarouselCard = memo(function CarouselCard({
                   ? 'opacity-0'
                   : 'opacity-90 dark:opacity-80 group-hover:opacity-100 group-hover:scale-105'
               }`}
-              unoptimized
             />
             {isDirectVideo && (
               <video

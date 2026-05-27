@@ -14,6 +14,7 @@ import { createSearchTools } from '@/lib/agents/tools/search';
 import { createBookingTools } from '@/lib/agents/tools/booking';
 import { buildAssistantPrompt } from '@/lib/agents/agents/assistant';
 import { buildBookingPrompt } from '@/lib/agents/agents/booking';
+import { createConversation, logChatMessage, hashIp } from '@/lib/data/chat-history';
 
 // ─── Plan Limits ────────────────────────────────────────────────────────────
 
@@ -59,12 +60,12 @@ function resolveLimit(
 // ─── Agent Tool Factory ─────────────────────────────────────────────────────
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-function getToolsForAgent(agentId: string, supabase: any, isAuthenticated: boolean, flags: UbunyeFlagsSnapshot, hasPreSelectedCreator = false): Record<string, any> {
+function getToolsForAgent(agentId: string, supabase: any, isAuthenticated: boolean, flags: UbunyeFlagsSnapshot, hasPreSelectedCreator = false, conversationId: string | null = null): Record<string, any> {
   switch (agentId) {
     case 'assistant':
       return createSearchTools(supabase, flags);
     case 'booking': {
-      const tools = createBookingTools(supabase, isAuthenticated, flags);
+      const tools = createBookingTools(supabase, isAuthenticated, flags, conversationId);
       // Remove search tools when creator is already selected — no searching needed
       if (hasPreSelectedCreator) {
         delete tools.search_creators;
@@ -143,6 +144,7 @@ export async function executeAgent(
   let sessionMessageCount = 0;
   let isFirstGuestMessage = false;
   let preSelectedCreatorId: string | null = null;
+  let conversationId: string | null = null;
 
   try {
     const body = await req.json();
@@ -161,6 +163,7 @@ export async function executeAgent(
     if (typeof body.sessionMessageCount === 'number') sessionMessageCount = body.sessionMessageCount;
     if (body.isFirstGuestMessage === true) isFirstGuestMessage = true;
     if (typeof body.creator_id === 'string' && body.creator_id) preSelectedCreatorId = body.creator_id;
+    if (typeof body.conversation_id === 'string' && body.conversation_id) conversationId = body.conversation_id;
   } catch {
     return NextResponse.json({ error: 'Invalid JSON body.' }, { status: 400 });
   }
@@ -238,6 +241,36 @@ export async function executeAgent(
     }
   }
 
+  // ── Create conversation if client didn't provide one ──
+  if (!conversationId) {
+    const ip = req.headers.get('x-forwarded-for') ?? 'anonymous';
+    conversationId = await createConversation({
+      userId: user?.id ?? null,
+      agentId,
+      guestIpHash: user ? undefined : hashIp(ip),
+      metadata: preSelectedCreatorId ? { pre_selected_creator: preSelectedCreatorId } : {},
+    });
+  }
+
+  // Log the user message
+  const lastUserMsg = [...rawMessages].reverse().find(
+    (m: { role: string }) => m.role === 'user',
+  );
+  const userText = typeof lastUserMsg?.content === 'string'
+    ? lastUserMsg.content
+    : Array.isArray(lastUserMsg?.content)
+      ? lastUserMsg.content.filter((p: { type: string }) => p.type === 'text').map((p: { text: string }) => p.text).join(' ')
+      : '';
+
+  if (conversationId && userText) {
+    logChatMessage({
+      conversationId,
+      role: 'user',
+      content: userText,
+      agentId,
+    });
+  }
+
   // ── Fetch feature flags (shared for prompt + tools) ──
   const flagsState = await getFlags(['smart_productions']);
   const flags: UbunyeFlagsSnapshot = { smart_productions: flagsState.smart_productions };
@@ -298,7 +331,7 @@ Only ask: how many hours, when, and where. Then quote and book.`;
       ? await convertToModelMessages(rawMessages)
       : rawMessages;
 
-    const tools = getToolsForAgent(agentId, supabase, !!user, flags, !!preSelectedCreatorId);
+    const tools = getToolsForAgent(agentId, supabase, !!user, flags, !!preSelectedCreatorId, conversationId);
 
     // Route to model based on agent config and query complexity
     const lastUserText = [...rawMessages].reverse().find(
@@ -331,7 +364,7 @@ Only ask: how many hours, when, and where. Then quote and book.`;
       messages: modelMessages,
       tools,
       stopWhen: stepCountIs(4),
-      onFinish: ({ totalUsage }) => {
+      onFinish: ({ text, totalUsage, steps }) => {
         logTokenUsage({
           agentId,
           provider: (process.env.AI_PROVIDER ?? 'anthropic').toLowerCase(),
@@ -342,10 +375,49 @@ Only ask: how many hours, when, and where. Then quote and book.`;
             outputTokens: totalUsage.outputTokens ?? 0,
           },
         });
+
+        if (conversationId) {
+          const toolCalls: { name: string; args_summary: Record<string, unknown>; result_summary?: string }[] = [];
+          const entities: { creators: string[]; gear: string[]; productions: string[] } = {
+            creators: [], gear: [], productions: [],
+          };
+
+          for (const step of steps ?? []) {
+            for (const tc of step.toolCalls ?? []) {
+              const input = (tc as { input?: unknown }).input;
+              const inputObj = (typeof input === 'object' && input !== null ? input : {}) as Record<string, unknown>;
+              toolCalls.push({
+                name: tc.toolName,
+                args_summary: inputObj,
+                result_summary: undefined,
+              });
+              if (typeof inputObj.creator_id === 'string') entities.creators.push(inputObj.creator_id);
+              if (typeof inputObj.rental_id === 'string') entities.gear.push(inputObj.rental_id);
+              if (typeof inputObj.production_id === 'string') entities.productions.push(inputObj.production_id);
+            }
+          }
+
+          logChatMessage({
+            conversationId,
+            role: 'assistant',
+            content: text || null,
+            toolCalls: toolCalls.length > 0 ? toolCalls : undefined,
+            entities: (entities.creators.length || entities.gear.length || entities.productions.length)
+              ? entities : undefined,
+            agentId,
+            model: modelId,
+            inputTokens: totalUsage.inputTokens ?? 0,
+            outputTokens: totalUsage.outputTokens ?? 0,
+          });
+        }
       },
     });
 
-    return result.toUIMessageStreamResponse();
+    const response = result.toUIMessageStreamResponse();
+    if (conversationId) {
+      response.headers.set('x-conversation-id', conversationId);
+    }
+    return response;
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Unknown error';
     console.error(`[agent:${agentId}] AI error:`, message);

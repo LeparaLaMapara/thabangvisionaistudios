@@ -550,7 +550,6 @@ export default function RentalDetailView({
                           fill
                           sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw"
                           className="object-cover grayscale-0 md:grayscale md:group-hover:grayscale-0 group-hover:scale-105 transition-all duration-500"
-                          unoptimized
                         />
                       ) : (
                         <div className="w-full h-full flex items-center justify-center">

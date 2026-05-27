@@ -19,7 +19,6 @@ const ThabangLogo = () => (
     width={260}
     height={36}
     priority
-    unoptimized
     className="h-8 md:h-10 w-auto select-none"
   />
 );

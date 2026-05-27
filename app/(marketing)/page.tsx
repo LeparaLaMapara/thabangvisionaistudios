@@ -29,7 +29,10 @@ function resolveImage(
 }
 
 export default async function Home() {
-  const smartProductionsEnabled = await getFlag('smart_productions');
+  const [smartProductionsEnabled, capabilities] = await Promise.all([
+    getFlag('smart_productions'),
+    filterCapabilitiesForFlags(CAPABILITIES),
+  ]);
 
   const productions = smartProductionsEnabled ? await getFeaturedProductions(8) : [];
 
@@ -45,8 +48,6 @@ export default async function Home() {
     meta: [p.client, p.year].filter(Boolean).join(' / ') || 'Production',
     created_at: p.created_at,
   })).sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-
-  const capabilities = await filterCapabilitiesForFlags(CAPABILITIES);
 
   return <HomeClient carouselItems={carouselItems} capabilities={capabilities} />;
 }

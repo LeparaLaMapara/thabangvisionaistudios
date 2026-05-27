@@ -6,6 +6,7 @@ import { email as emailProvider } from '@/lib/email';
 import { escapeIlike } from '@/lib/search/types';
 import { getHourlyRate } from '@/lib/supabase/queries/service-bookings';
 import { logEvent } from '@/lib/data/events';
+import { markConversion } from '@/lib/data/chat-history';
 
 // ─── Booking Tools for Booking Agent ──────────────────────────────────────────
 // Tools focused on booking flows, quotes, and request submission.
@@ -32,6 +33,7 @@ export function createBookingTools(
   supabase: SupabaseClient,
   isAuthenticated: boolean,
   flags: { smart_productions: boolean } = { smart_productions: false },
+  conversationId: string | null = null,
 ): Record<string, any> {
   const tools: Record<string, any> = {
     search_creators: {
@@ -341,6 +343,14 @@ export function createBookingTools(
             userId: user.id,
             metadata: { reference, project_category: params.project_category, duration_hours: params.duration_hours, total, has_creator: !!params.creator_id, source: 'ubunye' },
           });
+
+          if (conversationId) {
+            markConversion({
+              conversationId,
+              convertedTo: 'booking',
+              convertedRef: reference,
+            });
+          }
 
           const payUrl = `${baseUrl}/dashboard/bookings/pay?ref=${encodeURIComponent(reference)}`;
 
