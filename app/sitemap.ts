@@ -21,6 +21,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: `${baseUrl}/smart-creators`, changeFrequency: 'daily', priority: 0.9 },
     { url: `${baseUrl}/pricing`, changeFrequency: 'monthly', priority: 0.7 },
     { url: `${baseUrl}/ubunye-ai-studio`, changeFrequency: 'monthly', priority: 0.7 },
+    { url: `${baseUrl}/faq`, changeFrequency: 'weekly', priority: 0.7 },
     { url: `${baseUrl}/login`, changeFrequency: 'yearly', priority: 0.3 },
     { url: `${baseUrl}/register`, changeFrequency: 'yearly', priority: 0.3 },
     { url: `${baseUrl}/legal`, changeFrequency: 'yearly', priority: 0.2 },

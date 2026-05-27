@@ -4,6 +4,8 @@ import { bookingAgent } from './agents/booking';
 import { bioWriterAgent } from './agents/bio-writer';
 import { listingDescriberAgent } from './agents/listing-describer';
 import { productionDescriberAgent } from './agents/production-describer';
+import { contentRepurposerAgent } from './agents/content-repurposer';
+import { outreachAgent } from './agents/outreach';
 
 export const UBUNYE_AGENTS: Record<string, UbunyeAgent> = {
   assistant: assistantAgent,
@@ -15,6 +17,10 @@ export const UBUNYE_AGENTS: Record<string, UbunyeAgent> = {
   'listing-describer': listingDescriberAgent,
 
   'production-describer': productionDescriberAgent,
+
+  'content-repurposer': contentRepurposerAgent,
+
+  outreach: outreachAgent,
 
   onboarding: {
     id: 'onboarding',
