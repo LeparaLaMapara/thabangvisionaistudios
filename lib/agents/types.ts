@@ -69,3 +69,9 @@ export interface FaceMatchResult {
   confidence: number;
   reasoning: string;
 }
+
+export interface CertifiedIdResult {
+  certified: boolean;
+  confidence: number;
+  reasoning: string;
+}
