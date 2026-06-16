@@ -119,30 +119,38 @@ export async function POST(req: NextRequest) {
     // ── Validate file types and sizes ─────────────────────────────────
     const maxSize = (STUDIO.verification.maxFileSizeMB ?? 5) * 1024 * 1024;
     const minSize = 50 * 1024; // 50KB minimum
-    const allowedTypes = [
+    const imageTypes = [
       'image/jpeg', 'image/png', 'image/webp',
       'image/heic', 'image/heif', 'image/bmp', 'image/tiff',
     ];
+    const idAllowedTypes = [...imageTypes, 'application/pdf'];
+
+    if (!idAllowedTypes.includes(idCopy.type)) {
+      return NextResponse.json(
+        { error: 'ID Copy: Unsupported format. Please use PDF, JPG, PNG, WebP, or HEIC.' },
+        { status: 400 },
+      );
+    }
+    if (!imageTypes.includes(selfie.type)) {
+      return NextResponse.json(
+        { error: 'Selfie: Unsupported image format. Please use JPG, PNG, WebP, or HEIC.' },
+        { status: 400 },
+      );
+    }
 
     for (const [label, file] of [
       ['ID Copy', idCopy],
       ['Selfie', selfie],
     ] as const) {
-      if (!allowedTypes.includes(file.type)) {
-        return NextResponse.json(
-          { error: `${label}: Unsupported image format. Please use JPG, PNG, WebP, or HEIC.` },
-          { status: 400 },
-        );
-      }
       if (file.size < minSize) {
         return NextResponse.json(
-          { error: `${label}: Photo file is too small (under 50KB). Please take a higher resolution photo.` },
+          { error: `${label}: File is too small (under 50KB). Please use a higher quality scan or photo.` },
           { status: 400 },
         );
       }
       if (file.size > maxSize) {
         return NextResponse.json(
-          { error: `${label}: Photo is too large. Maximum ${STUDIO.verification.maxFileSizeMB}MB.` },
+          { error: `${label}: File is too large. Maximum ${STUDIO.verification.maxFileSizeMB}MB.` },
           { status: 400 },
         );
       }

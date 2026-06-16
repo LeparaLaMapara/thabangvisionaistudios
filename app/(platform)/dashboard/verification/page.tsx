@@ -11,6 +11,7 @@ import {
   ShieldCheck,
   Camera,
   AlertTriangle,
+  FileText,
 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
@@ -51,18 +52,31 @@ const ACCEPTED_IMAGE_TYPES = [
   'image/tiff',
 ];
 
-function validateImage(file: File): { valid: boolean; error?: string } {
-  if (!ACCEPTED_IMAGE_TYPES.includes(file.type)) {
-    return { valid: false, error: 'Unsupported image format. Please use JPG, PNG, WebP, or HEIC.' };
+const ACCEPTED_DOC_TYPES = [
+  ...ACCEPTED_IMAGE_TYPES,
+  'application/pdf',
+];
+
+function validateFile(file: File, allowPdf: boolean): { valid: boolean; error?: string } {
+  const allowed = allowPdf ? ACCEPTED_DOC_TYPES : ACCEPTED_IMAGE_TYPES;
+  if (!allowed.includes(file.type)) {
+    return { valid: false, error: allowPdf
+      ? 'Unsupported format. Please use JPG, PNG, WebP, HEIC, or PDF.'
+      : 'Unsupported image format. Please use JPG, PNG, WebP, or HEIC.'
+    };
   }
   if (file.size < 50 * 1024) {
-    return { valid: false, error: 'Photo file is too small (under 50KB). Please take a higher resolution photo.' };
+    return { valid: false, error: 'File is too small (under 50KB). Please use a higher quality scan or photo.' };
   }
   const maxSize = (STUDIO.verification.maxFileSizeMB ?? 5) * 1024 * 1024;
   if (file.size > maxSize) {
-    return { valid: false, error: `Photo is too large. Maximum ${STUDIO.verification.maxFileSizeMB}MB.` };
+    return { valid: false, error: `File is too large. Maximum ${STUDIO.verification.maxFileSizeMB}MB.` };
   }
   return { valid: true };
+}
+
+function validateImage(file: File): { valid: boolean; error?: string } {
+  return validateFile(file, false);
 }
 
 export default function VerificationPage() {
@@ -485,19 +499,27 @@ function PhotoPreview({
   slot: FileSlot;
   onRemove: () => void;
 }) {
-  if (!slot.preview) return null;
+  if (!slot.file) return null;
+  const isPdf = slot.file.type === 'application/pdf';
   return (
     <div className="space-y-3">
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
-        src={slot.preview}
-        alt={slot.label}
-        className="w-full max-h-80 mx-auto object-contain rounded"
-      />
+      {isPdf ? (
+        <div className="flex flex-col items-center gap-2 py-6">
+          <FileText className="w-12 h-12 text-[#D4A843]" />
+          <p className="text-xs font-mono text-neutral-400">{slot.file.name}</p>
+        </div>
+      ) : slot.preview ? (
+        /* eslint-disable-next-line @next/next/no-img-element */
+        <img
+          src={slot.preview}
+          alt={slot.label}
+          className="w-full max-h-80 mx-auto object-contain rounded"
+        />
+      ) : null}
       <div className="flex items-center justify-center gap-3">
         <span className="text-xs font-mono text-emerald-400 flex items-center gap-1.5">
           <CheckCircle className="w-3.5 h-3.5" />
-          {slot.file?.name ?? 'Captured photo'}
+          {slot.file.name}
         </span>
         <button
           onClick={(e) => {
@@ -526,7 +548,7 @@ function UploadDropzone({
   const [validationError, setValidationError] = useState<string | null>(null);
 
   const handleFile = (file: File) => {
-    const result = validateImage(file);
+    const result = validateFile(file, true);
     if (!result.valid) {
       setValidationError(result.error ?? 'Invalid file.');
       return;
@@ -562,7 +584,7 @@ function UploadDropzone({
         <input
           ref={inputRef}
           type="file"
-          accept="image/jpeg,image/png,image/webp,image/heic,image/heif,image/bmp,image/tiff"
+          accept="image/jpeg,image/png,image/webp,image/heic,image/heif,image/bmp,image/tiff,application/pdf"
           onChange={(e) => {
             const f = e.target.files?.[0];
             if (f) handleFile(f);
@@ -570,7 +592,7 @@ function UploadDropzone({
           className="hidden"
         />
 
-        {slot.preview ? (
+        {slot.file ? (
           <PhotoPreview slot={slot} onRemove={() => { setValidationError(null); onFileChange(null); }} />
         ) : (
           <div className="py-4">
@@ -579,7 +601,7 @@ function UploadDropzone({
               Click to upload or drag &amp; drop
             </p>
             <p className="text-[9px] font-mono text-neutral-600 mt-1">
-              JPG, PNG, WebP, HEIC accepted
+              PDF, JPG, PNG, WebP, HEIC accepted
             </p>
           </div>
         )}
