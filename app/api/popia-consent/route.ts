@@ -1,7 +1,7 @@
 export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { createClient, createAdminClient } from '@/lib/supabase/server';
 import { STUDIO } from '@/lib/constants';
 
 // ─── GET — Return current user's consent status ─────────────────────────────
@@ -53,11 +53,13 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim()
+  const rawIp = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim()
     ?? req.headers.get('x-real-ip')
     ?? null;
+  const ip = rawIp && /^[\d.:a-fA-F]+$/.test(rawIp) ? rawIp : null;
 
-  const { error } = await supabase
+  const admin = createAdminClient();
+  const { error } = await admin
     .from('profiles')
     .update({
       popia_consent_at: new Date().toISOString(),
