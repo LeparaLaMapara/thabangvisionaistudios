@@ -17,6 +17,7 @@ import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { Card } from '@/components/ui/Card';
 import { STUDIO } from '@/lib/constants';
+import { createClient } from '@/lib/supabase/client';
 import { DashboardSubTabs, ACCOUNT_TABS_USER } from '@/components/dashboard/DashboardSubTabs';
 import { ConsentStep } from '@/components/verification/ConsentStep';
 
@@ -195,6 +196,14 @@ export default function VerificationPage() {
     setError(null);
 
     try {
+      const supabase = createClient();
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        setError('Your session has expired. Please log in again.');
+        setSubmitting(false);
+        return;
+      }
+
       const formData = new FormData();
       files.forEach((slot) => {
         if (slot.file) {
