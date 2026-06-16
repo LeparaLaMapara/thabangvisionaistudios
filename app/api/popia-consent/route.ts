@@ -1,7 +1,7 @@
 export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient, createAdminClient } from '@/lib/supabase/server';
+import { createClient } from '@/lib/supabase/server';
 import { STUDIO } from '@/lib/constants';
 
 // ─── GET — Return current user's consent status ─────────────────────────────
@@ -18,7 +18,7 @@ export async function GET() {
     .from('profiles')
     .select('popia_consent_at, popia_consent_version, marketing_opt_in')
     .eq('id', user.id)
-    .single();
+    .maybeSingle();
 
   return NextResponse.json({
     consented: !!profile?.popia_consent_at,
@@ -53,45 +53,22 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  try {
-    // Admin client bypasses RLS — required because the user-session client's
-    // UPDATE policy silently drops writes it deems unsafe.
-    const admin = createAdminClient();
+  // Consent fields (popia_consent_at, popia_consent_version, marketing_opt_in)
+  // are NOT in the RLS protected column list, so the user-session client can
+  // update them directly. No admin client needed.
+  const { error } = await supabase
+    .from('profiles')
+    .update({
+      popia_consent_at: new Date().toISOString(),
+      popia_consent_version: STUDIO.legal.popia.version,
+      marketing_opt_in: body.marketingOptIn === true,
+    })
+    .eq('id', user.id);
 
-    const { data: existing } = await admin
-      .from('profiles')
-      .select('id')
-      .eq('id', user.id)
-      .maybeSingle();
-
-    if (!existing) {
-      const { error: createError } = await admin
-        .from('profiles')
-        .insert({ id: user.id });
-
-      if (createError) {
-        console.error('[popia-consent] profile create failed:', createError.message);
-        return NextResponse.json({ error: 'Failed to create profile.' }, { status: 500 });
-      }
-    }
-
-    const { error: updateError } = await admin
-      .from('profiles')
-      .update({
-        popia_consent_at: new Date().toISOString(),
-        popia_consent_version: STUDIO.legal.popia.version,
-        marketing_opt_in: body.marketingOptIn === true,
-      })
-      .eq('id', user.id);
-
-    if (updateError) {
-      console.error('[popia-consent] update failed:', updateError.message);
-      return NextResponse.json({ error: 'Failed to record consent.' }, { status: 500 });
-    }
-
-    return NextResponse.json({ success: true, version: STUDIO.legal.popia.version });
-  } catch (err) {
-    console.error('[popia-consent] unexpected error:', err);
+  if (error) {
+    console.error('[popia-consent] update failed:', error.message, error.code);
     return NextResponse.json({ error: 'Failed to record consent.' }, { status: 500 });
   }
+
+  return NextResponse.json({ success: true, version: STUDIO.legal.popia.version });
 }
