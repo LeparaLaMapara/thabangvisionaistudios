@@ -53,33 +53,50 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  const admin = createAdminClient();
+  const now = new Date().toISOString();
+  const consentData: Record<string, unknown> = {
+    popia_consent_at: now,
+    popia_consent_version: STUDIO.legal.popia.version,
+    marketing_opt_in: body.marketingOptIn === true,
+  };
+
+  // Store IP for audit trail — skip if format is invalid for inet column
   const rawIp = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim()
     ?? req.headers.get('x-real-ip')
     ?? null;
-  const ip = rawIp && /^[\d.:a-fA-F]+$/.test(rawIp) ? rawIp : null;
+  if (rawIp && /^[\d.:a-fA-F]+$/.test(rawIp)) {
+    consentData.popia_consent_ip = rawIp;
+  }
 
-  const admin = createAdminClient();
-  const now = new Date().toISOString();
-  const { data: updated, error } = await admin
+  // Update the profile row
+  const { error: updateError } = await admin
     .from('profiles')
-    .update({
-      popia_consent_at: now,
-      popia_consent_version: STUDIO.legal.popia.version,
-      popia_consent_ip: ip,
-      marketing_opt_in: body.marketingOptIn === true,
-    })
-    .eq('id', user.id)
-    .select('popia_consent_at')
-    .single();
+    .update(consentData)
+    .eq('id', user.id);
 
-  if (error) {
-    console.error('[popia-consent] update failed:', error.message);
+  if (updateError) {
+    console.error('[popia-consent] update failed:', updateError.message);
     return NextResponse.json({ error: 'Failed to record consent.' }, { status: 500 });
   }
 
-  if (!updated?.popia_consent_at) {
-    console.error('[popia-consent] write did not persist for user:', user.id);
-    return NextResponse.json({ error: 'Failed to record consent — please try again.' }, { status: 500 });
+  // Verify the write actually landed (update silently affects 0 rows if profile doesn't exist)
+  const { data: verify } = await admin
+    .from('profiles')
+    .select('popia_consent_at')
+    .eq('id', user.id)
+    .maybeSingle();
+
+  if (!verify?.popia_consent_at) {
+    // Profile row likely doesn't exist — create it
+    const { error: insertError } = await admin
+      .from('profiles')
+      .insert({ id: user.id, ...consentData });
+
+    if (insertError) {
+      console.error('[popia-consent] insert fallback failed:', insertError.message);
+      return NextResponse.json({ error: 'Failed to record consent.' }, { status: 500 });
+    }
   }
 
   return NextResponse.json({ success: true, version: STUDIO.legal.popia.version });
