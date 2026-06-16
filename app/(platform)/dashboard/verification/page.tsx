@@ -602,6 +602,7 @@ function CameraCapture({
   const streamRef = useRef<MediaStream | null>(null);
   const mobileInputRef = useRef<HTMLInputElement>(null);
   const [cameraOpen, setCameraOpen] = useState(false);
+  const [videoReady, setVideoReady] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [isMobile, setIsMobile] = useState(false);
 
@@ -615,21 +616,27 @@ function CameraCapture({
     };
   }, []);
 
+  useEffect(() => {
+    if (!cameraOpen || !videoRef.current || !streamRef.current) return;
+    const video = videoRef.current;
+    video.srcObject = streamRef.current;
+    video.play().catch(() => {
+      setCameraError('Could not start video. Please try again.');
+    });
+  }, [cameraOpen]);
+
   const openCamera = async () => {
     if (isMobile) {
       mobileInputRef.current?.click();
       return;
     }
     setCameraError(null);
+    setVideoReady(false);
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } },
       });
       streamRef.current = stream;
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        await videoRef.current.play();
-      }
       setCameraOpen(true);
     } catch {
       setCameraError('Could not access camera. Please allow camera permissions and try again.');
@@ -641,15 +648,25 @@ function CameraCapture({
     const canvas = canvasRef.current;
     if (!video || !canvas) return;
 
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
+    const w = video.videoWidth || video.clientWidth;
+    const h = video.videoHeight || video.clientHeight;
+    if (w === 0 || h === 0) {
+      setCameraError('Camera not ready yet. Please wait a moment and try again.');
+      return;
+    }
+
+    canvas.width = w;
+    canvas.height = h;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
-    ctx.drawImage(video, 0, 0);
+    ctx.drawImage(video, 0, 0, w, h);
 
     canvas.toBlob(
       (blob) => {
-        if (!blob) return;
+        if (!blob) {
+          setCameraError('Failed to capture photo. Please try again.');
+          return;
+        }
         const file = new File([blob], 'selfie.jpg', { type: 'image/jpeg' });
         stopCamera();
         onFileChange(file);
@@ -663,6 +680,7 @@ function CameraCapture({
     streamRef.current?.getTracks().forEach((t) => t.stop());
     streamRef.current = null;
     setCameraOpen(false);
+    setVideoReady(false);
   };
 
   const handleMobileCapture = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -710,6 +728,7 @@ function CameraCapture({
             autoPlay
             playsInline
             muted
+            onLoadedMetadata={() => setVideoReady(true)}
             className="w-full max-h-80 mx-auto rounded object-cover"
             style={{ transform: 'scaleX(-1)' }}
           />
@@ -717,7 +736,8 @@ function CameraCapture({
             <button
               type="button"
               onClick={takePhoto}
-              className="w-14 h-14 rounded-full bg-[#D4A843] flex items-center justify-center hover:opacity-80 transition-opacity"
+              disabled={!videoReady}
+              className="w-14 h-14 rounded-full bg-[#D4A843] flex items-center justify-center hover:opacity-80 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed"
               aria-label="Take photo"
             >
               <Camera className="w-6 h-6 text-black" />
