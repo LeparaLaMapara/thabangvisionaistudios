@@ -4,7 +4,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'node:crypto';
 import { checkRateLimit } from '@/lib/auth';
 import { createClient } from '@/lib/supabase/server';
-import { getVerificationStatus, submitVerification } from '@/lib/supabase/queries/verifications';
 import { extractPhotoMetadata, type VerificationMetadata } from '@/lib/metadata/verification';
 import { detectFraudFlags } from '@/lib/metadata/fraud-detection';
 import { matchFaces, checkCertifiedId } from '@/lib/agents/tools';
@@ -14,6 +13,16 @@ const FILE_NAMES = {
   id_copy: 'id-copy',
   selfie: 'selfie-with-id',
 } as const;
+
+const VERIFICATION_COLUMNS = [
+  'id', 'display_name', 'avatar_url', 'bio', 'phone', 'location',
+  'skills', 'social_links', 'is_verified', 'verification_status',
+  'verification_submitted_at', 'verification_reviewed_at',
+  'verification_rejected_reason', 'id_front_path', 'id_back_path',
+  'selfie_with_id_path', 'verification_metadata', 'verification_ai_check',
+  'verification_fraud_flags', 'id_document_hash', 'verification_ip',
+  'verification_user_agent', 'verification_attempts', 'created_at',
+].join(', ');
 
 // ─── GET — Return current user's verification status ────────────────────────
 
@@ -27,7 +36,16 @@ export async function GET() {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const verification = await getVerificationStatus(user.id);
+  const { data: verification, error } = await supabase
+    .from('profiles')
+    .select(VERIFICATION_COLUMNS)
+    .eq('id', user.id)
+    .maybeSingle();
+
+  if (error) {
+    console.error('[verifications GET]', error.message);
+    return NextResponse.json({ error: 'Failed to load verification status.' }, { status: 500 });
+  }
 
   if (!verification) {
     return NextResponse.json({ error: 'Profile not found' }, { status: 404 });
@@ -71,7 +89,11 @@ export async function POST(req: NextRequest) {
     }
 
     // ── Guard: check current status and attempt count ──────────────────
-    const current = await getVerificationStatus(user.id);
+    const { data: current } = await supabase
+      .from('profiles')
+      .select('verification_status, verification_attempts, id_front_path, id_back_path, selfie_with_id_path')
+      .eq('id', user.id)
+      .single();
 
     if (current?.verification_status === 'pending') {
       return NextResponse.json(
@@ -174,14 +196,6 @@ export async function POST(req: NextRequest) {
       .update(Buffer.from(idCopyBuffer))
       .digest('hex');
 
-    // Check for duplicate across other users
-    const { data: duplicate } = await supabase
-      .from('profiles')
-      .select('id, display_name')
-      .eq('id_document_hash', idHash)
-      .neq('id', user.id)
-      .single();
-
     // ── If resubmitting (rejected), delete old files first ──────────────
     if (current?.verification_status === 'rejected') {
       const oldPaths = [
@@ -262,14 +276,6 @@ export async function POST(req: NextRequest) {
     // ── Detect fraud flags from metadata + face match ───────────────────
     const fraudFlags = detectFraudFlags(metadata, metadata.face_match);
 
-    if (duplicate) {
-      fraudFlags.push({
-        severity: 'high',
-        code: 'DUPLICATE_ID',
-        message: 'Same ID document submitted by another account',
-      });
-    }
-
     const certData = (metadata as VerificationMetadata & { certified_id?: { certified: boolean; confidence: number } }).certified_id;
     if (certData && !certData.certified) {
       fraudFlags.push({
@@ -283,22 +289,30 @@ export async function POST(req: NextRequest) {
     const ip = req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip') || 'unknown';
     const userAgent = req.headers.get('user-agent') || 'unknown';
 
-    // ── Update profile via query helper ─────────────────────────────────
-    const result = await submitVerification(user.id, {
-      idFrontPath: storagePaths.id_copy,
-      idBackPath: null,
-      selfiePath: storagePaths.selfie,
-      metadata,
-      fraudFlags,
-      idDocumentHash: idHash,
-      ip,
-      userAgent,
-      currentAttempts,
-    });
+    // ── Submit via RPC (SECURITY DEFINER — bypasses RLS for status change) ──
+    const { data: rpcResult, error: rpcError } = await supabase
+      .rpc('submit_verification_request', {
+        p_id_front_path: storagePaths.id_copy,
+        p_id_back_path: null,
+        p_selfie_with_id_path: storagePaths.selfie,
+        p_verification_metadata: metadata,
+        p_verification_fraud_flags: fraudFlags,
+        p_id_document_hash: idHash,
+        p_verification_ip: ip,
+        p_verification_user_agent: userAgent,
+      });
 
-    if (!result.success) {
+    if (rpcError) {
+      console.error('[verifications] RPC error:', rpcError.message, rpcError.code);
       return NextResponse.json(
-        { error: result.error || 'Failed to submit verification.' },
+        { error: 'Failed to submit verification.' },
+        { status: 500 },
+      );
+    }
+
+    if (!rpcResult?.success) {
+      return NextResponse.json(
+        { error: rpcResult?.error || 'Failed to submit verification.' },
         { status: 500 },
       );
     }
@@ -306,7 +320,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       success: true,
       message: 'Documents submitted successfully. Verification is instant.',
-      flags_detected: fraudFlags.length,
+      flags_detected: rpcResult.flags_detected ?? 0,
     });
   } catch (err) {
     console.error('[verifications] Unexpected error:', err);
