@@ -15,6 +15,16 @@ export async function GET(request: Request): Promise<NextResponse> {
         if (user.app_metadata?.role === 'admin') {
           return NextResponse.redirect(new URL('/admin', origin));
         }
+
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('onboarding_completed_at')
+          .eq('id', user.id)
+          .single();
+
+        if (!profile || !profile.onboarding_completed_at) {
+          return NextResponse.redirect(new URL('/onboarding', origin));
+        }
       }
 
       return NextResponse.redirect(new URL('/dashboard', origin));
