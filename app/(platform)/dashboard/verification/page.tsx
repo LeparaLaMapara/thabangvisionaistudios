@@ -89,8 +89,8 @@ export default function VerificationPage() {
   const [consented, setConsented] = useState<boolean | null>(null);
   const [files, setFiles] = useState<FileSlot[]>([
     {
-      label: 'Certified SA ID Copy',
-      description: 'Upload a certified copy of your SA ID — stamped by a Commissioner of Oaths (police station, bank, or attorney). Clear photo, all text and stamp visible.',
+      label: 'Certified ID Copy',
+      description: 'Upload a certified ID copy — stamped by a Commissioner of Oaths (police station, bank, or attorney). Clear photo or scan, all text and stamp visible.',
       key: 'id_copy',
       mode: 'upload',
       file: null,
@@ -425,7 +425,7 @@ function UploadForm({
         Verify Your Identity
       </h3>
       <p className="text-[10px] font-mono text-neutral-600 mb-8">
-        Upload a certified copy of your SA ID and a selfie holding your ID.
+        Upload a certified ID copy and a selfie holding your ID.
       </p>
 
       <div className="space-y-8 mb-8">
@@ -478,7 +478,7 @@ function UploadForm({
           className="mt-0.5 w-4 h-4 bg-neutral-900 border border-white/20 rounded-sm accent-emerald-500"
         />
         <span className="text-xs font-mono text-neutral-400 group-hover:text-neutral-300 transition-colors">
-          I confirm this is my real, certified SA ID copy and the selfie is of me.
+          I confirm this is my real, certified ID copy and the selfie is of me.
         </span>
       </label>
 
