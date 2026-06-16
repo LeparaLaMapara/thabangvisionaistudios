@@ -2,7 +2,8 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ChevronLeft } from 'lucide-react';
+import { ChevronLeft, ArrowRight } from 'lucide-react';
+import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
 import { STUDIO } from '@/lib/constants';
 import OnboardingProgress from './OnboardingProgress';
@@ -266,10 +267,19 @@ export default function OnboardingFlow() {
           )}
         </div>
 
-        {/* Step indicator */}
-        <p className="text-center text-[9px] font-mono text-neutral-600 mt-4">
-          Step {step} of {TOTAL_STEPS}
-        </p>
+        {/* Step indicator + skip */}
+        <div className="flex items-center justify-between mt-4">
+          <p className="text-[9px] font-mono text-neutral-600">
+            Step {step} of {TOTAL_STEPS}
+          </p>
+          <Link
+            href="/dashboard"
+            className="flex items-center gap-1 text-[10px] font-mono uppercase tracking-widest text-neutral-500 hover:text-white transition-colors min-h-[44px] px-2"
+          >
+            Skip to Dashboard
+            <ArrowRight className="w-3 h-3" />
+          </Link>
+        </div>
       </motion.div>
     </div>
   );
