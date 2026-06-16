@@ -59,19 +59,27 @@ export async function POST(req: NextRequest) {
   const ip = rawIp && /^[\d.:a-fA-F]+$/.test(rawIp) ? rawIp : null;
 
   const admin = createAdminClient();
-  const { error } = await admin
+  const now = new Date().toISOString();
+  const { data: updated, error } = await admin
     .from('profiles')
     .update({
-      popia_consent_at: new Date().toISOString(),
+      popia_consent_at: now,
       popia_consent_version: STUDIO.legal.popia.version,
       popia_consent_ip: ip,
       marketing_opt_in: body.marketingOptIn === true,
     })
-    .eq('id', user.id);
+    .eq('id', user.id)
+    .select('popia_consent_at')
+    .single();
 
   if (error) {
     console.error('[popia-consent] update failed:', error.message);
     return NextResponse.json({ error: 'Failed to record consent.' }, { status: 500 });
+  }
+
+  if (!updated?.popia_consent_at) {
+    console.error('[popia-consent] write did not persist for user:', user.id);
+    return NextResponse.json({ error: 'Failed to record consent — please try again.' }, { status: 500 });
   }
 
   return NextResponse.json({ success: true, version: STUDIO.legal.popia.version });
