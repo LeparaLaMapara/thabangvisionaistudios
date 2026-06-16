@@ -1,8 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import Link from 'next/link';
-import { ShieldCheck, AlertTriangle, Loader2 } from 'lucide-react';
+import { ShieldCheck, AlertTriangle, Loader2, Check } from 'lucide-react';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { STUDIO } from '@/lib/constants';
@@ -19,6 +19,10 @@ export function ConsentStep({ onConsented }: ConsentStepProps) {
   const [error, setError] = useState<string | null>(null);
 
   const canSubmit = accepted && isAdult && !submitting;
+
+  const toggleAccepted = useCallback(() => setAccepted((v) => !v), []);
+  const toggleIsAdult = useCallback(() => setIsAdult((v) => !v), []);
+  const toggleMarketing = useCallback(() => setMarketingOptIn((v) => !v), []);
 
   async function handleSubmit() {
     setError(null);
@@ -112,44 +116,62 @@ export function ConsentStep({ onConsented }: ConsentStepProps) {
       </div>
 
       <div className="space-y-3 mb-6 border-t border-white/5 pt-5">
-        <label className="flex items-start gap-3 cursor-pointer group">
-          <input
-            type="checkbox"
-            checked={accepted}
-            onChange={(e) => setAccepted(e.target.checked)}
-            className="mt-0.5 w-4 h-4 bg-neutral-900 border border-white/20 accent-[#D4A843]"
-          />
+        <button
+          type="button"
+          onClick={toggleAccepted}
+          className="flex items-start gap-3 cursor-pointer group w-full text-left min-h-[44px] py-2"
+        >
+          <span className={[
+            'mt-0.5 w-5 h-5 flex-shrink-0 flex items-center justify-center border rounded-sm transition-colors',
+            accepted
+              ? 'bg-[#D4A843] border-[#D4A843]'
+              : 'bg-neutral-900 border-white/20 group-hover:border-white/40',
+          ].join(' ')}>
+            {accepted && <Check className="w-3.5 h-3.5 text-black" strokeWidth={3} />}
+          </span>
           <span className="text-xs font-mono text-neutral-300 group-hover:text-white transition-colors">
             I have read and understood the privacy notice, and I consent to
             {' '}{STUDIO.legal.tradingAs}{' '}processing my personal information as described.
           </span>
-        </label>
+        </button>
 
-        <label className="flex items-start gap-3 cursor-pointer group">
-          <input
-            type="checkbox"
-            checked={isAdult}
-            onChange={(e) => setIsAdult(e.target.checked)}
-            className="mt-0.5 w-4 h-4 bg-neutral-900 border border-white/20 accent-[#D4A843]"
-          />
+        <button
+          type="button"
+          onClick={toggleIsAdult}
+          className="flex items-start gap-3 cursor-pointer group w-full text-left min-h-[44px] py-2"
+        >
+          <span className={[
+            'mt-0.5 w-5 h-5 flex-shrink-0 flex items-center justify-center border rounded-sm transition-colors',
+            isAdult
+              ? 'bg-[#D4A843] border-[#D4A843]'
+              : 'bg-neutral-900 border-white/20 group-hover:border-white/40',
+          ].join(' ')}>
+            {isAdult && <Check className="w-3.5 h-3.5 text-black" strokeWidth={3} />}
+          </span>
           <span className="text-xs font-mono text-neutral-300 group-hover:text-white transition-colors">
             I confirm I am 18 years of age or older.
           </span>
-        </label>
+        </button>
 
-        <label className="flex items-start gap-3 cursor-pointer group">
-          <input
-            type="checkbox"
-            checked={marketingOptIn}
-            onChange={(e) => setMarketingOptIn(e.target.checked)}
-            className="mt-0.5 w-4 h-4 bg-neutral-900 border border-white/20 accent-[#D4A843]"
-          />
+        <button
+          type="button"
+          onClick={toggleMarketing}
+          className="flex items-start gap-3 cursor-pointer group w-full text-left min-h-[44px] py-2"
+        >
+          <span className={[
+            'mt-0.5 w-5 h-5 flex-shrink-0 flex items-center justify-center border rounded-sm transition-colors',
+            marketingOptIn
+              ? 'bg-[#D4A843] border-[#D4A843]'
+              : 'bg-neutral-900 border-white/20 group-hover:border-white/40',
+          ].join(' ')}>
+            {marketingOptIn && <Check className="w-3.5 h-3.5 text-black" strokeWidth={3} />}
+          </span>
           <span className="text-xs font-mono text-neutral-500 group-hover:text-neutral-300 transition-colors">
             <span className="text-neutral-400">(Optional)</span> Send me occasional updates
             about new features, creator opportunities, and SA industry insights. You can
             unsubscribe at any time.
           </span>
-        </label>
+        </button>
       </div>
 
       {error && (

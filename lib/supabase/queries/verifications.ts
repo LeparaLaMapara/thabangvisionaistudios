@@ -96,7 +96,7 @@ export async function submitVerification(
   userId: string,
   params: {
     idFrontPath: string;
-    idBackPath: string;
+    idBackPath: string | null;
     selfiePath: string;
     metadata: VerificationMetadata;
     fraudFlags: FraudFlag[];

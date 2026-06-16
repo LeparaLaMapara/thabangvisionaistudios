@@ -33,7 +33,7 @@ interface FileSlot {
   label: string;
   description: string;
   key: string;
-  capture: 'environment' | 'user';
+  mode: 'upload' | 'camera';
   file: File | null;
   preview: string | null;
 }
@@ -41,9 +41,19 @@ interface FileSlot {
 const REVIEW_DAYS = STUDIO.verification.reviewDays;
 const MAX_ATTEMPTS = 3;
 
+const ACCEPTED_IMAGE_TYPES = [
+  'image/jpeg',
+  'image/png',
+  'image/webp',
+  'image/heic',
+  'image/heif',
+  'image/bmp',
+  'image/tiff',
+];
+
 function validateImage(file: File): { valid: boolean; error?: string } {
-  if (!['image/jpeg', 'image/png'].includes(file.type)) {
-    return { valid: false, error: 'Only JPG and PNG files allowed.' };
+  if (!ACCEPTED_IMAGE_TYPES.includes(file.type)) {
+    return { valid: false, error: 'Unsupported image format. Please use JPG, PNG, WebP, or HEIC.' };
   }
   if (file.size < 50 * 1024) {
     return { valid: false, error: 'Photo file is too small (under 50KB). Please take a higher resolution photo.' };
@@ -65,18 +75,10 @@ export default function VerificationPage() {
   const [consented, setConsented] = useState<boolean | null>(null);
   const [files, setFiles] = useState<FileSlot[]>([
     {
-      label: 'SA ID Smart Card (Front)',
-      description: 'Take a clear photo of the front of your SA ID Smart Card. Good lighting, flat surface, all text readable.',
-      key: 'id_front',
-      capture: 'environment',
-      file: null,
-      preview: null,
-    },
-    {
-      label: 'SA ID Smart Card (Back)',
-      description: 'Take a clear photo of the back of your SA ID Smart Card.',
-      key: 'id_back',
-      capture: 'environment',
+      label: 'SA ID Copy',
+      description: 'Upload a clear photo or scan of your SA ID. Good lighting, flat surface, all text readable.',
+      key: 'id_copy',
+      mode: 'upload',
       file: null,
       preview: null,
     },
@@ -84,7 +86,7 @@ export default function VerificationPage() {
       label: 'Selfie with your ID',
       description: 'Hold your ID next to your face and take a photo. We need to see both your face and your ID clearly.',
       key: 'selfie_with_id',
-      capture: 'user',
+      mode: 'camera',
       file: null,
       preview: null,
     },
@@ -166,7 +168,7 @@ export default function VerificationPage() {
   const handleSubmit = async () => {
     const allUploaded = files.every((slot) => slot.file !== null);
     if (!allUploaded) {
-      setError('Please upload all three photos.');
+      setError('Please upload all required photos.');
       return;
     }
 
@@ -409,7 +411,7 @@ function UploadForm({
         Verify Your Identity
       </h3>
       <p className="text-[10px] font-mono text-neutral-600 mb-8">
-        Upload a photo of your SA ID (front &amp; back) and a selfie holding your ID.
+        Upload a copy of your SA ID and a selfie holding your ID.
       </p>
 
       <div className="space-y-8 mb-8">
@@ -474,9 +476,46 @@ function UploadForm({
   );
 }
 
-/* ── Photo Dropzone with Preview ────────────────────────────────────────────── */
+/* ── Shared preview & remove strip ──────────────────────────────────────────── */
 
-function PhotoDropzone({
+function PhotoPreview({
+  slot,
+  onRemove,
+}: {
+  slot: FileSlot;
+  onRemove: () => void;
+}) {
+  if (!slot.preview) return null;
+  return (
+    <div className="space-y-3">
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={slot.preview}
+        alt={slot.label}
+        className="w-full max-h-80 mx-auto object-contain rounded"
+      />
+      <div className="flex items-center justify-center gap-3">
+        <span className="text-xs font-mono text-emerald-400 flex items-center gap-1.5">
+          <CheckCircle className="w-3.5 h-3.5" />
+          {slot.file?.name ?? 'Captured photo'}
+        </span>
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onRemove();
+          }}
+          className="text-[10px] font-mono uppercase text-neutral-500 hover:text-red-400 transition-colors"
+        >
+          Remove
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/* ── Upload dropzone (for ID copy) ─────────────────────────────────────────── */
+
+function UploadDropzone({
   slot,
   onFileChange,
 }: {
@@ -496,17 +535,6 @@ function PhotoDropzone({
     onFileChange(file);
   };
 
-  const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    const dropped = e.dataTransfer.files[0];
-    if (dropped) handleFile(dropped);
-  };
-
-  const handleSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const selected = e.target.files?.[0];
-    if (selected) handleFile(selected);
-  };
-
   return (
     <div>
       {validationError && (
@@ -518,7 +546,11 @@ function PhotoDropzone({
 
       <div
         onDragOver={(e) => e.preventDefault()}
-        onDrop={handleDrop}
+        onDrop={(e) => {
+          e.preventDefault();
+          const dropped = e.dataTransfer.files[0];
+          if (dropped) handleFile(dropped);
+        }}
         onClick={() => inputRef.current?.click()}
         className={[
           'border-2 border-dashed p-4 text-center cursor-pointer transition-colors',
@@ -530,49 +562,206 @@ function PhotoDropzone({
         <input
           ref={inputRef}
           type="file"
-          accept="image/jpeg,image/png"
-          capture={slot.capture}
-          onChange={handleSelect}
+          accept="image/jpeg,image/png,image/webp,image/heic,image/heif,image/bmp,image/tiff"
+          onChange={(e) => {
+            const f = e.target.files?.[0];
+            if (f) handleFile(f);
+          }}
           className="hidden"
         />
 
         {slot.preview ? (
-          <div className="space-y-3">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={slot.preview}
-              alt={slot.label}
-              className="w-full max-h-80 mx-auto object-contain rounded"
-            />
-            <div className="flex items-center justify-center gap-3">
-              <span className="text-xs font-mono text-emerald-400 flex items-center gap-1.5">
-                <CheckCircle className="w-3.5 h-3.5" />
-                {slot.file?.name}
-              </span>
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setValidationError(null);
-                  onFileChange(null);
-                }}
-                className="text-[10px] font-mono uppercase text-neutral-500 hover:text-red-400 transition-colors"
-              >
-                Remove
-              </button>
-            </div>
-          </div>
+          <PhotoPreview slot={slot} onRemove={() => { setValidationError(null); onFileChange(null); }} />
         ) : (
           <div className="py-4">
-            <Camera className="w-6 h-6 text-neutral-500 mx-auto mb-2" />
+            <Upload className="w-6 h-6 text-neutral-500 mx-auto mb-2" />
             <p className="text-[10px] font-mono text-neutral-400">
-              Tap to take photo or upload
+              Click to upload or drag &amp; drop
             </p>
             <p className="text-[9px] font-mono text-neutral-600 mt-1">
-              JPG or PNG only
+              JPG, PNG, WebP, HEIC accepted
             </p>
           </div>
         )}
       </div>
     </div>
   );
+}
+
+/* ── Camera capture (for selfie — webcam on desktop, native on mobile) ─────── */
+
+function CameraCapture({
+  slot,
+  onFileChange,
+}: {
+  slot: FileSlot;
+  onFileChange: (file: File | null) => void;
+}) {
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const mobileInputRef = useRef<HTMLInputElement>(null);
+  const [cameraOpen, setCameraOpen] = useState(false);
+  const [cameraError, setCameraError] = useState<string | null>(null);
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    setIsMobile(/Android|iPhone|iPad|iPod/i.test(navigator.userAgent));
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      streamRef.current?.getTracks().forEach((t) => t.stop());
+    };
+  }, []);
+
+  const openCamera = async () => {
+    if (isMobile) {
+      mobileInputRef.current?.click();
+      return;
+    }
+    setCameraError(null);
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } },
+      });
+      streamRef.current = stream;
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        await videoRef.current.play();
+      }
+      setCameraOpen(true);
+    } catch {
+      setCameraError('Could not access camera. Please allow camera permissions and try again.');
+    }
+  };
+
+  const takePhoto = () => {
+    const video = videoRef.current;
+    const canvas = canvasRef.current;
+    if (!video || !canvas) return;
+
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    ctx.drawImage(video, 0, 0);
+
+    canvas.toBlob(
+      (blob) => {
+        if (!blob) return;
+        const file = new File([blob], 'selfie.jpg', { type: 'image/jpeg' });
+        stopCamera();
+        onFileChange(file);
+      },
+      'image/jpeg',
+      0.92,
+    );
+  };
+
+  const stopCamera = () => {
+    streamRef.current?.getTracks().forEach((t) => t.stop());
+    streamRef.current = null;
+    setCameraOpen(false);
+  };
+
+  const handleMobileCapture = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const result = validateImage(file);
+      if (!result.valid) {
+        setCameraError(result.error ?? 'Invalid file.');
+        return;
+      }
+      setCameraError(null);
+      onFileChange(file);
+    }
+  };
+
+  return (
+    <div>
+      {cameraError && (
+        <div className="mb-2 text-[10px] font-mono text-red-400 flex items-center gap-1.5">
+          <AlertTriangle className="w-3 h-3" />
+          {cameraError}
+        </div>
+      )}
+
+      <input
+        ref={mobileInputRef}
+        type="file"
+        accept="image/*"
+        capture="user"
+        onChange={handleMobileCapture}
+        className="hidden"
+      />
+      <canvas ref={canvasRef} className="hidden" />
+
+      {slot.preview ? (
+        <div className={[
+          'border-2 border-dashed p-4 text-center border-emerald-500/30 bg-emerald-500/5',
+        ].join(' ')}>
+          <PhotoPreview slot={slot} onRemove={() => { setCameraError(null); onFileChange(null); }} />
+        </div>
+      ) : cameraOpen ? (
+        <div className="border-2 border-dashed border-[#D4A843]/40 bg-neutral-900 p-4 space-y-4">
+          <video
+            ref={videoRef}
+            autoPlay
+            playsInline
+            muted
+            className="w-full max-h-80 mx-auto rounded object-cover"
+            style={{ transform: 'scaleX(-1)' }}
+          />
+          <div className="flex items-center justify-center gap-4">
+            <button
+              type="button"
+              onClick={takePhoto}
+              className="w-14 h-14 rounded-full bg-[#D4A843] flex items-center justify-center hover:opacity-80 transition-opacity"
+              aria-label="Take photo"
+            >
+              <Camera className="w-6 h-6 text-black" />
+            </button>
+            <button
+              type="button"
+              onClick={stopCamera}
+              className="text-[10px] font-mono uppercase text-neutral-500 hover:text-red-400 transition-colors"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div
+          onClick={openCamera}
+          className="border-2 border-dashed p-4 text-center cursor-pointer transition-colors border-white/10 hover:border-white/20 bg-neutral-900"
+        >
+          <div className="py-4">
+            <Camera className="w-6 h-6 text-neutral-500 mx-auto mb-2" />
+            <p className="text-[10px] font-mono text-neutral-400">
+              {isMobile ? 'Tap to open camera' : 'Click to open camera'}
+            </p>
+            <p className="text-[9px] font-mono text-neutral-600 mt-1">
+              Take a photo with your {isMobile ? 'phone' : 'webcam'}
+            </p>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ── Route to correct input per slot mode ──────────────────────────────────── */
+
+function PhotoDropzone({
+  slot,
+  onFileChange,
+}: {
+  slot: FileSlot;
+  onFileChange: (file: File | null) => void;
+}) {
+  if (slot.mode === 'camera') {
+    return <CameraCapture slot={slot} onFileChange={onFileChange} />;
+  }
+  return <UploadDropzone slot={slot} onFileChange={onFileChange} />;
 }
