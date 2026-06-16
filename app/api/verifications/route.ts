@@ -10,10 +10,8 @@ import { detectFraudFlags } from '@/lib/metadata/fraud-detection';
 import { matchFaces } from '@/lib/agents/tools';
 import { STUDIO } from '@/lib/constants';
 
-// Fixed filenames per user — resubmission overwrites automatically via upsert.
 const FILE_NAMES = {
-  id_front: 'id-front',
-  id_back: 'id-back',
+  id_copy: 'id-copy',
   selfie: 'selfie-with-id',
 } as const;
 
@@ -100,14 +98,13 @@ export async function POST(req: NextRequest) {
     // ── Parse form data ─────────────────────────────────────────────────
     const formData = await req.formData();
 
-    const idFront = formData.get('id_front') as File | null;
-    const idBack = formData.get('id_back') as File | null;
+    const idCopy = formData.get('id_copy') as File | null;
     const selfie = formData.get('selfie_with_id') as File | null;
     const confirmed = formData.get('confirmed') === 'true';
 
-    if (!idFront || !idBack || !selfie) {
+    if (!idCopy || !selfie) {
       return NextResponse.json(
-        { error: 'All three photos are required: ID front, ID back, and selfie with ID.' },
+        { error: 'Both photos are required: ID copy and selfie with ID.' },
         { status: 400 },
       );
     }
@@ -122,16 +119,18 @@ export async function POST(req: NextRequest) {
     // ── Validate file types and sizes ─────────────────────────────────
     const maxSize = (STUDIO.verification.maxFileSizeMB ?? 5) * 1024 * 1024;
     const minSize = 50 * 1024; // 50KB minimum
-    const allowedTypes = ['image/jpeg', 'image/png'];
+    const allowedTypes = [
+      'image/jpeg', 'image/png', 'image/webp',
+      'image/heic', 'image/heif', 'image/bmp', 'image/tiff',
+    ];
 
     for (const [label, file] of [
-      ['ID Front', idFront],
-      ['ID Back', idBack],
+      ['ID Copy', idCopy],
       ['Selfie', selfie],
     ] as const) {
       if (!allowedTypes.includes(file.type)) {
         return NextResponse.json(
-          { error: `${label}: Only JPG and PNG files allowed.` },
+          { error: `${label}: Unsupported image format. Please use JPG, PNG, WebP, or HEIC.` },
           { status: 400 },
         );
       }
@@ -150,13 +149,13 @@ export async function POST(req: NextRequest) {
     }
 
     // ── Extract EXIF metadata BEFORE uploading ──────────────────────────
-    const idFrontBuffer = await idFront.arrayBuffer();
-    const idBackBuffer = await idBack.arrayBuffer();
+    const idCopyBuffer = await idCopy.arrayBuffer();
     const selfieBuffer = await selfie.arrayBuffer();
 
+    const idCopyMeta = await extractPhotoMetadata(idCopyBuffer);
     const metadata: VerificationMetadata = {
-      id_front: await extractPhotoMetadata(idFrontBuffer),
-      id_back: await extractPhotoMetadata(idBackBuffer),
+      id_front: idCopyMeta,
+      id_back: idCopyMeta,
       selfie: await extractPhotoMetadata(selfieBuffer),
       face_match: null,
     };
@@ -164,7 +163,7 @@ export async function POST(req: NextRequest) {
     // ── Generate document hash for duplicate detection ──────────────────
     const idHash = crypto
       .createHash('sha256')
-      .update(Buffer.from(idFrontBuffer))
+      .update(Buffer.from(idCopyBuffer))
       .digest('hex');
 
     // Check for duplicate across other users
@@ -190,14 +189,12 @@ export async function POST(req: NextRequest) {
 
     // ── Upload files to Supabase Storage ────────────────────────────────
     const storagePaths = {
-      id_front: `${user.id}/${FILE_NAMES.id_front}`,
-      id_back: `${user.id}/${FILE_NAMES.id_back}`,
+      id_copy: `${user.id}/${FILE_NAMES.id_copy}`,
       selfie: `${user.id}/${FILE_NAMES.selfie}`,
     };
 
     const uploads = await Promise.all([
-      uploadToStorage(supabase, Buffer.from(idFrontBuffer), storagePaths.id_front, idFront.type),
-      uploadToStorage(supabase, Buffer.from(idBackBuffer), storagePaths.id_back, idBack.type),
+      uploadToStorage(supabase, Buffer.from(idCopyBuffer), storagePaths.id_copy, idCopy.type),
       uploadToStorage(supabase, Buffer.from(selfieBuffer), storagePaths.selfie, selfie.type),
     ]);
 
@@ -214,7 +211,7 @@ export async function POST(req: NextRequest) {
     try {
       const [selfieUrlRes, idFrontUrlRes] = await Promise.all([
         supabase.storage.from('verifications').createSignedUrl(storagePaths.selfie, 300),
-        supabase.storage.from('verifications').createSignedUrl(storagePaths.id_front, 300),
+        supabase.storage.from('verifications').createSignedUrl(storagePaths.id_copy, 300),
       ]);
 
       const selfieUrl = selfieUrlRes.data?.signedUrl;
@@ -251,8 +248,8 @@ export async function POST(req: NextRequest) {
 
     // ── Update profile via query helper ─────────────────────────────────
     const result = await submitVerification(user.id, {
-      idFrontPath: storagePaths.id_front,
-      idBackPath: storagePaths.id_back,
+      idFrontPath: storagePaths.id_copy,
+      idBackPath: null,
       selfiePath: storagePaths.selfie,
       metadata,
       fraudFlags,
