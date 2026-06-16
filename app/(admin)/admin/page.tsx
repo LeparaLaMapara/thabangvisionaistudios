@@ -14,6 +14,7 @@ import {
   ShieldCheck,
   Star,
 } from 'lucide-react';
+import { CollapsibleSection } from '@/components/admin/CollapsibleSection';
 
 export const metadata: Metadata = { title: 'Studio Control Center' };
 
@@ -248,8 +249,7 @@ export default async function AdminDashboardPage() {
       </div>
 
       {/* ── Section 1: KPI Row ── */}
-      <section>
-        <SectionLabel>Global Stats</SectionLabel>
+      <CollapsibleSection label="Global Stats">
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-px bg-white/[0.04]">
 
           <KpiCard
@@ -308,88 +308,89 @@ export default async function AdminDashboardPage() {
           />
 
         </div>
-      </section>
+      </CollapsibleSection>
 
       {/* ── Section 2: Quick Create ── */}
-      <section>
-        <SectionLabel>Quick Create</SectionLabel>
+      <CollapsibleSection label="Quick Create">
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
           <QuickCreateBtn href="/admin/projects" label="New Production" icon={<Clapperboard className="w-4 h-4" />} />
           <QuickCreateBtn href="/admin/rentals"  label="New Rental"     icon={<Package      className="w-4 h-4" />} />
           <QuickCreateBtn href="/admin/press"    label="New Press"      icon={<FilePen      className="w-4 h-4" />} />
           <QuickCreateBtn href="/admin/careers"  label="New Career"     icon={<Briefcase    className="w-4 h-4" />} />
         </div>
-      </section>
+      </CollapsibleSection>
 
       {/* ── Sections 3 + 4: Activity Feed + Drafts ── */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
 
         {/* Section 3: Studio Activity Feed */}
-        <section className="lg:col-span-7">
-          <SectionLabel>Studio Activity</SectionLabel>
-          <div className="bg-neutral-900 border border-white/5 divide-y divide-white/[0.04]">
-            {activityFeed.length === 0 ? (
-              <EmptyRow label="No recent activity." />
-            ) : (
-              activityFeed.map(item => (
-                <div
-                  key={`${item.type}-${item.id}`}
-                  className="grid grid-cols-[auto_1fr_auto_auto] items-center gap-2 md:gap-4 px-3 md:px-4 py-3 hover:bg-white/[0.02] transition-colors"
-                >
-                  <TypeBadge type={item.type} />
-                  <p className="text-sm font-mono text-neutral-300 truncate">{item.title}</p>
-                  <span className="text-[10px] font-mono text-neutral-700 flex items-center gap-1.5 flex-shrink-0">
-                    <Clock className="w-2.5 h-2.5" />
-                    {relativeTime(item.updated_at)}
-                  </span>
-                  <Link
-                    href={item.editHref}
-                    className="text-[10px] font-mono text-neutral-700 hover:text-white transition-colors flex-shrink-0 flex items-center gap-0.5"
+        <div className="lg:col-span-7">
+          <CollapsibleSection label="Studio Activity">
+            <div className="bg-neutral-900 border border-white/5 divide-y divide-white/[0.04]">
+              {activityFeed.length === 0 ? (
+                <EmptyRow label="No recent activity." />
+              ) : (
+                activityFeed.map(item => (
+                  <div
+                    key={`${item.type}-${item.id}`}
+                    className="grid grid-cols-[auto_1fr_auto_auto] items-center gap-2 md:gap-4 px-3 md:px-4 py-3 hover:bg-white/[0.02] transition-colors"
                   >
-                    Edit <ChevronRight className="w-2.5 h-2.5" />
-                  </Link>
-                </div>
-              ))
-            )}
-          </div>
-        </section>
+                    <TypeBadge type={item.type} />
+                    <p className="text-sm font-mono text-neutral-300 truncate">{item.title}</p>
+                    <span className="text-[10px] font-mono text-neutral-700 flex items-center gap-1.5 flex-shrink-0">
+                      <Clock className="w-2.5 h-2.5" />
+                      {relativeTime(item.updated_at)}
+                    </span>
+                    <Link
+                      href={item.editHref}
+                      className="text-[10px] font-mono text-neutral-700 hover:text-white transition-colors flex-shrink-0 flex items-center gap-0.5"
+                    >
+                      Edit <ChevronRight className="w-2.5 h-2.5" />
+                    </Link>
+                  </div>
+                ))
+              )}
+            </div>
+          </CollapsibleSection>
+        </div>
 
         {/* Section 4: Action Required */}
-        <section className="lg:col-span-5" id="drafts">
-          <SectionLabel>
-            Action Required
-            {kpi.totalDrafts > 0 && (
+        <div className="lg:col-span-5">
+          <CollapsibleSection
+            label="Action Required"
+            id="drafts"
+            badge={kpi.totalDrafts > 0 ? (
               <span className="px-1.5 py-0.5 bg-amber-500/15 text-amber-400 text-[9px] font-mono rounded tabular-nums">
                 {kpi.totalDrafts}
               </span>
+            ) : undefined}
+          >
+            {kpi.totalDrafts === 0 ? (
+              <div className="bg-neutral-900 border border-white/5 flex items-center gap-3 px-4 py-4">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 flex-shrink-0" />
+                <p className="text-[10px] font-mono text-neutral-600 uppercase tracking-widest">
+                  All content is published.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-1">
+                <DraftGroup label="Productions" items={draftProductions} editHref="/admin/projects" />
+                <DraftGroup label="Rentals"     items={draftRentals}     editHref="/admin/rentals"  />
+                <DraftGroup label="Press"       items={draftPress}       editHref="/admin/press"    />
+              </div>
             )}
-          </SectionLabel>
-
-          {kpi.totalDrafts === 0 ? (
-            <div className="bg-neutral-900 border border-white/5 flex items-center gap-3 px-4 py-4">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 flex-shrink-0" />
-              <p className="text-[10px] font-mono text-neutral-600 uppercase tracking-widest">
-                All content is published.
-              </p>
-            </div>
-          ) : (
-            <div className="space-y-1">
-              <DraftGroup label="Productions" items={draftProductions} editHref="/admin/projects" />
-              <DraftGroup label="Rentals"     items={draftRentals}     editHref="/admin/rentals"  />
-              <DraftGroup label="Press"       items={draftPress}       editHref="/admin/press"    />
-            </div>
-          )}
-        </section>
+          </CollapsibleSection>
+        </div>
 
       </div>
 
       {/* ── Section 5: Featured Content ── */}
       {featuredItems.length > 0 && (
-        <section id="featured">
-          <SectionLabel>
-            Featured Content
-            <span className="text-neutral-700">· {featuredItems.length}</span>
-          </SectionLabel>
+        <CollapsibleSection
+          label="Featured Content"
+          id="featured"
+          badge={<span className="text-neutral-700">· {featuredItems.length}</span>}
+        >
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
             {featuredItems.map(item => (
               <div
@@ -419,12 +420,11 @@ export default async function AdminDashboardPage() {
               </div>
             ))}
           </div>
-        </section>
+        </CollapsibleSection>
       )}
 
       {/* ── Section 6: Studio Overview ── */}
-      <section>
-        <SectionLabel>Studio Overview</SectionLabel>
+      <CollapsibleSection label="Studio Overview">
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-px bg-white/[0.04]">
           <OverviewCard
             label="Productions"
@@ -455,21 +455,13 @@ export default async function AdminDashboardPage() {
             href="/admin/careers"
           />
         </div>
-      </section>
+      </CollapsibleSection>
 
     </div>
   );
 }
 
 // ─── UI primitives ────────────────────────────────────────────────────────────
-
-function SectionLabel({ children }: { children: React.ReactNode }) {
-  return (
-    <p className="text-[9px] font-mono uppercase tracking-[0.25em] text-neutral-600 mb-3 flex items-center gap-2">
-      {children}
-    </p>
-  );
-}
 
 function EmptyRow({ label }: { label: string }) {
   return (
