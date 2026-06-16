@@ -106,7 +106,7 @@ export async function submitVerification(
     currentAttempts: number;
   },
 ): Promise<{ success: boolean; error?: string }> {
-  const supabase = await createClient();
+  const supabase = createAdminClient();
 
   const { error } = await supabase
     .from('profiles')
