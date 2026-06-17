@@ -1,15 +1,9 @@
 export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
-import { createAdminClient } from '@/lib/supabase/server';
-import {
-  getVerificationStatus,
-  approveVerification,
-  rejectVerification,
-} from '@/lib/supabase/queries/verifications';
+import { createClient } from '@/lib/supabase/server';
 import { sendVerificationApproved, sendVerificationRejected } from '@/lib/email';
 import { requireAdmin, rateLimitAdmin } from '@/lib/auth';
-import { generateCrewSlug } from '@/lib/supabase/queries/crew';
 
 type RouteContext = {
   params: Promise<{ id: string }>;
@@ -24,14 +18,15 @@ export async function GET(_req: NextRequest, context: RouteContext) {
   const { id } = await context.params;
 
   try {
-    const profile = await getVerificationStatus(id);
+    const supabase = await createClient();
+    const { data: profile, error } = await supabase.rpc('admin_get_verification', {
+      p_user_id: id,
+    });
 
-    if (!profile) {
+    if (error || !profile) {
       return NextResponse.json({ error: 'Verification not found.' }, { status: 404 });
     }
 
-    // Generate signed URLs for stored documents (1 hour expiry)
-    const supabase = createAdminClient();
     const documents: Record<string, string | null> = {
       idFront: null,
       idBack: null,
@@ -96,75 +91,54 @@ export async function PUT(req: NextRequest, context: RouteContext) {
       );
     }
 
-    // Fetch the user's auth email via service-role client
-    let userEmail: string | undefined;
-    try {
-      const admin = createAdminClient();
-      const { data: authUser } = await admin.auth.admin.getUserById(id);
-      userEmail = authUser?.user?.email;
-    } catch {
-      console.warn('[admin/verifications] Could not fetch user email — notification will be skipped.');
-    }
-
-    // Get display name from profile
-    const profile = await getVerificationStatus(id);
-    const displayName = profile?.display_name || '';
+    const supabase = await createClient();
 
     if (action === 'approve') {
-      const result = await approveVerification(id);
-      if (!result.success) {
+      const { data: result, error: rpcError } = await supabase.rpc('admin_approve_verification', {
+        p_user_id: id,
+      });
+
+      if (rpcError) {
+        console.error('[admin/verifications] approve RPC error:', rpcError.message);
         return NextResponse.json(
-          { error: result.error || 'Failed to approve verification.' },
+          { error: 'Failed to approve verification.' },
           { status: 500 },
         );
       }
 
-      // Auto-setup crew profile on verification approval
-      if (displayName) {
-        const adminSupa = createAdminClient();
-        const slug = generateCrewSlug(displayName);
-
-        // Check for slug uniqueness, append number if needed
-        const { data: existing } = await adminSupa
-          .from('profiles')
-          .select('crew_slug')
-          .like('crew_slug', `${slug}%`)
-          .neq('id', id);
-
-        const finalSlug = existing && existing.length > 0
-          ? `${slug}-${existing.length + 1}`
-          : slug;
-
-        await adminSupa
-          .from('profiles')
-          .update({
-            available_for_hire: true,
-            crew_slug: finalSlug,
-          })
-          .eq('id', id);
-      }
-
-      // Send approval email
-      if (userEmail) {
-        await sendVerificationApproved({ email: userEmail, displayName });
+      if (result?.email) {
+        await sendVerificationApproved({
+          email: result.email,
+          displayName: result.display_name || '',
+        });
       }
     } else {
-      const result = await rejectVerification(id, reason);
-      if (!result.success) {
+      const { data: result, error: rpcError } = await supabase.rpc('admin_reject_verification', {
+        p_user_id: id,
+        p_reason: reason,
+      });
+
+      if (rpcError) {
+        console.error('[admin/verifications] reject RPC error:', rpcError.message);
         return NextResponse.json(
-          { error: result.error || 'Failed to reject verification.' },
+          { error: 'Failed to reject verification.' },
           { status: 500 },
         );
       }
 
-      // Send rejection email
-      if (userEmail) {
-        await sendVerificationRejected({ email: userEmail, displayName, reason });
+      if (result?.email) {
+        await sendVerificationRejected({
+          email: result.email,
+          displayName: result.display_name || '',
+          reason,
+        });
       }
     }
 
-    // Return the updated profile
-    const updated = await getVerificationStatus(id);
+    const { data: updated } = await supabase.rpc('admin_get_verification', {
+      p_user_id: id,
+    });
+
     return NextResponse.json(updated);
   } catch (err) {
     console.error('[admin/verifications/[id]] PUT error:', err);
