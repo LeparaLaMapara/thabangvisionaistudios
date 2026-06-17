@@ -43,7 +43,7 @@ BEGIN
   END IF;
 
   RETURN (
-    SELECT coalesce(jsonb_agg(row_to_jsonb(t) ORDER BY t.verification_submitted_at DESC NULLS LAST), '[]'::jsonb)
+    SELECT coalesce(jsonb_agg(to_jsonb(t) ORDER BY t.verification_submitted_at DESC NULLS LAST), '[]'::jsonb)
     FROM (
       SELECT p.id, p.display_name, p.avatar_url, p.bio, p.phone, p.location,
              p.skills, p.social_links, p.is_verified, p.verification_status,
@@ -75,7 +75,7 @@ BEGIN
   END IF;
 
   RETURN (
-    SELECT row_to_jsonb(t)
+    SELECT to_jsonb(t)
     FROM (
       SELECT p.id, p.display_name, p.avatar_url, p.bio, p.phone, p.location,
              p.skills, p.social_links, p.is_verified, p.verification_status,
