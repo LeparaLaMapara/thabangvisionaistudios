@@ -67,7 +67,7 @@ const nextConfig: NextConfig = {
             "default-src 'self'",
             "script-src 'self' 'unsafe-inline' https://js.paystack.co",
             "style-src 'self' 'unsafe-inline'",
-            "img-src 'self' https://res.cloudinary.com https://images.unsplash.com https://i.ytimg.com https://img.youtube.com data: blob:",
+            "img-src 'self' https://res.cloudinary.com https://*.supabase.co https://images.unsplash.com https://i.ytimg.com https://img.youtube.com data: blob:",
             "font-src 'self'",
             "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.anthropic.com https://api.paystack.co https://js.paystack.co https://api.cloudinary.com",
             "frame-src https://checkout.paystack.com https://www.youtube.com https://player.vimeo.com",
