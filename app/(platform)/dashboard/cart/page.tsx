@@ -9,7 +9,7 @@ import { Trash2, Minus, Plus, ShoppingCart, ArrowRight, AlertTriangle } from 'lu
 import { Button } from '@/components/ui/Button';
 import { DateRangePicker, type DateRange } from '@/components/ui/DateRangePicker';
 import { useCart } from '@/providers/CartProvider';
-import { calculateItemPrice } from '@/lib/cart/pricing';
+import { calculateItemPrice, calculateIncludedVat } from '@/lib/cart/pricing';
 import { STUDIO } from '@/lib/constants';
 import { DashboardSubTabs, ACTIVITY_TABS } from '@/components/dashboard/DashboardSubTabs';
 import type { CartItemWithRental } from '@/types/cart';
@@ -118,6 +118,8 @@ export default function CartPage() {
       bulkDiscountPercent,
       bulkDiscountAmount,
       totalDeposit,
+      vatRate: STUDIO.booking.vatRate,
+      vatAmount: calculateIncludedVat(subtotal - bulkDiscountAmount),
       grandTotal: subtotal - bulkDiscountAmount + totalDeposit,
     };
   }, [items, itemDates, allDatesSet]);
@@ -415,6 +417,15 @@ export default function CartPage() {
                 <span className="text-neutral-400">R {pricing.totalDeposit.toLocaleString()}</span>
               </div>
 
+              {STUDIO.legal.vatNumber && (
+                <div className="flex justify-between text-xs font-mono">
+                  <span className="text-neutral-500">
+                    Incl. VAT ({pricing.vatRate}%)
+                  </span>
+                  <span className="text-neutral-400">R {pricing.vatAmount.toLocaleString()}</span>
+                </div>
+              )}
+
               <div className="border-t border-white/10 pt-3 flex justify-between text-sm font-mono font-bold">
                 <span className="text-white">Total</span>
                 <span className="text-[#D4A843]">R {pricing.grandTotal.toLocaleString()}</span>
@@ -460,8 +471,8 @@ export default function CartPage() {
           </Button>
 
           <p className="text-[9px] font-mono text-neutral-600 text-center">
-            Each item has its own rental period. Deposits are refundable.
-            Bulk discounts apply on 3+ items.
+            Each item has its own rental period. Deposits are refundable and
+            carry no VAT. Bulk discounts apply on 3+ items.
           </p>
         </div>
       </div>

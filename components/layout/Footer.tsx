@@ -3,7 +3,7 @@
 import React, { useState, useCallback } from 'react';
 import Link from 'next/link';
 import { Youtube, Instagram, Facebook, Twitter, Linkedin, Mail, Loader2, CheckCircle2 } from 'lucide-react';
-import { FOOTER_SECTIONS, SOCIAL_LINKS, SITE_COPYRIGHT, SITE_NAME } from '@/lib/constants';
+import { FOOTER_SECTIONS, SOCIAL_LINKS, SITE_COPYRIGHT, SITE_NAME, STUDIO } from '@/lib/constants';
 
 const IconMap: Record<string, React.ElementType> = {
   Youtube,
@@ -123,6 +123,19 @@ export const Footer = () => {
               })}
             </div>
           </div>
+        </div>
+
+        {/* Registered business details — required for payment provider compliance */}
+        <div className="border-t border-black/5 dark:border-white/5 pt-10 pb-8 text-[11px] font-mono text-neutral-500 dark:text-neutral-600 leading-relaxed space-y-1">
+          <p>{STUDIO.legal.companyName} | Registration number {STUDIO.legal.registrationNumber}</p>
+          {STUDIO.legal.registeredAddress && <p>{STUDIO.legal.registeredAddress}</p>}
+          {STUDIO.legal.vatNumber && <p>VAT number {STUDIO.legal.vatNumber}</p>}
+          <p>
+            {STUDIO.phone} |{' '}
+            <a href={`mailto:${STUDIO.email}`} className="hover:text-black dark:hover:text-white transition-colors">
+              {STUDIO.email}
+            </a>
+          </p>
         </div>
 
         <div className="flex flex-col md:flex-row justify-between items-center border-t border-black/5 dark:border-white/5 pt-10">

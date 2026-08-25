@@ -39,6 +39,11 @@ export const STUDIO = {
     companyName: 'THABANGVISION STUDIO (Pty) Ltd',
     tradingAs: 'Thabang Vision AI Studios',
     registrationNumber: '2025/742948/07',
+    // Registered business address. MUST match the address on the Paystack dashboard.
+    // Rendered in the footer and Terms of Service only when non-empty.
+    registeredAddress: '9873 Extension 5, Soshanguve South, Pretoria, South Africa',
+    // VAT number. Leave empty if not VAT registered — pricing copy adapts.
+    vatNumber: '',
     popia: {
       version: '2026.04.20',
       retentionDays: 30, // Delete verification storage objects 30 days after review

@@ -48,6 +48,10 @@ export interface CartPricingSummary {
   bulkDiscountPercent: number;
   bulkDiscountAmount: number;
   totalDeposit: number;
+  /** VAT rate applied, as a percentage. */
+  vatRate: number;
+  /** VAT already contained in the discounted hire charge. Not added to grandTotal. */
+  vatAmount: number;
   grandTotal: number;
 }
 
@@ -58,5 +62,9 @@ export interface CartPerItemPricingSummary {
   bulkDiscountPercent: number;
   bulkDiscountAmount: number;
   totalDeposit: number;
+  /** VAT rate applied, as a percentage. */
+  vatRate: number;
+  /** VAT already contained in the discounted hire charge. Not added to grandTotal. */
+  vatAmount: number;
   grandTotal: number;
 }
