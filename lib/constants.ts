@@ -36,12 +36,15 @@ export const STUDIO = {
   },
 
   legal: {
-    companyName: 'ThabangVision Studios (Pty) Ltd',
+    // Exactly as it appears on the CIPC COR 14.3 registration certificate
+    // issued 19/09/2025. Do not restyle it — payment providers match this
+    // string character-for-character against the certificate.
+    companyName: 'THABANGVISION STUDIO (Pty) Ltd',
     tradingAs: 'Thabang Vision AI Studios',
     registrationNumber: '2025/742948/07',
     // Registered business address. MUST match the address on the Paystack dashboard.
     // Rendered in the footer and Terms of Service only when non-empty.
-    registeredAddress: '9873 Extension 5, Soshanguve South, Pretoria, 0152, South Africa',
+    registeredAddress: '9873 Extension 5, Soshanguve South, Gauteng, 0152, South Africa',
     // Whether the company is a registered VAT vendor. This — not vatNumber —
     // is what drives VAT wording and the VAT line at checkout.
     vatRegistered: true,
