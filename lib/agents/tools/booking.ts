@@ -215,7 +215,7 @@ export function createBookingTools(
 
     create_service_booking: {
       description:
-        'Create a paid service booking with Paystack payment. ONLY call this after calculate_booking_quote AND the client has explicitly confirmed. Returns a payment URL. Required: project_category, project_description (min 20 chars), deliverables, duration_hours. Optional: creator_id, location, preferred_dates.',
+        'Create a paid service booking with a secure gateway payment. ONLY call this after calculate_booking_quote AND the client has explicitly confirmed. Returns a payment URL. Required: project_category, project_description (min 20 chars), deliverables, duration_hours. Optional: creator_id, location, preferred_dates.',
       inputSchema: jsonSchema({
         type: 'object' as const,
         properties: {

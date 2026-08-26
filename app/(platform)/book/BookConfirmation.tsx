@@ -134,7 +134,7 @@ export default function BookConfirmation({
           disabled={loading}
           className="mt-6 w-full rounded-lg bg-[#D4A843] px-6 py-4 text-lg font-bold text-black transition-colors hover:bg-[#c49a3a] disabled:cursor-not-allowed disabled:opacity-50"
         >
-          {loading ? 'Processing...' : `Pay R${total.toLocaleString()} with Paystack`}
+          {loading ? 'Processing...' : `Pay R${total.toLocaleString()} securely`}
         </button>
 
         {/* Policy */}

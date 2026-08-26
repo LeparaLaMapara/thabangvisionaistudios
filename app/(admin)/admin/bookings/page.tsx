@@ -414,11 +414,11 @@ export default function AdminBookingsPage() {
               </Badge>
             </div>
 
-            {/* PayFast ID */}
+            {/* Gateway payment reference */}
             {detailBooking.payfast_payment_id && (
               <div>
                 <h4 className="text-[10px] font-mono font-bold uppercase tracking-widest text-neutral-500 mb-2">
-                  PayFast Payment ID
+                  Payment Reference
                 </h4>
                 <p className="text-xs font-mono text-neutral-400 break-all">
                   {detailBooking.payfast_payment_id}
