@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { Suspense, useCallback, useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { STUDIO } from '@/lib/constants';
@@ -15,6 +15,35 @@ type Status = 'idle' | 'loading' | 'done' | 'error';
  * genuinely one click.
  */
 export default function UnsubscribePage() {
+  return (
+    <Suspense fallback={<UnsubscribeShell />}>
+      <UnsubscribeForm />
+    </Suspense>
+  );
+}
+
+/**
+ * Static frame, rendered at build time and while the search params resolve.
+ * Keeping the heading here means the page never flashes empty.
+ */
+function UnsubscribeShell({ children }: { children?: React.ReactNode }) {
+  return (
+    <div className="min-h-screen bg-[#050505] pt-32 pb-20">
+      <div className="container mx-auto px-6 max-w-xl">
+        <span className="text-[10px] font-mono text-[#D4A843] uppercase tracking-[0.3em] mb-3 block">
+          Email preferences
+        </span>
+        <h1 className="text-3xl md:text-5xl font-display font-medium text-white uppercase tracking-tight">
+          Unsubscribe
+        </h1>
+        <div className="w-8 h-px bg-[#D4A843] mt-6 mb-10" />
+        {children}
+      </div>
+    </div>
+  );
+}
+
+function UnsubscribeForm() {
   const params = useSearchParams();
   const prefilled = params.get('email') ?? '';
 
@@ -62,17 +91,8 @@ export default function UnsubscribePage() {
   const link = 'text-[#D4A843] hover:text-[#D4A843]/80 transition-colors';
 
   return (
-    <div className="min-h-screen bg-[#050505] pt-32 pb-20">
-      <div className="container mx-auto px-6 max-w-xl">
-        <span className="text-[10px] font-mono text-[#D4A843] uppercase tracking-[0.3em] mb-3 block">
-          Email preferences
-        </span>
-        <h1 className="text-3xl md:text-5xl font-display font-medium text-white uppercase tracking-tight">
-          Unsubscribe
-        </h1>
-        <div className="w-8 h-px bg-[#D4A843] mt-6 mb-10" />
-
-        {status === 'done' ? (
+    <UnsubscribeShell>
+      {status === 'done' ? (
           <div className="space-y-4 text-sm font-mono text-neutral-400 leading-relaxed">
             <p className="text-white">{message}</p>
             <p>
@@ -131,9 +151,8 @@ export default function UnsubscribePage() {
               </a>{' '}
               and we will remove you by hand.
             </p>
-          </div>
-        )}
-      </div>
-    </div>
+        </div>
+      )}
+    </UnsubscribeShell>
   );
 }
