@@ -95,6 +95,10 @@ export async function POST(request: NextRequest) {
         duration_hours,
         location: location || null,
         preferred_dates: preferred_dates || null,
+        // The booking form sends an ISO date. Promote it to a real column so
+        // cancellation notice can actually be measured (migration 040).
+        // The AI assistant may send free text, which stays null here.
+        shoot_date: toShootDate(preferred_dates),
         subtotal,
         vat,
         total,
@@ -192,4 +196,17 @@ export async function GET() {
   }
 
   return NextResponse.json({ bookings: data ?? [] });
+}
+
+/**
+ * Accepts a YYYY-MM-DD string and returns it, or null for anything else.
+ * The booking form uses <input type="date">, so it always sends this shape;
+ * the Ubunye assistant can send genuinely free text ("first week of March"),
+ * which we deliberately do not guess at.
+ */
+function toShootDate(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) return null;
+  return Number.isNaN(new Date(trimmed).getTime()) ? null : trimmed;
 }

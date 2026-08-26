@@ -6,6 +6,8 @@ import { email as emailProvider } from '@/lib/email';
 import { STUDIO } from '@/lib/constants';
 import { checkRateLimit } from '@/lib/auth';
 import { triggerCreatorPayout } from '@/lib/payments/payout';
+import { refundPayment } from '@/lib/payments/paystack';
+import { calculateServiceCancellationRefund } from '@/lib/rental/cancellation';
 import { logEvent } from '@/lib/data/events';
 
 // Allowed status transitions per role
@@ -48,7 +50,7 @@ export async function PATCH(
   // Fetch booking
   const { data: booking, error: fetchError } = await supabase
     .from('bookings')
-    .select('id, client_id, client_email, creator_id, project_category, status, total, creator_amount, reference, payment_status')
+    .select('id, client_id, client_email, creator_id, project_category, status, total, creator_amount, reference, payment_status, shoot_date, paystack_reference')
     .eq('id', id)
     .single();
 
@@ -98,9 +100,32 @@ export async function PATCH(
   if (status === 'accepted') update.accepted_at = new Date().toISOString();
   if (status === 'delivered') update.delivered_at = new Date().toISOString();
   if (status === 'completed') update.completed_at = new Date().toISOString();
+  // Price the cancellation before writing, so the record and the refund agree.
+  let cancellationQuote: ReturnType<typeof calculateServiceCancellationRefund> = null;
+
   if (status === 'cancelled') {
     update.cancelled_at = new Date().toISOString();
     update.cancellation_reason = body.reason || null;
+
+    const isPaid = booking.payment_status === 'paid' && Boolean(booking.paystack_reference);
+
+    cancellationQuote = calculateServiceCancellationRefund({
+      shootDate: (booking as { shoot_date?: string | null }).shoot_date,
+      total: Number(booking.total ?? 0),
+    });
+
+    if (!isPaid) {
+      update.cancellation_refund_status = 'not_required';
+    } else if (!cancellationQuote) {
+      // No shoot date on record, so notice cannot be measured. Bookings made
+      // before migration 040, or through the assistant with a free-text date.
+      update.cancellation_refund_status = 'manual_review';
+    } else {
+      update.cancellation_refund_percent = cancellationQuote.refundPercent;
+      update.cancellation_refund_amount = cancellationQuote.totalRefund;
+      update.cancellation_refund_status =
+        cancellationQuote.totalRefund > 0 ? 'pending' : 'not_required';
+    }
   }
 
   const { error: updateError } = await supabase
@@ -111,6 +136,32 @@ export async function PATCH(
   if (updateError) {
     console.error('[service-bookings/status] Update error:', updateError.message);
     return NextResponse.json({ error: 'Failed to update booking' }, { status: 500 });
+  }
+
+  // Money moves only after the cancellation is safely recorded, so we can never
+  // refund a booking we failed to cancel.
+  let refundOutcome: 'refunded' | 'failed' | null = null;
+
+  if (status === 'cancelled' && update.cancellation_refund_status === 'pending' && cancellationQuote) {
+    const result = await refundPayment(
+      booking.paystack_reference as string,
+      cancellationQuote.totalRefund,
+    );
+    refundOutcome = result.success ? 'refunded' : 'failed';
+
+    await supabase
+      .from('bookings')
+      .update({
+        cancellation_refund_status: refundOutcome,
+        cancellation_refunded_at: result.success ? new Date().toISOString() : null,
+        cancellation_refund_error: result.success ? null : (result.error ?? 'Refund failed'),
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', id);
+
+    if (!result.success) {
+      console.error('[service-bookings/status] refund failed:', result.error);
+    }
   }
 
   logEvent({
@@ -200,13 +251,43 @@ export async function PATCH(
         });
       }
 
+      const refundLine = (() => {
+        switch (update.cancellation_refund_status) {
+          case 'pending':
+            return refundOutcome === 'failed'
+              ? `ACTION NEEDED: automatic refund of R${cancellationQuote?.totalRefund} FAILED. Refund this client manually.`
+              : `Refunded automatically: R${cancellationQuote?.totalRefund} (${cancellationQuote?.refundPercent}% of the booking, ${cancellationQuote?.hoursBefore}h notice).`;
+          case 'manual_review':
+            return 'ACTION NEEDED: no shoot date on record, so notice could not be measured. Assess this refund by hand.';
+          case 'not_required':
+            return 'No refund due: the booking was unpaid, or the cancellation fell inside the non-refundable window.';
+          default:
+            return 'Review if a refund is needed.';
+        }
+      })();
+
       await emailProvider.sendEmail({
         to: STUDIO.bookingEmail,
-        subject: `Booking cancelled: ${booking.reference} — review refund`,
-        text: `Booking ${booking.reference} has been cancelled.\n\nTotal paid: R${booking.total}\nCancelled by: ${isClient ? 'Client' : 'Creator'}\nReason: ${body.reason || 'Not provided'}\n\nReview if a refund is needed.`,
+        subject: `Booking cancelled: ${booking.reference}`,
+        text: `Booking ${booking.reference} has been cancelled.
+
+Total paid: R${booking.total}
+Cancelled by: ${isClient ? 'Client' : 'Creator'}
+Reason: ${body.reason || 'Not provided'}
+
+${refundLine}`,
       });
     }
   } catch { /* notification failure shouldn't block */ }
 
-  return NextResponse.json({ success: true, status });
+  return NextResponse.json({
+    success: true,
+    status,
+    ...(status === 'cancelled'
+      ? {
+          cancellation: cancellationQuote,
+          refund_status: refundOutcome ?? update.cancellation_refund_status ?? null,
+        }
+      : {}),
+  });
 }

@@ -41,7 +41,7 @@ export const STUDIO = {
     registrationNumber: '2025/742948/07',
     // Registered business address. MUST match the address on the Paystack dashboard.
     // Rendered in the footer and Terms of Service only when non-empty.
-    registeredAddress: '9873 Extension 5, Soshanguve South, Pretoria, South Africa',
+    registeredAddress: '9873 Extension 5, Soshanguve South, Pretoria, 0152, South Africa',
     // Whether the company is a registered VAT vendor. This — not vatNumber —
     // is what drives VAT wording and the VAT line at checkout.
     vatRegistered: true,
@@ -258,6 +258,14 @@ export const STUDIO = {
     minBookingHours: 1,
     maxBookingHours: 72,
     cancellationPolicy: 'Cancel more than 48 hours before the shoot for a full refund. Between 24 and 48 hours, 50% is refunded. Inside 24 hours the booking is non-refundable, because crew and equipment are already committed.',
+    // Applied automatically by app/api/service-bookings/[id]/status when a
+    // client cancels, measured against bookings.shoot_date. Same shape as
+    // STUDIO.rental.cancellationTiers; ordered most-notice-first.
+    cancellationTiers: [
+      { minHoursBefore: 48, refundPercent: 100 },
+      { minHoursBefore: 24, refundPercent: 50 },
+      { minHoursBefore: 0, refundPercent: 0 },
+    ],
     autoCompleteAfterDays: 30,
     projectCategories: [
       'Wedding Photography',

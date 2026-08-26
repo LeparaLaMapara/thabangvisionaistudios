@@ -83,9 +83,15 @@ export default function RefundsPage() {
 
           <Section title="6. Cancelling a Production or Creative Service Booking">
             <p>You can cancel a service booking up to the point where the work is delivered. After delivery, the approval process in section 7 applies instead.</p>
-            <p>As with equipment, the refund is assessed and processed manually. Crew and equipment committed to your date, and work already performed, are taken into account. Contact{' '}
+            <p>The refund is worked out from how much notice you give against your agreed shoot date, and processed automatically to the card you paid with:</p>
+            <ul className="list-disc pl-5 space-y-1">
+              <li><span className="text-white">More than 48 hours before the shoot</span> — refunded in full.</li>
+              <li><span className="text-white">Between 24 and 48 hours before</span> — 50% refunded.</li>
+              <li><span className="text-white">Less than 24 hours before</span> — no refund, because crew and equipment have been committed to your date and turned away from other work.</li>
+            </ul>
+            <p>Where a booking was made without a fixed shoot date, we cannot measure the notice automatically, so a person assesses it. Contact{' '}
               <a href={`mailto:${STUDIO.supportEmail}`} className={link}>{STUDIO.supportEmail}</a>{' '}
-              with your booking reference.
+              with your booking reference and we will come back to you within 2 business days.
             </p>
           </Section>
 

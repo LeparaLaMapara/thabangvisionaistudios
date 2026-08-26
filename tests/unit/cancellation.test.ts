@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   calculateCancellationRefund,
+  calculateServiceCancellationRefund,
   isCancellableStatus,
 } from '@/lib/rental/cancellation';
 
@@ -118,5 +119,60 @@ describe('isCancellableStatus', () => {
     for (const s of ['active', 'overdue', 'return_pending', 'completed', 'cancelled', 'disputed']) {
       expect(isCancellableStatus(s), s).toBe(false);
     }
+  });
+});
+
+describe('calculateServiceCancellationRefund', () => {
+  it('refunds a shoot in full with more than 48 hours notice', () => {
+    const q = calculateServiceCancellationRefund({
+      shootDate: hoursFromNow(72),
+      total: 5000,
+      now: NOW,
+    });
+    expect(q?.refundPercent).toBe(100);
+    expect(q?.totalRefund).toBe(5000);
+  });
+
+  it('refunds half between 24 and 48 hours', () => {
+    const q = calculateServiceCancellationRefund({
+      shootDate: hoursFromNow(30),
+      total: 5000,
+      now: NOW,
+    });
+    expect(q?.refundPercent).toBe(50);
+    expect(q?.totalRefund).toBe(2500);
+  });
+
+  it('refunds nothing inside 24 hours, when crew is committed', () => {
+    const q = calculateServiceCancellationRefund({
+      shootDate: hoursFromNow(5),
+      total: 5000,
+      now: NOW,
+    });
+    expect(q?.refundPercent).toBe(0);
+    expect(q?.totalRefund).toBe(0);
+  });
+
+  it('never adds a deposit, because service bookings have none', () => {
+    const q = calculateServiceCancellationRefund({
+      shootDate: hoursFromNow(72),
+      total: 5000,
+      now: NOW,
+    });
+    expect(q?.depositRefund).toBe(0);
+  });
+
+  it('returns null when there is no shoot date, so a person decides', () => {
+    expect(calculateServiceCancellationRefund({ shootDate: null, total: 5000, now: NOW })).toBeNull();
+    expect(calculateServiceCancellationRefund({ shootDate: undefined, total: 5000, now: NOW })).toBeNull();
+  });
+
+  it('returns null for free text a person wrote instead of a date', () => {
+    const q = calculateServiceCancellationRefund({
+      shootDate: 'first week of March',
+      total: 5000,
+      now: NOW,
+    });
+    expect(q).toBeNull();
   });
 });
