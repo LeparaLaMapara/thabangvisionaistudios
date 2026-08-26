@@ -5,7 +5,11 @@ export type BankingDetails = {
   user_id: string;
   bank_name: string;
   bank_code: string;
-  account_number: string;
+  /**
+   * Last four digits only. The full account number is not stored — Paystack
+   * holds it against paystack_recipient_code. See migration 039.
+   */
+  account_last4: string | null;
   account_type: string;
   account_holder: string;
   paystack_recipient_code: string | null;

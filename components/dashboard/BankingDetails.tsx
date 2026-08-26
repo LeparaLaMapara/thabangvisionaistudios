@@ -9,7 +9,9 @@ import { SA_BANKS } from '@/lib/constants';
 type BankingData = {
   bank_name: string;
   bank_code: string;
-  account_number: string;
+  /** Last four digits only. The full number is held by Paystack, not by us. */
+  account_last4: string | null;
+  account_number_masked: string | null;
   account_type: string;
   account_holder: string;
   paystack_recipient_code: string | null;
@@ -124,7 +126,7 @@ export default function BankingDetails({ onSaved }: { onSaved?: () => void } = {
           </div>
           <div className="flex justify-between">
             <span className="text-neutral-500">Account</span>
-            <span className="text-white">{banking.account_number}</span>
+            <span className="text-white">{banking.account_number_masked ?? '••••'}</span>
           </div>
           <div className="flex justify-between">
             <span className="text-neutral-500">Type</span>

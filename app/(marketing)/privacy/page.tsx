@@ -55,7 +55,7 @@ export default function PrivacyPage() {
             <p><span className="text-white">Account and profile.</span> Name, email address, phone number, display name, bio, skills, and avatar photo.</p>
             <p><span className="text-white">Address and location.</span> Street address, city, province, postal code, and the geographic coordinates of the address you give us. Coordinates are used to match you with nearby crew and equipment.</p>
             <p><span className="text-white">Identity verification.</span> Photographs of your identity document and a selfie holding it. We also record technical detail extracted from those images, including the date they were taken, device make and model, and any GPS coordinates embedded in them, together with your IP address and browser at the time of submission. We do not ask for or store your ID number as a separate field, but the document image itself contains it.</p>
-            <p><span className="text-white">Banking details</span>, if you receive payouts as a creator: bank name, branch code, account type, account holder name, and account number.</p>
+            <p><span className="text-white">Banking details</span>, if you receive payouts as a creator: bank name, branch code, account type, account holder name, and the last four digits of your account number. Your full account number is passed straight to our payment provider to set up your payouts and is not kept on our systems.</p>
             <p><span className="text-white">Bookings and transactions.</span> What you booked, when, for how long, project descriptions, deliverables, amounts paid, and equipment condition records and photographs at collection and return.</p>
             <p><span className="text-white">Communications.</span> Messages you send through the platform, support requests, contact form submissions, and bug reports, including the device and browser details attached to a bug report.</p>
             <p><span className="text-white">Conversations with Ubunye</span>, our AI assistant. These are stored on our systems, not only in your browser. See section 6.</p>
@@ -110,7 +110,7 @@ export default function PrivacyPage() {
               <li>Verification outcome, technical detail, and document fingerprint — retained for fraud prevention.</li>
               <li>Consent records and verification status — account life plus 5 years.</li>
               <li>Transaction and booking records — 5 years, as tax law requires.</li>
-              <li>Banking details — until you remove them or your account is closed.</li>
+              <li>Banking details (bank, account holder, last four digits, payout reference) — until you remove them or your account is closed.</li>
               <li>Profile and account data — deleted within 30 days of account closure, except where we must keep a record.</li>
               <li>Ubunye conversations and platform event logs — retained while they remain useful for support, safety, and product analytics.</li>
             </ul>
@@ -118,7 +118,7 @@ export default function PrivacyPage() {
 
           <Section title="9. Security">
             <p>Access to the database is controlled by row-level security rules so that, as a rule, you can read only your own records. Verification documents sit in a private bucket reached only through expiring signed links. Transport is encrypted. Sessions log out automatically after {STUDIO.session.idleTimeoutMinutes} minutes of inactivity. We keep an audit trail of administrative actions.</p>
-            <p>Banking details are readable only by you. Access is restricted at the database level to the account that owns the record, and the platform never displays more than the last four digits of an account number back to you.</p>
+            <p>We do not store full bank account numbers. When you add banking details, the number goes directly to our payment provider, which returns a reference we use to pay you. We keep only the last four digits, so you can recognise the account. Even so, access to that record is restricted at the database level to the account that owns it.</p>
             <p>No system is perfectly secure. If a breach affects your personal information, we will notify you and the Information Regulator as POPIA requires.</p>
           </Section>
 
