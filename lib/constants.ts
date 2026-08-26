@@ -44,6 +44,21 @@ export const STUDIO = {
     registeredAddress: '9873 Extension 5, Soshanguve South, Pretoria, South Africa',
     // VAT number. Leave empty if not VAT registered — pricing copy adapts.
     vatNumber: '',
+    // POPIA requires a designated Information Officer, registered with the
+    // Information Regulator. Rendered on /privacy only once the name is filled.
+    informationOfficer: {
+      name: '',
+      email: 'privacy@thabangvision.com',
+    },
+    // The statutory complaints authority for POPIA. Do not point users at a
+    // generic "your local data protection authority".
+    informationRegulator: {
+      name: 'Information Regulator (South Africa)',
+      complaintsEmail: 'POPIAComplaints@inforegulator.org.za',
+      generalEmail: 'inforeg@inforegulator.org.za',
+      address: 'JD House, 27 Stiemens Street, Braamfontein, Johannesburg, 2001',
+      website: 'https://inforegulator.org.za',
+    },
     popia: {
       version: '2026.04.20',
       retentionDays: 30, // Delete verification storage objects 30 days after review
@@ -321,6 +336,7 @@ export const FOOTER_SECTIONS = [
       { label: 'Report a Bug', href: '/support/report-bug' },
       { label: 'Legal / Terms', href: '/legal' },
       { label: 'Privacy Policy', href: '/privacy' },
+      { label: 'Refunds & Returns', href: '/refunds' },
     ],
   },
 ];
@@ -405,10 +421,23 @@ export const RENTAL_CATEGORIES = [
 ] as const;
 
 // ─── RENTAL POLICIES ─────────────────────────────────────────────────────────
+// These are the values the RETURN pipeline actually enforces
+// (app/api/rentals/[id]/return/route.ts). The legal pages read from here, so
+// the published terms and the charged amounts cannot drift apart.
+//
+// Note: the security deposit is NOT a percentage of the hire. It is a fixed
+// rand amount per listing (smart_rentals.deposit_amount). STUDIO.rental
+// .depositPercent is used only to seed suggested deposits at AI onboarding.
 export const RENTAL_POLICIES = {
-  depositPercent: 50,
   lateFeePerDayZar: 150,
   maxLateDays: 14,
+  // Loss of earnings recovered when gear is lost, stolen or out of service for
+  // repair. Charged as a contractual debt by invoice — there is no automatic
+  // deduction path beyond the deposit.
+  lossOfEarnings: {
+    percentOfHireValue: 35,
+    minimumWeeks: 10,
+  },
   supportEmail: STUDIO.supportEmail,
 } as const;
 

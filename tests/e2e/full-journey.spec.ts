@@ -859,7 +859,7 @@ test.describe('11. API validation', () => {
   test('11i. All public pages return 200', async ({ page }) => {
     const publicPages = [
       '/', '/rentals', '/studio', '/press', '/pricing',
-      '/contact', '/about', '/careers', '/locations', '/legal', '/privacy',
+      '/contact', '/about', '/careers', '/locations', '/legal', '/privacy', '/refunds',
       '/login', '/register', '/support/tech', '/ubunye-ai-studio', '/marketplace',
     ];
 
