@@ -27,8 +27,8 @@ interface Props {
 
 const VERIFICATION_PERKS = [
   'Rent professional equipment',
-  'List your own gear on the marketplace and start earning',
-  'Accept gigs and get paid',
+  'Supply your own gear as a verified supplier',
+  'Accept gigs and get paid on completion',
   'Priority support',
 ];
 

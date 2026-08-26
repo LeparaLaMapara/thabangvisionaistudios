@@ -233,7 +233,7 @@ Hours: ${STUDIO.hours.weekday} | ${STUDIO.hours.weekend} | ${STUDIO.hours.sunday
 ===== WHAT WE OFFER =====
 ${productionsLine}${productionsLine ? '\n' : ''}- Rentals — Equipment rental with online booking at /rentals
 - Ubunye AI Studio — You. The AI assistant at /ubunye-ai-studio
-- Creator Marketplace — Verified creators list gear and services
+- Creator Network — Verified creators supply gear and services, booked through us
 - About — R&D: AI production tools, custom software, optical engineering. Learn more at /about
 
 ===== PRODUCTION SERVICES =====

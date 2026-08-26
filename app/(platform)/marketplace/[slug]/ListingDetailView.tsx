@@ -165,7 +165,7 @@ export default function ListingDetailView({
                 className="mt-6 w-full flex items-center justify-center gap-2 text-xs font-mono font-bold uppercase tracking-widest bg-black text-white dark:bg-white dark:text-black px-6 py-4 hover:opacity-80 transition-opacity"
               >
                 <MessageSquare className="w-4 h-4" />
-                Contact Seller
+                Enquire About This Item
               </Link>
             </div>
 

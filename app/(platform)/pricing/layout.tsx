@@ -18,8 +18,8 @@ const FAQ_ITEMS = [
     answer: 'ThabangVision offers three plans: Starter (free), Pro Creator (R299/month or R2,990/year), and Studio (R799/month or R7,990/year). All plans include access to equipment rentals and booking.',
   },
   {
-    question: 'What is the platform fee on rentals?',
-    answer: 'Platform fees depend on your plan: Starter pays 10%, Pro Creator pays 7%, and Studio pays 5% on community rental transactions.',
+    question: 'How does ThabangVision pay creators who supply gear or services?',
+    answer: 'ThabangVision is the seller of record on every order, so customers pay ThabangVision directly. Where a verified creator supplies the item or service, ThabangVision retains a 15% commission and pays the creator the balance after the booking completes.',
   },
   {
     question: 'Can I list my own equipment for rent?',

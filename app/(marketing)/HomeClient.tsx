@@ -131,7 +131,7 @@ const HowItWorks = () => {
             How It <span className="text-neutral-500">Works</span>
           </h2>
           <p className="text-neutral-400 font-light leading-relaxed mt-4 max-w-2xl mx-auto">
-            ThabangVision connects clients with verified creators and professional equipment owners through one secure platform.
+            One place to book crew and gear. You book and pay ThabangVision, and we supply the creators and equipment your production needs.
           </p>
         </motion.div>
 
@@ -182,8 +182,8 @@ const CommunitySection = () => (
         {[
           {
             icon: Camera,
-            title: 'List Your Gear',
-            description: 'Verified creators can list their equipment for rent. Earn from your camera, lenses, lighting, and audio gear.',
+            title: 'Supply Your Gear',
+            description: 'Become a verified supplier. Put your camera, lenses, lighting and audio gear to work between your own jobs.',
             cta: 'Get Verified',
             href: '/dashboard/verification',
           },

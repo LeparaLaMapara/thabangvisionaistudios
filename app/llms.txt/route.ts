@@ -44,8 +44,13 @@ ${rentals}
 
 ## Pricing Tiers
 - Starter: Free — browse rentals, book equipment, basic profile, 3 gear listings
-- Pro Creator: R299/month — unlimited listings, 7% platform fee, verified badge, priority search
-- Studio: R799/month — team accounts, 5% platform fee, custom branding, API access
+- Pro Creator: R299/month — unlimited listings, verified badge, priority search
+- Studio: R799/month — team accounts, custom branding, API access
+
+## How Orders Work
+ThabangVision is the supplier and seller of record for every order. Customers pay
+ThabangVision, not individual creators. Where a verified creator supplies the gear or
+service, they are engaged as our supplier and we retain a 15% commission.
 
 ## Service Areas
 We serve all major cities in South Africa including Johannesburg, Cape Town, Durban, Pretoria, Port Elizabeth, Bloemfontein, and more.

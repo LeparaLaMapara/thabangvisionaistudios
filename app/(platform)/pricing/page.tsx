@@ -39,7 +39,7 @@ const PLANS: Plan[] = [
       'Basic creator profile',
       'Up to 3 active gear listings',
       'Chat with Ubunye AI (2 messages/day)',
-      '10% platform fee on community rentals',
+      `${STUDIO.creators.commissionRate}% supplier commission on items you supply`,
     ],
     highlighted: false,
     cta: 'Get Started',
@@ -54,7 +54,7 @@ const PLANS: Plan[] = [
     features: [
       'Everything in Starter',
       'Unlimited gear listings',
-      'Reduced platform fee (7%)',
+      'Verified supplier status',
       'Verified creator badge',
       'Priority in search rankings',
       'Analytics dashboard',
@@ -75,7 +75,7 @@ const PLANS: Plan[] = [
     features: [
       'Everything in Pro Creator',
       'Team accounts (up to 5 members)',
-      'Lowest platform fee (5%)',
+      'Priority supplier placement',
       'Custom studio branding',
       'Bulk booking discounts',
       'Dedicated account manager',
@@ -355,8 +355,10 @@ export default function PricingPage() {
         {/* FAQ note */}
         <div className="text-center mt-16">
           <p className="text-[9px] font-mono uppercase tracking-[0.2em] text-neutral-400 dark:text-neutral-600">
-            All prices in {STUDIO.currency.code}. Platform rental fee: 10% (Starter), 7%
-            (Pro), 5% (Studio). Payments processed securely via PayFast.{' '}
+            All prices in {STUDIO.currency.code}. {STUDIO.shortName} is the seller of record on
+            every order. Where you supply an item or service, we retain a{' '}
+            {STUDIO.creators.commissionRate}% commission and pay you the balance. Payments
+            processed securely via Paystack.{' '}
             <Link
               href="/contact"
               className="text-black dark:text-white underline underline-offset-2"

@@ -14,7 +14,7 @@ const HERO_CAPABILITY = {
 const CAPABILITIES = [
   { title: 'Production Workflows', icon: Sparkles, desc: 'Streamlined tools for editing, color grading, scene analysis, and content generation that help creators deliver faster without compromising quality.', poweredByAI: true },
   { title: 'Equipment Rentals', icon: Camera, desc: 'Browse and book professional equipment with real-time availability, instant confirmation, and intelligent gear recommendations matched to your project needs.', poweredByAI: true },
-  { title: 'Creator Marketplace', icon: Store, desc: 'A trusted marketplace where verified creators list gear for rent, offer crew services, and connect with productions looking for talent — with smart matching built in.', poweredByAI: true },
+  { title: 'Creator Network', icon: Store, desc: 'A vetted supplier network of South African creators and gear owners. Productions book through ThabangVision, and we match the right crew and equipment to the job.', poweredByAI: true },
   { title: 'Creative Workflow Tools', icon: Workflow, desc: 'Automated thumbnail generation, metadata tagging, portfolio optimization, and social media content creation to help creators focus on the work that matters.', poweredByAI: true },
   { title: 'Production Technology', icon: Code, desc: 'Purpose-built tools and integrations for production software like DaVinci Resolve, Premiere Pro, and After Effects — solving real-world challenges for working creatives.', poweredByAI: false },
 ];

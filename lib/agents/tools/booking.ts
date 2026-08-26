@@ -208,7 +208,6 @@ export function createBookingTools(
           vat_rate: STUDIO.booking.vatRate,
           total,
           currency: 'ZAR',
-          platform_commission: `${STUDIO.booking.platformCommission}%`,
           cancellation_policy: STUDIO.booking.cancellationPolicy,
         };
       },
