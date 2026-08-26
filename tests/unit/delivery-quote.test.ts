@@ -6,7 +6,8 @@ import {
 } from '@/lib/delivery/quote';
 import { STUDIO } from '@/lib/constants';
 
-const STUDIO_COORDS = { lat: STUDIO.location.lat, lng: STUDIO.location.lng };
+const ORIGIN = STUDIO.fulfilment.dispatchFrom;
+const STUDIO_COORDS = { lat: ORIGIN.lat, lng: ORIGIN.lng };
 const CONFIG = STUDIO.fulfilment.delivery;
 
 /** A point roughly `km` north of the studio, for predictable distances. */
@@ -103,5 +104,34 @@ describe('quoteDelivery', () => {
     const result = quoteDelivery({ destination: northOfStudio(17.3), itemCount: 5 });
     if (!isDeliveryQuote(result)) throw new Error('expected a quote');
     expect(Math.round(result.fee * 100)).toBe(result.fee * 100);
+  });
+});
+
+describe('real Gauteng destinations', () => {
+  // Sanity checks against places a customer would actually book, so an
+  // accidental change to the origin or the rate shows up as an obviously
+  // wrong rand figure rather than a passing abstract test.
+  const PLACES = [
+    { name: 'Sandton', lat: -26.1076, lng: 28.0567 },
+    { name: 'Soweto (Orlando)', lat: -26.2485, lng: 27.9231 },
+    { name: 'Soshanguve South', lat: -25.5333, lng: 28.1000 },
+    { name: 'Pretoria CBD', lat: -25.7479, lng: 28.2293 },
+  ];
+
+  it.each(PLACES)('quotes $name within a believable range', ({ lat, lng }) => {
+    const result = quoteDelivery({ destination: { lat, lng }, itemCount: 2 });
+    if (!isDeliveryQuote(result)) throw new Error('expected a quote');
+    expect(result.fromLocation).toBe(ORIGIN.name);
+    expect(result.distanceKm).toBeGreaterThan(0);
+    expect(result.fee).toBeGreaterThanOrEqual(CONFIG.minimumFee);
+  });
+
+  it('reaches Sandton for less than a Pretoria run', () => {
+    const sandton = quoteDelivery({ destination: PLACES[0], itemCount: 2 });
+    const pretoria = quoteDelivery({ destination: PLACES[3], itemCount: 2 });
+    if (!isDeliveryQuote(sandton) || !isDeliveryQuote(pretoria)) {
+      throw new Error('expected quotes');
+    }
+    expect(sandton.fee).toBeLessThan(pretoria.fee);
   });
 });

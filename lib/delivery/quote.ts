@@ -56,15 +56,19 @@ export function haversineKm(a: Coordinates, b: Coordinates): number {
   return 2 * EARTH_RADIUS_KM * Math.asin(Math.min(1, Math.sqrt(h)));
 }
 
-/** Every place we can dispatch from. Falls back to the single primary location. */
+/**
+ * Every place we can dispatch from. The nearest one to the destination wins.
+ *
+ * Only the Braamfontein site has coordinates today. When another branch gains
+ * its own lat/lng, add it here and the nearest-wins logic picks it up with no
+ * other change.
+ */
 function dispatchPoints(): Array<{ name: string; coords: Coordinates }> {
-  // STUDIO.locations carries the branch list but no coordinates yet, so the
-  // primary location's coordinates are the only ones we can measure from.
-  // When a branch gains its own lat/lng, add it here and the nearest wins.
+  const origin = STUDIO.fulfilment.dispatchFrom;
   return [
     {
-      name: STUDIO.location.city,
-      coords: { lat: STUDIO.location.lat, lng: STUDIO.location.lng },
+      name: origin.name,
+      coords: { lat: origin.lat, lng: origin.lng },
     },
   ];
 }

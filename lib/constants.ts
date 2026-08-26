@@ -173,6 +173,17 @@ export const STUDIO = {
   // vehicle, so this is a running cost, not a courier rate. There is no
   // courier and therefore no tracking number.
   fulfilment: {
+    // Where equipment physically leaves from, and what delivery distances are
+    // measured against. Deliberately separate from STUDIO.location, which is
+    // the city we present as our base, and from legal.registeredAddress, which
+    // is the CIPC address and is not an operating site.
+    //
+    // University of the Witwatersrand, Braamfontein, Johannesburg.
+    dispatchFrom: {
+      name: 'Braamfontein',
+      lat: -26.1929,
+      lng: 28.0305,
+    },
     collection: {
       enabled: true,
       // A collection can be paid in full online, or the security deposit can
@@ -197,8 +208,11 @@ export const STUDIO = {
       // Bigger loads need a bigger vehicle and more handling.
       itemsIncluded: 3,
       surchargePerExtraItem: 25,
-      // Past this we stop calculating and quote by hand.
-      maxRadiusKm: 80,
+      // Past this we stop calculating and quote by hand. 100km reaches the
+      // whole of Gauteng from Braamfontein, including Tshwane North and
+      // Soshanguve at roughly 96km by road. Below 100 those fall outside,
+      // which would be odd for a Johannesburg-Pretoria operation.
+      maxRadiusKm: 100,
     },
   },
 
