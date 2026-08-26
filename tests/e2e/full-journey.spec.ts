@@ -21,7 +21,7 @@ async function login(page: Page, email = TEST_EMAIL, password = TEST_PASSWORD) {
   await page.goto('/login');
   await page.locator('#email').fill(email);
   await page.locator('#password').fill(password);
-  await page.getByRole('button', { name: /sign in/i }).click();
+  await page.getByRole('button', { name: 'Sign In', exact: true }).click();
   // Wait for redirect away from login page
   await page.waitForURL((url) => !url.pathname.includes('/login'), { timeout: 15_000 }).catch(() => {});
 }
@@ -140,7 +140,7 @@ test.describe('2. Login', () => {
     await page.goto('/login');
     await expect(page.locator('#email')).toBeVisible();
     await expect(page.locator('#password')).toBeVisible();
-    await expect(page.getByRole('button', { name: /sign in/i })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Sign In', exact: true })).toBeVisible();
   });
 
   test('2b. Login succeeds with correct credentials', async ({ page }) => {
@@ -156,7 +156,7 @@ test.describe('2. Login', () => {
     await page.goto('/login');
     await page.locator('#email').fill(TEST_EMAIL);
     await page.locator('#password').fill('WrongPass123!');
-    await page.getByRole('button', { name: /sign in/i }).click();
+    await page.getByRole('button', { name: 'Sign In', exact: true }).click();
 
     // Should show "Invalid login credentials" (generic — doesn't reveal which field is wrong)
     await expect(
@@ -168,7 +168,7 @@ test.describe('2. Login', () => {
     await page.goto('/login');
     await page.locator('#email').fill('nobody@doesnotexist.com');
     await page.locator('#password').fill('SomePassword123!');
-    await page.getByRole('button', { name: /sign in/i }).click();
+    await page.getByRole('button', { name: 'Sign In', exact: true }).click();
 
     // Same generic error — doesn't reveal whether account exists
     await expect(
@@ -178,7 +178,7 @@ test.describe('2. Login', () => {
 
   test('2e. Login validates empty fields', async ({ page }) => {
     await page.goto('/login');
-    await page.getByRole('button', { name: /sign in/i }).click();
+    await page.getByRole('button', { name: 'Sign In', exact: true }).click();
 
     // HTML5 validation should prevent submission
     await page.waitForTimeout(1000);
@@ -189,7 +189,7 @@ test.describe('2. Login', () => {
     await page.goto('/login');
     await page.locator('#email').fill("' OR 1=1 --");
     await page.locator('#password').fill('anything');
-    await page.getByRole('button', { name: /sign in/i }).click();
+    await page.getByRole('button', { name: 'Sign In', exact: true }).click();
 
     // Should fail gracefully — either HTML5 email validation or auth error
     await page.waitForTimeout(3000);

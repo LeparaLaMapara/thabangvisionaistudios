@@ -276,7 +276,7 @@ test.describe('Mobile auth forms', () => {
       return;
     }
 
-    const submitBtn = page.getByRole('button', { name: /sign in/i });
+    const submitBtn = page.getByRole('button', { name: 'Sign In', exact: true });
     await expect(submitBtn).toBeVisible({ timeout: 10000 });
 
     const box = await submitBtn.boundingBox();
