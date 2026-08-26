@@ -146,6 +146,18 @@ export const STUDIO = {
     reviewDays: 'instant',
   },
 
+  // ── Subscriptions ────────────────────────────────────────────────────────
+  // Paid plans (Pro / Studio) are OFF while the offer is reworked. The tiered
+  // commission that justified them was never implemented, so the plans were
+  // advertising a discount that no code applied.
+  //
+  // Everything behind this stays intact: subscription_plans table,
+  // /api/subscriptions/*, and createSubscriptionCheckout on both payment
+  // providers. Flip this to true to put the plans back on sale.
+  subscriptions: {
+    enabled: false,
+  },
+
   platform: {
     minPasswordLength: 8,
     maxListingImages: 5,

@@ -42,10 +42,10 @@ ${rentals}
 - About: ${baseUrl}/about
 - Contact: ${baseUrl}/contact
 
-## Pricing Tiers
-- Starter: Free — browse rentals, book equipment, basic profile, 3 gear listings
-- Pro Creator: R299/month — unlimited listings, verified badge, priority search
-- Studio: R799/month — team accounts, custom branding, API access
+## Pricing
+Free to join and browse. You pay per booking: equipment at the rate shown on each
+listing plus a refundable deposit, production services at the hourly rate quoted.
+There is no subscription.
 
 ## How Orders Work
 ThabangVision is the supplier and seller of record for every order. Customers pay

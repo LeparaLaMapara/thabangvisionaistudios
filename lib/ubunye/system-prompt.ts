@@ -248,10 +248,10 @@ Multi-day discount: 7+ days = weekly rate applies
 Cancellation: ${STUDIO.rental.cancellationHours} hours notice
 Max booking: ${STUDIO.rental.maxBookingDays} days
 
-===== PRICING PLANS =====
+${STUDIO.subscriptions.enabled ? `===== PRICING PLANS =====
 ${platform.plans}
 
-===== EQUIPMENT CATALOGUE =====
+` : ''}===== EQUIPMENT CATALOGUE =====
 ${platform.rentals}
 
 ${productionsSection}===== CREW SERVICES =====

@@ -175,7 +175,7 @@ export default function LegalPage() {
             <p>You supply to {STUDIO.legal.companyName}, not to the client. We are the merchant of record on every order, we contract with the client, and we carry the client facing obligation for that order, including any refund. In return, you agree not to solicit payment directly from a client introduced through the platform for work booked through the platform.</p>
             <p>You warrant that you own, or have the right to hire out, every item you list; that it is in safe and working condition and accurately described; and that you hold any licences or permits your services require.</p>
             <p>Listings may be drafted, described, and priced with the assistance of our AI tools. Anything generated that way is a suggestion. It is published only once you have reviewed and confirmed it, and you remain responsible for the accuracy of your listings and rates.</p>
-            <p>Amounts due to you are paid to the bank account you register with us, after the client has approved the work or the approval window has passed, and after the funds for that order have cleared. Our current commission is shown in your dashboard and on our pricing page.</p>
+            <p>Amounts due to you are paid to the bank account you register with us, after the client has approved the work or the approval window has passed, and after the funds for that order have cleared. Our current commission is shown in your dashboard.</p>
             <p>Where disputes are opened against your account we may withhold payouts pending resolution. Accounts with three or more open disputes are suspended and their listings are removed from sale. We will tell you when this happens and why.</p>
           </Section>
 
