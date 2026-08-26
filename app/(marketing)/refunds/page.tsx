@@ -78,6 +78,8 @@ export default function RefundsPage() {
               <li><span className="text-white">Less than 24 hours before, or after the hire has started</span> — the hire charge is not refunded, because the equipment has been held for you and turned away from other bookings.</li>
             </ul>
             <p><span className="text-white">Your security deposit is always refunded in full when you cancel</span>, whatever notice you give. It secures equipment against damage and late return, and on a cancellation no equipment ever left us.</p>
+            <p>Where you chose delivery, the delivery fee is refunded in full if you cancel before the vehicle is dispatched. Once it has left, the fee has been incurred and is not refundable, even where the hire charge is.</p>
+            <p>Where you chose to pay the deposit online and settle the hire charge on collection, cancelling before collection means there is no hire charge to refund. Your deposit comes back in full.</p>
             <p>If the automatic refund fails for any reason, your booking is still cancelled and we complete the refund by hand. We will tell you if that happens.</p>
           </Section>
 

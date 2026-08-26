@@ -165,6 +165,43 @@ export const STUDIO = {
     reviewDays: 'instant',
   },
 
+  // ── Fulfilment: collection or delivery ───────────────────────────────────
+  // How the customer gets the gear, chosen at checkout.
+  //
+  // Delivery is priced from the distance to the address plus the size of the
+  // order, and the exact fee is shown before payment. We deliver in our own
+  // vehicle, so this is a running cost, not a courier rate. There is no
+  // courier and therefore no tracking number.
+  fulfilment: {
+    collection: {
+      enabled: true,
+      // A collection can be paid in full online, or the security deposit can
+      // be paid online to hold the gear with the hire charge settled at the
+      // counter. We never hold stock with nothing paid.
+      allowBalanceOnCollection: true,
+    },
+    delivery: {
+      enabled: true,
+      // Rate per kilometre of one-way road distance. Derived so it can be
+      // re-checked when fuel moves:
+      //   petrol ~R22/l, a loaded bakkie ~10 l/100km  ->  R2.20/km of fuel
+      //   we drive there and back                     ->  R4.40/km
+      //   driver time, vehicle wear, insurance, admin ->  R11/km
+      // Multiply only the ONE-WAY distance; the return leg is already in here.
+      ratePerKm: 11,
+      // Straight-line distance underestimates the drive. Roughly 1.3x is the
+      // usual correction for Gauteng.
+      roadDistanceFactor: 1.3,
+      // Short local runs still cost a person an hour.
+      minimumFee: 150,
+      // Bigger loads need a bigger vehicle and more handling.
+      itemsIncluded: 3,
+      surchargePerExtraItem: 25,
+      // Past this we stop calculating and quote by hand.
+      maxRadiusKm: 80,
+    },
+  },
+
   // ── Subscriptions ────────────────────────────────────────────────────────
   // Paid plans (Pro / Studio) are OFF while the offer is reworked. The tiered
   // commission that justified them was never implemented, so the plans were

@@ -7,6 +7,7 @@ import { checkRateLimit, checkNotSuspended } from '@/lib/auth';
 import { STUDIO } from '@/lib/constants';
 import { getCartItems, clearCart } from '@/lib/supabase/queries/cart';
 import { calculateCartPricing, calculateCartPricingPerItem } from '@/lib/cart/pricing';
+import { quoteDelivery, isDeliveryQuote } from '@/lib/delivery/quote';
 import type { CartItemWithRental } from '@/types/cart';
 
 function daysBetween(start: string, end: string): number {
@@ -78,7 +79,48 @@ export async function POST(request: NextRequest) {
   }
 
   const body = await request.json();
-  const { start_date, end_date, notes } = body;
+  const {
+    start_date,
+    end_date,
+    notes,
+    fulfilment_method,
+    payment_plan,
+    delivery_address,
+    delivery_lat,
+    delivery_lng,
+  } = body;
+
+  // ── Fulfilment ────────────────────────────────────────────────────────────
+  // Never trust a fee sent by the client. We take the address and recalculate
+  // the delivery charge here with the same pure function the cart used, so a
+  // customer can only ever be charged a number this server worked out.
+  const fulfilment: 'collection' | 'delivery' =
+    fulfilment_method === 'delivery' ? 'delivery' : 'collection';
+
+  const plan: 'full' | 'deposit_only' =
+    fulfilment === 'collection' &&
+    payment_plan === 'deposit_only' &&
+    STUDIO.fulfilment.collection.allowBalanceOnCollection
+      ? 'deposit_only'
+      : 'full';
+
+  let deliveryFee = 0;
+  let deliveryDistanceKm: number | null = null;
+
+  if (fulfilment === 'delivery') {
+    if (!STUDIO.fulfilment.delivery.enabled) {
+      return NextResponse.json(
+        { error: 'Delivery is not available at the moment. Please choose collection.' },
+        { status: 400 },
+      );
+    }
+    if (typeof delivery_address !== 'string' || delivery_address.trim().length < 10) {
+      return NextResponse.json(
+        { error: 'A delivery address is required.' },
+        { status: 400 },
+      );
+    }
+  }
 
   const items = await getCartItems(user.id);
 
@@ -174,6 +216,40 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Invalid pricing calculation.' }, { status: 500 });
   }
 
+  // Now that we know the order size, price the delivery.
+  if (fulfilment === 'delivery') {
+    const quote = quoteDelivery({
+      destination:
+        typeof delivery_lat === 'number' && typeof delivery_lng === 'number'
+          ? { lat: delivery_lat, lng: delivery_lng }
+          : null,
+      itemCount: pricing.itemCount,
+    });
+
+    if (!isDeliveryQuote(quote)) {
+      const message =
+        quote.reason === 'out_of_range'
+          ? `That address is about ${quote.distanceKm}km away, beyond our ${quote.maxRadiusKm}km delivery radius. Please choose collection, or contact us for a delivery quote.`
+          : 'We could not locate that address precisely enough to price delivery. Please pick it from the suggestions, or choose collection.';
+      return NextResponse.json({ error: message }, { status: 400 });
+    }
+
+    deliveryFee = quote.fee;
+    deliveryDistanceKm = quote.distanceKm;
+  }
+
+  // What the customer pays right now.
+  //   full         -> hire, less discount, plus deposits, plus any delivery
+  //   deposit_only -> deposits only; the hire charge is settled at the counter
+  const hireCharge = pricing.subtotal - pricing.bulkDiscountAmount;
+  const balanceDue = plan === 'deposit_only' ? Math.round(hireCharge * 100) / 100 : 0;
+  const amountDueNow =
+    Math.round((pricing.grandTotal + deliveryFee - balanceDue) * 100) / 100;
+
+  if (amountDueNow <= 0) {
+    return NextResponse.json({ error: 'Nothing payable on this order.' }, { status: 400 });
+  }
+
   // Create bookings with shared checkout_group_id
   const adminClient = createAdminClient();
   const checkoutGroupId = crypto.randomUUID();
@@ -195,6 +271,21 @@ export async function POST(request: NextRequest) {
       status: 'pending' as const,
       notes: notes?.trim() || null,
       checkout_group_id: checkoutGroupId,
+      fulfilment_method: fulfilment,
+      payment_plan: plan,
+      // The delivery charge and outstanding balance belong to the order, not
+      // to each line, so they are recorded once against the first booking in
+      // the group to avoid multiplying them by the number of items.
+      ...(item.rental_id === items[0]?.rental_id
+        ? {
+            delivery_address: fulfilment === 'delivery' ? String(delivery_address).trim() : null,
+            delivery_lat: fulfilment === 'delivery' ? delivery_lat : null,
+            delivery_lng: fulfilment === 'delivery' ? delivery_lng : null,
+            delivery_distance_km: deliveryDistanceKm,
+            delivery_fee: fulfilment === 'delivery' ? deliveryFee : null,
+            balance_due: balanceDue > 0 ? balanceDue : null,
+          }
+        : {}),
     };
   });
 
@@ -223,7 +314,7 @@ export async function POST(request: NextRequest) {
 
     const checkoutParams = {
       paymentId: checkoutGroupId,
-      amount: pricing.grandTotal,
+      amount: amountDueNow,
       itemName: `Equipment Rental (${items.length} items)`,
       itemDescription: `${itemDescription} — ${dateLabel}`,
       email: user.email ?? undefined,
@@ -261,10 +352,12 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  // Create payment records
+  // Create payment records. These are the reconciliation record: their sum is
+  // exactly what we asked the gateway to charge, which is what the webhook
+  // checks the receipt against.
   const paymentRecords = bookings.map((b) => ({
     booking_id: b.id,
-    amount: pricing.grandTotal / bookings.length,
+    amount: Math.round((amountDueNow / bookings.length) * 100) / 100,
     currency,
     status: 'pending' as const,
   }));

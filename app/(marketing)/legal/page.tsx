@@ -122,9 +122,10 @@ export default function LegalPage() {
           </Section>
 
           <Section title="11. Collection and Return">
-            <p>Collection, delivery, and return arrangements are agreed with you directly for each booking and confirmed in writing before the hire starts. We operate from {STUDIO.locations.map((l) => l.city).join(' and ')}, {STUDIO.location.province}. Delivery outside these areas is arranged on request and any additional fee is quoted to you before you pay.</p>
-            <p>Our business hours are {STUDIO.hours.weekday}, {STUDIO.hours.weekend}, {STUDIO.hours.sunday}. Collections and returns outside these hours are by prior arrangement only, and a fee may apply.</p>
-            <p>The person collecting must be the verified account holder, or a person you have nominated to us in writing before collection.</p>
+            <p>You choose collection or delivery at checkout.</p>
+            <p><span className="text-white">Collection.</span> Collect from our {STUDIO.location.city} studio during business hours. You may pay in full online, or pay the security deposit online to hold the equipment and settle the hire charge when you collect. The person collecting must be the verified account holder, or someone you have nominated to us in writing beforehand.</p>
+            <p><span className="text-white">Delivery.</span> We deliver in our own vehicle within {STUDIO.fulfilment.delivery.maxRadiusKm}km of our studio. The delivery fee is calculated from the road distance to your address and the size of your order, and the exact amount is shown to you at checkout before you pay. Beyond that radius, contact us for a quote. Delivery is charged in full at checkout and is not refundable once the vehicle has been dispatched.</p>
+            <p>We operate from {STUDIO.locations.map((l) => l.city).join(' and ')}, {STUDIO.location.province}. Our business hours are {STUDIO.hours.weekday}, {STUDIO.hours.weekend}, {STUDIO.hours.sunday}. Collections, deliveries and returns outside these hours are by prior arrangement only, and a fee may apply.</p>
             <p>Each item is inspected and its condition recorded with photographs both when it leaves us and when it comes back. That pair of records is what your deposit is assessed against. You are welcome to be present at either inspection, and to ask us for a copy of both records.</p>
           </Section>
 
