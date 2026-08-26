@@ -37,5 +37,12 @@ export default defineConfig({
     port: 3000,
     timeout: 120_000,
     reuseExistingServer: !process.env.CI,
+    env: {
+      // proxy.ts validates the Origin header on every API mutation against
+      // NEXT_PUBLIC_APP_URL. Left pointing at production, every browser-driven
+      // POST from the suite is rejected with "Invalid origin." -- which is the
+      // CSRF guard working correctly against a misconfigured test server.
+      NEXT_PUBLIC_APP_URL: 'http://localhost:3000',
+    },
   },
 });
