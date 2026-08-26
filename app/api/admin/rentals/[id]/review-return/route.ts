@@ -158,7 +158,7 @@ export async function POST(
         type: 'rental_return_reviewed',
         title: deposit_action === 'dispute' ? 'Return Disputed' : 'Return Reviewed',
         body: notifBody,
-        link: `/dashboard/rentals/${id}`,
+        link: `/dashboard/bookings/${id}`,
       });
     } catch {
       // Don't block the review on notification failure

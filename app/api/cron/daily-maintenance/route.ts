@@ -285,7 +285,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
         type: 'rental_overdue',
         title: 'Your rental is overdue',
         body: 'Please return your gear. Late fees may apply.',
-        link: `/dashboard/rentals/${booking.id}`,
+        link: `/dashboard/bookings/${booking.id}`,
       });
     }
 

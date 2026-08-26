@@ -171,10 +171,12 @@ export async function PATCH(
       if (dispute.equipment_booking_id) {
         const { data: eb } = await supabase
           .from('equipment_bookings')
-          .select('payment_reference, total_price')
+          .select('payfast_payment_id, total_price')
           .eq('id', dispute.equipment_booking_id)
           .single();
-        paymentReference = eb?.payment_reference ?? null;
+        // Legacy column name: this holds the gateway reference regardless of
+        // which provider took the payment.
+        paymentReference = eb?.payfast_payment_id ?? null;
 
         if (paymentReference) {
           const refundAmount = resolution === 'partial_refund' ? resolution_amount : undefined;
