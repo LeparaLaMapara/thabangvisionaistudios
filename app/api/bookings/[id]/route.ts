@@ -184,7 +184,7 @@ export async function PUT(
 /**
  * Applies an update, retrying without the cancellation_* fields if the database
  * does not have them yet. Migrations here are applied by hand
- * (lib/migrations/038-cancellation-refunds.sql), so cancelling must not break
+ * (lib/migrations/045-cancellation-refunds.sql), so cancelling must not break
  * in an environment where 038 has not been run.
  */
 async function updateBooking(
@@ -207,7 +207,7 @@ async function updateBooking(
   // 42703 = undefined_column; PostgREST surfaces the same thing as PGRST204.
   if (result.error && (result.error.code === '42703' || result.error.code === 'PGRST204')) {
     console.warn(
-      '[bookings/[id]] cancellation columns missing — run lib/migrations/038-cancellation-refunds.sql',
+      '[bookings/[id]] cancellation columns missing — run lib/migrations/045-cancellation-refunds.sql',
     );
     const fallback = Object.fromEntries(
       Object.entries(update).filter(([k]) => !k.startsWith('cancellation_')),

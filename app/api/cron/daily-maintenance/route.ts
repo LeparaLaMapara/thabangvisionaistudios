@@ -199,7 +199,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   try {
     const expiryCutoff = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString();
     const { data: expired } = await supabase
-      .from('creator_requests')
+      .from('crew_requests')
       .update({
         status: 'expired',
         updated_at: now.toISOString(),
