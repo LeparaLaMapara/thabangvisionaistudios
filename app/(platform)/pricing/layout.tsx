@@ -27,7 +27,7 @@ const FAQ_ITEMS = [
   },
   {
     question: 'What payment methods do you accept?',
-    answer: 'We accept credit cards, debit cards, and EFT via our secure payment partner Paystack. All prices are in South African Rand (ZAR).',
+    answer: 'We accept South African credit cards, debit cards, and EFT through our authorised payment gateway. All prices are in South African Rand (ZAR).',
   },
   {
     question: 'Does it cost anything to join?',

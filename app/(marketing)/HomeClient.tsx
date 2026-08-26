@@ -296,7 +296,7 @@ const TrustSignals = () => (
       <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
         {[
           { icon: BadgeCheck, label: 'Identity-Verified Creators', detail: 'Every creator passes ID verification' },
-          { icon: Lock, label: 'Secure Payments', detail: 'Protected by PayFast & Paystack' },
+          { icon: Lock, label: 'Secure Payments', detail: 'Encrypted checkout, cards never stored' },
           { icon: ShieldCheck, label: 'Deposit Protection', detail: 'Your deposit is secured until delivery' },
           { icon: Star, label: 'Rated & Reviewed', detail: 'Real reviews from real clients' },
         ].map((item) => (

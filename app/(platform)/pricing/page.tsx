@@ -96,7 +96,7 @@ export default function PricingPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  // Show cancellation notice if redirected back from PayFast
+  // Show cancellation notice if redirected back from the payment gateway
   const cancelled = searchParams.get('subscription') === 'cancelled';
 
   useEffect(() => {
@@ -365,7 +365,7 @@ export default function PricingPage() {
             All prices in {STUDIO.currency.code}. {STUDIO.shortName} is the seller of record on
             every order. Where you supply an item or service, we retain a{' '}
             {STUDIO.creators.commissionRate}% commission and pay you the balance. Payments
-            processed securely via Paystack.{' '}
+            processed securely via our authorised payment gateway.{' '}
             <Link
               href="/contact"
               className="text-black dark:text-white underline underline-offset-2"
@@ -456,7 +456,7 @@ function PayAsYouGoPricing() {
 
         <p className="text-center text-[9px] font-mono uppercase tracking-[0.2em] text-neutral-400 dark:text-neutral-600 mt-16">
           All prices in {STUDIO.currency.code}. {STUDIO.shortName} is the seller of record on
-          every order. Payments processed securely via Paystack.{' '}
+          every order. Payments processed securely via our authorised payment gateway.{' '}
           <Link href="/contact" className="text-black dark:text-white underline underline-offset-2">
             Questions? Contact us
           </Link>

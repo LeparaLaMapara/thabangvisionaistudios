@@ -77,7 +77,7 @@ export default function LegalPage() {
             ) : (
               <p>Where VAT becomes applicable it is shown separately at checkout and on your invoice.</p>
             )}
-            <p>Payments are processed by our authorised payment providers, Paystack and PayFast, over secure encrypted connections. We accept South African debit and credit cards together with the other payment methods presented at checkout. {STUDIO.shortName} does not store your full card details on our servers.</p>
+            <p>Card payments are processed by our authorised payment gateway, a registered South African payment service provider, over secure encrypted connections. We accept South African debit and credit cards together with the other payment methods presented at checkout. {STUDIO.shortName} does not store your full card details on our servers.</p>
             <p>Payment is collected by {STUDIO.legal.companyName} as principal. Funds are not held in escrow or in trust for any third party, and no part of your payment is disbursed to a third party on your behalf.</p>
             <p>A booking is confirmed only once payment or the required deposit has been received and we have sent you a written confirmation.</p>
           </Section>
