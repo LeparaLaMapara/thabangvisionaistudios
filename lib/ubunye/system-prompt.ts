@@ -245,7 +245,7 @@ ${PRODUCTION_SERVICES.edge.map(e => `- ${e}`).join('\n')}
 ===== RENTAL TERMS =====
 Deposit: ${STUDIO.rental.depositPercent}% required
 Multi-day discount: 7+ days = weekly rate applies
-Cancellation: ${STUDIO.rental.cancellationHours} hours notice
+Cancellation (equipment): full refund of the hire over 48h notice, 50% between 24-48h, none inside 24h. Security deposit always refunded in full. Processed automatically.
 Max booking: ${STUDIO.rental.maxBookingDays} days
 
 ${STUDIO.subscriptions.enabled ? `===== PRICING PLANS =====

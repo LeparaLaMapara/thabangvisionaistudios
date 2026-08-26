@@ -72,8 +72,8 @@ export default function LegalPage() {
 
           <Section title="6. Pricing and Payment">
             <p>All prices are quoted in South African Rand ({STUDIO.currency.code}).</p>
-            {STUDIO.legal.vatNumber ? (
-              <p>{STUDIO.legal.companyName} is registered for Value-Added Tax under VAT registration number {STUDIO.legal.vatNumber}. Equipment hire prices shown on this site include VAT at {STUDIO.booking.vatRate}%, and the VAT portion is itemised in your cart and on your invoice. Production and creative service rates are shown excluding VAT; VAT at {STUDIO.booking.vatRate}% is added at checkout and shown as a separate line on your quote and invoice. Refundable security deposits are not subject to VAT.</p>
+            {STUDIO.legal.vatRegistered ? (
+              <p>{STUDIO.legal.companyName} is a registered VAT vendor{STUDIO.legal.vatNumber ? ` under VAT registration number ${STUDIO.legal.vatNumber}` : ''}. Equipment hire prices shown on this site include VAT at {STUDIO.booking.vatRate}%, and the VAT portion is itemised in your cart and on your invoice. Production and creative service rates are shown excluding VAT; VAT at {STUDIO.booking.vatRate}% is added at checkout and shown as a separate line on your quote and invoice. Refundable security deposits are not subject to VAT. Our VAT registration number appears on every tax invoice we issue.</p>
             ) : (
               <p>Where VAT becomes applicable it is shown separately at checkout and on your invoice.</p>
             )}
@@ -125,7 +125,7 @@ export default function LegalPage() {
             <p>Collection, delivery, and return arrangements are agreed with you directly for each booking and confirmed in writing before the hire starts. We operate from {STUDIO.locations.map((l) => l.city).join(' and ')}, {STUDIO.location.province}. Delivery outside these areas is arranged on request and any additional fee is quoted to you before you pay.</p>
             <p>Our business hours are {STUDIO.hours.weekday}, {STUDIO.hours.weekend}, {STUDIO.hours.sunday}. Collections and returns outside these hours are by prior arrangement only, and a fee may apply.</p>
             <p>The person collecting must be the verified account holder, or a person you have nominated to us in writing before collection.</p>
-            <p>When you return equipment you must record its condition and upload photographs of each item as part of the return. That record, together with the condition recorded when the equipment left us, is what the deposit is assessed against. Please keep your own copies.</p>
+            <p>Each item is inspected and its condition recorded with photographs both when it leaves us and when it comes back. That pair of records is what your deposit is assessed against. You are welcome to be present at either inspection, and to ask us for a copy of both records.</p>
           </Section>
 
           <Section title="12. Late Return and Overdue Equipment">
@@ -185,7 +185,8 @@ export default function LegalPage() {
             <p>Cancellation windows, deposit release, refund timeframes, faulty or misdescribed equipment, and your cooling off rights are all set out in our{' '}
               <Link href="/refunds" className={link}>Refunds, Returns and Cancellations Policy</Link>, which forms part of these terms.
             </p>
-            <p>In summary: if we cancel your booking, or cannot supply what you paid for, you receive a full refund of everything you paid with no deduction. If you cancel, contact us as early as you can. What is refundable depends on how close to the hire or shoot date you cancel and on costs already committed on your behalf.</p>
+            <p>In summary: if we cancel your booking, or cannot supply what you paid for, you receive a full refund of everything you paid with no deduction.</p>
+            <p>If you cancel an equipment hire, the refund is worked out from the notice you give and processed automatically. More than 48 hours before the hire starts, the hire charge is refunded in full; between 24 and 48 hours, half is refunded; inside 24 hours the hire charge is not refunded. Your security deposit comes back in full either way. You are shown the exact figures before you confirm.</p>
             <p>Nothing in these terms limits your rights under the Consumer Protection Act 68 of 2008 or the Electronic Communications and Transactions Act 25 of 2002.</p>
           </Section>
 

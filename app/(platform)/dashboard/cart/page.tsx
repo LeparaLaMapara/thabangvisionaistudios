@@ -417,7 +417,7 @@ export default function CartPage() {
                 <span className="text-neutral-400">R {pricing.totalDeposit.toLocaleString()}</span>
               </div>
 
-              {STUDIO.legal.vatNumber && (
+              {STUDIO.legal.vatRegistered && (
                 <div className="flex justify-between text-xs font-mono">
                   <span className="text-neutral-500">
                     Incl. VAT ({pricing.vatRate}%)

@@ -36,13 +36,17 @@ export const STUDIO = {
   },
 
   legal: {
-    companyName: 'THABANGVISION STUDIO (Pty) Ltd',
+    companyName: 'ThabangVision Studios (Pty) Ltd',
     tradingAs: 'Thabang Vision AI Studios',
     registrationNumber: '2025/742948/07',
     // Registered business address. MUST match the address on the Paystack dashboard.
     // Rendered in the footer and Terms of Service only when non-empty.
     registeredAddress: '9873 Extension 5, Soshanguve South, Pretoria, South Africa',
-    // VAT number. Leave empty if not VAT registered — pricing copy adapts.
+    // Whether the company is a registered VAT vendor. This — not vatNumber —
+    // is what drives VAT wording and the VAT line at checkout.
+    vatRegistered: true,
+    // The VAT number itself. Optional: a vendor must show it on a tax invoice,
+    // but is not obliged to publish it on the website. Rendered only if set.
     vatNumber: '',
     // POPIA requires a designated Information Officer, registered with the
     // Information Regulator. Rendered on /privacy only once the name is filled.
@@ -129,7 +133,19 @@ export const STUDIO = {
     depositPercent: 50,
     maxBookingDays: 30,
     maxDirectBookingDays: 365,
+    // Final tier boundary below. Kept as its own value because tests and the
+    // Ubunye system prompt read it directly.
     cancellationHours: 24,
+    // Tiered cancellation scale for equipment hire, applied automatically by
+    // app/api/bookings/[id]/route.ts. refundPercent applies to the HIRE charge
+    // only — the security deposit is always refunded in full on cancellation,
+    // because the equipment never left our premises.
+    // Ordered most-notice-first; the first matching tier wins.
+    cancellationTiers: [
+      { minHoursBefore: 48, refundPercent: 100 },
+      { minHoursBefore: 24, refundPercent: 50 },
+      { minHoursBefore: 0, refundPercent: 0 },
+    ],
     maxCartItems: 10,
     bulkDiscount: [
       { minItems: 1, maxItems: 2, discountPercent: 0 },
@@ -241,7 +257,7 @@ export const STUDIO = {
     vatRate: 15,
     minBookingHours: 1,
     maxBookingHours: 72,
-    cancellationPolicy: 'Free cancellation up to 48 hours before the shoot. After that, the full amount is non-refundable.',
+    cancellationPolicy: 'Cancel more than 48 hours before the shoot for a full refund. Between 24 and 48 hours, 50% is refunded. Inside 24 hours the booking is non-refundable, because crew and equipment are already committed.',
     autoCompleteAfterDays: 30,
     projectCategories: [
       'Wedding Photography',

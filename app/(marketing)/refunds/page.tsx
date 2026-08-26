@@ -46,7 +46,7 @@ export default function RefundsPage() {
 
           <Section title="2. Security Deposits on Equipment Hire">
             <p>Every equipment hire carries a refundable security deposit, shown on the listing and in your cart before you pay. It is a fixed amount per item, not a percentage of the hire, and it is held against late return, damage, and loss.</p>
-            <p>When you return the equipment you record its condition and upload photographs. We then inspect each item against the condition recorded when it left us, and the deposit is settled in one of four ways:</p>
+            <p>When the equipment comes back we inspect each item and photograph its condition, then compare it against the record made when it left us. The deposit is then settled in one of four ways:</p>
             <ul className="list-disc pl-5 space-y-1">
               <li><span className="text-white">Released in full</span> — everything came back on time and in the condition it went out in.</li>
               <li><span className="text-white">Released in part</span> — a deduction is made for a late return, damage, or a missing item, and the balance is refunded to you.</li>
@@ -70,12 +70,15 @@ export default function RefundsPage() {
           </Section>
 
           <Section title="5. Cancelling an Equipment Hire">
-            <p>You can cancel an equipment booking from your dashboard while it is still pending payment or confirmed. Once a hire has started, contact us instead.</p>
-            <p><span className="text-white">Refunds on cancellation are not automatic.</span> When you cancel, tell us at{' '}
-              <a href={`mailto:${STUDIO.supportEmail}`} className={link}>{STUDIO.supportEmail}</a>{' '}
-              with your booking reference and we will assess the refund and process it manually. What is refundable depends on how close to the hire start date you cancel and on costs we have already committed on your behalf, such as cross-hired equipment.
-            </p>
-            <p>Cancel as early as you can. A cancellation well before the hire date is normally refunded in full.</p>
+            <p>You can cancel an equipment booking yourself from your dashboard while it is still pending payment or confirmed. Once the equipment has been released to you, the return process applies instead and you should contact us.</p>
+            <p>The refund is worked out automatically from how much notice you give, and processed to the card you paid with. You are shown the exact amount before you confirm the cancellation.</p>
+            <ul className="list-disc pl-5 space-y-1">
+              <li><span className="text-white">More than 48 hours before the hire starts</span> — the hire charge is refunded in full.</li>
+              <li><span className="text-white">Between 24 and 48 hours before</span> — 50% of the hire charge is refunded.</li>
+              <li><span className="text-white">Less than 24 hours before, or after the hire has started</span> — the hire charge is not refunded, because the equipment has been held for you and turned away from other bookings.</li>
+            </ul>
+            <p><span className="text-white">Your security deposit is always refunded in full when you cancel</span>, whatever notice you give. It secures equipment against damage and late return, and on a cancellation no equipment ever left us.</p>
+            <p>If the automatic refund fails for any reason, your booking is still cancelled and we complete the refund by hand. We will tell you if that happens.</p>
           </Section>
 
           <Section title="6. Cancelling a Production or Creative Service Booking">

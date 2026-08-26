@@ -6,7 +6,13 @@ import { createAdminClient } from '@/lib/supabase/server';
 
 // ─── Valid status transitions for equipment bookings ────────────────────────
 
-const VALID_STATUSES = ['confirmed', 'cancelled', 'active', 'returned', 'completed'] as const;
+// Must stay in sync with the equipment_bookings status CHECK constraint
+// (supabase/migrations/20260411000002_gear_return.sql). 'returned' is NOT a
+// valid value there — the pipeline uses 'return_pending' -> 'return_reviewed'.
+const VALID_STATUSES = [
+  'confirmed', 'cancelled', 'active',
+  'return_pending', 'return_reviewed', 'completed', 'overdue', 'disputed',
+] as const;
 type AdminUpdateStatus = (typeof VALID_STATUSES)[number];
 
 // ─── PATCH — Admin update equipment booking status ──────────────────────────

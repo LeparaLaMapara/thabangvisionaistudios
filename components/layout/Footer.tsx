@@ -104,6 +104,17 @@ export const Footer = () => {
                 {status === 'error' && (
                   <p className="text-red-500 text-xs font-mono mt-2">{errorMsg}</p>
                 )}
+                <p className="text-[10px] font-mono text-neutral-500 mt-3 leading-relaxed">
+                  By subscribing you agree to receive occasional marketing email from us.
+                  You can{' '}
+                  <Link href="/unsubscribe" className="underline underline-offset-2 hover:text-black dark:hover:text-white transition-colors">
+                    unsubscribe
+                  </Link>{' '}
+                  at any time. See our{' '}
+                  <Link href="/privacy" className="underline underline-offset-2 hover:text-black dark:hover:text-white transition-colors">
+                    Privacy Policy
+                  </Link>.
+                </p>
               </form>
             )}
 
@@ -129,7 +140,9 @@ export const Footer = () => {
         <div className="border-t border-black/5 dark:border-white/5 pt-10 pb-8 text-[11px] font-mono text-neutral-500 dark:text-neutral-600 leading-relaxed space-y-1">
           <p>{STUDIO.legal.companyName} | Registration number {STUDIO.legal.registrationNumber}</p>
           {STUDIO.legal.registeredAddress && <p>{STUDIO.legal.registeredAddress}</p>}
-          {STUDIO.legal.vatNumber && <p>VAT number {STUDIO.legal.vatNumber}</p>}
+          {STUDIO.legal.vatNumber
+            ? <p>VAT number {STUDIO.legal.vatNumber}</p>
+            : STUDIO.legal.vatRegistered && <p>Registered VAT vendor</p>}
           <p>
             {STUDIO.phone} |{' '}
             <a href={`mailto:${STUDIO.email}`} className="hover:text-black dark:hover:text-white transition-colors">
