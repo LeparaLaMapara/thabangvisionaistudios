@@ -25,6 +25,7 @@ function makeItem(overrides: Partial<CartItemWithRental['rental']> & { quantity?
       currency: 'ZAR',
       is_available: true,
       thumbnail_url: null,
+      quantity: 1,
       ...rentalOverrides,
     },
   };

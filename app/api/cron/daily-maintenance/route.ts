@@ -42,6 +42,38 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     results.rateLimitPruneError = String(err);
   }
 
+  // ─── 0b. Release expired equipment checkout holds ────────────────────────
+  // A hold is taken at CHECKOUT, before payment. Without an expiry an
+  // abandoned payment page removed those dates from sale permanently -- five
+  // ranges were stuck on production, the oldest for 161 days.
+  //
+  // Keyed on payment being absent, not on status alone: a PAID booking still
+  // sitting in 'pending' because a webhook has not landed must never be
+  // released, or the gear gets sold twice.
+  try {
+    const holdCutoff = new Date(
+      now.getTime() - STUDIO.rental.pendingHoldMinutes * 60_000,
+    ).toISOString();
+
+    const { data: released, error } = await supabase
+      .from('equipment_bookings')
+      .update({
+        status: 'cancelled',
+        cancelled_at: now.toISOString(),
+        updated_at: now.toISOString(),
+        cancellation_refund_status: 'not_required',
+      })
+      .eq('status', 'pending')
+      .is('payfast_payment_id', null)
+      .lt('created_at', holdCutoff)
+      .select('id');
+
+    if (error) throw new Error(error.message);
+    results.expiredHoldsReleased = released?.length ?? 0;
+  } catch (err) {
+    results.expiredHoldsError = String(err);
+  }
+
   // ─── 1. Cancel unpaid bookings > 72 hours ─────────────────────────────────
   try {
     const cutoff = new Date(now.getTime() - 72 * 60 * 60 * 1000).toISOString();

@@ -21,6 +21,8 @@ export interface CartItemWithRental extends CartItem {
     currency: string;
     is_available: boolean;
     thumbnail_url: string | null;
+    /** Units of this listing in stock. Availability counts units, not bookings. */
+    quantity: number | null;
   };
 }
 
