@@ -145,6 +145,18 @@ export const STUDIO = {
     // for 161 days. Long enough that nobody actively paying loses a booking,
     // short enough that a Saturday abandonment does not cost Sunday's rental.
     pendingHoldMinutes: 30,
+    /**
+     * Notice a hire needs before it starts, in HOURS not days.
+     *
+     * Gear could previously be booked for tomorrow, or today. Stock has to be
+     * checked, charged and put aside first.
+     *
+     * Hours rather than calendar days on purpose: bookings are date-granular,
+     * so "two days" would accept a Sunday-morning hire booked Friday afternoon,
+     * which is about 44. Measured against the START of the booking day, so the
+     * customer always gets at least this much. See lib/rental/leadTime.ts.
+     */
+    minLeadTimeHours: 48,
     cancellationHours: 24,
     // Tiered cancellation scale for equipment hire, applied automatically by
     // app/api/bookings/[id]/route.ts. refundPercent applies to the HIRE charge

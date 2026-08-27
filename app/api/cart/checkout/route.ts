@@ -10,6 +10,7 @@ import { calculateCartPricing, calculateCartPricingPerItem } from '@/lib/cart/pr
 import { quoteDelivery, isDeliveryQuote } from '@/lib/delivery/quote';
 import { checkAvailability, availabilityMessage, type BookingHold } from '@/lib/rental/availability';
 import { recordUnmetDemandAsync } from '@/lib/demand/record';
+import { meetsLeadTime, leadTimeMessage } from '@/lib/rental/leadTime';
 import type { CartItemWithRental } from '@/types/cart';
 
 function daysBetween(start: string, end: string): number {
@@ -33,9 +34,17 @@ function validateDateRange(
     return `end_date must be after start_date${label}.`;
   }
   const now = new Date();
-  now.setHours(0, 0, 0, 0);
-  if (start < now) {
+  const midnight = new Date(now);
+  midnight.setHours(0, 0, 0, 0);
+  if (start < midnight) {
     return `Cannot book for past dates${label}.`;
+  }
+
+  // Equipment needs notice so it can be checked, charged and put aside. Enforced
+  // here as well as in the picker: a browser-side minimum is a courtesy, not a
+  // rule, and this endpoint takes the money.
+  if (!meetsLeadTime(startStr, now)) {
+    return `${leadTimeMessage(now)}${label ? ` (${label.trim()})` : ''}`;
   }
   const days = daysBetween(startStr, endStr);
   if (days > STUDIO.rental.maxBookingDays) {

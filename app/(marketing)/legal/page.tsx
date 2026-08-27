@@ -87,6 +87,7 @@ export default function LegalPage() {
           <Section title="7. Eligibility to Hire">
             <p>Equipment may only be hired by an account that has completed identity verification. Our checkout will not accept an equipment order from an unverified account. You must be 18 years or older.</p>
             <p>The verified account holder is the hirer and is responsible for the equipment for the entire hire period. Where you hire on behalf of a production, agency, or end client, or act as a facilitator or fixer, you remain the hirer and remain liable for payment and for the equipment, whether or not your own client settles with you.</p>
+            <p>Equipment must be booked at least {STUDIO.rental.minLeadTimeHours} hours before the hire begins, so that it can be checked, charged and prepared for you. Because hires are booked by the day, this is measured to the start of your first hire day, which means the earliest date you can select is usually two to three days ahead depending on when you book. Shorter notice may be possible by arrangement, but cannot be booked online.</p>
             <p>A single cart hire may run for up to {STUDIO.rental.maxBookingDays} days and contain up to {STUDIO.rental.maxCartItems} items. Longer hires are arranged directly with us. Equipment already booked for your dates cannot be double-booked, and our checkout will tell you if a conflict exists.</p>
           </Section>
 

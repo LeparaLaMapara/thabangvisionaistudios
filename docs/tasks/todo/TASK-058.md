@@ -1,23 +1,32 @@
-# TASK-058: Minimum booking lead time for equipment hire
-## Priority: HIGH | Phase: V4 | Depends on: none
-## Files allowed: lib/constants.ts, app/api/cart/checkout/route.ts, app/(platform)/book/BookingForm.tsx, app/(marketing)/legal/page.tsx, tests/unit/
+# TASK-058: Minimum booking lead time — SHOOTS OUTSTANDING
+## Priority: MEDIUM | Phase: V4 | Depends on: none
+## Files allowed: lib/constants.ts, lib/bookings/validate.ts, app/(platform)/book/BookingForm.tsx, app/(marketing)/legal/page.tsx, tests/unit/
 ## Description
-Gear can currently be booked for tomorrow, or today. `validateDateRange` only
-blocks past dates and caps at 30 days. The founder wants roughly two days'
-notice so stock can be prepared and collected.
+GEAR IS DONE (2026-08-27). `STUDIO.rental.minLeadTimeHours = 48`, enforced in
+the checkout API and in the date picker from the same module
+(`lib/rental/leadTime.ts`), stated in Terms, 17 unit tests.
 
-BLOCKED ON A DECISION, asked 2026-08-27 and not yet answered:
-  1. Two calendar days, or 48 hours? Friday for Sunday 09:00 is two calendar
-     days but about 44 hours.
-  2. Gear only, or shoots as well? The ask was "especially for gear".
+Answer given: 48 HOURS, not two calendar days. Because hires are booked by the
+day, the rule compares against the START of the first hire day, so notice is
+never below 48 and works out at two to three days depending on the hour of
+booking.
 
-The booking form already defaults its date picker to tomorrow, so shoots have
-one day of notice by accident, enforced only in the browser.
+STILL OPEN: does the same apply to production shoots? The question was asked as
+two parts and only the first was answered. The original framing was "especially
+for gear", so gear was treated as definite and shoots left alone.
+
+Two things worth knowing when deciding:
+  - The shoot booking form defaults its date picker to tomorrow, but that is
+    enforced only in the browser. `lib/bookings/validate.ts` does not check the
+    date at all, so any future date can be posted directly.
+  - The existing shoot cancellation policy already treats 48 hours as the
+    meaningful threshold ("full refund over 48 hours"), so 48 would be
+    consistent with the policy already in the Terms.
 ## Acceptance criteria
-- [ ] `STUDIO.rental.minLeadTimeDays` (or Hours) in lib/constants.ts, single source
-- [ ] Enforced server-side in validateDateRange so it cannot be bypassed
-- [ ] The date picker minimum reads the SAME constant — never API-only, or the
-      customer fills in the form and is refused at the end
-- [ ] Stated in Terms, since it is a condition of hire
-- [ ] Unit tests at the boundary: exactly at the limit, one short, one over
-- [ ] npm run build passes, npm run test passes
+- [ ] Decide whether shoots need notice, and how much
+- [ ] If yes: a `STUDIO.booking.minLeadTimeHours` constant, enforced in
+      lib/bookings/validate.ts (server) and read by the form's picker
+- [ ] Regardless of the answer: close the browser-only hole, so the shoot form's
+      minimum is enforced somewhere the customer cannot edit
+- [ ] Terms updated if the rule changes
+- [ ] Unit tests at the boundary

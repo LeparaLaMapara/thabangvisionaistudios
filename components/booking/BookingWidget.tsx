@@ -19,6 +19,7 @@ import { createClient } from '@/lib/supabase/client';
 import { DateRangePicker, type DateRange } from '@/components/ui/DateRangePicker';
 import { calculateItemPrice } from '@/lib/cart/pricing';
 import { STUDIO } from '@/lib/constants';
+import { earliestBookableDate, leadTimeMessage } from '@/lib/rental/leadTime';
 import type { SmartRental } from '@/lib/supabase/queries/smartRentals';
 
 interface Props {
@@ -57,6 +58,13 @@ export function BookingWidget({ rental }: Props) {
     d.setHours(0, 0, 0, 0);
     return d;
   }, []);
+
+  // The first day a hire may actually start. Read from the same function the
+  // checkout API validates with, so the picker cannot offer a date the server
+  // will refuse — being told no after filling in the whole form is the worst
+  // way to learn a rule.
+  const firstBookable = useMemo(() => earliestBookableDate(new Date()), []);
+  const noticeMessage = useMemo(() => leadTimeMessage(new Date()), []);
 
   const maxDate = useMemo(() => {
     const d = new Date(today);
@@ -267,10 +275,14 @@ export function BookingWidget({ rental }: Props) {
               setAdded(false);
               setError(null);
             }}
-            minDate={today}
+            minDate={firstBookable}
             maxDate={maxDate}
             label="Rental dates"
           />
+
+          <p className="text-[10px] font-mono text-neutral-500 leading-relaxed">
+            {noticeMessage}
+          </p>
 
           {/* Availability indicator */}
           {checkingAvailability && (
