@@ -2,6 +2,7 @@ export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
 import { checkRateLimit } from '@/lib/auth';
+import { recordUnmetDemandAsync } from '@/lib/demand/record';
 import { search } from '@/lib/search';
 import type { SearchResponse, SearchResultItem } from '@/lib/search';
 import { isRagEnabled, searchSimilar } from '@/lib/rag';
@@ -49,6 +50,15 @@ export async function GET(req: NextRequest) {
 
     // If no RAG results, return keyword results as-is
     if (ragResults.length === 0) {
+      // Nothing matched anywhere. Somebody wanted something the catalogue
+      // does not have, which is exactly the signal worth keeping.
+      if (keywordResponse.results.length === 0) {
+        recordUnmetDemandAsync({
+          kind: 'search_no_results',
+          query: q,
+          source: 'search',
+        });
+      }
       return NextResponse.json(keywordResponse satisfies SearchResponse);
     }
 

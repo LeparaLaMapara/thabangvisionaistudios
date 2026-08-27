@@ -2,6 +2,8 @@ export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
 import { NextRequest, NextResponse } from 'next/server';
+import { gatherGrowthMetrics } from '@/lib/growth/metrics';
+import { evaluateCheckpoints, describeCheckpoint } from '@/lib/growth/checkpoints';
 import { validateCronAuth } from '@/lib/cron/auth';
 import { createAdminClient } from '@/lib/supabase/server';
 import { email as emailProvider } from '@/lib/email';
@@ -196,6 +198,37 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     findings.push(...detectStaleWritePaths(rows, now));
   } catch (err) {
     checkErrors['write-path-stale'] = String(err);
+  }
+
+  // ── Growth checkpoints ────────────────────────────────────────────────────
+  // Capabilities that are wrong to build now and right to build later. The
+  // condition lives beside the capability in lib/growth/checkpoints.ts, and
+  // this is where the platform checks its own numbers against them, so the
+  // roadmap is something the system notices rather than something a person has
+  // to remember to re-read.
+  //
+  // Reuses ops_findings for de-duplication: a fingerprint that already exists
+  // is not re-notified, which is exactly the 'crossing the line is news, being
+  // past it is not' rule, already implemented and tested.
+  try {
+    const metrics = await gatherGrowthMetrics(db);
+    for (const reached of evaluateCheckpoints(metrics)) {
+      findings.push({
+        checkId: 'growth-checkpoint',
+        severity: 'info',
+        entityType: 'checkpoint',
+        entityId: reached.checkpoint.id,
+        title: `Checkpoint reached: ${reached.checkpoint.title}`,
+        detail: {
+          summary: describeCheckpoint(reached),
+          condition: reached.checkpoint.condition,
+          autoActivated: reached.checkpoint.autoActivate,
+          metrics: reached.metrics,
+        },
+      });
+    }
+  } catch (err) {
+    checkErrors['growth-checkpoints'] = String(err);
   }
 
   // ── Record ────────────────────────────────────────────────────────────────

@@ -9,6 +9,7 @@ import { getCartItems, clearCart } from '@/lib/supabase/queries/cart';
 import { calculateCartPricing, calculateCartPricingPerItem } from '@/lib/cart/pricing';
 import { quoteDelivery, isDeliveryQuote } from '@/lib/delivery/quote';
 import { checkAvailability, availabilityMessage, type BookingHold } from '@/lib/rental/availability';
+import { recordUnmetDemandAsync } from '@/lib/demand/record';
 import type { CartItemWithRental } from '@/types/cart';
 
 function daysBetween(start: string, end: string): number {
@@ -225,6 +226,21 @@ export async function POST(request: NextRequest) {
 
     if (!availability.available) {
       unavailableItems.push(availabilityMessage(item.rental.title, availability));
+
+      // The strongest buying signal the platform ever sees: someone got as far
+      // as checkout and was refused. Not awaited — research must never add
+      // latency to, or be able to fail, a checkout.
+      recordUnmetDemandAsync({
+        kind: 'unavailable_dates',
+        query: item.rental.title,
+        source: 'checkout',
+        rentalId: item.rental_id,
+        startDate: itemStart,
+        endDate: itemEnd,
+        requested: availability.requested,
+        available: availability.remaining,
+        userId: user.id,
+      });
     }
   }
 

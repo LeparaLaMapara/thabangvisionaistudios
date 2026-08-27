@@ -238,6 +238,135 @@ done?", and let the shape of what arrives define the schema.
 
 ---
 
+---
+
+## The engine: what turns a marketplace into one
+
+A marketplace forgets. An engine remembers.
+
+That is the whole difference, and it is the thread running through everything
+below. Every transaction on the platform today happens and then evaporates. An
+engine turns each one into a record, and records into capability. If the aim is
+to end up manufacturing, this is how the right to do that gets earned: not by
+deciding to build a camera, but by being the only people who know what South
+African productions actually need and what actually breaks here.
+
+Seven things. Ordered by what compounds soonest, not by what is most exciting.
+
+### 1. Record the demand you cannot serve — BUILT 2026-08-27
+
+The platform had perfect data on what it sold and none on what it could not.
+Someone searched for a drone on the 12th, it was booked, they left, nothing was
+written down.
+
+The unsold half is the more valuable one. It is the list of what to buy next,
+which dates are worth more, what to train people for, and eventually what is
+worth building. Three signals are now captured: a search that returns nothing, a
+checkout refused on availability, and gear asked for that is not carried.
+
+Written best-effort and never awaited, because research must never be able to
+fail a checkout.
+
+### 2. Utilisation, per item — CHECKPOINT: 30 completed bookings
+
+What fraction of days each item earns. Tells you what to buy more of, what to
+sell, what is mispriced, and at the far end what people actually use rather than
+what they say they want. It is a query, not a project, and it is meaningless
+before there are enough bookings for a rate to mean anything.
+
+### 3. Make "a production" a real object — the keystone
+
+Bookings today are per item. A shoot is not items, it is a container: dates,
+location, crew, gear, budget, deliverables.
+
+Make it first-class and four things fall out at once. Gear and crew bookings
+hang off the same object, so team assembly stops being a separate feature. The
+platform learns what a real shoot in South Africa costs. Ubunye stops answering
+questions and starts planning shoots. And self-funded work uses the same object
+as client work.
+
+Most of the rest of this list gets easier once it exists.
+
+### 4. Train people rather than waiting for them — CHECKPOINT: crew arrive first
+
+The platform asks "are you real?" and never asks "are you getting better?" An
+engine has a ladder: apprentice, assistant, operator. Finish a module, unlock
+cheaper gear. Do three assisted jobs, get listed.
+
+This solves the cold-start problem from the other end. You do not wait for
+experienced crew to appear, you make them. It is also the most literal form of
+the first principle, because the ladder is climbed by doing rather than by
+knowing somebody.
+
+### 5. Shoot your own things
+
+Every production on the platform is client work. Add a slot where ThabangVision
+is the client. Idle gear gets used, new crew get a first credit, and output
+becomes a library the company owns rather than a service delivered and
+forgotten. "We shoot our own movies" has to be something the system supports,
+not something done on the side.
+
+### 6. Keep the failure data — it is engineering data — CHECKPOINT: 50 inspections
+
+The return and inspection pipeline already records condition, photos and damage.
+Today that is deposit-dispute evidence. It is also the start of a reliability
+database: what breaks, how often, under dust, heat, bad roads and load-shedding.
+
+A decade of that on real African shoots is something no manufacturer elsewhere
+has, and it is the honest answer to "why would you be able to build a camera?"
+Because you would know what fails here and they would not. It costs nothing
+extra; it is already being collected and thrown away.
+
+### 7. Power as a first-class constraint
+
+Load-shedding is a real planning input for every South African shoot and no
+international tool models it. A production planner that knows about power is
+hard to copy from outside the country.
+
+---
+
+## Checkpoints: the roadmap the platform watches for itself
+
+A plan in a document is a plan somebody has to remember to re-read. Every
+capability above is obviously right eventually and obviously wrong now, and the
+only thing separating those two states is a number nobody is watching.
+
+So the condition lives beside the capability in code
+(`lib/growth/checkpoints.ts`), and the invariants cron checks the platform's own
+numbers against it. Filters on Studio are not "later", they are "at fifteen
+projects across three types". Team assembly is not "phase two", it is "when
+eight crew have filled in a specialisation".
+
+| Capability | Fires at |
+|---|---|
+| Studio filters by type | 15+ projects across 3+ types |
+| Wire up global search | 40+ listings, or 25+ distinct unmet searches |
+| Credits and non-visual portfolios | 5+ crew with a specialisation |
+| Crew calls / team assembly | 8+ crew with a specialisation |
+| Owner joins go live | first community-owned listing |
+| Utilisation reporting | 30+ completed bookings |
+| Reliability database | 50+ inspected returns |
+
+Two levels, deliberately separate. A capability that is purely additive and
+cannot break what exists may flip its own flag. Anything that changes how the
+platform charges, contracts or presents itself is a decision, and the checkpoint
+only says it is time.
+
+**Nothing auto-activates today, and that is the honest answer rather than an
+oversight.** Every gated capability on the list changes how the platform
+presents itself, so every one of them wants a human. The mechanism exists for
+the first one that genuinely does not.
+
+Crossing a line is news; being past it is not. Findings de-duplicate by
+fingerprint through the existing `ops_findings` table, so a checkpoint announces
+itself once.
+
+Verified against production on the day it was built: at 25 listings, 3
+projects, 1 type, 0 crew, 0 community listings and 0 completed bookings,
+**nothing fires**. A test asserts exactly that, so a threshold accidentally set
+below where the platform already stands fails the build rather than sending a
+false alarm.
+
 ## What we are deliberately not doing yet
 
 - Building credits, role taxonomy or audio portfolios. No users yet. See above.
