@@ -351,3 +351,98 @@ export async function getRentalPriceRange(): Promise<RentalPriceRange | null> {
 
   return { min: Math.min(...prices), max: Math.max(...prices) };
 }
+
+/**
+ * Gear one person owns and has live for hire.
+ *
+ * `smart_rentals.owner_id` has always been a foreign key to profiles, but every
+ * use of it in the codebase was administrative — dispute handling, suspension,
+ * cron de-listing. Nothing public ever said "here is this person's gear", so a
+ * creator who owned a mixer had no way to show it.
+ *
+ * This is one half of the loop. The other half is naming the owner on the gear
+ * itself, so renting a camera becomes a route to the person who shoots with it.
+ */
+export async function getRentalsByOwner(ownerId: string): Promise<SmartRental[]> {
+  const supabase = await createClient();
+
+  const { data, error } = await supabase
+    .from('smart_rentals')
+    .select(LIST_COLUMNS)
+    .eq('is_published', true)
+    .eq('is_archived', false)
+    .is('deleted_at', null)
+    .eq('owner_id', ownerId)
+    .order('ranking_score', { ascending: false })
+    .order('created_at', { ascending: false });
+
+  if (error) {
+    console.error('[getRentalsByOwner]', error.message);
+    return [];
+  }
+
+  return (data as unknown as SmartRental[]) ?? [];
+}
+
+/** Public identity of a gear owner, for the "owned by" line on a listing. */
+export type RentalOwner = {
+  id: string;
+  display_name: string | null;
+  avatar_url: string | null;
+  crew_slug: string | null;
+  specializations: string[] | null;
+  is_verified: boolean;
+  /** True when this person is listed as available for hire, not just as an owner. */
+  is_bookable: boolean;
+};
+
+/**
+ * Who owns a listing, when it is community stock.
+ *
+ * Reads `public_profiles`, never `profiles`. The base table has no SELECT
+ * policy for anonymous readers, so querying it here would have silently
+ * returned nothing on every public page. The view is also the one that filters
+ * out suspended accounts, so a suspended owner cannot be reintroduced through
+ * a gear listing.
+ *
+ * Studio-owned gear passes ownerId null and gets null back: "owned by
+ * ThabangVision" on a ThabangVision page is noise. Null is also the answer when
+ * the profile is gone, because a listing must still render without its owner.
+ */
+export async function getRentalOwner(ownerId: string | null): Promise<RentalOwner | null> {
+  if (!ownerId) return null;
+
+  const supabase = await createClient();
+
+  const { data, error } = await supabase
+    .from('public_profiles')
+    .select('id, display_name, avatar_url, crew_slug, specializations, available_for_hire, is_verified')
+    .eq('id', ownerId)
+    .maybeSingle();
+
+  if (error) {
+    console.error('[getRentalOwner]', error.message);
+    return null;
+  }
+  if (!data) return null;
+
+  const row = data as {
+    id: string;
+    display_name: string | null;
+    avatar_url: string | null;
+    crew_slug: string | null;
+    specializations: string[] | null;
+    available_for_hire: boolean | null;
+    is_verified: boolean | null;
+  };
+
+  return {
+    id: row.id,
+    display_name: row.display_name,
+    avatar_url: row.avatar_url,
+    crew_slug: row.crew_slug,
+    specializations: row.specializations,
+    is_verified: Boolean(row.is_verified),
+    is_bookable: Boolean(row.available_for_hire),
+  };
+}

@@ -398,3 +398,33 @@ export async function autoPublishCreatorProductions(): Promise<number> {
 
   return data?.length ?? 0;
 }
+
+/**
+ * Published work by one creator.
+ *
+ * The creator profile page used to render `getPublishedProductions()` sliced to
+ * six, with a comment claiming productions had no owner column. They do:
+ * `creator_id`, with a foreign key. The effect was that every profile showed the
+ * same six projects — other people's work, presented as that person's portfolio.
+ *
+ * `creator_id` references auth.users(id), and a profile id IS the auth user id,
+ * so a profile id is the correct argument here.
+ */
+export async function getProductionsByCreator(creatorId: string): Promise<SmartProduction[]> {
+  const supabase = await createClient();
+
+  const { data, error } = await supabase
+    .from('smart_productions')
+    .select('*')
+    .eq('is_published', true)
+    .eq('creator_id', creatorId)
+    .is('deleted_at', null)
+    .order('year', { ascending: false, nullsFirst: false });
+
+  if (error) {
+    console.error('[getProductionsByCreator]', error.message);
+    return [];
+  }
+
+  return (data as SmartProduction[]) ?? [];
+}

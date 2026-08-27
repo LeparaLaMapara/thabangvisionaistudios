@@ -1,8 +1,9 @@
 export const revalidate = 60;
 
 import { notFound } from 'next/navigation';
-import { getProfileById } from '@/lib/supabase/queries/profiles';
-import { getPublishedProductions } from '@/lib/supabase/queries/smartProductions';
+import { getPublicProfileById } from '@/lib/supabase/queries/profiles';
+import { getProductionsByCreator } from '@/lib/supabase/queries/smartProductions';
+import { getRentalsByOwner } from '@/lib/supabase/queries/smartRentals';
 import { getPublishedListings } from '@/lib/supabase/queries/marketplace';
 import { getReviewsForUser } from '@/lib/supabase/queries/creatorReviews';
 import CreatorProfileClient from './CreatorProfileClient';
@@ -13,7 +14,7 @@ export async function generateMetadata({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const profile = await getProfileById(id);
+  const profile = await getPublicProfileById(id);
   return {
     title: profile?.display_name ?? 'Creator Profile',
   };
@@ -25,20 +26,24 @@ interface Props {
 
 export default async function CreatorProfilePage({ params }: Props) {
   const { id } = await params;
-  const profile = await getProfileById(id);
+  const profile = await getPublicProfileById(id);
 
   if (!profile) notFound();
 
-  // Fetch creator's productions, listings, and reviews in parallel
-  const [allProductions, allListings, reviews] = await Promise.all([
-    getPublishedProductions(),
+  // Everything this person has, fetched by their id rather than filtered in
+  // memory. Productions used to be fetched unfiltered and sliced to six on the
+  // basis that they had no owner column; they do (`creator_id`), so every
+  // profile was showing the same six projects — other people's work presented
+  // as this person's portfolio.
+  const [productions, rentals, allListings, reviews] = await Promise.all([
+    getProductionsByCreator(id),
+    getRentalsByOwner(id),
     getPublishedListings(),
     getReviewsForUser(id),
   ]);
 
-  // Filter to this creator's content
-  // Note: productions don't have user_id, so we show all for now
-  // Listings have user_id which we can filter on
+  // Marketplace listings are still filtered in memory: there is no by-user
+  // query for them yet, and the table holds a single row.
   const creatorListings = allListings.filter(
     (l) => 'user_id' in l && l.user_id === id,
   );
@@ -46,7 +51,8 @@ export default async function CreatorProfilePage({ params }: Props) {
   return (
     <CreatorProfileClient
       profile={profile}
-      productions={allProductions.slice(0, 6)}
+      productions={productions}
+      rentals={rentals}
       listings={creatorListings.slice(0, 4)}
       reviews={reviews}
     />

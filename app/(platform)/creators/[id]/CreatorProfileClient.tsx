@@ -14,8 +14,9 @@ import {
   Package,
   Star,
 } from 'lucide-react';
-import type { Profile } from '@/lib/supabase/queries/profiles';
+import type { PublicProfile } from '@/lib/supabase/queries/profiles';
 import type { SmartProduction } from '@/lib/supabase/queries/smartProductions';
+import type { SmartRental } from '@/lib/supabase/queries/smartRentals';
 import type { Listing } from '@/types/marketplace';
 import { Badge } from '@/components/ui/Badge';
 import { Card } from '@/components/ui/Card';
@@ -31,8 +32,10 @@ interface ReviewData {
 }
 
 interface Props {
-  profile: Profile;
+  profile: PublicProfile;
   productions?: SmartProduction[];
+  /** Gear this person owns and has live for hire. */
+  rentals?: SmartRental[];
   listings?: Listing[];
   reviews?: ReviewData[];
 }
@@ -62,6 +65,7 @@ const SOCIAL_ICONS: Record<string, string> = {
 export default function CreatorProfileClient({
   profile,
   productions = [],
+  rentals = [],
   listings = [],
   reviews = [],
 }: Props) {
@@ -250,6 +254,66 @@ export default function CreatorProfileClient({
               />
             )}
           </motion.section>
+
+          {/* Gear this person owns and hires out.
+              Rendered only when they have some: an empty state here would tell
+              every photographer that they are missing something they never
+              intended to offer. */}
+          {rentals.length > 0 && (
+            <motion.section
+              initial={{ opacity: 0, y: 16 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.35, duration: 0.4 }}
+              className="mb-16"
+            >
+              <h2 className="text-sm font-bold tracking-tight mb-6 border-l-2 border-accent-gold pl-4 uppercase flex items-center gap-2">
+                <Package className="w-4 h-4" />
+                Gear For Hire
+              </h2>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {rentals.map((rental) => (
+                  <Card key={rental.id} hover>
+                    <Link
+                      href={`/rentals/${rental.category}/${rental.slug}`}
+                      className="flex gap-4 p-4"
+                    >
+                      <div className="relative w-20 h-20 flex-shrink-0 bg-neutral-100 dark:bg-neutral-900 overflow-hidden">
+                        {rental.thumbnail_url ? (
+                          <Image
+                            src={rental.thumbnail_url}
+                            alt={rental.title}
+                            fill
+                            sizes="80px"
+                            className="object-cover"
+                          />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center">
+                            <Package className="w-6 h-6 text-neutral-300 dark:text-neutral-700" />
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-display font-medium uppercase text-black dark:text-white truncate">
+                          {rental.title}
+                        </p>
+                        {rental.brand && (
+                          <p className="text-[10px] font-mono uppercase tracking-widest text-neutral-500 mt-1">
+                            {rental.brand}
+                          </p>
+                        )}
+                        {rental.price_per_day != null && (
+                          <p className="text-sm font-mono font-bold text-accent-gold mt-2">
+                            R{Number(rental.price_per_day).toLocaleString('en-ZA')}
+                            <span className="text-neutral-500 font-normal"> / day</span>
+                          </p>
+                        )}
+                      </div>
+                    </Link>
+                  </Card>
+                ))}
+              </div>
+            </motion.section>
+          )}
 
           {/* Active Gear Listings */}
           <motion.section
