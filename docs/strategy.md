@@ -1,5 +1,15 @@
 # THABANGVISION STRATEGY — From Marketplace to Autonomous Creative Intelligence Platform
 
+> This document covers the platform: revenue model, autonomy roadmap, go to
+> market. For where the **company** is going beyond the marketplace (vertical
+> integration into manufacturing, and the split between work that sells as a
+> product and specialist skill that sells into a production), see
+> [`docs/direction.md`](./direction.md).
+>
+> Note where the two differ: this document lists gear manufacturers as partners
+> to sponsor recommendations and license a demand index to. `direction.md`
+> records the longer aim of becoming one.
+
 ## Company
 
 ```
