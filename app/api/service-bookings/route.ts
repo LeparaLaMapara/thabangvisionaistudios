@@ -9,6 +9,7 @@ import { checkRateLimit, checkNotSuspended } from '@/lib/auth';
 import { getHourlyRate } from '@/lib/supabase/queries/service-bookings';
 import { email as emailProvider } from '@/lib/email';
 import { logEvent } from '@/lib/data/events';
+import { validateBookingRequest } from '@/lib/bookings/validate';
 
 // ─── POST — Create a service booking + get Paystack payment URL ──────────────
 
@@ -55,18 +56,18 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Cannot book yourself as creator' }, { status: 400 });
   }
 
-  // Validate required fields
-  if (!project_category || !project_description || !deliverables || !duration_hours) {
-    return NextResponse.json({ error: 'Missing required fields: project_category, project_description, deliverables, duration_hours' }, { status: 400 });
+  // Validation lives in lib/bookings/validate.ts so it can be tested. It was
+  // worth testing: this check used to require `deliverables`, which neither
+  // Ubunye's link template nor the booking form has ever supplied, so every
+  // studio booking was refused at the pay step.
+  const validation = validateBookingRequest(body);
+  if (!validation.ok) {
+    return NextResponse.json({ error: validation.error }, { status: 400 });
   }
-
-  if (typeof duration_hours !== 'number' || duration_hours < STUDIO.booking.minBookingHours || duration_hours > STUDIO.booking.maxBookingHours) {
-    return NextResponse.json({ error: `Duration must be between ${STUDIO.booking.minBookingHours} and ${STUDIO.booking.maxBookingHours} hours` }, { status: 400 });
-  }
-
-  if (project_description.length < 20) {
-    return NextResponse.json({ error: 'Project description must be at least 20 characters' }, { status: 400 });
-  }
+  const {
+    projectDescription: descriptionText,
+    deliverables: deliverablesText,
+  } = validation;
 
   // Calculate pricing
   const hourlyRate = getHourlyRate(project_category);
@@ -90,8 +91,8 @@ export async function POST(request: NextRequest) {
         creator_id: creator_id || null,
         booking_type: booking_type || 'production',
         project_category,
-        project_description,
-        deliverables,
+        project_description: descriptionText,
+        deliverables: deliverablesText,
         duration_hours,
         location: location || null,
         preferred_dates: preferred_dates || null,

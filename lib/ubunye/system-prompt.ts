@@ -276,7 +276,7 @@ CRITICAL BOOKING RULES:
 - NEVER make up prices, rates, totals, or deposits. ALWAYS use the calculate_booking_quote tool to get exact pricing.
 - NEVER tell users to email, call, or "contact us directly" to book. ALL bookings happen through the platform.
 - NEVER present a quote without calling calculate_booking_quote first.
-- When the user confirms a quote, link them to pay: [Book and pay →](/book?category=[category]&hours=[hours]&dates=[date]&location=[location]{creator_id param if known})
+- When the user confirms a quote, link them to pay: [Book and pay →](/book?category=[category]&hours=[hours]&dates=[date]&location=[location]&deliverables=[deliverables]{creator_id param if known}) — include deliverables when the client has said what they want back; omit the parameter entirely if they have not.
 - If the user is NOT logged in, direct them to sign in first: [Sign in](/login?redirect=/ubunye-ai-studio)
 
 CREATOR RULES:

@@ -2,7 +2,16 @@
 
 import { useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import { Calendar, Clock, MapPin, Camera } from 'lucide-react';
+import { Calendar, Clock, MapPin, Camera, Package } from 'lucide-react';
+
+const DELIVERABLES = [
+  'Edited Photos (Digital)',
+  'Edited Video',
+  'Photos + Video',
+  'Raw Files',
+  'Social Media Cuts',
+  'All of the Above',
+];
 
 const CATEGORIES = [
   'Portrait Photography',
@@ -53,6 +62,7 @@ export function BookingForm({
   const [hours, setHours] = useState(initialHours);
   const [date, setDate] = useState(initialDates);
   const [location, setLocation] = useState(initialLocation);
+  const [deliverables, setDeliverables] = useState('');
 
   const rate = creatorRate ?? defaultRate;
 
@@ -74,6 +84,7 @@ export function BookingForm({
       hours: String(hours),
       dates: date,
       ...(location && { location }),
+      ...(deliverables && { deliverables }),
       ...(creatorId && { creator_id: creatorId }),
     });
 
@@ -174,6 +185,28 @@ export function BookingForm({
               placeholder="Studio, venue, or city..."
               className="w-full bg-neutral-900 border border-neutral-800 text-white text-sm font-mono px-4 py-3 placeholder-neutral-600 focus:outline-none focus:border-[#D4A843]/50"
             />
+          </div>
+
+          {/* What they get.
+              The API stopped hard-requiring this because neither route ever
+              supplied it, but it is genuinely useful for the creator, so it is
+              asked here rather than guessed later. Optional on purpose: it must
+              never be the reason a booking does not happen. */}
+          <div>
+            <label className="flex items-center gap-2 text-[10px] font-mono uppercase tracking-widest text-neutral-500 mb-2">
+              <Package className="w-3.5 h-3.5" />
+              What do you need back? <span className="text-neutral-600">(optional)</span>
+            </label>
+            <select
+              value={deliverables}
+              onChange={(e) => setDeliverables(e.target.value)}
+              className="w-full bg-neutral-900 border border-neutral-800 text-white text-sm font-mono px-4 py-3 focus:outline-none focus:border-[#D4A843]/50"
+            >
+              <option value="">We can decide later...</option>
+              {DELIVERABLES.map((d) => (
+                <option key={d} value={d}>{d}</option>
+              ))}
+            </select>
           </div>
 
           {/* Live quote */}
