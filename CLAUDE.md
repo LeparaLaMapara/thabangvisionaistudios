@@ -175,6 +175,24 @@ Database access is organized by domain in `lib/supabase/queries/`:
 - Separate security-checks job: scans for hardcoded secrets, hardcoded business values in app/, and direct SDK imports in app/
 - CI uses `PAYMENT_PROVIDER=payfast` for build validation — this differs from the active production provider (Paystack)
 
+## Cron Jobs — plan constraint
+
+`vercel.json` crons must stay at **daily or less frequent** on the current
+Vercel plan. Sub-daily schedules appear to be rejected at config validation,
+which produces NO deployment record at all rather than a failed one — the push
+simply never deploys, silently.
+
+This bit us once: `hourly-checks` was changed from `0 6 * * *` to `0 * * * *`
+and an every-30-minutes job was added, and Vercel stopped deploying the repo
+entirely. It looked like a broken webhook.
+
+So: `/api/cron/hourly-checks` is misnamed. It runs daily at 06:00. Do not
+"fix" the schedule without first confirming the plan allows it — rename the
+route instead if the name bothers you.
+
+Upgrading the plan is what unlocks a real hourly cadence, and the invariant
+sweep in particular is far more useful at 30-minute intervals than daily.
+
 ## Branch Strategy
 - `main` — production, auto-deploys to Vercel
 - `develop` — integration branch, auto-deploys to Vercel Preview (uses dev Supabase)

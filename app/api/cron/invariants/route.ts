@@ -32,6 +32,11 @@ import { fingerprint, type Finding } from '@/lib/ops/types';
  *
  * Returns 500 when any critical invariant is violated, so Vercel marks the run
  * failed and platform alerting fires for free.
+ *
+ * Scheduled DAILY, not every 30 minutes, because the current Vercel plan
+ * rejects sub-daily crons -- and rejects them by refusing to create a
+ * deployment at all, which is indistinguishable from a broken webhook. See
+ * the cron section in CLAUDE.md before changing the schedule.
  */
 
 const REQUIRED_RELATIONS = [
