@@ -68,11 +68,18 @@ export const supabaseAuth: AuthProvider = {
         .single();
 
       if (data?.role === 'admin') return true;
-    } catch {
-      // DB check failed — fall through to constant fallback
+    } catch (err) {
+      // Fall through to the constant, but never silently. A swallowed failure
+      // here demotes a real admin to a normal user with no trace of why, and
+      // silent catches around Supabase calls have been the single most common
+      // source of invisible faults in this codebase.
+      console.error('[isAdmin] role lookup failed, falling back to ADMIN_EMAILS:', err);
     }
 
-    // Emergency fallback: ADMIN_EMAILS constant so you're never locked out
+    // Break-glass, not a fallback that widens access: ADMIN_EMAILS is a fixed
+    // one-address allowlist, checked against the email on the authenticated
+    // session. It cannot be forged without control of that mailbox, and it
+    // exists so a database fault cannot lock the owner out of their own admin.
     if (email && ADMIN_EMAILS.includes(email.toLowerCase())) return true;
 
     return false;
