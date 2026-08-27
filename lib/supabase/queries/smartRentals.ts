@@ -282,3 +282,72 @@ export async function getCommunityListingsByCategory(rentalCategory: string): Pr
   const all = await getCommunityListings();
   return all.filter(r => r.category === rentalCategory);
 }
+
+// ─── Home page showcase ──────────────────────────────────────────────────────
+
+/**
+ * Gear for the home page showcase carousel.
+ *
+ * Featured items lead, then the best-ranked of everything else, so the rail
+ * still fills even though only a handful of listings are flagged featured.
+ * Archived stock is excluded — it is off the shelf and must not be advertised.
+ */
+export async function getShowcaseRentals(limit = 8): Promise<SmartRental[]> {
+  const supabase = await createClient();
+
+  const { data, error } = await supabase
+    .from('smart_rentals')
+    .select(LIST_COLUMNS)
+    .eq('is_published', true)
+    .eq('is_archived', false)
+    .is('deleted_at', null)
+    .order('is_featured', { ascending: false })
+    .order('ranking_score', { ascending: false })
+    .order('created_at', { ascending: false })
+    .limit(limit);
+
+  if (error) {
+    console.error('[getShowcaseRentals]', error.message);
+    return [];
+  }
+
+  return (data as unknown as SmartRental[]) ?? [];
+}
+
+export type RentalPriceRange = { min: number; max: number };
+
+/**
+ * Cheapest and dearest day rate across live stock.
+ *
+ * The home page and the LocalBusiness JSON-LD both used to hardcode this. The
+ * page claimed hire started at R500 when the real floor was R20, which quietly
+ * turned away every customer shopping below R500 — and eleven listings sit
+ * under it. Reading it from stock means it cannot drift again.
+ *
+ * Zero and null rates are excluded: a listing with no price set is not a
+ * cheapest offer, it is an unfinished listing.
+ */
+export async function getRentalPriceRange(): Promise<RentalPriceRange | null> {
+  const supabase = await createClient();
+
+  const { data, error } = await supabase
+    .from('smart_rentals')
+    .select('price_per_day')
+    .eq('is_published', true)
+    .eq('is_archived', false)
+    .is('deleted_at', null)
+    .gt('price_per_day', 0);
+
+  if (error) {
+    console.error('[getRentalPriceRange]', error.message);
+    return null;
+  }
+
+  const prices = ((data as { price_per_day: number | null }[]) ?? [])
+    .map(r => Number(r.price_per_day))
+    .filter(n => Number.isFinite(n) && n > 0);
+
+  if (prices.length === 0) return null;
+
+  return { min: Math.min(...prices), max: Math.max(...prices) };
+}

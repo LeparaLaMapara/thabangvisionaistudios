@@ -8,6 +8,7 @@ import { Providers } from '@/components/layout/Providers';
 import { STUDIO } from '@/lib/constants';
 import { createClient } from '@/lib/supabase/server';
 import { organizationJsonLd, localBusinessJsonLd, renderJsonLd } from '@/lib/seo/structured-data';
+import { getRentalPriceRange, type RentalPriceRange } from '@/lib/supabase/queries/smartRentals';
 
 // ── Google Fonts via next/font ──
 // CSS variables injected into <html>, consumed by @theme in globals.css.
@@ -117,6 +118,17 @@ export default async function RootLayout({
   } catch {
     // No session — user is null
   }
+
+  // Feeds the LocalBusiness priceRange from live stock instead of a hardcoded
+  // band. Never let a failure here take the whole layout down: the field is
+  // optional in the JSON-LD, so a null just omits it.
+  let priceRange: RentalPriceRange | null = null;
+  try {
+    priceRange = await getRentalPriceRange();
+  } catch {
+    // Leave priceRange out of the structured data
+  }
+
   return (
     <html lang="en" className="dark">
       <body
@@ -134,7 +146,7 @@ export default async function RootLayout({
         />
         <script
           type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: renderJsonLd(localBusinessJsonLd()) }}
+          dangerouslySetInnerHTML={{ __html: renderJsonLd(localBusinessJsonLd(priceRange)) }}
         />
         <Providers initialUser={initialUser}>
           {children}

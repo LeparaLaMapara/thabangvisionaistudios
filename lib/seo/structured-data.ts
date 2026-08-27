@@ -32,7 +32,24 @@ export function organizationJsonLd(): JsonLd {
   };
 }
 
-export function localBusinessJsonLd(): JsonLd {
+/** Group thousands the SA way, but with an ordinary space. */
+function zar(amount: number): string {
+  // Built from its code point rather than typed: a bare U+00A0 in source is
+  // invisible, and any editor that normalises whitespace would silently turn
+  // this into a no-op nobody would notice.
+  const NBSP = String.fromCharCode(160);
+  return amount.toLocaleString('en-ZA').split(NBSP).join(' ');
+}
+
+/**
+ * `priceRange` is what Google shows as the business's price band.
+ *
+ * It was hardcoded to "R1500 - R50000" while hire actually ran R20 to R4500 a
+ * day, so search results advertised a floor 75x above the real one. Pass the
+ * live range from stock; omit it and the field is left out entirely, which is
+ * better than publishing a number that is wrong.
+ */
+export function localBusinessJsonLd(priceRange?: { min: number; max: number } | null): JsonLd {
   return {
     '@context': 'https://schema.org',
     '@type': 'LocalBusiness',
@@ -54,7 +71,12 @@ export function localBusinessJsonLd(): JsonLd {
       latitude: STUDIO.location.lat,
       longitude: STUDIO.location.lng,
     },
-    priceRange: 'R1500 - R50000',
+    // en-ZA groups thousands with a non-breaking space (U+00A0). That is right
+    // on a rendered page but this string is read by crawlers, so normalise it
+    // to a plain space.
+    ...(priceRange
+      ? { priceRange: `R${zar(priceRange.min)} - R${zar(priceRange.max)}` }
+      : {}),
     currenciesAccepted: 'ZAR',
     paymentAccepted: 'Credit Card, Debit Card, EFT',
   };

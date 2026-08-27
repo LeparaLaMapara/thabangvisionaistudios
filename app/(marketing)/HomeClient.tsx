@@ -6,6 +6,7 @@ import { ServiceGrid } from '@/components/cinematic/ServiceGrid';
 import { LatestWorkCarousel, type CarouselItem } from '@/components/cinematic/LatestWorkCarousel';
 import { ChevronRight, ArrowRight, Camera, Calendar, Users, Search, CreditCard, Sparkles, MessageCircle, ShieldCheck, BadgeCheck, Lock, Star } from 'lucide-react';
 import { SITE_NAME, STUDIO, PLACEHOLDER_IMAGES, CAPABILITIES } from '@/lib/constants';
+import { formatZAR } from '@/lib/productions/pricing';
 
 type Capability = (typeof CAPABILITIES)[number];
 
@@ -126,7 +127,7 @@ const HowItWorks = () => {
           viewport={{ once: true }}
           className="text-center mb-16"
         >
-          <span className="text-[10px] font-mono text-accent uppercase tracking-widest mb-4 block">02 // Process</span>
+          <span className="text-[10px] font-mono text-accent uppercase tracking-widest mb-4 block">03 // Process</span>
           <h2 className="text-4xl md:text-5xl font-display font-medium text-white uppercase">
             How It <span className="text-neutral-500">Works</span>
           </h2>
@@ -168,7 +169,7 @@ const CommunitySection = () => (
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
         >
-          <span className="text-[10px] font-mono text-accent uppercase tracking-widest mb-4 block">05 // Community</span>
+          <span className="text-[10px] font-mono text-accent uppercase tracking-widest mb-4 block">06 // Community</span>
           <h2 className="text-4xl md:text-5xl font-display font-medium text-white uppercase">
             For <span className="text-neutral-500">Creators</span>
           </h2>
@@ -232,7 +233,13 @@ const CommunitySection = () => (
 
 // ─── Booking CTA ─────────────────────────────────────────────────────────────
 
-const BookingCTA = () => (
+/**
+ * `minDayRate` is the cheapest live day rate, read from stock rather than
+ * typed in. The tile used to read a hardcoded "R500" while the real floor was
+ * R20, which told every customer shopping under R500 to go elsewhere.
+ * `null` means no priced stock is live, so the tile falls back to the label.
+ */
+const BookingCTA = ({ minDayRate }: { minDayRate: number | null }) => (
   <section className="py-24 bg-[#080808] border-t border-white/5 transition-colors duration-500">
     <div className="container mx-auto px-6">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-16 items-center">
@@ -241,7 +248,7 @@ const BookingCTA = () => (
           whileInView={{ opacity: 1, x: 0 }}
           viewport={{ once: true }}
         >
-          <span className="text-[10px] font-mono text-accent uppercase tracking-widest mb-4 block">04 // Rentals</span>
+          <span className="text-[10px] font-mono text-accent uppercase tracking-widest mb-4 block">05 // Rentals</span>
           <h2 className="text-4xl md:text-5xl font-display font-medium text-white tracking-tighter uppercase mb-6 leading-[0.95]">
             Book <br />
             <span className="text-neutral-500">Professional Gear</span>
@@ -266,7 +273,10 @@ const BookingCTA = () => (
         >
           {[
             { label: 'Categories', value: '6+' },
-            { label: 'Day Rates From', value: 'R500' },
+            {
+              label: minDayRate === null ? 'Day Rates' : 'Day Rates From',
+              value: minDayRate === null ? 'On Request' : formatZAR(minDayRate),
+            },
             { label: 'Instant Booking', value: 'Yes' },
             { label: 'Deposit Protection', value: 'Secured' },
           ].map(stat => (
@@ -291,7 +301,7 @@ const TrustSignals = () => (
   <section className="py-16 bg-[#050505] border-t border-white/5">
     <div className="container mx-auto px-6">
       <div className="text-center mb-8">
-        <span className="text-[10px] font-mono text-accent uppercase tracking-widest">01 // Trust &amp; Security</span>
+        <span className="text-[10px] font-mono text-accent uppercase tracking-widest">02 // Trust &amp; Security</span>
       </div>
       <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
         {[
@@ -343,29 +353,41 @@ const UbunyeSection = () => (
 
 // ─── Main Export ──────────────────────────────────────────────────────────────
 
-export default function HomeClient({ carouselItems, capabilities }: { carouselItems: CarouselItem[]; capabilities: readonly Capability[] }) {
+export default function HomeClient({
+  carouselItems,
+  capabilities,
+  minDayRate,
+}: {
+  carouselItems: CarouselItem[];
+  capabilities: readonly Capability[];
+  /** Cheapest live day rate, or null when no priced stock is published. */
+  minDayRate: number | null;
+}) {
   return (
     <div className="min-h-screen bg-[#050505] transition-colors duration-500">
       {/* 1. Hero */}
       <Hero />
-      {/* 2. Trust & Security */}
-      <TrustSignals />
-      {/* 3. How It Works */}
-      <HowItWorks />
-      {/* 4. What We Offer */}
-      <ServiceGrid capabilities={capabilities} />
-      {/* 5. Smart Rentals */}
-      <BookingCTA />
-      {/* 6. For Creators */}
-      <CommunitySection />
-      {/* 7. Creator Work */}
+      {/* 2. Showcase — gear and work, alternating.
+          Sits directly under the hero because hire is the primary business and
+          it previously appeared only as four tiles of text, five sections down.
+          A visitor should see what there is to rent without hunting for it. */}
       <LatestWorkCarousel items={carouselItems} />
+      {/* 3. Trust & Security */}
+      <TrustSignals />
+      {/* 4. How It Works */}
+      <HowItWorks />
+      {/* 5. What We Offer */}
+      <ServiceGrid capabilities={capabilities} />
+      {/* 6. Smart Rentals */}
+      <BookingCTA minDayRate={minDayRate} />
+      {/* 7. For Creators */}
+      <CommunitySection />
       {/* 8. Ubunye AI */}
       <UbunyeSection />
       {/* 9. Final CTA */}
       <section className="py-40 relative bg-gradient-to-b from-neutral-950 via-neutral-900 to-neutral-950 overflow-hidden border-t border-white/5 transition-colors duration-500">
         <div className="container mx-auto px-6 relative z-10 text-center">
-          <span className="text-[10px] font-mono text-neutral-400 uppercase tracking-widest mb-6 block">09 // Get Started</span>
+          <span className="text-[10px] font-mono text-neutral-400 uppercase tracking-widest mb-6 block">08 // Get Started</span>
           <h2 className="text-5xl md:text-8xl font-display font-medium text-white tracking-tighter mb-12 uppercase">
             Ready To <br /> Create?
           </h2>

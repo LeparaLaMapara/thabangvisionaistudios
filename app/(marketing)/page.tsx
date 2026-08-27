@@ -1,6 +1,9 @@
 export const revalidate = 60;
 
 import { getFeaturedProductions } from '@/lib/supabase/queries/smartProductions';
+import { getShowcaseRentals, getRentalPriceRange } from '@/lib/supabase/queries/smartRentals';
+import { formatZAR } from '@/lib/productions/pricing';
+import { interleaveShowcase } from '@/lib/home/showcase';
 import HomeClient from './HomeClient';
 import type { CarouselItem } from '@/components/cinematic/LatestWorkCarousel';
 import { CAPABILITIES } from '@/lib/constants';
@@ -34,9 +37,13 @@ export default async function Home() {
     filterCapabilitiesForFlags(CAPABILITIES),
   ]);
 
-  const productions = smartProductionsEnabled ? await getFeaturedProductions(8) : [];
+  const [productions, rentals, priceRange] = await Promise.all([
+    smartProductionsEnabled ? getFeaturedProductions(8) : Promise.resolve([]),
+    getShowcaseRentals(8),
+    getRentalPriceRange(),
+  ]);
 
-  const carouselItems: CarouselItem[] = productions.map((p) => ({
+  const productionItems: CarouselItem[] = productions.map((p) => ({
     id: p.id,
     slug: p.slug,
     title: p.title,
@@ -49,5 +56,31 @@ export default async function Home() {
     created_at: p.created_at,
   })).sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
-  return <HomeClient carouselItems={carouselItems} capabilities={capabilities} />;
+  const rentalItems: CarouselItem[] = rentals.map((r) => ({
+    id: r.id,
+    slug: r.slug,
+    title: r.title,
+    description: r.description,
+    thumbnail_url: resolveImage(r.thumbnail_url, r.cover_public_id, r.gallery),
+    video_url: r.video_url,
+    tags: r.tags ?? [],
+    category: 'rental' as const,
+    // smart_rentals.category already holds the URL slug the rental routes use
+    // (/rentals/[category]/[slug]), so it doubles as the link segment.
+    categorySlug: r.category,
+    meta: [r.brand, r.price_per_day ? `${formatZAR(Number(r.price_per_day))} / day` : null]
+      .filter(Boolean).join(' / ') || 'Rental',
+    created_at: r.created_at,
+  }));
+
+  // Work first, then gear, alternating — see lib/home/showcase.ts.
+  const carouselItems = interleaveShowcase(productionItems, rentalItems);
+
+  return (
+    <HomeClient
+      carouselItems={carouselItems}
+      capabilities={capabilities}
+      minDayRate={priceRange?.min ?? null}
+    />
+  );
 }
