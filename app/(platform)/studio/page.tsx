@@ -2,38 +2,29 @@ export const revalidate = 60;
 
 import SmartProductionClient from './SmartProductionClient';
 import { AskUbunyeButton } from '@/components/ubunye/AskUbunyeButton';
-import { getPublishedCategories, getProductionCountsByCategory } from '@/lib/supabase/queries/productionCategories';
-import { getFeaturedProductions } from '@/lib/supabase/queries/smartProductions';
-import { PRODUCTION_CATEGORIES } from '@/lib/constants';
-import type { ProductionCategory } from '@/types/production';
+import { getPublishedProductions } from '@/lib/supabase/queries/smartProductions';
 
 export const metadata = {
   title: 'Studio — Photography & Video Production Services',
 };
 
+/**
+ * The work itself is the page.
+ *
+ * This used to open on six category tiles, and five of them led to an empty
+ * page — every published project sat under Photography. A visitor met six
+ * doors, opened one, and found nothing. Showing the work directly is both
+ * honest about what exists and faster to browse at this size.
+ *
+ * The /studio/category/[slug] routes still work; they are just no longer the
+ * way in.
+ */
 export default async function SmartProductionPage() {
-  // Fetch categories from DB — fall back to constants if table not migrated yet
-  let categories: ProductionCategory[];
-  try {
-    const dbCategories = await getPublishedCategories();
-    categories = dbCategories.length > 0 ? dbCategories : PRODUCTION_CATEGORIES;
-  } catch {
-    categories = PRODUCTION_CATEGORIES;
-  }
-
-  // Fetch production counts + featured productions in parallel
-  const [productionCounts, featuredProductions] = await Promise.all([
-    getProductionCountsByCategory(),
-    getFeaturedProductions(6),
-  ]);
+  const productions = await getPublishedProductions();
 
   return (
     <>
-      <SmartProductionClient
-        categories={categories}
-        productionCounts={productionCounts}
-        featuredProductions={featuredProductions}
-      />
+      <SmartProductionClient productions={productions} />
       <AskUbunyeButton prompt="I need a quote for a production" label="Get an instant AI quote" />
     </>
   );
