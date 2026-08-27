@@ -27,7 +27,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   }
 
   // Burst rate limit
-  if (!checkRateLimit(`agent-rates:${auth.user.id}`, 5, 60_000)) {
+  if (!(await checkRateLimit(`agent-rates:${auth.user.id}`, 5, 60_000))) {
     return NextResponse.json(
       { error: 'Rate limit exceeded. Please wait before trying again.' },
       { status: 429 },

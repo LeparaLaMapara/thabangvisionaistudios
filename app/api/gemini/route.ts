@@ -57,7 +57,7 @@ export async function POST(req: NextRequest) {
   // ── Guest (unauthenticated) usage check ──
   if (!user) {
     const ip = req.headers.get('x-forwarded-for') ?? 'anonymous';
-    const allowed = checkRateLimit(`ai-guest:${ip}`, 10, 60_000);
+    const allowed = await checkRateLimit(`ai-guest:${ip}`, 10, 60_000);
     if (!allowed) {
       return NextResponse.json(
         { error: 'Rate limit exceeded. Please wait before trying again.' },
@@ -74,7 +74,7 @@ export async function POST(req: NextRequest) {
 
   // ── Authenticated usage check ──
   if (user) {
-    const rateLimited = !checkRateLimit(`ai:${user.id}`, 10, 60_000);
+    const rateLimited = !(await checkRateLimit(`ai:${user.id}`, 10, 60_000));
     if (rateLimited) {
       return NextResponse.json(
         { error: 'Rate limit exceeded. Please wait before trying again.' },

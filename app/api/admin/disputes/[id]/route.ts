@@ -93,7 +93,7 @@ export async function PATCH(
   const { id } = await params;
   const auth = await requireAdmin();
   if (auth.error) return auth.error;
-  const limited = rateLimitAdmin(auth.user.id, 'sensitive');
+  const limited = await rateLimitAdmin(auth.user.id, 'sensitive');
   if (limited) return limited;
 
   let body: unknown;

@@ -23,7 +23,7 @@ export async function PATCH(
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  if (!checkRateLimit(`deliver:${user.id}`, 10, 60_000)) {
+  if (!(await checkRateLimit(`deliver:${user.id}`, 10, 60_000))) {
     return NextResponse.json({ error: 'Too many requests' }, { status: 429 });
   }
 

@@ -15,7 +15,7 @@ export async function POST(req: NextRequest) {
   if (auth.error) return auth.error;
 
   // H3: Rate limit uploads — 20 requests per minute per user
-  if (!checkRateLimit(`storage:${auth.user.id}`, 20, 60_000)) {
+  if (!(await checkRateLimit(`storage:${auth.user.id}`, 20, 60_000))) {
     return NextResponse.json(
       { error: 'Too many upload requests. Please wait before trying again.' },
       { status: 429 },

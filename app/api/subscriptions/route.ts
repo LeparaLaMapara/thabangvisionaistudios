@@ -16,7 +16,7 @@ export async function POST(request: NextRequest) {
   }
 
   // H3: Rate limit subscription creation — 3 requests per minute per user
-  if (!checkRateLimit(`subscription:${user.id}`, 3, 60_000)) {
+  if (!(await checkRateLimit(`subscription:${user.id}`, 3, 60_000))) {
     return NextResponse.json(
       { error: 'Too many requests. Please wait before trying again.' },
       { status: 429 },

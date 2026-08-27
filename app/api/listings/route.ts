@@ -80,7 +80,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  if (!checkRateLimit(`listing:${user.id}`, 5, 60_000)) {
+  if (!(await checkRateLimit(`listing:${user.id}`, 5, 60_000))) {
     return NextResponse.json({ error: 'Too many requests. Please wait before trying again.' }, { status: 429 });
   }
 

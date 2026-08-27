@@ -32,6 +32,16 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   const results: Record<string, unknown> = {};
   const now = new Date();
 
+  // ─── 0. Prune expired rate-limit windows ─────────────────────────────────
+  // rate_limits gains a row per (key, window). Old windows are dead weight.
+  try {
+    const { data: pruned, error } = await supabase.rpc('rate_limits_prune', { p_older_than_hours: 24 });
+    if (error) throw new Error(error.message);
+    results.rateLimitRowsPruned = pruned ?? 0;
+  } catch (err) {
+    results.rateLimitPruneError = String(err);
+  }
+
   // ─── 1. Cancel unpaid bookings > 72 hours ─────────────────────────────────
   try {
     const cutoff = new Date(now.getTime() - 72 * 60 * 60 * 1000).toISOString();

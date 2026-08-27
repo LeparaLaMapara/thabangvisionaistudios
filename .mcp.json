@@ -24,14 +24,6 @@
       "headers": {
         "Authorization": "Bearer ${CLOUDFLARE_API_TOKEN}"
       }
-    },
-    "paystack": {
-      "type": "stdio",
-      "command": "npx",
-      "args": ["-y", "@paystack/mcp-server"],
-      "env": {
-        "PAYSTACK_SECRET_KEY": "${PAYSTACK_SECRET_KEY}"
-      }
     }
   }
 }

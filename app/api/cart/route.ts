@@ -40,7 +40,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  if (!checkRateLimit(`cart:${user.id}`, 20, 60_000)) {
+  if (!(await checkRateLimit(`cart:${user.id}`, 20, 60_000))) {
     return NextResponse.json(
       { error: 'Too many requests. Please wait.' },
       { status: 429 },

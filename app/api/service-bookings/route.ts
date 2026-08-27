@@ -31,7 +31,7 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  if (!checkRateLimit(`service-booking:${user.id}`, 5, 60_000)) {
+  if (!(await checkRateLimit(`service-booking:${user.id}`, 5, 60_000))) {
     return NextResponse.json(
       { error: 'Too many booking requests. Please wait before trying again.' },
       { status: 429 },

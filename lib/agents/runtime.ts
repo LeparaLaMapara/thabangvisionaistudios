@@ -181,7 +181,7 @@ export async function executeAgent(
     }
 
     const ip = req.headers.get('x-forwarded-for') ?? 'anonymous';
-    const allowed = checkRateLimit(`ai-guest:${agentId}:${ip}`, 10, 60_000);
+    const allowed = await checkRateLimit(`ai-guest:${agentId}:${ip}`, 10, 60_000);
     if (!allowed) {
       return NextResponse.json(
         { error: 'Rate limit exceeded. Please wait before trying again.' },
@@ -198,7 +198,7 @@ export async function executeAgent(
 
   // ── Authenticated usage check ──
   if (user) {
-    const rateLimited = !checkRateLimit(`ai:${agentId}:${user.id}`, 10, 60_000);
+    const rateLimited = !(await checkRateLimit(`ai:${agentId}:${user.id}`, 10, 60_000));
     if (rateLimited) {
       return NextResponse.json(
         { error: 'Rate limit exceeded. Please wait before trying again.' },

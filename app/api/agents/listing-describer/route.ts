@@ -28,14 +28,14 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     );
   }
 
-  if (!checkRateLimit(`listing-describer:${auth.user.id}`, 5, 60_000)) {
+  if (!(await checkRateLimit(`listing-describer:${auth.user.id}`, 5, 60_000))) {
     return NextResponse.json(
       { error: 'Please wait a moment before describing another listing.' },
       { status: 429 },
     );
   }
 
-  if (!checkRateLimit(`listing-describer:daily:${auth.user.id}`, DAILY_LIMIT, 86_400_000)) {
+  if (!(await checkRateLimit(`listing-describer:daily:${auth.user.id}`, DAILY_LIMIT, 86_400_000))) {
     return NextResponse.json(
       { error: 'Daily listing-description limit reached.', limit: DAILY_LIMIT },
       { status: 429 },

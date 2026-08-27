@@ -20,7 +20,7 @@ const RAG_CATEGORY_MAP: Record<string, SearchResultItem['category']> = {
 
 export async function GET(req: NextRequest) {
   const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown';
-  if (!checkRateLimit(`search:${ip}`, 30, 60_000)) {
+  if (!(await checkRateLimit(`search:${ip}`, 30, 60_000))) {
     return NextResponse.json({ error: 'Too many requests. Please wait before trying again.' }, { status: 429 });
   }
 

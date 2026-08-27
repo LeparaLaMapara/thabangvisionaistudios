@@ -29,7 +29,7 @@ export async function PATCH(
   }
 
   // Rate limit: 10 status updates per minute per user
-  if (!checkRateLimit(`crew-request:${user.id}`, 10, 60_000)) {
+  if (!(await checkRateLimit(`crew-request:${user.id}`, 10, 60_000))) {
     return NextResponse.json(
       { error: 'Too many requests. Please wait before trying again.' },
       { status: 429 },

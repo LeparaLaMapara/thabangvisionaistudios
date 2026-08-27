@@ -58,7 +58,7 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  if (!checkRateLimit(`checkout:${user.id}`, 3, 60_000)) {
+  if (!(await checkRateLimit(`checkout:${user.id}`, 3, 60_000))) {
     return NextResponse.json(
       { error: 'Too many checkout attempts. Please wait.' },
       { status: 429 },

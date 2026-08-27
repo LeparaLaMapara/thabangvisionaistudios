@@ -18,7 +18,7 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
  * endpoint cannot be used to test whether someone is subscribed.
  */
 async function unsubscribe(rawEmail: unknown, ip: string) {
-  if (!checkRateLimit(`newsletter-unsub:${ip}`, 5, 60_000)) {
+  if (!(await checkRateLimit(`newsletter-unsub:${ip}`, 5, 60_000))) {
     return NextResponse.json(
       { error: 'Too many requests. Please wait before trying again.' },
       { status: 429 },
