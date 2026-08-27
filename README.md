@@ -2,7 +2,7 @@
 
 AI-powered creative production and equipment rental platform for South African filmmakers and photographers.
 
-**Stack:** Next.js 16 | React 19 | TypeScript 5 | Tailwind v4 | Supabase | Cloudinary | PayFast/Paystack | Vercel AI SDK
+**Stack:** Next.js 16 | React 19 | TypeScript 5 | Tailwind v4 | Supabase | Cloudinary | Paystack | Vercel AI SDK
 **Live:** [nonprodthabangvisionaistudios.vercel.app](https://nonprodthabangvisionaistudios.vercel.app)
 **License:** Proprietary — Ubunye AI Ecosystems (Pty) Ltd, trading as Thabang Vision AI Studios
 
@@ -44,14 +44,26 @@ thabangvisionaistudios/
 │   ├── constants.ts              # STUDIO, PRODUCTION_SERVICES, ADMIN_EMAILS — single source of truth
 │   ├── ai/                       # AI provider abstraction (Vercel AI SDK)
 │   ├── auth/                     # Auth provider abstraction (Supabase)
-│   ├── payments/                 # Payment provider abstraction (PayFast, Paystack)
+│   ├── payments/                 # Payment provider abstraction (Paystack active, PayFast dormant)
 │   ├── storage/                  # Storage provider abstraction (Cloudinary)
 │   ├── email/                    # Email provider abstraction (Gmail/Nodemailer)
 │   ├── search/                   # Search provider abstraction (Supabase)
 │   ├── rag/                      # Vector search infrastructure (embeddings, indexer, retrieval)
-│   ├── ubunye/                   # Ubunye AI system prompt builder + tool definitions
+│   ├── ubunye/                   # AI system prompt builder, tools, sanitise.ts (prompt-injection defence)
 │   ├── ranking/                  # Gear marketplace ranking algorithm
 │   ├── metadata/                 # EXIF extraction, fraud detection, SA ID validation
+│   │
+│   │   # ── Pure decision modules: no I/O, unit-tested, the rules live here ──
+│   ├── rental/                   # availability.ts (units + expiring holds), cancellation.ts
+│   ├── cart/                     # pricing.ts — totals, bulk discount, VAT (disclosed not added)
+│   ├── delivery/                 # quote.ts — distance-based delivery fee
+│   ├── bookings/                 # validate.ts — what a shoot needs before payment
+│   ├── home/                     # showcase.ts — how work and gear interleave
+│   │
+│   │   # ── The platform watching itself ──
+│   ├── ops/                      # Invariant checks: gather (I/O) + detect (pure)
+│   ├── growth/                   # checkpoints.ts — when a capability is worth building
+│   ├── demand/                   # record.ts — demand the platform could not serve
 │   ├── supabase/                 # Supabase clients (server.ts, client.ts) + query modules
 │   │   └── queries/              # smartProductions, smartRentals, careers, press, profiles,
 │   │                             #   bookings, marketplace, orders, reviews, crew, service-bookings,
@@ -183,25 +195,50 @@ All tables live in **Supabase** (PostgreSQL). The platform has 3 main domains: *
 
 ### Migrations
 
-All migrations are in `lib/migrations/` and must be run manually in the Supabase SQL Editor. They are numbered sequentially:
+`lib/migrations/` holds the numbered series, applied **by hand in the Supabase
+SQL editor, to both projects**. There is no automatic runner — a migration that
+has been applied to prod and not dev is the usual cause of the two drifting.
 
-| # | File | Status | What It Does |
-|---|------|--------|-------------|
-| 001 | pgvector-gemini.sql | Pending | Enables pgvector extension, adds embedding columns |
-| 001 | pgvector-openai.sql | Pending | Alternative: OpenAI embeddings (1536d instead of 768d) |
-| 002 | unified-marketplace.sql | Pending | Adds owner_type, ranking_score to smart_rentals; creates rental_reviews |
-| 003 | verification-columns.sql | Run | Initial verification columns on profiles |
-| 004 | image-metadata.sql | Run | Image metadata columns |
-| 005 | admin-roles.sql | Run | Admin role infrastructure |
-| 006 | handle-new-user-trigger.sql | Run | Auto-creates profile row on user registration |
-| 007 | crew-system.sql | Run | crew_requests table + creator columns on profiles |
-| 008 | verification-redesign.sql | Run | Selfie+ID verification flow, fraud flags, id_hash |
-| 009 | profile-name-address.sql | Run | Additional profile columns |
-| 010 | notifications.sql | Run | Notifications table |
-| 011 | crew-requests-payment.sql | Run | Payment columns on crew_requests |
-| 012 | banking-details.sql | Run | banking_details table + crew_requests amount columns |
-| 013 | expired-status.sql | **Pending** | Adds 'expired' status to crew_requests |
-| 014 | booking-system.sql | **Pending** | Creates `bookings` table for service booking system |
+```
+Latest: 057-unmet-demand.sql
+Count:  60 files
+```
+
+They are not listed individually here; the directory is the source of truth and
+a table in a README rots the moment someone adds one. Each file opens with a
+comment explaining what went wrong and why the change is shaped the way it is —
+read those rather than a summary.
+
+A few worth knowing about, because they define behaviour rather than structure:
+
+| # | Defines |
+|---|---|
+| 038 | Cancellation refund tiers, measured against `shoot_date` |
+| 042/043 | RPC hardening. Note: revoking from `anon` alone removes nothing — Postgres grants EXECUTE to `PUBLIC` by default and `anon` inherits it |
+| 049 | `public_profiles`, the only public projection of `profiles`, excluding suspended accounts |
+| 052 | Notification and booking status vocabularies — 15 of 23 notification types were being silently rejected before this |
+| 053 | Ops observability: `ops_findings`, `ops_check_runs` |
+| 054 | Durable rate limiting in Postgres, replacing per-lambda memory |
+| 055 | Unit-aware availability and expiring checkout holds |
+| 056 | `smart_rentals.category` CHECK — it is a URL segment, so a typo published stock to an unreachable address |
+| 057 | `unmet_demand` — the demand the platform could not serve |
+
+---
+
+## What the platform records about itself
+
+Beyond the domain tables, the platform keeps data about its own behaviour.
+
+| Table | Holds | Why |
+|---|---|---|
+| `unmet_demand` | Searches that returned nothing, checkouts refused on dates | The platform knew what it sold and nothing about what it could not. This is the buying signal ordinary analytics throws away. Service-role only, aggregated — inventory research, not user tracking. |
+| `ops_findings` | Open and resolved invariant findings, de-duplicated by fingerprint | Alerts fire on transition only, so a quiet inbox means quiet |
+| `ops_check_runs` | Every sweep: duration, findings, errors | Catches a cron that runs but does nothing |
+| `platform_events` | First-party analytics | Product decisions |
+| `rate_limit_hits` | Atomic fixed-window counters | The 5/min ceiling was not a ceiling when it lived in lambda memory |
+
+`lib/growth/checkpoints.ts` reads these on the 03:00 cron and reports when a
+capability has grown into being worth building. See `docs/direction.md`.
 
 ---
 
@@ -234,7 +271,7 @@ Admin triggers payout via Paystack Transfers API
 ### Equipment Rentals — `equipment_bookings` table
 
 ```
-Client selects dates → PayFast checkout → equipment reserved
+Client selects dates → Paystack checkout → equipment reserved
 Deposit: 50% upfront (STUDIO.rental.depositPercent)
 ```
 
@@ -365,14 +402,14 @@ NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME=
 CLOUDINARY_API_KEY=
 CLOUDINARY_API_SECRET=
 
-# Payments — PayFast (equipment rentals, subscriptions)
+# Payments — PayFast (DORMANT: kept behind the provider abstraction, not in use)
 PAYMENT_PROVIDER=payfast
 NEXT_PUBLIC_PAYFAST_MERCHANT_ID=
 NEXT_PUBLIC_PAYFAST_MERCHANT_KEY=
 PAYFAST_PASSPHRASE=
 NEXT_PUBLIC_PAYFAST_SANDBOX=true
 
-# Payments — Paystack (service bookings, creator payouts)
+# Payments — Paystack (ACTIVE: all rentals, bookings and creator payouts)
 PAYSTACK_SECRET_KEY=
 PAYSTACK_PUBLIC_KEY=
 
