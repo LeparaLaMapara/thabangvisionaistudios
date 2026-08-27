@@ -343,9 +343,14 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 
   // ─── 10. Auto-flag users with 3+ disputes for review ─────────────────────
   try {
+    // filed_by matters: a dispute counts against the OTHER party, never against
+    // the person who raised it. Without it this loop counted
+    // equipment_bookings.user_id -- the renter -- so a customer who reported
+    // broken gear three times was auto-suspended, delisted, and recorded in
+    // moderation_log as their own suspending admin.
     const { data: allDisputes } = await supabase
       .from('disputes')
-      .select('booking_id, equipment_booking_id')
+      .select('booking_id, equipment_booking_id, filed_by')
       .in('status', ['open', 'investigating']);
 
     const userDisputeCounts = new Map<string, number>();
@@ -362,7 +367,10 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
         for (const dispute of allDisputes) {
           if (dispute.equipment_booking_id) {
             const uid = ebUserMap.get(dispute.equipment_booking_id);
-            if (uid) userDisputeCounts.set(uid, (userDisputeCounts.get(uid) ?? 0) + 1);
+            // Skip when the renter is the complainant.
+            if (uid && uid !== dispute.filed_by) {
+              userDisputeCounts.set(uid, (userDisputeCounts.get(uid) ?? 0) + 1);
+            }
           }
         }
       }
@@ -378,7 +386,10 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
         for (const dispute of allDisputes) {
           if (dispute.booking_id) {
             const cid = bkCreatorMap.get(dispute.booking_id);
-            if (cid) userDisputeCounts.set(cid, (userDisputeCounts.get(cid) ?? 0) + 1);
+            // Skip when the creator is the complainant.
+            if (cid && cid !== dispute.filed_by) {
+              userDisputeCounts.set(cid, (userDisputeCounts.get(cid) ?? 0) + 1);
+            }
           }
         }
       }
@@ -410,8 +421,8 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
           user_id: profile.id,
           action: 'suspended',
           reason: `Auto-suspended: ${count} active disputes.`,
-          admin_id: profile.id,
-          metadata: { trigger: 'auto_dispute_count', dispute_count: count },
+          admin_id: null,
+          metadata: { trigger: 'auto_dispute_count', dispute_count: count, actor: 'system:daily-maintenance' },
         });
 
         await supabase.from('smart_rentals').update({ is_available: false }).eq('owner_id', profile.id);
