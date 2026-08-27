@@ -4,7 +4,7 @@ import { useState, useCallback, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 import Link from 'next/link';
 import Image from 'next/image';
-import { Camera } from 'lucide-react';
+import { Camera, ArrowRight } from 'lucide-react';
 import type { SmartProduction } from '@/lib/supabase/queries/smartProductions';
 
 // ─── Image shimmer skeleton ───────────────────────────────────────────────────
@@ -163,6 +163,32 @@ export default function SmartProductionClient({ productions }: Props) {
             <p className="max-w-2xl text-lg text-neutral-300 font-light leading-relaxed">
               Hire trusted photographers, videographers, and production teams from our in-house studio or verified creator network.
             </p>
+
+            {/* Two ways in, both always present.
+                The booking form at /book has existed all along, but the only
+                link to it anywhere in the codebase was inside Ubunye's system
+                prompt — so if the assistant was down, slow, or simply going
+                nowhere, there was no route to a booking at all.
+                Deliberately not a fallback that appears when the AI fails:
+                detecting "failure" is harder than it looks (a slow or vague
+                answer never triggers an error handler, the customer just
+                leaves), and someone who already knows they want six hours on
+                the 14th should not have to hold a conversation to say so. */}
+            <div className="flex flex-wrap gap-4 mt-10">
+              <Link
+                href="/book"
+                className="inline-flex items-center gap-2 min-h-[44px] bg-white text-black px-8 py-4 text-[10px] font-mono font-bold uppercase tracking-widest hover:opacity-80 transition-opacity"
+              >
+                Book A Shoot <ArrowRight className="w-3 h-3" />
+              </Link>
+              <Link
+                href="/ubunye-ai-studio?prompt=I%20need%20a%20quote%20for%20a%20production"
+                className="inline-flex items-center gap-2 min-h-[44px] border border-white/20 text-white px-8 py-4 text-[10px] font-mono font-bold uppercase tracking-widest hover:bg-white/5 transition-colors"
+              >
+                <span className="w-1.5 h-1.5 rounded-full bg-[#D4A843]" />
+                Get An Instant AI Quote
+              </Link>
+            </div>
           </div>
         </motion.div>
       </div>

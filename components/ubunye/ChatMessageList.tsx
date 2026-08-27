@@ -207,6 +207,19 @@ export function ChatMessageList({
           <div className="text-[15px] text-neutral-500 leading-relaxed">
             I&apos;m experiencing connectivity issues. Please try again.
           </div>
+          {/* A dead end here used to be a dead end for the booking too: the
+              only link to the booking form lived in this assistant's system
+              prompt, so a customer who got this message had nowhere to go. */}
+          <div className="text-[14px] text-neutral-400 leading-relaxed pt-1">
+            You can also{' '}
+            <Link
+              href="/book"
+              className="text-[#D4A843] underline underline-offset-2 hover:opacity-80 transition-opacity"
+            >
+              book a shoot directly
+            </Link>{' '}
+            without me — pick your date, hours and type of shoot.
+          </div>
         </motion.div>
       )}
 

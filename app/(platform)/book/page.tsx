@@ -26,7 +26,14 @@ export default async function BookPage({ searchParams }: BookPageProps) {
   } = await supabase.auth.getUser();
 
   if (!user) {
-    redirect(`/login?redirect=/book?${new URLSearchParams(params as Record<string, string>).toString()}`);
+    // The whole target has to be encoded, not just appended. Unencoded, the
+    // first `&` ended the redirect value as far as /login's searchParams.get
+    // was concerned, so a quote carrying category, hours, dates and location
+    // arrived back as category alone. Someone who told Ubunye everything, then
+    // logged in, lost all of it but the first field.
+    const query = new URLSearchParams(params as Record<string, string>).toString();
+    const target = query ? `/book?${query}` : '/book';
+    redirect(`/login?redirect=${encodeURIComponent(target)}`);
   }
 
   const category = params.category || '';
