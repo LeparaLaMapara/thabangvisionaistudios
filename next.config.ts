@@ -29,6 +29,23 @@ const nextConfig: NextConfig = {
   // Next.js automatically excludes them from the client bundle.
 
   redirects: async () => [
+    // Production slugs corrected in the database ("potraits" -> "portraits",
+    // and a repeated word). The old URLs were live, so they keep working.
+    {
+      source: '/studio/professional-potraits',
+      destination: '/studio/professional-portraits',
+      permanent: true,
+    },
+    {
+      source: '/studio/studio-maternity-potraits',
+      destination: '/studio/studio-maternity-portraits',
+      permanent: true,
+    },
+    {
+      source: '/studio/birthday-family-birthday',
+      destination: '/studio/family-birthday',
+      permanent: true,
+    },
     {
       source: '/smart-production',
       destination: '/studio',
