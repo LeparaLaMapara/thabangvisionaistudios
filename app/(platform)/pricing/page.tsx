@@ -39,7 +39,7 @@ const PLANS: Plan[] = [
       'Basic creator profile',
       'Up to 3 active gear listings',
       'Chat with Ubunye AI (2 messages/day)',
-      '10% platform fee on community rentals',
+      `${STUDIO.creators.commissionRate}% supplier commission on items you supply`,
     ],
     highlighted: false,
     cta: 'Get Started',
@@ -54,7 +54,7 @@ const PLANS: Plan[] = [
     features: [
       'Everything in Starter',
       'Unlimited gear listings',
-      'Reduced platform fee (7%)',
+      'Verified supplier status',
       'Verified creator badge',
       'Priority in search rankings',
       'Analytics dashboard',
@@ -75,7 +75,7 @@ const PLANS: Plan[] = [
     features: [
       'Everything in Pro Creator',
       'Team accounts (up to 5 members)',
-      'Lowest platform fee (5%)',
+      'Priority supplier placement',
       'Custom studio branding',
       'Bulk booking discounts',
       'Dedicated account manager',
@@ -96,10 +96,11 @@ export default function PricingPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  // Show cancellation notice if redirected back from PayFast
+  // Show cancellation notice if redirected back from the payment gateway
   const cancelled = searchParams.get('subscription') === 'cancelled';
 
   useEffect(() => {
+    if (!STUDIO.subscriptions.enabled) return;
     fetch('/api/subscriptions/plans')
       .then((res) => (res.ok ? res.json() : []))
       .then((data) => {
@@ -186,6 +187,12 @@ export default function PricingPage() {
       setLoadingPlan(null);
     }
   };
+
+  // Paid plans are off. Show what things actually cost instead of an empty
+  // plan grid. Flip STUDIO.subscriptions.enabled to restore the plan cards.
+  if (!STUDIO.subscriptions.enabled) {
+    return <PayAsYouGoPricing />;
+  }
 
   return (
     <div className="min-h-screen bg-white dark:bg-[#0A0A0B] text-black dark:text-white pt-20 transition-colors duration-500">
@@ -355,8 +362,10 @@ export default function PricingPage() {
         {/* FAQ note */}
         <div className="text-center mt-16">
           <p className="text-[9px] font-mono uppercase tracking-[0.2em] text-neutral-400 dark:text-neutral-600">
-            All prices in {STUDIO.currency.code}. Platform rental fee: 10% (Starter), 7%
-            (Pro), 5% (Studio). Payments processed securely via PayFast.{' '}
+            All prices in {STUDIO.currency.code}. {STUDIO.shortName} is the seller of record on
+            every order. Where you supply an item or service, we retain a{' '}
+            {STUDIO.creators.commissionRate}% commission and pay you the balance. Payments
+            processed securely via our authorised payment gateway.{' '}
             <Link
               href="/contact"
               className="text-black dark:text-white underline underline-offset-2"
@@ -367,6 +376,92 @@ export default function PricingPage() {
         </div>
       </section>
       <AskUbunyeButton prompt="Help me choose the right plan for my needs" label="Not sure which plan?" />
+    </div>
+  );
+}
+
+/**
+ * Shown while STUDIO.subscriptions.enabled is false.
+ * ThabangVision is free to join; you pay per booking.
+ */
+function PayAsYouGoPricing() {
+  const rows = [
+    {
+      title: 'Equipment hire',
+      body: `Charged at the daily or weekly rate shown on each listing. A refundable security deposit is shown with it and returned after the gear comes back and passes inspection.`,
+      href: '/rentals',
+      cta: 'Browse equipment',
+    },
+    {
+      title: 'Production and creative services',
+      body: `Charged at the hourly rate shown when you book, from ${STUDIO.booking.minBookingHours} hour up to ${STUDIO.booking.maxBookingHours} hours. VAT is added at checkout and itemised on your quote.`,
+      href: '/studio',
+      cta: 'Browse services',
+    },
+    {
+      title: 'Supplying your own gear or services',
+      body: `Free to join once your identity is verified. Customers book and pay ${STUDIO.shortName}, we retain a ${STUDIO.creators.commissionRate}% commission, and you are paid the balance after the booking completes.`,
+      href: '/register',
+      cta: 'Become a supplier',
+    },
+  ];
+
+  return (
+    <div className="min-h-screen bg-white dark:bg-[#0A0A0B] text-black dark:text-white pt-20 transition-colors duration-500">
+      <section className="container mx-auto px-6 pt-16 pb-12 text-center">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5 }}
+        >
+          <p className="text-[10px] font-mono uppercase tracking-widest text-neutral-500 mb-3">
+            Pricing
+          </p>
+          <h1 className="text-4xl md:text-6xl font-display font-medium uppercase tracking-tight mb-4">
+            Pay For What You Book
+          </h1>
+          <p className="text-neutral-500 font-light max-w-xl mx-auto">
+            No subscription and no monthly fee. Creating an account, browsing, and
+            listing your profile cost nothing. You pay when you book.
+          </p>
+        </motion.div>
+      </section>
+
+      <section className="container mx-auto px-6 pb-24">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-5xl mx-auto">
+          {rows.map((row, i) => (
+            <motion.div
+              key={row.title}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.4, delay: i * 0.08 }}
+            >
+              <Card className="h-full flex flex-col p-8">
+                <h2 className="text-xs font-mono font-bold uppercase tracking-widest mb-4">
+                  {row.title}
+                </h2>
+                <p className="text-sm text-neutral-600 dark:text-neutral-400 font-light leading-relaxed flex-1">
+                  {row.body}
+                </p>
+                <Link
+                  href={row.href}
+                  className="mt-6 inline-flex items-center gap-2 text-[10px] font-mono font-bold uppercase tracking-widest text-black dark:text-white underline underline-offset-4"
+                >
+                  {row.cta}
+                </Link>
+              </Card>
+            </motion.div>
+          ))}
+        </div>
+
+        <p className="text-center text-[9px] font-mono uppercase tracking-[0.2em] text-neutral-400 dark:text-neutral-600 mt-16">
+          All prices in {STUDIO.currency.code}. {STUDIO.shortName} is the seller of record on
+          every order. Payments processed securely via our authorised payment gateway.{' '}
+          <Link href="/contact" className="text-black dark:text-white underline underline-offset-2">
+            Questions? Contact us
+          </Link>
+        </p>
+      </section>
     </div>
   );
 }

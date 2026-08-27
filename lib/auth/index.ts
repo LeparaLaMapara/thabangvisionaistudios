@@ -78,13 +78,21 @@ export async function checkNotSuspended(userId: string): Promise<{
 
 // ─── Rate Limiting (provider-agnostic) ───────────────────────────────────────
 
+/**
+ * Best-effort, per-instance fallback.
+ *
+ * This used to be THE rate limiter. On Vercel each lambda has its own module
+ * scope and that scope dies with the instance, so "5 per minute" was really
+ * "5 per minute per warm instance, until it is recycled" -- which under any
+ * concurrency is not a limit. It is kept only as a degraded fallback for when
+ * the shared counter is unreachable, so a database blip narrows the limit
+ * instead of removing it entirely.
+ *
+ * Do not call this directly. Use checkRateLimit().
+ */
 const rateLimitStore = new Map<string, { count: number; resetAt: number }>();
 
-/**
- * Simple in-memory rate limiter.
- * Returns true if the request is allowed, false if rate limited.
- */
-export function checkRateLimit(
+function checkRateLimitInMemory(
   key: string,
   maxRequests: number,
   windowMs: number,
@@ -96,13 +104,45 @@ export function checkRateLimit(
     rateLimitStore.set(key, { count: 1, resetAt: now + windowMs });
     return true;
   }
-
-  if (entry.count >= maxRequests) {
-    return false;
-  }
-
+  if (entry.count >= maxRequests) return false;
   entry.count++;
   return true;
+}
+
+/**
+ * Shared rate limiter. Returns true if the request is allowed.
+ *
+ * Counts live in Postgres (migration 054) and are incremented by a single
+ * atomic upsert, so concurrent lambdas cannot each read a stale count and each
+ * decide they are under the limit.
+ *
+ * ASYNC ON PURPOSE, and renamed from the old synchronous version rather than
+ * changed in place: `if (!checkRateLimit(key, n, ms))` against a Promise is
+ * always falsy, so an in-place change would have silently disabled rate
+ * limiting at every call site while still type-checking. Renaming forced every
+ * caller to be revisited.
+ */
+export async function checkRateLimit(
+  key: string,
+  maxRequests: number,
+  windowMs: number,
+): Promise<boolean> {
+  try {
+    const { createAdminClient } = await import('@/lib/supabase/server');
+    const { data, error } = await createAdminClient().rpc('rate_limit_hit', {
+      p_key: key,
+      p_limit: maxRequests,
+      p_window_seconds: Math.max(1, Math.round(windowMs / 1000)),
+    });
+    if (error) throw new Error(error.message);
+    return data === true;
+  } catch (err) {
+    // Degrade to the per-instance counter rather than failing open. Locking
+    // everyone out during a database blip would be worse than a loose limit,
+    // but allowing unlimited requests would be worse still.
+    console.error('[rate-limit] shared counter unavailable, degraded to in-memory:', err);
+    return checkRateLimitInMemory(key, maxRequests, windowMs);
+  }
 }
 
 // ─── Admin Rate Limiting ────────────────────────────────────────────────────
@@ -122,13 +162,13 @@ const ADMIN_RATE_LIMITS: Record<AdminRateTier, { maxRequests: number; windowMs: 
  *  - standard (30/min): CRUD on content (rentals, productions, press, careers)
  *  - sensitive (5/min): payouts, suspensions, role changes, dispute resolution
  */
-export function rateLimitAdmin(
+export async function rateLimitAdmin(
   userId: string,
   tier: AdminRateTier = 'standard',
-): NextResponse | null {
+): Promise<NextResponse | null> {
   const { maxRequests, windowMs } = ADMIN_RATE_LIMITS[tier];
   const key = `admin:${tier}:${userId}`;
-  if (!checkRateLimit(key, maxRequests, windowMs)) {
+  if (!(await checkRateLimit(key, maxRequests, windowMs))) {
     return NextResponse.json(
       { error: 'Rate limit exceeded. Please try again shortly.' },
       { status: 429 },

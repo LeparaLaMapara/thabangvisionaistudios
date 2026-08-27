@@ -119,7 +119,26 @@ async function handlePaymentComplete(webhook: WebhookResult) {
       return;
     }
 
-    const expectedTotal = groupBookings.reduce((sum, b) => sum + (b.total_price ?? 0), 0);
+    // Reconcile against what we asked the gateway to charge, recorded in
+    // booking_payments at checkout. Re-deriving it from total_price was wrong:
+    // that column holds the undiscounted hire and excludes deposits, the bulk
+    // discount and any delivery fee, so a correct payment looked like a
+    // mismatch and the booking was pushed back to pending.
+    const bookingIds = groupBookings.map((b) => b.id);
+    const { data: groupPayments } = await supabase
+      .from('booking_payments')
+      .select('amount')
+      .in('booking_id', bookingIds);
+
+    const expectedTotal = (groupPayments ?? []).reduce(
+      (sum, p) => sum + Number(p.amount ?? 0),
+      0,
+    );
+
+    if (!groupPayments?.length) {
+      console.error('[paystack-webhook] No payment records for checkout group:', checkoutGroupId);
+      return;
+    }
     if (Math.abs(expectedTotal - amountGross) > 0.01) {
       console.error('[paystack-webhook] Cart checkout amount mismatch:', {
         expected: expectedTotal,

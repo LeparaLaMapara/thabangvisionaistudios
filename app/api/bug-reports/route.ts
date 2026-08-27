@@ -21,7 +21,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Must be logged in to report a bug' }, { status: 401 });
   }
 
-  if (!checkRateLimit(`bug-report:${user.id}`, 5, 3_600_000)) {
+  if (!(await checkRateLimit(`bug-report:${user.id}`, 5, 3_600_000))) {
     return NextResponse.json(
       { error: 'Too many reports. Please wait before submitting another.' },
       { status: 429 },

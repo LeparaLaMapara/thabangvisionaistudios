@@ -31,7 +31,7 @@ export async function POST(req: NextRequest) {
   const auth = await requireAdmin();
   if (auth.error) return auth.error;
 
-  const limited = rateLimitAdmin(auth.user.id);
+  const limited = await rateLimitAdmin(auth.user.id);
   if (limited) return limited;
 
   try {
@@ -83,7 +83,7 @@ export async function PUT(req: NextRequest) {
   const auth = await requireAdmin();
   if (auth.error) return auth.error;
 
-  const limited = rateLimitAdmin(auth.user.id);
+  const limited = await rateLimitAdmin(auth.user.id);
   if (limited) return limited;
 
   try {
@@ -123,7 +123,7 @@ export async function DELETE(req: NextRequest) {
   const auth = await requireAdmin();
   if (auth.error) return auth.error;
 
-  const limited = rateLimitAdmin(auth.user.id);
+  const limited = await rateLimitAdmin(auth.user.id);
   if (limited) return limited;
 
   try {

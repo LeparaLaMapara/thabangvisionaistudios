@@ -102,7 +102,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     );
   }
 
-  if (!checkRateLimit(`create-rentals:${auth.user.id}`, 2, 60_000)) {
+  if (!(await checkRateLimit(`create-rentals:${auth.user.id}`, 2, 60_000))) {
     return NextResponse.json(
       { error: 'Please wait before drafting listings again.' },
       { status: 429 },

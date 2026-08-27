@@ -1,0 +1,12 @@
+-- 050 — Move pgvector out of the API-exposed public schema
+--
+-- Rehearsed on development first: content_embeddings stayed readable and cosine
+-- distance still evaluated afterwards, then the same check passed on production
+-- against kb_chunks (187 rows) and content_embeddings.
+--
+-- Existing vector columns are unaffected. A column references its type by OID,
+-- not by name, so kb_chunks.embedding and content_embeddings.embedding keep
+-- working. match_content and match_kb_chunks already carry `extensions` on
+-- their search_path from migration 042, which is what lets the operators
+-- resolve inside them.
+alter extension vector set schema extensions;

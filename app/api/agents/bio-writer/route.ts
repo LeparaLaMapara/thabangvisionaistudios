@@ -78,7 +78,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     );
   }
 
-  if (!checkRateLimit(`bio-writer:${auth.user.id}`, 3, 60_000)) {
+  if (!(await checkRateLimit(`bio-writer:${auth.user.id}`, 3, 60_000))) {
     return NextResponse.json(
       { error: 'Please wait a moment before generating again.' },
       { status: 429 },

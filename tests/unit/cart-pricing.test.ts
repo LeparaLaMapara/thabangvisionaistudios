@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { calculateCartPricing } from '@/lib/cart/pricing';
+import { STUDIO } from '@/lib/constants';
 import type { CartItemWithRental } from '@/types/cart';
 
 function makeItem(overrides: Partial<CartItemWithRental['rental']> & { quantity?: number }): CartItemWithRental {
@@ -114,6 +115,38 @@ describe('calculateCartPricing', () => {
     expect(result.subtotal).toBe(1200);
     expect(result.bulkDiscountAmount).toBe(240);
     expect(result.grandTotal).toBe(960);
+  });
+
+  it('reports the configured VAT rate', () => {
+    const result = calculateCartPricing([makeItem({ price_per_day: 500 })], 1);
+    expect(result.vatRate).toBe(STUDIO.booking.vatRate);
+  });
+
+  it('returns zero VAT for an empty cart', () => {
+    expect(calculateCartPricing([], 5).vatAmount).toBe(0);
+  });
+
+  it('computes VAT on the discounted hire charge, excluding deposits', () => {
+    const items = [
+      makeItem({ price_per_day: 500, deposit_amount: 1000, quantity: 3 }),
+    ];
+    const result = calculateCartPricing(items, 1);
+    // subtotal 1500, less 10% bulk discount = 1350 taxable. Deposits (3000) are
+    // a refundable security and carry no VAT.
+    expect(result.bulkDiscountAmount).toBe(150);
+    expect(result.totalDeposit).toBe(3000);
+    expect(result.vatAmount).toBe(176.09); // 1350 * 15 / 115
+  });
+
+  it('discloses VAT without adding it to the grand total', () => {
+    const items = [
+      makeItem({ price_per_day: 500, deposit_amount: 1000, quantity: 3 }),
+    ];
+    const result = calculateCartPricing(items, 1);
+    expect(result.grandTotal).toBe(
+      result.subtotal - result.bulkDiscountAmount + result.totalDeposit,
+    );
+    expect(result.grandTotal).toBe(4350); // 1500 - 150 + 3000
   });
 
   it('handles multiple items with mixed rates', () => {

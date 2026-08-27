@@ -35,7 +35,7 @@ test.describe('Auth flow', () => {
     await expect(page.locator('#email')).toBeVisible();
     await expect(page.locator('#password')).toBeVisible();
     await expect(
-      page.getByRole('button', { name: /sign in/i }),
+      page.getByRole('button', { name: 'Sign In', exact: true }),
     ).toBeVisible();
   });
 
@@ -45,7 +45,7 @@ test.describe('Auth flow', () => {
     await page.goto('/login');
     await page.locator('#email').fill('wrong@example.com');
     await page.locator('#password').fill('WrongPassword123!');
-    await page.getByRole('button', { name: /sign in/i }).click();
+    await page.getByRole('button', { name: 'Sign In', exact: true }).click();
 
     // Supabase returns "Invalid login credentials"
     await expect(

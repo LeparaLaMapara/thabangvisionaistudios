@@ -22,7 +22,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     }
 
     // Rate limit: 50 requests per day per user
-    if (!checkRateLimit(`agents:portfolios:${user.id}`, 50, 86_400_000)) {
+    if (!(await checkRateLimit(`agents:portfolios:${user.id}`, 50, 86_400_000))) {
       return NextResponse.json(
         { error: 'Daily limit reached. Try again tomorrow.' },
         { status: 429 },

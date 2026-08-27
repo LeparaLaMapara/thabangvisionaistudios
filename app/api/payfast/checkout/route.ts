@@ -28,7 +28,7 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  if (!checkRateLimit(`payfast-checkout:${user.id}`, 3, 60_000)) {
+  if (!(await checkRateLimit(`payfast-checkout:${user.id}`, 3, 60_000))) {
     return NextResponse.json(
       { error: 'Too many requests. Please wait before trying again.' },
       { status: 429 },

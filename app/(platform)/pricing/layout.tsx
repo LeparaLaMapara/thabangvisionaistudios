@@ -15,23 +15,23 @@ export const metadata: Metadata = buildPageMetadata({
 const FAQ_ITEMS = [
   {
     question: 'How much does ThabangVision cost?',
-    answer: 'ThabangVision offers three plans: Starter (free), Pro Creator (R299/month or R2,990/year), and Studio (R799/month or R7,990/year). All plans include access to equipment rentals and booking.',
+    answer: 'Creating an account and browsing is free. You pay per booking: equipment hire is charged at the daily or weekly rate shown on each listing, plus a refundable security deposit, and production services are charged at the hourly rate shown on the booking page.',
   },
   {
-    question: 'What is the platform fee on rentals?',
-    answer: 'Platform fees depend on your plan: Starter pays 10%, Pro Creator pays 7%, and Studio pays 5% on community rental transactions.',
+    question: 'How does ThabangVision pay creators who supply gear or services?',
+    answer: 'ThabangVision is the seller of record on every order, so customers pay ThabangVision directly. Where a verified creator supplies the item or service, ThabangVision retains a 15% commission and pays the creator the balance after the booking completes.',
   },
   {
-    question: 'Can I list my own equipment for rent?',
-    answer: 'Yes. Starter accounts can list up to 3 items. Pro Creator and Studio accounts get unlimited listings plus featured listing credits.',
+    question: 'Can I supply my own equipment for hire?',
+    answer: 'Yes. Once your identity is verified you can list gear as a ThabangVision supplier. Customers book and pay ThabangVision, we retain a 15% commission, and you are paid the balance after the hire completes.',
   },
   {
     question: 'What payment methods do you accept?',
-    answer: 'We accept credit cards, debit cards, and EFT via our secure payment partner Paystack. All prices are in South African Rand (ZAR).',
+    answer: 'We accept South African credit cards, debit cards, and EFT through our authorised payment gateway. All prices are in South African Rand (ZAR).',
   },
   {
-    question: 'Is there a free trial?',
-    answer: 'The Starter plan is permanently free. You can browse all rentals, book equipment, and create a basic creator profile at no cost.',
+    question: 'Does it cost anything to join?',
+    answer: 'No. Creating an account, browsing rentals, booking equipment, and creating a creator profile are all free. You only pay for what you book.',
   },
   {
     question: 'How do I cancel my subscription?',

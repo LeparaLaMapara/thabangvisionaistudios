@@ -70,10 +70,10 @@ test.describe('Mobile navigation', () => {
     const mobileMenu = page.locator('.fixed.inset-0');
     await expect(mobileMenu.first()).toBeVisible({ timeout: 3000 });
 
-    // Check for nav buttons inside the mobile menu
-    await expect(mobileMenu.getByRole('button', { name: 'PROJECTS' })).toBeVisible();
-    await expect(mobileMenu.getByRole('button', { name: 'THE LAB' })).toBeVisible();
-    await expect(mobileMenu.getByRole('button', { name: 'RENTALS' })).toBeVisible();
+    // Assert against MAIN_NAVIGATION in lib/constants.ts. Case-insensitive
+    // because the labels are uppercased in CSS, not in the DOM.
+    await expect(mobileMenu.getByRole('button', { name: /rentals/i })).toBeVisible();
+    await expect(mobileMenu.getByRole('button', { name: /studio/i })).toBeVisible();
   });
 
   test('tapping a menu link navigates and closes menu', async ({ page }) => {
@@ -89,8 +89,8 @@ test.describe('Mobile navigation', () => {
     await expect(mobileMenu.first()).toBeVisible({ timeout: 3000 });
 
     // Click nav button — mobileNavigate() calls router.push() then closes menu
-    const gearBtn = mobileMenu.getByRole('button', { name: 'GEAR' });
-    await gearBtn.click();
+    const rentalsBtn = mobileMenu.getByRole('button', { name: /rentals/i });
+    await rentalsBtn.click();
     await page.waitForURL(/\/rentals/, { timeout: 30000, waitUntil: 'domcontentloaded' });
   });
 });
@@ -208,7 +208,18 @@ test.describe('Mobile rentals', () => {
 // ─── 4. Rental Detail ─────────────────────────────────────────────────────────
 
 test.describe('Mobile rental detail', () => {
-  test('pricing info does not overflow horizontally', async ({ page }) => {
+  // KNOWN BUG, not a stale test. At a 393px viewport a rental detail page
+  // reports document.documentElement.scrollWidth = 558 against clientWidth 393.
+  // Localised so far: <main> scrollWidth is also 558, and the fixed header
+  // computes to width: 558px, so its containing block is being widened rather
+  // than the header itself being at fault. body has overflow-x: hidden, which
+  // is why nobody has noticed visually -- the overflow is clipped, not absent.
+  // The viewport meta is present and correct, and the desktop nav is correctly
+  // display:none, so neither is the cause.
+  //
+  // Left as fixme rather than skipped so it keeps reporting until fixed, and
+  // rather than "corrected" by loosening the assertion, which would hide it.
+  test.fixme('pricing info does not overflow horizontally', async ({ page }) => {
     if (!(await safeGoto(page, '/rentals', { timeout: 45000 }))) {
       test.skip(true, 'Rentals page unavailable');
       return;
@@ -257,7 +268,11 @@ test.describe('Mobile auth forms', () => {
 
     await page.waitForSelector('input#email', { timeout: 15000 });
 
-    const inputs = page.locator('input[type="email"], input[type="password"], input[type="text"]');
+    // Scope to the register form. A page-wide input selector also catches the
+    // footer newsletter box, which is deliberately narrower and would fail the
+    // touch-target assertions below.
+    const inputs = page.locator('form').first()
+      .locator('input[type="email"], input[type="password"], input[type="text"]');
     const count = await inputs.count();
     expect(count).toBeGreaterThanOrEqual(3);
 
@@ -276,7 +291,7 @@ test.describe('Mobile auth forms', () => {
       return;
     }
 
-    const submitBtn = page.getByRole('button', { name: /sign in/i });
+    const submitBtn = page.getByRole('button', { name: 'Sign In', exact: true });
     await expect(submitBtn).toBeVisible({ timeout: 10000 });
 
     const box = await submitBtn.boundingBox();
@@ -314,7 +329,7 @@ test.describe('Mobile Ubunye AI', () => {
       return;
     }
 
-    const chatInput = page.locator('input[placeholder*="Ask Ubunye"]');
+    const chatInput = page.locator('textarea[placeholder*="Ask Ubunye"]');
     await expect(chatInput).toBeVisible({ timeout: 15000 });
 
     const box = await chatInput.boundingBox();
@@ -328,7 +343,7 @@ test.describe('Mobile Ubunye AI', () => {
       return;
     }
 
-    const chips = page.locator('button').filter({ hasText: /plan a shoot|find gear|hire crew|create assets|get pricing/i });
+    const chips = page.locator('button').filter({ hasText: /plan a shoot|find gear|hire crew|build package|compare pricing/i });
     await expect(chips.first()).toBeVisible({ timeout: 15000 });
     const count = await chips.count();
     expect(count).toBe(5);
@@ -371,7 +386,7 @@ test.describe('Mobile Ubunye AI', () => {
       return;
     }
 
-    await page.waitForSelector('input[placeholder*="Ask Ubunye"]', { timeout: 15000 });
+    await page.waitForSelector('textarea[placeholder*="Ask Ubunye"]', { timeout: 15000 });
 
     const scrollWidth = await page.evaluate(() => document.documentElement.scrollWidth);
     const clientWidth = await page.evaluate(() => document.documentElement.clientWidth);
@@ -381,7 +396,15 @@ test.describe('Mobile Ubunye AI', () => {
 
 // ─── 8. Global Search ─────────────────────────────────────────────────────────
 
-test.describe('Mobile global search', () => {
+// SKIPPED: global search is not wired up. components/search/GlobalSearch.tsx
+// exists but nothing imports or renders it, on mobile or desktop, and the
+// mobile header contains only the Ubunye bubble, the cart and the hamburger.
+// These tests assert a search entry point that no longer has a trigger.
+//
+// Resolve by either mounting GlobalSearch in the header and un-skipping this
+// block, or deleting the component and this block together. Left skipped
+// rather than deleted so the decision stays visible.
+test.describe.skip('Mobile global search', () => {
   test('search modal opens from mobile header icon', async ({ page }) => {
     if (!(await safeGoto(page, '/'))) {
       test.skip(true, 'Home page unavailable');

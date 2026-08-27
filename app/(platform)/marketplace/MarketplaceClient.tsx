@@ -201,7 +201,7 @@ export default function MarketplaceClient({
               animate={{ opacity: 1, y: 0 }}
               className="text-[10px] font-mono text-neutral-500 uppercase tracking-[0.3em] mb-4 block"
             >
-              Peer-to-Peer Creative Exchange
+              Supplied by verified SA creators
             </motion.span>
             <motion.h1
               initial={{ opacity: 0, y: 20 }}
@@ -209,10 +209,10 @@ export default function MarketplaceClient({
               transition={{ delay: 0.1 }}
               className="text-5xl md:text-7xl font-black text-black dark:text-white tracking-tighter uppercase mb-6 leading-none"
             >
-              Community{' '}
+              Creator{' '}
               <br />
               <span className="text-neutral-400 dark:text-neutral-500">
-                Marketplace
+                Catalogue
               </span>
             </motion.h1>
             <motion.p
@@ -221,15 +221,15 @@ export default function MarketplaceClient({
               transition={{ delay: 0.2 }}
               className="text-sm md:text-base text-neutral-600 dark:text-neutral-400 max-w-md font-light leading-relaxed mb-8"
             >
-              Buy, sell, and rent creative gear and services from verified South
-              African creators. Every transaction is secured through{' '}
-              {STUDIO.shortName}.
+              Creative gear and services sourced from verified South African
+              creators and supplied to you by {STUDIO.shortName}. You book and
+              pay {STUDIO.shortName} directly, and we stand behind every order.
             </motion.p>
             <Link
-              href="/dashboard/listings/new"
+              href="/dashboard/listings"
               className="inline-flex items-center gap-2 text-xs font-mono font-bold uppercase tracking-widest bg-black text-white dark:bg-white dark:text-black px-6 py-3 hover:opacity-80 transition-opacity"
             >
-              List Your Gear <ChevronRight className="w-3 h-3" />
+              Supply Your Gear <ChevronRight className="w-3 h-3" />
             </Link>
           </div>
 
@@ -250,7 +250,7 @@ export default function MarketplaceClient({
               {
                 icon: Tag,
                 title: 'Fair Pricing',
-                desc: 'Set Your Own Rates',
+                desc: 'You Set Your Rates',
                 count: null,
               },
               {
@@ -375,7 +375,7 @@ export default function MarketplaceClient({
               No listings found.
             </p>
             <p className="text-neutral-400 font-mono text-xs">
-              Be the first to list your gear or services.
+              Be the first to supply gear or services.
             </p>
           </div>
         )}

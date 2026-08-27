@@ -9,7 +9,9 @@ import { Trash2, Minus, Plus, ShoppingCart, ArrowRight, AlertTriangle } from 'lu
 import { Button } from '@/components/ui/Button';
 import { DateRangePicker, type DateRange } from '@/components/ui/DateRangePicker';
 import { useCart } from '@/providers/CartProvider';
-import { calculateItemPrice } from '@/lib/cart/pricing';
+import { calculateItemPrice, calculateIncludedVat } from '@/lib/cart/pricing';
+import { quoteDelivery, isDeliveryQuote } from '@/lib/delivery/quote';
+import AddressAutocomplete, { type AddressResult } from '@/components/ui/AddressAutocomplete';
 import { STUDIO } from '@/lib/constants';
 import { DashboardSubTabs, ACTIVITY_TABS } from '@/components/dashboard/DashboardSubTabs';
 import type { CartItemWithRental } from '@/types/cart';
@@ -28,6 +30,9 @@ export default function CartPage() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notes, setNotes] = useState('');
+  const [fulfilment, setFulfilment] = useState<'collection' | 'delivery'>('collection');
+  const [payNow, setPayNow] = useState<'full' | 'deposit_only'>('full');
+  const [address, setAddress] = useState<AddressResult | null>(null);
   const [itemDates, setItemDates] = useState<Map<string, DateRange>>(new Map());
 
   const paymentCancelled = searchParams.get('payment') === 'cancelled';
@@ -118,9 +123,41 @@ export default function CartPage() {
       bulkDiscountPercent,
       bulkDiscountAmount,
       totalDeposit,
+      vatRate: STUDIO.booking.vatRate,
+      vatAmount: calculateIncludedVat(subtotal - bulkDiscountAmount),
       grandTotal: subtotal - bulkDiscountAmount + totalDeposit,
     };
   }, [items, itemDates, allDatesSet]);
+
+  // Same pure function the server uses to charge, so the figure shown here is
+  // the figure billed. The server recalculates it regardless.
+  const delivery = useMemo(() => {
+    if (fulfilment !== 'delivery' || !pricing) return null;
+    return quoteDelivery({
+      destination:
+        address?.lat != null && address?.lng != null
+          ? { lat: address.lat, lng: address.lng }
+          : null,
+      itemCount: pricing.itemCount,
+    });
+  }, [fulfilment, address, pricing]);
+
+  const deliveryFee = delivery && isDeliveryQuote(delivery) ? delivery.fee : 0;
+
+  const totals = useMemo(() => {
+    if (!pricing) return null;
+    const hireCharge = pricing.subtotal - pricing.bulkDiscountAmount;
+    const balanceOnCollection = payNow === 'deposit_only' ? hireCharge : 0;
+    return {
+      balanceOnCollection,
+      dueNow:
+        Math.round((pricing.grandTotal + deliveryFee - balanceOnCollection) * 100) / 100,
+    };
+  }, [pricing, deliveryFee, payNow]);
+
+  // A delivery cannot proceed until we have a locatable address.
+  const fulfilmentReady =
+    fulfilment === 'collection' || (delivery !== null && isDeliveryQuote(delivery));
 
   const handleDateChange = async (itemId: string, range: DateRange) => {
     setItemDates((prev) => new Map(prev).set(itemId, range));
@@ -178,6 +215,22 @@ export default function CartPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           notes: notes.trim() || undefined,
+          fulfilment_method: fulfilment,
+          payment_plan: fulfilment === 'collection' ? payNow : 'full',
+          ...(fulfilment === 'delivery' && address
+            ? {
+                delivery_address: [
+                  address.streetAddress,
+                  address.city,
+                  address.province,
+                  address.postalCode,
+                ]
+                  .filter(Boolean)
+                  .join(', '),
+                delivery_lat: address.lat,
+                delivery_lng: address.lng,
+              }
+            : {}),
         }),
       });
 
@@ -415,10 +468,39 @@ export default function CartPage() {
                 <span className="text-neutral-400">R {pricing.totalDeposit.toLocaleString()}</span>
               </div>
 
+              {STUDIO.legal.vatRegistered && (
+                <div className="flex justify-between text-xs font-mono">
+                  <span className="text-neutral-500">
+                    Incl. VAT ({pricing.vatRate}%)
+                  </span>
+                  <span className="text-neutral-400">R {pricing.vatAmount.toLocaleString()}</span>
+                </div>
+              )}
+
+              {deliveryFee > 0 && (
+                <div className="flex justify-between text-xs font-mono">
+                  <span className="text-neutral-500">Delivery</span>
+                  <span className="text-neutral-400">R {deliveryFee.toLocaleString()}</span>
+                </div>
+              )}
+
               <div className="border-t border-white/10 pt-3 flex justify-between text-sm font-mono font-bold">
-                <span className="text-white">Total</span>
-                <span className="text-[#D4A843]">R {pricing.grandTotal.toLocaleString()}</span>
+                <span className="text-white">
+                  {totals && totals.balanceOnCollection > 0 ? 'Pay now' : 'Total'}
+                </span>
+                <span className="text-[#D4A843]">
+                  R {(totals?.dueNow ?? pricing.grandTotal).toLocaleString()}
+                </span>
               </div>
+
+              {totals && totals.balanceOnCollection > 0 && (
+                <div className="flex justify-between text-xs font-mono">
+                  <span className="text-neutral-500">Due on collection</span>
+                  <span className="text-neutral-400">
+                    R {totals.balanceOnCollection.toLocaleString()}
+                  </span>
+                </div>
+              )}
 
               {pricing.bulkDiscountPercent > 0 && (
                 <p className="text-[9px] font-mono text-emerald-400/70">
@@ -436,6 +518,93 @@ export default function CartPage() {
             </div>
           )}
 
+          {/* How the customer gets the gear */}
+          {items.length > 0 && (
+            <div className="border border-white/10 bg-[#0A0A0B] p-5 space-y-4">
+              <p className="text-[10px] font-mono uppercase tracking-widest text-neutral-500">
+                How would you like to receive your gear?
+              </p>
+
+              <div className="grid grid-cols-2 gap-3">
+                {(['collection', 'delivery'] as const).map((method) => (
+                  <button
+                    key={method}
+                    type="button"
+                    onClick={() => setFulfilment(method)}
+                    className={`min-h-[44px] border px-4 py-3 text-xs font-mono uppercase tracking-widest transition-colors ${
+                      fulfilment === method
+                        ? 'border-[#D4A843] text-[#D4A843]'
+                        : 'border-white/10 text-neutral-400 hover:border-white/30'
+                    }`}
+                  >
+                    {method === 'collection' ? 'Collect' : 'Deliver'}
+                  </button>
+                ))}
+              </div>
+
+              {fulfilment === 'collection' ? (
+                <div className="space-y-3">
+                  <p className="text-[11px] font-mono text-neutral-500 leading-relaxed">
+                    Collect from our {STUDIO.location.city} studio. {STUDIO.hours.weekday},{' '}
+                    {STUDIO.hours.weekend}. Bring the ID you verified with.
+                  </p>
+
+                  {STUDIO.fulfilment.collection.allowBalanceOnCollection && (
+                    <div className="space-y-2">
+                      <p className="text-[10px] font-mono uppercase tracking-widest text-neutral-500">
+                        Payment
+                      </p>
+                      {(
+                        [
+                          ['full', 'Pay everything now'],
+                          ['deposit_only', 'Pay the deposit now, the rest on collection'],
+                        ] as const
+                      ).map(([plan, label]) => (
+                        <label
+                          key={plan}
+                          className="flex items-start gap-3 text-xs font-mono text-neutral-400 cursor-pointer min-h-[44px] items-center"
+                        >
+                          <input
+                            type="radio"
+                            name="payment-plan"
+                            checked={payNow === plan}
+                            onChange={() => setPayNow(plan)}
+                            className="accent-[#D4A843]"
+                          />
+                          <span>{label}</span>
+                        </label>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <p className="text-[11px] font-mono text-neutral-500 leading-relaxed">
+                    We deliver in our own vehicle. The fee is worked out from the distance
+                    and the size of your order, and shown below before you pay.
+                  </p>
+
+                  <AddressAutocomplete onSelect={setAddress} />
+
+                  {delivery && !isDeliveryQuote(delivery) && address && (
+                    <p className="text-[11px] font-mono text-amber-400 leading-relaxed">
+                      {delivery.reason === 'out_of_range'
+                        ? `That address is about ${delivery.distanceKm}km away, past our ${delivery.maxRadiusKm}km delivery radius. Choose Collect, or contact us for a delivery quote.`
+                        : 'Pick your address from the suggestions so we can work out the distance.'}
+                    </p>
+                  )}
+
+                  {delivery && isDeliveryQuote(delivery) && (
+                    <p className="text-[11px] font-mono text-neutral-500">
+                      About {delivery.distanceKm}km from our {delivery.fromLocation} studio.
+                      {delivery.minimumApplied && ' Minimum delivery fee applied.'}
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Notes */}
           <textarea
             value={notes}
@@ -450,18 +619,20 @@ export default function CartPage() {
           <Button
             onClick={handleCheckout}
             loading={submitting}
-            disabled={!allDatesSet || items.length === 0}
+            disabled={!allDatesSet || items.length === 0 || !fulfilmentReady}
             className="w-full"
             size="lg"
           >
-            {pricing
-              ? `Checkout — R ${pricing.grandTotal.toLocaleString()}`
-              : 'Select Dates to Checkout'}
+            {!pricing
+              ? 'Select Dates to Checkout'
+              : !fulfilmentReady
+                ? 'Enter a delivery address'
+                : `Checkout — R ${(totals?.dueNow ?? pricing.grandTotal).toLocaleString()}`}
           </Button>
 
           <p className="text-[9px] font-mono text-neutral-600 text-center">
-            Each item has its own rental period. Deposits are refundable.
-            Bulk discounts apply on 3+ items.
+            Each item has its own rental period. Deposits are refundable and
+            carry no VAT. Bulk discounts apply on 3+ items.
           </p>
         </div>
       </div>

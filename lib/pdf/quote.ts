@@ -219,7 +219,7 @@ export function generateQuotePDF(data: QuoteData): Buffer {
   doc.setFontSize(7);
   doc.text(`Cancellation Policy: ${STUDIO.booking.cancellationPolicy}`, margin, y);
   y += 4;
-  doc.text(`Platform Commission: ${STUDIO.booking.platformCommission}% (included in pricing)`, margin, y);
+  doc.text(`Supplied and invoiced by ${STUDIO.legal.companyName}.`, margin, y);
 
   // ── Footer ──
   const footerY = doc.internal.pageSize.getHeight() - 15;

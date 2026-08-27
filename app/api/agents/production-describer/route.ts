@@ -30,7 +30,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   const auth = await requireAdmin();
   if (auth.error) return auth.error;
 
-  const limited = rateLimitAdmin(auth.user.id);
+  const limited = await rateLimitAdmin(auth.user.id);
   if (limited) return limited;
 
   try {

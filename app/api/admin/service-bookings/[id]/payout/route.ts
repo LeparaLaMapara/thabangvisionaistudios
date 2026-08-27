@@ -14,7 +14,7 @@ export async function POST(
   const { id } = await params;
   const auth = await requireAdmin();
   if (auth.error) return auth.error;
-  const limited = rateLimitAdmin(auth.user.id, 'sensitive');
+  const limited = await rateLimitAdmin(auth.user.id, 'sensitive');
   if (limited) return limited;
 
   const supabase = createAdminClient();

@@ -19,6 +19,19 @@ export function calculateItemPrice(
 }
 
 /**
+ * VAT contained in a VAT-inclusive amount.
+ *
+ * Equipment hire prices in `smart_rentals` are stored VAT-inclusive, so VAT is
+ * disclosed rather than added: the customer pays the same total either way.
+ * Deposits are excluded by the caller — a refundable security deposit is not
+ * consideration for a supply and carries no VAT.
+ */
+export function calculateIncludedVat(taxableBase: number): number {
+  const rate = STUDIO.booking.vatRate;
+  return Math.round(taxableBase * (rate / (100 + rate)) * 100) / 100;
+}
+
+/**
  * Determine the bulk discount percentage based on total item count.
  */
 function getBulkDiscountPercent(totalItems: number): number {
@@ -48,6 +61,8 @@ export function calculateCartPricing(
       bulkDiscountPercent: 0,
       bulkDiscountAmount: 0,
       totalDeposit: 0,
+      vatRate: STUDIO.booking.vatRate,
+      vatAmount: 0,
       grandTotal: 0,
     };
   }
@@ -78,6 +93,7 @@ export function calculateCartPricing(
   const totalDeposit = pricingItems.reduce((sum, pi) => sum + pi.deposit, 0);
   const bulkDiscountPercent = getBulkDiscountPercent(totalItemCount);
   const bulkDiscountAmount = Math.round(subtotal * (bulkDiscountPercent / 100) * 100) / 100;
+  const vatAmount = calculateIncludedVat(subtotal - bulkDiscountAmount);
   const grandTotal = subtotal - bulkDiscountAmount + totalDeposit;
 
   return {
@@ -88,6 +104,8 @@ export function calculateCartPricing(
     bulkDiscountPercent,
     bulkDiscountAmount,
     totalDeposit,
+    vatRate: STUDIO.booking.vatRate,
+    vatAmount,
     grandTotal,
   };
 }
@@ -103,6 +121,8 @@ export function calculateCartPricingPerItem(
       bulkDiscountPercent: 0,
       bulkDiscountAmount: 0,
       totalDeposit: 0,
+      vatRate: STUDIO.booking.vatRate,
+      vatAmount: 0,
       grandTotal: 0,
     };
   }
@@ -140,6 +160,7 @@ export function calculateCartPricingPerItem(
   const totalDeposit = pricingItems.reduce((sum, pi) => sum + pi.deposit, 0);
   const bulkDiscountPercent = getBulkDiscountPercent(totalItemCount);
   const bulkDiscountAmount = Math.round(subtotal * (bulkDiscountPercent / 100) * 100) / 100;
+  const vatAmount = calculateIncludedVat(subtotal - bulkDiscountAmount);
   const grandTotal = subtotal - bulkDiscountAmount + totalDeposit;
 
   return {
@@ -149,6 +170,8 @@ export function calculateCartPricingPerItem(
     bulkDiscountPercent,
     bulkDiscountAmount,
     totalDeposit,
+    vatRate: STUDIO.booking.vatRate,
+    vatAmount,
     grandTotal,
   };
 }

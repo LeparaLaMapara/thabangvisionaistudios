@@ -233,7 +233,7 @@ Hours: ${STUDIO.hours.weekday} | ${STUDIO.hours.weekend} | ${STUDIO.hours.sunday
 ===== WHAT WE OFFER =====
 ${productionsLine}${productionsLine ? '\n' : ''}- Rentals — Equipment rental with online booking at /rentals
 - Ubunye AI Studio — You. The AI assistant at /ubunye-ai-studio
-- Creator Marketplace — Verified creators list gear and services
+- Creator Network — Verified creators supply gear and services, booked through us
 - About — R&D: AI production tools, custom software, optical engineering. Learn more at /about
 
 ===== PRODUCTION SERVICES =====
@@ -245,13 +245,13 @@ ${PRODUCTION_SERVICES.edge.map(e => `- ${e}`).join('\n')}
 ===== RENTAL TERMS =====
 Deposit: ${STUDIO.rental.depositPercent}% required
 Multi-day discount: 7+ days = weekly rate applies
-Cancellation: ${STUDIO.rental.cancellationHours} hours notice
+Cancellation (equipment): full refund of the hire over 48h notice, 50% between 24-48h, none inside 24h. Security deposit always refunded in full. Processed automatically.
 Max booking: ${STUDIO.rental.maxBookingDays} days
 
-===== PRICING PLANS =====
+${STUDIO.subscriptions.enabled ? `===== PRICING PLANS =====
 ${platform.plans}
 
-===== EQUIPMENT CATALOGUE =====
+` : ''}===== EQUIPMENT CATALOGUE =====
 ${platform.rentals}
 
 ${productionsSection}===== CREW SERVICES =====

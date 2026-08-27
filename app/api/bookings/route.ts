@@ -50,7 +50,7 @@ export async function POST(request: NextRequest) {
   }
 
   // H3: Rate limit booking creation — 5 requests per minute per user
-  if (!checkRateLimit(`booking:${user.id}`, 5, 60_000)) {
+  if (!(await checkRateLimit(`booking:${user.id}`, 5, 60_000))) {
     return NextResponse.json(
       { error: 'Too many booking requests. Please wait before trying again.' },
       { status: 429 },

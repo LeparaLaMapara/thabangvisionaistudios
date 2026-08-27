@@ -26,6 +26,8 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: `${baseUrl}/register`, changeFrequency: 'yearly', priority: 0.3 },
     { url: `${baseUrl}/legal`, changeFrequency: 'yearly', priority: 0.2 },
     { url: `${baseUrl}/privacy`, changeFrequency: 'yearly', priority: 0.2 },
+    { url: `${baseUrl}/refunds`, changeFrequency: 'yearly', priority: 0.2 },
+    { url: `${baseUrl}/unsubscribe`, changeFrequency: 'yearly', priority: 0.1 },
   ];
 
   // ── Dynamic: Smart Rentals ────────────────────────────────────────────────

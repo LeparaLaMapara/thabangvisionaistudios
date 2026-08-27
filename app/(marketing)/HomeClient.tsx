@@ -131,7 +131,7 @@ const HowItWorks = () => {
             How It <span className="text-neutral-500">Works</span>
           </h2>
           <p className="text-neutral-400 font-light leading-relaxed mt-4 max-w-2xl mx-auto">
-            ThabangVision connects clients with verified creators and professional equipment owners through one secure platform.
+            One place to book crew and gear. You book and pay ThabangVision, and we supply the creators and equipment your production needs.
           </p>
         </motion.div>
 
@@ -182,8 +182,8 @@ const CommunitySection = () => (
         {[
           {
             icon: Camera,
-            title: 'List Your Gear',
-            description: 'Verified creators can list their equipment for rent. Earn from your camera, lenses, lighting, and audio gear.',
+            title: 'Supply Your Gear',
+            description: 'Become a verified supplier. Put your camera, lenses, lighting and audio gear to work between your own jobs.',
             cta: 'Get Verified',
             href: '/dashboard/verification',
           },
@@ -296,7 +296,7 @@ const TrustSignals = () => (
       <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
         {[
           { icon: BadgeCheck, label: 'Identity-Verified Creators', detail: 'Every creator passes ID verification' },
-          { icon: Lock, label: 'Secure Payments', detail: 'Protected by PayFast & Paystack' },
+          { icon: Lock, label: 'Secure Payments', detail: 'Encrypted checkout, cards never stored' },
           { icon: ShieldCheck, label: 'Deposit Protection', detail: 'Your deposit is secured until delivery' },
           { icon: Star, label: 'Rated & Reviewed', detail: 'Real reviews from real clients' },
         ].map((item) => (

@@ -27,7 +27,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       return NextResponse.json({ error: 'Not authenticated.' }, { status: 401 });
     }
 
-    if (!checkRateLimit(`onboarding:${user.id}`, 3, 60_000)) {
+    if (!(await checkRateLimit(`onboarding:${user.id}`, 3, 60_000))) {
       return NextResponse.json({ error: 'Too many requests. Please wait before trying again.' }, { status: 429 });
     }
 

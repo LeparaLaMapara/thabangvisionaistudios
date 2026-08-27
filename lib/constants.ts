@@ -36,9 +36,36 @@ export const STUDIO = {
   },
 
   legal: {
+    // Exactly as it appears on the CIPC COR 14.3 registration certificate
+    // issued 19/09/2025. Do not restyle it — payment providers match this
+    // string character-for-character against the certificate.
     companyName: 'THABANGVISION STUDIO (Pty) Ltd',
     tradingAs: 'Thabang Vision AI Studios',
     registrationNumber: '2025/742948/07',
+    // Registered business address. MUST match the address on the Paystack dashboard.
+    // Rendered in the footer and Terms of Service only when non-empty.
+    registeredAddress: '9873 Extension 5, Soshanguve South, Gauteng, 0152, South Africa',
+    // Whether the company is a registered VAT vendor. This — not vatNumber —
+    // is what drives VAT wording and the VAT line at checkout.
+    vatRegistered: true,
+    // The VAT number itself. Optional: a vendor must show it on a tax invoice,
+    // but is not obliged to publish it on the website. Rendered only if set.
+    vatNumber: '',
+    // POPIA requires a designated Information Officer, registered with the
+    // Information Regulator. Rendered on /privacy only once the name is filled.
+    informationOfficer: {
+      name: '',
+      email: 'privacy@thabangvision.com',
+    },
+    // The statutory complaints authority for POPIA. Do not point users at a
+    // generic "your local data protection authority".
+    informationRegulator: {
+      name: 'Information Regulator (South Africa)',
+      complaintsEmail: 'POPIAComplaints@inforegulator.org.za',
+      generalEmail: 'inforeg@inforegulator.org.za',
+      address: 'JD House, 27 Stiemens Street, Braamfontein, Johannesburg, 2001',
+      website: 'https://inforegulator.org.za',
+    },
     popia: {
       version: '2026.04.20',
       retentionDays: 30, // Delete verification storage objects 30 days after review
@@ -109,7 +136,19 @@ export const STUDIO = {
     depositPercent: 50,
     maxBookingDays: 30,
     maxDirectBookingDays: 365,
+    // Final tier boundary below. Kept as its own value because tests and the
+    // Ubunye system prompt read it directly.
     cancellationHours: 24,
+    // Tiered cancellation scale for equipment hire, applied automatically by
+    // app/api/bookings/[id]/route.ts. refundPercent applies to the HIRE charge
+    // only — the security deposit is always refunded in full on cancellation,
+    // because the equipment never left our premises.
+    // Ordered most-notice-first; the first matching tier wins.
+    cancellationTiers: [
+      { minHoursBefore: 48, refundPercent: 100 },
+      { minHoursBefore: 24, refundPercent: 50 },
+      { minHoursBefore: 0, refundPercent: 0 },
+    ],
     maxCartItems: 10,
     bulkDiscount: [
       { minItems: 1, maxItems: 2, discountPercent: 0 },
@@ -124,6 +163,69 @@ export const STUDIO = {
     acceptedTypes: ['image/jpeg', 'image/png'],
     maxAttempts: 3,
     reviewDays: 'instant',
+  },
+
+  // ── Fulfilment: collection or delivery ───────────────────────────────────
+  // How the customer gets the gear, chosen at checkout.
+  //
+  // Delivery is priced from the distance to the address plus the size of the
+  // order, and the exact fee is shown before payment. We deliver in our own
+  // vehicle, so this is a running cost, not a courier rate. There is no
+  // courier and therefore no tracking number.
+  fulfilment: {
+    // Where equipment physically leaves from, and what delivery distances are
+    // measured against. Deliberately separate from STUDIO.location, which is
+    // the city we present as our base, and from legal.registeredAddress, which
+    // is the CIPC address and is not an operating site.
+    //
+    // University of the Witwatersrand, Braamfontein, Johannesburg.
+    dispatchFrom: {
+      name: 'Braamfontein',
+      lat: -26.1929,
+      lng: 28.0305,
+    },
+    collection: {
+      enabled: true,
+      // A collection can be paid in full online, or the security deposit can
+      // be paid online to hold the gear with the hire charge settled at the
+      // counter. We never hold stock with nothing paid.
+      allowBalanceOnCollection: true,
+    },
+    delivery: {
+      enabled: true,
+      // Rate per kilometre of one-way road distance. Derived so it can be
+      // re-checked when fuel moves:
+      //   petrol ~R22/l, a loaded bakkie ~10 l/100km  ->  R2.20/km of fuel
+      //   we drive there and back                     ->  R4.40/km
+      //   driver time, vehicle wear, insurance, admin ->  R11/km
+      // Multiply only the ONE-WAY distance; the return leg is already in here.
+      ratePerKm: 11,
+      // Straight-line distance underestimates the drive. Roughly 1.3x is the
+      // usual correction for Gauteng.
+      roadDistanceFactor: 1.3,
+      // Short local runs still cost a person an hour.
+      minimumFee: 150,
+      // Bigger loads need a bigger vehicle and more handling.
+      itemsIncluded: 3,
+      surchargePerExtraItem: 25,
+      // Past this we stop calculating and quote by hand. 100km reaches the
+      // whole of Gauteng from Braamfontein, including Tshwane North and
+      // Soshanguve at roughly 96km by road. Below 100 those fall outside,
+      // which would be odd for a Johannesburg-Pretoria operation.
+      maxRadiusKm: 100,
+    },
+  },
+
+  // ── Subscriptions ────────────────────────────────────────────────────────
+  // Paid plans (Pro / Studio) are OFF while the offer is reworked. The tiered
+  // commission that justified them was never implemented, so the plans were
+  // advertising a discount that no code applied.
+  //
+  // Everything behind this stays intact: subscription_plans table,
+  // /api/subscriptions/*, and createSubscriptionCheckout on both payment
+  // providers. Flip this to true to put the plans back on sale.
+  subscriptions: {
+    enabled: false,
   },
 
   platform: {
@@ -209,7 +311,15 @@ export const STUDIO = {
     vatRate: 15,
     minBookingHours: 1,
     maxBookingHours: 72,
-    cancellationPolicy: 'Free cancellation up to 48 hours before the shoot. After that, the full amount is non-refundable.',
+    cancellationPolicy: 'Cancel more than 48 hours before the shoot for a full refund. Between 24 and 48 hours, 50% is refunded. Inside 24 hours the booking is non-refundable, because crew and equipment are already committed.',
+    // Applied automatically by app/api/service-bookings/[id]/status when a
+    // client cancels, measured against bookings.shoot_date. Same shape as
+    // STUDIO.rental.cancellationTiers; ordered most-notice-first.
+    cancellationTiers: [
+      { minHoursBefore: 48, refundPercent: 100 },
+      { minHoursBefore: 24, refundPercent: 50 },
+      { minHoursBefore: 0, refundPercent: 0 },
+    ],
     autoCompleteAfterDays: 30,
     projectCategories: [
       'Wedding Photography',
@@ -316,6 +426,7 @@ export const FOOTER_SECTIONS = [
       { label: 'Report a Bug', href: '/support/report-bug' },
       { label: 'Legal / Terms', href: '/legal' },
       { label: 'Privacy Policy', href: '/privacy' },
+      { label: 'Refunds & Returns', href: '/refunds' },
     ],
   },
 ];
@@ -400,10 +511,23 @@ export const RENTAL_CATEGORIES = [
 ] as const;
 
 // ─── RENTAL POLICIES ─────────────────────────────────────────────────────────
+// These are the values the RETURN pipeline actually enforces
+// (app/api/rentals/[id]/return/route.ts). The legal pages read from here, so
+// the published terms and the charged amounts cannot drift apart.
+//
+// Note: the security deposit is NOT a percentage of the hire. It is a fixed
+// rand amount per listing (smart_rentals.deposit_amount). STUDIO.rental
+// .depositPercent is used only to seed suggested deposits at AI onboarding.
 export const RENTAL_POLICIES = {
-  depositPercent: 50,
   lateFeePerDayZar: 150,
   maxLateDays: 14,
+  // Loss of earnings recovered when gear is lost, stolen or out of service for
+  // repair. Charged as a contractual debt by invoice — there is no automatic
+  // deduction path beyond the deposit.
+  lossOfEarnings: {
+    percentOfHireValue: 35,
+    minimumWeeks: 10,
+  },
   supportEmail: STUDIO.supportEmail,
 } as const;
 

@@ -13,7 +13,7 @@ export default async function ContentRepurposePage() {
 
   const supabase = createAdminClient();
   const { data: articles } = await supabase
-    .from('press_articles')
+    .from('press')
     .select('id, slug, title, published_at')
     .order('published_at', { ascending: false });
 

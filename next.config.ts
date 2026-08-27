@@ -65,11 +65,11 @@ const nextConfig: NextConfig = {
           key: 'Content-Security-Policy',
           value: [
             "default-src 'self'",
-            "script-src 'self' 'unsafe-inline' https://js.paystack.co",
+            "script-src 'self' 'unsafe-inline' https://js.paystack.co https://va.vercel-scripts.com",
             "style-src 'self' 'unsafe-inline'",
             "img-src 'self' https://res.cloudinary.com https://*.supabase.co https://images.unsplash.com https://i.ytimg.com https://img.youtube.com data: blob:",
             "font-src 'self'",
-            "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.anthropic.com https://api.paystack.co https://js.paystack.co https://api.cloudinary.com",
+            "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.anthropic.com https://api.paystack.co https://js.paystack.co https://api.cloudinary.com https://va.vercel-scripts.com https://vitals.vercel-insights.com https://nominatim.openstreetmap.org",
             "frame-src https://checkout.paystack.com https://www.youtube.com https://player.vimeo.com",
             "frame-ancestors 'none'",
             "media-src 'self' https://res.cloudinary.com",
