@@ -136,19 +136,72 @@ export const Footer = () => {
           </div>
         </div>
 
-        {/* Registered business details — required for payment provider compliance */}
-        <div className="border-t border-black/5 dark:border-white/5 pt-10 pb-8 text-[11px] font-mono text-neutral-500 dark:text-neutral-600 leading-relaxed space-y-1">
-          <p>{STUDIO.legal.companyName} | Registration number {STUDIO.legal.registrationNumber}</p>
-          {STUDIO.legal.registeredAddress && <p>{STUDIO.legal.registeredAddress}</p>}
-          {STUDIO.legal.vatNumber
-            ? <p>VAT number {STUDIO.legal.vatNumber}</p>
-            : STUDIO.legal.vatRegistered && <p>Registered VAT vendor</p>}
-          <p>
-            {STUDIO.phone} |{' '}
-            <a href={`mailto:${STUDIO.email}`} className="hover:text-black dark:hover:text-white transition-colors">
-              {STUDIO.email}
-            </a>
+        {/* Registered business details.
+            Required for payment-provider compliance, but presented as an
+            identity block rather than a footnote: a gold rule and the same
+            micro-label vocabulary the legal pages use, with each fact given a
+            label instead of being run together with pipe separators.
+            Semantic dl/dt/dd, so a screen reader reads label-then-value. */}
+        <div className="border-t border-black/5 dark:border-white/5 pt-12 pb-10">
+          <div className="w-8 h-px bg-[#D4A843] mb-6" />
+
+          <p className="text-xs md:text-sm font-mono uppercase tracking-[0.2em] text-neutral-700 dark:text-neutral-300 mb-8">
+            {STUDIO.legal.companyName}
           </p>
+
+          <dl className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-x-10 gap-y-7">
+            <div>
+              <dt className="text-[9px] font-mono uppercase tracking-[0.25em] text-neutral-500 dark:text-neutral-500 mb-2">
+                Registration
+              </dt>
+              <dd className="text-[11px] font-mono text-neutral-600 dark:text-neutral-400 leading-relaxed">
+                {STUDIO.legal.registrationNumber}
+              </dd>
+            </div>
+
+            {(STUDIO.legal.vatNumber || STUDIO.legal.vatRegistered) && (
+              <div>
+                <dt className="text-[9px] font-mono uppercase tracking-[0.25em] text-neutral-500 dark:text-neutral-500 mb-2">
+                  VAT
+                </dt>
+                <dd className="text-[11px] font-mono text-neutral-600 dark:text-neutral-400 leading-relaxed">
+                  {STUDIO.legal.vatNumber || 'Registered vendor'}
+                </dd>
+              </div>
+            )}
+
+            {STUDIO.legal.registeredAddress && (
+              <div>
+                <dt className="text-[9px] font-mono uppercase tracking-[0.25em] text-neutral-500 dark:text-neutral-500 mb-2">
+                  Registered address
+                </dt>
+                <dd className="text-[11px] font-mono text-neutral-600 dark:text-neutral-400 leading-relaxed">
+                  {STUDIO.legal.registeredAddress}
+                </dd>
+              </div>
+            )}
+
+            <div>
+              <dt className="text-[9px] font-mono uppercase tracking-[0.25em] text-neutral-500 dark:text-neutral-500 mb-2">
+                Contact
+              </dt>
+              <dd className="text-[11px] font-mono text-neutral-600 dark:text-neutral-400 leading-relaxed">
+                <a
+                  href={`tel:${STUDIO.phone.replace(/\s+/g, '')}`}
+                  className="hover:text-black dark:hover:text-white transition-colors"
+                >
+                  {STUDIO.phone}
+                </a>
+                <br />
+                <a
+                  href={`mailto:${STUDIO.email}`}
+                  className="hover:text-[#D4A843] transition-colors"
+                >
+                  {STUDIO.email}
+                </a>
+              </dd>
+            </div>
+          </dl>
         </div>
 
         <div className="flex flex-col md:flex-row justify-between items-center border-t border-black/5 dark:border-white/5 pt-10">
