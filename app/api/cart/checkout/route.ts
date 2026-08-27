@@ -8,6 +8,7 @@ import { STUDIO } from '@/lib/constants';
 import { getCartItems, clearCart } from '@/lib/supabase/queries/cart';
 import { calculateCartPricing, calculateCartPricingPerItem } from '@/lib/cart/pricing';
 import { quoteDelivery, isDeliveryQuote } from '@/lib/delivery/quote';
+import { checkAvailability, availabilityMessage, type BookingHold } from '@/lib/rental/availability';
 import type { CartItemWithRental } from '@/types/cart';
 
 function daysBetween(start: string, end: string): number {
@@ -181,23 +182,55 @@ export async function POST(request: NextRequest) {
     const itemStart = usePerItemDates ? item.start_date! : start_date;
     const itemEnd = usePerItemDates ? item.end_date! : end_date;
 
-    const { data: conflicts } = await supabase
+    // Count UNITS, not bookings. The old check took the first overlapping row
+    // as a refusal and never read smart_rentals.quantity, so a listing with
+    // two cameras only ever rented one at a time.
+    const { data: overlapping, error: overlapErr } = await supabase
       .from('equipment_bookings')
-      .select('id')
+      .select('id, quantity, status, created_at, payfast_payment_id')
       .eq('rental_id', item.rental_id)
       .in('status', ['pending', 'confirmed', 'active'])
       .lt('start_date', itemEnd)
-      .gt('end_date', itemStart)
-      .limit(1);
+      .gt('end_date', itemStart);
 
-    if (conflicts && conflicts.length > 0) {
-      unavailableItems.push(item.rental.title);
+    // Never treat an unreadable availability check as "available" -- that
+    // would sell the same gear twice.
+    if (overlapErr) {
+      console.error('[cart/checkout] availability check failed:', overlapErr.message);
+      return NextResponse.json(
+        { error: 'Could not confirm availability just now. Please try again.' },
+        { status: 503 },
+      );
+    }
+
+    const holds: BookingHold[] = (overlapping ?? []).map((b) => {
+      const row = b as {
+        id: string; quantity: number | null; status: string;
+        created_at: string; payfast_payment_id: string | null;
+      };
+      return {
+        id: row.id,
+        quantity: row.quantity ?? 1,
+        status: row.status,
+        createdAt: row.created_at,
+        paymentReference: row.payfast_payment_id,
+      };
+    });
+
+    const availability = checkAvailability({
+      stock: (item.rental as { quantity?: number }).quantity ?? 1,
+      holds,
+      requested: item.quantity,
+    });
+
+    if (!availability.available) {
+      unavailableItems.push(availabilityMessage(item.rental.title, availability));
     }
   }
 
   if (unavailableItems.length > 0) {
     return NextResponse.json(
-      { error: `Unavailable for selected dates: ${unavailableItems.join(', ')}` },
+      { error: unavailableItems.join(' ') },
       { status: 409 },
     );
   }
@@ -269,6 +302,7 @@ export async function POST(request: NextRequest) {
       deposit_amount: pricingItem?.deposit ?? 0,
       currency,
       status: 'pending' as const,
+      quantity: item.quantity,
       notes: notes?.trim() || null,
       checkout_group_id: checkoutGroupId,
       fulfilment_method: fulfilment,

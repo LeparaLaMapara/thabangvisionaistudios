@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server';
 import type { CartItem, CartItemWithRental } from '@/types/cart';
 
-const RENTAL_FIELDS = 'id, title, slug, category, brand, price_per_day, price_per_week, deposit_amount, currency, is_available, thumbnail_url';
+const RENTAL_FIELDS = 'id, title, slug, category, brand, price_per_day, price_per_week, deposit_amount, currency, is_available, thumbnail_url, quantity';
 
 export async function getCartItems(userId: string): Promise<CartItemWithRental[]> {
   const supabase = await createClient();

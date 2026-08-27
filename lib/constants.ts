@@ -138,6 +138,13 @@ export const STUDIO = {
     maxDirectBookingDays: 365,
     // Final tier boundary below. Kept as its own value because tests and the
     // Ubunye system prompt read it directly.
+    // How long an unpaid checkout holds stock before the dates are released.
+    // A hold is taken at checkout, before payment, so without an expiry an
+    // abandoned payment page removes those dates from sale permanently --
+    // which had already cost five date ranges in production, one unsellable
+    // for 161 days. Long enough that nobody actively paying loses a booking,
+    // short enough that a Saturday abandonment does not cost Sunday's rental.
+    pendingHoldMinutes: 30,
     cancellationHours: 24,
     // Tiered cancellation scale for equipment hire, applied automatically by
     // app/api/bookings/[id]/route.ts. refundPercent applies to the HIRE charge
