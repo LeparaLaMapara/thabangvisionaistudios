@@ -121,6 +121,21 @@ export async function POST(request: NextRequest) {
     const category = CATEGORY_MAP[formCategory] ?? 'specialized-solutions';
     const isPublished = body.is_published === false ? false : true;
 
+    // Validate the price rather than trusting parseFloat. A negative or NaN day
+    // rate would corrupt every downstream total, and R0 gear is almost always a
+    // mistake, not an offer. The ceiling is a sanity bound, not a business rule.
+    let pricePerDay: number | null = null;
+    if (body.price_per_day !== undefined && body.price_per_day !== null && body.price_per_day !== '') {
+      const parsed = parseFloat(body.price_per_day);
+      if (!Number.isFinite(parsed) || parsed < 0 || parsed > 1_000_000) {
+        return NextResponse.json(
+          { error: 'Price per day must be a positive amount.' },
+          { status: 400 },
+        );
+      }
+      pricePerDay = parsed;
+    }
+
     const { data, error } = await supabase
       .from('smart_rentals')
       .insert({
@@ -129,7 +144,7 @@ export async function POST(request: NextRequest) {
         description: (body.description as string | undefined)?.trim() || null,
         category,
         sub_category: (body.condition as string | undefined) || null,
-        price_per_day: body.price_per_day ? parseFloat(body.price_per_day) : null,
+        price_per_day: pricePerDay,
         currency: STUDIO.currency.code,
         thumbnail_url: (body.thumbnail_url as string | undefined) ?? null,
         cover_public_id: (body.cover_public_id as string | undefined) ?? null,
@@ -191,13 +206,27 @@ export async function PUT(request: NextRequest) {
       ? (CATEGORY_MAP[formCategory] ?? 'specialized-solutions')
       : undefined;
 
+    // Same price validation as create — an edit must not be able to write a
+    // value the create path would reject.
+    let pricePerDay: number | null = null;
+    if (body.price_per_day !== undefined && body.price_per_day !== null && body.price_per_day !== '') {
+      const parsed = parseFloat(body.price_per_day);
+      if (!Number.isFinite(parsed) || parsed < 0 || parsed > 1_000_000) {
+        return NextResponse.json(
+          { error: 'Price per day must be a positive amount.' },
+          { status: 400 },
+        );
+      }
+      pricePerDay = parsed;
+    }
+
     const updatePayload: Record<string, unknown> = {
       title,
       slug: slugify(title),
       description: (body.description as string | undefined)?.trim() || null,
       ...(category && { category }),
       sub_category: (body.condition as string | undefined) || null,
-      price_per_day: body.price_per_day ? parseFloat(body.price_per_day) : null,
+      price_per_day: pricePerDay,
       thumbnail_url: (body.thumbnail_url as string | undefined) ?? null,
       cover_public_id: (body.cover_public_id as string | undefined) ?? null,
       gallery: body.gallery ?? null,

@@ -5,6 +5,9 @@ import { streamText, convertToModelMessages, stepCountIs } from 'ai';
 import { checkRateLimit } from '@/lib/auth';
 import { getModel, getModelId, routeQuery } from '@/lib/ai';
 import { logTokenUsage } from '@/lib/ai/tracked';
+import { estimateCostZAR } from '@/lib/ai/pricing';
+import { checkAiBudget } from '@/lib/ai/budget';
+import { clientIp } from '@/lib/http/clientIp';
 import { createClient, createAdminClient } from '@/lib/supabase/server';
 import { fetchPlatformData, fetchUserContext, type UbunyeFlagsSnapshot } from '@/lib/ubunye/system-prompt';
 import { getFlags } from '@/lib/features';
@@ -180,7 +183,7 @@ export async function executeAgent(
       );
     }
 
-    const ip = req.headers.get('x-forwarded-for') ?? 'anonymous';
+    const ip = clientIp(req.headers);
     const allowed = await checkRateLimit(`ai-guest:${agentId}:${ip}`, 10, 60_000);
     if (!allowed) {
       return NextResponse.json(
@@ -243,7 +246,7 @@ export async function executeAgent(
 
   // ── Create conversation if client didn't provide one ──
   if (!conversationId) {
-    const ip = req.headers.get('x-forwarded-for') ?? 'anonymous';
+    const ip = clientIp(req.headers);
     conversationId = await createConversation({
       userId: user?.id ?? null,
       agentId,
@@ -356,6 +359,24 @@ Only ask: how many hours, when, and where. Then quote and book.`;
       if (route.tier === 'fast') {
         console.log(`[agent:${agentId}] Routed to ${modelId} (fast tier)`);
       }
+    }
+
+    // ── Enforced spend ceiling ──
+    // The per-minute rate limits above throttle abuse; this stops it. A rough
+    // worst-case estimate of this call is charged against the month-to-date
+    // total, and the call is refused once the ceiling is crossed. See
+    // lib/ai/budget.ts for why this is a cheap backstop rather than a meter.
+    const estimatedCost = estimateCostZAR(modelId, 4000, 1500);
+    const budget = await checkAiBudget(createAdminClient(), estimatedCost);
+    if (!budget.allowed) {
+      console.error(
+        `[agent:${agentId}] BLOCKED by AI budget ceiling: `
+        + `R${budget.spent.toFixed(2)} of R${budget.budget} spent this month.`,
+      );
+      return NextResponse.json(
+        { error: 'The assistant is briefly unavailable. Please try again later.' },
+        { status: 503 },
+      );
     }
 
     const result = streamText({

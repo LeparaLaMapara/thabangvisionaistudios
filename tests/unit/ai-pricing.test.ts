@@ -2,8 +2,11 @@ import { describe, it, expect } from 'vitest';
 import { estimateCostZAR, AI_PRICING } from '@/lib/ai/pricing';
 
 describe('estimateCostZAR', () => {
-  it('returns 0 for an unknown model', () => {
-    expect(estimateCostZAR('nonexistent-model', 1_000_000, 1_000_000)).toBe(0);
+  it('charges an unknown model at worst case, never zero', () => {
+    // Previously this returned 0, which recorded unpriced models as free and
+    // blinded the AI budget ceiling. A spend estimate must over-count an
+    // unknown model, not make it vanish. See lib/ai/pricing.ts.
+    expect(estimateCostZAR('nonexistent-model', 1_000_000, 1_000_000)).toBeGreaterThan(0);
   });
 
   it('returns 0 when token counts are zero', () => {
