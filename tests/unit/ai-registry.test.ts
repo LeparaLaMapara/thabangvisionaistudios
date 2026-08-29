@@ -4,7 +4,7 @@ import { modelRegistry, resolveEntry, resolveModelId, fallbackChain } from '@/li
 const ENV_KEYS = [
   'AI_PROVIDER', 'AI_SMART_MODEL', 'AI_FAST_MODEL', 'AI_OPENAI_MODEL',
   'AI_LOCAL_BASE_URL', 'AI_LOCAL_MODEL', 'AI_LOCAL_TIER', 'AI_LOCAL_API_KEY',
-  'AI_FALLBACK_CHAIN',
+  'AI_FALLBACK_CHAIN', 'AI_ALLOW_PROPRIETARY', 'AI_SMART_PROVIDER',
   'ANTHROPIC_API_KEY', 'OPENAI_API_KEY', 'GOOGLE_GENERATIVE_AI_API_KEY',
 ];
 let saved: Record<string, string | undefined>;
@@ -25,6 +25,7 @@ describe('modelRegistry', () => {
     const r = modelRegistry();
     expect(r.smart.provider).toBe('anthropic');
     expect(r.fast.provider).toBe('google');
+    expect(r.fast.openWeight).toBe(true);
     // Defaults must be the pinned ids, so nothing changes silently.
     expect(r.smart.modelId).toBe('claude-sonnet-4-20250514');
   });
@@ -82,8 +83,10 @@ describe('resolveEntry', () => {
 
 describe('fallbackChain', () => {
   it('includes only providers that are actually configured', () => {
-    // Anthropic + Google keyed, OpenAI not: the chain must not fall through to
-    // a provider that would 401.
+    // Anthropic + Google keyed, OpenAI not. With proprietary opted in, the
+    // chain must include the configured providers and not fall through to one
+    // that would 401.
+    process.env.AI_ALLOW_PROPRIETARY = 'true';
     process.env.ANTHROPIC_API_KEY = 'a';
     process.env.GOOGLE_GENERATIVE_AI_API_KEY = 'g';
     const chain = fallbackChain();
@@ -93,8 +96,26 @@ describe('fallbackChain', () => {
     expect(chain).not.toContain('local');
   });
 
-  it('adds local to the chain when a base URL is present', () => {
+  it('is open-weight only by default — no proprietary provider without opt-in', () => {
+    // The policy: open weights by default. Anthropic is keyed but must NOT
+    // appear until AI_ALLOW_PROPRIETARY is set. Google stays because it serves
+    // Gemma, which is open-weight.
     process.env.ANTHROPIC_API_KEY = 'a';
+    process.env.GOOGLE_GENERATIVE_AI_API_KEY = 'g';
+    const chain = fallbackChain();
+    expect(chain).not.toContain('anthropic');
+    expect(chain).toContain('google');
+  });
+
+  it('admits proprietary providers once opted in', () => {
+    process.env.AI_ALLOW_PROPRIETARY = 'true';
+    process.env.ANTHROPIC_API_KEY = 'a';
+    const chain = fallbackChain();
+    expect(chain).toContain('anthropic');
+  });
+
+  it('adds local to the chain when a base URL is present, no opt-in needed', () => {
+    // Local is open-weight and self-hosted, so it belongs in the default chain.
     process.env.AI_LOCAL_BASE_URL = 'http://localhost:11434/v1';
     expect(fallbackChain()).toContain('local');
   });
@@ -119,20 +140,20 @@ describe('buildModel — constructs real SDK models without throwing', () => {
     process.env.OPENAI_API_KEY = 'test';
     process.env.GOOGLE_GENERATIVE_AI_API_KEY = 'test';
     const { buildModel } = await import('@/lib/ai/registry');
-    expect(buildModel({ provider: 'anthropic', modelId: 'claude-sonnet-4-20250514', tier: 'smart' })).toBeTruthy();
-    expect(buildModel({ provider: 'openai', modelId: 'gpt-4o', tier: 'smart' })).toBeTruthy();
-    expect(buildModel({ provider: 'google', modelId: 'gemini-2.0-flash', tier: 'fast' })).toBeTruthy();
+    expect(buildModel({ provider: 'anthropic', modelId: 'claude-sonnet-4-20250514', tier: 'smart', openWeight: false, tools: true })).toBeTruthy();
+    expect(buildModel({ provider: 'openai', modelId: 'gpt-4o', tier: 'smart', openWeight: false, tools: true })).toBeTruthy();
+    expect(buildModel({ provider: 'google', modelId: 'gemma-3-27b-it', tier: 'fast', openWeight: true, tools: false })).toBeTruthy();
   });
 
   it('builds a local OpenAI-compatible model against a base URL', async () => {
     process.env.AI_LOCAL_BASE_URL = 'http://localhost:11434/v1';
     const { buildModel } = await import('@/lib/ai/registry');
-    expect(buildModel({ provider: 'local', modelId: 'llama3.1', tier: 'smart' })).toBeTruthy();
+    expect(buildModel({ provider: 'local', modelId: 'llama3.1', tier: 'smart', openWeight: true, tools: true })).toBeTruthy();
   });
 
   it('refuses to build a local model with no base URL, rather than silently misconfiguring', async () => {
     delete process.env.AI_LOCAL_BASE_URL;
     const { buildModel } = await import('@/lib/ai/registry');
-    expect(() => buildModel({ provider: 'local', modelId: 'llama3.1', tier: 'smart' })).toThrow();
+    expect(() => buildModel({ provider: 'local', modelId: 'llama3.1', tier: 'smart', openWeight: true, tools: true })).toThrow();
   });
 });

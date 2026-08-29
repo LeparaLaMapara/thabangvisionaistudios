@@ -347,6 +347,7 @@ Only ask: how many hours, when, and where. Then quote and book.`;
     // Booking agent always uses Claude Sonnet; assistant uses routeQuery
     let routedModel;
     let modelId: string;
+    let toolsEnabled = true;
 
     if (agentId === 'booking') {
       routedModel = getModel();
@@ -357,7 +358,11 @@ Only ask: how many hours, when, and where. Then quote and book.`;
       modelId = route.modelId;
 
       if (route.tier === 'fast') {
-        console.log(`[agent:${agentId}] Routed to ${modelId} (fast tier)`);
+        // The fast tier serves greetings and lookups, and its model may be a
+        // small open-weight one with weak tool support. Those turns do not need
+        // tools, so they are withheld — safer for the model and a smaller prompt.
+        toolsEnabled = false;
+        console.log(`[agent:${agentId}] Routed to ${modelId} (fast tier, tools off)`);
       }
     }
 
@@ -383,7 +388,7 @@ Only ask: how many hours, when, and where. Then quote and book.`;
       model: routedModel,
       system: systemPrompt,
       messages: modelMessages,
-      tools,
+      tools: toolsEnabled ? tools : undefined,
       stopWhen: stepCountIs(4),
       onFinish: ({ text, totalUsage, steps }) => {
         logTokenUsage({

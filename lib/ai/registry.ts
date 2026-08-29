@@ -31,6 +31,25 @@ export interface ModelEntry {
   /** The provider's own model id, e.g. 'claude-sonnet-4-20250514'. */
   modelId: string;
   tier: Tier;
+  /**
+   * Whether the model's weights are openly published (Llama, Qwen, DeepSeek,
+   * Gemma, Mistral-open, gpt-oss). The house policy is open-weight by default;
+   * a proprietary model (Claude, GPT-4o, Gemini) is used only on explicit
+   * opt-in. See preferOpenWeight().
+   *
+   * Note this marks the MODEL, not the cost. An open-weight model called through
+   * a hosted API (Google, Groq, Together) can still bill; only self-hosting via
+   * a local endpoint is truly free. See docs and AI_LOCAL_BASE_URL.
+   */
+  openWeight: boolean;
+  /** Whether the model reliably supports tool/function calling. The Ubunye
+   * assistant passes tools on every turn, so a non-tool model must not serve it. */
+  tools: boolean;
+}
+
+/** Is the platform allowed to fall back to a proprietary model? Opt-in. */
+export function proprietaryAllowed(): boolean {
+  return env('AI_ALLOW_PROPRIETARY') === 'true';
 }
 
 const env = (k: string): string | undefined => {
@@ -49,31 +68,55 @@ const env = (k: string): string | undefined => {
  */
 export function modelRegistry(): Record<string, ModelEntry> {
   const registry: Record<string, ModelEntry> = {
-    smart: {
-      provider: 'anthropic',
-      modelId: env('AI_SMART_MODEL') ?? 'claude-sonnet-4-20250514',
-      tier: 'smart',
-    },
+    // ── Tier defaults ──
+    // fast: a small open-weight model for greetings and lookups. Gemma is
+    // open-weight and served by the Google key already in use for vision.
     fast: {
       provider: 'google',
-      modelId: env('AI_FAST_MODEL') ?? 'gemini-2.0-flash',
+      modelId: env('AI_FAST_MODEL') ?? 'gemma-3-27b-it',
       tier: 'fast',
+      openWeight: true,
+      tools: false,
     },
-    openai: {
-      provider: 'openai',
-      modelId: env('AI_OPENAI_MODEL') ?? 'gpt-4o',
+    // smart: the capable, tool-using tier. Default stays Claude because it is
+    // what the assistant's tools are proven against and it is what runs today;
+    // it is PROPRIETARY, so it serves only when opted in (AI_ALLOW_PROPRIETARY)
+    // or explicitly referenced. Point AI_SMART_MODEL / AI_SMART_PROVIDER at an
+    // open-weight tool-capable model (see the menu below) plus a runtime to make
+    // the smart tier open too.
+    smart: {
+      provider: (env('AI_SMART_PROVIDER') as Provider) ?? 'anthropic',
+      modelId: env('AI_SMART_MODEL') ?? 'claude-sonnet-4-20250514',
       tier: 'smart',
+      openWeight: env('AI_SMART_PROVIDER') === 'local',
+      tools: true,
     },
+
+    // ── Proprietary, opt-in only ──
+    openai: { provider: 'openai', modelId: env('AI_OPENAI_MODEL') ?? 'gpt-4o', tier: 'smart', openWeight: false, tools: true },
+
+    // ── Open-weight menu ──
+    // Each is one env var away (set AI_LOCAL_BASE_URL to a runtime that serves
+    // it, then reference by name, or point a tier at it). IDs are the common
+    // Ollama tags for the self-hosted path; hosted providers use their own ids.
+    // Tool-calling flags reflect each family's function-calling support.
+    'llama':    { provider: 'local', modelId: env('AI_LLAMA_MODEL')    ?? 'llama3.3',        tier: 'smart', openWeight: true, tools: true },
+    'qwen':     { provider: 'local', modelId: env('AI_QWEN_MODEL')     ?? 'qwen2.5',         tier: 'smart', openWeight: true, tools: true },
+    'deepseek': { provider: 'local', modelId: env('AI_DEEPSEEK_MODEL') ?? 'deepseek-r1',     tier: 'smart', openWeight: true, tools: true },
+    'mistral':  { provider: 'local', modelId: env('AI_MISTRAL_MODEL')  ?? 'mistral-small',   tier: 'smart', openWeight: true, tools: true },
+    'gpt-oss':  { provider: 'local', modelId: env('AI_GPT_OSS_MODEL')  ?? 'gpt-oss:20b',     tier: 'smart', openWeight: true, tools: true },
+    'gemma':    { provider: 'google', modelId: env('AI_GEMMA_MODEL')   ?? 'gemma-3-27b-it',  tier: 'fast',  openWeight: true, tools: false },
   };
 
-  // A local / OpenAI-compatible model exists only when a base URL is set, so
-  // the gateway does not advertise a backend that is not there.
+  // A generic local / OpenAI-compatible model, when a base URL is set.
   const localBase = env('AI_LOCAL_BASE_URL');
   if (localBase) {
     registry.local = {
       provider: 'local',
-      modelId: env('AI_LOCAL_MODEL') ?? 'llama3.1',
+      modelId: env('AI_LOCAL_MODEL') ?? 'llama3.3',
       tier: env('AI_LOCAL_TIER') === 'fast' ? 'fast' : 'smart',
+      openWeight: true,
+      tools: env('AI_LOCAL_TOOLS') !== 'false',
     };
   }
 
@@ -121,7 +164,14 @@ export function resolveEntry(ref?: string): ModelEntry {
   if (ref && ref.includes(':')) {
     const [provider, modelId] = ref.split(':', 2);
     if (isProvider(provider) && modelId) {
-      return { provider, modelId, tier: 'smart' };
+      // An explicit pair is trusted as the caller asked for it. openWeight is
+      // inferred from the provider (local is always open; the cloud proprietary
+      // ones are not), and tool support is assumed present for an explicit ref.
+      return {
+        provider, modelId, tier: 'smart',
+        openWeight: provider === 'local',
+        tools: true,
+      };
     }
   }
 
@@ -166,10 +216,20 @@ export function fallbackChain(): Provider[] {
     }
   };
 
+  // Default order is open-weight first (local self-hosted, then Gemma via
+  // Google), and the proprietary providers only when explicitly allowed. An
+  // explicit AI_FALLBACK_CHAIN overrides the ordering entirely.
   const raw = env('AI_FALLBACK_CHAIN');
-  const requested: Provider[] = raw
-    ? raw.split(',').map((s) => s.trim()).filter(isProvider)
-    : ['anthropic', 'google', 'openai', 'local'];
+  let requested: Provider[];
+  if (raw) {
+    requested = raw.split(',').map((s) => s.trim()).filter(isProvider);
+  } else if (proprietaryAllowed()) {
+    requested = ['local', 'google', 'anthropic', 'openai'];
+  } else {
+    // Open-weight only. 'google' stays because it serves Gemma (open-weight);
+    // the proprietary Gemini/Claude/GPT paths are left out until opted in.
+    requested = ['local', 'google'];
+  }
 
   const chain = requested.filter(configured);
   // De-duplicate, preserve order.
