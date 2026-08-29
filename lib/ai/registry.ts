@@ -82,7 +82,7 @@ function smartDefaultModel(provider: Provider): string {
   switch (provider) {
     case 'anthropic': return 'claude-sonnet-5';
     case 'openai':    return 'gpt-4o';
-    case 'google':    return 'gemini-2.0-flash';
+    case 'google':    return 'gemini-3.6-flash';
     case 'local':     return 'qwen2.5';
     // Groq's Qwen id. Overridable, since Groq's naming has moved
     // (qwen-2.5-32b -> qwen/qwen3-32b). The tool-calling test will surface a
@@ -116,7 +116,7 @@ export function modelRegistry(): Record<string, ModelEntry> {
       // is proprietary, but a working model beats a broken open one. To make
       // this open, set AI_FAST_MODEL to a Gemma id VALIDATED against the live
       // Google key (the model list has the served ids); do not guess it.
-      modelId: env('AI_FAST_MODEL') ?? 'gemini-2.0-flash',
+      modelId: env('AI_FAST_MODEL') ?? 'gemini-3.6-flash',
       tier: 'fast',
       openWeight: false,
       tools: false,

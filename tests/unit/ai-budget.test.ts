@@ -88,7 +88,7 @@ describe('checkAiBudget', () => {
 
 describe('estimateCostZAR — accounting cannot be blinded', () => {
   it('prices a known model from the table', () => {
-    const cost = estimateCostZAR('gemini-2.0-flash', 1_000_000, 1_000_000);
+    const cost = estimateCostZAR('gemini-3.6-flash', 1_000_000, 1_000_000);
     expect(cost).toBeGreaterThan(0);
   });
 
@@ -96,7 +96,7 @@ describe('estimateCostZAR — accounting cannot be blinded', () => {
     // The bug this replaces: an unpriced model recorded R0 and blinded the
     // budget. A new/misconfigured model id must over-count, not vanish.
     const unknown = estimateCostZAR('some-new-model-2027', 1_000_000, 1_000_000);
-    const known = estimateCostZAR('gemini-2.0-flash', 1_000_000, 1_000_000);
+    const known = estimateCostZAR('gemini-3.6-flash', 1_000_000, 1_000_000);
     expect(unknown).toBeGreaterThan(0);
     expect(unknown).toBeGreaterThanOrEqual(known);
   });
@@ -106,6 +106,6 @@ describe('estimateCostZAR — accounting cannot be blinded', () => {
   });
 
   it('treats negative or non-finite token counts as zero tokens', () => {
-    expect(estimateCostZAR('gemini-2.0-flash', -5, Number.NaN)).toBe(0);
+    expect(estimateCostZAR('gemini-3.6-flash', -5, Number.NaN)).toBe(0);
   });
 });

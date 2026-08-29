@@ -4,7 +4,7 @@ type Price = { input: number; output: number };
 
 const EXTRA: Record<string, Price> = {
   'gemma-4-31b-it': { input: 0, output: 0 },
-  'gemini-2.0-flash': { input: 1.35, output: 5.4 },
+  'gemini-3.6-flash': { input: 1.35, output: 5.4 },
 };
 
 export const AI_PRICING: Record<string, Price> = {

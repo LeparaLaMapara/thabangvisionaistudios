@@ -21,7 +21,7 @@ describe('estimateCostZAR', () => {
   });
 
   it('scales linearly with token counts', () => {
-    const model = 'gemini-2.0-flash';
+    const model = 'gemini-3.6-flash';
     const half = estimateCostZAR(model, 500_000, 500_000);
     const whole = estimateCostZAR(model, 1_000_000, 1_000_000);
     expect(whole).toBeCloseTo(half * 2, 5);
