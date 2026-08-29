@@ -1,10 +1,11 @@
 export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
-import { streamText, convertToModelMessages, stepCountIs } from 'ai';
+import { convertToModelMessages, stepCountIs } from 'ai';
 import { checkRateLimit } from '@/lib/auth';
-import { getModel, getModelId, routeQuery } from '@/lib/ai';
+import { getModelId, routeQuery } from '@/lib/ai';
 import { logTokenUsage } from '@/lib/ai/tracked';
+import { streamWithFallback } from '@/lib/ai/resilient-stream';
 import { estimateCostZAR } from '@/lib/ai/pricing';
 import { checkAiBudget } from '@/lib/ai/budget';
 import { clientIp } from '@/lib/http/clientIp';
@@ -83,7 +84,7 @@ function getToolsForAgent(agentId: string, supabase: any, isAuthenticated: boole
 
 // ─── System Prompt Builder per Agent ────────────────────────────────────────
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+ 
 async function buildPromptForAgent(
   agentId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -344,17 +345,19 @@ Only ask: how many hours, when, and where. Then quote and book.`;
       ? lastUserText.content
       : '';
 
-    // Booking agent always uses Claude Sonnet; assistant uses routeQuery
-    let routedModel;
+    // Booking agent uses the smart tier; the assistant routes by complexity.
+    // We pass a tier REF (not a concrete model) so the resilient stream can
+    // resolve it and fail over across providers.
+    let modelRef: string;
     let modelId: string;
     let toolsEnabled = true;
 
     if (agentId === 'booking') {
-      routedModel = getModel();
+      modelRef = 'smart';
       modelId = getModelId();
     } else {
       const route = routeQuery(queryText);
-      routedModel = route.model;
+      modelRef = route.tier;
       modelId = route.modelId;
 
       if (route.tier === 'fast') {
@@ -384,17 +387,25 @@ Only ask: how many hours, when, and where. Then quote and book.`;
       );
     }
 
-    const result = streamText({
-      model: routedModel,
+    let servedModelId = modelId;
+    const response = streamWithFallback({
+      ref: modelRef,
       system: systemPrompt,
       messages: modelMessages,
       tools: toolsEnabled ? tools : undefined,
       stopWhen: stepCountIs(4),
-      onFinish: ({ text, totalUsage, steps }) => {
+      onServed: (entry, failovers) => {
+        servedModelId = entry.modelId;
+        if (failovers > 0) {
+          console.warn(`[agent:${agentId}] streamed by ${entry.provider}/${entry.modelId} after ${failovers} failover(s)`);
+        }
+      },
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      onFinish: ({ text, totalUsage, steps }: { text: string; totalUsage: { inputTokens?: number; outputTokens?: number }; steps: any[] }) => {
         logTokenUsage({
           agentId,
           provider: (process.env.AI_PROVIDER ?? 'anthropic').toLowerCase(),
-          model: modelId,
+          model: servedModelId,
           userId: user?.id ?? null,
           usage: {
             inputTokens: totalUsage.inputTokens ?? 0,
@@ -431,7 +442,7 @@ Only ask: how many hours, when, and where. Then quote and book.`;
             entities: (entities.creators.length || entities.gear.length || entities.productions.length)
               ? entities : undefined,
             agentId,
-            model: modelId,
+            model: servedModelId,
             inputTokens: totalUsage.inputTokens ?? 0,
             outputTokens: totalUsage.outputTokens ?? 0,
           });
@@ -439,7 +450,6 @@ Only ask: how many hours, when, and where. Then quote and book.`;
       },
     });
 
-    const response = result.toUIMessageStreamResponse();
     if (conversationId) {
       response.headers.set('x-conversation-id', conversationId);
     }
