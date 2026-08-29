@@ -66,6 +66,37 @@ const env = (k: string): string | undefined => {
  * changing which model serves production is a decision with cost and behaviour
  * consequences, and belongs to whoever sets the env, not to this refactor.
  */
+/**
+ * The default model id for a smart-tier provider, when AI_SMART_MODEL is unset.
+ *
+ * The model default has to follow the provider: setting AI_SMART_PROVIDER=local
+ * with no model must not fall back to a Claude id that a local runtime cannot
+ * serve. Qwen is the chosen open-weight assistant model — the strongest open
+ * model at the tool-calling the booking flow needs — so it is the default for a
+ * local/open smart tier.
+ */
+function smartDefaultModel(provider: Provider): string {
+  switch (provider) {
+    case 'anthropic': return 'claude-sonnet-4-20250514';
+    case 'openai':    return 'gpt-4o';
+    case 'google':    return 'gemini-2.0-flash';
+    case 'local':     return 'qwen2.5';
+  }
+}
+
+function smartEntry(): ModelEntry {
+  const provider = (env('AI_SMART_PROVIDER') as Provider) ?? 'anthropic';
+  return {
+    provider,
+    modelId: env('AI_SMART_MODEL') ?? smartDefaultModel(provider),
+    tier: 'smart',
+    // Local is self-hosted open weights; anthropic/openai/google smart models
+    // are proprietary.
+    openWeight: provider === 'local',
+    tools: true,
+  };
+}
+
 export function modelRegistry(): Record<string, ModelEntry> {
   const registry: Record<string, ModelEntry> = {
     // ── Tier defaults ──
@@ -84,13 +115,7 @@ export function modelRegistry(): Record<string, ModelEntry> {
     // or explicitly referenced. Point AI_SMART_MODEL / AI_SMART_PROVIDER at an
     // open-weight tool-capable model (see the menu below) plus a runtime to make
     // the smart tier open too.
-    smart: {
-      provider: (env('AI_SMART_PROVIDER') as Provider) ?? 'anthropic',
-      modelId: env('AI_SMART_MODEL') ?? 'claude-sonnet-4-20250514',
-      tier: 'smart',
-      openWeight: env('AI_SMART_PROVIDER') === 'local',
-      tools: true,
-    },
+    smart: smartEntry(),
 
     // ── Proprietary, opt-in only ──
     openai: { provider: 'openai', modelId: env('AI_OPENAI_MODEL') ?? 'gpt-4o', tier: 'smart', openWeight: false, tools: true },

@@ -44,6 +44,22 @@ describe('modelRegistry', () => {
     expect(r.local!.modelId).toBe('llama3.1');
   });
 
+  it('defaults the smart model to Qwen when the provider is local, not a Claude id', () => {
+    // The bug this guards: AI_SMART_PROVIDER=local with no model must not fall
+    // back to a Claude id a local runtime cannot serve.
+    process.env.AI_SMART_PROVIDER = 'local';
+    const r = modelRegistry();
+    expect(r.smart.provider).toBe('local');
+    expect(r.smart.modelId).toBe('qwen2.5');
+    expect(r.smart.openWeight).toBe(true);
+  });
+
+  it('still honours an explicit AI_SMART_MODEL over the provider default', () => {
+    process.env.AI_SMART_PROVIDER = 'local';
+    process.env.AI_SMART_MODEL = 'llama3.3';
+    expect(modelRegistry().smart.modelId).toBe('llama3.3');
+  });
+
   it('lets every model id be overridden by env, no code change', () => {
     process.env.AI_SMART_MODEL = 'claude-opus-5';
     process.env.AI_FAST_MODEL = 'gemini-3-flash';
