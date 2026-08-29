@@ -30,6 +30,61 @@ A shared auth module (`lib/auth.ts`) was created as the foundation for many fixe
 
 ---
 
+---
+
+## Red-team pass — 2026-08-29
+
+An adversarial review of the money and authorization surfaces, patching what
+proved real. What held up is as important as what did not.
+
+### Held under attack (verified, no change needed)
+
+- **Webhooks** verify HMAC (Paystack SHA-512, timing-safe) and reconcile the
+  charged amount against the expected total before confirming anything.
+- **Every admin API route** carries an admin guard — all 30 checked.
+- **IDOR**: id-scoped routes (orders, bookings, disputes, service-bookings,
+  rentals/return) all check ownership before acting.
+- **Privilege escalation**: the `profiles` UPDATE policy has a `WITH CHECK` that
+  pins `role`, `is_verified`, `verification_status`, `is_suspended`,
+  `no_show_count` and `crew_featured` to their current values. A user cannot
+  self-promote, self-verify, or un-suspend.
+- **Self-payout**: guarded — a creator cannot be the client on their own
+  booking.
+- **Cart quantity** clamped to 1..5; **banking** scoped to the owner and the
+  account number masked on read.
+- **Admin SECURITY DEFINER functions**: verified to enforce `is_admin()`
+  internally and pin `search_path`, so the RPC exposure the advisor flags is
+  defended in the function body, not only by the grant.
+
+### Fixed — AI cost control (the real cluster)
+
+Detailed in the *Review — 2026-08-27* dependency/prompt-injection section's
+sibling below, and in the commit. In short:
+
+1. **Spend was advisory, not enforced.** A daily email, no hard stop. Now a
+   pre-call ceiling in `lib/ai/budget.ts` refuses calls once month-to-date spend
+   crosses budget — cached per-lambda, timeout-guarded, fails open.
+2. **Accounting could read zero.** `estimateCostZAR` returned 0 for unpriced
+   models, blinding the ceiling and the alert. Unknown models now charge
+   worst-case; only an explicit allowlist stays free.
+3. **Guest rate-limit key was IP-spoofable.** Keyed on the raw `x-forwarded-for`
+   header. `lib/http/clientIp.ts` now takes the first hop; a missing header
+   collapses to a shared bucket rather than exempting the caller.
+
+### Fixed — data integrity
+
+Community listing prices were written via `parseFloat` with no bound; a negative
+or absurd day rate would corrupt every downstream total. Validated at both write
+sites.
+
+### Not a vulnerability, but noted
+
+The community marketplace (`/marketplace`, self-published `listings`) is a
+third-party-seller surface that contradicts the Phase-1 merchant-of-record
+position stated to the payment provider. That is a compliance/business decision,
+tracked separately, not a security defect.
+
+
 ## Review — 2026-08-27
 
 The March audit and its 29 findings remain closed. This is a fresh pass covering
