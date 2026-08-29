@@ -4,7 +4,7 @@ import { modelRegistry, resolveEntry, resolveModelId, fallbackChain } from '@/li
 const ENV_KEYS = [
   'AI_PROVIDER', 'AI_SMART_MODEL', 'AI_FAST_MODEL', 'AI_OPENAI_MODEL',
   'AI_LOCAL_BASE_URL', 'AI_LOCAL_MODEL', 'AI_LOCAL_TIER', 'AI_LOCAL_API_KEY',
-  'AI_FALLBACK_CHAIN', 'AI_ALLOW_PROPRIETARY', 'AI_SMART_PROVIDER',
+  'AI_FALLBACK_CHAIN', 'AI_ALLOW_PROPRIETARY', 'AI_SMART_PROVIDER', 'GROQ_API_KEY', 'AI_GROQ_MODEL',
   'ANTHROPIC_API_KEY', 'OPENAI_API_KEY', 'GOOGLE_GENERATIVE_AI_API_KEY',
 ];
 let saved: Record<string, string | undefined>;
@@ -94,6 +94,33 @@ describe('resolveEntry', () => {
     process.env.AI_PROVIDER = 'anthropic';
     process.env.ANTHROPIC_API_KEY = 'x';
     expect(resolveEntry('nonsense').provider).toBe('anthropic');
+  });
+});
+
+describe('groq provider', () => {
+  it('is in the open-weight chain when GROQ_API_KEY is set — no opt-in needed', () => {
+    // Groq serves open-weight Qwen, so it belongs in the default chain.
+    process.env.GROQ_API_KEY = 'gsk_test';
+    expect(fallbackChain()).toContain('groq');
+  });
+
+  it('stays out of the chain without a key', () => {
+    expect(fallbackChain()).not.toContain('groq');
+  });
+
+  it('defaults its smart model to a Qwen id, overridable', () => {
+    process.env.AI_SMART_PROVIDER = 'groq';
+    expect(resolveModelId('smart')).toContain('qwen');
+    process.env.AI_GROQ_MODEL = 'qwen-2.5-32b';
+    expect(modelRegistry().groq.modelId).toBe('qwen-2.5-32b');
+  });
+
+  it('builds a Groq model when keyed, and refuses without a key', async () => {
+    const { buildModel } = await import('@/lib/ai/registry');
+    process.env.GROQ_API_KEY = 'gsk_test';
+    expect(buildModel({ provider: 'groq', modelId: 'qwen/qwen3-32b', tier: 'smart', openWeight: true, tools: true })).toBeTruthy();
+    delete process.env.GROQ_API_KEY;
+    expect(() => buildModel({ provider: 'groq', modelId: 'qwen/qwen3-32b', tier: 'smart', openWeight: true, tools: true })).toThrow();
   });
 });
 

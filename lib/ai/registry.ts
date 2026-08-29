@@ -23,7 +23,10 @@ import type { LanguageModel } from 'ai';
  * locally or through an API" becomes one env var.
  */
 
-export type Provider = 'anthropic' | 'openai' | 'google' | 'local';
+export type Provider = 'anthropic' | 'openai' | 'google' | 'local' | 'groq';
+
+/** Groq's OpenAI-compatible endpoint. */
+const GROQ_BASE_URL = 'https://api.groq.com/openai/v1';
 export type Tier = 'smart' | 'fast';
 
 export interface ModelEntry {
@@ -81,6 +84,10 @@ function smartDefaultModel(provider: Provider): string {
     case 'openai':    return 'gpt-4o';
     case 'google':    return 'gemini-2.0-flash';
     case 'local':     return 'qwen2.5';
+    // Groq's Qwen id. Overridable, since Groq's naming has moved
+    // (qwen-2.5-32b -> qwen/qwen3-32b). The tool-calling test will surface a
+    // wrong id immediately as a 404.
+    case 'groq':      return 'qwen/qwen3-32b';
   }
 }
 
@@ -131,6 +138,8 @@ export function modelRegistry(): Record<string, ModelEntry> {
     'mistral':  { provider: 'local', modelId: env('AI_MISTRAL_MODEL')  ?? 'mistral-small',   tier: 'smart', openWeight: true, tools: true },
     'gpt-oss':  { provider: 'local', modelId: env('AI_GPT_OSS_MODEL')  ?? 'gpt-oss:20b',     tier: 'smart', openWeight: true, tools: true },
     'gemma':    { provider: 'google', modelId: env('AI_GEMMA_MODEL')   ?? 'gemma-3-27b-it',  tier: 'fast',  openWeight: true, tools: false },
+    // Groq — hosted, OpenAI-compatible, serves open-weight Qwen fast and cheap.
+    'groq':     { provider: 'groq',  modelId: env('AI_GROQ_MODEL')     ?? 'qwen/qwen3-32b',  tier: 'smart', openWeight: true, tools: true },
   };
 
   // A generic local / OpenAI-compatible model, when a base URL is set.
@@ -157,6 +166,12 @@ export function buildModel(entry: ModelEntry): LanguageModel {
       return createOpenAI()(entry.modelId);
     case 'google':
       return createGoogleGenerativeAI()(entry.modelId);
+    case 'groq': {
+      const key = env('GROQ_API_KEY');
+      if (!key) throw new Error('[ai/registry] groq model requested but GROQ_API_KEY is not set');
+      const groq = createOpenAI({ baseURL: GROQ_BASE_URL, apiKey: key, name: 'groq' });
+      return groq(entry.modelId);
+    }
     case 'local': {
       // Any OpenAI-compatible endpoint. Ollama, vLLM, LM Studio and LocalAI all
       // expose `/v1`; most ignore the key but the SDK requires a non-empty one.
@@ -238,6 +253,7 @@ export function fallbackChain(): Provider[] {
       case 'openai':    return !!env('OPENAI_API_KEY');
       case 'google':    return !!env('GOOGLE_GENERATIVE_AI_API_KEY');
       case 'local':     return !!env('AI_LOCAL_BASE_URL');
+      case 'groq':      return !!env('GROQ_API_KEY');
     }
   };
 
@@ -249,11 +265,11 @@ export function fallbackChain(): Provider[] {
   if (raw) {
     requested = raw.split(',').map((s) => s.trim()).filter(isProvider);
   } else if (proprietaryAllowed()) {
-    requested = ['local', 'google', 'anthropic', 'openai'];
+    requested = ['local', 'groq', 'google', 'anthropic', 'openai'];
   } else {
-    // Open-weight only. 'google' stays because it serves Gemma (open-weight);
-    // the proprietary Gemini/Claude/GPT paths are left out until opted in.
-    requested = ['local', 'google'];
+    // Open-weight only. Local and Groq (Qwen) first, then Google for Gemma.
+    // The proprietary Gemini/Claude/GPT paths are left out until opted in.
+    requested = ['local', 'groq', 'google'];
   }
 
   const chain = requested.filter(configured);
