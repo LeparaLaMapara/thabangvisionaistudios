@@ -20,7 +20,7 @@ import { resolveModel, resolveModelId } from '@/lib/ai/registry';
  * (Ollama: `ollama pull qwen2.5` then `ollama serve`. Or point AI_LOCAL_BASE_URL
  *  at any OpenAI-compatible host — Groq, Together, Fireworks — that serves Qwen.)
  */
-describe.skipIf(!process.env.AI_LOCAL_BASE_URL)('smart model — tool calling', () => {
+describe.skipIf(!process.env.AI_LOCAL_BASE_URL && !process.env.GROQ_API_KEY)('smart model — tool calling', () => {
   const searchGear = tool({
     description: 'Search the rental catalogue for equipment matching a query.',
     inputSchema: jsonSchema<{ query: string }>({

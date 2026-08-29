@@ -87,7 +87,7 @@ function smartDefaultModel(provider: Provider): string {
     // Groq's Qwen id. Overridable, since Groq's naming has moved
     // (qwen-2.5-32b -> qwen/qwen3-32b). The tool-calling test will surface a
     // wrong id immediately as a 404.
-    case 'groq':      return 'qwen/qwen3-32b';
+    case 'groq':      return env('AI_GROQ_MODEL') ?? 'qwen/qwen3.8-27b';
   }
 }
 
@@ -139,7 +139,7 @@ export function modelRegistry(): Record<string, ModelEntry> {
     'gpt-oss':  { provider: 'local', modelId: env('AI_GPT_OSS_MODEL')  ?? 'gpt-oss:20b',     tier: 'smart', openWeight: true, tools: true },
     'gemma':    { provider: 'google', modelId: env('AI_GEMMA_MODEL')   ?? 'gemma-3-27b-it',  tier: 'fast',  openWeight: true, tools: false },
     // Groq — hosted, OpenAI-compatible, serves open-weight Qwen fast and cheap.
-    'groq':     { provider: 'groq',  modelId: env('AI_GROQ_MODEL')     ?? 'qwen/qwen3-32b',  tier: 'smart', openWeight: true, tools: true },
+    'groq':     { provider: 'groq',  modelId: env('AI_GROQ_MODEL')     ?? 'qwen/qwen3.8-27b',  tier: 'smart', openWeight: true, tools: true },
   };
 
   // A generic local / OpenAI-compatible model, when a base URL is set.
@@ -170,7 +170,7 @@ export function buildModel(entry: ModelEntry): LanguageModel {
       const key = env('GROQ_API_KEY');
       if (!key) throw new Error('[ai/registry] groq model requested but GROQ_API_KEY is not set');
       const groq = createOpenAI({ baseURL: GROQ_BASE_URL, apiKey: key, name: 'groq' });
-      return groq(entry.modelId);
+      return groq.chat(entry.modelId);
     }
     case 'local': {
       // Any OpenAI-compatible endpoint. Ollama, vLLM, LM Studio and LocalAI all
@@ -184,7 +184,9 @@ export function buildModel(entry: ModelEntry): LanguageModel {
         apiKey: env('AI_LOCAL_API_KEY') ?? 'local',
         name: 'local',
       });
-      return local(entry.modelId);
+      // .chat(): OpenAI-compatible runtimes serve chat completions, not the
+      // Responses API the bare call defaults to.
+      return local.chat(entry.modelId);
     }
   }
 }
