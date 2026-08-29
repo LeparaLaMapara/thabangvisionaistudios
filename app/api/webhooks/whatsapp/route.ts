@@ -1,8 +1,7 @@
 export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
-import { generateText } from 'ai';
-import { routeQuery } from '@/lib/ai';
+import { routeQuery, generateWithFallback } from '@/lib/ai';
 import { createAdminClient } from '@/lib/supabase/server';
 import { buildSystemPrompt, fetchPlatformData } from '@/lib/ubunye/system-prompt';
 import { whatsapp } from '@/lib/whatsapp';
@@ -69,15 +68,24 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     addToHistory(message.from, 'user', message.body);
     const history = getHistory(message.from);
 
-    // Route to appropriate model
-    const { model, tier } = routeQuery(message.body);
+    // Route to the fast/smart tier, then let the gateway fail over across
+    // providers if that one is down. A WhatsApp reply is unattended — a provider
+    // blip must not become silence to the customer.
+    const { tier } = routeQuery(message.body);
 
-    const result = await generateText({
-      model,
+    const result = await generateWithFallback({
+      ref: tier,
       system: systemPrompt,
       messages: history.map(m => ({ role: m.role, content: m.content })),
       maxOutputTokens: 500,
     });
+
+    if (result.attempts.length > 0) {
+      console.warn(
+        `[whatsapp] served by ${result.servedBy} after ${result.attempts.length} failover(s): `
+        + result.attempts.map(a => a.provider).join(', '),
+      );
+    }
 
     const responseText = result.text || 'Sorry, I could not process your message. Please try again.';
 

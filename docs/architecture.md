@@ -35,7 +35,7 @@ All external services go through abstraction layers in `lib/`. Each layer has a 
 
 | Layer | File | Env Var | Active Provider | Alternatives |
 |-------|------|---------|-----------------|--------------|
-| AI | `lib/ai/index.ts` | `AI_PROVIDER=anthropic` | Anthropic Claude | OpenAI, Gemini |
+| AI | `lib/ai/registry.ts` | `AI_PROVIDER=anthropic` | Anthropic Claude | OpenAI, Gemini, **local** (any OpenAI-compatible endpoint), + failover |
 | Agents | `lib/agents/index.ts` | `AGENT_*_ENABLED=true` | 5 Ubunye agents | See `docs/processes/ubunye-agents.md` |
 | Auth | `lib/auth/index.ts` | `AUTH_PROVIDER=supabase` | Supabase | (extensible) |
 | Payments | `lib/payments/index.ts` | `PAYMENT_PROVIDER=paystack` | **Paystack** | PayFast (dormant) |
