@@ -9,7 +9,7 @@ export const assistantAgent: UbunyeAgent = {
   name: 'Ubunye Assistant',
   description: 'General chat, platform Q&A, search across everything',
   provider: 'anthropic',
-  model: 'claude-sonnet-4-20250514',
+  model: 'claude-sonnet-5',
   tools: [], // Search tools registered separately via createSearchTools
   rateLimit: { guest: 5, free: 20, pro: 100, studio: -1 },
   costTier: 'medium',

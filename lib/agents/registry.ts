@@ -47,7 +47,7 @@ export const UBUNYE_AGENTS: Record<string, UbunyeAgent> = {
     name: 'Ubunye Rates',
     description: 'Market-aligned rate suggestions for creators',
     provider: 'anthropic',
-    model: 'claude-sonnet-4-20250514',
+    model: 'claude-sonnet-5',
     tools: [],
     rateLimit: { guest: 0, free: 10, pro: 20, studio: 20 },
     costTier: 'medium',

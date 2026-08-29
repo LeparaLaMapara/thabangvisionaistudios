@@ -9,7 +9,7 @@ export const bookingAgent: UbunyeAgent = {
   name: 'Ubunye Booking',
   description: 'Smart production quotes, creator search & booking, gear rental booking',
   provider: 'anthropic',
-  model: 'claude-sonnet-4-20250514',
+  model: 'claude-sonnet-5',
   tools: [], // Booking tools registered separately via createBookingTools
   rateLimit: { guest: 0, free: 20, pro: 100, studio: -1 },
   costTier: 'medium',

@@ -5,7 +5,7 @@ export const productionDescriberAgent: UbunyeAgent = {
   name: 'Ubunye Production Describer',
   description: 'Analyzes production cover images with Gemma Vision, then generates descriptions and tags with Claude',
   provider: 'anthropic',
-  model: 'claude-sonnet-4-20250514',
+  model: 'claude-sonnet-5',
   tools: [],
   rateLimit: { guest: 0, free: 20, pro: 40, studio: 60 },
   costTier: 'medium',

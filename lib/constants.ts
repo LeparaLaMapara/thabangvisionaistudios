@@ -319,7 +319,7 @@ export const STUDIO = {
     },
     // Cost per 1M tokens in ZAR (approximate, using ~R18/USD exchange rate)
     pricing: {
-      'claude-sonnet-4-20250514': { input: 54, output: 216 },   // $3/$12 per 1M
+      'claude-sonnet-5': { input: 54, output: 216 },   // $3/$12 per 1M
       'gpt-4o': { input: 45, output: 270 },   // $2.50/$15 per 1M
       'gemini-2.0-flash': { input: 1.35, output: 5.4 }, // $0.075/$0.30 per 1M
     } as Record<string, { input: number; output: number }>,

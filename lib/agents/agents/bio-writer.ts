@@ -5,7 +5,7 @@ export const bioWriterAgent: UbunyeAgent = {
   name: 'Ubunye Bio Writer',
   description: 'Generates a first-person creator bio from portfolio analysis and profile data',
   provider: 'anthropic',
-  model: 'claude-sonnet-4-20250514',
+  model: 'claude-sonnet-5',
   tools: [],
   rateLimit: { guest: 0, free: 5, pro: 10, studio: 20 },
   costTier: 'medium',

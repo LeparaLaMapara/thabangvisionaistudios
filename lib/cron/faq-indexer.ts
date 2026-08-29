@@ -62,7 +62,7 @@ export async function indexConversationFaqs(): Promise<{ extracted: number; skip
       const result = await trackedCompletion({
         agentId: 'content-repurposer',
         provider: 'anthropic',
-        model: 'claude-sonnet-4-20250514',
+        model: 'claude-sonnet-5',
         call: async () => {
           const response = await generateText({
             model,

@@ -5,7 +5,7 @@ export const listingDescriberAgent: UbunyeAgent = {
   name: 'Ubunye Listing Describer',
   description: 'Writes a title, description, and rental-includes for a rental listing from detected gear facts',
   provider: 'anthropic',
-  model: 'claude-sonnet-4-20250514',
+  model: 'claude-sonnet-5',
   tools: [],
   rateLimit: { guest: 0, free: 20, pro: 40, studio: 60 },
   costTier: 'medium',

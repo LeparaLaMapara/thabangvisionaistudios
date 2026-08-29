@@ -31,7 +31,7 @@ export type Tier = 'smart' | 'fast';
 
 export interface ModelEntry {
   provider: Provider;
-  /** The provider's own model id, e.g. 'claude-sonnet-4-20250514'. */
+  /** The provider's own model id, e.g. 'claude-sonnet-5'. */
   modelId: string;
   tier: Tier;
   /**
@@ -80,7 +80,7 @@ const env = (k: string): string | undefined => {
  */
 function smartDefaultModel(provider: Provider): string {
   switch (provider) {
-    case 'anthropic': return 'claude-sonnet-4-20250514';
+    case 'anthropic': return 'claude-sonnet-5';
     case 'openai':    return 'gpt-4o';
     case 'google':    return 'gemini-2.0-flash';
     case 'local':     return 'qwen2.5';

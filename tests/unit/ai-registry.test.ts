@@ -27,7 +27,7 @@ describe('modelRegistry', () => {
     expect(r.fast.provider).toBe('google');
     expect(r.fast.openWeight).toBe(true);
     // Defaults must be the pinned ids, so nothing changes silently.
-    expect(r.smart.modelId).toBe('claude-sonnet-4-20250514');
+    expect(r.smart.modelId).toBe('claude-sonnet-5');
   });
 
   it('does NOT advertise a local model until a base URL is set', () => {
@@ -183,7 +183,7 @@ describe('buildModel — constructs real SDK models without throwing', () => {
     process.env.OPENAI_API_KEY = 'test';
     process.env.GOOGLE_GENERATIVE_AI_API_KEY = 'test';
     const { buildModel } = await import('@/lib/ai/registry');
-    expect(buildModel({ provider: 'anthropic', modelId: 'claude-sonnet-4-20250514', tier: 'smart', openWeight: false, tools: true })).toBeTruthy();
+    expect(buildModel({ provider: 'anthropic', modelId: 'claude-sonnet-5', tier: 'smart', openWeight: false, tools: true })).toBeTruthy();
     expect(buildModel({ provider: 'openai', modelId: 'gpt-4o', tier: 'smart', openWeight: false, tools: true })).toBeTruthy();
     expect(buildModel({ provider: 'google', modelId: 'gemma-3-27b-it', tier: 'fast', openWeight: true, tools: false })).toBeTruthy();
   });

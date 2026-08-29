@@ -41,7 +41,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     const result = await trackedCompletion({
       agentId: 'outreach',
       provider: 'anthropic',
-      model: 'claude-sonnet-4-20250514',
+      model: 'claude-sonnet-5',
       userId: auth.user.id,
       call: async () => {
         const response = await generateText({ model, prompt });

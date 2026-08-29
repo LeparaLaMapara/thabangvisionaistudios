@@ -15,7 +15,7 @@ describe('estimateCostZAR', () => {
   });
 
   it('prices claude sonnet at R54/R216 per 1M tokens', () => {
-    const model = 'claude-sonnet-4-20250514';
+    const model = 'claude-sonnet-5';
     expect(AI_PRICING[model]).toEqual({ input: 54, output: 216 });
     expect(estimateCostZAR(model, 1_000_000, 1_000_000)).toBeCloseTo(270, 5);
   });

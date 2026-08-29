@@ -5,7 +5,7 @@ export const contentRepurposerAgent: UbunyeAgent = {
   name: 'Ubunye Content Repurposer',
   description: 'Transforms press articles into social media posts, email snippets, and SEO variants',
   provider: 'anthropic',
-  model: 'claude-sonnet-4-20250514',
+  model: 'claude-sonnet-5',
   tools: [],
   rateLimit: { guest: 0, free: 0, pro: 0, studio: 0 },
   costTier: 'medium',
