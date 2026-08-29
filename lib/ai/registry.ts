@@ -111,9 +111,14 @@ export function modelRegistry(): Record<string, ModelEntry> {
     // open-weight and served by the Google key already in use for vision.
     fast: {
       provider: 'google',
-      modelId: env('AI_FAST_MODEL') ?? 'gemma-3-27b-it',
+      // Reverted to Gemini Flash after gemma-3-27b-it — an id NOT served by the
+      // Gemini API for text generation — broke the fast tier in production. It
+      // is proprietary, but a working model beats a broken open one. To make
+      // this open, set AI_FAST_MODEL to a Gemma id VALIDATED against the live
+      // Google key (the model list has the served ids); do not guess it.
+      modelId: env('AI_FAST_MODEL') ?? 'gemini-2.0-flash',
       tier: 'fast',
-      openWeight: true,
+      openWeight: false,
       tools: false,
     },
     // smart: the capable, tool-using tier. Default stays Claude because it is
@@ -137,6 +142,7 @@ export function modelRegistry(): Record<string, ModelEntry> {
     'deepseek': { provider: 'local', modelId: env('AI_DEEPSEEK_MODEL') ?? 'deepseek-r1',     tier: 'smart', openWeight: true, tools: true },
     'mistral':  { provider: 'local', modelId: env('AI_MISTRAL_MODEL')  ?? 'mistral-small',   tier: 'smart', openWeight: true, tools: true },
     'gpt-oss':  { provider: 'local', modelId: env('AI_GPT_OSS_MODEL')  ?? 'gpt-oss:20b',     tier: 'smart', openWeight: true, tools: true },
+    // gemma id must be validated against the live Google model list before use.
     'gemma':    { provider: 'google', modelId: env('AI_GEMMA_MODEL')   ?? 'gemma-3-27b-it',  tier: 'fast',  openWeight: true, tools: false },
     // Groq — hosted, OpenAI-compatible, serves open-weight Qwen fast and cheap.
     'groq':     { provider: 'groq',  modelId: env('AI_GROQ_MODEL')     ?? 'qwen/qwen3.8-27b',  tier: 'smart', openWeight: true, tools: true },

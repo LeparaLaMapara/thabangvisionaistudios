@@ -25,7 +25,6 @@ describe('modelRegistry', () => {
     const r = modelRegistry();
     expect(r.smart.provider).toBe('anthropic');
     expect(r.fast.provider).toBe('google');
-    expect(r.fast.openWeight).toBe(true);
     // Defaults must be the pinned ids, so nothing changes silently.
     expect(r.smart.modelId).toBe('claude-sonnet-5');
   });
