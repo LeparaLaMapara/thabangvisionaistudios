@@ -11,38 +11,38 @@
 --
 -- Every write to these tables now happens in API routes with the service role,
 -- after the route has checked who the user is and that the record is theirs
--- (PR "Money writes on the server", 2026-09-27). The SELECT policies stay, so
--- people still see their own bookings. Admin policies stay.
+-- (PR #27, 2026-09-27). SELECT policies and admin ALL policies stay, so people
+-- still see their own records and admins keep managing them.
 --
--- Apply on the dev project first, then production. Reversible: see the end.
+-- Policy names differ between the dev and production projects, so this drops
+-- every INSERT and UPDATE policy on the four tables rather than naming them.
+-- Apply on the dev project first, then production.
 
 begin;
 
-drop policy if exists "Authenticated users create bookings" on public.bookings;
-
-drop policy if exists "Bookings: authenticated insert" on public.equipment_bookings;
-drop policy if exists "Bookings: owner update" on public.equipment_bookings;
-
-drop policy if exists "Subscriptions: authenticated insert" on public.subscriptions;
-drop policy if exists "Subscriptions: owner update" on public.subscriptions;
-
-drop policy if exists "Users can insert own usage" on public.ubunye_usage;
-drop policy if exists "Users can update own usage" on public.ubunye_usage;
+do $$
+declare
+  p record;
+begin
+  for p in
+    select tablename, policyname
+    from pg_policies
+    where schemaname = 'public'
+      and tablename in ('bookings', 'equipment_bookings', 'subscriptions', 'ubunye_usage')
+      and cmd in ('INSERT', 'UPDATE')
+  loop
+    execute format('drop policy %I on public.%I', p.policyname, p.tablename);
+    raise notice 'dropped % on %', p.policyname, p.tablename;
+  end loop;
+end $$;
 
 commit;
 
--- To undo (only if a route that still writes with the user's session breaks):
---   create policy "Authenticated users create bookings" on public.bookings
---     for insert to public with check (auth.uid() = client_id);
---   create policy "Bookings: authenticated insert" on public.equipment_bookings
---     for insert to authenticated with check (user_id = auth.uid());
---   create policy "Bookings: owner update" on public.equipment_bookings
---     for update to authenticated using (user_id = auth.uid());
---   create policy "Subscriptions: authenticated insert" on public.subscriptions
---     for insert to authenticated with check (user_id = auth.uid());
---   create policy "Subscriptions: owner update" on public.subscriptions
---     for update to authenticated using (user_id = auth.uid());
---   create policy "Users can insert own usage" on public.ubunye_usage
---     for insert to public with check (auth.uid() = user_id);
---   create policy "Users can update own usage" on public.ubunye_usage
---     for update to public using (auth.uid() = user_id) with check (auth.uid() = user_id);
+-- Production had, before this migration (to recreate if ever needed):
+--   bookings            "Authenticated users create bookings"  INSERT  with check (auth.uid() = client_id)
+--   equipment_bookings  "Bookings: authenticated insert"       INSERT  with check (user_id = auth.uid())
+--   equipment_bookings  "Bookings: owner update"               UPDATE  using (user_id = auth.uid())
+--   subscriptions       "Subscriptions: authenticated insert"  INSERT  with check (user_id = auth.uid())
+--   subscriptions       "Subscriptions: owner update"          UPDATE  using (user_id = auth.uid())
+--   ubunye_usage        "Users can insert own usage"           INSERT  with check (auth.uid() = user_id)
+--   ubunye_usage        "Users can update own usage"           UPDATE  using/check (auth.uid() = user_id)

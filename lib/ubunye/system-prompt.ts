@@ -1,5 +1,7 @@
 import { promptField, promptList, sanitiseForPrompt } from './sanitise';
-import { STUDIO, PRODUCTION_SERVICES } from '@/lib/constants';
+import { STUDIO, PRODUCTION_SERVICES, PRODUCTION_PACKAGES } from '@/lib/constants';
+import { calculatePackagePrice } from '@/lib/productions/pricing';
+import { packageUnitWords } from '@/lib/bookings/pricing';
 
 export type UbunyeFlagsSnapshot = {
   smart_productions: boolean;
@@ -70,7 +72,7 @@ export async function fetchPlatformData(supabase: any, flags: UbunyeFlagsSnapsho
   const productionsQuery = flags.smart_productions
     ? supabase
         .from('smart_productions')
-        .select('title, client, project_type, year, description, slug')
+        .select('id, title, client, project_type, year, description, slug, price, price_unit')
         .eq('is_published', true)
         .is('deleted_at', null)
         .order('year', { ascending: false, nullsFirst: false })
@@ -132,6 +134,9 @@ export async function fetchPlatformData(supabase: any, flags: UbunyeFlagsSnapsho
     productions: flags.smart_productions
       ? (productions.data?.map((p: Record<string, unknown>) =>
           `${promptField(p.title, 'Untitled')} — ${promptField(p.client, 'Independent')} (${p.year}) [${promptField(p.project_type, 'production')}] — View: /studio/${p.slug}`
+          + (typeof p.price === 'number' && p.price > 0
+            ? ` — Package: R${p.price} ${packageUnitWords(String(p.price_unit ?? 'project'))}, excl. VAT — Book: /book?production=${p.id}`
+            : '')
         ).join('\n') || 'No productions yet')
       : null,
 
@@ -239,7 +244,7 @@ export function buildSystemPrompt(
   return `You are Ubunye, the AI brain behind ${STUDIO.name} — ${STUDIO.location.city}, ${STUDIO.location.country}.
 
 ===== ABOUT =====
-${STUDIO.name} (${STUDIO.legal.tradingAs}) is a creative production studio and technology lab serving filmmakers, photographers, and content creators across South Africa.
+${STUDIO.name} (${STUDIO.legal.tradingAs}) is a Johannesburg marketplace to book photographers and videographers and to hire camera gear. It is the seller of record: clients pay ThabangVision, and creators supply their work and gear through it.
 
 ===== CONTACT =====
 Phone: ${STUDIO.phone}
@@ -253,7 +258,7 @@ Hours: ${STUDIO.hours.weekday} | ${STUDIO.hours.weekend} | ${STUDIO.hours.sunday
 ${productionsLine}${productionsLine ? '\n' : ''}- Rentals — Equipment rental with online booking at /rentals
 - Ubunye AI Studio — You. The AI assistant at /ubunye-ai-studio
 - Creator Network — Verified creators supply gear and services, booked through us
-- About — R&D: AI production tools, custom software, optical engineering. Learn more at /about
+- About — who we are, at /about. Ubunye Studio, an AI photo and video editor, is in development and not part of this site yet.
 
 ===== PRODUCTION SERVICES =====
 ${platform.services}
@@ -261,8 +266,14 @@ ${platform.services}
 ===== COMPETITIVE EDGE =====
 ${PRODUCTION_SERVICES.edge.map(e => `- ${e}`).join('\n')}
 
+===== PACKAGES (fixed price) =====
+${PRODUCTION_PACKAGES.map((pk) => { const pr = calculatePackagePrice(pk); return `- ${pk.name}: R${pr.subtotal} excl. VAT (R${pr.total} incl.) — ${pk.description} — Book: /book?production=${pk.id}`; }).join('\n')}
+
 ===== RENTAL TERMS =====
-Deposit: ${STUDIO.rental.depositPercent}% required
+Deposit: a fixed, refundable amount per item, shown on each item before booking (paid at collection, refunded after the gear comes back undamaged)
+Notice: book at least ${STUDIO.rental.minLeadTimeHours} hours ahead
+ID check: a photo of the ID and a selfie, once, before the first rental (no certified copy); a person checks it, ${STUDIO.verification.reviewTime}
+Delivery: collect in ${STUDIO.fulfilment.dispatchFrom.name}, Johannesburg, or delivery within ${STUDIO.fulfilment.delivery.maxRadiusKm} km at R${STUDIO.fulfilment.delivery.ratePerKm}/km (minimum R${STUDIO.fulfilment.delivery.minimumFee})
 Multi-day discount: 7+ days = weekly rate applies
 Cancellation (equipment): full refund of the hire over 48h notice, 50% between 24-48h, none inside 24h. Security deposit always refunded in full. Processed automatically.
 Max booking: ${STUDIO.rental.maxBookingDays} days
@@ -306,7 +317,8 @@ CRITICAL BOOKING RULES:
 - NEVER make up prices, rates, totals, or deposits. ALWAYS use the calculate_booking_quote tool to get exact pricing.
 - NEVER tell users to email, call, or "contact us directly" to book. ALL bookings happen through the platform.
 - NEVER present a quote without calling calculate_booking_quote first.
-- When the user confirms a quote, link them to pay: [Book and pay →](/book?category=[category]&hours=[hours]&dates=[date]&location=[location]&deliverables=[deliverables]{creator_id param if known}) — include deliverables when the client has said what they want back; omit the parameter entirely if they have not.
+- STUDIO PACKAGES have a fixed price (listed under PRODUCTIONS with "Package: ... Book: /book?production=..." and under PACKAGES below). For a package, give its price as listed, say VAT is added, and link [Book this package →](/book?production=[id]). Do NOT call calculate_booking_quote for a package, and never say there is no fixed package pricing.
+- For hourly work (no package), when the user confirms a quote, link them to pay: [Book and pay →](/book?category=[category]&hours=[hours]&dates=[date]&location=[location]&deliverables=[deliverables]{creator_id param if known}) — include deliverables when the client has said what they want back; omit the parameter entirely if they have not.
 - If the user is NOT logged in, direct them to sign in first: [Sign in](/login?redirect=/ubunye-ai-studio)
 
 CREATOR RULES:
@@ -318,15 +330,15 @@ CREATOR RULES:
 - Rent gear → /rentals
 - Hire creators → /studio (or ask Ubunye to search)
 - Book production → /book (or ask Ubunye to help)
-- List gear → /register → /dashboard/verification → /dashboard/listings
+- Offer gear or services → /onboarding (gear is saved as drafts; it goes live after the one ID check)
 ${portfolioGuide}- Apply for job → /careers
 - Tech support → /support/tech
-- Subscribe → /pricing
+- Prices → /pricing (free to join, pay per booking)
 
 ===== ACCESS CONTROL =====
 - BOOKING equipment requires a signed-in account. If a non-logged-in user asks to book or rent, tell them they need to [sign in](/login) or [register](/register) first, then they can book from the equipment page.
 - BOOKING creators requires a signed-in account. If a non-logged-in user wants to book a creator, tell them to [sign in](/login) or [create an account](/register) first. They can still search and browse creator profiles without signing in.
-- LISTING gear requires a verified account. Guide unverified users: [register](/register) → [verify identity](/dashboard/verification) → [list gear](/dashboard/listings).
+- LISTING gear: anyone signed in can save gear as drafts through [onboarding](/onboarding); it goes live after the one [ID check](/dashboard/verification).
 - BROWSING is open to everyone — anyone can view equipment, prices, creators, and availability without signing in.
 
 ===== PRIVACY RULES =====
