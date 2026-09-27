@@ -10,18 +10,19 @@ import OnboardingProgress from './OnboardingProgress';
 import StepPortfolioUpload from './StepPortfolioUpload';
 import StepSkillsDetection from './StepSkillsDetection';
 import StepBioReview from './StepBioReview';
-import StepIdCapture from './StepIdCapture';
 import StepGearRentals from './StepGearRentals';
 import type { SceneAnalysisResult, SkillDetectionResult } from '@/lib/agents/types';
 
-const TOTAL_STEPS = 5;
-const STEP_LABELS = ['Portfolio', 'Skills', 'Bio & Review', 'Verify ID', 'Gear'];
+// The ID check is not a step here: it is the one check on the verification
+// page, done once, before gear goes live or a first payout (it used to be
+// asked here and the details were then thrown away).
+const TOTAL_STEPS = 4;
+const STEP_LABELS = ['Portfolio', 'Skills', 'Bio & Review', 'Gear'];
 
 interface OnboardingData {
   analyses: SceneAnalysisResult[];
   skills: SkillDetectionResult | null;
   bio: string | null;
-  idData: { firstName: string; lastName: string; idNumber: string; dateOfBirth: string } | null;
   gear: unknown[];
 }
 
@@ -34,7 +35,6 @@ export default function OnboardingFlow() {
     analyses: [],
     skills: null,
     bio: null,
-    idData: null,
     gear: [],
   });
 
@@ -56,7 +56,7 @@ export default function OnboardingFlow() {
         if (progress) {
           // Map old 6-step progress to new 5-step flow
           const oldStep = progress.current_step || 1;
-          const mapped = oldStep <= 2 ? 1 : oldStep <= 3 ? 2 : oldStep <= 4 ? 3 : oldStep <= 5 ? 4 : 5;
+          const mapped = oldStep <= 2 ? 1 : oldStep <= 3 ? 2 : oldStep <= 4 ? 3 : 4;
           setStep(mapped);
           if (progress.detected_skills) {
             setData(prev => ({ ...prev, skills: progress.detected_skills as SkillDetectionResult }));
@@ -106,12 +106,6 @@ export default function OnboardingFlow() {
     setStep(4);
   }, [saveProgress]);
 
-  const handleIdComplete = useCallback(async (idData: OnboardingData['idData']) => {
-    setData(prev => ({ ...prev, idData }));
-    await saveProgress(4);
-    setStep(5);
-  }, [saveProgress]);
-
   const completeOnboarding = useCallback(async (gear?: unknown[]) => {
     setSaving(true);
     setError(null);
@@ -120,7 +114,7 @@ export default function OnboardingFlow() {
       if (gear) {
         setData(prev => ({ ...prev, gear }));
       }
-      await saveProgress(5, {
+      await saveProgress(4, {
         ...(gear ? { detected_gear: gear } : {}),
         completed_at: new Date().toISOString(),
       });
@@ -135,7 +129,8 @@ export default function OnboardingFlow() {
         throw new Error(body.error || 'Failed to complete onboarding.');
       }
 
-      window.location.href = '/dashboard';
+      // One next step: the ID check, then back to the dashboard.
+      window.location.assign('/dashboard/verification?redirect=%2Fdashboard');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save.');
       setSaving(false);
@@ -226,10 +221,6 @@ export default function OnboardingFlow() {
               )}
 
               {step === 4 && (
-                <StepIdCapture onComplete={handleIdComplete} />
-              )}
-
-              {step === 5 && (
                 <StepGearRentals
                   onComplete={handleGearComplete}
                   onSkip={handleGearSkip}
@@ -253,7 +244,7 @@ export default function OnboardingFlow() {
           )}
 
           {/* Back button */}
-          {step > 1 && step < 5 && (
+          {step > 1 && step < TOTAL_STEPS && (
             <div className="mt-6 pt-4 border-t border-white/5">
               <button
                 type="button"

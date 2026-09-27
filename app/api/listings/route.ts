@@ -220,6 +220,25 @@ export async function PUT(request: NextRequest) {
       pricePerDay = parsed;
     }
 
+    // Only a verified supplier's gear goes live. Drafts (from onboarding) can
+    // be written by anyone, so publishing is where the ID check is enforced.
+    if (body.is_published === true) {
+      const { data: owner, error: ownerError } = await supabase
+        .from('profiles')
+        .select('verification_status')
+        .eq('id', user.id)
+        .single();
+      if (ownerError) {
+        return NextResponse.json({ error: 'Could not check your account. Please try again.' }, { status: 500 });
+      }
+      if (owner?.verification_status !== 'verified') {
+        return NextResponse.json(
+          { error: 'Your gear goes live after your ID check. Save it as a draft for now.', code: 'verification_required' },
+          { status: 403 },
+        );
+      }
+    }
+
     const updatePayload: Record<string, unknown> = {
       title,
       slug: slugify(title),

@@ -3,6 +3,7 @@ export const dynamic = 'force-dynamic';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { isWelcomeIntent } from '@/lib/welcome';
+import { STUDIO } from '@/lib/constants';
 import { createClient } from '@/lib/supabase/server';
 import { auth } from '@/lib/auth';
 import { getProfileById } from '@/lib/supabase/queries/profiles';
@@ -119,17 +120,16 @@ export default async function DashboardPage() {
             <ShieldCheck className="w-10 h-10 text-[#D4A843] flex-shrink-0 mt-0.5" />
             <div className="flex-1">
               <h3 className="text-lg font-display font-medium uppercase text-white mb-1">
-                Get Verified
+                Check your ID once
               </h3>
               <p className="text-xs font-mono text-neutral-400 mb-5 leading-relaxed">
-                Verify your identity to unlock the full platform. It only takes a minute.
+                Needed before your first gear rental, before your gear or services go live, and before a first payout. A photo of your ID and a selfie; a person checks it, {STUDIO.verification.reviewTime}.
               </p>
               <ul className="space-y-3 mb-6">
                 {[
-                  'Rent professional equipment',
-                  'List your own gear on the marketplace and start earning',
-                  'Accept gigs and get paid',
-                  'Priority support',
+                  'Rent camera gear',
+                  'Put your gear or services live',
+                  'Get paid for bookings',
                 ].map((perk) => (
                   <li key={perk} className="flex items-start gap-2.5 text-xs font-mono text-neutral-300">
                     <svg className="w-4 h-4 text-[#D4A843] flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
