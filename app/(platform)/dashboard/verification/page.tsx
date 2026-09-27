@@ -1,6 +1,9 @@
 'use client';
 
-import { useEffect, useState, useRef } from 'react';
+import { Suspense, useEffect, useState, useRef } from 'react';
+import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
+import { safeNextPath } from '@/lib/auth/redirect';
 import { motion } from 'framer-motion';
 import {
   Upload,
@@ -40,7 +43,7 @@ interface FileSlot {
   preview: string | null;
 }
 
-const REVIEW_DAYS = STUDIO.verification.reviewDays;
+const REVIEW_TIME = STUDIO.verification.reviewTime;
 const MAX_ATTEMPTS = 3;
 
 const ACCEPTED_IMAGE_TYPES = [
@@ -81,6 +84,28 @@ function validateImage(file: File): { valid: boolean; error?: string } {
 }
 
 export default function VerificationPage() {
+  return (
+    <Suspense fallback={null}>
+      <VerificationPageInner />
+    </Suspense>
+  );
+}
+
+/** "Back to your booking" when they came from a gear page (with its dates). */
+function BackToBooking({ href }: { href: string }) {
+  return (
+    <Link
+      href={href}
+      className="inline-block mt-4 text-xs font-mono text-[#D4A843] underline underline-offset-2 hover:opacity-80"
+    >
+      Back to your booking
+    </Link>
+  );
+}
+
+function VerificationPageInner() {
+  // Where they were booking when they were asked for their ID, if anywhere.
+  const back = safeNextPath(useSearchParams().get('redirect'), '');
   const [verification, setVerification] = useState<VerificationData | null>(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -278,8 +303,9 @@ export default function VerificationPage() {
               Documents submitted successfully.
             </p>
             <p className="text-xs font-mono text-emerald-400/70 mt-1">
-              Verification is instant. You&apos;ll be verified momentarily.
+              A person checks it, {REVIEW_TIME}. We&apos;ll let you know by email.
             </p>
+            {back && <BackToBooking href={back} />}
           </div>
         </motion.div>
       )}
@@ -300,6 +326,7 @@ export default function VerificationPage() {
           <p className="text-xs font-mono text-neutral-500">
             Your identity has been successfully verified. You have full access to platform features.
           </p>
+          {back && <BackToBooking href={back} />}
           {verification?.verification_reviewed_at && (
             <p className="text-[10px] font-mono text-neutral-400 mt-4">
               Verified on{' '}
@@ -324,8 +351,9 @@ export default function VerificationPage() {
             Pending Review
           </Badge>
           <p className="text-xs font-mono text-neutral-500">
-            Your documents are being processed. Verification is instant.
+            A person checks your documents, {REVIEW_TIME}. We&apos;ll let you know by email.
           </p>
+          {back && <BackToBooking href={back} />}
           {verification?.verification_submitted_at && (
             <p className="text-[10px] font-mono text-neutral-400 mt-4">
               Submitted on{' '}

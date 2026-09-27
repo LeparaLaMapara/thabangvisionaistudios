@@ -175,7 +175,7 @@ export default function ProductionPackageDetailView({
 
       {/* ── Main two-column layout ── */}
       <div className="container mx-auto px-6 py-12">
-        <div className="grid lg:grid-cols-[1fr_420px] gap-12 xl:gap-20 items-start">
+        <div className="grid grid-cols-1 lg:grid-cols-[1fr_420px] gap-12 xl:gap-20 items-start">
 
           {/* ── LEFT: Gallery + Details ── */}
           <div>
