@@ -1,6 +1,8 @@
 export const dynamic = 'force-dynamic';
 
 import Link from 'next/link';
+import { redirect } from 'next/navigation';
+import { isWelcomeIntent } from '@/lib/welcome';
 import { createClient } from '@/lib/supabase/server';
 import { auth } from '@/lib/auth';
 import { getProfileById } from '@/lib/supabase/queries/profiles';
@@ -33,6 +35,14 @@ export default async function DashboardPage() {
 
   // Fetch auth user for email (needed for crew_requests client_email query)
   const { data: { user: authUser } } = await supabase.auth.getUser();
+
+  // Someone who has not told us what they came for, and has not started
+  // anything, is asked once instead of being shown the whole platform.
+  if (user && !isVerified && verificationStatus === 'unverified'
+      && !profile?.onboarding_completed_at && !isWelcomeIntent(authUser?.user_metadata?.intent)) {
+    redirect('/welcome');
+  }
+
 
   // Fetch real counts from Supabase
   const [bookingsResult, listingsResult, ordersResult, gigsResult, requestsResult] = await Promise.all([
@@ -75,7 +85,7 @@ export default async function DashboardPage() {
   const gigsCount = ('count' in gigsResult ? gigsResult.count : 0) ?? 0;
   const requestsCount = ('count' in requestsResult ? requestsResult.count : 0) ?? 0;
 
-  const displayName = profile?.display_name || user?.email?.split('@')[0] || 'Creator';
+  const displayName = profile?.display_name || user?.email?.split('@')[0] || 'there';
   const hasRequiredProfile = profile && (profile.display_name && profile.phone);
 
   // Profile completeness for verified creators
@@ -93,7 +103,7 @@ export default async function DashboardPage() {
           Dashboard
         </span>
         <h1 className="text-3xl md:text-4xl font-display font-medium uppercase text-black dark:text-white tracking-tight">
-          Welcome back, <span className="text-neutral-400 dark:text-neutral-500">{displayName}</span>
+          Hello, <span className="text-neutral-400 dark:text-neutral-500">{displayName}</span>
         </h1>
         <p className="text-sm text-neutral-500 dark:text-neutral-400 font-mono mt-3">
           {isVerified

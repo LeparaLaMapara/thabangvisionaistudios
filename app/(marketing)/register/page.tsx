@@ -43,7 +43,8 @@ function RegisterForm() {
   const [checking, setChecking] = useState(true);
   const [magicLoading, setMagicLoading] = useState(false);
   // Where they were going before they had to sign up.
-  const next = safeNextPath(useSearchParams().get('redirect'));
+  // A new account with nowhere in particular to go is asked what it came for.
+  const next = safeNextPath(useSearchParams().get('redirect'), '/welcome');
 
   useEffect(() => {
     const supabase = createClient();

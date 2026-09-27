@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { safeNextPath } from '@/lib/auth/redirect';
+import { homeFor } from '@/lib/welcome';
 
 /**
  * Where Google and email sign-in links land.
@@ -29,15 +30,16 @@ export async function GET(request: Request): Promise<NextResponse> {
         // They were on their way somewhere (a gear page, a booking): go there.
         if (next) return NextResponse.redirect(new URL(next, origin));
 
+        // Otherwise: what they said they came to do. Someone who has not
+        // said yet is asked once (/welcome) instead of being put through
+        // creator onboarding.
         const { data: profile } = await supabase
           .from('profiles')
           .select('onboarding_completed_at')
           .eq('id', user.id)
           .single();
-
-        if (!profile || !profile.onboarding_completed_at) {
-          return NextResponse.redirect(new URL('/onboarding', origin));
-        }
+        const home = homeFor(user.user_metadata?.intent, !!profile?.onboarding_completed_at);
+        return NextResponse.redirect(new URL(home, origin));
       }
 
       return NextResponse.redirect(new URL('/dashboard', origin));
