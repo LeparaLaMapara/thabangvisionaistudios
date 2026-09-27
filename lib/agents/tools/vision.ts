@@ -5,7 +5,6 @@ import type {
   FaceMatchResult,
   GearIdentificationResult,
   IdExtractionResult,
-  CertifiedIdResult,
 } from '../types';
 
 const MODEL_ID = 'gemma-4-31b-it';
@@ -119,58 +118,6 @@ export async function matchFaces(
       return {
         result: {
           match: Boolean(parsed.match),
-          confidence: Math.max(0, Math.min(1, Number(parsed.confidence) || 0)),
-          reasoning: String(parsed.reasoning ?? ''),
-        },
-        usage: extractUsage(result.response.usageMetadata),
-      };
-    },
-  });
-}
-
-export async function checkCertifiedId(
-  imageUrl: string,
-  userId?: string | null,
-): Promise<CertifiedIdResult> {
-  const imageData = await fetchImageAsBase64(imageUrl);
-
-  return trackedCompletion<CertifiedIdResult>({
-    agentId: 'verification:certified-id',
-    provider: 'google',
-    model: MODEL_ID,
-    userId,
-    call: async () => {
-      const result = await model.generateContent([
-        { inlineData: { mimeType: 'image/jpeg', data: imageData } },
-        `You are verifying whether a South African ID document is a CERTIFIED COPY.
-         A certified copy has been stamped by a Commissioner of Oaths (police station, bank, attorney, or post office).
-
-         Look for these signs of certification:
-         - A rubber stamp or ink stamp from a Commissioner of Oaths
-         - A handwritten or stamped signature of the commissioner
-         - A date of certification
-         - Text like "CERTIFIED TRUE COPY", "Commissioner of Oaths", or similar
-         - An official seal or embossment
-
-         An UNCERTIFIED copy is just a plain photocopy or photo of the ID with no stamps or signatures.
-
-         Return ONLY valid JSON with:
-         - certified: boolean (true if there are visible certification marks, false if plain copy)
-         - confidence: number between 0 and 1 (your confidence in the verdict)
-         - reasoning: string (one-sentence explanation of what you saw or did not see)
-
-         Return ONLY the JSON object, no markdown, no explanation.`,
-      ]);
-
-      const text = result.response.text().trim();
-      const jsonMatch = text.match(/\{[\s\S]*\}/);
-      if (!jsonMatch) throw new Error('Failed to parse certified ID response');
-
-      const parsed = JSON.parse(jsonMatch[0]) as CertifiedIdResult;
-
-      return {
-        result: {
-          certified: Boolean(parsed.certified),
           confidence: Math.max(0, Math.min(1, Number(parsed.confidence) || 0)),
           reasoning: String(parsed.reasoning ?? ''),
         },

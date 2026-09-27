@@ -6,7 +6,7 @@ import { checkRateLimit } from '@/lib/auth';
 import { createClient } from '@/lib/supabase/server';
 import { extractPhotoMetadata, type VerificationMetadata } from '@/lib/metadata/verification';
 import { detectFraudFlags } from '@/lib/metadata/fraud-detection';
-import { matchFaces, checkCertifiedId } from '@/lib/agents/tools';
+import { matchFaces } from '@/lib/agents/tools';
 import { STUDIO } from '@/lib/constants';
 
 const FILE_NAMES = {
@@ -253,37 +253,12 @@ export async function POST(req: NextRequest) {
       console.error('[verifications] Face match failed:', faceErr);
     }
 
-    // ── Certified ID check via Gemma vision ──────────────────────────────
-    try {
-      const idUrlRes = await supabase.storage
-        .from('verifications')
-        .createSignedUrl(storagePaths.id_copy, 300);
-      const idUrl = idUrlRes.data?.signedUrl;
-
-      if (idUrl) {
-        const certCheck = await checkCertifiedId(idUrl, user.id);
-        (metadata as VerificationMetadata & { certified_id?: unknown }).certified_id = {
-          certified: certCheck.certified,
-          confidence: certCheck.confidence,
-          reasoning: certCheck.reasoning,
-          checked_at: new Date().toISOString(),
-        };
-      }
-    } catch (certErr) {
-      console.error('[verifications] Certified ID check failed:', certErr);
-    }
-
     // ── Detect fraud flags from metadata + face match ───────────────────
     const fraudFlags = detectFraudFlags(metadata, metadata.face_match);
 
-    const certData = (metadata as VerificationMetadata & { certified_id?: { certified: boolean; confidence: number } }).certified_id;
-    if (certData && !certData.certified) {
-      fraudFlags.push({
-        severity: 'medium',
-        code: 'UNCERTIFIED_ID',
-        message: 'ID copy does not appear to be certified by a Commissioner of Oaths',
-      });
-    }
+    // No certified copy is asked for any more (2026-09-27): the face match
+    // above, a person's review and the handover ID check protect the gear;
+    // a stamp on a photocopy stopped honest people more than thieves.
 
     // ── Get request metadata ────────────────────────────────────────────
     const ip = req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip') || 'unknown';
@@ -319,7 +294,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      message: 'Documents submitted successfully. Verification is instant.',
+      message: `Documents submitted. A person checks them, ${STUDIO.verification.reviewTime}.`,
       flags_detected: rpcResult.flags_detected ?? 0,
     });
   } catch (err) {
