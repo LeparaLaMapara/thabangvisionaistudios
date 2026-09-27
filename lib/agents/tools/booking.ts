@@ -7,6 +7,12 @@ import { escapeIlike } from '@/lib/search/types';
 import { getHourlyRate } from '@/lib/supabase/queries/service-bookings';
 import { logEvent } from '@/lib/data/events';
 import { markConversion } from '@/lib/data/chat-history';
+import { createAdminClient } from '@/lib/supabase/server';
+
+// Writes that touch money or status go through the service role, after the
+// route has checked who the user is and that the record is theirs. The users'
+// own sessions may only read these tables (see the RLS migration of 2026-09-27).
+const admin = () => createAdminClient();
 
 // ─── Booking Tools for Booking Agent ──────────────────────────────────────────
 // Tools focused on booking flows, quotes, and request submission.
@@ -269,7 +275,7 @@ export function createBookingTools(
 
         try {
           // Insert booking
-          const { data: booking, error } = await supabase
+          const { data: booking, error } = await admin()
             .from('bookings')
             .insert({
               reference,
@@ -322,7 +328,7 @@ export function createBookingTools(
             },
           });
 
-          await supabase
+          await admin()
             .from('bookings')
             .update({ paystack_reference: reference, paystack_access_code: accessCode || null })
             .eq('id', booking.id);

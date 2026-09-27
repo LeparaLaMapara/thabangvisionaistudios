@@ -2,7 +2,12 @@ export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
 import { checkRateLimit } from '@/lib/auth';
-import { createClient } from '@/lib/supabase/server';
+import { createClient, createAdminClient } from '@/lib/supabase/server';
+
+// Writes that touch money or status go through the service role, after the
+// route has checked who the user is and that the record is theirs. The users'
+// own sessions may only read these tables (see the RLS migration of 2026-09-27).
+const admin = () => createAdminClient();
 
 // ─── POST — Submit a rating/review for a completed booking ───────────────────
 
@@ -54,7 +59,7 @@ export async function POST(
     return NextResponse.json({ error: 'Already reviewed' }, { status: 409 });
   }
 
-  const { error: updateError } = await supabase
+  const { error: updateError } = await admin()
     .from('bookings')
     .update({
       client_rating: rating,

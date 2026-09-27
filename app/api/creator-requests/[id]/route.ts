@@ -1,10 +1,15 @@
 export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { createClient, createAdminClient } from '@/lib/supabase/server';
 import { email as emailProvider } from '@/lib/email';
 import { STUDIO } from '@/lib/constants';
 import { checkRateLimit } from '@/lib/auth';
+
+// Writes that touch money or status go through the service role, after the
+// route has checked who the user is and that the record is theirs. The users'
+// own sessions may only read these tables (see the RLS migration of 2026-09-27).
+const admin = () => createAdminClient();
 
 // Allowed status transitions
 const ALLOWED_TRANSITIONS: Record<string, string[]> = {
@@ -99,7 +104,7 @@ export async function PATCH(
   }
 
   // Update status
-  const { error: updateError } = await supabase
+  const { error: updateError } = await admin()
     .from('crew_requests')
     .update({ status, updated_at: new Date().toISOString() })
     .eq('id', id);
@@ -112,7 +117,7 @@ export async function PATCH(
   // Insert notification for the creator
   try {
     if (status === 'cancelled') {
-      await supabase.from('notifications').insert({
+      await admin().from('notifications').insert({
         user_id: crewRequest.creator_id,
         type: 'gig_cancelled',
         title: 'Gig Request Cancelled',
@@ -120,7 +125,7 @@ export async function PATCH(
         link: '/dashboard/gigs',
       });
     } else if (status === 'confirmed') {
-      await supabase.from('notifications').insert({
+      await admin().from('notifications').insert({
         user_id: crewRequest.creator_id,
         type: 'gig_confirmed',
         title: 'Gig Confirmed',
@@ -128,7 +133,7 @@ export async function PATCH(
         link: '/dashboard/gigs',
       });
     } else if (status === 'declined') {
-      await supabase.from('notifications').insert({
+      await admin().from('notifications').insert({
         user_id: crewRequest.creator_id,
         type: 'gig_declined',
         title: 'Gig Declined',
@@ -136,7 +141,7 @@ export async function PATCH(
         link: '/dashboard/gigs',
       });
     } else if (status === 'completed') {
-      await supabase.from('notifications').insert({
+      await admin().from('notifications').insert({
         user_id: crewRequest.creator_id,
         type: 'gig_completed',
         title: 'Gig Completed',

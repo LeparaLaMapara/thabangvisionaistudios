@@ -1,11 +1,16 @@
 export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { createClient, createAdminClient } from '@/lib/supabase/server';
 import { payments } from '@/lib/payments';
 import { STUDIO } from '@/lib/constants';
 import { checkRateLimit, checkNotSuspended } from '@/lib/auth';
 import { meetsLeadTime, leadTimeMessage } from '@/lib/rental/leadTime';
+
+// Writes that touch money or status go through the service role, after the
+// route has checked who the user is and that the record is theirs. The users'
+// own sessions may only read these tables (see the RLS migration of 2026-09-27).
+const admin = () => createAdminClient();
 
 export async function GET() {
   const supabase = await createClient();
@@ -193,7 +198,7 @@ export async function POST(request: NextRequest) {
   const currency = rental.currency ?? STUDIO.currency.code;
 
   // Create booking record first (status: pending)
-  const { data: booking, error: insertError } = await supabase
+  const { data: booking, error: insertError } = await admin()
     .from('equipment_bookings')
     .insert({
       user_id: user.id,
@@ -241,7 +246,7 @@ export async function POST(request: NextRequest) {
   }
 
   // Create payment record
-  await supabase.from('booking_payments').insert({
+  await admin().from('booking_payments').insert({
     booking_id: booking.id,
     amount: totalPrice,
     currency,
