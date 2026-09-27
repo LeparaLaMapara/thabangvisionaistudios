@@ -4,8 +4,16 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { payments } from '@/lib/payments';
 import { checkRateLimit } from '@/lib/auth';
+import { STUDIO } from '@/lib/constants';
 
 export async function POST(request: NextRequest) {
+  // Subscriptions are switched off (STUDIO.subscriptions.enabled). While off,
+  // nothing may create or change one: these routes used to accept a plan and a
+  // price from the browser and write the subscription with the user's session.
+  if (!STUDIO.subscriptions.enabled) {
+    return NextResponse.json({ error: 'Subscriptions are not available.' }, { status: 404 });
+  }
+
   const supabase = await createClient();
   const {
     data: { user },

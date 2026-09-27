@@ -2,7 +2,7 @@ export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
 import { nanoid } from 'nanoid';
-import { createClient } from '@/lib/supabase/server';
+import { createClient, createAdminClient } from '@/lib/supabase/server';
 import { payments } from '@/lib/payments';
 import { STUDIO } from '@/lib/constants';
 import { checkRateLimit, checkNotSuspended } from '@/lib/auth';
@@ -12,6 +12,11 @@ import { logEvent } from '@/lib/data/events';
 import { validateBookingRequest } from '@/lib/bookings/validate';
 import { quoteHourly, quotePackage } from '@/lib/bookings/pricing';
 import { getBookablePackage } from '@/lib/bookings/packages';
+
+// Writes that touch money or status go through the service role, after the
+// route has checked who the user is and that the record is theirs. The users'
+// own sessions may only read these tables (see the RLS migration of 2026-09-27).
+const admin = () => createAdminClient();
 
 // ─── POST — Create a service booking + get Paystack payment URL ──────────────
 
@@ -97,7 +102,7 @@ export async function POST(request: NextRequest) {
 
   try {
     // Create booking record
-    const { data: booking, error } = await supabase
+    const { data: booking, error } = await admin()
       .from('bookings')
       .insert({
         reference,
@@ -156,7 +161,7 @@ export async function POST(request: NextRequest) {
     });
 
     // Save access code + reference
-    await supabase
+    await admin()
       .from('bookings')
       .update({ paystack_reference: reference, paystack_access_code: accessCode || null })
       .eq('id', booking.id);

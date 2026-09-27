@@ -1,8 +1,13 @@
 export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { createClient, createAdminClient } from '@/lib/supabase/server';
 import { checkRateLimit } from '@/lib/auth';
+
+// Writes that touch money or status go through the service role, after the
+// route has checked who the user is and that the record is theirs. The users'
+// own sessions may only read these tables (see the RLS migration of 2026-09-27).
+const admin = () => createAdminClient();
 
 /**
  * PATCH /api/service-bookings/[id]/deliver
@@ -61,7 +66,7 @@ export async function PATCH(
   }
 
   // Update booking with delivery info
-  const { error: updateError } = await supabase
+  const { error: updateError } = await admin()
     .from('bookings')
     .update({
       delivery_url: delivery_url.trim(),

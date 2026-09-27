@@ -1,7 +1,7 @@
 export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { createClient, createAdminClient } from '@/lib/supabase/server';
 import { refundPayment } from '@/lib/payments/paystack';
 import {
   calculateCancellationRefund,
@@ -136,7 +136,7 @@ export async function PUT(
       isPaid && quote.totalRefund > 0 ? 'pending' : 'not_required';
   }
 
-  const { data, error } = await updateBooking(supabase, id, user.id, update);
+  const { data, error } = await updateBooking(createAdminClient(), id, user.id, update);
 
   if (error) {
     if (error.code === 'PGRST116') {
@@ -151,7 +151,7 @@ export async function PUT(
   if (quote && update.cancellation_refund_status === 'pending') {
     const result = await refundPayment(booking.payfast_payment_id!, quote.totalRefund);
 
-    await updateBooking(supabase, id, user.id, {
+    await updateBooking(createAdminClient(), id, user.id, {
       cancellation_refund_status: result.success ? 'refunded' : 'failed',
       cancellation_refunded_at: result.success ? new Date().toISOString() : null,
       cancellation_refund_error: result.success ? null : (result.error ?? 'Refund failed'),
@@ -187,8 +187,10 @@ export async function PUT(
  * (lib/migrations/045-cancellation-refunds.sql), so cancelling must not break
  * in an environment where 038 has not been run.
  */
+// Called with the service-role client: the owner check is the user_id filter
+// below (and the route reads the booking with the user's session first).
 async function updateBooking(
-  supabase: Awaited<ReturnType<typeof createClient>>,
+  supabase: ReturnType<typeof createAdminClient>,
   id: string,
   userId: string,
   update: Record<string, unknown>,

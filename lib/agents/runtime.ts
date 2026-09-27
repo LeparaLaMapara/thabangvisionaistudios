@@ -20,6 +20,11 @@ import { buildAssistantPrompt } from '@/lib/agents/agents/assistant';
 import { buildBookingPrompt } from '@/lib/agents/agents/booking';
 import { createConversation, logChatMessage, hashIp } from '@/lib/data/chat-history';
 
+// Writes that touch money or status go through the service role, after the
+// route has checked who the user is and that the record is theirs. The users'
+// own sessions may only read these tables (see the RLS migration of 2026-09-27).
+const admin = () => createAdminClient();
+
 // ─── Plan Limits ────────────────────────────────────────────────────────────
 
 const PLAN_LIMITS: Record<string, number> = {
@@ -238,9 +243,9 @@ export async function executeAgent(
       }
 
       if (usage) {
-        await supabase.from('ubunye_usage').update({ message_count: currentCount + 1 }).eq('id', usage.id);
+        await admin().from('ubunye_usage').update({ message_count: currentCount + 1 }).eq('id', usage.id);
       } else {
-        await supabase.from('ubunye_usage').insert({ user_id: user.id, date: todaySAST, message_count: 1 });
+        await admin().from('ubunye_usage').insert({ user_id: user.id, date: todaySAST, message_count: 1 });
       }
     }
   }
