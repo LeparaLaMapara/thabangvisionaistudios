@@ -111,19 +111,15 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
   const supabase = createAdminClient();
 
-  // Require verified account to list equipment (same rule as /api/listings)
+  // New suppliers save their gear as drafts (is_published: false below) before
+  // their ID check; this used to refuse every new supplier, so the last
+  // onboarding step always failed. Publishing requires verification
+  // (PUT /api/listings) and our review.
   const { data: profile } = await supabase
     .from('profiles')
-    .select('verification_status, location')
+    .select('location')
     .eq('id', auth.user.id)
     .single();
-
-  if (profile?.verification_status !== 'verified') {
-    return NextResponse.json(
-      { error: 'Account must be verified to list equipment.' },
-      { status: 403 },
-    );
-  }
 
   try {
     const body = await req.json();

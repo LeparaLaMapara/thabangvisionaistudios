@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth, checkNotSuspended, checkRateLimit } from '@/lib/auth';
-import { identifyGear, extractIdFields } from '@/lib/agents/tools';
+import { identifyGear } from '@/lib/agents/tools';
 
 // ─── POST /api/agents/onboarding ────────────────────────────────────────────
 
@@ -48,11 +48,6 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     }
 
     switch (action) {
-      case 'capture-id': {
-        const result = await extractIdFields(imageUrl, user.id);
-        return NextResponse.json({ success: true, data: result });
-      }
-
       case 'identify-gear': {
         const result = await identifyGear(imageUrl, user.id);
         return NextResponse.json({ success: true, data: result });
@@ -60,7 +55,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
       default:
         return NextResponse.json(
-          { error: `Unknown action: ${action}. Use 'capture-id' or 'identify-gear'.` },
+          { error: `Unknown action: ${action}. Use 'identify-gear'.` },
           { status: 400 },
         );
     }

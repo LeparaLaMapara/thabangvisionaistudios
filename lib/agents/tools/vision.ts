@@ -4,7 +4,6 @@ import { trackedCompletion } from '@/lib/ai/tracked';
 import type {
   FaceMatchResult,
   GearIdentificationResult,
-  IdExtractionResult,
 } from '../types';
 
 const MODEL_ID = 'gemma-4-31b-it';
@@ -127,39 +126,3 @@ export async function matchFaces(
   });
 }
 
-export async function extractIdFields(
-  imageUrl: string,
-  userId?: string | null,
-): Promise<IdExtractionResult> {
-  const imageData = await fetchImageAsBase64(imageUrl);
-
-  return trackedCompletion<IdExtractionResult>({
-    agentId: 'onboarding:capture-id',
-    provider: 'google',
-    model: MODEL_ID,
-    userId,
-    call: async () => {
-      const result = await model.generateContent([
-        { inlineData: { mimeType: 'image/jpeg', data: imageData } },
-        `Extract information from this South African ID document.
-         Return ONLY valid JSON with:
-         - firstName: string or null
-         - lastName: string or null
-         - idNumber: string or null
-         - dateOfBirth: string (YYYY-MM-DD format) or null
-
-         If any field is unreadable, set it to null.
-         Return ONLY the JSON object, no markdown, no explanation.`,
-      ]);
-
-      const text = result.response.text().trim();
-      const jsonMatch = text.match(/\{[\s\S]*\}/);
-      if (!jsonMatch) throw new Error('Failed to parse ID extraction response');
-
-      return {
-        result: JSON.parse(jsonMatch[0]) as IdExtractionResult,
-        usage: extractUsage(result.response.usageMetadata),
-      };
-    },
-  });
-}
