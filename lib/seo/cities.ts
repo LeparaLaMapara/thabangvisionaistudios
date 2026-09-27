@@ -26,6 +26,19 @@ export const SA_CITIES: SACity[] = [
   { slug: 'pietermaritzburg', name: 'Pietermaritzburg', province: 'KwaZulu-Natal', aliases: ['pmb'] },
 ];
 
+/**
+ * Where gear can actually be collected or delivered: collection is in
+ * Johannesburg and delivery reaches about 100 km (STUDIO.fulfilment), which is
+ * the Gauteng cities. Rental pages for other cities listed Johannesburg stock
+ * under "Rentals in Cape Town"; they now point to the category page instead.
+ * Studio services travel, so their city pages stay for every city.
+ */
+export function deliversRentals(city: SACity): boolean {
+  return city.province === 'Gauteng';
+}
+
+export const RENTAL_CITIES: SACity[] = SA_CITIES.filter(deliversRentals);
+
 export const COUNTRY_SLUG = 'south-africa';
 export const COUNTRY_NAME = 'South Africa';
 

@@ -213,7 +213,7 @@ export default function SmartRentalsClient({ rentals }: { rentals: SmartRental[]
               <span className="text-neutral-400 dark:text-neutral-500">For Every Shoot</span>
             </h1>
             <p className="max-w-2xl text-lg text-neutral-600 dark:text-neutral-300 font-light leading-relaxed">
-              Rent professional cameras, lenses, lighting, audio equipment, drones, and studio gear from verified creators across South Africa. Secure bookings, insured rentals, and trusted equipment. All in one platform.
+              Rent professional cameras, lenses, lighting, audio equipment, drones, and studio gear from ThabangVision and verified suppliers. Collect in Johannesburg or have it delivered, with a refundable deposit and the full price shown before you pay.
             </p>
           </div>
         </motion.div>

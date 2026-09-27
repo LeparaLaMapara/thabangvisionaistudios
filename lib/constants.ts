@@ -419,6 +419,9 @@ export const MAIN_NAVIGATION: {
 }[] = [
     { label: 'Rentals', href: '/rentals' },
     { label: 'Studio', href: '/studio' },
+    // What things cost and how to reach a person, one tap from every page.
+    { label: 'Pricing', href: '/pricing' },
+    { label: 'Help', href: '/faq' },
   ];
 
 export const FOOTER_SECTIONS = [

@@ -95,7 +95,7 @@ const Hero = () => {
               <span className="text-neutral-600 text-[10px]">•</span>
               <span className="text-[10px] font-mono text-neutral-500 uppercase tracking-widest">Secure Payments</span>
               <span className="text-neutral-600 text-[10px]">•</span>
-              <span className="text-[10px] font-mono text-neutral-500 uppercase tracking-widest">Insured Rentals</span>
+              <span className="text-[10px] font-mono text-neutral-500 uppercase tracking-widest">Refundable Deposits</span>
             </div>
           </motion.div>
         </div>
@@ -191,7 +191,7 @@ const CommunitySection = () => (
           {
             icon: Calendar,
             title: 'Book Equipment',
-            description: 'Reserve professional gear from our catalog or community listings. Real-time availability, instant confirmation.',
+            description: 'Reserve professional gear from our catalog or community listings. Live availability, and the full price before you pay.',
             cta: 'View Rentals',
             href: '/rentals',
           },
@@ -254,7 +254,7 @@ const BookingCTA = ({ minDayRate }: { minDayRate: number | null }) => (
             <span className="text-neutral-500">Professional Gear</span>
           </h2>
           <p className="text-neutral-400 font-light leading-relaxed mb-8 max-w-md">
-            From cinema cameras to lighting kits. Check real-time availability, get instant pricing, and secure your gear with our streamlined booking system.
+            From cinema cameras to lighting kits. See live availability and the full price before you pay, then book online.
           </p>
           <div className="flex flex-wrap gap-4">
             <Link href="/rentals" className="inline-flex items-center gap-2 min-h-[44px] bg-white text-black px-8 py-4 text-[10px] font-mono font-bold uppercase tracking-widest hover:opacity-80 transition-opacity">
@@ -277,7 +277,7 @@ const BookingCTA = ({ minDayRate }: { minDayRate: number | null }) => (
               label: minDayRate === null ? 'Day Rates' : 'Day Rates From',
               value: minDayRate === null ? 'On Request' : formatZAR(minDayRate),
             },
-            { label: 'Instant Booking', value: 'Yes' },
+            { label: 'Online Booking', value: 'Yes' },
             { label: 'Deposit Protection', value: 'Secured' },
           ].map(stat => (
             <div key={stat.label} className="bg-[#0A0A0B] border border-white/5 p-6">
@@ -307,7 +307,7 @@ const TrustSignals = () => (
         {[
           { icon: BadgeCheck, label: 'Identity-Verified Creators', detail: 'Every creator passes ID verification' },
           { icon: Lock, label: 'Secure Payments', detail: 'Encrypted checkout, cards never stored' },
-          { icon: ShieldCheck, label: 'Deposit Protection', detail: 'Your deposit is secured until delivery' },
+          { icon: ShieldCheck, label: 'Deposit Protection', detail: 'Refunded after the gear comes back undamaged' },
           { icon: Star, label: 'Rated & Reviewed', detail: 'Real reviews from real clients' },
         ].map((item) => (
           <div key={item.label} className="text-center p-4">
