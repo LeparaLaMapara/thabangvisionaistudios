@@ -1,25 +1,7 @@
 import { streamText, createUIMessageStream, createUIMessageStreamResponse } from 'ai';
 import type { LanguageModel, UIMessageChunk } from 'ai';
-import { APICallError } from 'ai';
-import { resolveEntry, buildModel, fallbackChain, type ModelEntry } from './registry';
-
-/**
- * Whether to try the NEXT provider after this error.
- *
- * Deliberately more permissive than same-provider retry. A missing key or a
- * model-not-found on provider A says nothing about provider B, so those DO earn
- * a failover even though retrying A would be pointless. The only thing not worth
- * failing over is a genuine bad request (400): a malformed prompt fails
- * identically everywhere, so trying the next provider just delays the real
- * error.
- */
-function shouldFailover(err: unknown): boolean {
-  if (APICallError.isInstance(err)) {
-    const s = err.statusCode ?? 0;
-    return s !== 400; // everything except a malformed request
-  }
-  return true; // config error, network, timeout, unknown: a different provider may work
-}
+import { resolveEntry, buildModel, fallbackChain, providerDefault, type ModelEntry } from './registry';
+import { shouldFailover, markFailed, markHealthy, byHealth, errorText, ASSISTANT_UNAVAILABLE } from './health';
 
 /**
  * Streaming completion with provider failover — before the first token.
@@ -70,15 +52,18 @@ export interface StreamFallbackParams {
 }
 
 /** The ordered entries to try: the requested model, then the rest of the chain. */
-function streamOrder(ref: string | undefined): ModelEntry[] {
+export function streamOrder(ref: string | undefined): ModelEntry[] {
   const first = resolveEntry(ref);
   const rest = fallbackChain()
     .filter((p) => p !== first.provider)
-    .map((p) => resolveEntry(p))
+    // Each provider takes over with its capable, tool-calling model.
+    .map((p) => providerDefault(p))
     // A streaming assistant turn carries tools; never fail over onto a model
     // that cannot call them, or bookings silently break.
     .filter((e) => e.tools);
-  return [first, ...rest];
+  // A provider that just failed (out of credit, bad key, rate limit) goes to
+  // the back, so customers stop paying its failed round trip on every message.
+  return byHealth([first, ...rest]);
 }
 
 export function streamWithFallback(params: StreamFallbackParams): Response {
@@ -143,6 +128,7 @@ export function streamWithFallback(params: StreamFallbackParams): Response {
             buffered.push(value);
             if (isContent(value)) {
               committed = true;
+              markHealthy(entry.provider);
               // Announce the served model at commit, BEFORE the provider's own
               // onFinish fires at stream end, so cost logging records the model
               // that actually answered rather than the one first routed to.
@@ -170,16 +156,22 @@ export function streamWithFallback(params: StreamFallbackParams): Response {
           // was sent, so just return.
           return;
         }
+        markFailed(entry.provider, lastError);
+        console.error(`[ai] ${entry.provider}:${entry.modelId} failed, ${isLast ? 'no provider left' : 'handing over'}: ${errorText(lastError).slice(0, 300)}`);
         if (isLast || !shouldFailover(lastError)) break;
         // else: try the next provider.
       }
 
       throw new Error(
-        `[ai] all streaming providers failed — ${lastError instanceof Error ? lastError.message : String(lastError)}`,
+        `[ai] all streaming providers failed (${order.map((e) => e.provider).join(', ')}) — ${errorText(lastError).slice(0, 300)}`,
       );
     },
-    onError: (err) =>
-      err instanceof Error ? err.message : 'The assistant is briefly unavailable. Please try again.',
+    // The details are in the server log; a customer never sees a provider's
+    // raw error (it once showed Anthropic's billing message on the live site).
+    onError: (err) => {
+      console.error('[ai] assistant unavailable:', err instanceof Error ? err.message : err);
+      return ASSISTANT_UNAVAILABLE;
+    },
   });
 
   return createUIMessageStreamResponse({ stream });

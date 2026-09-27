@@ -1,6 +1,7 @@
 import { generateText, APICallError } from 'ai';
 import type { LanguageModel } from 'ai';
-import { resolveEntry, buildModel, fallbackChain, type Provider, type ModelEntry } from './registry';
+import { resolveEntry, buildModel, fallbackChain, providerDefault, type Provider, type ModelEntry } from './registry';
+import { shouldFailover, markFailed, markHealthy, byHealth } from './health';
 
 /**
  * Failover for AI calls — the reliability piece a gateway is supposed to have.
@@ -77,8 +78,8 @@ function attemptOrder(ref: string | undefined, providers: Provider[]): ModelEntr
   const first = resolveEntry(ref);
   const rest = providers
     .filter((p) => p !== first.provider)
-    .map((p) => resolveEntry(p));
-  return [first, ...rest];
+    .map((p) => providerDefault(p));
+  return byHealth([first, ...rest]);
 }
 
 async function callOnce(
@@ -129,6 +130,7 @@ export async function generateWithFallback(params: ResilientParams): Promise<Res
     try {
       const model = buildModel(entry);
       const out = await callOnce(model, params, timeoutMs);
+      markHealthy(entry.provider);
       return {
         text: out.text,
         servedBy: entry.provider,
@@ -141,9 +143,10 @@ export async function generateWithFallback(params: ResilientParams): Promise<Res
       attempts.push({ provider: entry.provider, error: message });
       lastError = err;
 
-      // A non-retryable error fails the same way everywhere; stop, don't burn
-      // the chain on a bad request or an auth fault.
-      if (!isRetryable(err)) break;
+      markFailed(entry.provider, err);
+      // Only a request that is itself broken stops the chain; an account
+      // problem (credit, key, quota) at one provider hands over to the next.
+      if (!shouldFailover(err)) break;
     }
   }
 

@@ -50,9 +50,15 @@ export interface ModelEntry {
   tools: boolean;
 }
 
-/** Is the platform allowed to fall back to a proprietary model? Opt-in. */
+/**
+ * May a proprietary model (Claude, GPT, Gemini) serve when the preferred one
+ * fails? Yes by default: the owner's rule since 2026-09-27 is that ANY
+ * configured provider takes over, so the assistant never goes dark because one
+ * account ran out of credit. Open-weight providers are still tried first.
+ * Set AI_ALLOW_PROPRIETARY=false to keep the chain open-weight only.
+ */
 export function proprietaryAllowed(): boolean {
-  return env('AI_ALLOW_PROPRIETARY') === 'true';
+  return env('AI_ALLOW_PROPRIETARY') !== 'false';
 }
 
 const env = (k: string): string | undefined => {
@@ -244,8 +250,39 @@ export function resolveModelId(ref?: string): string {
   return resolveEntry(ref).modelId;
 }
 
+export const PROVIDERS: readonly Provider[] = ['local', 'groq', 'google', 'anthropic', 'openai'];
+
 function isProvider(value: string): value is Provider {
-  return value === 'anthropic' || value === 'openai' || value === 'google' || value === 'local';
+  return (PROVIDERS as readonly string[]).includes(value);
+}
+
+/** Whether a provider has what it needs to be called (a key, or a local base URL). */
+export function isConfigured(p: Provider): boolean {
+  switch (p) {
+    case 'anthropic': return !!env('ANTHROPIC_API_KEY');
+    case 'openai':    return !!env('OPENAI_API_KEY');
+    case 'google':    return !!env('GOOGLE_GENERATIVE_AI_API_KEY');
+    case 'local':     return !!env('AI_LOCAL_BASE_URL');
+    case 'groq':      return !!env('GROQ_API_KEY');
+  }
+}
+
+/**
+ * The model a provider serves when it TAKES OVER a request: its capable,
+ * tool-calling model, never its cheap "fast" one. Without this, failing over to
+ * Google picked the fast tier (tools off), which the streaming chat then had to
+ * skip, so a Claude outage left nothing to take over.
+ */
+export function providerDefault(p: Provider): ModelEntry {
+  const smart = smartEntry();
+  if (smart.provider === p) return smart;
+  switch (p) {
+    case 'anthropic': return { provider: p, modelId: env('AI_ANTHROPIC_MODEL') ?? 'claude-sonnet-5', tier: 'smart', openWeight: false, tools: true };
+    case 'openai':    return { provider: p, modelId: env('AI_OPENAI_MODEL') ?? 'gpt-4o', tier: 'smart', openWeight: false, tools: true };
+    case 'google':    return { provider: p, modelId: env('AI_GOOGLE_MODEL') ?? 'gemini-3.6-flash', tier: 'smart', openWeight: false, tools: true };
+    case 'groq':      return { provider: p, modelId: env('AI_GROQ_MODEL') ?? 'qwen/qwen3.8-27b', tier: 'smart', openWeight: true, tools: true };
+    case 'local':     return { provider: p, modelId: env('AI_LOCAL_MODEL') ?? 'qwen2.5', tier: 'smart', openWeight: true, tools: env('AI_LOCAL_TOOLS') !== 'false' };
+  }
 }
 
 /**
@@ -255,32 +292,15 @@ function isProvider(value: string): value is Provider {
  * are included, so the chain never falls through to a backend that will 401.
  */
 export function fallbackChain(): Provider[] {
-  const configured = (p: Provider): boolean => {
-    switch (p) {
-      case 'anthropic': return !!env('ANTHROPIC_API_KEY');
-      case 'openai':    return !!env('OPENAI_API_KEY');
-      case 'google':    return !!env('GOOGLE_GENERATIVE_AI_API_KEY');
-      case 'local':     return !!env('AI_LOCAL_BASE_URL');
-      case 'groq':      return !!env('GROQ_API_KEY');
-    }
-  };
-
-  // Default order is open-weight first (local self-hosted, then Gemma via
-  // Google), and the proprietary providers only when explicitly allowed. An
-  // explicit AI_FALLBACK_CHAIN overrides the ordering entirely.
+  // An explicit AI_FALLBACK_CHAIN sets the order; otherwise open-weight first
+  // (self-hosted, then Groq), then the hosted proprietary providers.
   const raw = env('AI_FALLBACK_CHAIN');
-  let requested: Provider[];
-  if (raw) {
-    requested = raw.split(',').map((s) => s.trim()).filter(isProvider);
-  } else if (proprietaryAllowed()) {
-    requested = ['local', 'groq', 'google', 'anthropic', 'openai'];
-  } else {
-    // Open-weight only. Local and Groq (Qwen) first, then Google for Gemma.
-    // The proprietary Gemini/Claude/GPT paths are left out until opted in.
-    requested = ['local', 'groq', 'google'];
+  let requested: Provider[] = raw
+    ? raw.split(',').map((s) => s.trim().toLowerCase()).filter(isProvider)
+    : [...PROVIDERS];
+  if (!proprietaryAllowed()) {
+    // Google stays: it also serves the open-weight Gemma family.
+    requested = requested.filter((p) => p !== 'anthropic' && p !== 'openai');
   }
-
-  const chain = requested.filter(configured);
-  // De-duplicate, preserve order.
-  return [...new Set(chain)];
+  return [...new Set(requested)].filter(isConfigured);
 }
