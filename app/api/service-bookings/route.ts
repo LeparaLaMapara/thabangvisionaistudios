@@ -10,6 +10,8 @@ import { getHourlyRate } from '@/lib/supabase/queries/service-bookings';
 import { email as emailProvider } from '@/lib/email';
 import { logEvent } from '@/lib/data/events';
 import { validateBookingRequest } from '@/lib/bookings/validate';
+import { quoteHourly, quotePackage } from '@/lib/bookings/pricing';
+import { getBookablePackage } from '@/lib/bookings/packages';
 
 // ─── POST — Create a service booking + get Paystack payment URL ──────────────
 
@@ -40,6 +42,19 @@ export async function POST(request: NextRequest) {
   }
 
   const body = await request.json();
+
+  // A studio package: its title, price and creator come from the database,
+  // never from the browser.
+  const pkg = typeof body.production_id === 'string' ? await getBookablePackage(supabase, body.production_id) : null;
+  if (body.production_id && !pkg) {
+    return NextResponse.json({ error: 'This package is no longer available.' }, { status: 404 });
+  }
+  if (pkg) {
+    body.project_category = pkg.title;
+    body.creator_id = pkg.creatorId ?? body.creator_id ?? null;
+    if (pkg.priceUnit !== 'hour') body.duration_hours = pkg.hours ?? STUDIO.booking.minBookingHours;
+  }
+
   const {
     creator_id,
     booking_type,
@@ -69,11 +84,11 @@ export async function POST(request: NextRequest) {
     deliverables: deliverablesText,
   } = validation;
 
-  // Calculate pricing
-  const hourlyRate = getHourlyRate(project_category);
-  const subtotal = Math.round(hourlyRate * duration_hours);
-  const vat = Math.round(subtotal * (STUDIO.booking.vatRate / 100));
-  const total = subtotal + vat;
+  // Calculate pricing: the package's own price, or the hourly rate.
+  const quote = pkg
+    ? quotePackage(pkg.price, pkg.priceUnit, duration_hours, STUDIO.booking.vatRate)
+    : quoteHourly(getHourlyRate(project_category), duration_hours, STUDIO.booking.vatRate);
+  const { subtotal, vat, total } = quote;
   const platformAmount = Math.round(total * (STUDIO.booking.platformCommission / 100));
   const creatorAmount = total - platformAmount;
 
@@ -130,7 +145,7 @@ export async function POST(request: NextRequest) {
       paymentId: reference,
       amount: total,
       itemName: `Booking: ${project_category}`,
-      itemDescription: `${project_category} — ${duration_hours}hrs`,
+      itemDescription: pkg ? `${project_category} — ${quote.line}` : `${project_category} — ${duration_hours}hrs`,
       email: user.email!,
       returnUrl: `${baseUrl}/api/service-bookings/callback?reference=${reference}`,
       cancelUrl: `${baseUrl}/dashboard/bookings?status=cancelled`,

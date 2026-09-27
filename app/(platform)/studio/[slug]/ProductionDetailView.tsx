@@ -286,7 +286,7 @@ function BookingWidget({ project }: { project: SmartProduction }) {
               {formatZAR(project.price!)}
             </span>
             <span className="text-sm font-mono text-neutral-500 mb-0.5">
-              {priceUnitLabel(project.price_unit)}
+              {priceUnitLabel(project.price_unit)} excl. VAT
             </span>
           </div>
         </div>
@@ -298,11 +298,9 @@ function BookingWidget({ project }: { project: SmartProduction }) {
 
       <button
         onClick={() => {
-          const params = new URLSearchParams({
-            prompt: `I'd like to book the "${project.title}" production`,
-          });
-          if (project.creator_id) params.set('creator_id', project.creator_id);
-          router.push(`/ubunye-ai-studio?${params.toString()}`);
+          // A real booking form at this package's own price; the assistant is
+          // there for questions, not the only way to book.
+          router.push(hasPrice ? `/book?production=${project.id}` : `/ubunye-ai-studio?${new URLSearchParams({ prompt: `I'd like a quote for the "${project.title}" production` })}`);
         }}
         className="w-full py-3 text-[10px] font-mono font-bold uppercase tracking-widest bg-[#D4A843] text-black border border-[#D4A843] hover:opacity-80 transition-all flex items-center justify-center gap-2"
       >
@@ -311,7 +309,16 @@ function BookingWidget({ project }: { project: SmartProduction }) {
       </button>
 
       <p className="text-[9px] font-mono text-neutral-600 mt-3 text-center">
-        Chat with Ubunye AI to finalise your booking
+        {hasPrice ? (
+          <>Pick a date and pay. Questions?{' '}
+            <a
+              href={`/ubunye-ai-studio?${new URLSearchParams({ prompt: `I have a question about the "${project.title}" production` })}`}
+              className="underline underline-offset-2 hover:text-white"
+            >
+              Ask Ubunye
+            </a>
+          </>
+        ) : 'Ubunye will help you with a quote'}
       </p>
     </div>
   );

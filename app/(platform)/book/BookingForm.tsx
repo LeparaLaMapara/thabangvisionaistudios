@@ -3,6 +3,17 @@
 import { useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { Calendar, Clock, MapPin, Camera, Package } from 'lucide-react';
+import { quoteHourly, quotePackage } from '@/lib/bookings/pricing';
+import { toLocalYmd } from '@/lib/rental/dates';
+
+/** A studio package booked at its own price (see app/(platform)/book/page.tsx). */
+export interface BookingPackage {
+  id: string;
+  title: string;
+  price: number;
+  unit: string;
+  unitWords: string;
+}
 
 const DELIVERABLES = [
   'Edited Photos (Digital)',
@@ -41,6 +52,7 @@ interface BookingFormProps {
   vatRate: number;
   minHours: number;
   maxHours: number;
+  pkg?: BookingPackage | null;
 }
 
 export function BookingForm({
@@ -56,6 +68,7 @@ export function BookingForm({
   vatRate,
   minHours,
   maxHours,
+  pkg = null,
 }: BookingFormProps) {
   const router = useRouter();
   const [category, setCategory] = useState(initialCategory);
@@ -65,22 +78,26 @@ export function BookingForm({
   const [deliverables, setDeliverables] = useState('');
 
   const rate = creatorRate ?? defaultRate;
+  // A package priced per project/session/event needs no hours and no shoot type.
+  const fixedPackage = !!pkg && pkg.unit !== 'hour';
 
   const quote = useMemo(() => {
+    if (pkg) {
+      if (!fixedPackage && (!hours || hours < minHours)) return null;
+      return quotePackage(pkg.price, pkg.unit, hours, vatRate);
+    }
     if (!hours || hours < minHours) return null;
-    const subtotal = Math.round(rate * hours);
-    const vat = Math.round(subtotal * (vatRate / 100));
-    return { subtotal, vat, total: subtotal + vat };
-  }, [rate, hours, vatRate, minHours]);
+    return quoteHourly(rate, hours, vatRate);
+  }, [pkg, fixedPackage, rate, hours, vatRate, minHours]);
 
-  const canSubmit = category && hours >= minHours && date;
+  const canSubmit = pkg ? date && (fixedPackage || hours >= minHours) : category && hours >= minHours && date;
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!canSubmit) return;
 
     const params = new URLSearchParams({
-      category,
+      ...(pkg ? { production: pkg.id } : { category }),
       hours: String(hours),
       dates: date,
       ...(location && { location }),
@@ -91,31 +108,36 @@ export function BookingForm({
     router.push(`/book?${params.toString()}`);
   }
 
-  // Tomorrow as min date
+  // Tomorrow as min date (the local day; toISOString() gave the UTC day)
   const tomorrow = new Date();
   tomorrow.setDate(tomorrow.getDate() + 1);
-  const minDate = tomorrow.toISOString().split('T')[0];
+  const minDate = toLocalYmd(tomorrow);
 
   return (
     <div className="min-h-screen bg-[#050505] px-4 py-20">
       <div className="mx-auto max-w-lg">
         {/* Header */}
         <h1 className="mb-2 text-2xl font-bold text-white">
-          {creatorName ? `Book ${creatorName}` : 'Book a Session'}
+          {pkg ? `Book: ${pkg.title}` : creatorName ? `Book ${creatorName}` : 'Book a Session'}
         </h1>
         {creatorName && creatorSpecializations.length > 0 && (
           <p className="mb-2 text-sm text-neutral-400">
             {creatorSpecializations.join(', ')}
           </p>
         )}
-        {rate > 0 && (
+        {pkg ? (
           <p className="mb-8 text-[#D4A843] font-mono text-sm">
-            R{rate.toLocaleString()}/hour
+            R{pkg.price.toLocaleString()} {pkg.unitWords}, excl. VAT
+          </p>
+        ) : rate > 0 && (
+          <p className="mb-8 text-[#D4A843] font-mono text-sm">
+            R{rate.toLocaleString()}/hour, excl. VAT
           </p>
         )}
 
         <form onSubmit={handleSubmit} className="space-y-5">
-          {/* Category */}
+          {/* Category (a package already says what the shoot is) */}
+          {!pkg && (
           <div>
             <label className="flex items-center gap-2 text-[10px] font-mono uppercase tracking-widest text-neutral-500 mb-2">
               <Camera className="w-3.5 h-3.5" />
@@ -134,7 +156,10 @@ export function BookingForm({
             </select>
           </div>
 
-          {/* Hours */}
+          )}
+
+          {/* Hours (not asked for a fixed-price package) */}
+          {!fixedPackage && (
           <div>
             <label className="flex items-center gap-2 text-[10px] font-mono uppercase tracking-widest text-neutral-500 mb-2">
               <Clock className="w-3.5 h-3.5" />
@@ -155,6 +180,8 @@ export function BookingForm({
               </span>
             </div>
           </div>
+
+          )}
 
           {/* Date */}
           <div>
@@ -217,7 +244,7 @@ export function BookingForm({
               </p>
               <div className="space-y-2 text-sm font-mono">
                 <div className="flex justify-between text-neutral-400">
-                  <span>R{rate.toLocaleString()}/hr x {hours}hrs</span>
+                  <span>{quote.line}</span>
                   <span>R{quote.subtotal.toLocaleString()}</span>
                 </div>
                 <div className="flex justify-between text-neutral-400">

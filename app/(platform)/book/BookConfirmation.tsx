@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import type { BookingPackage } from './BookingForm';
 
 interface BookConfirmationProps {
   category: string;
@@ -18,6 +19,10 @@ interface BookConfirmationProps {
   total: number;
   vatRate: number;
   cancellationPolicy: string;
+  /** A studio package booked at its own price. */
+  pkg?: BookingPackage | null;
+  /** What is being charged, e.g. "R1 500 per project". */
+  rateLine?: string;
 }
 
 export default function BookConfirmation({
@@ -35,6 +40,8 @@ export default function BookConfirmation({
   total,
   vatRate,
   cancellationPolicy,
+  pkg = null,
+  rateLine,
 }: BookConfirmationProps) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
@@ -49,10 +56,11 @@ export default function BookConfirmation({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          ...(pkg ? { production_id: pkg.id } : {}),
           creator_id: creatorId,
           booking_type: 'production',
           project_category: category,
-          project_description: description || `${category} booking — ${hours} hours`,
+          project_description: description || (pkg ? `Package: ${pkg.title}` : `${category} booking — ${hours} hours`),
           deliverables,
           duration_hours: hours,
           location: location || null,
@@ -90,7 +98,9 @@ export default function BookConfirmation({
           <h2 className="mb-4 text-lg font-semibold text-white">{category}</h2>
 
           <div className="space-y-3 text-sm">
-            <Row label="Duration" value={`${hours} hour${hours !== 1 ? 's' : ''}`} />
+            {(!pkg || pkg.unit === 'hour') && (
+              <Row label="Duration" value={`${hours} hour${hours !== 1 ? 's' : ''}`} />
+            )}
             {deliverables && <Row label="Deliverables" value={deliverables} />}
             {location && <Row label="Location" value={location} />}
             {dates && <Row label="Date" value={dates} />}
@@ -105,8 +115,8 @@ export default function BookConfirmation({
           <div className="mt-6 border-t border-neutral-800 pt-4">
             <div className="space-y-2 text-sm">
               <div className="flex justify-between text-neutral-400">
-                <span>Rate</span>
-                <span>R{hourlyRate.toLocaleString()}/hr × {hours}hrs</span>
+                <span>{pkg ? 'Package' : 'Rate'}</span>
+                <span>{rateLine ?? `R${hourlyRate.toLocaleString()}/hr × ${hours}hrs`}</span>
               </div>
               <div className="flex justify-between text-neutral-400">
                 <span>Subtotal</span>
