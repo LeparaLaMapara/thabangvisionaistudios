@@ -35,7 +35,7 @@ All external services go through abstraction layers in `lib/`. Each layer has a 
 
 | Layer | File | Env Var | Active Provider | Alternatives |
 |-------|------|---------|-----------------|--------------|
-| AI | `lib/ai/registry.ts` | `AI_PROVIDER=anthropic` | Anthropic Claude | OpenAI, Gemini, **local** (any OpenAI-compatible endpoint), + failover |
+| AI | `lib/ai/registry.ts` | `AI_SMART_PROVIDER` | Anthropic Claude | Gemini, Groq, OpenAI, **local** (any OpenAI-compatible endpoint); any keyed provider takes over |
 | Agents | `lib/agents/index.ts` | `AGENT_*_ENABLED=true` | 5 Ubunye agents | See `docs/processes/ubunye-agents.md` |
 | Auth | `lib/auth/index.ts` | `AUTH_PROVIDER=supabase` | Supabase | (extensible) |
 | Payments | `lib/payments/index.ts` | `PAYMENT_PROVIDER=paystack` | **Paystack** | PayFast (dormant) |
@@ -48,22 +48,43 @@ All external services go through abstraction layers in `lib/`. Each layer has a 
 
 ## 1. AI Layer (`lib/ai/`)
 
-Uses the **Vercel AI SDK** with a thin `getModel()` wrapper.
+Uses the **Vercel AI SDK** behind a small gateway. Models are configuration,
+not code, and **any configured provider takes over** when the preferred one
+fails (out of credit, bad key, rate limit, outage), before the customer sees a
+word.
 
 ```
 lib/ai/
-  index.ts    getModel() → returns LanguageModel based on AI_PROVIDER
+  registry.ts         providers, tiers, providerDefault(), fallbackChain()
+  resilient-stream.ts streamWithFallback(): chat, fails over before the first token
+  resilient.ts        generateWithFallback(): non-streaming (WhatsApp)
+  health.ts           shouldFailover(), 10-minute cool-down after a credit/key failure,
+                      the plain message customers see when everything fails
+  tracked.ts, budget.ts, pricing.ts   cost records and the spend cap
 ```
 
-**How it works:**
-- `getModel()` returns `anthropic('claude-sonnet-4-20250514')`, `openai('gpt-4o')`, or `google('gemini-2.0-flash')`
-- API routes call `streamText({ model: getModel(), ... })` or `generateText({ model: getModel(), ... })`
-- Frontend uses `useChat()` from `@ai-sdk/react` with `DefaultChatTransport`
-- UIMessage format (frontend) is auto-converted to ModelMessage format via `convertToModelMessages()` in the chat route
+**Providers:** `anthropic`, `google`, `groq`, `openai`, `local` (any
+OpenAI-compatible endpoint: Ollama, vLLM, LM Studio, OpenRouter...). A provider
+is configured when its key (or `AI_LOCAL_BASE_URL`) is set.
 
-**Key routes:**
-- `POST /api/ubunye-chat` — streaming chat (`streamText`)
-- `POST /api/gemini` — non-streaming fallback (`generateText`)
+**Settings (all env, no deploy needed beyond a restart):**
+
+| Variable | Meaning |
+|---|---|
+| `AI_SMART_PROVIDER`, `AI_SMART_MODEL` | who answers first (the tool-using tier) |
+| `AI_FALLBACK_CHAIN` | explicit take-over order, e.g. `groq,google,anthropic`; default `local,groq,google,anthropic,openai` (open-weight first) |
+| `AI_GOOGLE_MODEL`, `AI_ANTHROPIC_MODEL`, `AI_GROQ_MODEL`, `AI_OPENAI_MODEL`, `AI_LOCAL_MODEL` | the tool-calling model each provider takes over with |
+| `AI_ALLOW_PROPRIETARY=false` | keep the chain open-weight only (default: any keyed provider may take over) |
+| `AI_FAST_MODEL` | the cheap tier for greetings and lookups (Google) |
+
+**Rules:** a genuine malformed request (a 400 about the prompt) stops the
+chain; everything else, including a 400 about credit or billing, hands over.
+A provider that failed on credit or a key goes to the back of the queue for
+10 minutes. Customers never see a provider's raw error; the server log has it.
+`tests/unit/ai-failover.test.ts` replays the outage of 2026-09-27 (Claude out
+of credit, nothing took over).
+
+**Key routes:** `POST /api/ubunye-chat` (streaming chat), the WhatsApp webhook.
 
 **Packages:** `ai`, `@ai-sdk/anthropic`, `@ai-sdk/openai`, `@ai-sdk/google`, `@ai-sdk/react`
 
