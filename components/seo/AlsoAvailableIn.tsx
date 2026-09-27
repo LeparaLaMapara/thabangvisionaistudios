@@ -2,16 +2,18 @@
 
 import Link from 'next/link';
 import { MapPin } from 'lucide-react';
-import { SA_CITIES, COUNTRY_SLUG } from '@/lib/seo/cities';
+import { SA_CITIES, COUNTRY_SLUG, type SACity } from '@/lib/seo/cities';
 
 interface AlsoAvailableInProps {
   basePath: string;
   currentCitySlug?: string;
   className?: string;
+  /** The cities to link to; rentals pass only the cities gear reaches. */
+  cities?: SACity[];
 }
 
-export function AlsoAvailableIn({ basePath, currentCitySlug, className = '' }: AlsoAvailableInProps) {
-  const cities = SA_CITIES.filter((c) => c.slug !== currentCitySlug).slice(0, 8);
+export function AlsoAvailableIn({ basePath, currentCitySlug, className = '', cities: pool = SA_CITIES }: AlsoAvailableInProps) {
+  const cities = pool.filter((c) => c.slug !== currentCitySlug).slice(0, 8);
 
   return (
     <section className={`border-t border-white/5 py-12 ${className}`}>

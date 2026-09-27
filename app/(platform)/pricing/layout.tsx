@@ -8,7 +8,7 @@ import { ExitIntentModal } from '@/components/engagement/ExitIntentModal';
 
 export const metadata: Metadata = buildPageMetadata({
   title: 'Pricing — Simple, Transparent Plans',
-  description: `Start free on ${STUDIO.shortName}. Upgrade to Pro Creator (R299/mo) or Studio (R799/mo) for lower fees, verified badges, and unlimited listings.`,
+  description: `Free to join ${STUDIO.shortName}. Pay per booking: gear by the day or week, services by the package or the hour. The full price is shown before you pay.`,
   path: '/pricing',
 });
 
@@ -33,10 +33,6 @@ const FAQ_ITEMS = [
     question: 'Does it cost anything to join?',
     answer: 'No. Creating an account, browsing rentals, booking equipment, and creating a creator profile are all free. You only pay for what you book.',
   },
-  {
-    question: 'How do I cancel my subscription?',
-    answer: 'You can cancel your Pro Creator or Studio subscription at any time from your dashboard. Your plan remains active until the end of the billing period.',
-  },
 ];
 
 export default function PricingLayout({ children }: { children: React.ReactNode }) {
@@ -50,10 +46,10 @@ export default function PricingLayout({ children }: { children: React.ReactNode 
       />
       {children}
       <ExitIntentModal
-        prompt="Help me choose the right plan for my needs"
-        heading="Not sure which plan?"
-        body="Our AI assistant can recommend the perfect plan based on your needs — whether you're a solo creator or a full production house."
-        ctaLabel="Get a recommendation"
+        prompt="Help me choose gear or a package for my shoot"
+        heading="Not sure what you need?"
+        body="Ubunye can suggest gear or a package for your shoot and tell you the full price."
+        ctaLabel="Ask Ubunye"
       />
     </>
   );

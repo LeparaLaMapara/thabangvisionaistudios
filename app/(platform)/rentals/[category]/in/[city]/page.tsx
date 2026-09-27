@@ -1,9 +1,9 @@
 export const revalidate = 60;
 
-import { notFound, redirect } from 'next/navigation';
+import { notFound, redirect, permanentRedirect } from 'next/navigation';
 import { getPublishedRentalsByCategory } from '@/lib/supabase/queries/smartRentals';
 import { getCrewByLocation } from '@/lib/supabase/queries/crew';
-import { getCityBySlug, COUNTRY_SLUG, COUNTRY_NAME, SA_CITIES } from '@/lib/seo/cities';
+import { getCityBySlug, COUNTRY_SLUG, COUNTRY_NAME, RENTAL_CITIES, deliversRentals } from '@/lib/seo/cities';
 import { RENTAL_CATEGORIES, STUDIO } from '@/lib/constants';
 import { buildPageMetadata } from '@/lib/seo/metadata';
 import { serviceJsonLd, breadcrumbJsonLd, renderJsonLd } from '@/lib/seo/structured-data';
@@ -26,7 +26,7 @@ export async function generateMetadata({ params }: Props) {
   if (!locationName) return { title: 'Not Found' };
 
   const title = `${cat.label} Rentals in ${locationName}`;
-  const description = `Browse ${cat.label.toLowerCase()} available for hire in ${locationName}. ${cat.description} Book online with ThabangVision.`;
+  const description = `Browse ${cat.label.toLowerCase()} for hire. ${cat.description} Collect in Johannesburg or have it delivered within ${STUDIO.fulfilment.delivery.maxRadiusKm} km. Book online with ThabangVision.`;
 
   return buildPageMetadata({
     title,
@@ -47,6 +47,9 @@ export default async function RentalLocationPage({ params }: Props) {
   const city = getCityBySlug(citySlug);
   const isCountry = citySlug === COUNTRY_SLUG;
   if (!city && !isCountry) notFound();
+  // Gear does not reach this city: send people to the category, not a page
+  // that lists Johannesburg stock under another city's name.
+  if (city && !deliversRentals(city)) permanentRedirect(`/rentals/${category}`);
 
   const locationName = city?.name ?? COUNTRY_NAME;
 
@@ -81,7 +84,7 @@ export default async function RentalLocationPage({ params }: Props) {
         category={category}
         locationName={locationName}
       />
-      <AlsoAvailableIn basePath={`/rentals/${category}`} currentCitySlug={citySlug} />
+      <AlsoAvailableIn basePath={`/rentals/${category}`} currentCitySlug={citySlug} cities={RENTAL_CITIES} />
       <RelatedCategories currentSlug={category} type="rentals" locationSlug={citySlug} />
     </>
   );

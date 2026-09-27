@@ -5,10 +5,11 @@ import { getPublishedFaqs } from '@/lib/supabase/queries/chatFaqs';
 import { buildPageMetadata } from '@/lib/seo/metadata';
 import { faqPageJsonLd, breadcrumbJsonLd, renderJsonLd } from '@/lib/seo/structured-data';
 import { STUDIO } from '@/lib/constants';
+import { coreFaqs } from '@/lib/content/faqs';
 
 export const metadata = buildPageMetadata({
   title: 'Frequently Asked Questions',
-  description: `Common questions about ${STUDIO.shortName} — booking, pricing, equipment rentals, creator services, and more. Get answers instantly.`,
+  description: `Answers about ${STUDIO.shortName}: renting gear, booking photographers, prices and VAT, deposits, delivery, the ID check and cancelling.`,
   path: '/faq',
 });
 
@@ -22,7 +23,13 @@ const FAQ_CATEGORIES: Record<string, string> = {
 };
 
 export default async function FaqPage() {
-  const faqs = await getPublishedFaqs(100);
+  // The core answers come from the same settings checkout uses; published
+  // FAQs from /admin/faqs follow them.
+  const published = await getPublishedFaqs(100);
+  const faqs: { id: string; category: string | null; question: string; answer: string }[] = [
+    ...coreFaqs(),
+    ...published.map((f) => ({ id: f.id, category: f.category, question: f.question, answer: f.answer })),
+  ];
 
   const grouped = faqs.reduce<Record<string, typeof faqs>>((acc, faq) => {
     const cat = faq.category || 'general';

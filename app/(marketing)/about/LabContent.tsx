@@ -12,11 +12,11 @@ const HERO_CAPABILITY = {
 };
 
 const CAPABILITIES = [
-  { title: 'Production Workflows', icon: Sparkles, desc: 'Streamlined tools for editing, color grading, scene analysis, and content generation that help creators deliver faster without compromising quality.', poweredByAI: true },
-  { title: 'Equipment Rentals', icon: Camera, desc: 'Browse and book professional equipment with real-time availability, instant confirmation, and intelligent gear recommendations matched to your project needs.', poweredByAI: true },
+  { title: 'Production Services', icon: Sparkles, desc: 'Photography, video and post-production (retouching, colour grading, editing), booked as a package or by the hour.', poweredByAI: false },
+  { title: 'Equipment Rentals', icon: Camera, desc: 'Browse cameras, lenses, lighting and sound, see live availability and the full price, and book online. Ubunye can suggest gear for your shoot.', poweredByAI: true },
   { title: 'Creator Network', icon: Store, desc: 'A vetted supplier network of South African creators and gear owners. Productions book through ThabangVision, and we match the right crew and equipment to the job.', poweredByAI: true },
-  { title: 'Creative Workflow Tools', icon: Workflow, desc: 'Automated thumbnail generation, metadata tagging, portfolio optimization, and social media content creation to help creators focus on the work that matters.', poweredByAI: true },
-  { title: 'Production Technology', icon: Code, desc: 'Purpose-built tools and integrations for production software like DaVinci Resolve, Premiere Pro, and After Effects — solving real-world challenges for working creatives.', poweredByAI: false },
+  { title: 'AI Help for Creators', icon: Workflow, desc: 'Ubunye drafts your profile bio and gear listings from your photos, and suggests rates in line with similar work.', poweredByAI: true },
+  { title: 'Coming: Ubunye Studio', icon: Code, desc: 'An AI video and photo editor for creators is in development under the ThabangVision name. It is not part of this site yet.', poweredByAI: false },
 ];
 
 export default function LabContent() {

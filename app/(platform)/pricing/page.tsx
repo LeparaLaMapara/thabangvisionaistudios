@@ -375,7 +375,7 @@ export default function PricingPage() {
           </p>
         </div>
       </section>
-      <AskUbunyeButton prompt="Help me choose the right plan for my needs" label="Not sure which plan?" />
+      <AskUbunyeButton prompt="Help me choose gear or a package for my shoot" label="Not sure what you need?" />
     </div>
   );
 }
