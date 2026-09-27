@@ -1,11 +1,11 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { modelRegistry, resolveEntry, resolveModelId, fallbackChain } from '@/lib/ai/registry';
+import { modelRegistry, resolveEntry, resolveModelId, fallbackChain, providerDefault } from '@/lib/ai/registry';
 
 const ENV_KEYS = [
   'AI_PROVIDER', 'AI_SMART_MODEL', 'AI_FAST_MODEL', 'AI_OPENAI_MODEL',
   'AI_LOCAL_BASE_URL', 'AI_LOCAL_MODEL', 'AI_LOCAL_TIER', 'AI_LOCAL_API_KEY',
   'AI_FALLBACK_CHAIN', 'AI_ALLOW_PROPRIETARY', 'AI_SMART_PROVIDER', 'GROQ_API_KEY', 'AI_GROQ_MODEL',
-  'ANTHROPIC_API_KEY', 'OPENAI_API_KEY', 'GOOGLE_GENERATIVE_AI_API_KEY',
+  'ANTHROPIC_API_KEY', 'OPENAI_API_KEY', 'GOOGLE_GENERATIVE_AI_API_KEY', 'AI_GOOGLE_MODEL', 'AI_ANTHROPIC_MODEL',
 ];
 let saved: Record<string, string | undefined>;
 
@@ -138,10 +138,18 @@ describe('fallbackChain', () => {
     expect(chain).not.toContain('local');
   });
 
-  it('is open-weight only by default — no proprietary provider without opt-in', () => {
-    // The policy: open weights by default. Anthropic is keyed but must NOT
-    // appear until AI_ALLOW_PROPRIETARY is set. Google stays because it serves
-    // Gemma, which is open-weight.
+  it('lets ANY configured provider take over by default, open-weight first', () => {
+    // The owner's rule since 2026-09-27: the assistant must never go dark
+    // because one account ran out of credit. Open-weight providers still come
+    // first; proprietary ones follow when they have a key.
+    process.env.ANTHROPIC_API_KEY = 'a';
+    process.env.GOOGLE_GENERATIVE_AI_API_KEY = 'g';
+    process.env.GROQ_API_KEY = 'q';
+    expect(fallbackChain()).toEqual(['groq', 'google', 'anthropic']);
+  });
+
+  it('can still be limited to open-weight providers', () => {
+    process.env.AI_ALLOW_PROPRIETARY = 'false';
     process.env.ANTHROPIC_API_KEY = 'a';
     process.env.GOOGLE_GENERATIVE_AI_API_KEY = 'g';
     const chain = fallbackChain();
@@ -149,11 +157,11 @@ describe('fallbackChain', () => {
     expect(chain).toContain('google');
   });
 
-  it('admits proprietary providers once opted in', () => {
-    process.env.AI_ALLOW_PROPRIETARY = 'true';
+  it('keeps groq when it is named in AI_FALLBACK_CHAIN (it used to be dropped)', () => {
+    process.env.GROQ_API_KEY = 'q';
     process.env.ANTHROPIC_API_KEY = 'a';
-    const chain = fallbackChain();
-    expect(chain).toContain('anthropic');
+    process.env.AI_FALLBACK_CHAIN = 'anthropic,groq';
+    expect(fallbackChain()).toEqual(['anthropic', 'groq']);
   });
 
   it('adds local to the chain when a base URL is present, no opt-in needed', () => {
@@ -197,5 +205,29 @@ describe('buildModel — constructs real SDK models without throwing', () => {
     delete process.env.AI_LOCAL_BASE_URL;
     const { buildModel } = await import('@/lib/ai/registry');
     expect(() => buildModel({ provider: 'local', modelId: 'llama3.1', tier: 'smart', openWeight: true, tools: true })).toThrow();
+  });
+});
+
+
+describe('providerDefault — the model a provider takes over with', () => {
+  it('gives every provider a tool-calling model, never the fast tier', () => {
+    process.env.AI_LOCAL_BASE_URL = 'http://localhost:11434/v1';
+    for (const p of ['anthropic', 'openai', 'google', 'groq', 'local'] as const) {
+      const e = providerDefault(p);
+      expect(e.provider).toBe(p);
+      expect(e.tools).toBe(true);
+      expect(e.tier).toBe('smart');
+    }
+  });
+
+  it('uses the configured smart model when that provider is the smart one', () => {
+    process.env.AI_SMART_PROVIDER = 'groq';
+    process.env.AI_SMART_MODEL = 'qwen/custom';
+    expect(providerDefault('groq').modelId).toBe('qwen/custom');
+  });
+
+  it('lets each provider model be set by env', () => {
+    process.env.AI_GOOGLE_MODEL = 'gemini-x';
+    expect(providerDefault('google').modelId).toBe('gemini-x');
   });
 });
