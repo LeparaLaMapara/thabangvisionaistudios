@@ -30,10 +30,10 @@ export interface OutreachOutput {
 export function buildOutreachPrompt(input: OutreachInput): string {
   const services = input.servicesFit.join(', ');
 
-  return `You are drafting a B2B outreach email on behalf of ThabangVision AI Studios, a technology creative studio in Johannesburg, South Africa.
+  return `You are drafting a B2B outreach email on behalf of ThabangVision, a Johannesburg marketplace to book photographers and videographers and hire camera gear.
 
 ThabangVision offers:
-- Professional photography and video production (from R1,500/session)
+- Photography and video packages (from R1,500, excl. VAT)
 - Equipment rentals (cameras, lighting, audio, grip)
 - AI-powered booking and instant quoting via Ubunye AI assistant
 - Verified, vetted creative professionals across South Africa

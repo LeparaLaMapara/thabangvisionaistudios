@@ -161,7 +161,7 @@ export async function PATCH(
         try {
           const { payments } = await import('@/lib/payments');
           if (payments.isConfigured()) {
-            const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://thabangvision.com';
+            const baseUrl = process.env.NEXT_PUBLIC_APP_URL || STUDIO.meta.url;
             const result = await payments.createCheckout({
               paymentId: id,
               amount: crewRequest.deposit_amount,

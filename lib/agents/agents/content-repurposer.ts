@@ -30,7 +30,7 @@ export interface RepurposedContent {
 }
 
 export function buildContentRepurposerPrompt(input: ContentRepurposerInput): string {
-  return `You are a social media strategist for ThabangVision AI Studios, a creative production platform in South Africa.
+  return `You are a social media strategist for ThabangVision, a Johannesburg marketplace to book photographers and videographers and hire camera gear.
 
 Given this press article, generate platform-specific social content:
 

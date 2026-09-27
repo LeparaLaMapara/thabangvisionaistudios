@@ -119,9 +119,11 @@ function RegisterForm() {
     setLoading(true);
 
     const supabase = createClient();
-    const { error: signUpError } = await supabase.auth.signUp({
+    const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
       email,
       password,
+      // The confirmation link returns them here, then on to where they were going.
+      options: { emailRedirectTo: authCallbackUrl(window.location.origin, next) },
     });
 
     if (signUpError) {
@@ -130,7 +132,15 @@ function RegisterForm() {
       return;
     }
 
-    window.location.href = next;
+    // With email confirmation on there is no session yet: say what to do next
+    // instead of sending them to a page that needs them signed in.
+    if (!signUpData.session) {
+      setMessage(`Almost done. We sent a link to ${email}. Open it to confirm your email and you will come straight back here.`);
+      setLoading(false);
+      return;
+    }
+
+    window.location.assign(next);
   };
 
   if (checking) {
