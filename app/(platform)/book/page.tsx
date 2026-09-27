@@ -5,6 +5,8 @@ import { createClient } from '@/lib/supabase/server';
 import { STUDIO } from '@/lib/constants';
 import { getHourlyRate } from '@/lib/supabase/queries/service-bookings';
 import BookConfirmation from './BookConfirmation';
+import { getBookablePackage } from '@/lib/bookings/packages';
+import { quoteHourly, quotePackage, packageUnitWords } from '@/lib/bookings/pricing';
 
 interface BookPageProps {
   searchParams: Promise<{
@@ -15,6 +17,7 @@ interface BookPageProps {
     dates?: string;
     creator_id?: string;
     description?: string;
+    production?: string;
   }>;
 }
 
@@ -59,8 +62,21 @@ export default async function BookPage({ searchParams }: BookPageProps) {
     creatorSpecializations = (creator?.specializations as string[]) ?? [];
   }
 
+  // A studio package ("Family Birthday"): booked at its own price, read here
+  // on the server, so the price on the studio page is the price charged.
+  const pkg = params.production ? await getBookablePackage(supabase, params.production) : null;
+  const pkgInfo = pkg
+    ? { id: pkg.id, title: pkg.title, price: pkg.price, unit: pkg.priceUnit, unitWords: packageUnitWords(pkg.priceUnit) }
+    : null;
+  if (pkg && !creatorId && pkg.creatorId) {
+    const { data: creator } = await supabase.from('profiles').select('display_name').eq('id', pkg.creatorId).single();
+    creatorName = creator?.display_name ?? null;
+  }
+
   // If missing required booking details → show the booking form
-  const hasAllDetails = category && hours >= STUDIO.booking.minBookingHours && dates;
+  const hasAllDetails = pkg
+    ? !!dates && (pkg.priceUnit !== 'hour' || hours >= STUDIO.booking.minBookingHours)
+    : category && hours >= STUDIO.booking.minBookingHours && dates;
   if (!hasAllDetails) {
     const { BookingForm } = await import('./BookingForm');
     const hourlyRate = category ? getHourlyRate(category) : (creatorRate ?? 0);
@@ -78,20 +94,25 @@ export default async function BookPage({ searchParams }: BookPageProps) {
         vatRate={STUDIO.booking.vatRate}
         minHours={STUDIO.booking.minBookingHours}
         maxHours={STUDIO.booking.maxBookingHours}
+        pkg={pkgInfo}
       />
     );
   }
 
-  // Calculate pricing
-  const hourlyRate = getHourlyRate(category);
-  const subtotal = Math.round(hourlyRate * hours);
-  const vat = Math.round(subtotal * (STUDIO.booking.vatRate / 100));
-  const total = subtotal + vat;
+  // Calculate pricing: the package's own price, or the hourly rate.
+  const bookedHours = pkg && pkg.priceUnit !== 'hour' ? (pkg.hours ?? STUDIO.booking.minBookingHours) : hours;
+  const hourlyRate = pkg ? 0 : getHourlyRate(category);
+  const quote = pkg
+    ? quotePackage(pkg.price, pkg.priceUnit, bookedHours, STUDIO.booking.vatRate)
+    : quoteHourly(hourlyRate, hours, STUDIO.booking.vatRate);
+  const { subtotal, vat, total } = quote;
 
   return (
     <BookConfirmation
-      category={category}
-      hours={hours}
+      category={pkg ? pkg.title : category}
+      hours={bookedHours}
+      pkg={pkgInfo}
+      rateLine={quote.line}
       deliverables={deliverables}
       location={location}
       dates={dates}

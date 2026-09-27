@@ -447,7 +447,7 @@ export default function ProductionPackageDetailView({
                 We&apos;ll confirm availability and send you a quote.
               </p>
               <Link
-                href={`/ubunye-ai-studio?prompt=${encodeURIComponent(`I want to book the ${pkg.name} package under ${category.name}`)}`}
+                href={`/book?production=${encodeURIComponent(pkg.id)}`}
                 className="w-full py-3 text-[10px] font-mono font-bold uppercase tracking-widest bg-[#D4A843] text-black hover:opacity-80 transition-opacity flex items-center justify-center gap-2"
               >
                 Book Now
