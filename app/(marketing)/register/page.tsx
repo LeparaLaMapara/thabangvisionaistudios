@@ -1,10 +1,12 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { createClient } from '@/lib/supabase/client';
 import { STUDIO } from '@/lib/constants';
+import { safeNextPath, authCallbackUrl, withRedirect } from '@/lib/auth/redirect';
 
 // Google "G" icon
 function GoogleIcon() {
@@ -19,6 +21,18 @@ function GoogleIcon() {
 }
 
 export default function RegisterPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex items-center justify-center py-40">
+        <div className="w-5 h-5 border-2 border-white/20 border-t-white rounded-full animate-spin" />
+      </div>
+    }>
+      <RegisterForm />
+    </Suspense>
+  );
+}
+
+function RegisterForm() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -28,24 +42,26 @@ export default function RegisterPage() {
   const [loading, setLoading] = useState(false);
   const [checking, setChecking] = useState(true);
   const [magicLoading, setMagicLoading] = useState(false);
+  // Where they were going before they had to sign up.
+  const next = safeNextPath(useSearchParams().get('redirect'));
 
   useEffect(() => {
     const supabase = createClient();
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session) {
-        window.location.href = '/dashboard';
+        window.location.href = next;
       } else {
         setChecking(false);
       }
     });
-  }, []);
+  }, [next]);
 
   const handleGoogleSignIn = async () => {
     const supabase = createClient();
     await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: `${window.location.origin}/auth/callback`,
+        redirectTo: authCallbackUrl(window.location.origin, next),
       },
     });
   };
@@ -64,7 +80,7 @@ export default function RegisterPage() {
     const { error: otpError } = await supabase.auth.signInWithOtp({
       email,
       options: {
-        emailRedirectTo: `${window.location.origin}/auth/callback`,
+        emailRedirectTo: authCallbackUrl(window.location.origin, next),
       },
     });
 
@@ -113,7 +129,7 @@ export default function RegisterPage() {
       return;
     }
 
-    window.location.href = '/dashboard';
+    window.location.href = next;
   };
 
   if (checking) {
@@ -279,7 +295,7 @@ export default function RegisterPage() {
         <p className="text-center text-[9px] font-mono uppercase tracking-[0.2em] text-neutral-600 mt-6">
           Already have an account?{' '}
           <Link
-            href="/login"
+            href={withRedirect('/login', next)}
             className="text-white underline underline-offset-2 hover:opacity-70 transition-opacity"
           >
             Sign In

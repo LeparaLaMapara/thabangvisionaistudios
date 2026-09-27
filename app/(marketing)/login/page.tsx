@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { motion } from 'framer-motion';
 import { createClient } from '@/lib/supabase/client';
 import { STUDIO } from '@/lib/constants';
+import { safeNextPath, authCallbackUrl, withRedirect, signInErrorMessage } from '@/lib/auth/redirect';
 
 export default function LoginPage() {
   return (
@@ -33,11 +34,14 @@ function GoogleIcon() {
 
 function LoginForm() {
   const searchParams = useSearchParams();
-  const redirectTo = searchParams.get('redirect') || '/dashboard';
+  // Back to the page they came from, never off the site.
+  const redirectTo = safeNextPath(searchParams.get('redirect'));
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [error, setError] = useState<string | null>(null);
+  // A failed Google or email-link sign-in comes back as ?error=auth; say so
+  // instead of showing an ordinary login form.
+  const [error, setError] = useState<string | null>(() => signInErrorMessage(searchParams.get('error')));
   const [message, setMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [checking, setChecking] = useState(true);
@@ -70,7 +74,7 @@ function LoginForm() {
     await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: `${window.location.origin}/auth/callback`,
+        redirectTo: authCallbackUrl(window.location.origin, redirectTo),
       },
     });
   };
@@ -89,7 +93,7 @@ function LoginForm() {
     const { error: otpError } = await supabase.auth.signInWithOtp({
       email,
       options: {
-        emailRedirectTo: `${window.location.origin}/auth/callback`,
+        emailRedirectTo: authCallbackUrl(window.location.origin, redirectTo),
       },
     });
 
@@ -385,7 +389,7 @@ function LoginForm() {
         <p className="text-center text-[9px] font-mono uppercase tracking-[0.2em] text-neutral-600 mt-6">
           Don&apos;t have an account?{' '}
           <Link
-            href="/register"
+            href={withRedirect('/register', redirectTo)}
             className="text-white underline underline-offset-2 hover:opacity-70 transition-opacity"
           >
             Create One
