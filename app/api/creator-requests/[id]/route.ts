@@ -211,37 +211,21 @@ export async function PATCH(
     // Email failure should not block the status update
   }
 
-  // Payout to creator on completion
+  // No automatic payout here. This route used to send a Paystack transfer from
+  // ThabangVision's balance whenever a creator marked their own request
+  // completed, with no check that the client had paid (and anyone can create
+  // a crew request). Gig payouts are now made by an admin after checking the
+  // payment; the admin is told a request was completed.
   if (status === 'completed' && isCreator) {
     try {
-      const { data: banking } = await supabase
-        .from('banking_details')
-        .select('paystack_recipient_code')
-        .eq('user_id', user.id)
-        .single();
+      await emailProvider.sendEmail({
+        to: STUDIO.bookingEmail,
+        subject: `Crew request completed, payout to review: ${id}`,
+        text: `A creator marked crew request ${id} (${crewRequest.project_type}) as completed.
 
-      if (banking?.paystack_recipient_code) {
-        const { data: fullReq } = await supabase
-          .from('crew_requests')
-          .select('total_amount, commission_amount')
-          .eq('id', id)
-          .single();
-
-        if (fullReq?.total_amount && fullReq?.commission_amount) {
-          const payoutAmount = fullReq.total_amount - fullReq.commission_amount;
-          const { initiateTransfer } = await import('@/lib/payments/paystack');
-          await initiateTransfer({
-            amount: payoutAmount,
-            recipientCode: banking.paystack_recipient_code,
-            reason: `Gig payout: ${crewRequest.project_type}`,
-            reference: `gig-payout-${id}`,
-          });
-        }
-      }
-    } catch (err) {
-      console.error('[creator-requests] Payout failed:', err);
-      // Don't block completion — admin can trigger manual payout
-    }
+Check that the client paid, then make the payout from the admin dashboard.`,
+      });
+    } catch { /* don't block */ }
   }
 
   return NextResponse.json({ success: true, status });
