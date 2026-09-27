@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/server';
 import { payments } from '@/lib/payments';
 import { STUDIO } from '@/lib/constants';
 import { checkRateLimit, checkNotSuspended } from '@/lib/auth';
+import { meetsLeadTime, leadTimeMessage } from '@/lib/rental/leadTime';
 
 export async function GET() {
   const supabase = await createClient();
@@ -49,6 +50,26 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  // The ID check and the notice period are enforced here, not only by hiding
+  // the button: dates and prices are now shown to everyone, and a hidden
+  // button never stopped anyone calling this route directly. Same rules as
+  // the cart checkout.
+  const { data: profile, error: profileError } = await supabase
+    .from('profiles')
+    .select('verification_status')
+    .eq('id', user.id)
+    .single();
+  if (profileError) {
+    console.error('[bookings] profile read failed:', profileError.message);
+    return NextResponse.json({ error: 'Could not check your account. Please try again.' }, { status: 500 });
+  }
+  if (profile?.verification_status !== 'verified') {
+    return NextResponse.json(
+      { error: 'Identity verification is required to rent equipment.', code: 'verification_required' },
+      { status: 403 },
+    );
+  }
+
   // H3: Rate limit booking creation — 5 requests per minute per user
   if (!(await checkRateLimit(`booking:${user.id}`, 5, 60_000))) {
     return NextResponse.json(
@@ -85,6 +106,10 @@ export async function POST(request: NextRequest) {
       { error: 'Cannot book for past dates.' },
       { status: 400 },
     );
+  }
+
+  if (!meetsLeadTime(start_date, new Date())) {
+    return NextResponse.json({ error: leadTimeMessage(new Date()) }, { status: 400 });
   }
 
   const bookingDays = Math.ceil(

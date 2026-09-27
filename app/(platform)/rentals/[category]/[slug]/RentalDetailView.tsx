@@ -198,10 +198,10 @@ export default function RentalDetailView({
 
       {/* ── Main two-column layout ── */}
       <div className="container mx-auto px-6 py-12">
-        <div className="grid lg:grid-cols-[1fr_420px] gap-12 xl:gap-20 items-start">
+        <div className="grid grid-cols-1 lg:grid-cols-[1fr_420px] gap-12 xl:gap-20 items-start">
 
           {/* ── LEFT: Media gallery ── */}
-          <div>
+          <div className="min-w-0 lg:col-start-1 lg:row-start-1">
             {/* Hero media: image or video (shown when no gallery images for hero) */}
             {!heroImage && (
               <motion.div
@@ -330,34 +330,10 @@ export default function RentalDetailView({
                 )}
               </div>
             )}
-
-            {/* ── Full-width: Technical Specs (moved under gallery on left) ── */}
-            {hasMetadata && (
-              <div className="mt-12 pt-12 border-t border-black/5 dark:border-white/5">
-                <h2 className="text-2xl font-bold tracking-tight mb-8 border-l-2 border-accent-gold pl-4 uppercase">
-                  Technical Specifications
-                </h2>
-                <dl className="grid grid-cols-1 sm:grid-cols-2 gap-px bg-neutral-200 dark:bg-white/10 border border-neutral-200 dark:border-white/10 max-w-3xl">
-                  {Object.entries(rental.metadata!).map(([key, val]) => (
-                    <div
-                      key={key}
-                      className="flex flex-col gap-1 p-4 bg-white dark:bg-[#0A0A0B]"
-                    >
-                      <dt className="text-[10px] font-mono uppercase tracking-widest text-neutral-500">
-                        {humanizeKey(key)}
-                      </dt>
-                      <dd className="text-sm font-medium text-black dark:text-white">
-                        {val}
-                      </dd>
-                    </div>
-                  ))}
-                </dl>
-              </div>
-            )}
           </div>
 
           {/* ── RIGHT: Product info ── */}
-          <div className="lg:sticky lg:top-28 lg:self-start">
+          <div className="lg:col-start-2 lg:row-start-1 lg:row-span-2 lg:sticky lg:top-28 lg:self-start">
 
             {/* Rental category label (shown when no gallery hero) */}
             {!heroImage && (
@@ -578,6 +554,32 @@ export default function RentalDetailView({
               </div>
             )}
           </div>
+
+          {/* ── Technical specs: under the gallery on desktop, after the booking box on phones ── */}
+          {hasMetadata && (
+            <div className="lg:col-start-1 lg:row-start-2">
+                <div className="mt-12 pt-12 border-t border-black/5 dark:border-white/5">
+                  <h2 className="text-2xl font-bold tracking-tight mb-8 border-l-2 border-accent-gold pl-4 uppercase">
+                    Technical Specifications
+                  </h2>
+                  <dl className="grid grid-cols-1 sm:grid-cols-2 gap-px bg-neutral-200 dark:bg-white/10 border border-neutral-200 dark:border-white/10 max-w-3xl">
+                    {Object.entries(rental.metadata!).map(([key, val]) => (
+                      <div
+                        key={key}
+                        className="flex flex-col gap-1 p-4 bg-white dark:bg-[#0A0A0B]"
+                      >
+                        <dt className="text-[10px] font-mono uppercase tracking-widest text-neutral-500">
+                          {humanizeKey(key)}
+                        </dt>
+                        <dd className="text-sm font-medium text-black dark:text-white">
+                          {val}
+                        </dd>
+                      </div>
+                    ))}
+                  </dl>
+                </div>
+            </div>
+          )}
         </div>
 
         {/* ── Related Equipment ── */}

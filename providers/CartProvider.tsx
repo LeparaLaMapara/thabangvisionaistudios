@@ -6,7 +6,7 @@ import { useAuth } from '@/providers/AuthProvider';
 type CartContextValue = {
   count: number;
   loading: boolean;
-  addToCart: (rentalId: string, quantity?: number) => Promise<boolean>;
+  addToCart: (rentalId: string, quantity?: number, startDate?: string, endDate?: string) => Promise<boolean>;
   removeFromCart: (itemId: string) => Promise<void>;
   refresh: () => Promise<void>;
 };
@@ -49,13 +49,15 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   }, [refresh]);
 
   const addToCart = useCallback(
-    async (rentalId: string, quantity: number = 1): Promise<boolean> => {
+    async (rentalId: string, quantity: number = 1, startDate?: string, endDate?: string): Promise<boolean> => {
       setLoading(true);
       try {
+        // The chosen dates go with the item, so the cart does not ask again.
+        const dates = startDate && endDate ? { start_date: startDate, end_date: endDate } : {};
         const res = await fetch('/api/cart', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ rental_id: rentalId, quantity }),
+          body: JSON.stringify({ rental_id: rentalId, quantity, ...dates }),
         });
         if (res.ok) {
           const data = await res.json();

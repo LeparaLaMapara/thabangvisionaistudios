@@ -181,7 +181,9 @@ export const STUDIO = {
     maxFileSizeMB: 5,
     acceptedTypes: ['image/jpeg', 'image/png'],
     maxAttempts: 3,
-    reviewDays: 'instant',
+    // Checked by a person, not instantly. Say only what is true; the owner can
+    // shorten this once a faster check (for example a face-match service) is in.
+    reviewTime: 'usually within one working day',
   },
 
   // ── Fulfilment: collection or delivery ───────────────────────────────────
