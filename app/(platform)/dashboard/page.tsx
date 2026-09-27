@@ -159,7 +159,7 @@ export default async function DashboardPage() {
             <div>
               <p className="text-sm font-mono font-bold text-amber-400">Verification processing</p>
               <p className="text-xs font-mono text-neutral-500 mt-1">
-                Your documents are being processed. Verification is instant.
+                A person is checking your documents, {STUDIO.verification.reviewTime}. We&apos;ll email you the result.
               </p>
             </div>
           </div>
@@ -231,7 +231,7 @@ export default async function DashboardPage() {
               }
               description={
                 verificationStatus === 'pending'
-                  ? 'Your documents are being processed. This is instant.'
+                  ? `A person is checking your documents, ${STUDIO.verification.reviewTime}.`
                   : verificationStatus === 'rejected'
                     ? 'Verification was rejected. Please resubmit.'
                     : 'Verification lets you list gear, accept gigs, and earn on the platform.'

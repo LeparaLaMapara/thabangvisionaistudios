@@ -8,7 +8,7 @@ export const metadata: Metadata = {
     `${STUDIO.shortName} Terms of Service — who you contract with, equipment hire, deposits, damage and loss, production services, payment, cancellations, and dispute resolution.`,
 };
 
-const LAST_UPDATED = 'August 2026';
+const LAST_UPDATED = '27 September 2026';
 
 /** Formats a rand amount without decimals, e.g. 150 -> "R150". */
 function zar(amount: number): string {
@@ -92,7 +92,7 @@ export default function LegalPage() {
           </Section>
 
           <Section title="8. Ownership and Permitted Use">
-            <p>All hired equipment remains the property of {STUDIO.legal.companyName} at all times. Hiring gives you possession and use for the agreed period, and nothing more.</p>
+            <p>Hired equipment remains the property of its owner: {STUDIO.legal.companyName} for our own fleet, or the supplier in our network who provides it to us. You hire it from {STUDIO.legal.companyName}, and hiring gives you possession and use for the agreed period, and nothing more.</p>
             <p>You undertake to:</p>
             <ul className="list-disc pl-5 space-y-1">
               <li>use each item only for its intended purpose and for the production the hire was booked for;</li>
