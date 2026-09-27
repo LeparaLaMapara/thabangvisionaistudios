@@ -30,7 +30,7 @@ export default function LabContent() {
         </h1>
         <div className="w-8 h-px bg-[#D4A843] mt-6 mb-8" />
         <p className="text-xl md:text-3xl text-neutral-300 font-light leading-relaxed max-w-4xl">
-          {STUDIO.name} is the creative infrastructure behind South Africa&apos;s filmmakers, photographers, and content creators. We build the tools that power bookings, rentals, productions, and creative workflows — all connected through Ubunye AI.
+          {STUDIO.name} is a Johannesburg platform to book photographers and videographers and hire camera gear. You see the full price before you pay, and Ubunye, our AI assistant, helps you choose. You get hired for the work you make, not who you know.
         </p>
       </motion.div>
 

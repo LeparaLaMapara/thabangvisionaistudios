@@ -4,7 +4,9 @@
 
 
 export const STUDIO = {
-  name: 'ThabangVision AI Studios',
+  // One trading name everywhere (owner's choice, 2026-09-27); the registered
+  // company is STUDIO.legal.companyName.
+  name: 'ThabangVision',
   shortName: 'ThabangVision',
   tagline: 'We Engineer The Invisible',
   email: 'hello@thabangvision.com', //'thabangvisionstudios@gmail.com',
@@ -40,7 +42,7 @@ export const STUDIO = {
     // issued 19/09/2025. Do not restyle it — payment providers match this
     // string character-for-character against the certificate.
     companyName: 'THABANGVISION STUDIO (Pty) Ltd',
-    tradingAs: 'Thabang Vision AI Studios',
+    tradingAs: 'ThabangVision',
     registrationNumber: '2025/742948/07',
     // Registered business address. MUST match the address on the Paystack dashboard.
     // Rendered in the footer and Terms of Service only when non-empty.
@@ -73,10 +75,12 @@ export const STUDIO = {
   },
 
   meta: {
-    url: 'https://thabangvision.com',
-    title: 'ThabangVision AI Studios',
+    // The address the site is served on. The apex redirects to www, so every
+    // canonical link and sitemap entry used to point at a redirect.
+    url: 'https://www.thabangvision.com',
+    title: 'ThabangVision',
     description:
-      'Premium creative production and equipment rental platform for South African filmmakers and photographers.',
+      'Book photographers and videographers, and hire cameras, lenses, lighting and sound in Johannesburg. See the full price before you pay.',
     ogImage: '/og-image.jpg',
   },
 
@@ -94,8 +98,8 @@ export const STUDIO = {
 
   locations: [
     {
-      name: 'Johannesburg Studio',
-      address: '',
+      name: 'Johannesburg collection point',
+      address: 'Braamfontein (Wits area). The exact spot is in your booking confirmation.',
       city: 'Johannesburg',
       province: 'Gauteng',
       phone: '',
@@ -104,7 +108,7 @@ export const STUDIO = {
     },
     {
       name: 'Pretoria Studio',
-      address: '',
+      address: 'By appointment.',
       city: 'Pretoria',
       province: 'Gauteng',
       phone: '',
@@ -406,8 +410,8 @@ export const ADMIN_EMAILS: readonly string[] = [
 
 export const SITE_NAME = STUDIO.shortName.toUpperCase();
 export const SITE_SUFFIX = '.LAB';
-export const SITE_TAGLINE = 'Technology Creative Studio';
-export const SITE_COPYRIGHT = `© ${new Date().getFullYear()} ${SITE_NAME}. ALL RIGHTS RESERVED.`;
+export const SITE_TAGLINE = 'Book creators and hire camera gear';
+export const SITE_COPYRIGHT = `© ${new Date().getFullYear()} ${STUDIO.legal.companyName} (reg. ${STUDIO.legal.registrationNumber}), trading as ${STUDIO.shortName}. All rights reserved.`;
 
 // CONFIGURATION FLAGS
 export const SHOW_CAREERS = true;
@@ -426,7 +430,7 @@ export const MAIN_NAVIGATION: {
 
 export const FOOTER_SECTIONS = [
   {
-    title: `${STUDIO.shortName} Global`,
+    title: STUDIO.shortName,
     links: [
       { label: 'Locations', href: '/locations' },
       { label: 'About', href: '/about' },
@@ -475,61 +479,64 @@ export const PLACEHOLDER_IMAGES = {
 } as const;
 
 // ─── RENTAL CATEGORIES ─────────────────────────────────────────────────────
+// Subtitles and descriptions say what kinds of gear each category holds, in
+// plain words, without promising items we do not stock (they used to list
+// cinema cameras, anamorphics, HMIs, LED volumes and licensed pilots).
 export const RENTAL_CATEGORIES = [
   {
     value: 'cameras-optics',
     label: 'Cameras & Optics',
-    subtitle: 'High-end Cinema Systems',
-    description: 'Cinema cameras, prime and zoom lens sets, and anamorphics for every format.',
+    subtitle: 'Cameras, Lenses & Filters',
+    description: 'Cameras, lenses and filters for photo and video.',
     fallbackImage: PLACEHOLDER_IMAGES.camerasOptics,
   },
   {
     value: 'lighting-power',
     label: 'Lighting & Power',
-    subtitle: 'Fixtures & Distribution',
-    description: 'LED panels, HMIs, generators, power distribution, and battery solutions.',
+    subtitle: 'Lights & Portable Power',
+    description: 'Lights, flashes, reflectors and portable power.',
     fallbackImage: PLACEHOLDER_IMAGES.lightingPower,
   },
   {
     value: 'audio',
     label: 'Audio',
-    subtitle: 'Capture & Monitoring',
-    description: 'Microphones, field recorders, mixers, wireless systems, and IEM monitoring.',
+    subtitle: 'Microphones & Mixers',
+    description: 'Wireless microphones, mixers and recording kit.',
     fallbackImage: PLACEHOLDER_IMAGES.audio,
   },
   {
     value: 'grip-motion',
     label: 'Grip & Motion',
-    subtitle: 'Support & Stabilization',
-    description: 'Dollies, cranes, gimbals, sliders, and remote heads.',
+    subtitle: 'Gimbals & Tripods',
+    description: 'Gimbals and tripods to keep your shot steady.',
     fallbackImage: PLACEHOLDER_IMAGES.gripMotion,
   },
   {
     value: 'data-storage',
     label: 'Data & Storage',
-    subtitle: 'Media Management',
-    description: 'RAID arrays, NVMe drives, on-set DITs, and cloud backup solutions.',
+    subtitle: 'Cards & Drives',
+    description: 'Memory cards and drives for your footage.',
     fallbackImage: PLACEHOLDER_IMAGES.dataStorage,
   },
   {
     value: 'specialized-solutions',
     label: 'Specialized Solutions',
-    subtitle: 'Emerging Tech & VP',
-    description: 'LED volumes, virtual production tools, VR/AR rigs, and drone packages.',
+    subtitle: 'Specialist Kit',
+    description: 'Radios and other specialist equipment.',
     fallbackImage: PLACEHOLDER_IMAGES.specializedSolutions,
   },
   {
     value: 'aerial-support',
     label: 'Aerial Support',
-    subtitle: 'Drone & Aerial Systems',
-    description: 'Professional drone rigs, aerial camera systems, and licensed pilot services.',
+    subtitle: 'Drones',
+    description: 'Drones for aerial photos and video.',
     fallbackImage: PLACEHOLDER_IMAGES.gripMotion,
   },
   {
     value: 'sound-reinforcement',
     label: 'Sound Reinforcement',
-    subtitle: 'Live Sound & PA Systems',
-    description: 'PA systems, stage monitors, mixing consoles, and live sound engineering packages.',
+    subtitle: 'PA & Speakers',
+    description: 'PA systems and speakers for events.',
     fallbackImage: PLACEHOLDER_IMAGES.soundReinforcement,
   },
 ] as const;

@@ -51,11 +51,11 @@ export default function TeamSection({
           The People
         </span>
         <h2 className="text-5xl md:text-8xl font-display font-medium text-white tracking-tighter uppercase mb-8 leading-[0.9]">
-          Our <span className="text-neutral-600">Team</span>
+          Our <span className="text-neutral-600">Network</span>
         </h2>
         <p className="text-xl md:text-2xl text-neutral-300 font-light leading-relaxed max-w-4xl">
-          Creators, filmmakers, engineers, and production specialists
-          — united by the belief that technology should amplify human creativity, not replace it.
+          The photographers, videographers and gear owners who supply {STUDIO.shortName}, and the belief that
+          technology should help people create, not replace them.
         </p>
       </motion.div>
 

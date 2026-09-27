@@ -2,13 +2,14 @@ export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyPayment } from '@/lib/payments/paystack';
+import { STUDIO } from '@/lib/constants';
 
 // ─── GET — Paystack redirects here after client pays ─────────────────────────
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const reference = searchParams.get('reference');
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://thabangvision.com';
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || STUDIO.meta.url;
 
   if (!reference) {
     return NextResponse.redirect(`${baseUrl}/dashboard/bookings?error=missing_reference`);

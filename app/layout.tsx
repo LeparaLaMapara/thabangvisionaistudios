@@ -5,7 +5,7 @@ import './globals.css';
 import { Analytics } from '@vercel/analytics/next';
 import { SpeedInsights } from '@vercel/speed-insights/next';
 import { Providers } from '@/components/layout/Providers';
-import { STUDIO } from '@/lib/constants';
+import { STUDIO, SITE_TAGLINE } from '@/lib/constants';
 import { createClient } from '@/lib/supabase/server';
 import { organizationJsonLd, localBusinessJsonLd, renderJsonLd } from '@/lib/seo/structured-data';
 import { getRentalPriceRange, type RentalPriceRange } from '@/lib/supabase/queries/smartRentals';
@@ -43,7 +43,7 @@ const orbitron = Orbitron({
 
 export const metadata: Metadata = {
   title: {
-    default:  `${STUDIO.shortName.toUpperCase()} | Technology Creative Studio`,
+    default:  `${STUDIO.shortName} | ${SITE_TAGLINE}`,
     template: `%s | ${STUDIO.shortName.toUpperCase()}`,
   },
   description: STUDIO.meta.description,
@@ -66,7 +66,7 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: 'summary_large_image',
-    title: `${STUDIO.shortName.toUpperCase()} | Technology Creative Studio`,
+    title: `${STUDIO.shortName} | ${SITE_TAGLINE}`,
     description: STUDIO.meta.description,
     images: ['/logo-black-bg.png'],
   },

@@ -98,7 +98,7 @@ export async function POST(request: NextRequest) {
   const creatorAmount = total - platformAmount;
 
   const reference = `BK-${nanoid(10)}`;
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://thabangvision.com';
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || STUDIO.meta.url;
 
   try {
     // Create booking record
