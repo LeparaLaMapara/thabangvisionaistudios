@@ -85,7 +85,7 @@ function BookingWidgetInner({ rental }: Props) {
 
   const maxDate = useMemo(() => {
     const d = new Date(today);
-    d.setDate(d.getDate() + STUDIO.rental.maxDirectBookingDays);
+    d.setDate(d.getDate() + STUDIO.rental.maxBookingDays);
     return d;
   }, [today]);
 

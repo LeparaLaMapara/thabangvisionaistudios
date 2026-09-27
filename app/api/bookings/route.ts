@@ -120,9 +120,10 @@ export async function POST(request: NextRequest) {
   const bookingDays = Math.ceil(
     (end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24),
   );
-  if (bookingDays > STUDIO.rental.maxDirectBookingDays) {
+  // The Terms allow an online hire of up to maxBookingDays; longer is arranged with us.
+  if (bookingDays > STUDIO.rental.maxBookingDays) {
     return NextResponse.json(
-      { error: `Maximum booking duration is ${STUDIO.rental.maxDirectBookingDays} days.` },
+      { error: `Online hires run up to ${STUDIO.rental.maxBookingDays} days. For longer, contact us.` },
       { status: 400 },
     );
   }

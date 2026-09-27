@@ -7,7 +7,7 @@ export const metadata: Metadata = {
   description: `${STUDIO.shortName} Privacy Policy — what personal information we collect, who processes it, how long we keep it, and your rights under POPIA.`,
 };
 
-const LAST_UPDATED = 'August 2026';
+const LAST_UPDATED = '27 September 2026';
 
 export default function PrivacyPage() {
   const link = 'text-[#D4A843] hover:text-[#D4A843]/80 transition-colors';
@@ -84,8 +84,9 @@ export default function PrivacyPage() {
               <li><span className="text-white">Paystack</span> — payments and creator payouts. Receives your email address and transaction detail, and for payouts, the account holder name, bank account number, and branch code.</li>
               <li><span className="text-white">PayFast</span> — an alternative payment provider we keep available. Not currently active.</li>
               <li><span className="text-white">Cloudinary</span> — image hosting for avatars, portfolios, and listing photographs. Verification documents are <span className="text-white">not</span> stored here.</li>
-              <li><span className="text-white">Google</span> — AI services used for the verification checks in section 4, for lower-cost assistant responses, and for search indexing of platform content.</li>
-              <li><span className="text-white">Anthropic</span> — the AI model behind Ubunye. Receives your messages and, when you are signed in, relevant context from your profile and bookings.</li>
+              <li><span className="text-white">Google</span> — AI services used for the verification checks in section 4, for Ubunye&rsquo;s answers (Gemini), and for search indexing of platform content.</li>
+              <li><span className="text-white">Anthropic</span> — an AI model (Claude) that can also answer Ubunye&rsquo;s messages.</li>
+              <li>Ubunye&rsquo;s messages, and when you are signed in, relevant context from your profile and bookings, go to whichever of these AI providers is answering at the time (if one is unavailable, another takes over). They process them outside South Africa. We list any AI provider here before we use it.</li>
               <li><span className="text-white">Vercel</span> — hosting, plus page-view and performance analytics.</li>
               <li><span className="text-white">Google Workspace (Gmail)</span> — outbound email. Receives recipient addresses and message contents.</li>
               <li><span className="text-white">Twilio</span> — WhatsApp messaging, where you contact us on that channel.</li>
