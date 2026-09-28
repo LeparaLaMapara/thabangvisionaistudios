@@ -21,7 +21,7 @@ import { Button } from '@/components/ui/Button';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { STUDIO } from '@/lib/constants';
-import { calculateCancellationRefund } from '@/lib/rental/cancellation';
+import type { CancellationQuote } from '@/lib/rental/cancellation';
 import type {
   EquipmentBooking,
   BookingPayment,
@@ -137,12 +137,11 @@ export default function BookingDetailPage() {
   };
 
   const handleCancel = async () => {
-    // Never ask someone to cancel without telling them what it costs.
-    const quote = calculateCancellationRefund({
-      startDate: booking.start_date,
-      totalPrice: Number(booking.total_price ?? 0),
-      depositAmount: Number(booking.deposit_amount ?? 0),
-    });
+    // Never ask someone to cancel without telling them what it costs. The
+    // server prices it from what was actually paid online (discounts, deposit
+    // plan, delivery), so the page shows the server's quote, not its own.
+    const quote = (booking as { cancellation?: CancellationQuote | null }).cancellation;
+    if (!quote) return;
 
     const money = (n: number) =>
       `${STUDIO.currency.symbol}${n.toLocaleString(STUDIO.currency.locale)}`;
@@ -150,14 +149,17 @@ export default function BookingDetailPage() {
     const lines = [
       'Cancel this booking?',
       '',
-      quote.refundPercent === 100
-        ? `You are cancelling more than 48 hours ahead, so the hire charge is refunded in full.`
-        : quote.refundPercent > 0
-          ? `You are cancelling ${quote.hoursBefore} hours before the hire starts, so ${quote.refundPercent}% of the hire charge is refunded.`
-          : `You are cancelling less than 24 hours before the hire starts, so the hire charge is not refunded.`,
+      quote.coolingOff
+        ? `You booked less than ${STUDIO.legal.coolingOffDays} days ago and the hire has not started, so everything you paid online is refunded.`
+        : quote.refundPercent === 100
+          ? `You are cancelling more than 48 hours ahead, so the hire charge is refunded in full.`
+          : quote.refundPercent > 0
+            ? `You are cancelling ${quote.hoursBefore} hours before the hire starts, so ${quote.refundPercent}% of the hire charge is refunded.`
+            : `You are cancelling less than 24 hours before the hire starts, so the hire charge is not refunded.`,
       '',
       `Hire refunded:    ${money(quote.hireRefund)}`,
       `Deposit refunded: ${money(quote.depositRefund)}`,
+      ...(quote.deliveryRefund > 0 ? [`Delivery refunded: ${money(quote.deliveryRefund)}`] : []),
       `Total back to you: ${money(quote.totalRefund)}`,
       '',
       'Refunds go back to the card you paid with.',

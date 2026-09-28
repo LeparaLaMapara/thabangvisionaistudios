@@ -8,7 +8,7 @@ export const metadata: Metadata = {
     `${STUDIO.shortName} Terms of Service — who you contract with, equipment hire, deposits, damage and loss, production services, payment, cancellations, and dispute resolution.`,
 };
 
-const LAST_UPDATED = '27 September 2026';
+const LAST_UPDATED = '28 September 2026';
 
 /** Formats a rand amount without decimals, e.g. 150 -> "R150". */
 function zar(amount: number): string {
@@ -55,11 +55,12 @@ export default function LegalPage() {
           </Section>
 
           <Section title="3. Account Registration">
-            <p>To access certain features of the platform you must create an account. You are responsible for keeping your account credentials confidential and for all activity that occurs under your account. You must provide accurate and complete information during registration.</p>
+            <p>To book, hire, or supply through the platform you need an account. You can create one with your email address, which you must confirm from the link we send you, or sign in with Google. You are responsible for keeping your account credentials confidential and for all activity that occurs under your account. You must provide accurate and complete information during registration.</p>
           </Section>
 
           <Section title="4. Identity Verification">
-            <p>Certain platform features require identity verification. By submitting verification documents you confirm that you are the person depicted in those documents and that all information provided is accurate. Fraudulent submissions result in permanent account suspension.</p>
+            <p>Before your first equipment hire, before your gear or services go live on the platform, and before your first payout, we ask for a photo of your ID and a selfie of you holding it. No certified copy is needed. An automated check compares the two faces, then a person reviews your submission, {STUDIO.verification.reviewTime}, and we email you the result.</p>
+            <p>By submitting verification documents you confirm that you are the person depicted in those documents and that all information provided is accurate. Fraudulent submissions result in permanent account suspension.</p>
             <p>Verification documents are handled in accordance with our{' '}
               <Link href="/privacy" className={link}>Privacy Policy</Link>. Please read it before submitting: it explains where your documents are stored, that automated checks are performed on them, and how long they are kept.
             </p>
@@ -88,7 +89,7 @@ export default function LegalPage() {
             <p>Equipment may only be hired by an account that has completed identity verification. Our checkout will not accept an equipment order from an unverified account. You must be 18 years or older.</p>
             <p>The verified account holder is the hirer and is responsible for the equipment for the entire hire period. Where you hire on behalf of a production, agency, or end client, or act as a facilitator or fixer, you remain the hirer and remain liable for payment and for the equipment, whether or not your own client settles with you.</p>
             <p>Equipment must be booked at least {STUDIO.rental.minLeadTimeHours} hours before the hire begins, so that it can be checked, charged and prepared for you. Because hires are booked by the day, this is measured to the start of your first hire day, which means the earliest date you can select is usually two to three days ahead depending on when you book. Shorter notice may be possible by arrangement, but cannot be booked online.</p>
-            <p>A single cart hire may run for up to {STUDIO.rental.maxBookingDays} days and contain up to {STUDIO.rental.maxCartItems} items. Longer hires are arranged directly with us. Equipment already booked for your dates cannot be double-booked, and our checkout will tell you if a conflict exists.</p>
+            <p>An online hire, whether booked from a listing or from your cart, may run for up to {STUDIO.rental.maxBookingDays} days, and a cart may hold up to {STUDIO.rental.maxCartItems} items. Longer hires are arranged directly with us. Equipment already booked for your dates cannot be double-booked, and our checkout will tell you if a conflict exists.</p>
           </Section>
 
           <Section title="8. Ownership and Permitted Use">
@@ -115,8 +116,9 @@ export default function LegalPage() {
           </Section>
 
           <Section title="10. Security Deposit">
-            <p>A refundable security deposit is payable on every equipment hire. The deposit is a fixed amount shown on each listing and in your cart before you pay. It is not a percentage of the hire value, and it is not part payment of the hire.</p>
-            <p>After the equipment is returned and inspected, the deposit is released in full, released in part, or withheld, depending on the condition the equipment comes back in and whether it was returned on time. Any amount released is refunded to the original payment method used for the order. Where any part of the deposit is withheld, we give you a written breakdown of the deduction.</p>
+            <p>A refundable security deposit is payable on every equipment hire. The deposit is a fixed amount per item, shown on each listing and in your cart before you pay. It is not a percentage of the hire value, and it is not part payment of the hire.</p>
+            <p>Booking one item straight from its listing, you pay the hire charge online and the deposit when you collect. Checking out from your cart, the deposit is paid online with your order. The listing and your cart show which applies before you pay.</p>
+            <p>After the equipment is returned and inspected, the deposit is released in full, released in part, or withheld, depending on the condition the equipment comes back in and whether it was returned on time. A deposit paid online is refunded to the card you paid with; a deposit paid at collection is refunded the same way it was paid. Where any part of the deposit is withheld, we give you a written breakdown of the deduction.</p>
             <p>Full detail on timing and process is in our{' '}
               <Link href="/refunds" className={link}>Refunds, Returns and Cancellations Policy</Link>.
             </p>
@@ -124,17 +126,17 @@ export default function LegalPage() {
 
           <Section title="11. Collection and Return">
             <p>You choose collection or delivery at checkout.</p>
-            <p><span className="text-white">Collection.</span> Collect from our collection point in {STUDIO.fulfilment.dispatchFrom.name} (Wits area), {STUDIO.location.city}, during business hours; the exact spot is in your booking confirmation. You may pay in full online, or pay the security deposit online to hold the equipment and settle the hire charge when you collect. The person collecting must be the verified account holder, or someone you have nominated to us in writing beforehand.</p>
+            <p><span className="text-white">Collection.</span> Collect from our collection point in {STUDIO.fulfilment.dispatchFrom.name} (Wits area), {STUDIO.location.city}, during business hours; the exact spot is in your booking confirmation. In your cart you may pay everything online, or pay the security deposit online to hold the equipment and settle the hire charge when you collect. Booking straight from a listing, you pay the hire charge online and the deposit when you collect. The person collecting must be the verified account holder, or someone you have nominated to us in writing beforehand.</p>
             <p><span className="text-white">Delivery.</span> We deliver in our own vehicle within {STUDIO.fulfilment.delivery.maxRadiusKm}km of our collection point. The delivery fee is calculated from the road distance to your address and the size of your order, and the exact amount is shown to you at checkout before you pay. Beyond that radius, contact us for a quote. Delivery is charged in full at checkout and is not refundable once the vehicle has been dispatched.</p>
-            <p>We operate from {STUDIO.locations.map((l) => l.city).join(' and ')}, {STUDIO.location.province}. Our business hours are {STUDIO.hours.weekday}, {STUDIO.hours.weekend}, {STUDIO.hours.sunday}. Collections, deliveries and returns outside these hours are by prior arrangement only, and a fee may apply.</p>
+            <p>Equipment is collected from {STUDIO.fulfilment.dispatchFrom.name} (Wits area), {STUDIO.location.city}. Our Pretoria studio is open by appointment only. Our business hours are {STUDIO.hours.weekday}, {STUDIO.hours.weekend}, {STUDIO.hours.sunday}. Collections, deliveries and returns outside these hours are by prior arrangement only, and a fee may apply.</p>
             <p>Each item is inspected and its condition recorded with photographs both when it leaves us and when it comes back. That pair of records is what your deposit is assessed against. You are welcome to be present at either inspection, and to ask us for a copy of both records.</p>
           </Section>
 
           <Section title="12. Late Return and Overdue Equipment">
-            <p>Equipment must be returned by the return date in your booking confirmation. Late returns are charged a late fee of {zar(RENTAL_POLICIES.lateFeePerDayZar)} per day or part of a day, up to a maximum of {RENTAL_POLICIES.maxLateDays} days. The late fee is recovered from your security deposit and is capped at the amount of that deposit.</p>
+            <p>Equipment must be returned by the return date in your booking confirmation. After the end of that day, late returns are charged a late fee of {zar(RENTAL_POLICIES.lateFeePerDayZar)} per item for each day or part of a day, up to a maximum of {RENTAL_POLICIES.maxLateDays} days. The late fee for an item is recovered from that item&rsquo;s security deposit and is capped at the amount of that deposit.</p>
             <p>Where a late return causes us to fail a booking already made by another client, you are additionally liable for the cost of sourcing replacement equipment to cover that booking.</p>
             <p>Equipment not returned by the return date is marked overdue and you will be notified. Equipment still outstanding {RENTAL_POLICIES.maxLateDays} days after the return date is treated as a formal dispute and may be reported to the South African Police Service as stolen.</p>
-            <p>Accounts with three or more open disputes are suspended, and any listings supplied by that account are removed from sale while the disputes are resolved.</p>
+            <p>Accounts with three or more open disputes, or with equipment overdue by 30 days or more, are suspended, and any listings supplied by that account are removed from sale while the matter is resolved.</p>
           </Section>
 
           <Section title="13. Damage, Loss and Theft">
@@ -161,10 +163,10 @@ export default function LegalPage() {
           <Part title="Part C — Production and Creative Services" />
 
           <Section title="16. Booking, Delivery and Approval">
-            <p>Production and creative service bookings are made for an agreed number of hours, from {STUDIO.booking.minBookingHours} hour up to {STUDIO.booking.maxBookingHours} hours, at the rate confirmed in your booking. Rates are shown excluding VAT and VAT is added at checkout.</p>
+            <p>Production and creative service bookings are either charged by the hour, for {STUDIO.booking.minBookingHours} to {STUDIO.booking.maxBookingHours} hours at the rate confirmed in your booking, or as a studio package at its fixed price. All service prices are shown excluding VAT, and VAT is added at checkout.</p>
             <p>A booking moves through a fixed sequence: you pay, the assigned creator accepts the booking, the work is carried out, and the deliverables are submitted to you.</p>
             <p><span className="text-white">Approval and the 7 day window.</span> Once deliverables are submitted you have 7 days to review them and either approve them or raise an issue with us. If you do not respond within 7 days, the delivery is approved automatically and the booking is treated as complete. We remind you of this when the deliverables are sent. If something is wrong, tell us inside that window.</p>
-            <p>Bookings that remain accepted but incomplete for 30 days are closed automatically. Cancellation and refunds for service bookings are dealt with in our{' '}
+            <p>If a booking has been accepted but nothing is delivered within 30 days, we review it and contact you and the creator. Cancellation and refunds for service bookings are dealt with in our{' '}
               <Link href="/refunds" className={link}>Refunds, Returns and Cancellations Policy</Link>.
             </p>
             <p>Rights in production deliverables are dealt with in your production agreement.</p>
@@ -176,8 +178,8 @@ export default function LegalPage() {
             <p>This section applies if you supply equipment or services to {STUDIO.shortName} as a verified creator or partner. It does not apply to you as a customer.</p>
             <p>You supply to {STUDIO.legal.companyName}, not to the client. We are the merchant of record on every order, we contract with the client, and we carry the client facing obligation for that order, including any refund. In return, you agree not to solicit payment directly from a client introduced through the platform for work booked through the platform.</p>
             <p>You warrant that you own, or have the right to hire out, every item you list; that it is in safe and working condition and accurately described; and that you hold any licences or permits your services require.</p>
-            <p>Listings may be drafted, described, and priced with the assistance of our AI tools. Anything generated that way is a suggestion. It is published only once you have reviewed and confirmed it, and you remain responsible for the accuracy of your listings and rates.</p>
-            <p>Amounts due to you are paid to the bank account you register with us, after the client has approved the work or the approval window has passed, and after the funds for that order have cleared. Our commission is {STUDIO.creators.commissionRate}% of the booking value, and it is shown on every booking in your dashboard.</p>
+            <p>Listings may be drafted, described, and priced with the assistance of our AI tools. Anything generated that way is a suggestion. It is published only once you have reviewed and confirmed it. New gear is saved as a draft and goes live only after your identity verification has passed and you have reviewed it. You remain responsible for the accuracy of your listings and rates.</p>
+            <p>Amounts due to you are paid to the bank account you register with us, once your identity verification has passed. For a service booking, we pay after our payment provider confirms the client&rsquo;s payment and the client approves the work or the 7 day approval window passes. Payouts for crew requests and equipment supply are made by us by hand. Our commission is {STUDIO.creators.commissionRate}% of the booking total, including VAT, and it is shown on every booking in your dashboard.</p>
             <p>Where disputes are opened against your account we may withhold payouts pending resolution. Accounts with three or more open disputes are suspended and their listings are removed from sale. We will tell you when this happens and why.</p>
           </Section>
 
@@ -188,7 +190,8 @@ export default function LegalPage() {
               <Link href="/refunds" className={link}>Refunds, Returns and Cancellations Policy</Link>, which forms part of these terms.
             </p>
             <p>In summary: if we cancel your booking, or cannot supply what you paid for, you receive a full refund of everything you paid with no deduction.</p>
-            <p>If you cancel an equipment hire, the refund is worked out from the notice you give and processed automatically. More than 48 hours before the hire starts, the hire charge is refunded in full; between 24 and 48 hours, half is refunded; inside 24 hours the hire charge is not refunded. Your security deposit comes back in full either way. You are shown the exact figures before you confirm.</p>
+            <p>You may cancel any booking within {STUDIO.legal.coolingOffDays} days of making it for a full refund of what you paid online, as long as the hire or shoot has not started (section 10 of the Refunds policy).</p>
+            <p>Otherwise, if you cancel an equipment hire, the refund is worked out from the notice you give, measured to the start of your first hire day, and processed automatically. More than 48 hours before, the hire charge is refunded in full; between 24 and 48 hours, half is refunded; inside 24 hours the hire charge is not refunded. A deposit you paid online comes back in full either way. Service bookings use the same scale, measured to the start of the shoot day. You are shown the exact figures before you confirm.</p>
             <p>Nothing in these terms limits your rights under the Consumer Protection Act 68 of 2008 or the Electronic Communications and Transactions Act 25 of 2002.</p>
           </Section>
 
@@ -214,7 +217,7 @@ export default function LegalPage() {
           </Section>
 
           <Section title="22. AI Assistant (Ubunye)">
-            <p>The Ubunye AI assistant provides estimates, recommendations, and general guidance. AI generated content is informational only and is not professional advice or a binding quotation. Actual costs, availability, and specifications are confirmed in your written booking confirmation, which prevails over anything the assistant tells you.</p>
+            <p>The Ubunye AI assistant provides estimates, recommendations, and general guidance. Its answers come from Google (Gemini), and Anthropic (Claude) takes over automatically if Google is unavailable. AI generated content is informational only and is not professional advice or a binding quotation. Actual costs, availability, and specifications are confirmed in your written booking confirmation, which prevails over anything the assistant tells you.</p>
             <p>Conversations with Ubunye are stored on our systems. See our{' '}
               <Link href="/privacy" className={link}>Privacy Policy</Link>{' '}for how that data is handled.
             </p>

@@ -72,6 +72,10 @@ export const STUDIO = {
       version: '2026.04.20',
       retentionDays: 30, // Delete verification storage objects 30 days after review
     },
+    // ECT Act s44: a booking cancelled within this many days of being made,
+    // before the hire or shoot starts, is refunded in full. Applied by
+    // lib/rental/cancellation.ts and explained on /refunds section 10.
+    coolingOffDays: 7,
   },
 
   meta: {
@@ -336,7 +340,7 @@ export const STUDIO = {
     vatRate: 15,
     minBookingHours: 1,
     maxBookingHours: 72,
-    cancellationPolicy: 'Cancel more than 48 hours before the shoot for a full refund. Between 24 and 48 hours, 50% is refunded. Inside 24 hours the booking is non-refundable, because crew and equipment are already committed.',
+    cancellationPolicy: 'Cancel within 7 days of booking, before the shoot day, for a full refund. After that: cancel more than 48 hours before the shoot for a full refund. Between 24 and 48 hours, 50% is refunded. Inside 24 hours the booking is non-refundable, because crew and equipment are already committed.',
     // Applied automatically by app/api/service-bookings/[id]/status when a
     // client cancels, measured against bookings.shoot_date. Same shape as
     // STUDIO.rental.cancellationTiers; ordered most-notice-first.
