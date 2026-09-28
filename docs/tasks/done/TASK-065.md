@@ -52,3 +52,15 @@ Design notes:
 - [ ] The 32 existing people can be welcomed once, from the same queue
 - [ ] Tests: one welcome per user, no send without opt-in rules, drafts never
       contain data beyond first name and site activity
+
+## Done 2026-09-28
+- Migration 060 (dev, then prod): `welcome_messages` (one row per person, primary key = user) and the
+  `notify_signup` trigger on auth.users, which calls /api/webhooks/signup through pg_net with a
+  secret from Vault (SIGNUP_WEBHOOK_SECRET on Vercel). 060b adds `set_signup_webhook` (service role
+  only) to set or rotate the Vault secrets.
+- lib/greetings: activity summary, prompt (first name + site activity only), template fallback,
+  safety check, owner note (`[Signup]` to hello@), send-once claim.
+- /admin/welcomes: queue with edit, send, don't send, and "draft for everyone not yet welcomed".
+- Daily sweep in daily-maintenance drafts anything the trigger missed (last 3 days).
+- Not done: auto-send after N hours (left off on purpose until the owner trusts the drafts),
+  WhatsApp owner note, follow-ups when someone stops at a step.
