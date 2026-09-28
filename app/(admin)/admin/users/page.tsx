@@ -249,7 +249,7 @@ export default function AdminUsersPage(): React.ReactElement {
     return (
       <div className="max-w-5xl mx-auto px-3 md:px-6 py-12 flex items-center justify-center gap-3">
         <Loader2 className="w-4 h-4 animate-spin text-neutral-400" />
-        <span className="text-[10px] font-mono uppercase tracking-widest text-neutral-400">
+        <span className="text-xs font-mono uppercase tracking-widest text-neutral-400">
           Loading users...
         </span>
       </div>
@@ -286,7 +286,7 @@ export default function AdminUsersPage(): React.ReactElement {
             User Management
           </h1>
         </div>
-        <p className="text-[10px] font-mono text-neutral-400 uppercase tracking-widest">
+        <p className="text-xs font-mono text-neutral-400 uppercase tracking-widest">
           {users.length} users · {adminCount} admin{adminCount !== 1 ? 's' : ''} · {suspendedCount} suspended
         </p>
       </div>
@@ -297,7 +297,7 @@ export default function AdminUsersPage(): React.ReactElement {
           <button
             key={tab}
             onClick={() => setFilterTab(tab)}
-            className={`px-3 py-1.5 text-[9px] font-mono uppercase tracking-widest transition-colors ${
+            className={`px-3 py-1.5 text-xs font-mono uppercase tracking-widest transition-colors ${
               filterTab === tab
                 ? 'bg-white/10 text-white'
                 : 'text-neutral-400 hover:text-neutral-400 hover:bg-white/[0.03]'
@@ -315,19 +315,19 @@ export default function AdminUsersPage(): React.ReactElement {
       <div className="bg-neutral-900 border border-white/5 overflow-hidden">
         {/* Table Header */}
         <div className="grid grid-cols-[1fr_auto_auto_auto] md:grid-cols-[1fr_1fr_auto_auto_auto] gap-4 px-4 py-3 border-b border-white/[0.06] bg-neutral-900/50">
-          <span className="text-[9px] font-mono uppercase tracking-widest text-neutral-400">
+          <span className="text-xs font-mono uppercase tracking-widest text-neutral-400">
             User
           </span>
-          <span className="text-[9px] font-mono uppercase tracking-widest text-neutral-400 hidden md:block">
+          <span className="text-xs font-mono uppercase tracking-widest text-neutral-400 hidden md:block">
             Email
           </span>
-          <span className="text-[9px] font-mono uppercase tracking-widest text-neutral-400">
+          <span className="text-xs font-mono uppercase tracking-widest text-neutral-400">
             Status
           </span>
-          <span className="text-[9px] font-mono uppercase tracking-widest text-neutral-400">
+          <span className="text-xs font-mono uppercase tracking-widest text-neutral-400">
             Role
           </span>
-          <span className="text-[9px] font-mono uppercase tracking-widest text-neutral-400 text-right">
+          <span className="text-xs font-mono uppercase tracking-widest text-neutral-400 text-right">
             Actions
           </span>
         </div>
@@ -361,26 +361,26 @@ export default function AdminUsersPage(): React.ReactElement {
                   <p className="text-xs font-mono text-neutral-300 truncate">
                     {user.display_name || 'Unnamed'}
                   </p>
-                  <p className="text-[10px] font-mono text-neutral-400 truncate md:hidden">
+                  <p className="text-xs font-mono text-neutral-400 truncate md:hidden">
                     {user.email || '\u2014'}
                   </p>
                 </div>
               </div>
 
               {/* Email (desktop) */}
-              <p className="text-[10px] font-mono text-neutral-400 truncate hidden md:block">
+              <p className="text-xs font-mono text-neutral-400 truncate hidden md:block">
                 {user.email || '\u2014'}
               </p>
 
               {/* Suspension status */}
               <div className="flex-shrink-0">
                 {user.is_suspended ? (
-                  <span className="inline-flex items-center gap-1 px-2 py-1 text-[9px] font-mono uppercase tracking-widest text-red-400 bg-red-500/10">
+                  <span className="inline-flex items-center gap-1 px-2 py-1 text-xs font-mono uppercase tracking-widest text-red-400 bg-red-500/10">
                     <Ban className="w-2.5 h-2.5" />
                     Suspended
                   </span>
                 ) : (
-                  <span className="inline-flex items-center gap-1 px-2 py-1 text-[9px] font-mono uppercase tracking-widest text-emerald-400 bg-emerald-500/10">
+                  <span className="inline-flex items-center gap-1 px-2 py-1 text-xs font-mono uppercase tracking-widest text-emerald-400 bg-emerald-500/10">
                     <CheckCircle className="w-2.5 h-2.5" />
                     Active
                   </span>
@@ -389,7 +389,7 @@ export default function AdminUsersPage(): React.ReactElement {
 
               {/* Role badge */}
               <span
-                className={`inline-flex items-center gap-1.5 px-2 py-1 text-[9px] font-mono uppercase tracking-widest flex-shrink-0 ${roleInfo.color}`}
+                className={`inline-flex items-center gap-1.5 px-2 py-1 text-xs font-mono uppercase tracking-widest flex-shrink-0 ${roleInfo.color}`}
               >
                 <RoleIcon className="w-2.5 h-2.5" />
                 {roleInfo.label}
@@ -404,7 +404,7 @@ export default function AdminUsersPage(): React.ReactElement {
                     <select
                       value={user.role}
                       onChange={e => changeRole(user.id, e.target.value)}
-                      className="bg-neutral-800 border border-white/10 text-[10px] font-mono text-neutral-400 px-2 py-1 appearance-none cursor-pointer hover:border-white/20 transition-colors focus:outline-none focus:border-amber-500/50"
+                      className="bg-neutral-800 border border-white/10 text-xs font-mono text-neutral-400 px-2 py-1 appearance-none cursor-pointer hover:border-white/20 transition-colors focus:outline-none focus:border-amber-500/50"
                     >
                       <option value="user">User</option>
                       <option value="moderator">Moderator</option>
@@ -414,7 +414,7 @@ export default function AdminUsersPage(): React.ReactElement {
                     {user.is_suspended ? (
                       <button
                         onClick={() => setReinstateTarget(user)}
-                        className="px-2 py-1 text-[9px] font-mono uppercase tracking-widest text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20 transition-colors"
+                        className="px-2 py-1 text-xs font-mono uppercase tracking-widest text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20 transition-colors"
                         title="Reinstate user"
                       >
                         Reinstate
@@ -422,7 +422,7 @@ export default function AdminUsersPage(): React.ReactElement {
                     ) : (
                       <button
                         onClick={() => setSuspendTarget(user)}
-                        className="px-2 py-1 text-[9px] font-mono uppercase tracking-widest text-red-400 bg-red-500/10 hover:bg-red-500/20 transition-colors"
+                        className="px-2 py-1 text-xs font-mono uppercase tracking-widest text-red-400 bg-red-500/10 hover:bg-red-500/20 transition-colors"
                         title="Suspend user"
                       >
                         Suspend
@@ -431,7 +431,7 @@ export default function AdminUsersPage(): React.ReactElement {
 
                     <button
                       onClick={() => openHistory(user)}
-                      className="px-2 py-1 text-[9px] font-mono uppercase tracking-widest text-neutral-400 hover:text-neutral-300 hover:bg-white/[0.05] transition-colors"
+                      className="px-2 py-1 text-xs font-mono uppercase tracking-widest text-neutral-400 hover:text-neutral-300 hover:bg-white/[0.05] transition-colors"
                       title="View moderation history"
                     >
                       History
@@ -445,7 +445,7 @@ export default function AdminUsersPage(): React.ReactElement {
 
         {filteredUsers.length === 0 && (
           <div className="px-4 py-10 text-center">
-            <p className="text-[10px] font-mono text-neutral-400 uppercase tracking-widest">
+            <p className="text-xs font-mono text-neutral-400 uppercase tracking-widest">
               No users found.
             </p>
           </div>
@@ -454,10 +454,10 @@ export default function AdminUsersPage(): React.ReactElement {
 
       {/* Info */}
       <div className="bg-neutral-900/50 border border-white/5 px-4 py-3 space-y-1">
-        <p className="text-[9px] font-mono text-neutral-400 uppercase tracking-widest">
+        <p className="text-xs font-mono text-neutral-400 uppercase tracking-widest">
           Role permissions
         </p>
-        <ul className="text-[10px] font-mono text-neutral-400 space-y-0.5">
+        <ul className="text-xs font-mono text-neutral-400 space-y-0.5">
           <li>
             <span className="text-amber-400/60">Admin</span> — Full access to all admin features and user management
           </li>
@@ -489,14 +489,14 @@ export default function AdminUsersPage(): React.ReactElement {
               </button>
             </div>
 
-            <p className="text-[10px] font-mono text-neutral-400">
+            <p className="text-xs font-mono text-neutral-400">
               Suspending <span className="text-neutral-300">{suspendTarget.display_name || suspendTarget.email || 'this user'}</span>.
               Their listings will be deactivated.
             </p>
 
             {/* Reason */}
             <div className="space-y-1.5">
-              <label className="text-[9px] font-mono uppercase tracking-widest text-neutral-400">
+              <label className="text-xs font-mono uppercase tracking-widest text-neutral-400">
                 Reason (required)
               </label>
               <textarea
@@ -510,7 +510,7 @@ export default function AdminUsersPage(): React.ReactElement {
 
             {/* Duration */}
             <div className="space-y-1.5">
-              <label className="text-[9px] font-mono uppercase tracking-widest text-neutral-400">
+              <label className="text-xs font-mono uppercase tracking-widest text-neutral-400">
                 Duration
               </label>
               <div className="flex gap-1 flex-wrap">
@@ -518,7 +518,7 @@ export default function AdminUsersPage(): React.ReactElement {
                   <button
                     key={opt.value}
                     onClick={() => setSuspendDuration(opt.value)}
-                    className={`px-3 py-1 text-[9px] font-mono uppercase tracking-widest transition-colors ${
+                    className={`px-3 py-1 text-xs font-mono uppercase tracking-widest transition-colors ${
                       suspendDuration === opt.value
                         ? 'bg-white/10 text-white'
                         : 'text-neutral-400 hover:text-neutral-400 bg-neutral-800'
@@ -543,14 +543,14 @@ export default function AdminUsersPage(): React.ReactElement {
               <button
                 onClick={handleSuspend}
                 disabled={!suspendReason.trim() || suspendLoading}
-                className="flex-1 px-4 py-2 text-[10px] font-mono uppercase tracking-widest bg-red-500/20 text-red-400 hover:bg-red-500/30 transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                className="flex-1 px-4 py-2 text-xs font-mono uppercase tracking-widest bg-red-500/20 text-red-400 hover:bg-red-500/30 transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
               >
                 {suspendLoading && <Loader2 className="w-3 h-3 animate-spin" />}
                 Confirm Suspension
               </button>
               <button
                 onClick={closeSuspendModal}
-                className="px-4 py-2 text-[10px] font-mono uppercase tracking-widest text-neutral-400 hover:text-neutral-300 transition-colors"
+                className="px-4 py-2 text-xs font-mono uppercase tracking-widest text-neutral-400 hover:text-neutral-300 transition-colors"
               >
                 Cancel
               </button>
@@ -578,7 +578,7 @@ export default function AdminUsersPage(): React.ReactElement {
               </button>
             </div>
 
-            <p className="text-[10px] font-mono text-neutral-400">
+            <p className="text-xs font-mono text-neutral-400">
               Reinstating <span className="text-neutral-300">{reinstateTarget.display_name || reinstateTarget.email || 'this user'}</span>.
               {reinstateTarget.suspension_reason && (
                 <span className="block mt-1 text-red-400/60">
@@ -589,7 +589,7 @@ export default function AdminUsersPage(): React.ReactElement {
 
             {/* Reason */}
             <div className="space-y-1.5">
-              <label className="text-[9px] font-mono uppercase tracking-widest text-neutral-400">
+              <label className="text-xs font-mono uppercase tracking-widest text-neutral-400">
                 Reason (required)
               </label>
               <textarea
@@ -606,14 +606,14 @@ export default function AdminUsersPage(): React.ReactElement {
               <button
                 onClick={handleReinstate}
                 disabled={!reinstateReason.trim() || reinstateLoading}
-                className="flex-1 px-4 py-2 text-[10px] font-mono uppercase tracking-widest bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                className="flex-1 px-4 py-2 text-xs font-mono uppercase tracking-widest bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
               >
                 {reinstateLoading && <Loader2 className="w-3 h-3 animate-spin" />}
                 Confirm Reinstatement
               </button>
               <button
                 onClick={closeReinstateModal}
-                className="px-4 py-2 text-[10px] font-mono uppercase tracking-widest text-neutral-400 hover:text-neutral-300 transition-colors"
+                className="px-4 py-2 text-xs font-mono uppercase tracking-widest text-neutral-400 hover:text-neutral-300 transition-colors"
               >
                 Cancel
               </button>
@@ -641,18 +641,18 @@ export default function AdminUsersPage(): React.ReactElement {
               </button>
             </div>
 
-            <p className="text-[10px] font-mono text-neutral-400">
+            <p className="text-xs font-mono text-neutral-400">
               {historyTarget.display_name || historyTarget.email || 'User'} — {historyTarget.id}
             </p>
 
             {historyLoading ? (
               <div className="flex items-center justify-center py-8 gap-2">
                 <Loader2 className="w-3 h-3 animate-spin text-neutral-400" />
-                <span className="text-[10px] font-mono text-neutral-400">Loading...</span>
+                <span className="text-xs font-mono text-neutral-400">Loading...</span>
               </div>
             ) : historyEntries.length === 0 ? (
               <div className="py-8 text-center">
-                <p className="text-[10px] font-mono text-neutral-400 uppercase tracking-widest">
+                <p className="text-xs font-mono text-neutral-400 uppercase tracking-widest">
                   No moderation history.
                 </p>
               </div>
@@ -665,7 +665,7 @@ export default function AdminUsersPage(): React.ReactElement {
                   >
                     <div className="flex items-center justify-between">
                       <span
-                        className={`text-[9px] font-mono uppercase tracking-widest ${
+                        className={`text-xs font-mono uppercase tracking-widest ${
                           entry.action === 'suspended'
                             ? 'text-red-400'
                             : entry.action === 'reinstated'
@@ -675,7 +675,7 @@ export default function AdminUsersPage(): React.ReactElement {
                       >
                         {entry.action.replace('_', ' ')}
                       </span>
-                      <span className="text-[9px] font-mono text-neutral-400">
+                      <span className="text-xs font-mono text-neutral-400">
                         {new Date(entry.created_at).toLocaleDateString('en-ZA', {
                           day: '2-digit',
                           month: 'short',
@@ -685,10 +685,10 @@ export default function AdminUsersPage(): React.ReactElement {
                         })}
                       </span>
                     </div>
-                    <p className="text-[10px] font-mono text-neutral-400">
+                    <p className="text-xs font-mono text-neutral-400">
                       {entry.reason}
                     </p>
-                    <p className="text-[9px] font-mono text-neutral-400">
+                    <p className="text-xs font-mono text-neutral-400">
                       Admin: {entry.admin_id}
                     </p>
                   </div>
@@ -699,7 +699,7 @@ export default function AdminUsersPage(): React.ReactElement {
             <div className="pt-2">
               <button
                 onClick={() => setHistoryTarget(null)}
-                className="w-full px-4 py-2 text-[10px] font-mono uppercase tracking-widest text-neutral-400 hover:text-neutral-300 hover:bg-white/[0.03] transition-colors"
+                className="w-full px-4 py-2 text-xs font-mono uppercase tracking-widest text-neutral-400 hover:text-neutral-300 hover:bg-white/[0.03] transition-colors"
               >
                 Close
               </button>

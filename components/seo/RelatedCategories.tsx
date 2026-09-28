@@ -47,7 +47,7 @@ export function RelatedCategories({ currentSlug, type, locationSlug, className =
                 {cat.label}
                 <ArrowRight className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity" />
               </h3>
-              <p className="text-[11px] text-neutral-400 font-light line-clamp-2">
+              <p className="text-xs text-neutral-400 font-light line-clamp-2">
                 {cat.description}
               </p>
             </Link>

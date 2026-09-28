@@ -180,7 +180,7 @@ function LoginForm() {
       >
         {/* Header */}
         <div className="mb-10">
-          <p className="text-[9px] font-mono uppercase tracking-[0.2em] text-neutral-400 mb-3">
+          <p className="text-xs font-mono uppercase tracking-[0.2em] text-neutral-400 mb-3">
             {STUDIO.shortName.toUpperCase()}
           </p>
           <h1 className="text-3xl font-display font-medium uppercase tracking-tight text-white">
@@ -218,7 +218,7 @@ function LoginForm() {
                     setResetEmail('');
                     setResetError(null);
                   }}
-                  className="w-full bg-[#D4A843] text-black py-3.5 text-[10px] font-mono font-bold uppercase tracking-widest hover:opacity-80 transition-opacity flex items-center justify-center gap-2"
+                  className="w-full bg-[#D4A843] text-black py-3.5 text-xs font-mono font-bold uppercase tracking-widest hover:opacity-80 transition-opacity flex items-center justify-center gap-2"
                 >
                   Back to Sign In
                 </button>
@@ -229,7 +229,7 @@ function LoginForm() {
                   Enter your email address and we&apos;ll send you a link to reset your password.
                 </p>
                 <div>
-                  <label htmlFor="resetEmail" className="block text-[10px] font-bold uppercase tracking-widest text-neutral-400 mb-2">
+                  <label htmlFor="resetEmail" className="block text-xs font-bold uppercase tracking-widest text-neutral-400 mb-2">
                     Email
                   </label>
                   <input
@@ -253,7 +253,7 @@ function LoginForm() {
                 <button
                   type="submit"
                   disabled={resetLoading}
-                  className="w-full bg-[#D4A843] text-black py-3.5 text-[10px] font-mono font-bold uppercase tracking-widest hover:opacity-80 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                  className="w-full bg-[#D4A843] text-black py-3.5 text-xs font-mono font-bold uppercase tracking-widest hover:opacity-80 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                 >
                   {resetLoading ? (
                     <>
@@ -290,7 +290,7 @@ function LoginForm() {
               {/* Divider */}
               <div className="flex items-center gap-3 py-1">
                 <div className="flex-1 h-px bg-white/10" />
-                <span className="text-[9px] font-mono uppercase tracking-widest text-neutral-400">
+                <span className="text-xs font-mono uppercase tracking-widest text-neutral-400">
                   or
                 </span>
                 <div className="flex-1 h-px bg-white/10" />
@@ -299,7 +299,7 @@ function LoginForm() {
               {/* Email + Password form */}
               <form onSubmit={handleSubmit} noValidate className="space-y-4">
                 <div>
-                  <label htmlFor="email" className="block text-[10px] font-bold uppercase tracking-widest text-neutral-400 mb-2">
+                  <label htmlFor="email" className="block text-xs font-bold uppercase tracking-widest text-neutral-400 mb-2">
                     Email
                   </label>
                   <input
@@ -314,7 +314,7 @@ function LoginForm() {
                   />
                 </div>
                 <div>
-                  <label htmlFor="password" className="block text-[10px] font-bold uppercase tracking-widest text-neutral-400 mb-2">
+                  <label htmlFor="password" className="block text-xs font-bold uppercase tracking-widest text-neutral-400 mb-2">
                     Password
                   </label>
                   <input
@@ -331,7 +331,7 @@ function LoginForm() {
                 <button
                   type="submit"
                   disabled={loading}
-                  className="w-full bg-[#D4A843] text-black py-3.5 text-[10px] font-mono font-bold uppercase tracking-widest hover:opacity-80 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                  className="w-full bg-[#D4A843] text-black py-3.5 text-xs font-mono font-bold uppercase tracking-widest hover:opacity-80 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                 >
                   {loading ? (
                     <>
@@ -388,7 +388,7 @@ function LoginForm() {
         )}
 
         {/* Footer note */}
-        <p className="text-center text-[9px] font-mono uppercase tracking-[0.2em] text-neutral-400 mt-6">
+        <p className="text-center text-xs font-mono uppercase tracking-[0.2em] text-neutral-400 mt-6">
           Don&apos;t have an account?{' '}
           <Link
             href={withRedirect('/register', redirectTo)}

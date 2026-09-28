@@ -23,7 +23,7 @@ export default function LegalPage() {
       <div className="container mx-auto px-6 max-w-4xl">
         {/* Header */}
         <div className="mb-12">
-          <span className="text-[10px] font-mono text-[#D4A843] uppercase tracking-[0.3em] mb-3 block">
+          <span className="text-xs font-mono text-[#D4A843] uppercase tracking-[0.3em] mb-3 block">
             Legal
           </span>
           <h1 className="text-4xl md:text-6xl font-display font-medium text-white uppercase tracking-tight">
@@ -273,7 +273,7 @@ export default function LegalPage() {
 function Part({ title }: { title: string }) {
   return (
     <div className="pt-6 first:pt-0">
-      <h2 className="text-[10px] font-mono uppercase tracking-[0.3em] text-[#D4A843]">{title}</h2>
+      <h2 className="text-xs font-mono uppercase tracking-[0.3em] text-[#D4A843]">{title}</h2>
       <div className="w-full h-px bg-white/10 mt-3" />
     </div>
   );

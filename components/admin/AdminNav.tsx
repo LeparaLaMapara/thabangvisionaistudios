@@ -45,7 +45,7 @@ export function AdminNav() {
           <Link
             key={link.href}
             href={link.href}
-            className={`text-[10px] font-mono uppercase tracking-widest flex-shrink-0 transition-colors ${
+            className={`text-xs font-mono uppercase tracking-widest flex-shrink-0 transition-colors ${
               isActive(link.href)
                 ? 'text-[#D4A843]'
                 : 'text-neutral-400 hover:text-white'
@@ -81,7 +81,7 @@ export function AdminNav() {
                   key={link.href}
                   href={link.href}
                   onClick={() => setMobileOpen(false)}
-                  className={`text-[10px] font-mono uppercase tracking-widest transition-colors py-3 border-b border-white/5 last:border-0 min-h-[44px] flex items-center ${
+                  className={`text-xs font-mono uppercase tracking-widest transition-colors py-3 border-b border-white/5 last:border-0 min-h-[44px] flex items-center ${
                     isActive(link.href)
                       ? 'text-[#D4A843]'
                       : 'text-neutral-400 hover:text-white'

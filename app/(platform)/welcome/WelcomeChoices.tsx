@@ -29,7 +29,7 @@ export default function WelcomeChoices({ firstName }: { firstName: string | null
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-16 md:py-24">
-      <span className="text-[10px] font-mono text-[#D4A843] uppercase tracking-[0.3em] mb-3 block">
+      <span className="text-xs font-mono text-[#D4A843] uppercase tracking-[0.3em] mb-3 block">
         Welcome{firstName ? `, ${firstName}` : ''}
       </span>
       <h1 className="text-3xl md:text-4xl font-display font-medium uppercase text-white tracking-tight">

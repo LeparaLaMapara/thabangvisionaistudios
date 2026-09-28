@@ -139,7 +139,7 @@ export function BookingForm({
           {/* Category (a package already says what the shoot is) */}
           {!pkg && (
           <div>
-            <label className="flex items-center gap-2 text-[10px] font-mono uppercase tracking-widest text-neutral-400 mb-2">
+            <label className="flex items-center gap-2 text-xs font-mono uppercase tracking-widest text-neutral-400 mb-2">
               <Camera className="w-3.5 h-3.5" />
               Type of shoot
             </label>
@@ -161,7 +161,7 @@ export function BookingForm({
           {/* Hours (not asked for a fixed-price package) */}
           {!fixedPackage && (
           <div>
-            <label className="flex items-center gap-2 text-[10px] font-mono uppercase tracking-widest text-neutral-400 mb-2">
+            <label className="flex items-center gap-2 text-xs font-mono uppercase tracking-widest text-neutral-400 mb-2">
               <Clock className="w-3.5 h-3.5" />
               How many hours?
             </label>
@@ -185,7 +185,7 @@ export function BookingForm({
 
           {/* Date */}
           <div>
-            <label className="flex items-center gap-2 text-[10px] font-mono uppercase tracking-widest text-neutral-400 mb-2">
+            <label className="flex items-center gap-2 text-xs font-mono uppercase tracking-widest text-neutral-400 mb-2">
               <Calendar className="w-3.5 h-3.5" />
               When?
             </label>
@@ -201,7 +201,7 @@ export function BookingForm({
 
           {/* Location */}
           <div>
-            <label className="flex items-center gap-2 text-[10px] font-mono uppercase tracking-widest text-neutral-400 mb-2">
+            <label className="flex items-center gap-2 text-xs font-mono uppercase tracking-widest text-neutral-400 mb-2">
               <MapPin className="w-3.5 h-3.5" />
               Where? <span className="text-neutral-400">(optional)</span>
             </label>
@@ -220,7 +220,7 @@ export function BookingForm({
               asked here rather than guessed later. Optional on purpose: it must
               never be the reason a booking does not happen. */}
           <div>
-            <label className="flex items-center gap-2 text-[10px] font-mono uppercase tracking-widest text-neutral-400 mb-2">
+            <label className="flex items-center gap-2 text-xs font-mono uppercase tracking-widest text-neutral-400 mb-2">
               <Package className="w-3.5 h-3.5" />
               What do you need back? <span className="text-neutral-400">(optional)</span>
             </label>
@@ -239,7 +239,7 @@ export function BookingForm({
           {/* Live quote */}
           {quote && (
             <div className="border border-neutral-800 bg-neutral-900/50 p-5 mt-6">
-              <p className="text-[10px] font-mono uppercase tracking-widest text-neutral-400 mb-3">
+              <p className="text-xs font-mono uppercase tracking-widest text-neutral-400 mb-3">
                 Quote
               </p>
               <div className="space-y-2 text-sm font-mono">

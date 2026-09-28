@@ -105,7 +105,7 @@ export function ContentRepurposeAdmin({ articles }: { articles: Article[] }) {
       <div className="border border-white/10 p-6 mb-6">
         <label
           htmlFor="article-select"
-          className="block text-[10px] font-mono uppercase tracking-widest text-neutral-400 mb-3"
+          className="block text-xs font-mono uppercase tracking-widest text-neutral-400 mb-3"
         >
           Select Article
         </label>
@@ -127,7 +127,7 @@ export function ContentRepurposeAdmin({ articles }: { articles: Article[] }) {
         <button
           onClick={generate}
           disabled={!selectedSlug || loading}
-          className="mt-4 flex items-center gap-2 px-5 py-3 bg-[#D4A843] text-black text-[10px] font-mono font-bold uppercase tracking-widest hover:opacity-80 transition-opacity disabled:opacity-50 min-h-[44px]"
+          className="mt-4 flex items-center gap-2 px-5 py-3 bg-[#D4A843] text-black text-xs font-mono font-bold uppercase tracking-widest hover:opacity-80 transition-opacity disabled:opacity-50 min-h-[44px]"
         >
           {loading ? (
             <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -153,7 +153,7 @@ export function ContentRepurposeAdmin({ articles }: { articles: Article[] }) {
         <div className="border border-white/10">
           <div className="flex items-center justify-between px-4 py-3 border-b border-white/10 bg-white/[0.02]">
             <div className="min-w-0">
-              <p className="text-[10px] font-mono uppercase tracking-widest text-neutral-400">
+              <p className="text-xs font-mono uppercase tracking-widest text-neutral-400">
                 Generated Content
               </p>
               {articleTitle && (
@@ -164,7 +164,7 @@ export function ContentRepurposeAdmin({ articles }: { articles: Article[] }) {
             </div>
             <button
               onClick={copyToClipboard}
-              className="flex items-center gap-2 px-4 py-2 border border-white/10 text-[10px] font-mono uppercase tracking-widest text-neutral-400 hover:text-white hover:border-white/30 transition-colors min-h-[44px]"
+              className="flex items-center gap-2 px-4 py-2 border border-white/10 text-xs font-mono uppercase tracking-widest text-neutral-400 hover:text-white hover:border-white/30 transition-colors min-h-[44px]"
             >
               {copied ? (
                 <>

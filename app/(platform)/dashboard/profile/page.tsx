@@ -395,7 +395,7 @@ export default function ProfileEditPage() {
           </div>
           <div>
             <label className="cursor-pointer">
-              <span className="inline-block text-[10px] font-mono uppercase tracking-widest border border-white/20 text-white px-4 py-2 hover:bg-white hover:text-black transition-all">
+              <span className="inline-block text-xs font-mono uppercase tracking-widest border border-white/20 text-white px-4 py-2 hover:bg-white hover:text-black transition-all">
                 {uploadingAvatar ? 'Uploading...' : 'Upload Photo'}
               </span>
               <input
@@ -406,7 +406,7 @@ export default function ProfileEditPage() {
                 className="hidden"
               />
             </label>
-            <p className="text-[9px] font-mono text-neutral-400 mt-2">
+            <p className="text-xs font-mono text-neutral-400 mt-2">
               JPG, PNG or WebP. Max 2MB.
             </p>
           </div>
@@ -415,7 +415,7 @@ export default function ProfileEditPage() {
         {/* Section 2: Personal Details (REQUIRED) */}
         <div className="space-y-5">
           <div>
-            <p className="block text-[10px] font-mono uppercase tracking-widest text-neutral-400 mb-3">
+            <p className="block text-xs font-mono uppercase tracking-widest text-neutral-400 mb-3">
               <RequiredLabel>Full Name (as on your ID)</RequiredLabel>
             </p>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
@@ -434,14 +434,14 @@ export default function ProfileEditPage() {
                 required
               />
             </div>
-            <p className="text-[9px] font-mono text-neutral-400 mt-2">
+            <p className="text-xs font-mono text-neutral-400 mt-2">
               Must match the name on your SA ID for verification.
             </p>
           </div>
 
           {/* Address */}
           <div>
-            <p className="block text-[10px] font-mono uppercase tracking-widest text-neutral-400 mb-3">
+            <p className="block text-xs font-mono uppercase tracking-widest text-neutral-400 mb-3">
               <RequiredLabel>Address</RequiredLabel>
             </p>
             <AddressAutocomplete
@@ -464,7 +464,7 @@ export default function ProfileEditPage() {
               placeholder="+27..."
               required
             />
-            <p className="text-[9px] font-mono text-neutral-400 mt-1">
+            <p className="text-xs font-mono text-neutral-400 mt-1">
               <span className="text-red-400">*</span> Required
             </p>
             <PhoneCheck
@@ -477,7 +477,7 @@ export default function ProfileEditPage() {
 
         {/* Section 3: Social Links (optional) */}
         <div>
-          <p className="block text-[10px] font-mono uppercase tracking-widest text-neutral-400 mb-3">
+          <p className="block text-xs font-mono uppercase tracking-widest text-neutral-400 mb-3">
             Social Links
           </p>
           <div className="space-y-3">
@@ -501,7 +501,7 @@ export default function ProfileEditPage() {
 
         {/* Banking Details */}
         <div id="banking-details-section">
-          <p className="block text-[10px] font-mono uppercase tracking-widest text-neutral-400 mb-3">
+          <p className="block text-xs font-mono uppercase tracking-widest text-neutral-400 mb-3">
             Banking Details
           </p>
           <BankingDetails onSaved={() => checkBankingStatus()} />
@@ -510,7 +510,7 @@ export default function ProfileEditPage() {
         {/* Section 4: Creator Settings (only for verified users) */}
         {isVerified && (
           <div className="border-t border-white/10 pt-8">
-            <p className="block text-[10px] font-mono uppercase tracking-widest text-neutral-400 mb-4">
+            <p className="block text-xs font-mono uppercase tracking-widest text-neutral-400 mb-4">
               Creator Settings
             </p>
 
@@ -518,7 +518,7 @@ export default function ProfileEditPage() {
             <div className="flex items-center justify-between mb-2 bg-neutral-900 border border-white/5 p-4">
               <div>
                 <p className="text-xs font-mono font-bold text-white">Available for Hire</p>
-                <p className="text-[9px] font-mono text-neutral-400 mt-0.5">
+                <p className="text-xs font-mono text-neutral-400 mt-0.5">
                   {availableForHire
                     ? 'You appear on the creator listing and in Ubunye search results.'
                     : "You're hidden from the creator listing."}
@@ -546,7 +546,7 @@ export default function ProfileEditPage() {
               </button>
             </div>
             {(!hasBanking || !hasPortfolio) && (
-              <div className="text-[9px] font-mono text-[#D4A843] mb-5 px-1 space-y-1">
+              <div className="text-xs font-mono text-[#D4A843] mb-5 px-1 space-y-1">
                 {!hasBanking && (
                   <p>
                     You must add your banking details before going available for hire.{' '}
@@ -578,7 +578,7 @@ export default function ProfileEditPage() {
                 placeholder="1500"
               />
               <div>
-                <label className="block text-[10px] font-mono uppercase tracking-widest text-neutral-400 mb-2">
+                <label className="block text-xs font-mono uppercase tracking-widest text-neutral-400 mb-2">
                   Years of Experience
                 </label>
                 <select
@@ -599,7 +599,7 @@ export default function ProfileEditPage() {
 
             {/* Specializations */}
             <div className="mb-5">
-              <p className="block text-[10px] font-mono uppercase tracking-widest text-neutral-400 mb-2">
+              <p className="block text-xs font-mono uppercase tracking-widest text-neutral-400 mb-2">
                 Specializations
               </p>
               <div className="flex flex-wrap gap-2">
@@ -615,7 +615,7 @@ export default function ProfileEditPage() {
                             : [...prev, spec.toLowerCase()],
                         )
                       }
-                      className={`text-[10px] font-mono uppercase tracking-widest px-4 py-2 border transition-all min-h-[36px] ${
+                      className={`text-xs font-mono uppercase tracking-widest px-4 py-2 border transition-all min-h-[36px] ${
                         specializations.includes(spec.toLowerCase())
                           ? 'bg-white text-black border-white'
                           : 'bg-transparent text-neutral-400 border-white/10 hover:border-white/30'
@@ -642,14 +642,14 @@ export default function ProfileEditPage() {
 
             {/* Skills (moved from Personal Details) */}
             <div className="mb-5">
-              <p className="block text-[10px] font-mono uppercase tracking-widest text-neutral-400 mb-3">
+              <p className="block text-xs font-mono uppercase tracking-widest text-neutral-400 mb-3">
                 Skills
               </p>
               <div className="flex flex-wrap gap-2 mb-3">
                 {skills.map((skill) => (
                   <span
                     key={skill}
-                    className="inline-flex items-center gap-1.5 text-[9px] font-mono uppercase tracking-widest border border-white/10 px-2.5 py-1 text-neutral-400"
+                    className="inline-flex items-center gap-1.5 text-xs font-mono uppercase tracking-widest border border-white/10 px-2.5 py-1 text-neutral-400"
                   >
                     {skill}
                     <button

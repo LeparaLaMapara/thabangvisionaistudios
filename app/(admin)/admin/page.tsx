@@ -236,14 +236,14 @@ export default async function AdminDashboardPage() {
       {/* ── Header ── */}
       <div className="border-b border-white/5 pb-8 flex items-end justify-between">
         <div>
-          <p className="text-[10px] font-mono uppercase tracking-[0.3em] text-neutral-400 mb-2">
+          <p className="text-xs font-mono uppercase tracking-[0.3em] text-neutral-400 mb-2">
             {STUDIO.shortName}
           </p>
           <h1 className="text-2xl font-display font-medium uppercase text-white tracking-wide">
             Studio Control Center
           </h1>
         </div>
-        <p className="text-[10px] font-mono text-neutral-400 uppercase tracking-widest hidden md:block">
+        <p className="text-xs font-mono text-neutral-400 uppercase tracking-widest hidden md:block">
           {today}
         </p>
       </div>
@@ -337,13 +337,13 @@ export default async function AdminDashboardPage() {
                   >
                     <TypeBadge type={item.type} />
                     <p className="text-sm font-mono text-neutral-300 truncate">{item.title}</p>
-                    <span className="text-[10px] font-mono text-neutral-400 flex items-center gap-1.5 flex-shrink-0">
+                    <span className="text-xs font-mono text-neutral-400 flex items-center gap-1.5 flex-shrink-0">
                       <Clock className="w-2.5 h-2.5" />
                       {relativeTime(item.updated_at)}
                     </span>
                     <Link
                       href={item.editHref}
-                      className="text-[10px] font-mono text-neutral-400 hover:text-white transition-colors flex-shrink-0 flex items-center gap-0.5"
+                      className="text-xs font-mono text-neutral-400 hover:text-white transition-colors flex-shrink-0 flex items-center gap-0.5"
                     >
                       Edit <ChevronRight className="w-2.5 h-2.5" />
                     </Link>
@@ -360,7 +360,7 @@ export default async function AdminDashboardPage() {
             label="Action Required"
             id="drafts"
             badge={kpi.totalDrafts > 0 ? (
-              <span className="px-1.5 py-0.5 bg-amber-500/15 text-amber-400 text-[9px] font-mono rounded tabular-nums">
+              <span className="px-1.5 py-0.5 bg-amber-500/15 text-amber-400 text-xs font-mono rounded tabular-nums">
                 {kpi.totalDrafts}
               </span>
             ) : undefined}
@@ -368,7 +368,7 @@ export default async function AdminDashboardPage() {
             {kpi.totalDrafts === 0 ? (
               <div className="bg-neutral-900 border border-white/5 flex items-center gap-3 px-4 py-4">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 flex-shrink-0" />
-                <p className="text-[10px] font-mono text-neutral-400 uppercase tracking-widest">
+                <p className="text-xs font-mono text-neutral-400 uppercase tracking-widest">
                   All content is published.
                 </p>
               </div>
@@ -413,7 +413,7 @@ export default async function AdminDashboardPage() {
                 </div>
                 <div className="p-2 space-y-1">
                   <TypeBadge type={item.type} small />
-                  <p className="text-[10px] font-mono text-neutral-300 truncate leading-tight">
+                  <p className="text-xs font-mono text-neutral-300 truncate leading-tight">
                     {item.title}
                   </p>
                 </div>
@@ -466,7 +466,7 @@ export default async function AdminDashboardPage() {
 function EmptyRow({ label }: { label: string }) {
   return (
     <div className="px-4 py-10 text-center">
-      <p className="text-[10px] font-mono text-neutral-400 uppercase tracking-widest">{label}</p>
+      <p className="text-xs font-mono text-neutral-400 uppercase tracking-widest">{label}</p>
     </div>
   );
 }
@@ -513,15 +513,15 @@ function KpiCard({
             {total}
           </span>
         </div>
-        <p className="text-[9px] font-mono uppercase tracking-[0.2em] text-neutral-400 mb-3">
+        <p className="text-xs font-mono uppercase tracking-[0.2em] text-neutral-400 mb-3">
           {label}
         </p>
         {lines.map(line => (
           <div key={line.label} className="flex items-center justify-between mt-1.5">
-            <span className="text-[9px] font-mono text-neutral-400 uppercase tracking-widest">
+            <span className="text-xs font-mono text-neutral-400 uppercase tracking-widest">
               {line.label}
             </span>
-            <span className={`text-[10px] font-mono tabular-nums ${
+            <span className={`text-xs font-mono tabular-nums ${
               line.color === 'green'  ? 'text-emerald-500' :
               line.color === 'amber'  ? 'text-amber-500/80' :
               'text-neutral-400'
@@ -553,7 +553,7 @@ function QuickCreateBtn({
           </span>
         </div>
         <div className="min-w-0">
-          <p className="text-[8px] font-mono uppercase tracking-[0.2em] text-neutral-400">Create</p>
+          <p className="text-xs font-mono uppercase tracking-[0.2em] text-neutral-400">Create</p>
           <p className="text-xs font-mono text-neutral-400 group-hover:text-white transition-colors truncate">
             {label}
           </p>
@@ -580,7 +580,7 @@ function TypeBadge({
   return (
     <span
       className={`inline-block font-mono uppercase tracking-widest flex-shrink-0 ${palette[type]} ${
-        small ? 'text-[8px] px-1 py-0.5' : 'text-[9px] px-1.5 py-0.5'
+        small ? 'text-xs px-1 py-0.5' : 'text-xs px-1.5 py-0.5'
       }`}
     >
       {type}
@@ -605,7 +605,7 @@ function DraftGroup({
   return (
     <div className="bg-neutral-900 border border-white/5">
       <div className="px-4 py-2 border-b border-white/[0.04]">
-        <p className="text-[9px] font-mono uppercase tracking-widest text-neutral-400">
+        <p className="text-xs font-mono uppercase tracking-widest text-neutral-400">
           {label} <span className="text-neutral-400">· {items.length}</span>
         </p>
       </div>
@@ -623,10 +623,10 @@ function DraftGroup({
               <div className="w-full h-full" />
             )}
           </div>
-          <p className="flex-1 text-[11px] font-mono text-neutral-400 truncate min-w-0">
+          <p className="flex-1 text-xs font-mono text-neutral-400 truncate min-w-0">
             {item.title}
           </p>
-          <span className="text-[9px] font-mono text-neutral-400 flex-shrink-0">
+          <span className="text-xs font-mono text-neutral-400 flex-shrink-0">
             {relativeTime(item.updated_at)}
           </span>
           <Link
@@ -643,7 +643,7 @@ function DraftGroup({
         <div className="px-4 py-2 border-t border-white/[0.04]">
           <Link
             href={editHref}
-            className="text-[9px] font-mono text-neutral-400 hover:text-white transition-colors uppercase tracking-widest"
+            className="text-xs font-mono text-neutral-400 hover:text-white transition-colors uppercase tracking-widest"
           >
             +{overflow} more →
           </Link>
@@ -676,10 +676,10 @@ function OverviewCard({
           <p className="text-2xl font-display font-medium text-white tabular-nums leading-none mb-1">
             {count}
           </p>
-          <p className="text-[9px] font-mono uppercase tracking-[0.2em] text-neutral-400 truncate">
+          <p className="text-xs font-mono uppercase tracking-[0.2em] text-neutral-400 truncate">
             {label}
           </p>
-          <p className="text-[9px] font-mono text-neutral-400 mt-0.5 truncate">
+          <p className="text-xs font-mono text-neutral-400 mt-0.5 truncate">
             {sub}
           </p>
         </div>

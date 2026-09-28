@@ -24,7 +24,7 @@ export default function LabContent() {
     <>
       {/* Header */}
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="max-w-5xl mb-24">
-        <span className="text-[10px] font-mono text-[#D4A843] uppercase tracking-[0.3em] mb-4 block">Our Platform</span>
+        <span className="text-xs font-mono text-[#D4A843] uppercase tracking-[0.3em] mb-4 block">Our Platform</span>
         <h1 className="text-5xl md:text-8xl font-display font-medium text-white tracking-tighter uppercase mb-8 leading-[0.9]">
           The <span className="text-neutral-400">Lab</span>
         </h1>
@@ -42,7 +42,7 @@ export default function LabContent() {
         className="relative mb-px border border-[#D4A843]/30 bg-gradient-to-r from-neutral-900 to-neutral-800 p-12 md:p-16 group hover:border-[#D4A843]/60 transition-colors duration-500 shadow-[0_0_30px_rgba(212,168,67,0.08)]"
       >
         <div className="absolute top-6 right-6">
-          <span className="text-[10px] font-mono uppercase tracking-widest text-[#D4A843] border border-[#D4A843]/40 px-3 py-1">
+          <span className="text-xs font-mono uppercase tracking-widest text-[#D4A843] border border-[#D4A843]/40 px-3 py-1">
             Core Platform
           </span>
         </div>
@@ -76,7 +76,7 @@ export default function LabContent() {
             <div className="mt-8 flex flex-col gap-3">
               <div className="w-8 h-px bg-white/20 group-hover:w-full transition-all duration-500" />
               {item.poweredByAI && (
-                <span className="text-[10px] font-mono uppercase tracking-widest text-[#D4A843]">
+                <span className="text-xs font-mono uppercase tracking-widest text-[#D4A843]">
                   Powered by Ubunye AI
                 </span>
               )}

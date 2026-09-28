@@ -100,7 +100,7 @@ export default async function DashboardPage() {
     <div>
       {/* Welcome hero */}
       <div className="mb-10">
-        <span className="text-[10px] font-mono text-[#D4A843] uppercase tracking-[0.3em] mb-3 block">
+        <span className="text-xs font-mono text-[#D4A843] uppercase tracking-[0.3em] mb-3 block">
           Dashboard
         </span>
         <h1 className="text-3xl md:text-4xl font-display font-medium uppercase text-black dark:text-white tracking-tight">
@@ -141,7 +141,7 @@ export default async function DashboardPage() {
               </ul>
               <Link
                 href="/dashboard/verification"
-                className="inline-flex items-center gap-2 text-[10px] font-mono font-bold uppercase tracking-widest px-6 py-3 bg-[#D4A843] text-black hover:bg-[#E5B954] transition-colors"
+                className="inline-flex items-center gap-2 text-xs font-mono font-bold uppercase tracking-widest px-6 py-3 bg-[#D4A843] text-black hover:bg-[#E5B954] transition-colors"
               >
                 <ShieldCheck className="w-4 h-4" />
                 Verify Now
@@ -191,7 +191,7 @@ export default async function DashboardPage() {
               </p>
               <Link
                 href="/dashboard/profile"
-                className="inline-flex items-center gap-2 text-[10px] font-mono font-bold uppercase tracking-widest text-[#D4A843] hover:text-[#E5B954] transition-colors"
+                className="inline-flex items-center gap-2 text-xs font-mono font-bold uppercase tracking-widest text-[#D4A843] hover:text-[#E5B954] transition-colors"
               >
                 Edit Profile <ArrowRight className="w-3 h-3" />
               </Link>
@@ -298,7 +298,7 @@ function StatCard({
           <ArrowRight className="w-3 h-3 text-neutral-300 dark:text-neutral-400 opacity-0 group-hover:opacity-100 group-hover:translate-x-1 transition-all" />
         </div>
         <p className="text-2xl font-display font-medium text-black dark:text-white">{value}</p>
-        <p className="text-[10px] font-mono uppercase tracking-widest text-neutral-400 mt-1">{label}</p>
+        <p className="text-xs font-mono uppercase tracking-widest text-neutral-400 mt-1">{label}</p>
       </div>
     </Link>
   );

@@ -179,7 +179,7 @@ export default function CreatorProfileClient({
               {/* Contact Creator button */}
               <a
                 href={`mailto:contact@thabangvision.com?subject=Inquiry about ${profile.display_name ?? 'Creator'}`}
-                className="inline-flex items-center gap-2 text-[10px] font-mono font-bold uppercase tracking-widest bg-accent-gold text-black px-6 py-3 hover:bg-accent-gold-light transition-colors"
+                className="inline-flex items-center gap-2 text-xs font-mono font-bold uppercase tracking-widest bg-accent-gold text-black px-6 py-3 hover:bg-accent-gold-light transition-colors"
               >
                 <Mail className="w-3.5 h-3.5" />
                 Contact Creator
@@ -297,7 +297,7 @@ export default function CreatorProfileClient({
                           {rental.title}
                         </p>
                         {rental.brand && (
-                          <p className="text-[10px] font-mono uppercase tracking-widest text-neutral-400 mt-1">
+                          <p className="text-xs font-mono uppercase tracking-widest text-neutral-400 mt-1">
                             {rental.brand}
                           </p>
                         )}
@@ -353,7 +353,7 @@ export default function CreatorProfileClient({
                         <p className="text-sm font-display font-medium uppercase text-black dark:text-white truncate">
                           {listing.title}
                         </p>
-                        <p className="text-[10px] font-mono uppercase tracking-widest text-neutral-400 mt-1">
+                        <p className="text-xs font-mono uppercase tracking-widest text-neutral-400 mt-1">
                           {listing.category}
                         </p>
                         {listing.price != null && (
@@ -407,7 +407,7 @@ export default function CreatorProfileClient({
                           <p className="text-xs font-mono font-bold text-black dark:text-white">
                             {review.reviewer_name ?? 'Anonymous'}
                           </p>
-                          <p className="text-[9px] font-mono text-neutral-400">
+                          <p className="text-xs font-mono text-neutral-400">
                             {new Date(review.created_at).toLocaleDateString('en-ZA', {
                               year: 'numeric',
                               month: 'short',
@@ -459,7 +459,7 @@ export default function CreatorProfileClient({
                     >
                       <Globe className="w-4 h-4 text-neutral-400 flex-shrink-0" />
                       <div>
-                        <p className="text-[10px] font-mono uppercase tracking-widest text-neutral-400 mb-0.5">
+                        <p className="text-xs font-mono uppercase tracking-widest text-neutral-400 mb-0.5">
                           {SOCIAL_ICONS[platform] ?? platform}
                         </p>
                         <p className="text-xs font-mono text-black dark:text-white truncate max-w-[200px]">
@@ -480,7 +480,7 @@ export default function CreatorProfileClient({
             transition={{ delay: 0.7, duration: 0.4 }}
             className="text-center border-t border-black/10 dark:border-white/10 pt-8"
           >
-            <p className="text-[9px] font-mono uppercase tracking-[0.2em] text-neutral-400 dark:text-neutral-400">
+            <p className="text-xs font-mono uppercase tracking-[0.2em] text-neutral-400 dark:text-neutral-400">
               Member since{' '}
               {new Date(profile.created_at).toLocaleDateString('en-ZA', {
                 year: 'numeric',

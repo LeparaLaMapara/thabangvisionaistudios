@@ -21,7 +21,7 @@ export const ServiceGrid = ({ capabilities = CAPABILITIES }: { capabilities?: re
              whileInView={{ opacity: 1, y: 0 }}
              viewport={{ once: true }}
           >
-            <span className="text-[10px] font-mono text-neutral-400 dark:text-accent uppercase tracking-widest mb-4 block">04 // Core Capabilities</span>
+            <span className="text-xs font-mono text-neutral-400 dark:text-accent uppercase tracking-widest mb-4 block">04 // Core Capabilities</span>
             <h2 className="text-4xl md:text-6xl font-display font-medium text-black dark:text-white tracking-tight">
               WHAT WE <span className="text-neutral-400 dark:text-neutral-400">OFFER</span>
             </h2>
@@ -54,7 +54,7 @@ export const ServiceGrid = ({ capabilities = CAPABILITIES }: { capabilities?: re
                   />
                   <div className="absolute inset-0 z-20 flex flex-col justify-between p-8">
                     <div className="flex justify-between items-start">
-                      <span className="text-[10px] font-mono text-white/70 group-hover:text-white transition-colors">0{index + 1}</span>
+                      <span className="text-xs font-mono text-white/70 group-hover:text-white transition-colors">0{index + 1}</span>
                       <ArrowUpRight className="text-white opacity-0 -translate-y-2 group-hover:translate-y-0 group-hover:opacity-100 transition-all duration-500 w-5 h-5" />
                     </div>
                     <div>

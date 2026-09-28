@@ -47,7 +47,7 @@ export default function TeamSection({
         viewport={{ once: true }}
         className="max-w-5xl mb-20"
       >
-        <span className="text-[10px] font-mono text-[#D4A843] uppercase tracking-[0.3em] mb-4 block">
+        <span className="text-xs font-mono text-[#D4A843] uppercase tracking-[0.3em] mb-4 block">
           The People
         </span>
         <h2 className="text-5xl md:text-8xl font-display font-medium text-white tracking-tighter uppercase mb-8 leading-[0.9]">
@@ -74,7 +74,7 @@ export default function TeamSection({
             <h3 className="text-2xl font-display uppercase text-white tracking-tight mb-2">
               {d.title}
             </h3>
-            <p className="text-[10px] font-mono text-[#D4A843] uppercase tracking-widest mb-4">
+            <p className="text-xs font-mono text-[#D4A843] uppercase tracking-widest mb-4">
               {d.roles}
             </p>
             <p className="text-neutral-400 font-mono text-xs leading-relaxed">
@@ -89,13 +89,13 @@ export default function TeamSection({
       {featuredCrew.length > 0 && (
         <div className="mb-16">
           <div className="flex items-center justify-between mb-8">
-            <span className="flex items-center gap-2 text-[10px] font-mono text-neutral-400 uppercase tracking-widest">
+            <span className="flex items-center gap-2 text-xs font-mono text-neutral-400 uppercase tracking-widest">
               <Users className="w-3 h-3" />
               Featured Creators
             </span>
             <Link
               href="/studio"
-              className="text-[10px] font-mono uppercase tracking-widest text-[#D4A843] hover:text-white transition-colors flex items-center gap-1"
+              className="text-xs font-mono uppercase tracking-widest text-[#D4A843] hover:text-white transition-colors flex items-center gap-1"
             >
               View all <ArrowRight className="w-3 h-3" />
             </Link>

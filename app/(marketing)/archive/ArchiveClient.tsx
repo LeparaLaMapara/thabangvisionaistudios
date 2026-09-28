@@ -46,7 +46,7 @@ export default function ArchiveClient({ items }: { items: ArchiveItem[] }) {
             >
               <ArrowLeft className="w-3 h-3" /> Back to Home
             </Link>
-            <span className="text-[10px] font-mono text-neutral-400 dark:text-accent uppercase tracking-widest mb-4 block">
+            <span className="text-xs font-mono text-neutral-400 dark:text-accent uppercase tracking-widest mb-4 block">
               Archive
             </span>
             <h1 className="text-5xl md:text-7xl font-display font-medium text-black dark:text-white tracking-tighter uppercase">
@@ -99,7 +99,7 @@ export default function ArchiveClient({ items }: { items: ArchiveItem[] }) {
                     <Link href={item.href} className="group block">
                       <div className="relative aspect-video overflow-hidden bg-neutral-200 dark:bg-neutral-900 border border-black/5 dark:border-white/10 mb-4">
                         <div className="absolute top-3 left-3 z-20">
-                          <span className="flex items-center gap-1.5 text-[9px] font-mono bg-white/90 dark:bg-black/80 text-black dark:text-white border border-black/10 dark:border-white/20 px-2 py-1 uppercase tracking-wider backdrop-blur-md">
+                          <span className="flex items-center gap-1.5 text-xs font-mono bg-white/90 dark:bg-black/80 text-black dark:text-white border border-black/10 dark:border-white/20 px-2 py-1 uppercase tracking-wider backdrop-blur-md">
                             <Icon className="w-2.5 h-2.5" />
                             {item.category}
                           </span>

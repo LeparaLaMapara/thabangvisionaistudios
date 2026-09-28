@@ -354,7 +354,7 @@ export default function AdminPressPage() {
       {/* Header */}
       <div className="flex items-center justify-between mb-10">
         <div>
-          <p className="text-[10px] font-mono uppercase tracking-widest text-neutral-400 mb-1">
+          <p className="text-xs font-mono uppercase tracking-widest text-neutral-400 mb-1">
             Admin
           </p>
           <h1 className="text-2xl font-display font-medium uppercase text-white">
@@ -363,7 +363,7 @@ export default function AdminPressPage() {
         </div>
         <button
           onClick={openCreate}
-          className="flex items-center gap-2 px-4 py-2 bg-[#D4A843] text-black text-[10px] font-mono font-bold uppercase tracking-widest hover:opacity-80 transition-opacity"
+          className="flex items-center gap-2 px-4 py-2 bg-[#D4A843] text-black text-xs font-mono font-bold uppercase tracking-widest hover:opacity-80 transition-opacity"
         >
           <Plus className="w-3 h-3" /> New Article
         </button>
@@ -402,13 +402,13 @@ export default function AdminPressPage() {
             />
             <button
               onClick={applyCrop}
-              className="flex items-center gap-2 px-5 py-2 bg-[#D4A843] text-black text-[10px] font-mono font-bold uppercase tracking-widest"
+              className="flex items-center gap-2 px-5 py-2 bg-[#D4A843] text-black text-xs font-mono font-bold uppercase tracking-widest"
             >
               <Crop className="w-3 h-3" /> Apply Crop
             </button>
             <button
               onClick={() => setCropSrc(null)}
-              className="px-5 py-2 border border-white/20 text-[10px] font-mono uppercase text-neutral-400"
+              className="px-5 py-2 border border-white/20 text-xs font-mono uppercase text-neutral-400"
             >
               Cancel
             </button>
@@ -425,7 +425,7 @@ export default function AdminPressPage() {
 
           {/* Cover image upload */}
           <div className="mb-6">
-            <p className="text-[10px] font-mono uppercase tracking-widest text-neutral-400 mb-3">
+            <p className="text-xs font-mono uppercase tracking-widest text-neutral-400 mb-3">
               Cover Image
             </p>
             {form.cover_url ? (
@@ -455,7 +455,7 @@ export default function AdminPressPage() {
                   <button
                     onClick={uploadCover}
                     disabled={uploading}
-                    className="flex items-center gap-2 px-4 py-2 bg-[#D4A843] text-black text-[10px] font-mono font-bold uppercase tracking-widest hover:opacity-80 disabled:opacity-50"
+                    className="flex items-center gap-2 px-4 py-2 bg-[#D4A843] text-black text-xs font-mono font-bold uppercase tracking-widest hover:opacity-80 disabled:opacity-50"
                   >
                     {uploading ? (
                       <Loader2 className="w-3 h-3 animate-spin" />
@@ -466,7 +466,7 @@ export default function AdminPressPage() {
                   </button>
                   <button
                     onClick={removeCover}
-                    className="px-4 py-2 border border-white/20 text-[10px] font-mono uppercase text-neutral-400"
+                    className="px-4 py-2 border border-white/20 text-xs font-mono uppercase text-neutral-400"
                   >
                     Remove
                   </button>
@@ -483,7 +483,7 @@ export default function AdminPressPage() {
               >
                 <input {...getInputProps()} />
                 <ImagePlus className="w-5 h-5 mx-auto mb-2 text-neutral-400" />
-                <p className="text-[10px] font-mono text-neutral-400 uppercase tracking-widest">
+                <p className="text-xs font-mono text-neutral-400 uppercase tracking-widest">
                   Drop image here or click to browse
                 </p>
               </div>
@@ -524,7 +524,7 @@ export default function AdminPressPage() {
             />
           </div>
           <div className="mb-4">
-            <label className="block text-[10px] font-mono uppercase tracking-widest text-neutral-400 mb-2">
+            <label className="block text-xs font-mono uppercase tracking-widest text-neutral-400 mb-2">
               Excerpt
             </label>
             <textarea
@@ -535,7 +535,7 @@ export default function AdminPressPage() {
             />
           </div>
           <div className="mb-4">
-            <label className="block text-[10px] font-mono uppercase tracking-widest text-neutral-400 mb-2">
+            <label className="block text-xs font-mono uppercase tracking-widest text-neutral-400 mb-2">
               Content
             </label>
             <textarea
@@ -546,7 +546,7 @@ export default function AdminPressPage() {
             />
           </div>
           <div className="flex items-center gap-6 mb-6">
-            <label className="flex items-center gap-2 text-[10px] font-mono uppercase tracking-widest text-neutral-400 cursor-pointer">
+            <label className="flex items-center gap-2 text-xs font-mono uppercase tracking-widest text-neutral-400 cursor-pointer">
               <input
                 type="checkbox"
                 checked={form.is_published}
@@ -555,7 +555,7 @@ export default function AdminPressPage() {
               />
               Published
             </label>
-            <label className="flex items-center gap-2 text-[10px] font-mono uppercase tracking-widest text-neutral-400 cursor-pointer">
+            <label className="flex items-center gap-2 text-xs font-mono uppercase tracking-widest text-neutral-400 cursor-pointer">
               <input
                 type="checkbox"
                 checked={form.is_featured}
@@ -569,14 +569,14 @@ export default function AdminPressPage() {
             <button
               onClick={save}
               disabled={saving}
-              className="flex items-center gap-2 px-5 py-2 bg-[#D4A843] text-black text-[10px] font-mono font-bold uppercase tracking-widest hover:opacity-80 transition-opacity disabled:opacity-50"
+              className="flex items-center gap-2 px-5 py-2 bg-[#D4A843] text-black text-xs font-mono font-bold uppercase tracking-widest hover:opacity-80 transition-opacity disabled:opacity-50"
             >
               {saving && <Loader2 className="w-3 h-3 animate-spin" />}
               Save
             </button>
             <button
               onClick={cancel}
-              className="px-5 py-2 border border-white/20 text-[10px] font-mono uppercase tracking-widest text-neutral-400 hover:text-white hover:border-white/40 transition-colors"
+              className="px-5 py-2 border border-white/20 text-xs font-mono uppercase tracking-widest text-neutral-400 hover:text-white hover:border-white/40 transition-colors"
             >
               Cancel
             </button>
@@ -622,7 +622,7 @@ export default function AdminPressPage() {
                       <Star className="w-3 h-3 text-yellow-500 flex-shrink-0" />
                     )}
                   </div>
-                  <p className="text-[10px] font-mono text-neutral-400 pl-[18px]">
+                  <p className="text-xs font-mono text-neutral-400 pl-[18px]">
                     /{item.slug}
                     {item.published_at ? ` · ${item.published_at}` : ''}
                     {item.author ? ` · ${item.author}` : ''}
@@ -678,7 +678,7 @@ function Field({
 }) {
   return (
     <div>
-      <label className="block text-[10px] font-mono uppercase tracking-widest text-neutral-400 mb-2">
+      <label className="block text-xs font-mono uppercase tracking-widest text-neutral-400 mb-2">
         {label}
       </label>
       <input

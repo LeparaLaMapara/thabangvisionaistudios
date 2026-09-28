@@ -122,7 +122,7 @@ export default function DisputesPage() {
                     </Badge>
                   </div>
                   <p className="text-xs text-neutral-400 truncate">{dispute.reason}</p>
-                  <p className="text-[10px] text-neutral-400 mt-1">
+                  <p className="text-xs text-neutral-400 mt-1">
                     Filed {formatDate(dispute.filed_at)}
                     {dispute.resolved_at && ` — Resolved ${formatDate(dispute.resolved_at)}`}
                   </p>

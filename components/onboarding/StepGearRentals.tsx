@@ -210,7 +210,7 @@ export default function StepGearRentals({ onComplete, onSkip }: StepGearRentalsP
         <h2 className="text-sm font-mono font-bold uppercase tracking-widest text-white mb-1">
           List Your Gear
         </h2>
-        <p className="text-[10px] font-mono text-neutral-400 leading-relaxed">
+        <p className="text-xs font-mono text-neutral-400 leading-relaxed">
           Upload photos of equipment you&apos;d like to rent out. Our AI will identify each item automatically.
         </p>
       </div>
@@ -233,7 +233,7 @@ export default function StepGearRentals({ onComplete, onSkip }: StepGearRentalsP
             {/* Fields */}
             <div className="flex-1 space-y-3">
               <div>
-                <label className="block text-[8px] font-bold uppercase tracking-widest text-neutral-400 mb-1">
+                <label className="block text-xs font-bold uppercase tracking-widest text-neutral-400 mb-1">
                   Name
                 </label>
                 <input
@@ -248,7 +248,7 @@ export default function StepGearRentals({ onComplete, onSkip }: StepGearRentalsP
 
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label className="block text-[8px] font-bold uppercase tracking-widest text-neutral-400 mb-1">
+                  <label className="block text-xs font-bold uppercase tracking-widest text-neutral-400 mb-1">
                     Category
                   </label>
                   <select
@@ -264,7 +264,7 @@ export default function StepGearRentals({ onComplete, onSkip }: StepGearRentalsP
                 </div>
 
                 <div>
-                  <label className="block text-[8px] font-bold uppercase tracking-widest text-neutral-400 mb-1">
+                  <label className="block text-xs font-bold uppercase tracking-widest text-neutral-400 mb-1">
                     Condition
                   </label>
                   <select
@@ -283,7 +283,7 @@ export default function StepGearRentals({ onComplete, onSkip }: StepGearRentalsP
               </div>
 
               <div>
-                <label className="block text-[8px] font-bold uppercase tracking-widest text-neutral-400 mb-1">
+                <label className="block text-xs font-bold uppercase tracking-widest text-neutral-400 mb-1">
                   Daily Rate ({STUDIO.currency.code})
                 </label>
                 <input
@@ -309,11 +309,11 @@ export default function StepGearRentals({ onComplete, onSkip }: StepGearRentalsP
           </div>
 
           {item.error && (
-            <p className="text-[9px] font-mono text-red-400">{item.error}</p>
+            <p className="text-xs font-mono text-red-400">{item.error}</p>
           )}
 
           {item.identification && item.identification.confidence > 0 && (
-            <p className="text-[9px] font-mono text-neutral-400">
+            <p className="text-xs font-mono text-neutral-400">
               AI confidence: {item.identification.confidence}% — {item.identification.equipmentType}
             </p>
           )}
@@ -324,7 +324,7 @@ export default function StepGearRentals({ onComplete, onSkip }: StepGearRentalsP
       <label className="cursor-pointer block">
         <div className="border border-dashed border-white/10 hover:border-[#D4A843]/30 transition-colors p-6 flex items-center justify-center gap-2">
           <Plus className="w-4 h-4 text-neutral-400" />
-          <span className="text-[10px] font-mono uppercase tracking-widest text-neutral-400">
+          <span className="text-xs font-mono uppercase tracking-widest text-neutral-400">
             Add Gear Photo
           </span>
         </div>
@@ -342,7 +342,7 @@ export default function StepGearRentals({ onComplete, onSkip }: StepGearRentalsP
         <button
           type="button"
           onClick={onSkip}
-          className="flex-1 border border-white/10 text-neutral-400 py-3 px-6 text-[10px] font-mono uppercase tracking-widest hover:text-white hover:border-white/20 transition-colors min-h-[44px]"
+          className="flex-1 border border-white/10 text-neutral-400 py-3 px-6 text-xs font-mono uppercase tracking-widest hover:text-white hover:border-white/20 transition-colors min-h-[44px]"
         >
           Skip for Now
         </button>
@@ -352,7 +352,7 @@ export default function StepGearRentals({ onComplete, onSkip }: StepGearRentalsP
             type="button"
             onClick={handleListAll}
             disabled={creatingDrafts}
-            className="flex-1 bg-[#D4A843] text-black py-3 px-6 text-[10px] font-mono font-bold uppercase tracking-widest hover:opacity-80 transition-opacity min-h-[44px] flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
+            className="flex-1 bg-[#D4A843] text-black py-3 px-6 text-xs font-mono font-bold uppercase tracking-widest hover:opacity-80 transition-opacity min-h-[44px] flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
           >
             {creatingDrafts ? (
               <>

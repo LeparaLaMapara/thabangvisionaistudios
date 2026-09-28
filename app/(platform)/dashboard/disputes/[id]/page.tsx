@@ -152,13 +152,13 @@ export default function DisputeDetailPage() {
 
       {/* Reason */}
       <div className="rounded-xl border border-neutral-800 bg-neutral-900/50 p-4 mb-4">
-        <h3 className="text-[10px] font-mono uppercase tracking-widest text-neutral-400 mb-2">
+        <h3 className="text-xs font-mono uppercase tracking-widest text-neutral-400 mb-2">
           Reason
         </h3>
         <p className="text-sm text-neutral-300">{dispute.reason}</p>
         {dispute.evidence_notes && (
           <>
-            <h3 className="text-[10px] font-mono uppercase tracking-widest text-neutral-400 mb-2 mt-4">
+            <h3 className="text-xs font-mono uppercase tracking-widest text-neutral-400 mb-2 mt-4">
               Additional Notes
             </h3>
             <p className="text-sm text-neutral-300">{dispute.evidence_notes}</p>
@@ -169,7 +169,7 @@ export default function DisputeDetailPage() {
       {/* Evidence Photos */}
       {dispute.evidence_photos && dispute.evidence_photos.length > 0 && (
         <div className="rounded-xl border border-neutral-800 bg-neutral-900/50 p-4 mb-4">
-          <h3 className="text-[10px] font-mono uppercase tracking-widest text-neutral-400 mb-3 flex items-center gap-1.5">
+          <h3 className="text-xs font-mono uppercase tracking-widest text-neutral-400 mb-3 flex items-center gap-1.5">
             <ImageIcon className="w-3 h-3" /> Evidence Photos
           </h3>
           <div className="grid grid-cols-3 gap-2">
@@ -189,7 +189,7 @@ export default function DisputeDetailPage() {
       {/* Resolution */}
       {dispute.resolution && (
         <div className="rounded-xl border border-[#D4A843]/30 bg-[#D4A843]/5 p-4 mb-4">
-          <h3 className="text-[10px] font-mono uppercase tracking-widest text-[#D4A843] mb-2">
+          <h3 className="text-xs font-mono uppercase tracking-widest text-[#D4A843] mb-2">
             Resolution
           </h3>
           <p className="text-sm text-neutral-300">
@@ -208,7 +208,7 @@ export default function DisputeDetailPage() {
 
       {/* Timeline / Comments */}
       <div className="rounded-xl border border-neutral-800 bg-neutral-900/50 p-4 mb-4">
-        <h3 className="text-[10px] font-mono uppercase tracking-widest text-neutral-400 mb-4">
+        <h3 className="text-xs font-mono uppercase tracking-widest text-neutral-400 mb-4">
           Timeline
         </h3>
         {dispute.comments.length === 0 ? (
@@ -217,7 +217,7 @@ export default function DisputeDetailPage() {
           <div className="space-y-4">
             {dispute.comments.map((c) => (
               <div key={c.id} className="border-l-2 border-neutral-700 pl-3">
-                <p className="text-[10px] text-neutral-400 flex items-center gap-1.5">
+                <p className="text-xs text-neutral-400 flex items-center gap-1.5">
                   <Clock className="w-3 h-3" />
                   {formatDateTime(c.created_at)}
                 </p>

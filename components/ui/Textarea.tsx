@@ -26,7 +26,7 @@ export function Textarea({
       {label && (
         <label
           htmlFor={inputId}
-          className="block text-[10px] font-mono uppercase tracking-widest text-neutral-400 mb-2"
+          className="block text-xs font-mono uppercase tracking-widest text-neutral-400 mb-2"
         >
           {label}
         </label>
@@ -59,16 +59,16 @@ export function Textarea({
       <div className="flex justify-between mt-1.5">
         <div>
           {error && (
-            <p className="text-[10px] font-mono text-red-500">{error}</p>
+            <p className="text-xs font-mono text-red-500">{error}</p>
           )}
           {hint && !error && (
-            <p className="text-[10px] font-mono text-neutral-400 dark:text-neutral-400">
+            <p className="text-xs font-mono text-neutral-400 dark:text-neutral-400">
               {hint}
             </p>
           )}
         </div>
         {maxLength != null && (
-          <p className="text-[10px] font-mono text-neutral-400 dark:text-neutral-400 ml-auto">
+          <p className="text-xs font-mono text-neutral-400 dark:text-neutral-400 ml-auto">
             {charCount}/{maxLength}
           </p>
         )}

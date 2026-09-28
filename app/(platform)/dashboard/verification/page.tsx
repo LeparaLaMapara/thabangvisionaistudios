@@ -328,7 +328,7 @@ function VerificationPageInner() {
           </p>
           {back && <BackToBooking href={back} />}
           {verification?.verification_reviewed_at && (
-            <p className="text-[10px] font-mono text-neutral-400 mt-4">
+            <p className="text-xs font-mono text-neutral-400 mt-4">
               Verified on{' '}
               {new Date(verification.verification_reviewed_at).toLocaleDateString('en-ZA', {
                 day: 'numeric',
@@ -355,7 +355,7 @@ function VerificationPageInner() {
           </p>
           {back && <BackToBooking href={back} />}
           {verification?.verification_submitted_at && (
-            <p className="text-[10px] font-mono text-neutral-400 mt-4">
+            <p className="text-xs font-mono text-neutral-400 mt-4">
               Submitted on{' '}
               {new Date(verification.verification_submitted_at).toLocaleDateString('en-ZA', {
                 day: 'numeric',
@@ -461,7 +461,7 @@ function UploadForm({
       <h3 className="text-xs font-mono uppercase tracking-widest text-white mb-1">
         Verify Your Identity
       </h3>
-      <p className="text-[10px] font-mono text-neutral-400 mb-8">
+      <p className="text-xs font-mono text-neutral-400 mb-8">
         A photo of your ID and a selfie holding it. We compare the two faces, then a person checks it.
       </p>
 
@@ -470,25 +470,25 @@ function UploadForm({
           <div key={slot.key}>
             {/* Step indicator */}
             <div className="flex items-center gap-2 mb-3">
-              <span className="text-[9px] font-mono font-bold uppercase tracking-widest text-neutral-400 bg-white/5 px-2 py-0.5">
+              <span className="text-xs font-mono font-bold uppercase tracking-widest text-neutral-400 bg-white/5 px-2 py-0.5">
                 Step {index + 1} of {files.length}
               </span>
-              <span className="text-[10px] font-mono uppercase tracking-widest text-white">
+              <span className="text-xs font-mono uppercase tracking-widest text-white">
                 {slot.label}
               </span>
             </div>
 
-            <p className="text-[10px] font-mono text-neutral-400 mb-3">
+            <p className="text-xs font-mono text-neutral-400 mb-3">
               {slot.description}
             </p>
 
             {/* Selfie guide */}
             {slot.key === 'selfie_with_id' && (
               <div className="mb-3 p-4 bg-white/[0.02] border border-white/5">
-                <p className="text-[9px] font-mono uppercase tracking-widest text-neutral-400 mb-2">
+                <p className="text-xs font-mono uppercase tracking-widest text-neutral-400 mb-2">
                   How to take this photo
                 </p>
-                <div className="flex items-center gap-4 text-[10px] font-mono text-neutral-400">
+                <div className="flex items-center gap-4 text-xs font-mono text-neutral-400">
                   <span>Your face</span>
                   <span className="text-neutral-400">+</span>
                   <span>Your ID card visible</span>
@@ -563,7 +563,7 @@ function PhotoPreview({
             e.stopPropagation();
             onRemove();
           }}
-          className="text-[10px] font-mono uppercase text-neutral-400 hover:text-red-400 transition-colors"
+          className="text-xs font-mono uppercase text-neutral-400 hover:text-red-400 transition-colors"
         >
           Remove
         </button>
@@ -597,7 +597,7 @@ function UploadDropzone({
   return (
     <div>
       {validationError && (
-        <div className="mb-2 text-[10px] font-mono text-red-400 flex items-center gap-1.5">
+        <div className="mb-2 text-xs font-mono text-red-400 flex items-center gap-1.5">
           <AlertTriangle className="w-3 h-3" />
           {validationError}
         </div>
@@ -634,10 +634,10 @@ function UploadDropzone({
         ) : (
           <div className="py-4">
             <Upload className="w-6 h-6 text-neutral-400 mx-auto mb-2" />
-            <p className="text-[10px] font-mono text-neutral-400">
+            <p className="text-xs font-mono text-neutral-400">
               Click to upload or drag &amp; drop
             </p>
-            <p className="text-[9px] font-mono text-neutral-400 mt-1">
+            <p className="text-xs font-mono text-neutral-400 mt-1">
               PDF, JPG, PNG, WebP, HEIC accepted
             </p>
           </div>
@@ -758,7 +758,7 @@ function CameraCapture({
   return (
     <div>
       {cameraError && (
-        <div className="mb-2 text-[10px] font-mono text-red-400 flex items-center gap-1.5">
+        <div className="mb-2 text-xs font-mono text-red-400 flex items-center gap-1.5">
           <AlertTriangle className="w-3 h-3" />
           {cameraError}
         </div>
@@ -804,7 +804,7 @@ function CameraCapture({
             <button
               type="button"
               onClick={stopCamera}
-              className="text-[10px] font-mono uppercase text-neutral-400 hover:text-red-400 transition-colors"
+              className="text-xs font-mono uppercase text-neutral-400 hover:text-red-400 transition-colors"
             >
               Cancel
             </button>
@@ -817,10 +817,10 @@ function CameraCapture({
         >
           <div className="py-4">
             <Camera className="w-6 h-6 text-neutral-400 mx-auto mb-2" />
-            <p className="text-[10px] font-mono text-neutral-400">
+            <p className="text-xs font-mono text-neutral-400">
               {isMobile ? 'Tap to open camera' : 'Click to open camera'}
             </p>
-            <p className="text-[9px] font-mono text-neutral-400 mt-1">
+            <p className="text-xs font-mono text-neutral-400 mt-1">
               Take a photo with your {isMobile ? 'phone' : 'webcam'}
             </p>
           </div>

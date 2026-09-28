@@ -58,7 +58,7 @@ export default function ProductionDetailView({
         <div className="fixed top-20 left-0 w-full z-40 bg-white/90 dark:bg-[#050505]/90 backdrop-blur-md border-b border-black/5 dark:border-white/5 py-4 px-6 flex justify-between items-center">
           <Link
             href="/studio"
-            className="text-[10px] font-mono font-bold tracking-widest text-neutral-400 hover:text-black dark:hover:text-white uppercase flex items-center gap-2 transition-colors"
+            className="text-xs font-mono font-bold tracking-widest text-neutral-400 hover:text-black dark:hover:text-white uppercase flex items-center gap-2 transition-colors"
           >
             <ArrowLeft className="w-3 h-3" /> All Productions
           </Link>
@@ -100,7 +100,7 @@ export default function ProductionDetailView({
                 {/* Production info */}
                 <div className="space-y-4">
                   {project.sub_category && (
-                    <span className="text-[10px] font-mono text-[#D4A843] uppercase tracking-widest">
+                    <span className="text-xs font-mono text-[#D4A843] uppercase tracking-widest">
                       {project.sub_category}
                     </span>
                   )}
@@ -114,7 +114,7 @@ export default function ProductionDetailView({
                       {project.tags.map(tag => (
                         <span
                           key={tag}
-                          className="px-2 py-0.5 border border-white/10 text-[9px] font-mono uppercase tracking-widest text-neutral-400"
+                          className="px-2 py-0.5 border border-white/10 text-xs font-mono uppercase tracking-widest text-neutral-400"
                         >
                           {tag}
                         </span>
@@ -139,7 +139,7 @@ export default function ProductionDetailView({
       <div className="container mx-auto px-6 py-8">
         <Link
           href="/studio"
-          className="inline-flex items-center gap-2 text-[10px] font-mono font-bold tracking-widest text-neutral-400 hover:text-black dark:hover:text-white uppercase mb-8 transition-colors"
+          className="inline-flex items-center gap-2 text-xs font-mono font-bold tracking-widest text-neutral-400 hover:text-black dark:hover:text-white uppercase mb-8 transition-colors"
         >
           <ArrowLeft className="w-3 h-3" /> Back to Productions
         </Link>
@@ -188,7 +188,7 @@ export default function ProductionDetailView({
               {(project.tags ?? []).map(tag => (
                 <span
                   key={tag}
-                  className="px-3 py-1 border border-black/10 dark:border-white/10 text-[10px] font-mono uppercase tracking-widest text-neutral-400 dark:text-neutral-400"
+                  className="px-3 py-1 border border-black/10 dark:border-white/10 text-xs font-mono uppercase tracking-widest text-neutral-400 dark:text-neutral-400"
                 >
                   {tag}
                 </span>
@@ -204,7 +204,7 @@ export default function ProductionDetailView({
           <div className="lg:col-span-4">
             <div className="lg:sticky lg:top-28 lg:self-start space-y-8 pt-4">
               <div className="border-t border-black/10 dark:border-white/10 pt-4">
-                <span className="block text-[10px] font-mono text-neutral-400 uppercase tracking-widest mb-1">
+                <span className="block text-xs font-mono text-neutral-400 uppercase tracking-widest mb-1">
                   Client
                 </span>
                 <span className="text-lg font-display text-black dark:text-white">
@@ -213,7 +213,7 @@ export default function ProductionDetailView({
               </div>
 
               <div className="border-t border-black/10 dark:border-white/10 pt-4">
-                <span className="block text-[10px] font-mono text-neutral-400 uppercase tracking-widest mb-1">
+                <span className="block text-xs font-mono text-neutral-400 uppercase tracking-widest mb-1">
                   Year
                 </span>
                 <span className="text-lg font-display text-black dark:text-white">
@@ -223,7 +223,7 @@ export default function ProductionDetailView({
 
               {project.sub_category && (
                 <div className="border-t border-black/10 dark:border-white/10 pt-4">
-                  <span className="block text-[10px] font-mono text-neutral-400 uppercase tracking-widest mb-1">
+                  <span className="block text-xs font-mono text-neutral-400 uppercase tracking-widest mb-1">
                     Category
                   </span>
                   <span className="text-lg font-display text-black dark:text-white">
@@ -275,7 +275,7 @@ function BookingWidget({ project }: { project: SmartProduction }) {
 
   return (
     <div className="border border-black/10 dark:border-white/10 bg-neutral-50 dark:bg-[#0A0A0B] p-5">
-      <span className="block text-[10px] font-mono font-bold text-neutral-400 uppercase tracking-widest border-b border-black/5 dark:border-white/5 pb-3 mb-4">
+      <span className="block text-xs font-mono font-bold text-neutral-400 uppercase tracking-widest border-b border-black/5 dark:border-white/5 pb-3 mb-4">
         Book This Production
       </span>
 
@@ -291,7 +291,7 @@ function BookingWidget({ project }: { project: SmartProduction }) {
           </div>
         </div>
       ) : (
-        <p className="text-[10px] font-mono text-neutral-400 mb-4 uppercase tracking-widest">
+        <p className="text-xs font-mono text-neutral-400 mb-4 uppercase tracking-widest">
           Contact for pricing
         </p>
       )}
@@ -302,13 +302,13 @@ function BookingWidget({ project }: { project: SmartProduction }) {
           // there for questions, not the only way to book.
           router.push(hasPrice ? `/book?production=${project.id}` : `/ubunye-ai-studio?${new URLSearchParams({ prompt: `I'd like a quote for the "${project.title}" production` })}`);
         }}
-        className="w-full py-3 text-[10px] font-mono font-bold uppercase tracking-widest bg-[#D4A843] text-black border border-[#D4A843] hover:opacity-80 transition-all flex items-center justify-center gap-2"
+        className="w-full py-3 text-xs font-mono font-bold uppercase tracking-widest bg-[#D4A843] text-black border border-[#D4A843] hover:opacity-80 transition-all flex items-center justify-center gap-2"
       >
         <span className="w-1.5 h-1.5 rounded-full bg-black animate-pulse" />
         Book Now
       </button>
 
-      <p className="text-[9px] font-mono text-neutral-400 mt-3 text-center">
+      <p className="text-xs font-mono text-neutral-400 mt-3 text-center">
         {hasPrice ? (
           <>Pick a date and pay. Questions?{' '}
             <a
@@ -346,7 +346,7 @@ function getUniqueGear(
 function ShotWithSection({ gear }: { gear: MatchedGear[] }) {
   return (
     <div className="space-y-4">
-      <span className="flex items-center gap-2 text-[10px] font-mono text-neutral-400 uppercase tracking-widest">
+      <span className="flex items-center gap-2 text-xs font-mono text-neutral-400 uppercase tracking-widest">
         <Camera className="w-3 h-3" />
         Shot On {STUDIO.shortName} Gear
       </span>
@@ -371,14 +371,14 @@ function ShotWithSection({ gear }: { gear: MatchedGear[] }) {
                   <Camera className="w-8 h-8 text-neutral-400" />
                 </div>
               )}
-              <span className="absolute top-2 left-2 z-10 text-[8px] font-mono uppercase tracking-widest bg-[#D4A843]/90 text-black px-2 py-0.5">
+              <span className="absolute top-2 left-2 z-10 text-xs font-mono uppercase tracking-widest bg-[#D4A843]/90 text-black px-2 py-0.5">
                 Studio
               </span>
             </div>
 
             <div className="flex flex-col flex-grow p-4">
               {item.brand && (
-                <span className="text-[9px] font-mono uppercase tracking-widest text-neutral-400 mb-1">
+                <span className="text-xs font-mono uppercase tracking-widest text-neutral-400 mb-1">
                   {item.brand}
                 </span>
               )}
@@ -388,7 +388,7 @@ function ShotWithSection({ gear }: { gear: MatchedGear[] }) {
               </h3>
 
               {item.model && (
-                <p className="text-[10px] font-mono text-neutral-400 mt-1">
+                <p className="text-xs font-mono text-neutral-400 mt-1">
                   {item.model}
                 </p>
               )}
@@ -400,9 +400,9 @@ function ShotWithSection({ gear }: { gear: MatchedGear[] }) {
                   <span className="text-base font-display font-medium text-white">
                     {STUDIO.currency.symbol}{item.pricePerDay.toLocaleString()}
                   </span>
-                  <span className="text-[10px] font-mono text-neutral-400 ml-1">/ day</span>
+                  <span className="text-xs font-mono text-neutral-400 ml-1">/ day</span>
                 </div>
-                <span className="text-[9px] font-mono uppercase tracking-widest text-[#D4A843] group-hover:translate-x-1 transition-transform duration-300">
+                <span className="text-xs font-mono uppercase tracking-widest text-[#D4A843] group-hover:translate-x-1 transition-transform duration-300">
                   View Details &rarr;
                 </span>
               </div>
@@ -435,7 +435,7 @@ function ShotInfo({
 
   return (
     <div className="space-y-3">
-      <span className="flex items-center gap-2 text-[10px] font-mono text-neutral-400 uppercase tracking-widest">
+      <span className="flex items-center gap-2 text-xs font-mono text-neutral-400 uppercase tracking-widest">
         <Aperture className="w-3 h-3" />
         Shot On
       </span>
@@ -454,13 +454,13 @@ function ShotInfo({
       ))}
 
       {settingsLine && (
-        <p className="text-[10px] font-mono text-neutral-400 dark:text-neutral-400 tracking-wide">
+        <p className="text-xs font-mono text-neutral-400 dark:text-neutral-400 tracking-wide">
           {settingsLine}
         </p>
       )}
 
       {primary.software && (
-        <p className="text-[9px] font-mono text-neutral-400 uppercase tracking-widest">
+        <p className="text-xs font-mono text-neutral-400 uppercase tracking-widest">
           Edited in {primary.software}
         </p>
       )}

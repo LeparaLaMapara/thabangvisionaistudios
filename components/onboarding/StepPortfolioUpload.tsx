@@ -243,7 +243,7 @@ export default function StepPortfolioUpload({ onComplete }: StepPortfolioUploadP
         <h2 className="text-sm font-mono font-bold uppercase tracking-widest text-white mb-1">
           Portfolio Upload
         </h2>
-        <p className="text-[10px] font-mono text-neutral-400 leading-relaxed">
+        <p className="text-xs font-mono text-neutral-400 leading-relaxed">
           Upload at least 2 of your best photos. Our AI will analyze each one to detect your skills and specialties. More photos = better skill detection.
         </p>
       </div>
@@ -255,7 +255,7 @@ export default function StepPortfolioUpload({ onComplete }: StepPortfolioUploadP
           <p className="text-xs font-mono text-neutral-400">
             Click to select photos or drag files here
           </p>
-          <p className="text-[9px] font-mono text-neutral-400">
+          <p className="text-xs font-mono text-neutral-400">
             JPG or PNG, up to 10MB each
           </p>
         </div>
@@ -272,12 +272,12 @@ export default function StepPortfolioUpload({ onComplete }: StepPortfolioUploadP
       {/* Photo count */}
       {items.length > 0 && (
         <div className="flex items-center justify-between">
-          <p className="text-[10px] font-mono text-neutral-400">
+          <p className="text-xs font-mono text-neutral-400">
             {uploadedCount} photo{uploadedCount !== 1 ? 's' : ''} uploaded
             {uploadedCount < 2 && ` (need at least 2)`}
           </p>
           {analyzing && (
-            <p className="text-[10px] font-mono text-[#D4A843]">
+            <p className="text-xs font-mono text-[#D4A843]">
               Analyzing photo {analyzeProgress.current} of {analyzeProgress.total}...
             </p>
           )}
@@ -298,7 +298,7 @@ export default function StepPortfolioUpload({ onComplete }: StepPortfolioUploadP
                 </div>
               ) : item.error ? (
                 <div className="w-full h-full flex items-center justify-center p-2">
-                  <p className="text-[8px] font-mono text-red-400 text-center">{item.error}</p>
+                  <p className="text-xs font-mono text-red-400 text-center">{item.error}</p>
                 </div>
               ) : item.url ? (
                 <>
@@ -325,7 +325,7 @@ export default function StepPortfolioUpload({ onComplete }: StepPortfolioUploadP
                         value={item.analysis.sceneType}
                         onChange={(e) => correctTag(index, e.target.value)}
                         onClick={(e) => e.stopPropagation()}
-                        className="w-full bg-transparent text-[8px] font-mono text-[#D4A843] uppercase cursor-pointer focus:outline-none"
+                        className="w-full bg-transparent text-xs font-mono text-[#D4A843] uppercase cursor-pointer focus:outline-none"
                         aria-label="Scene type"
                       >
                         {SCENE_OPTIONS.map((opt) => (
@@ -356,7 +356,7 @@ export default function StepPortfolioUpload({ onComplete }: StepPortfolioUploadP
           <button
             type="button"
             onClick={handleProceed}
-            className="flex-1 bg-[#D4A843] text-black py-3 px-6 text-[10px] font-mono font-bold uppercase tracking-widest hover:opacity-80 transition-opacity min-h-[44px]"
+            className="flex-1 bg-[#D4A843] text-black py-3 px-6 text-xs font-mono font-bold uppercase tracking-widest hover:opacity-80 transition-opacity min-h-[44px]"
           >
             Looks Good
           </button>

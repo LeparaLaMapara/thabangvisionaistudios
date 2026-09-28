@@ -44,7 +44,7 @@ export function Pagination({
         page === '...' ? (
           <span
             key={`ellipsis-${i}`}
-            className="px-1 text-[10px] font-mono text-neutral-400 select-none"
+            className="px-1 text-xs font-mono text-neutral-400 select-none"
           >
             ...
           </span>
@@ -80,7 +80,7 @@ export function Pagination({
 }
 
 const BTN_BASE =
-  'inline-flex items-center justify-center text-[10px] font-mono uppercase tracking-widest transition-colors duration-200 disabled:opacity-40 disabled:cursor-not-allowed';
+  'inline-flex items-center justify-center text-xs font-mono uppercase tracking-widest transition-colors duration-200 disabled:opacity-40 disabled:cursor-not-allowed';
 
 const NAV_BTN =
   'w-8 h-8 text-neutral-400 hover:text-black dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/5';

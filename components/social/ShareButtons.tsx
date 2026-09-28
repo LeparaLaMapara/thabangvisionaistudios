@@ -46,7 +46,7 @@ export function ShareButtons({ title, path, className = '' }: ShareButtonsProps)
 
   return (
     <div className={`flex items-center gap-1 ${className}`}>
-      <span className="text-[9px] font-mono uppercase tracking-widest text-neutral-400 mr-2">
+      <span className="text-xs font-mono uppercase tracking-widest text-neutral-400 mr-2">
         <Share2 className="w-3 h-3 inline mr-1" />
         Share
       </span>

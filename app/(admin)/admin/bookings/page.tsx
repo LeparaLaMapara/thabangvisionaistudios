@@ -149,7 +149,7 @@ export default function AdminBookingsPage() {
             <h1 className="text-2xl font-display font-medium uppercase text-white mb-1">
               Bookings
             </h1>
-            <p className="text-[10px] font-mono uppercase tracking-widest text-neutral-400">
+            <p className="text-xs font-mono uppercase tracking-widest text-neutral-400">
               {bookings.length} total bookings
             </p>
           </div>
@@ -205,7 +205,7 @@ export default function AdminBookingsPage() {
         ) : (
           <>
             {/* Table header */}
-            <div className="hidden md:grid grid-cols-[2fr_1.5fr_1fr_1fr_1fr_auto] gap-4 px-5 py-3 text-[9px] font-mono uppercase tracking-widest text-neutral-400 border-b border-white/10">
+            <div className="hidden md:grid grid-cols-[2fr_1.5fr_1fr_1fr_1fr_auto] gap-4 px-5 py-3 text-xs font-mono uppercase tracking-widest text-neutral-400 border-b border-white/10">
               <span>Equipment</span>
               <span>Customer</span>
               <span>Dates</span>
@@ -226,7 +226,7 @@ export default function AdminBookingsPage() {
                     <p className="text-sm font-medium text-white truncate">
                       {booking.rental_title}
                     </p>
-                    <p className="text-[9px] font-mono text-neutral-400 uppercase tracking-widest">
+                    <p className="text-xs font-mono text-neutral-400 uppercase tracking-widest">
                       {booking.rental_category}
                     </p>
                   </div>
@@ -236,7 +236,7 @@ export default function AdminBookingsPage() {
                     <p className="text-sm text-white truncate">
                       {booking.user_name ?? 'Unknown'}
                     </p>
-                    <p className="text-[9px] font-mono text-neutral-400 truncate">
+                    <p className="text-xs font-mono text-neutral-400 truncate">
                       {booking.user_email}
                     </p>
                   </div>
@@ -320,20 +320,20 @@ export default function AdminBookingsPage() {
           <div className="space-y-6">
             {/* Equipment */}
             <div>
-              <h4 className="text-[10px] font-mono font-bold uppercase tracking-widest text-neutral-400 mb-2">
+              <h4 className="text-xs font-mono font-bold uppercase tracking-widest text-neutral-400 mb-2">
                 Equipment
               </h4>
               <p className="text-sm font-medium text-white">
                 {detailBooking.rental_title}
               </p>
-              <p className="text-[10px] font-mono text-neutral-400 uppercase tracking-widest">
+              <p className="text-xs font-mono text-neutral-400 uppercase tracking-widest">
                 {detailBooking.rental_category}
               </p>
             </div>
 
             {/* Customer */}
             <div>
-              <h4 className="text-[10px] font-mono font-bold uppercase tracking-widest text-neutral-400 mb-2">
+              <h4 className="text-xs font-mono font-bold uppercase tracking-widest text-neutral-400 mb-2">
                 Customer
               </h4>
               <p className="text-sm text-white">
@@ -347,7 +347,7 @@ export default function AdminBookingsPage() {
             {/* Dates */}
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <h4 className="text-[10px] font-mono font-bold uppercase tracking-widest text-neutral-400 mb-2">
+                <h4 className="text-xs font-mono font-bold uppercase tracking-widest text-neutral-400 mb-2">
                   Start Date
                 </h4>
                 <p className="text-sm font-mono text-white">
@@ -359,7 +359,7 @@ export default function AdminBookingsPage() {
                 </p>
               </div>
               <div>
-                <h4 className="text-[10px] font-mono font-bold uppercase tracking-widest text-neutral-400 mb-2">
+                <h4 className="text-xs font-mono font-bold uppercase tracking-widest text-neutral-400 mb-2">
                   End Date
                 </h4>
                 <p className="text-sm font-mono text-white">
@@ -375,7 +375,7 @@ export default function AdminBookingsPage() {
             {/* Payment */}
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <h4 className="text-[10px] font-mono font-bold uppercase tracking-widest text-neutral-400 mb-2">
+                <h4 className="text-xs font-mono font-bold uppercase tracking-widest text-neutral-400 mb-2">
                   Total Price
                 </h4>
                 <p className="text-lg font-mono font-bold text-white">
@@ -383,7 +383,7 @@ export default function AdminBookingsPage() {
                 </p>
               </div>
               <div>
-                <h4 className="text-[10px] font-mono font-bold uppercase tracking-widest text-neutral-400 mb-2">
+                <h4 className="text-xs font-mono font-bold uppercase tracking-widest text-neutral-400 mb-2">
                   Deposit
                 </h4>
                 <p className="text-sm font-mono text-white">
@@ -394,7 +394,7 @@ export default function AdminBookingsPage() {
 
             {/* Status */}
             <div>
-              <h4 className="text-[10px] font-mono font-bold uppercase tracking-widest text-neutral-400 mb-2">
+              <h4 className="text-xs font-mono font-bold uppercase tracking-widest text-neutral-400 mb-2">
                 Status
               </h4>
               <Badge variant={STATUS_VARIANT[detailBooking.status]}>
@@ -405,7 +405,7 @@ export default function AdminBookingsPage() {
             {/* Gateway payment reference */}
             {detailBooking.payfast_payment_id && (
               <div>
-                <h4 className="text-[10px] font-mono font-bold uppercase tracking-widest text-neutral-400 mb-2">
+                <h4 className="text-xs font-mono font-bold uppercase tracking-widest text-neutral-400 mb-2">
                   Payment Reference
                 </h4>
                 <p className="text-xs font-mono text-neutral-400 break-all">
@@ -417,7 +417,7 @@ export default function AdminBookingsPage() {
             {/* Notes */}
             {detailBooking.notes && (
               <div>
-                <h4 className="text-[10px] font-mono font-bold uppercase tracking-widest text-neutral-400 mb-2">
+                <h4 className="text-xs font-mono font-bold uppercase tracking-widest text-neutral-400 mb-2">
                   Notes
                 </h4>
                 <p className="text-sm text-neutral-400 leading-relaxed whitespace-pre-wrap">
@@ -430,7 +430,7 @@ export default function AdminBookingsPage() {
             {detailBooking.status === 'confirmed' && (
               <Link
                 href={`/admin/rentals/${detailBooking.id}/handover`}
-                className="flex items-center justify-center gap-2 bg-[#D4A843] text-[#050505] py-2.5 text-[10px] font-mono font-bold uppercase tracking-widest"
+                className="flex items-center justify-center gap-2 bg-[#D4A843] text-[#050505] py-2.5 text-xs font-mono font-bold uppercase tracking-widest"
               >
                 Hand over gear
               </Link>
@@ -438,7 +438,7 @@ export default function AdminBookingsPage() {
             {['active', 'overdue'].includes(detailBooking.status as string) && (
               <Link
                 href={`/admin/rentals/${detailBooking.id}/return`}
-                className="flex items-center justify-center gap-2 border border-white/20 text-white py-2.5 text-[10px] font-mono font-bold uppercase tracking-widest"
+                className="flex items-center justify-center gap-2 border border-white/20 text-white py-2.5 text-xs font-mono font-bold uppercase tracking-widest"
               >
                 Take back gear
               </Link>
@@ -468,7 +468,7 @@ export default function AdminBookingsPage() {
                       title: detailBooking.rental_title,
                     });
                   }}
-                  className="flex-1 bg-red-600 text-white py-2.5 text-[10px] font-mono font-bold uppercase tracking-widest hover:bg-red-700 transition-colors flex items-center justify-center gap-2"
+                  className="flex-1 bg-red-600 text-white py-2.5 text-xs font-mono font-bold uppercase tracking-widest hover:bg-red-700 transition-colors flex items-center justify-center gap-2"
                 >
                   <XCircle className="w-3.5 h-3.5" />
                   Cancel Booking
@@ -502,14 +502,14 @@ export default function AdminBookingsPage() {
               <button
                 onClick={() => setConfirmAction(null)}
                 disabled={confirmLoading}
-                className="flex-1 border border-white/10 text-white py-2.5 text-[10px] font-mono font-bold uppercase tracking-widest hover:bg-neutral-800 transition-colors disabled:opacity-40"
+                className="flex-1 border border-white/10 text-white py-2.5 text-xs font-mono font-bold uppercase tracking-widest hover:bg-neutral-800 transition-colors disabled:opacity-40"
               >
                 Go Back
               </button>
               <button
                 onClick={handleConfirmAction}
                 disabled={confirmLoading}
-                className={`flex-1 text-white py-2.5 text-[10px] font-mono font-bold uppercase tracking-widest transition-colors disabled:opacity-40 flex items-center justify-center gap-2 ${
+                className={`flex-1 text-white py-2.5 text-xs font-mono font-bold uppercase tracking-widest transition-colors disabled:opacity-40 flex items-center justify-center gap-2 ${
                   confirmAction.action === 'confirm'
                     ? 'bg-emerald-600 hover:bg-emerald-700'
                     : 'bg-red-600 hover:bg-red-700'

@@ -195,7 +195,7 @@ export function GlobalSearch({ isOpen, onClose }: Props) {
                   <X className="w-4 h-4" />
                 </button>
               )}
-              <kbd className="hidden md:block text-[10px] font-mono text-neutral-400 border border-neutral-800 px-1.5 py-0.5 rounded">
+              <kbd className="hidden md:block text-xs font-mono text-neutral-400 border border-neutral-800 px-1.5 py-0.5 rounded">
                 ESC
               </kbd>
             </div>
@@ -231,11 +231,11 @@ export function GlobalSearch({ isOpen, onClose }: Props) {
                         <div className="flex items-center justify-between px-5 pt-4 pb-2">
                           <div className="flex items-center gap-2">
                             <Icon className={`w-3.5 h-3.5 ${meta.color}`} />
-                            <span className="text-[10px] font-mono uppercase tracking-widest text-neutral-400">
+                            <span className="text-xs font-mono uppercase tracking-widest text-neutral-400">
                               {meta.label}
                             </span>
                           </div>
-                          <span className="text-[10px] font-mono text-neutral-400">
+                          <span className="text-xs font-mono text-neutral-400">
                             {counts[cat]}
                           </span>
                         </div>
@@ -324,7 +324,7 @@ export function GlobalSearch({ isOpen, onClose }: Props) {
                       return (
                         <div key={cat} className="flex flex-col items-center gap-1">
                           <Icon className={`w-4 h-4 ${meta.color} opacity-40`} />
-                          <span className="text-[9px] font-mono text-neutral-400 hidden md:block">{meta.label}</span>
+                          <span className="text-xs font-mono text-neutral-400 hidden md:block">{meta.label}</span>
                         </div>
                       );
                     })}
@@ -336,16 +336,16 @@ export function GlobalSearch({ isOpen, onClose }: Props) {
             {/* Footer */}
             <div className="border-t border-white/10 px-5 py-2.5 flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <span className="text-[10px] font-mono text-neutral-400 flex items-center gap-1">
-                  <kbd className="border border-neutral-800 px-1 rounded text-[9px]">↑↓</kbd> navigate
+                <span className="text-xs font-mono text-neutral-400 flex items-center gap-1">
+                  <kbd className="border border-neutral-800 px-1 rounded text-xs">↑↓</kbd> navigate
                 </span>
-                <span className="text-[10px] font-mono text-neutral-400 flex items-center gap-1">
-                  <kbd className="border border-neutral-800 px-1 rounded text-[9px]">↵</kbd> open
+                <span className="text-xs font-mono text-neutral-400 flex items-center gap-1">
+                  <kbd className="border border-neutral-800 px-1 rounded text-xs">↵</kbd> open
                 </span>
               </div>
-              <span className="text-[10px] font-mono text-neutral-400 hidden md:flex items-center gap-1">
-                <kbd className="border border-neutral-800 px-1 rounded text-[9px]">⌘</kbd>
-                <kbd className="border border-neutral-800 px-1 rounded text-[9px]">K</kbd>
+              <span className="text-xs font-mono text-neutral-400 hidden md:flex items-center gap-1">
+                <kbd className="border border-neutral-800 px-1 rounded text-xs">⌘</kbd>
+                <kbd className="border border-neutral-800 px-1 rounded text-xs">K</kbd>
               </span>
             </div>
           </motion.div>

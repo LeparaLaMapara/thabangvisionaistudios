@@ -272,12 +272,12 @@ export default function AdminProductionCategoriesPage() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-white/10 bg-white/5">
-                <th className="text-left px-4 py-3 text-[10px] font-mono text-neutral-400 uppercase">#</th>
-                <th className="text-left px-4 py-3 text-[10px] font-mono text-neutral-400 uppercase">Name</th>
-                <th className="text-left px-4 py-3 text-[10px] font-mono text-neutral-400 uppercase hidden md:table-cell">Slug</th>
-                <th className="text-left px-4 py-3 text-[10px] font-mono text-neutral-400 uppercase hidden lg:table-cell">Rate</th>
-                <th className="text-left px-4 py-3 text-[10px] font-mono text-neutral-400 uppercase">Status</th>
-                <th className="text-right px-4 py-3 text-[10px] font-mono text-neutral-400 uppercase">Actions</th>
+                <th className="text-left px-4 py-3 text-xs font-mono text-neutral-400 uppercase">#</th>
+                <th className="text-left px-4 py-3 text-xs font-mono text-neutral-400 uppercase">Name</th>
+                <th className="text-left px-4 py-3 text-xs font-mono text-neutral-400 uppercase hidden md:table-cell">Slug</th>
+                <th className="text-left px-4 py-3 text-xs font-mono text-neutral-400 uppercase hidden lg:table-cell">Rate</th>
+                <th className="text-left px-4 py-3 text-xs font-mono text-neutral-400 uppercase">Status</th>
+                <th className="text-right px-4 py-3 text-xs font-mono text-neutral-400 uppercase">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -304,10 +304,10 @@ export default function AdminProductionCategoriesPage() {
                   </td>
                   <td className="px-4 py-3">
                     <p className="font-medium text-white">{item.name}</p>
-                    <p className="text-[10px] text-neutral-400">{(item.sub_types ?? []).join(', ')}</p>
+                    <p className="text-xs text-neutral-400">{(item.sub_types ?? []).join(', ')}</p>
                   </td>
                   <td className="px-4 py-3 hidden md:table-cell">
-                    <code className="text-[10px] text-neutral-400 bg-white/5 px-2 py-0.5 rounded">{item.slug}</code>
+                    <code className="text-xs text-neutral-400 bg-white/5 px-2 py-0.5 rounded">{item.slug}</code>
                   </td>
                   <td className="px-4 py-3 hidden lg:table-cell">
                     <span className="text-[#D4A843] font-mono text-xs">
@@ -317,7 +317,7 @@ export default function AdminProductionCategoriesPage() {
                   <td className="px-4 py-3">
                     <button
                       onClick={() => togglePublish(item)}
-                      className={`flex items-center gap-1 text-[10px] font-mono uppercase ${
+                      className={`flex items-center gap-1 text-xs font-mono uppercase ${
                         item.is_published ? 'text-emerald-400' : 'text-neutral-400'
                       }`}
                     >
@@ -364,7 +364,7 @@ export default function AdminProductionCategoriesPage() {
             <div className="p-6 space-y-4">
               {/* Name */}
               <div>
-                <label className="block text-[10px] font-mono text-neutral-400 uppercase mb-1">Name</label>
+                <label className="block text-xs font-mono text-neutral-400 uppercase mb-1">Name</label>
                 <input
                   value={form.name}
                   onChange={(e) => handleNameChange(e.target.value)}
@@ -375,7 +375,7 @@ export default function AdminProductionCategoriesPage() {
 
               {/* Slug */}
               <div>
-                <label className="block text-[10px] font-mono text-neutral-400 uppercase mb-1">Slug</label>
+                <label className="block text-xs font-mono text-neutral-400 uppercase mb-1">Slug</label>
                 <input
                   value={form.slug}
                   onChange={(e) => setForm(f => ({ ...f, slug: e.target.value }))}
@@ -386,7 +386,7 @@ export default function AdminProductionCategoriesPage() {
 
               {/* Description */}
               <div>
-                <label className="block text-[10px] font-mono text-neutral-400 uppercase mb-1">Description</label>
+                <label className="block text-xs font-mono text-neutral-400 uppercase mb-1">Description</label>
                 <textarea
                   value={form.description}
                   onChange={(e) => setForm(f => ({ ...f, description: e.target.value }))}
@@ -397,7 +397,7 @@ export default function AdminProductionCategoriesPage() {
 
               {/* Sub-types */}
               <div>
-                <label className="block text-[10px] font-mono text-neutral-400 uppercase mb-1">Sub-types (comma-separated)</label>
+                <label className="block text-xs font-mono text-neutral-400 uppercase mb-1">Sub-types (comma-separated)</label>
                 <input
                   value={form.sub_types}
                   onChange={(e) => setForm(f => ({ ...f, sub_types: e.target.value }))}
@@ -409,7 +409,7 @@ export default function AdminProductionCategoriesPage() {
               {/* Rate + Unit */}
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-[10px] font-mono text-neutral-400 uppercase mb-1">Starting Rate (ZAR)</label>
+                  <label className="block text-xs font-mono text-neutral-400 uppercase mb-1">Starting Rate (ZAR)</label>
                   <input
                     type="number"
                     value={form.starting_rate}
@@ -418,7 +418,7 @@ export default function AdminProductionCategoriesPage() {
                   />
                 </div>
                 <div>
-                  <label className="block text-[10px] font-mono text-neutral-400 uppercase mb-1">Unit</label>
+                  <label className="block text-xs font-mono text-neutral-400 uppercase mb-1">Unit</label>
                   <select
                     value={form.starting_unit}
                     onChange={(e) => setForm(f => ({ ...f, starting_unit: e.target.value }))}
@@ -431,7 +431,7 @@ export default function AdminProductionCategoriesPage() {
 
               {/* Project Type */}
               <div>
-                <label className="block text-[10px] font-mono text-neutral-400 uppercase mb-1">Project Type (DB filter key)</label>
+                <label className="block text-xs font-mono text-neutral-400 uppercase mb-1">Project Type (DB filter key)</label>
                 <input
                   value={form.project_type}
                   onChange={(e) => setForm(f => ({ ...f, project_type: e.target.value }))}
@@ -442,7 +442,7 @@ export default function AdminProductionCategoriesPage() {
 
               {/* Creator Keywords */}
               <div>
-                <label className="block text-[10px] font-mono text-neutral-400 uppercase mb-1">Creator Keywords (comma-separated)</label>
+                <label className="block text-xs font-mono text-neutral-400 uppercase mb-1">Creator Keywords (comma-separated)</label>
                 <input
                   value={form.creator_keywords}
                   onChange={(e) => setForm(f => ({ ...f, creator_keywords: e.target.value }))}
@@ -453,7 +453,7 @@ export default function AdminProductionCategoriesPage() {
 
               {/* Cover Image URL */}
               <div>
-                <label className="block text-[10px] font-mono text-neutral-400 uppercase mb-1">Cover Image URL (optional)</label>
+                <label className="block text-xs font-mono text-neutral-400 uppercase mb-1">Cover Image URL (optional)</label>
                 <input
                   value={form.cover_image_url}
                   onChange={(e) => setForm(f => ({ ...f, cover_image_url: e.target.value }))}

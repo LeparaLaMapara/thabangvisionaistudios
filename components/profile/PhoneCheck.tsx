@@ -25,7 +25,7 @@ export function PhoneCheck({ phone, verified }: { phone: string; verified: boole
 
   if (step === 'done') {
     return (
-      <p className="flex items-center gap-2 text-[11px] font-mono text-emerald-400 mt-2">
+      <p className="flex items-center gap-2 text-xs font-mono text-emerald-400 mt-2">
         <CheckCircle2 className="w-3.5 h-3.5" aria-hidden="true" /> Number confirmed
       </p>
     );
@@ -44,7 +44,7 @@ export function PhoneCheck({ phone, verified }: { phone: string; verified: boole
               setNote(`We sent a code to ${json.sentTo}.`);
             } else setNote(json.error ?? 'Could not send a code.');
           }}
-          className="min-h-[44px] px-4 rounded border border-[#D4A843] text-[#D4A843] text-[10px] font-mono uppercase tracking-widest disabled:opacity-40"
+          className="min-h-[44px] px-4 rounded border border-[#D4A843] text-[#D4A843] text-xs font-mono uppercase tracking-widest disabled:opacity-40"
         >
           {busy ? 'Sending…' : 'Confirm this number by SMS'}
         </button>
@@ -69,13 +69,13 @@ export function PhoneCheck({ phone, verified }: { phone: string; verified: boole
               if (ok) setStep('done');
               else setNote(json.error ?? 'That did not work.');
             }}
-            className="min-h-[44px] px-4 rounded bg-[#D4A843] text-[#050505] text-[10px] font-mono uppercase tracking-widest disabled:opacity-40"
+            className="min-h-[44px] px-4 rounded bg-[#D4A843] text-[#050505] text-xs font-mono uppercase tracking-widest disabled:opacity-40"
           >
             {busy ? 'Checking…' : 'Confirm'}
           </button>
         </div>
       )}
-      {note && <p className="text-[11px] font-mono text-neutral-400">{note}</p>}
+      {note && <p className="text-xs font-mono text-neutral-400">{note}</p>}
     </div>
   );
 }

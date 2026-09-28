@@ -13,7 +13,7 @@ export default function BankingPage() {
     >
       <DashboardSubTabs tabs={ACCOUNT_TABS_CREATOR} />
       <div className="mb-8">
-        <p className="text-[10px] font-mono uppercase tracking-widest text-neutral-400 mb-2">
+        <p className="text-xs font-mono uppercase tracking-widest text-neutral-400 mb-2">
           Payouts
         </p>
         <h2 className="text-lg font-display font-medium uppercase text-white">

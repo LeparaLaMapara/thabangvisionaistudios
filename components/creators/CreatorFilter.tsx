@@ -28,7 +28,7 @@ export default function CreatorFilter({ creators }: CreatorFilterProps) {
           <button
             key={option}
             onClick={() => setActiveFilter(option)}
-            className={`text-[10px] font-mono uppercase tracking-widest px-4 py-2 border transition-all min-h-[36px] ${
+            className={`text-xs font-mono uppercase tracking-widest px-4 py-2 border transition-all min-h-[36px] ${
               activeFilter === option
                 ? 'bg-[#D4A843] text-black border-[#D4A843]'
                 : 'bg-transparent text-neutral-400 border-white/10 hover:border-[#D4A843]/30 hover:text-[#D4A843]'

@@ -136,11 +136,11 @@ export default function HandoverPage() {
 
   return (
     <div className="max-w-2xl mx-auto p-6 md:p-10 space-y-8">
-      <Link href="/admin/bookings" className="inline-flex items-center gap-2 text-[10px] font-mono uppercase tracking-widest text-neutral-400">
+      <Link href="/admin/bookings" className="inline-flex items-center gap-2 text-xs font-mono uppercase tracking-widest text-neutral-400">
         <ArrowLeft className="w-3 h-3" /> Bookings
       </Link>
       <header>
-        <p className="text-[10px] font-mono uppercase tracking-widest text-neutral-400 mb-1">Handover</p>
+        <p className="text-xs font-mono uppercase tracking-widest text-neutral-400 mb-1">Handover</p>
         <h1 className="text-2xl font-display text-white tracking-tight">
           {data?.rental?.title ?? 'Loading…'}
           {(data?.booking.quantity ?? 1) > 1 ? ` x${data?.booking.quantity}` : ''}

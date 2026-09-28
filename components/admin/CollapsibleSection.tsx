@@ -30,7 +30,7 @@ export function CollapsibleSection({
             open ? '' : '-rotate-90'
           }`}
         />
-        <p className="text-[9px] font-mono uppercase tracking-[0.25em] text-neutral-400 group-hover:text-neutral-400 transition-colors flex items-center gap-2">
+        <p className="text-xs font-mono uppercase tracking-[0.25em] text-neutral-400 group-hover:text-neutral-400 transition-colors flex items-center gap-2">
           {label}
           {badge}
         </p>

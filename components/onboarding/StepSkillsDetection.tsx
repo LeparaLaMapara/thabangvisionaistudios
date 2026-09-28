@@ -85,7 +85,7 @@ export default function StepSkillsDetection({ analyses, onComplete }: StepSkills
           <h2 className="text-sm font-mono font-bold uppercase tracking-widest text-white mb-1">
             Detecting Your Skills
           </h2>
-          <p className="text-[10px] font-mono text-neutral-400 leading-relaxed">
+          <p className="text-xs font-mono text-neutral-400 leading-relaxed">
             Analyzing your portfolio to identify your specialties...
           </p>
         </div>
@@ -103,7 +103,7 @@ export default function StepSkillsDetection({ analyses, onComplete }: StepSkills
         <h2 className="text-sm font-mono font-bold uppercase tracking-widest text-white mb-1">
           Your Skills
         </h2>
-        <p className="text-[10px] font-mono text-neutral-400 leading-relaxed">
+        <p className="text-xs font-mono text-neutral-400 leading-relaxed">
           Based on your portfolio, here are your detected specialties. Uncheck any that don&apos;t apply.
         </p>
       </div>
@@ -145,7 +145,7 @@ export default function StepSkillsDetection({ analyses, onComplete }: StepSkills
                   style={{ width: `${skill.percentage}%` }}
                 />
               </div>
-              <span className="text-[10px] font-mono text-neutral-400 w-8 text-right">
+              <span className="text-xs font-mono text-neutral-400 w-8 text-right">
                 {skill.percentage}%
               </span>
             </div>
@@ -163,7 +163,7 @@ export default function StepSkillsDetection({ analyses, onComplete }: StepSkills
         type="button"
         onClick={handleConfirm}
         disabled={skills.filter(s => s.selected).length === 0}
-        className="w-full bg-[#D4A843] text-black py-3 px-6 text-[10px] font-mono font-bold uppercase tracking-widest hover:opacity-80 transition-opacity disabled:opacity-20 disabled:cursor-not-allowed min-h-[44px]"
+        className="w-full bg-[#D4A843] text-black py-3 px-6 text-xs font-mono font-bold uppercase tracking-widest hover:opacity-80 transition-opacity disabled:opacity-20 disabled:cursor-not-allowed min-h-[44px]"
       >
         Confirm Skills
       </button>

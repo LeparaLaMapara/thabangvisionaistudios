@@ -83,7 +83,7 @@ export default function GigsList({ gigs: initialGigs }: GigsListProps) {
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
-            className={`text-[10px] font-mono uppercase tracking-widest px-3 py-2 border transition-all min-h-[36px] ${
+            className={`text-xs font-mono uppercase tracking-widest px-3 py-2 border transition-all min-h-[36px] ${
               activeTab === tab
                 ? 'bg-white text-black border-white'
                 : 'bg-transparent text-neutral-400 border-white/10 hover:border-white/30'
@@ -91,7 +91,7 @@ export default function GigsList({ gigs: initialGigs }: GigsListProps) {
           >
             {STUDIO.creators.statusLabels[tab as keyof typeof STUDIO.creators.statusLabels] || 'All'}{' '}
             {counts[tab as keyof typeof counts] > 0 && (
-              <span className="ml-1 text-[9px]">({counts[tab as keyof typeof counts]})</span>
+              <span className="ml-1 text-xs">({counts[tab as keyof typeof counts]})</span>
             )}
           </button>
         ))}
@@ -113,7 +113,7 @@ export default function GigsList({ gigs: initialGigs }: GigsListProps) {
                   </h3>
                   <StatusBadge status={gig.status} />
                 </div>
-                <span className="text-[9px] font-mono text-neutral-400 flex-shrink-0">
+                <span className="text-xs font-mono text-neutral-400 flex-shrink-0">
                   via {gig.booked_via}
                 </span>
               </div>
@@ -122,7 +122,7 @@ export default function GigsList({ gigs: initialGigs }: GigsListProps) {
                 {gig.description}
               </p>
 
-              <div className="flex flex-wrap gap-4 text-[10px] font-mono text-neutral-400">
+              <div className="flex flex-wrap gap-4 text-xs font-mono text-neutral-400">
                 {gig.preferred_dates && (
                   <span className="flex items-center gap-1">
                     <Calendar className="w-3 h-3" /> {gig.preferred_dates}
@@ -143,7 +143,7 @@ export default function GigsList({ gigs: initialGigs }: GigsListProps) {
                 )}
               </div>
 
-              <p className="text-[9px] font-mono text-neutral-400 mt-3 italic">
+              <p className="text-xs font-mono text-neutral-400 mt-3 italic">
                 {STATUS_MESSAGES[gig.status] || ''}
               </p>
 
@@ -151,7 +151,7 @@ export default function GigsList({ gigs: initialGigs }: GigsListProps) {
               {gig.status === 'pending' && (
                 <div className="mt-3">
                   {hasActiveGig ? (
-                    <p className="text-[10px] font-mono text-amber-400/80">
+                    <p className="text-xs font-mono text-amber-400/80">
                       Finish your current gig before accepting a new one.
                     </p>
                   ) : (
@@ -159,14 +159,14 @@ export default function GigsList({ gigs: initialGigs }: GigsListProps) {
                       <button
                         onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleStatusUpdate(gig.id, 'confirmed'); }}
                         disabled={!!loadingAction[gig.id]}
-                        className="text-[10px] font-mono uppercase tracking-widest px-3 py-1.5 bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="text-xs font-mono uppercase tracking-widest px-3 py-1.5 bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         {loadingAction[gig.id] === 'confirmed' ? 'Accepting...' : 'Accept'}
                       </button>
                       <button
                         onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleStatusUpdate(gig.id, 'declined'); }}
                         disabled={!!loadingAction[gig.id]}
-                        className="text-[10px] font-mono uppercase tracking-widest px-3 py-1.5 bg-red-500/10 text-red-400 border border-red-500/30 hover:bg-red-500/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="text-xs font-mono uppercase tracking-widest px-3 py-1.5 bg-red-500/10 text-red-400 border border-red-500/30 hover:bg-red-500/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         {loadingAction[gig.id] === 'declined' ? 'Declining...' : 'Decline'}
                       </button>
@@ -179,7 +179,7 @@ export default function GigsList({ gigs: initialGigs }: GigsListProps) {
                   <button
                     onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleStatusUpdate(gig.id, 'completed'); }}
                     disabled={!!loadingAction[gig.id]}
-                    className="text-[10px] font-mono uppercase tracking-widest px-3 py-1.5 bg-blue-500/10 text-blue-400 border border-blue-500/30 hover:bg-blue-500/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="text-xs font-mono uppercase tracking-widest px-3 py-1.5 bg-blue-500/10 text-blue-400 border border-blue-500/30 hover:bg-blue-500/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {loadingAction[gig.id] === 'completed' ? 'Completing...' : 'Mark Complete'}
                   </button>
@@ -190,7 +190,7 @@ export default function GigsList({ gigs: initialGigs }: GigsListProps) {
                   <button
                     onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleStatusUpdate(gig.id, 'in_progress'); }}
                     disabled={!!loadingAction[gig.id]}
-                    className="text-[10px] font-mono uppercase tracking-widest px-3 py-1.5 bg-cyan-500/10 text-cyan-400 border border-cyan-500/30 hover:bg-cyan-500/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="text-xs font-mono uppercase tracking-widest px-3 py-1.5 bg-cyan-500/10 text-cyan-400 border border-cyan-500/30 hover:bg-cyan-500/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {loadingAction[gig.id] === 'in_progress' ? 'Starting...' : 'Start Work'}
                   </button>
@@ -201,14 +201,14 @@ export default function GigsList({ gigs: initialGigs }: GigsListProps) {
                   <button
                     onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleStatusUpdate(gig.id, 'completed'); }}
                     disabled={!!loadingAction[gig.id]}
-                    className="text-[10px] font-mono uppercase tracking-widest px-3 py-1.5 bg-blue-500/10 text-blue-400 border border-blue-500/30 hover:bg-blue-500/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="text-xs font-mono uppercase tracking-widest px-3 py-1.5 bg-blue-500/10 text-blue-400 border border-blue-500/30 hover:bg-blue-500/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {loadingAction[gig.id] === 'completed' ? 'Completing...' : 'Mark Complete'}
                   </button>
                 </div>
               )}
 
-              <p className="text-[9px] font-mono text-neutral-400 mt-2">
+              <p className="text-xs font-mono text-neutral-400 mt-2">
                 Submitted {new Date(gig.created_at).toLocaleDateString('en-ZA', {
                   day: 'numeric',
                   month: 'short',
@@ -221,7 +221,7 @@ export default function GigsList({ gigs: initialGigs }: GigsListProps) {
       ) : (
         <div className="text-center py-16 text-neutral-400">
           <p className="text-sm font-mono">No gigs found.</p>
-          <p className="text-[10px] font-mono text-neutral-400 mt-1">
+          <p className="text-xs font-mono text-neutral-400 mt-1">
             Gigs appear here when clients book you through the platform.
           </p>
         </div>
@@ -248,7 +248,7 @@ function StatusBadge({ status }: { status: string }) {
 
   return (
     <span
-      className={`inline-block text-[8px] font-mono uppercase tracking-widest border px-2 py-0.5 mt-1 ${colors[status] || 'text-neutral-400 border-white/10'}`}
+      className={`inline-block text-xs font-mono uppercase tracking-widest border px-2 py-0.5 mt-1 ${colors[status] || 'text-neutral-400 border-white/10'}`}
     >
       {label}
     </span>
