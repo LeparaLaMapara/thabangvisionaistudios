@@ -14,8 +14,25 @@ export function providerForReference(reference: string): PaymentProvider {
   return isYocoReference(reference) ? yoco : paystack;
 }
 
-/** Refund through whichever provider took the payment. Amount in rands. */
-export function refundPayment(reference: string, amount?: number): Promise<{ success: boolean; error?: string }> {
+/** A payment the team took by hand (EFT, cash, a card link) and recorded as "manual:<method>:<ref>". */
+export function isManualReference(reference: string | null | undefined): boolean {
+  return typeof reference === 'string' && reference.startsWith('manual:');
+}
+
+export function manualReference(method: 'eft' | 'cash' | 'card_link', ref: string): string {
+  const clean = ref.replace(/[^\w\-./]/g, '').slice(0, 60) || 'none';
+  return `manual:${method}:${clean}`;
+}
+
+/**
+ * Refund through whichever provider took the payment. Amount in rands.
+ * Money taken by hand goes back by hand: this says so rather than asking a
+ * payment provider to refund a payment it never saw.
+ */
+export async function refundPayment(reference: string, amount?: number): Promise<{ success: boolean; error?: string; manual?: boolean }> {
+  if (isManualReference(reference)) {
+    return { success: false, manual: true, error: 'Paid by EFT or cash: refund it by hand and record it.' };
+  }
   return providerForReference(reference).refund(reference, amount);
 }
 
@@ -27,6 +44,15 @@ export function refundPayment(reference: string, amount?: number): Promise<{ suc
  * payment_confirmations (only the server can write that table).
  */
 export async function verifyPayment(reference: string): Promise<{ success: boolean; amount: number }> {
+  if (isManualReference(reference)) {
+    // Recorded by an admin in /admin/bookings (mark as paid); trusted as such.
+    const { data } = await createAdminClient()
+      .from('payment_confirmations')
+      .select('status, amount')
+      .eq('reference', reference)
+      .maybeSingle();
+    return { success: data?.status === 'COMPLETE', amount: Number(data?.amount ?? 0) };
+  }
   if (!isYocoReference(reference)) {
     const out = await verifyPaystack(reference);
     return { success: out.success, amount: out.amount };

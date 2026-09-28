@@ -176,7 +176,7 @@ export default function BookingDetailPage() {
       });
       if (res.ok) {
         const updated = await res.json();
-        setBooking(updated);
+        setBooking((prev) => (prev ? { ...prev, ...updated } : updated));
       }
     } catch {
       // silently fail

@@ -10,6 +10,7 @@ import { STUDIO } from '@/lib/constants';
 import { autoPublishCreatorProductions } from '@/lib/supabase/queries/smartProductions';
 import { effectiveHoldMinutes } from '@/lib/rental/availability-server';
 import { notifyClient } from '@/lib/bookings/notify-client';
+import { loadNoticeBookings, sendGearNotice } from '@/lib/rental/notices';
 import { autoSendWelcomes, draftMissingWelcomes } from '@/lib/greetings/process';
 
 /**
@@ -650,6 +651,42 @@ Please contact the client and the creator. They are not paid out or refunded aut
   } catch (err) {
     console.error('[daily-maintenance] POPIA retention failed:', err);
     results.popiaRetention = { error: String(err) };
+  }
+
+  // ─── 13b. Day-before reminders: collect tomorrow, return tomorrow ─────────
+  // One message per order (a cart order is several lines), never twice.
+  try {
+    const tomorrow = new Date(now.getTime() + 24 * 60 * 60 * 1000)
+      .toLocaleDateString('en-CA', { timeZone: 'Africa/Johannesburg' });
+    const sent: Record<string, number> = { collect: 0, return: 0 };
+    for (const [kind, status, column] of [
+      ['collect_tomorrow', ['confirmed'], 'start_date'],
+      ['return_tomorrow', ['active'], 'end_date'],
+    ] as const) {
+      const { data: due } = await supabase
+        .from('equipment_bookings')
+        .select('id, checkout_group_id')
+        .in('status', status as unknown as string[])
+        .eq(column, tomorrow);
+      const orders = new Map<string, string[]>();
+      for (const b of due ?? []) {
+        const key = b.checkout_group_id ?? b.id;
+        orders.set(key, [...(orders.get(key) ?? []), b.id]);
+      }
+      for (const ids of orders.values()) {
+        const { count } = await supabase
+          .from('notifications')
+          .select('id', { count: 'exact', head: true })
+          .eq('type', `gear_${kind}`)
+          .eq('link', `/dashboard/bookings/${ids[0]}`);
+        if ((count ?? 0) > 0) continue;
+        await sendGearNotice(kind, await loadNoticeBookings(ids));
+        sent[kind === 'collect_tomorrow' ? 'collect' : 'return']++;
+      }
+    }
+    results.gearReminders = sent;
+  } catch (err) {
+    results.gearRemindersError = String(err);
   }
 
   // ─── 14. Welcome anyone the signup trigger missed (last 3 days) ──────────

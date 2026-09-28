@@ -270,7 +270,7 @@ ${PRODUCTION_SERVICES.edge.map(e => `- ${e}`).join('\n')}
 ${PRODUCTION_PACKAGES.map((pk) => { const pr = calculatePackagePrice(pk); return `- ${pk.name}: R${pr.subtotal} excl. VAT (R${pr.total} incl.) — ${pk.description} — Book: /book?production=${pk.id}`; }).join('\n')}
 
 ===== RENTAL TERMS =====
-Deposit: a fixed, refundable amount per item, shown on each item before booking (paid at collection, refunded after the gear comes back undamaged)
+Deposit: a fixed, refundable amount per item, shown on each item before booking (paid at checkout with the order, refunded after the gear comes back undamaged; late fees and damage are taken from it)
 Notice: book at least ${STUDIO.rental.minLeadTimeHours} hours ahead
 ID check: a photo of the ID and a selfie, once, before the first rental (no certified copy); a person checks it, ${STUDIO.verification.reviewTime}
 Delivery: collect in ${STUDIO.fulfilment.dispatchFrom.name}, Johannesburg, or delivery within ${STUDIO.fulfilment.delivery.maxRadiusKm} km at R${STUDIO.fulfilment.delivery.ratePerKm}/km (minimum R${STUDIO.fulfilment.delivery.minimumFee})

@@ -1,5 +1,6 @@
 import { createAdminClient } from '@/lib/supabase/server';
 import type { WebhookResult } from '@/lib/payments';
+import { loadNoticeBookings, sendGearNotice } from '@/lib/rental/notices';
 
 /**
  * What happens once a payment provider tells us, with a verified signature,
@@ -87,11 +88,12 @@ export async function handlePaymentComplete(webhook: WebhookResult) {
       for (const booking of groupBookings) {
         await supabase
           .from('booking_payments')
-          .update({ status: 'complete', payfast_payment_id: providerPaymentId })
+          .update({ status: 'succeeded', payfast_payment_id: providerPaymentId })
           .eq('booking_id', booking.id)
           .eq('status', 'pending');
       }
       console.log(`[payment-webhook] Cart checkout confirmed: group=${checkoutGroupId} count=${groupBookings.length}`);
+      await sendGearNotice('confirmed', await loadNoticeBookings(groupBookings.map((b: { id: string }) => b.id)));
     }
   } else if (paymentType === 'equipment_booking') {
     // Reconcile payment amount before confirming
@@ -131,6 +133,7 @@ export async function handlePaymentComplete(webhook: WebhookResult) {
     if (bookingErr) {
       console.error('[payment-webhook] Failed to confirm booking:', bookingErr.message);
     } else {
+      await sendGearNotice('confirmed', await loadNoticeBookings([paymentId]));
       const { data: existingPayment } = await supabase
         .from('booking_payments')
         .select('id')
@@ -146,7 +149,7 @@ export async function handlePaymentComplete(webhook: WebhookResult) {
           payfast_payment_id: providerPaymentId,
           amount: amountGross,
           currency: 'ZAR',
-          status: 'complete',
+          status: 'succeeded',
         });
       }
 

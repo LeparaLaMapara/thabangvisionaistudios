@@ -101,7 +101,14 @@ export async function GET(
     ? await quoteCancellation(data as BookingForQuote)
     : null;
 
-  return NextResponse.json({ ...data, cancellation });
+  // The page names the booking by what was rented, not "Equipment".
+  const { data: rental } = await supabase
+    .from('smart_rentals')
+    .select('title')
+    .eq('id', data.rental_id)
+    .maybeSingle();
+
+  return NextResponse.json({ ...data, rental_title: rental?.title ?? null, cancellation });
 }
 
 export async function PUT(
