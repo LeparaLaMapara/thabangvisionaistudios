@@ -1,16 +1,16 @@
 export const revalidate = 60;
 
-import { notFound } from 'next/navigation';
+import { notFound, permanentRedirect } from 'next/navigation';
 import { PRODUCTION_CATEGORIES, PRODUCTION_PACKAGES, STUDIO } from '@/lib/constants';
 import { getCategoryBySlug } from '@/lib/supabase/queries/productionCategories';
 import { getStudioProductionsByType, getCreatorProductionsByType } from '@/lib/supabase/queries/smartProductions';
-import { getCrewBySpecializationsAndLocation, getCrewBySpecializations } from '@/lib/supabase/queries/crew';
-import { getCityBySlug, COUNTRY_SLUG, COUNTRY_NAME } from '@/lib/seo/cities';
+import { getCrewBySpecializationsAndLocation } from '@/lib/supabase/queries/crew';
+import { getCityBySlug, COUNTRY_SLUG, deliversRentals } from '@/lib/seo/cities';
 import { buildPageMetadata } from '@/lib/seo/metadata';
 import { serviceJsonLd, breadcrumbJsonLd, renderJsonLd } from '@/lib/seo/structured-data';
 import CategoryPageClient from '../../CategoryPageClient';
+import { categoryFromPrice } from '@/lib/productions/from-price';
 import { AskUbunyeButton } from '@/components/ubunye/AskUbunyeButton';
-import { AlsoAvailableIn } from '@/components/seo/AlsoAvailableIn';
 import { RelatedCategories } from '@/components/seo/RelatedCategories';
 
 interface Props {
@@ -25,11 +25,11 @@ export async function generateMetadata({ params }: Props) {
   if (!category) return { title: 'Not Found' };
 
   const city = getCityBySlug(citySlug);
-  const locationName = city?.name ?? (citySlug === COUNTRY_SLUG ? COUNTRY_NAME : null);
-  if (!locationName) return { title: 'Not Found' };
+  if (!city) return { title: 'Not Found' };
+  const locationName = city.name;
 
   const title = `${category.name} in ${locationName}`;
-  const description = `Find ${category.name.toLowerCase()} professionals in ${locationName}. ${category.description} Book online with ThabangVision.`;
+  const description = `${category.name} by request in ${locationName}. ${category.description} Send a request and we confirm the shoot with you.`;
 
   return buildPageMetadata({
     title,
@@ -47,29 +47,31 @@ export default async function StudioLocationPage({ params }: Props) {
   const category = dbCategory ?? PRODUCTION_CATEGORIES.find((c) => c.slug === slug);
   if (!category) notFound();
 
+  // City pages are kept for search in the Johannesburg area only (the same
+  // Gauteng cities gear reaches). Everywhere else, and "All South Africa",
+  // goes to the category page: no creators are listed in other cities.
+  if (citySlug === COUNTRY_SLUG) permanentRedirect(`/studio/category/${slug}`);
   const city = getCityBySlug(citySlug);
-  const isCountry = citySlug === COUNTRY_SLUG;
-  if (!city && !isCountry) notFound();
+  if (!city) notFound();
+  if (!deliversRentals(city)) permanentRedirect(`/studio/category/${slug}`);
 
-  const locationName = city?.name ?? COUNTRY_NAME;
+  const locationName = city.name;
   const packages = PRODUCTION_PACKAGES.filter((p) => p.category === slug);
 
   const [productions, creatorProductions, creators] = await Promise.all([
     getStudioProductionsByType(category.projectType),
     getCreatorProductionsByType(category.projectType),
-    city
-      ? getCrewBySpecializationsAndLocation(category.creatorKeywords, city.name)
-      : getCrewBySpecializations(category.creatorKeywords),
+    getCrewBySpecializationsAndLocation(category.creatorKeywords, city.name),
   ]);
 
   const jsonLd = [
     serviceJsonLd({
       name: `${category.name} in ${locationName}`,
-      description: `${category.description} Available in ${locationName}.`,
+      description: `${category.description} By request in ${locationName}.`,
       url: `${STUDIO.meta.url}/studio/category/${slug}/in/${citySlug}`,
-      startingRate: category.startingRate,
+      startingRate: categoryFromPrice(packages) ?? undefined,
       imageUrl: category.coverImageUrl ?? undefined,
-      city: city?.name,
+      city: city.name,
     }),
     breadcrumbJsonLd([
       { name: 'Home', url: STUDIO.meta.url },
@@ -95,11 +97,10 @@ export default async function StudioLocationPage({ params }: Props) {
         creators={creators}
         locationName={locationName}
       />
-      <AlsoAvailableIn basePath={`/studio/category/${slug}`} currentCitySlug={citySlug} />
       <RelatedCategories currentSlug={slug} type="studio" locationSlug={citySlug} />
       <AskUbunyeButton
         prompt={`I need a quote for ${category.name.toLowerCase()} in ${locationName}`}
-        label="Get an instant AI quote"
+        label="Ask Ubunye about this"
       />
     </>
   );

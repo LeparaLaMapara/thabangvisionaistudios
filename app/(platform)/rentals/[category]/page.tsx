@@ -4,9 +4,8 @@ import { RENTAL_CATEGORIES, STUDIO } from '@/lib/constants';
 import { buildPageMetadata } from '@/lib/seo/metadata';
 import { serviceJsonLd, breadcrumbJsonLd, renderJsonLd } from '@/lib/seo/structured-data';
 import RentalCategoryClient from './RentalCategoryClient';
-import { AlsoAvailableIn } from '@/components/seo/AlsoAvailableIn';
-import { RENTAL_CITIES } from '@/lib/seo/cities';
 import { RelatedCategories } from '@/components/seo/RelatedCategories';
+import { collectionPointWithCity } from '@/lib/rental/collection-point';
 
 export const revalidate = 60;
 
@@ -21,7 +20,7 @@ export async function generateMetadata({
 
   return buildPageMetadata({
     title: `${cat.label} Rentals — Equipment Hire`,
-    description: `${cat.description} Collect in Johannesburg or have it delivered within ${STUDIO.fulfilment.delivery.maxRadiusKm} km. Daily rates, book online with ThabangVision.`,
+    description: `${cat.description} Collect at ${collectionPointWithCity()}; delivery within ${STUDIO.fulfilment.delivery.maxRadiusKm} km after your first hire. Daily rates, book online with ${STUDIO.name}.`,
     path: `/rentals/${category}`,
   });
 }
@@ -63,7 +62,6 @@ export default async function RentalCategoryPage({
         />
       ))}
       <RentalCategoryClient rentals={rentals} category={category} />
-      <AlsoAvailableIn basePath={`/rentals/${category}`} cities={RENTAL_CITIES} />
       <RelatedCategories currentSlug={category} type="rentals" />
     </>
   );

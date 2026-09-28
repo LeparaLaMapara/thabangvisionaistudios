@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation';
 import { Calendar, Clock, MapPin, Camera, Package } from 'lucide-react';
 import { quoteHourly, quotePackage } from '@/lib/bookings/pricing';
 import { toLocalYmd } from '@/lib/rental/dates';
+import { formatRand, withServiceVat } from '@/lib/format/money';
+import { PaymentsNotOpenNote } from '@/components/booking/PaymentsNotOpenNote';
 
 /** A studio package booked at its own price (see app/(platform)/book/page.tsx). */
 export interface BookingPackage {
@@ -53,6 +55,8 @@ interface BookingFormProps {
   minHours: number;
   maxHours: number;
   pkg?: BookingPackage | null;
+  /** onlinePaymentsOpen() from the server. */
+  paymentsOpen: boolean;
 }
 
 export function BookingForm({
@@ -69,6 +73,7 @@ export function BookingForm({
   minHours,
   maxHours,
   pkg = null,
+  paymentsOpen,
 }: BookingFormProps) {
   const router = useRouter();
   const [category, setCategory] = useState(initialCategory);
@@ -118,7 +123,7 @@ export function BookingForm({
       <div className="mx-auto max-w-lg">
         {/* Header */}
         <h1 className="mb-2 text-2xl font-bold text-white">
-          {pkg ? `Book: ${pkg.title}` : creatorName ? `Book ${creatorName}` : 'Book a Session'}
+          {pkg ? `Request: ${pkg.title}` : creatorName ? `Request ${creatorName}` : 'Request a Shoot'}
         </h1>
         {creatorName && creatorSpecializations.length > 0 && (
           <p className="mb-2 text-sm text-neutral-400">
@@ -127,11 +132,11 @@ export function BookingForm({
         )}
         {pkg ? (
           <p className="mb-8 text-[#D4A843] font-mono text-sm">
-            R{pkg.price.toLocaleString()} {pkg.unitWords}, excl. VAT
+            {formatRand(withServiceVat(pkg.price))} {pkg.unitWords}, incl. VAT
           </p>
         ) : rate > 0 && (
           <p className="mb-8 text-[#D4A843] font-mono text-sm">
-            R{rate.toLocaleString()}/hour, excl. VAT
+            {formatRand(withServiceVat(rate))} an hour, incl. VAT
           </p>
         )}
 
@@ -245,19 +250,21 @@ export function BookingForm({
               <div className="space-y-2 text-sm font-mono">
                 <div className="flex justify-between text-neutral-400">
                   <span>{quote.line}</span>
-                  <span>R{quote.subtotal.toLocaleString()}</span>
+                  <span>{formatRand(quote.subtotal)}</span>
                 </div>
                 <div className="flex justify-between text-neutral-400">
                   <span>VAT ({vatRate}%)</span>
-                  <span>R{quote.vat.toLocaleString()}</span>
+                  <span>{formatRand(quote.vat)}</span>
                 </div>
                 <div className="flex justify-between border-t border-neutral-700 pt-2 text-lg font-bold text-white">
-                  <span>Total</span>
-                  <span>R{quote.total.toLocaleString()}</span>
+                  <span>Total, incl. VAT</span>
+                  <span>{formatRand(quote.total)}</span>
                 </div>
               </div>
             </div>
           )}
+
+          <PaymentsNotOpenNote open={paymentsOpen} />
 
           {/* Submit */}
           <button
@@ -265,7 +272,7 @@ export function BookingForm({
             disabled={!canSubmit}
             className="w-full py-4 text-lg font-bold bg-[#D4A843] text-black transition-colors hover:bg-[#c49a3a] disabled:cursor-not-allowed disabled:opacity-40"
           >
-            {quote ? `Continue — R${quote.total.toLocaleString()}` : 'Continue to Quote'}
+            {quote ? `Continue, ${formatRand(quote.total)}` : 'Continue to Quote'}
           </button>
         </form>
       </div>

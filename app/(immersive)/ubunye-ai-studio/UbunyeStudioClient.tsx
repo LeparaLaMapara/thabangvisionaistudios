@@ -345,7 +345,7 @@ export default function UbunyeStudioClient({ context }: UbunyeStudioClientProps)
   }, [searchParams, doSend, isLoading, messages.length, router]);
 
   const greeting = getGreeting();
-  const displayName = userName || 'Creator';
+  const displayName = userName || null;
   const hasMessages = messages.length > 0;
 
   const remaining = !isAuthenticated
@@ -377,7 +377,7 @@ export default function UbunyeStudioClient({ context }: UbunyeStudioClientProps)
                   <GoldenSphere className="w-full h-full" state={orbState} />
                 </div>
                 <p className="text-xs text-neutral-400 tracking-wide mb-1.5">
-                  {greeting}, {displayName}
+                  {greeting}{displayName ? `, ${displayName}` : ''}. Ask about gear, dates or prices.
                 </p>
                 <h1 className="text-lg md:text-2xl font-medium text-neutral-200 text-center">
                   What can I help you <span className="text-[#D4A843]">create?</span>

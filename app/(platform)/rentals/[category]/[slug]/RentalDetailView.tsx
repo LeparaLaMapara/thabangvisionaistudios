@@ -9,6 +9,7 @@ import type { SmartRental, RentalOwner } from '@/lib/supabase/queries/smartRenta
 import { BookingWidget } from '@/components/booking/BookingWidget';
 import { Badge } from '@/components/ui/Badge';
 import { protectionLine } from '@/lib/rental/protection';
+import { formatRand } from '@/lib/format/money';
 
 // ─── Category label map ───────────────────────────────────────────────────────
 
@@ -51,8 +52,11 @@ export default function RentalDetailView({
   category,
   relatedRentals = [],
   owner = null,
+  paymentsOpen,
 }: {
   rental: SmartRental;
+  /** onlinePaymentsOpen() from the server. */
+  paymentsOpen?: boolean;
   category: string;
   relatedRentals?: SmartRental[];
   /** Community owner of this listing; null for studio-owned stock. */
@@ -86,7 +90,7 @@ export default function RentalDetailView({
   const hasAnyTab    = hasFeatures || hasIncludes;
 
   // Currency formatter
-  const fmt = (n: number) => `${rental.currency} ${n.toLocaleString()}`;
+  const fmt = (n: number) => formatRand(n);
 
   // On a phone the booking box sits far below the photos and specs, so the
   // price and the one action stay pinned to the bottom of the screen.
@@ -94,7 +98,7 @@ export default function RentalDetailView({
     <div className="lg:hidden fixed inset-x-0 bottom-0 z-40 border-t border-white/10 bg-[#050505]/95 backdrop-blur px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] flex items-center justify-between gap-3">
       <p className="font-mono text-sm text-white">
         {fmt(rental.price_per_day)}
-        <span className="text-neutral-400"> / day</span>
+        <span className="text-neutral-400"> a day</span>
       </p>
       <a
         href="#book"
@@ -157,14 +161,9 @@ export default function RentalDetailView({
 
           {/* Availability overlay badge */}
           <div className="absolute top-6 left-6 z-20">
-            {rental.is_available ? (
-              <div className="flex items-center gap-1.5 bg-green-500/10 backdrop-blur-md px-3 py-1.5 rounded-full border border-green-500/20">
-                <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
-                <span className="text-xs font-mono font-bold text-green-600 dark:text-green-400 uppercase tracking-widest">
-                  Available
-                </span>
-              </div>
-            ) : (
+            {/* No "Available" badge: availability depends on dates, and the
+                booking box checks the dates you choose. */}
+            {rental.is_available ? null : (
               <span className="bg-red-500 text-white text-xs font-mono font-bold px-3 py-1.5 uppercase tracking-widest">
                 Unavailable
               </span>
@@ -507,7 +506,7 @@ export default function RentalDetailView({
               <h3 className="text-xs font-mono font-bold uppercase tracking-widest text-neutral-400 mb-4 border-b border-black/5 dark:border-white/5 pb-3">
                 Book This Equipment
               </h3>
-              <BookingWidget rental={rental} />
+              <BookingWidget rental={rental} paymentsOpen={paymentsOpen} />
               {protectionLine(rental) && (
                 <p className="mt-4 flex items-start gap-2 text-xs font-mono text-neutral-400">
                   <ShieldCheck className="w-3.5 h-3.5 mt-0.5 shrink-0 text-[#D4A843]" aria-hidden="true" />
@@ -661,8 +660,8 @@ export default function RentalDetailView({
                       )}
                       {item.price_per_day != null && (
                         <p className="text-sm font-mono font-bold text-accent-gold mt-2">
-                          {item.currency} {item.price_per_day.toLocaleString()}
-                          <span className="text-xs font-normal text-neutral-400"> /day</span>
+                          {formatRand(item.price_per_day)}
+                          <span className="text-xs font-normal text-neutral-400"> a day</span>
                         </p>
                       )}
                     </div>

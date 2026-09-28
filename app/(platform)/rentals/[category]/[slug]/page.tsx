@@ -4,6 +4,7 @@ import { getRentalBySlug, getRelatedRentals, getRentalOwner } from '@/lib/supaba
 import RentalDetailView from './RentalDetailView';
 import { AskUbunyeButton } from '@/components/ubunye/AskUbunyeButton';
 import { ExitIntentModal } from '@/components/engagement/ExitIntentModal';
+import { onlinePaymentsOpen } from '@/lib/payments/status';
 
 export const revalidate = 60;
 
@@ -52,6 +53,7 @@ export default async function RentalDetailPage({
         category={category}
         relatedRentals={relatedRentals}
         owner={owner}
+        paymentsOpen={onlinePaymentsOpen()}
       />
       <AskUbunyeButton raised
         prompt={`Tell me more about the ${rental.title} and what it's best for`}
@@ -60,7 +62,7 @@ export default async function RentalDetailPage({
       <ExitIntentModal
         prompt={`I'm interested in renting the ${rental.title}. Can you help me with availability and pricing?`}
         heading="Need help with this rental?"
-        body="Get instant answers about availability, pricing, and compatible accessories from our AI assistant."
+        body="Ask our AI assistant about availability, pricing and accessories that work with it."
         ctaLabel="Ask about this gear"
       />
     </>

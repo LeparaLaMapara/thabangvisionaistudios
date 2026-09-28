@@ -6,7 +6,8 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { ArrowUpRight } from 'lucide-react';
 import type { SmartRental } from '@/lib/supabase/queries/smartRentals';
-import { PLACEHOLDER_IMAGES, RENTAL_CATEGORIES } from '@/lib/constants';
+import { PLACEHOLDER_IMAGES, RENTAL_CATEGORIES, STUDIO } from '@/lib/constants';
+import { collectionPoint } from '@/lib/rental/collection-point';
 
 // ─── Image shimmer skeleton ───────────────────────────────────────────────────
 function ImageSkeleton(): React.ReactElement {
@@ -205,15 +206,12 @@ export default function SmartRentalsClient({ rentals }: { rentals: SmartRental[]
           transition={{ duration: 0.8 }}
         >
           <div className="border-l border-black/20 dark:border-white/20 pl-4 md:pl-16 py-4 min-w-0">
-            <span className="text-xs font-mono text-[#D4A843] uppercase tracking-[0.3em] mb-4 block">
-              02 // Equipment Fleet
-            </span>
             <h1 className="text-5xl md:text-8xl font-display font-medium text-black dark:text-white tracking-tight leading-[0.9] mb-8 uppercase break-words hyphens-auto">
               Professional Gear <br />
               <span className="text-neutral-400 dark:text-neutral-400">For Every Shoot</span>
             </h1>
             <p className="max-w-2xl text-lg text-neutral-400 dark:text-neutral-300 font-light leading-relaxed">
-              Rent professional cameras, lenses, lighting, audio equipment, drones, and studio gear from ThabangVision and verified suppliers. Collect in Johannesburg or have it delivered, with a refundable deposit and the full price shown before you pay.
+              All gear is ours and is checked before every hire. Book at least {Math.round(STUDIO.rental.minLeadTimeHours / 24)} days ahead. Collect at {collectionPoint()}. After your first hire we can also deliver within {STUDIO.fulfilment.delivery.maxRadiusKm} km.
             </p>
           </div>
         </motion.div>

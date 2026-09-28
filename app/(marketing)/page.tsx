@@ -2,12 +2,11 @@ export const revalidate = 60;
 
 import { getFeaturedProductions } from '@/lib/supabase/queries/smartProductions';
 import { getShowcaseRentals, getRentalPriceRange } from '@/lib/supabase/queries/smartRentals';
-import { formatZAR } from '@/lib/productions/pricing';
+import { formatRand } from '@/lib/format/money';
+import { onlinePaymentsOpen } from '@/lib/payments/status';
 import { interleaveShowcase } from '@/lib/home/showcase';
 import HomeClient from './HomeClient';
 import type { CarouselItem } from '@/components/cinematic/LatestWorkCarousel';
-import { CAPABILITIES } from '@/lib/constants';
-import { filterCapabilitiesForFlags } from '@/lib/nav';
 import { getFlag } from '@/lib/features';
 
 /** Build a Cloudinary delivery URL from a public_id. */
@@ -32,10 +31,7 @@ function resolveImage(
 }
 
 export default async function Home() {
-  const [smartProductionsEnabled, capabilities] = await Promise.all([
-    getFlag('smart_productions'),
-    filterCapabilitiesForFlags(CAPABILITIES),
-  ]);
+  const smartProductionsEnabled = await getFlag('smart_productions');
 
   const [productions, rentals, priceRange] = await Promise.all([
     smartProductionsEnabled ? getFeaturedProductions(8) : Promise.resolve([]),
@@ -68,7 +64,7 @@ export default async function Home() {
     // smart_rentals.category already holds the URL slug the rental routes use
     // (/rentals/[category]/[slug]), so it doubles as the link segment.
     categorySlug: r.category,
-    meta: [r.brand, r.price_per_day ? `${formatZAR(Number(r.price_per_day))} / day` : null]
+    meta: [r.brand, r.price_per_day ? `${formatRand(Number(r.price_per_day))} a day` : null]
       .filter(Boolean).join(' / ') || 'Rental',
     created_at: r.created_at,
   }));
@@ -79,8 +75,8 @@ export default async function Home() {
   return (
     <HomeClient
       carouselItems={carouselItems}
-      capabilities={capabilities}
       minDayRate={priceRange?.min ?? null}
+      paymentsOpen={onlinePaymentsOpen()}
     />
   );
 }

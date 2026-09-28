@@ -1,5 +1,7 @@
 export const dynamic = 'force-dynamic';
 
+export const metadata = { title: 'Request a Shoot', robots: { index: false, follow: true } };
+
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import { STUDIO } from '@/lib/constants';
@@ -7,6 +9,7 @@ import { getHourlyRate } from '@/lib/supabase/queries/service-bookings';
 import BookConfirmation from './BookConfirmation';
 import { getBookablePackage } from '@/lib/bookings/packages';
 import { quoteHourly, quotePackage, packageUnitWords } from '@/lib/bookings/pricing';
+import { onlinePaymentsOpen } from '@/lib/payments/status';
 
 interface BookPageProps {
   searchParams: Promise<{
@@ -36,7 +39,7 @@ export default async function BookPage({ searchParams }: BookPageProps) {
     // logged in, lost all of it but the first field.
     const query = new URLSearchParams(params as Record<string, string>).toString();
     const target = query ? `/book?${query}` : '/book';
-    redirect(`/login?redirect=${encodeURIComponent(target)}`);
+    redirect(`/login?redirect=${encodeURIComponent(target)}&reason=book`);
   }
 
   const category = params.category || '';
@@ -95,6 +98,7 @@ export default async function BookPage({ searchParams }: BookPageProps) {
         minHours={STUDIO.booking.minBookingHours}
         maxHours={STUDIO.booking.maxBookingHours}
         pkg={pkgInfo}
+        paymentsOpen={onlinePaymentsOpen()}
       />
     );
   }
@@ -125,6 +129,7 @@ export default async function BookPage({ searchParams }: BookPageProps) {
       total={total}
       vatRate={STUDIO.booking.vatRate}
       cancellationPolicy={STUDIO.booking.cancellationPolicy}
+      paymentsOpen={onlinePaymentsOpen()}
     />
   );
 }

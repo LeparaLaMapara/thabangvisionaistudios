@@ -1,7 +1,7 @@
 import type { MetadataRoute } from 'next';
 import { STUDIO, RENTAL_CATEGORIES, PRODUCTION_CATEGORIES } from '@/lib/constants';
 import { createAdminClient } from '@/lib/supabase/server';
-import { SA_CITIES, RENTAL_CITIES, COUNTRY_SLUG } from '@/lib/seo/cities';
+import { RENTAL_CITIES } from '@/lib/seo/cities';
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const baseUrl = STUDIO.meta.url;
@@ -107,16 +107,17 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   }));
 
   // ── Location Pages: Rentals × Cities ──────────────────────────────────────
-  const locationSlugs = [...SA_CITIES.map((c) => c.slug), COUNTRY_SLUG];
+  // Only the Johannesburg-area cities gear reaches (lib/seo/cities.ts
+  // deliversRentals), for rentals and studio alike. No "All South Africa".
+  const locationSlugs = RENTAL_CITIES.map((c) => c.slug);
   const rentalLocationPages: MetadataRoute.Sitemap = [];
-  // Only the cities gear reaches (lib/seo/cities.ts deliversRentals).
-  const rentalLocationSlugs = [...RENTAL_CITIES.map((c) => c.slug), COUNTRY_SLUG];
+  const rentalLocationSlugs = locationSlugs;
   for (const cat of RENTAL_CATEGORIES) {
     for (const loc of rentalLocationSlugs) {
       rentalLocationPages.push({
         url: `${baseUrl}/rentals/${encodeURIComponent(cat.value)}/in/${loc}`,
         changeFrequency: 'weekly',
-        priority: loc === COUNTRY_SLUG ? 0.8 : 0.7,
+        priority: 0.7,
       });
     }
   }
@@ -128,7 +129,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       studioLocationPages.push({
         url: `${baseUrl}/studio/category/${encodeURIComponent(cat.slug)}/in/${loc}`,
         changeFrequency: 'weekly',
-        priority: loc === COUNTRY_SLUG ? 0.8 : 0.7,
+        priority: 0.7,
       });
     }
   }

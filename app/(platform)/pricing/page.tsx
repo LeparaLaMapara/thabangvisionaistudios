@@ -11,6 +11,8 @@ import { Button } from '@/components/ui/Button';
 import { STUDIO } from '@/lib/constants';
 import { AskUbunyeButton } from '@/components/ubunye/AskUbunyeButton';
 import { isPaymentUrl } from '@/lib/payments/hosts';
+import { usePaymentsOpen } from '@/lib/payments/usePaymentsOpen';
+import { PaymentsNotOpenNote } from '@/components/booking/PaymentsNotOpenNote';
 
 type BillingPeriod = 'monthly' | 'annual';
 
@@ -381,6 +383,9 @@ export default function PricingPage() {
  * ThabangVision is free to join; you pay per booking.
  */
 function PayAsYouGoPricing() {
+  const paymentsOpen = usePaymentsOpen();
+  // The supplier row ("Become a supplier") was removed on 2026-09-28: no
+  // supplier listings exist yet and the site leads with our own gear.
   const rows = [
     {
       title: 'Equipment hire',
@@ -389,16 +394,10 @@ function PayAsYouGoPricing() {
       cta: 'Browse equipment',
     },
     {
-      title: 'Production and creative services',
-      body: `Charged at the hourly rate shown when you book, from ${STUDIO.booking.minBookingHours} hour up to ${STUDIO.booking.maxBookingHours} hours. VAT is added at checkout and itemised on your quote.`,
+      title: 'Photo and video shoots',
+      body: `By request. Each package shows its price including VAT. Send a request and we confirm who will shoot it, the date and the price with you.`,
       href: '/studio',
-      cta: 'Browse services',
-    },
-    {
-      title: 'Supplying your own gear or services',
-      body: `Free to join once your identity is verified. Customers book and pay ${STUDIO.shortName}, we retain a ${STUDIO.creators.commissionRate}% commission, and you are paid the balance after the booking completes.`,
-      href: '/register',
-      cta: 'Become a supplier',
+      cta: 'See shoots',
     },
   ];
 
@@ -424,7 +423,7 @@ function PayAsYouGoPricing() {
       </section>
 
       <section className="container mx-auto px-6 pb-24">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-5xl mx-auto">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-3xl mx-auto">
           {rows.map((row, i) => (
             <motion.div
               key={row.title}
@@ -450,9 +449,15 @@ function PayAsYouGoPricing() {
           ))}
         </div>
 
-        <p className="text-center text-xs font-mono uppercase tracking-[0.2em] text-neutral-400 dark:text-neutral-400 mt-16">
-          All prices in {STUDIO.currency.code}. {STUDIO.shortName} is the seller of record on
-          every order. Payments processed securely via our authorised payment gateway.{' '}
+        <PaymentsNotOpenNote open={paymentsOpen} className="justify-center text-center mt-12 max-w-2xl mx-auto" />
+
+        <p className="text-center text-xs font-mono uppercase tracking-[0.2em] text-neutral-400 dark:text-neutral-400 mt-8">
+          All prices are in Rand and include VAT. You book and pay {STUDIO.shortName} directly.{' '}
+          {paymentsOpen === false
+            ? 'Pay by EFT, cash or a card link we send you.'
+            : paymentsOpen
+              ? 'Payments processed securely via our authorised payment gateway.'
+              : ''}{' '}
           <Link href="/contact" className="text-black dark:text-white underline underline-offset-2">
             Questions? Contact us
           </Link>

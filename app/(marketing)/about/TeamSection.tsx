@@ -1,34 +1,16 @@
 'use client';
 
 import { motion } from 'framer-motion';
-import { Palette, Wrench, Cpu, ArrowRight, Users } from 'lucide-react';
+import { ArrowRight, Users } from 'lucide-react';
 import Link from 'next/link';
 import { STUDIO } from '@/lib/constants';
 import CreatorCard from '@/components/creators/CreatorCard';
 import type { CreatorProfile } from '@/lib/supabase/queries/smartProductions';
 
-// ─── Discipline Pillars ──────────────────────────────────────────────────────
-
-const DISCIPLINES = [
-  {
-    icon: Palette,
-    title: 'Creative',
-    roles: 'Cinematographers, photographers, editors, colorists, art directors',
-    desc: 'The visual storytellers who shape every production and set the creative standard for the platform.',
-  },
-  {
-    icon: Wrench,
-    title: 'Operations',
-    roles: 'Production coordinators, equipment specialists, workflow designers',
-    desc: 'The people who make sure every booking, rental, and production runs seamlessly from start to finish.',
-  },
-  {
-    icon: Cpu,
-    title: 'Engineering',
-    roles: 'Full-stack developers, product engineers, creative technologists',
-    desc: 'Building the platform, tools, and integrations that power every creator workflow.',
-  },
-];
+// The three department cards (Creative, Operations, Engineering) and the
+// "Our network" header were removed on 2026-09-28: they described staffed
+// departments and a supplier network that do not exist yet. Creators appear
+// here only once real profiles are published.
 
 // ─── Component ───────────────────────────────────────────────────────────────
 
@@ -39,7 +21,8 @@ export default function TeamSection({
 }) {
   return (
     <section id="team" className="scroll-mt-24">
-      {/* Section Header */}
+      {/* Section Header: only when there are real creators to show */}
+      {featuredCrew.length > 0 && (
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         whileInView={{ opacity: 1, y: 0 }}
@@ -54,36 +37,10 @@ export default function TeamSection({
           Our <span className="text-neutral-400">Network</span>
         </h2>
         <p className="text-xl md:text-2xl text-neutral-300 font-light leading-relaxed max-w-4xl">
-          The photographers, videographers and gear owners who supply {STUDIO.shortName}, and the belief that
-          technology should help people create, not replace them.
+          The photographers and videographers who work with {STUDIO.shortName}.
         </p>
       </motion.div>
-
-      {/* Three Discipline Pillars */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-px bg-white/10 border border-white/10 mb-20">
-        {DISCIPLINES.map((d, i) => (
-          <motion.div
-            key={d.title}
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            transition={{ delay: i * 0.15, duration: 0.5 }}
-            viewport={{ once: true }}
-            className="bg-[#0A0A0B] p-10 md:p-12 flex flex-col"
-          >
-            <d.icon className="w-8 h-8 text-[#D4A843] mb-6" />
-            <h3 className="text-2xl font-display uppercase text-white tracking-tight mb-2">
-              {d.title}
-            </h3>
-            <p className="text-xs font-mono text-[#D4A843] uppercase tracking-widest mb-4">
-              {d.roles}
-            </p>
-            <p className="text-neutral-400 font-mono text-xs leading-relaxed">
-              {d.desc}
-            </p>
-            <div className="w-8 h-px bg-white/10 mt-auto pt-6" />
-          </motion.div>
-        ))}
-      </div>
+      )}
 
       {/* Featured Crew Cards */}
       {featuredCrew.length > 0 && (
@@ -128,8 +85,7 @@ export default function TeamSection({
           Join the team
         </h3>
         <p className="text-neutral-400 mb-8 max-w-lg mx-auto font-mono text-sm">
-          We&apos;re always looking for exceptional creatives, engineers, and production specialists
-          who want to build the future of Africa&apos;s creative industry.
+          We&apos;re always glad to hear from creatives, engineers and production people.
         </p>
         <div className="flex flex-col sm:flex-row gap-4 justify-center">
           <Link

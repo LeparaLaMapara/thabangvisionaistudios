@@ -1,4 +1,7 @@
 import { STUDIO } from '@/lib/constants';
+import { PAYMENTS_NOT_OPEN_NOTICE } from '@/lib/payments/offline-message';
+import { collectionPointWithCity } from '@/lib/rental/collection-point';
+import { formatRand } from '@/lib/format/money';
 
 /**
  * The questions every visitor asks before they book, answered from the same
@@ -17,7 +20,14 @@ export interface CoreFaq {
 
 const hoursToText = (h: number): string => (h % 24 === 0 ? `${h / 24} day${h === 24 ? '' : 's'}` : `${h} hours`);
 
-export function coreFaqs(): CoreFaq[] {
+/**
+ * `paymentsOpen` is onlinePaymentsOpen() from the server. While online
+ * payment is closed the answers say how payment really happens (EFT, cash or
+ * a card link); they switch back by themselves when it opens. Without the
+ * argument the answers take the cautious (closed) wording.
+ */
+export function coreFaqs(opts: { paymentsOpen?: boolean } = {}): CoreFaq[] {
+  const paymentsOpen = opts.paymentsOpen === true;
   const notice = STUDIO.rental.minLeadTimeHours;
   const delivery = STUDIO.fulfilment.delivery;
   const tiers = STUDIO.rental.cancellationTiers;
@@ -40,7 +50,9 @@ export function coreFaqs(): CoreFaq[] {
       id: 'core-how-rent',
       category: 'equipment',
       question: 'How do I rent a camera?',
-      answer: `Open the item, pick your dates and you will see whether it is available and the full price. Press to book, sign in (or create a free account), do a one-time ID check before your first rental, and pay online.`,
+      answer: paymentsOpen
+        ? `Open the item, pick your dates and you will see whether it is available and the full price. Press to book, sign in (or create a free account), do a one-time ID check before your first rental, and pay online.`
+        : `Open the item, pick your dates and you will see whether it is available and the full price. Press to book, sign in (or create a free account) and do a one-time ID check before your first rental. We then contact you to arrange payment by EFT, cash or a card link. Online card payment is not open yet.`,
     },
     {
       id: 'core-limits',
@@ -58,13 +70,13 @@ export function coreFaqs(): CoreFaq[] {
       id: 'core-collect-deliver',
       category: 'equipment',
       question: 'Do I collect the gear or do you deliver?',
-      answer: `Either. Collect it at ${STUDIO.fulfilment.dispatchFrom.meetingPoint}, ${STUDIO.fulfilment.dispatchFrom.name}, Johannesburg, or we deliver within ${delivery.maxRadiusKm} km at R${delivery.ratePerKm} per km (minimum R${delivery.minimumFee}). The delivery fee is shown before you pay.`,
+      answer: `Your first hire is collected in person at ${collectionPointWithCity()}, so we can hand it over with you. After that, collect it there or we deliver within ${delivery.maxRadiusKm} km at R${delivery.ratePerKm} per km (minimum R${delivery.minimumFee}), plus R${delivery.surchargePerExtraItem} for each item after the first ${delivery.itemsIncluded}. Orders over ${formatRand(STUDIO.rental.protection.collectionOnlyAboveValue)} are always collected. The delivery fee is shown before you book.`,
     },
     {
       id: 'core-deposit',
       category: 'pricing',
       question: 'What is the deposit and when do I get it back?',
-      answer: `Each item has a refundable security deposit, a fixed amount shown on the item before you book. At checkout you pay it with your order, together with the hire charge or on its own if you settle the hire charge when you collect. We check the gear when it comes back and refund the deposit, less any damage or late-return charges. The details are on our Refunds page.`,
+      answer: `Each item has a refundable security deposit, a fixed amount shown on the item before you book. ${paymentsOpen ? 'At checkout you pay it with your order' : 'When we confirm your booking you pay it with your order'}, together with the hire charge or on its own if you settle the hire charge when you collect. We check the gear when it comes back and refund the deposit, less any damage or late-return charges. The details are on our Refunds page.`,
     },
     {
       id: 'core-id',
@@ -76,7 +88,7 @@ export function coreFaqs(): CoreFaq[] {
       id: 'core-vat',
       category: 'pricing',
       question: 'Are prices including VAT?',
-      answer: `Gear prices include VAT. Photographer, videographer and editing prices are shown excluding VAT, and ${vat}% VAT is added at checkout. You always see the total before you pay.`,
+      answer: `Yes. Every price is shown including VAT (${vat}%): gear, shoots and packages. Your quote shows the VAT part separately, and you always see the total before you book.`,
     },
     {
       id: 'core-cancel',
@@ -94,8 +106,16 @@ export function coreFaqs(): CoreFaq[] {
       id: 'core-photographer',
       category: 'creators',
       question: 'How do I book a photographer or videographer?',
-      answer: `Choose a package on the Studio page, pick the date and place, and pay. You see the price and VAT before you pay. We confirm the photographer with you, and they are paid only after the work is delivered.`,
+      answer: `Shoots are by request for now. Choose a package on the Studio page and send a request, and we contact you to confirm who will shoot it, the date and the price. You see the price, including VAT, before you send it.`,
     },
+    ...(paymentsOpen
+      ? []
+      : [{
+          id: 'core-payment',
+          category: 'pricing' as const,
+          question: 'How do I pay?',
+          answer: `${PAYMENTS_NOT_OPEN_NOTICE} Nothing is charged when you send a booking.`,
+        }]),
     {
       id: 'core-human',
       category: 'general',

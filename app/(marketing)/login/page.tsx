@@ -189,6 +189,15 @@ function LoginForm() {
           <div className="w-8 h-px bg-[#D4A843] mt-5" />
         </div>
 
+        {/* Sent here from /book: say what the sign-in is for */}
+        {searchParams.get('reason') === 'book' && (
+          <div className="bg-[#D4A843]/10 border border-[#D4A843]/30 px-4 py-3 mb-6">
+            <p className="text-xs text-[#D4A843] font-mono leading-relaxed">
+              Sign in to send your request. New here? Create a free account below.
+            </p>
+          </div>
+        )}
+
         {/* Idle logout notice */}
         {searchParams.get('reason') === 'idle' && (
           <div className="bg-amber-500/10 border border-amber-500/30 px-4 py-3 mb-6">
