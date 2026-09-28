@@ -1,0 +1,197 @@
+import { createAdminClient } from '@/lib/supabase/server';
+import { generateWithFallback } from '@/lib/ai/resilient';
+import { logTokenUsage } from '@/lib/ai/tracked';
+import { email as emailProvider } from '@/lib/email';
+import { STUDIO } from '@/lib/constants';
+import {
+  describeActivity,
+  firstNameFrom,
+  isInternalAccount,
+  isSafeDraft,
+  welcomePrompt,
+  welcomeSubject,
+  welcomeTemplate,
+  type SignupActivity,
+  type WelcomeContext,
+} from '@/lib/greetings/welcome';
+
+type Admin = ReturnType<typeof createAdminClient>;
+
+async function countRows(admin: Admin, table: string, column: string, userId: string): Promise<number> {
+  const { count } = await admin.from(table).select('id', { count: 'exact', head: true }).eq(column, userId);
+  return count ?? 0;
+}
+
+/** Reads what a person has done on the site. Counts only. */
+export async function loadWelcomeContext(
+  admin: Admin,
+  userId: string,
+): Promise<{ email: string | null; ctx: WelcomeContext; marketingOptIn: boolean } | null> {
+  const { data: auth } = await admin.auth.admin.getUserById(userId);
+  const user = auth?.user;
+  if (!user) return null;
+
+  const { data: profile } = await admin
+    .from('profiles')
+    .select('first_name, display_name, verification_status, marketing_opt_in')
+    .eq('id', userId)
+    .maybeSingle();
+
+  const meta = (user.user_metadata ?? {}) as Record<string, unknown>;
+  const intentRaw = meta.intent;
+  const intent: SignupActivity['intent'] =
+    intentRaw === 'rent' || intentRaw === 'hire' || intentRaw === 'supply' || intentRaw === 'browse' ? intentRaw : null;
+  const status = profile?.verification_status;
+
+  const [cartItems, gearBookings, serviceBookings, ubunyeChats] = await Promise.all([
+    countRows(admin, 'cart_items', 'user_id', userId),
+    countRows(admin, 'equipment_bookings', 'user_id', userId),
+    countRows(admin, 'bookings', 'client_id', userId),
+    countRows(admin, 'chat_conversations', 'user_id', userId),
+  ]);
+
+  return {
+    email: user.email ?? null,
+    marketingOptIn: Boolean(profile?.marketing_opt_in),
+    ctx: {
+      firstName: firstNameFrom([
+        profile?.first_name,
+        meta.first_name as string | undefined,
+        meta.given_name as string | undefined,
+        meta.full_name as string | undefined,
+        meta.name as string | undefined,
+        profile?.display_name,
+      ]),
+      method: user.app_metadata?.provider === 'google' ? 'google' : 'email',
+      activity: {
+        intent,
+        emailConfirmed: Boolean(user.email_confirmed_at),
+        verification:
+          status === 'pending' || status === 'verified' || status === 'rejected' ? status : 'none',
+        cartItems,
+        gearBookings,
+        serviceBookings,
+        ubunyeChats,
+      },
+    },
+  };
+}
+
+/** Ubunye's draft, or the plain template when no AI provider answers. */
+export async function draftWelcome(ctx: WelcomeContext): Promise<{ subject: string; body: string; draftedBy: string }> {
+  try {
+    const { system, prompt } = welcomePrompt(ctx);
+    const out = await generateWithFallback({ ref: 'fast', system, prompt, maxOutputTokens: 400, temperature: 0.6 });
+    logTokenUsage({ agentId: 'welcome', provider: out.servedBy, model: out.modelId, usage: out.usage });
+    const body = out.text.trim();
+    if (isSafeDraft(body)) return { subject: welcomeSubject(ctx), body, draftedBy: `ai:${out.servedBy}` };
+    console.warn('[welcome] AI draft rejected by the safety check; using the template');
+  } catch (err) {
+    console.error('[welcome] AI draft failed; using the template:', err instanceof Error ? err.message : err);
+  }
+  const t = welcomeTemplate(ctx);
+  return { ...t, draftedBy: 'template' };
+}
+
+/**
+ * Handles one signup: drafts the welcome into the queue (once per person, the
+ * table's primary key is the user id) and tells the owner. Safe to call twice.
+ */
+export async function processSignup(
+  userId: string,
+  options: { notifyOwner: boolean } = { notifyOwner: true },
+): Promise<{ status: 'drafted' | 'exists' | 'internal' | 'missing' }> {
+  const admin = createAdminClient();
+
+  const { data: existing } = await admin.from('welcome_messages').select('user_id').eq('user_id', userId).maybeSingle();
+  if (existing) return { status: 'exists' };
+
+  const loaded = await loadWelcomeContext(admin, userId);
+  if (!loaded) return { status: 'missing' };
+  if (isInternalAccount(loaded.email)) return { status: 'internal' };
+
+  const draft = await draftWelcome(loaded.ctx);
+  const { error } = await admin.from('welcome_messages').insert({
+    user_id: userId,
+    email: loaded.email,
+    first_name: loaded.ctx.firstName,
+    signup_method: loaded.ctx.method,
+    activity: loaded.ctx.activity,
+    subject: draft.subject,
+    body: draft.body,
+    drafted_by: draft.draftedBy,
+    status: 'draft',
+  });
+  // 23505: another call drafted it first. One welcome per person.
+  if (error) {
+    if (error.code === '23505') return { status: 'exists' };
+    throw new Error(`welcome insert failed: ${error.message}`);
+  }
+
+  if (options.notifyOwner) {
+    const name = loaded.ctx.firstName ?? 'Someone';
+    await emailProvider
+      .sendEmail({
+        to: STUDIO.email,
+        subject: `[Signup] ${name} joined ${STUDIO.name}`,
+        text: [
+          `${name} (${loaded.email}) signed up with ${loaded.ctx.method === 'google' ? 'Google' : 'email'}.`,
+          '',
+          'So far:',
+          ...describeActivity(loaded.ctx.activity).map((l) => `- ${l}`),
+          '',
+          `Ubunye has drafted a welcome for them. Read, edit and send it at ${STUDIO.meta.url}/admin/welcomes`,
+        ].join('\n'),
+      })
+      .catch((err) => console.error('[welcome] owner note failed:', err));
+  }
+
+  return { status: 'drafted' };
+}
+
+/** Sends a queued welcome. Only a draft is ever sent, and only once. */
+export async function sendWelcome(userId: string, sentBy: string): Promise<{ ok: boolean; error?: string }> {
+  const admin = createAdminClient();
+
+  // Claim it first, so two clicks cannot send two emails.
+  const { data: claimed } = await admin
+    .from('welcome_messages')
+    .update({ status: 'sending', updated_at: new Date().toISOString() })
+    .eq('user_id', userId)
+    .eq('status', 'draft')
+    .select('email, subject, body')
+    .maybeSingle();
+  if (!claimed?.email) return { ok: false, error: 'Not a draft (already sent or discarded).' };
+
+  try {
+    await emailProvider.sendEmail({ to: claimed.email, subject: claimed.subject, text: claimed.body });
+  } catch (err) {
+    await admin.from('welcome_messages').update({ status: 'draft', updated_at: new Date().toISOString() }).eq('user_id', userId);
+    return { ok: false, error: err instanceof Error ? err.message : 'Email failed' };
+  }
+
+  await admin
+    .from('welcome_messages')
+    .update({ status: 'sent', sent_by: sentBy, sent_at: new Date().toISOString(), updated_at: new Date().toISOString() })
+    .eq('user_id', userId);
+  return { ok: true };
+}
+
+/** Drafts a welcome for everyone who has none yet (the backfill, and the daily safety net). */
+export async function draftMissingWelcomes(options: { sinceDays?: number; notifyOwner: boolean }): Promise<Record<string, number>> {
+  const admin = createAdminClient();
+  const since = options.sinceDays ? Date.now() - options.sinceDays * 86_400_000 : 0;
+  const tally: Record<string, number> = {};
+
+  for (let page = 1; page <= 20; page++) {
+    const { data } = await admin.auth.admin.listUsers({ page, perPage: 200 });
+    const users = data?.users ?? [];
+    for (const u of users) {
+      if (since && new Date(u.created_at).getTime() < since) continue;
+      const { status } = await processSignup(u.id, { notifyOwner: options.notifyOwner });
+      tally[status] = (tally[status] ?? 0) + 1;
+    }
+    if (users.length < 200) break;
+  }
+  return tally;
+}

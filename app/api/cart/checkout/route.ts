@@ -12,6 +12,7 @@ import { checkAvailability, availabilityMessage, type BookingHold } from '@/lib/
 import { recordUnmetDemandAsync } from '@/lib/demand/record';
 import { meetsLeadTime, leadTimeMessage } from '@/lib/rental/leadTime';
 import type { CartItemWithRental } from '@/types/cart';
+import { logEvent } from '@/lib/data/events';
 
 function daysBetween(start: string, end: string): number {
   return Math.ceil(
@@ -425,6 +426,13 @@ export async function POST(request: NextRequest) {
 
   // Clear cart
   await clearCart(user.id);
+
+  logEvent({
+    eventType: 'booking_created',
+    eventCategory: 'booking',
+    userId: user.id,
+    metadata: { kind: 'gear', source: 'cart', checkoutGroupId, items: bookings.length, amountDueNow, plan, fulfilment, paymentLink: Boolean(paymentUrl) },
+  });
 
   return NextResponse.json(
     {

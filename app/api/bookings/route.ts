@@ -6,6 +6,7 @@ import { payments } from '@/lib/payments';
 import { STUDIO } from '@/lib/constants';
 import { checkRateLimit, checkNotSuspended } from '@/lib/auth';
 import { meetsLeadTime, leadTimeMessage } from '@/lib/rental/leadTime';
+import { logEvent } from '@/lib/data/events';
 
 // Writes that touch money or status go through the service role, after the
 // route has checked who the user is and that the record is theirs. The users'
@@ -69,6 +70,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Could not check your account. Please try again.' }, { status: 500 });
   }
   if (profile?.verification_status !== 'verified') {
+    logEvent({ eventType: 'booking_blocked', eventCategory: 'booking', userId: user.id, metadata: { reason: 'verification_required', kind: 'gear' } });
     return NextResponse.json(
       { error: 'Identity verification is required to rent equipment.', code: 'verification_required' },
       { status: 403 },
@@ -114,6 +116,7 @@ export async function POST(request: NextRequest) {
   }
 
   if (!meetsLeadTime(start_date, new Date())) {
+    logEvent({ eventType: 'booking_blocked', eventCategory: 'booking', userId: user.id, metadata: { reason: 'lead_time', kind: 'gear', start_date } });
     return NextResponse.json({ error: leadTimeMessage(new Date()) }, { status: 400 });
   }
 
@@ -252,6 +255,13 @@ export async function POST(request: NextRequest) {
     amount: totalPrice,
     currency,
     status: 'pending',
+  });
+
+  logEvent({
+    eventType: 'booking_created',
+    eventCategory: 'booking',
+    userId: user.id,
+    metadata: { kind: 'gear', source: 'listing', bookingId: booking.id, rentalId: rental_id, amount: totalPrice, paymentLink: Boolean(paymentUrl) },
   });
 
   return NextResponse.json(

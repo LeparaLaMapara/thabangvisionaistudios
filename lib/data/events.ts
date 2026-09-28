@@ -1,3 +1,4 @@
+import { after } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/server';
 
 export interface PlatformEvent {
@@ -17,10 +18,20 @@ export interface PlatformEvent {
  *   logEvent({ eventType: 'booking_created', eventCategory: 'booking', userId: user.id, metadata: { reference, total } });
  */
 export function logEvent(event: PlatformEvent): void {
-  // Fire-and-forget — don't await
-  _insertEvent(event).catch((err) => {
-    console.error('[logEvent] Failed to log event:', event.eventType, err);
-  });
+  const write = () =>
+    _insertEvent(event).catch((err) => {
+      console.error('[logEvent] Failed to log event:', event.eventType, err);
+    });
+
+  // A promise nobody awaits can be cut off when a serverless function returns
+  // its response, and platform_events had no rows at all. after() keeps the
+  // function alive until the write finishes, without delaying the response.
+  // Outside a request (tests, scripts) after() throws, so write directly.
+  try {
+    after(write);
+  } catch {
+    void write();
+  }
 }
 
 async function _insertEvent(event: PlatformEvent): Promise<void> {

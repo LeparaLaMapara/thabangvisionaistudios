@@ -23,6 +23,7 @@ const ADMIN_LINKS = [
   { label: 'Verifications', href: '/admin/verifications' },
   { label: 'Creator Requests', href: '/admin/creator-requests' },
   { label: 'Users', href: '/admin/users' },
+  { label: 'Welcomes', href: '/admin/welcomes' },
   { label: 'Outreach', href: '/admin/outreach' },
   { label: 'Flags', href: '/admin/flags' },
 ];

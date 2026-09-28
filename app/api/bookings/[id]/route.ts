@@ -9,6 +9,7 @@ import {
   isCancellableStatus,
   paidOnlineForLine,
 } from '@/lib/rental/cancellation';
+import { logEvent } from '@/lib/data/events';
 
 type BookingForQuote = {
   id: string;
@@ -194,6 +195,15 @@ export async function PUT(
     }
     console.error('[bookings/[id]] PUT error:', error.message);
     return NextResponse.json({ error: 'Failed to update booking.' }, { status: 500 });
+  }
+
+  if (quote) {
+    logEvent({
+      eventType: 'booking_cancelled',
+      eventCategory: 'booking',
+      userId: user.id,
+      metadata: { kind: 'gear', bookingId: id, refund: quote.totalRefund, refundPercent: quote.refundPercent, coolingOff: quote.coolingOff },
+    });
   }
 
   // Money moves last, so a refund is never issued against a booking we failed
