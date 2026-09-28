@@ -129,7 +129,7 @@ export default function BookingsPage() {
                 </div>
 
                 <div className="flex items-center justify-between">
-                  <p className="text-xs font-mono text-neutral-500 flex items-center gap-2">
+                  <p className="text-xs font-mono text-neutral-400 flex items-center gap-2">
                     <Calendar className="w-3 h-3" />
                     {new Date(booking.start_date).toLocaleDateString('en-ZA', {
                       day: 'numeric',
@@ -142,7 +142,7 @@ export default function BookingsPage() {
                       year: 'numeric',
                     })}
                   </p>
-                  <span className="text-[10px] font-mono uppercase tracking-widest text-neutral-500 flex items-center gap-1">
+                  <span className="text-[10px] font-mono uppercase tracking-widest text-neutral-400 flex items-center gap-1">
                     <Eye className="w-3 h-3" />
                     Details
                   </span>

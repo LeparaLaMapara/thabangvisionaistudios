@@ -194,7 +194,7 @@ export default function BookingDetailPage() {
       {/* Back link */}
       <Link
         href="/dashboard/bookings"
-        className="inline-flex items-center gap-2 text-[10px] font-mono uppercase tracking-widest text-neutral-500 hover:text-black dark:hover:text-white transition-colors mb-8"
+        className="inline-flex items-center gap-2 text-[10px] font-mono uppercase tracking-widest text-neutral-400 hover:text-black dark:hover:text-white transition-colors mb-8"
       >
         <ArrowLeft className="w-3 h-3" />
         Back to Bookings
@@ -232,7 +232,7 @@ export default function BookingDetailPage() {
               {booking.status}
             </Badge>
           </div>
-          <p className="text-[9px] font-mono uppercase tracking-widest text-neutral-500">
+          <p className="text-[9px] font-mono uppercase tracking-widest text-neutral-400">
             Booking #{booking.id.slice(0, 8)} &middot;{' '}
             {booking.rental_category ?? 'Equipment'}
           </p>
@@ -267,13 +267,13 @@ export default function BookingDetailPage() {
         <Card className="p-6">
           <div className="flex items-center gap-2 mb-4">
             <Calendar className="w-4 h-4 text-neutral-400" />
-            <h3 className="text-[10px] font-mono uppercase tracking-widest text-neutral-500">
+            <h3 className="text-[10px] font-mono uppercase tracking-widest text-neutral-400">
               Rental Period
             </h3>
           </div>
           <div className="space-y-3">
             <div className="flex justify-between text-sm">
-              <span className="text-neutral-500 font-mono">Start</span>
+              <span className="text-neutral-400 font-mono">Start</span>
               <span className="text-black dark:text-white font-mono">
                 {startDate.toLocaleDateString('en-ZA', {
                   weekday: 'short',
@@ -284,7 +284,7 @@ export default function BookingDetailPage() {
               </span>
             </div>
             <div className="flex justify-between text-sm">
-              <span className="text-neutral-500 font-mono">End</span>
+              <span className="text-neutral-400 font-mono">End</span>
               <span className="text-black dark:text-white font-mono">
                 {endDate.toLocaleDateString('en-ZA', {
                   weekday: 'short',
@@ -295,7 +295,7 @@ export default function BookingDetailPage() {
               </span>
             </div>
             <div className="flex justify-between text-sm border-t border-black/5 dark:border-white/5 pt-3">
-              <span className="text-neutral-500 font-mono">Duration</span>
+              <span className="text-neutral-400 font-mono">Duration</span>
               <span className="text-black dark:text-white font-mono font-bold">
                 {dayCount} day{dayCount > 1 ? 's' : ''}
               </span>
@@ -307,20 +307,20 @@ export default function BookingDetailPage() {
         <Card className="p-6">
           <div className="flex items-center gap-2 mb-4">
             <CreditCard className="w-4 h-4 text-neutral-400" />
-            <h3 className="text-[10px] font-mono uppercase tracking-widest text-neutral-500">
+            <h3 className="text-[10px] font-mono uppercase tracking-widest text-neutral-400">
               Payment Summary
             </h3>
           </div>
           <div className="space-y-3">
             <div className="flex justify-between text-sm">
-              <span className="text-neutral-500 font-mono">Rental total</span>
+              <span className="text-neutral-400 font-mono">Rental total</span>
               <span className="text-black dark:text-white font-mono">
                 {booking.currency} {booking.total_price.toLocaleString()}
               </span>
             </div>
             {booking.deposit_amount > 0 && (
               <div className="flex justify-between text-sm">
-                <span className="text-neutral-500 font-mono">
+                <span className="text-neutral-400 font-mono">
                   Refundable deposit
                 </span>
                 <span className="text-black dark:text-white font-mono">
@@ -360,10 +360,10 @@ export default function BookingDetailPage() {
       {/* Notes */}
       {booking.notes && (
         <Card className="p-6 mb-10">
-          <h3 className="text-[10px] font-mono uppercase tracking-widest text-neutral-500 mb-3">
+          <h3 className="text-[10px] font-mono uppercase tracking-widest text-neutral-400 mb-3">
             Notes
           </h3>
-          <p className="text-sm text-neutral-600 dark:text-neutral-400 leading-relaxed whitespace-pre-line">
+          <p className="text-sm text-neutral-400 dark:text-neutral-400 leading-relaxed whitespace-pre-line">
             {booking.notes}
           </p>
         </Card>
@@ -397,7 +397,7 @@ export default function BookingDetailPage() {
                     >
                       {payment.status}
                     </Badge>
-                    <p className="text-[9px] font-mono text-neutral-500 mt-1">
+                    <p className="text-[9px] font-mono text-neutral-400 mt-1">
                       {new Date(payment.created_at).toLocaleDateString(
                         'en-ZA',
                       )}
@@ -479,7 +479,7 @@ export default function BookingDetailPage() {
               </h3>
               <button
                 onClick={() => { setShowDisputeModal(false); setDisputeError(null); }}
-                className="text-neutral-500 hover:text-white transition-colors"
+                className="text-neutral-400 hover:text-white transition-colors"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -487,7 +487,7 @@ export default function BookingDetailPage() {
 
             <form onSubmit={handleDisputeSubmit} className="space-y-4">
               <div>
-                <label className="block text-[10px] font-mono uppercase tracking-widest text-neutral-500 mb-2">
+                <label className="block text-[10px] font-mono uppercase tracking-widest text-neutral-400 mb-2">
                   Issue Type *
                 </label>
                 <select
@@ -506,7 +506,7 @@ export default function BookingDetailPage() {
               </div>
 
               <div>
-                <label className="block text-[10px] font-mono uppercase tracking-widest text-neutral-500 mb-2">
+                <label className="block text-[10px] font-mono uppercase tracking-widest text-neutral-400 mb-2">
                   Description *
                 </label>
                 <textarea

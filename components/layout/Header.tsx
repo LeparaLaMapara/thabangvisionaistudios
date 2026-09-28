@@ -14,19 +14,20 @@ import { HeaderUbunyeBubble } from '@/components/ubunye/HeaderUbunyeBubble';
 
 const ThabangLogo = () => (
   <Image
-    src="/logo-header.png"
+    // A 90px-tall copy: the original is 400x448 and 70 KB, shown at 32 to 40px.
+    src="/logo-header-90.webp"
     alt="ThabangVision"
-    width={260}
-    height={36}
+    width={80}
+    height={90}
     priority
     className="h-8 md:h-10 w-auto select-none"
   />
 );
 
 // Shared style constants
-const NAV_TEXT = "font-mono font-medium tracking-widest uppercase text-neutral-600 dark:text-neutral-400 hover:text-black dark:hover:text-white transition-colors duration-300";
-const SUB_ITEM_TEXT = "text-xs font-mono tracking-widest uppercase text-neutral-600 dark:text-neutral-400 hover:text-black dark:hover:text-white transition-all duration-200";
-const NUMBER_PREFIX = "text-neutral-400 dark:text-neutral-600 mr-2";
+const NAV_TEXT = "font-mono font-medium tracking-widest uppercase text-neutral-400 dark:text-neutral-400 hover:text-black dark:hover:text-white transition-colors duration-300";
+const SUB_ITEM_TEXT = "text-xs font-mono tracking-widest uppercase text-neutral-400 dark:text-neutral-400 hover:text-black dark:hover:text-white transition-all duration-200";
+const NUMBER_PREFIX = "text-neutral-400 dark:text-neutral-400 mr-2";
 const ACTION_BTN = "w-full px-6 py-3 font-mono font-medium tracking-widest uppercase text-sm hover:opacity-80 transition-all duration-300";
 
 const formatIndex = (idx: number) => String(idx + 1).padStart(2, '0');
@@ -232,7 +233,8 @@ export const Header = ({ navigation = MAIN_NAVIGATION }: { navigation?: readonly
           {isLoggedIn && (
             <Link
               href="/dashboard/cart"
-              className="relative text-neutral-500 hover:text-black dark:hover:text-white transition-colors"
+              aria-label={cartCount > 0 ? `Cart, ${cartCount} item${cartCount === 1 ? '' : 's'}` : 'Cart'}
+              className="relative w-11 h-11 flex items-center justify-center text-neutral-400 hover:text-black dark:hover:text-white transition-colors"
             >
               <ShoppingCart className="w-4 h-4" />
               {cartCount > 0 && (
@@ -249,14 +251,14 @@ export const Header = ({ navigation = MAIN_NAVIGATION }: { navigation?: readonly
             <>
               <Link
                 href="/dashboard"
-                className="text-[10px] font-mono font-medium tracking-widest text-neutral-600 dark:text-neutral-400 hover:text-black dark:hover:text-white border border-neutral-300 dark:border-white/30 px-5 py-2 hover:opacity-80 transition-all duration-300 uppercase"
+                className="text-[10px] font-mono font-medium tracking-widest text-neutral-400 dark:text-neutral-400 hover:text-black dark:hover:text-white border border-neutral-300 dark:border-white/30 px-5 py-2 hover:opacity-80 transition-all duration-300 uppercase"
               >
                 Dashboard
               </Link>
               <button
                 onClick={handleSignOut}
                 disabled={signingOut}
-                className="text-[10px] font-mono font-medium tracking-widest text-neutral-600 dark:text-neutral-400 hover:text-red-500 dark:hover:text-red-400 px-5 py-2 hover:opacity-80 transition-all duration-300 uppercase disabled:opacity-50"
+                className="text-[10px] font-mono font-medium tracking-widest text-neutral-400 dark:text-neutral-400 hover:text-red-500 dark:hover:text-red-400 px-5 py-2 hover:opacity-80 transition-all duration-300 uppercase disabled:opacity-50"
               >
                 {signingOut ? 'Signing Out...' : 'Sign Out'}
               </button>
@@ -264,7 +266,7 @@ export const Header = ({ navigation = MAIN_NAVIGATION }: { navigation?: readonly
           ) : (
             <Link
               href="/login"
-              className="text-[10px] font-mono font-medium tracking-widest text-neutral-600 dark:text-neutral-400 hover:text-black dark:hover:text-white border border-neutral-300 dark:border-white/30 px-5 py-2 hover:opacity-80 transition-all duration-300 uppercase"
+              className="text-[10px] font-mono font-medium tracking-widest text-neutral-400 dark:text-neutral-400 hover:text-black dark:hover:text-white border border-neutral-300 dark:border-white/30 px-5 py-2 hover:opacity-80 transition-all duration-300 uppercase"
             >
               Sign In
             </Link>
@@ -277,7 +279,8 @@ export const Header = ({ navigation = MAIN_NAVIGATION }: { navigation?: readonly
           {isLoggedIn && (
             <Link
               href="/dashboard/cart"
-              className="relative text-neutral-500 hover:text-black dark:hover:text-white transition-colors"
+              aria-label={cartCount > 0 ? `Cart, ${cartCount} item${cartCount === 1 ? '' : 's'}` : 'Cart'}
+              className="relative w-11 h-11 flex items-center justify-center text-neutral-400 hover:text-black dark:hover:text-white transition-colors"
             >
               <ShoppingCart className="w-5 h-5" />
               {cartCount > 0 && (
@@ -288,8 +291,10 @@ export const Header = ({ navigation = MAIN_NAVIGATION }: { navigation?: readonly
             </Link>
           )}
           <button
-            className="text-black dark:text-white"
+            className="text-black dark:text-white w-11 h-11 -mr-2 flex items-center justify-center"
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            aria-label={mobileMenuOpen ? 'Close menu' : 'Open menu'}
+            aria-expanded={mobileMenuOpen}
           >
             {mobileMenuOpen ? <X /> : <Menu />}
           </button>

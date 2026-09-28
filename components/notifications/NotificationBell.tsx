@@ -65,7 +65,7 @@ export default function NotificationBell() {
     <div className="relative" ref={dropdownRef}>
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="relative p-2 text-neutral-500 hover:text-white transition-colors"
+        className="relative p-2 text-neutral-400 hover:text-white transition-colors"
         aria-label="Notifications"
       >
         <Bell className="w-4 h-4" />
@@ -94,7 +94,7 @@ export default function NotificationBell() {
 
           {notifications.length === 0 ? (
             <div className="px-4 py-8 text-center">
-              <p className="text-xs font-mono text-neutral-600">No notifications yet</p>
+              <p className="text-xs font-mono text-neutral-400">No notifications yet</p>
             </div>
           ) : (
             notifications.slice(0, 20).map(n => (
@@ -115,8 +115,8 @@ export default function NotificationBell() {
                   )}
                   <div className={!n.is_read ? '' : 'ml-3.5'}>
                     <p className="text-xs font-mono text-white">{n.title}</p>
-                    <p className="text-[10px] font-mono text-neutral-500 mt-0.5 line-clamp-2">{n.body}</p>
-                    <p className="text-[9px] font-mono text-neutral-700 mt-1">
+                    <p className="text-[10px] font-mono text-neutral-400 mt-0.5 line-clamp-2">{n.body}</p>
+                    <p className="text-[9px] font-mono text-neutral-400 mt-1">
                       {new Date(n.created_at).toLocaleDateString('en-ZA', {
                         day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit',
                       })}
@@ -130,7 +130,7 @@ export default function NotificationBell() {
           {notifications.length > 0 && (
             <Link
               href="/dashboard/notifications"
-              className="block px-4 py-3 text-center text-[10px] font-mono uppercase tracking-widest text-neutral-500 hover:text-white transition-colors"
+              className="block px-4 py-3 text-center text-[10px] font-mono uppercase tracking-widest text-neutral-400 hover:text-white transition-colors"
               onClick={() => setIsOpen(false)}
             >
               View All

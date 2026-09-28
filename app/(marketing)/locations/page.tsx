@@ -30,7 +30,7 @@ const LocationCard = ({ name, address, city, province, phone, email, isPrimary, 
     </div>
     <div className="p-8">
        <h3 className="text-3xl font-display font-medium uppercase mb-2 text-white">{name}</h3>
-       <p className="text-sm font-mono text-neutral-500 mb-6">{city}, {province}</p>
+       <p className="text-sm font-mono text-neutral-400 mb-6">{city}, {province}</p>
        <div className="space-y-4 text-sm font-mono text-neutral-400">
           {address && (
             <div className="flex gap-4">
@@ -68,7 +68,7 @@ export default function LocationsPage() {
           <div className="max-w-4xl mb-20">
             <span className="text-[10px] font-mono text-[#D4A843] uppercase tracking-[0.3em] mb-4 block">Our Studios</span>
             <h1 className="text-5xl md:text-7xl font-display font-medium text-white tracking-tighter uppercase mb-8">
-              Where to <span className="text-neutral-500">Find Us</span>
+              Where to <span className="text-neutral-400">Find Us</span>
             </h1>
             <div className="w-8 h-px bg-[#D4A843] mt-6" />
           </div>

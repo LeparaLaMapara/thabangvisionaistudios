@@ -60,7 +60,7 @@ function FilterSection({
           {title}
         </span>
         <ChevronDown
-          className={`w-4 h-4 text-neutral-500 transition-transform duration-300 ${open ? 'rotate-180' : ''}`}
+          className={`w-4 h-4 text-neutral-400 transition-transform duration-300 ${open ? 'rotate-180' : ''}`}
         />
       </button>
       <AnimatePresence initial={false}>
@@ -140,7 +140,7 @@ function ProductionCard({ production }: { production: SmartProduction }) {
           </>
         ) : (
           <div className="w-full h-full flex items-center justify-center">
-            <span className="text-[10px] font-mono text-neutral-500 uppercase tracking-widest">
+            <span className="text-[10px] font-mono text-neutral-400 uppercase tracking-widest">
               No image
             </span>
           </div>
@@ -151,7 +151,7 @@ function ProductionCard({ production }: { production: SmartProduction }) {
       <div className="p-5 flex-grow flex flex-col justify-between">
         <div>
           {production.sub_category && (
-            <div className="text-[10px] font-mono uppercase tracking-widest text-neutral-500 mb-1">
+            <div className="text-[10px] font-mono uppercase tracking-widest text-neutral-400 mb-1">
               {production.sub_category}
             </div>
           )}
@@ -159,7 +159,7 @@ function ProductionCard({ production }: { production: SmartProduction }) {
             {production.title}
           </h3>
           {production.client && (
-            <p className="text-[10px] font-mono text-neutral-500 mb-2 -mt-1">
+            <p className="text-[10px] font-mono text-neutral-400 mb-2 -mt-1">
               Client: {production.client}
             </p>
           )}
@@ -244,7 +244,7 @@ function PackageCard({
           </>
         ) : (
           <div className="w-full h-full flex items-center justify-center bg-neutral-900">
-            <span className="text-[10px] font-mono text-neutral-600 uppercase tracking-widest">
+            <span className="text-[10px] font-mono text-neutral-400 uppercase tracking-widest">
               Example work coming soon
             </span>
           </div>
@@ -325,7 +325,7 @@ function CreatorCard({ creator, categorySlug }: { creator: CrewMember; categoryS
           {creator.display_name ?? 'Creator'}
         </h4>
         {creator.specializations.length > 0 && (
-          <p className="text-[10px] font-mono text-neutral-500 truncate">
+          <p className="text-[10px] font-mono text-neutral-400 truncate">
             {creator.specializations.slice(0, 3).join(' / ')}
           </p>
         )}
@@ -335,7 +335,7 @@ function CreatorCard({ creator, categorySlug }: { creator: CrewMember; categoryS
           </p>
         )}
       </div>
-      <ArrowRight className="w-4 h-4 text-neutral-600 group-hover:text-[#D4A843] flex-shrink-0 transition-colors" />
+      <ArrowRight className="w-4 h-4 text-neutral-400 group-hover:text-[#D4A843] flex-shrink-0 transition-colors" />
     </Link>
   );
 }
@@ -467,7 +467,7 @@ export default function CategoryPageClient({ category, packages, productions, cr
       {/* ── Breadcrumbs + header ── */}
       <div className="bg-[#080808] border-b border-white/5 py-12">
         <div className="container mx-auto px-6">
-          <div className="flex items-center gap-2 text-[10px] font-mono uppercase tracking-widest text-neutral-500 mb-6">
+          <div className="flex items-center gap-2 text-[10px] font-mono uppercase tracking-widest text-neutral-400 mb-6">
             <Link href="/" className="hover:text-white">Home</Link>
             <span>/</span>
             <Link href="/studio" className="hover:text-white">Studio</Link>
@@ -558,7 +558,7 @@ export default function CategoryPageClient({ category, packages, productions, cr
           >
             <SlidersHorizontal className="w-3 h-3" /> Filters
           </button>
-          <span className="text-xs font-mono text-neutral-500">
+          <span className="text-xs font-mono text-neutral-400">
             {filteredProductions.length} production{filteredProductions.length !== 1 ? 's' : ''}
           </span>
         </div>
@@ -580,7 +580,7 @@ export default function CategoryPageClient({ category, packages, productions, cr
 
             {/* Sort / count bar */}
             <div className="hidden lg:flex justify-between items-center mb-8 pb-4 border-b border-white/5">
-              <span className="text-xs font-mono text-neutral-500 uppercase tracking-widest">
+              <span className="text-xs font-mono text-neutral-400 uppercase tracking-widest">
                 {filteredProductions.length} production{filteredProductions.length !== 1 ? 's' : ''} found
               </span>
             </div>
@@ -612,7 +612,7 @@ export default function CategoryPageClient({ category, packages, productions, cr
                         <span className="text-3xl font-bold text-[#D4A843] font-mono block mb-2">
                           Custom
                         </span>
-                        <span className="text-[10px] font-mono text-neutral-500 uppercase tracking-widest">
+                        <span className="text-[10px] font-mono text-neutral-400 uppercase tracking-widest">
                           Tailored to your vision
                         </span>
                       </div>
@@ -659,7 +659,7 @@ export default function CategoryPageClient({ category, packages, productions, cr
                 </div>
               ) : productions.length > 0 ? (
                 <div className="py-16 text-center border border-dashed border-white/10">
-                  <p className="text-neutral-500 font-mono text-sm uppercase tracking-widest">
+                  <p className="text-neutral-400 font-mono text-sm uppercase tracking-widest">
                     No productions match your filter.
                   </p>
                   <button onClick={clearFilters} className="mt-4 text-xs font-bold underline">
@@ -668,10 +668,10 @@ export default function CategoryPageClient({ category, packages, productions, cr
                 </div>
               ) : (
                 <div className="py-16 text-center border border-dashed border-white/10">
-                  <p className="text-neutral-500 font-mono text-sm uppercase tracking-widest mb-2">
+                  <p className="text-neutral-400 font-mono text-sm uppercase tracking-widest mb-2">
                     No {category.name.toLowerCase()} productions uploaded yet.
                   </p>
-                  <p className="text-neutral-600 text-sm">
+                  <p className="text-neutral-400 text-sm">
                     Check back soon — we&apos;re adding new work every week.
                   </p>
                 </div>

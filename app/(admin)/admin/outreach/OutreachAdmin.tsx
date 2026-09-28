@@ -186,7 +186,7 @@ export function OutreachAdmin() {
 
           {/* Industry dropdown */}
           <div>
-            <label className="block text-[10px] font-mono uppercase tracking-widest text-neutral-500 mb-2">
+            <label className="block text-[10px] font-mono uppercase tracking-widest text-neutral-400 mb-2">
               Industry <span className="text-red-400">*</span>
             </label>
             <select
@@ -194,7 +194,7 @@ export function OutreachAdmin() {
               onChange={(e) => setForm((f) => ({ ...f, industry: e.target.value }))}
               className="w-full bg-neutral-950 border border-white/10 text-white text-sm font-mono px-3 py-2 min-h-[44px] focus:outline-none focus:border-[#D4A843]/50 focus:ring-1 focus:ring-[#D4A843]/30 appearance-none"
             >
-              <option value="" className="text-neutral-500">
+              <option value="" className="text-neutral-400">
                 Select industry...
               </option>
               {INDUSTRIES.map((ind) => (
@@ -208,7 +208,7 @@ export function OutreachAdmin() {
 
         {/* Services checkboxes */}
         <div className="mb-4">
-          <label className="block text-[10px] font-mono uppercase tracking-widest text-neutral-500 mb-3">
+          <label className="block text-[10px] font-mono uppercase tracking-widest text-neutral-400 mb-3">
             Services Fit
           </label>
           <div className="flex flex-wrap gap-3">
@@ -229,14 +229,14 @@ export function OutreachAdmin() {
               </label>
             ))}
           </div>
-          <p className="text-[10px] font-mono text-neutral-600 mt-1">
+          <p className="text-[10px] font-mono text-neutral-400 mt-1">
             Leave empty to default to Photography and Video Production.
           </p>
         </div>
 
         {/* Custom context */}
         <div className="mb-6">
-          <label className="block text-[10px] font-mono uppercase tracking-widest text-neutral-500 mb-2">
+          <label className="block text-[10px] font-mono uppercase tracking-widest text-neutral-400 mb-2">
             Custom Context
           </label>
           <textarea
@@ -244,7 +244,7 @@ export function OutreachAdmin() {
             onChange={(e) => setForm((f) => ({ ...f, customContext: e.target.value }))}
             rows={3}
             placeholder="Any additional context about the prospect or approach..."
-            className="w-full bg-neutral-950 border border-white/10 text-white text-sm font-mono px-3 py-2 focus:outline-none focus:border-[#D4A843]/50 focus:ring-1 focus:ring-[#D4A843]/30 resize-none placeholder:text-neutral-700"
+            className="w-full bg-neutral-950 border border-white/10 text-white text-sm font-mono px-3 py-2 focus:outline-none focus:border-[#D4A843]/50 focus:ring-1 focus:ring-[#D4A843]/30 resize-none placeholder:text-neutral-400"
           />
         </div>
 
@@ -274,7 +274,7 @@ export function OutreachAdmin() {
 
       {/* Loading state */}
       {loading && (
-        <div className="flex items-center justify-center py-20 gap-2 text-neutral-600 font-mono text-sm">
+        <div className="flex items-center justify-center py-20 gap-2 text-neutral-400 font-mono text-sm">
           <Loader2 className="w-4 h-4 animate-spin" />
           Generating outreach emails...
         </div>
@@ -333,7 +333,7 @@ function Field({
 }) {
   return (
     <div>
-      <label className="block text-[10px] font-mono uppercase tracking-widest text-neutral-500 mb-2">
+      <label className="block text-[10px] font-mono uppercase tracking-widest text-neutral-400 mb-2">
         {label} {required && <span className="text-red-400">*</span>}
       </label>
       <input
@@ -341,7 +341,7 @@ function Field({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
-        className="w-full bg-neutral-950 border border-white/10 text-white text-sm font-mono px-3 py-2 min-h-[44px] focus:outline-none focus:border-[#D4A843]/50 focus:ring-1 focus:ring-[#D4A843]/30 placeholder:text-neutral-700"
+        className="w-full bg-neutral-950 border border-white/10 text-white text-sm font-mono px-3 py-2 min-h-[44px] focus:outline-none focus:border-[#D4A843]/50 focus:ring-1 focus:ring-[#D4A843]/30 placeholder:text-neutral-400"
       />
     </div>
   );

@@ -31,7 +31,7 @@ export default function CreatorFilter({ creators }: CreatorFilterProps) {
             className={`text-[10px] font-mono uppercase tracking-widest px-4 py-2 border transition-all min-h-[36px] ${
               activeFilter === option
                 ? 'bg-[#D4A843] text-black border-[#D4A843]'
-                : 'bg-transparent text-neutral-500 border-white/10 hover:border-[#D4A843]/30 hover:text-[#D4A843]'
+                : 'bg-transparent text-neutral-400 border-white/10 hover:border-[#D4A843]/30 hover:text-[#D4A843]'
             }`}
           >
             {option}
@@ -48,7 +48,7 @@ export default function CreatorFilter({ creators }: CreatorFilterProps) {
         </div>
       ) : (
         <div className="text-center py-20">
-          <p className="text-sm font-mono text-neutral-500">
+          <p className="text-sm font-mono text-neutral-400">
             No creators found for &ldquo;{activeFilter}&rdquo;. Try a different filter.
           </p>
         </div>

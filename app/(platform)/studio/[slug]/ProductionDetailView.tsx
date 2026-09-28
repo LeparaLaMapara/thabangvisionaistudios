@@ -58,7 +58,7 @@ export default function ProductionDetailView({
         <div className="fixed top-20 left-0 w-full z-40 bg-white/90 dark:bg-[#050505]/90 backdrop-blur-md border-b border-black/5 dark:border-white/5 py-4 px-6 flex justify-between items-center">
           <Link
             href="/studio"
-            className="text-[10px] font-mono font-bold tracking-widest text-neutral-500 hover:text-black dark:hover:text-white uppercase flex items-center gap-2 transition-colors"
+            className="text-[10px] font-mono font-bold tracking-widest text-neutral-400 hover:text-black dark:hover:text-white uppercase flex items-center gap-2 transition-colors"
           >
             <ArrowLeft className="w-3 h-3" /> All Productions
           </Link>
@@ -76,7 +76,7 @@ export default function ProductionDetailView({
               {galleryUrls.length > 0 ? (
                 <PhotographyGallery images={galleryUrls} />
               ) : (
-                <div className="text-center py-20 text-neutral-500 font-mono text-xs">
+                <div className="text-center py-20 text-neutral-400 font-mono text-xs">
                   Gallery coming soon.
                 </div>
               )}
@@ -139,7 +139,7 @@ export default function ProductionDetailView({
       <div className="container mx-auto px-6 py-8">
         <Link
           href="/studio"
-          className="inline-flex items-center gap-2 text-[10px] font-mono font-bold tracking-widest text-neutral-500 hover:text-black dark:hover:text-white uppercase mb-8 transition-colors"
+          className="inline-flex items-center gap-2 text-[10px] font-mono font-bold tracking-widest text-neutral-400 hover:text-black dark:hover:text-white uppercase mb-8 transition-colors"
         >
           <ArrowLeft className="w-3 h-3" /> Back to Productions
         </Link>
@@ -188,14 +188,14 @@ export default function ProductionDetailView({
               {(project.tags ?? []).map(tag => (
                 <span
                   key={tag}
-                  className="px-3 py-1 border border-black/10 dark:border-white/10 text-[10px] font-mono uppercase tracking-widest text-neutral-600 dark:text-neutral-400"
+                  className="px-3 py-1 border border-black/10 dark:border-white/10 text-[10px] font-mono uppercase tracking-widest text-neutral-400 dark:text-neutral-400"
                 >
                   {tag}
                 </span>
               ))}
             </div>
 
-            <div className="prose prose-lg text-neutral-600 dark:text-neutral-400 font-light leading-relaxed max-w-none">
+            <div className="prose prose-lg text-neutral-400 dark:text-neutral-400 font-light leading-relaxed max-w-none">
               <p>{project.description}</p>
             </div>
           </div>
@@ -204,7 +204,7 @@ export default function ProductionDetailView({
           <div className="lg:col-span-4">
             <div className="lg:sticky lg:top-28 lg:self-start space-y-8 pt-4">
               <div className="border-t border-black/10 dark:border-white/10 pt-4">
-                <span className="block text-[10px] font-mono text-neutral-500 uppercase tracking-widest mb-1">
+                <span className="block text-[10px] font-mono text-neutral-400 uppercase tracking-widest mb-1">
                   Client
                 </span>
                 <span className="text-lg font-display text-black dark:text-white">
@@ -213,7 +213,7 @@ export default function ProductionDetailView({
               </div>
 
               <div className="border-t border-black/10 dark:border-white/10 pt-4">
-                <span className="block text-[10px] font-mono text-neutral-500 uppercase tracking-widest mb-1">
+                <span className="block text-[10px] font-mono text-neutral-400 uppercase tracking-widest mb-1">
                   Year
                 </span>
                 <span className="text-lg font-display text-black dark:text-white">
@@ -223,7 +223,7 @@ export default function ProductionDetailView({
 
               {project.sub_category && (
                 <div className="border-t border-black/10 dark:border-white/10 pt-4">
-                  <span className="block text-[10px] font-mono text-neutral-500 uppercase tracking-widest mb-1">
+                  <span className="block text-[10px] font-mono text-neutral-400 uppercase tracking-widest mb-1">
                     Category
                   </span>
                   <span className="text-lg font-display text-black dark:text-white">
@@ -275,7 +275,7 @@ function BookingWidget({ project }: { project: SmartProduction }) {
 
   return (
     <div className="border border-black/10 dark:border-white/10 bg-neutral-50 dark:bg-[#0A0A0B] p-5">
-      <span className="block text-[10px] font-mono font-bold text-neutral-500 uppercase tracking-widest border-b border-black/5 dark:border-white/5 pb-3 mb-4">
+      <span className="block text-[10px] font-mono font-bold text-neutral-400 uppercase tracking-widest border-b border-black/5 dark:border-white/5 pb-3 mb-4">
         Book This Production
       </span>
 
@@ -285,13 +285,13 @@ function BookingWidget({ project }: { project: SmartProduction }) {
             <span className="text-2xl font-display font-bold text-[#D4A843]">
               {formatZAR(project.price!)}
             </span>
-            <span className="text-sm font-mono text-neutral-500 mb-0.5">
+            <span className="text-sm font-mono text-neutral-400 mb-0.5">
               {priceUnitLabel(project.price_unit)} excl. VAT
             </span>
           </div>
         </div>
       ) : (
-        <p className="text-[10px] font-mono text-neutral-500 mb-4 uppercase tracking-widest">
+        <p className="text-[10px] font-mono text-neutral-400 mb-4 uppercase tracking-widest">
           Contact for pricing
         </p>
       )}
@@ -308,7 +308,7 @@ function BookingWidget({ project }: { project: SmartProduction }) {
         Book Now
       </button>
 
-      <p className="text-[9px] font-mono text-neutral-600 mt-3 text-center">
+      <p className="text-[9px] font-mono text-neutral-400 mt-3 text-center">
         {hasPrice ? (
           <>Pick a date and pay. Questions?{' '}
             <a
@@ -346,7 +346,7 @@ function getUniqueGear(
 function ShotWithSection({ gear }: { gear: MatchedGear[] }) {
   return (
     <div className="space-y-4">
-      <span className="flex items-center gap-2 text-[10px] font-mono text-neutral-500 uppercase tracking-widest">
+      <span className="flex items-center gap-2 text-[10px] font-mono text-neutral-400 uppercase tracking-widest">
         <Camera className="w-3 h-3" />
         Shot On {STUDIO.shortName} Gear
       </span>
@@ -368,7 +368,7 @@ function ShotWithSection({ gear }: { gear: MatchedGear[] }) {
                 />
               ) : (
                 <div className="w-full h-full flex items-center justify-center">
-                  <Camera className="w-8 h-8 text-neutral-700" />
+                  <Camera className="w-8 h-8 text-neutral-400" />
                 </div>
               )}
               <span className="absolute top-2 left-2 z-10 text-[8px] font-mono uppercase tracking-widest bg-[#D4A843]/90 text-black px-2 py-0.5">
@@ -378,7 +378,7 @@ function ShotWithSection({ gear }: { gear: MatchedGear[] }) {
 
             <div className="flex flex-col flex-grow p-4">
               {item.brand && (
-                <span className="text-[9px] font-mono uppercase tracking-widest text-neutral-500 mb-1">
+                <span className="text-[9px] font-mono uppercase tracking-widest text-neutral-400 mb-1">
                   {item.brand}
                 </span>
               )}
@@ -388,7 +388,7 @@ function ShotWithSection({ gear }: { gear: MatchedGear[] }) {
               </h3>
 
               {item.model && (
-                <p className="text-[10px] font-mono text-neutral-600 mt-1">
+                <p className="text-[10px] font-mono text-neutral-400 mt-1">
                   {item.model}
                 </p>
               )}
@@ -400,7 +400,7 @@ function ShotWithSection({ gear }: { gear: MatchedGear[] }) {
                   <span className="text-base font-display font-medium text-white">
                     {STUDIO.currency.symbol}{item.pricePerDay.toLocaleString()}
                   </span>
-                  <span className="text-[10px] font-mono text-neutral-600 ml-1">/ day</span>
+                  <span className="text-[10px] font-mono text-neutral-400 ml-1">/ day</span>
                 </div>
                 <span className="text-[9px] font-mono uppercase tracking-widest text-[#D4A843] group-hover:translate-x-1 transition-transform duration-300">
                   View Details &rarr;
@@ -435,7 +435,7 @@ function ShotInfo({
 
   return (
     <div className="space-y-3">
-      <span className="flex items-center gap-2 text-[10px] font-mono text-neutral-500 uppercase tracking-widest">
+      <span className="flex items-center gap-2 text-[10px] font-mono text-neutral-400 uppercase tracking-widest">
         <Aperture className="w-3 h-3" />
         Shot On
       </span>
@@ -446,7 +446,7 @@ function ShotInfo({
             {gear.camera}
           </span>
           {gear.lens && (
-            <span className="block text-xs font-mono text-neutral-500 mt-0.5">
+            <span className="block text-xs font-mono text-neutral-400 mt-0.5">
               {gear.lens}
             </span>
           )}
@@ -454,13 +454,13 @@ function ShotInfo({
       ))}
 
       {settingsLine && (
-        <p className="text-[10px] font-mono text-neutral-600 dark:text-neutral-500 tracking-wide">
+        <p className="text-[10px] font-mono text-neutral-400 dark:text-neutral-400 tracking-wide">
           {settingsLine}
         </p>
       )}
 
       {primary.software && (
-        <p className="text-[9px] font-mono text-neutral-700 uppercase tracking-widest">
+        <p className="text-[9px] font-mono text-neutral-400 uppercase tracking-widest">
           Edited in {primary.software}
         </p>
       )}

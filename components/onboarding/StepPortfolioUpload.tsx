@@ -243,7 +243,7 @@ export default function StepPortfolioUpload({ onComplete }: StepPortfolioUploadP
         <h2 className="text-sm font-mono font-bold uppercase tracking-widest text-white mb-1">
           Portfolio Upload
         </h2>
-        <p className="text-[10px] font-mono text-neutral-500 leading-relaxed">
+        <p className="text-[10px] font-mono text-neutral-400 leading-relaxed">
           Upload at least 2 of your best photos. Our AI will analyze each one to detect your skills and specialties. More photos = better skill detection.
         </p>
       </div>
@@ -251,11 +251,11 @@ export default function StepPortfolioUpload({ onComplete }: StepPortfolioUploadP
       {/* Upload area */}
       <label className="cursor-pointer block">
         <div className="border-2 border-dashed border-white/10 hover:border-[#D4A843]/30 transition-colors p-8 flex flex-col items-center gap-3">
-          <Upload className="w-8 h-8 text-neutral-500" />
+          <Upload className="w-8 h-8 text-neutral-400" />
           <p className="text-xs font-mono text-neutral-400">
             Click to select photos or drag files here
           </p>
-          <p className="text-[9px] font-mono text-neutral-600">
+          <p className="text-[9px] font-mono text-neutral-400">
             JPG or PNG, up to 10MB each
           </p>
         </div>
@@ -294,7 +294,7 @@ export default function StepPortfolioUpload({ onComplete }: StepPortfolioUploadP
             >
               {item.uploading ? (
                 <div className="w-full h-full flex items-center justify-center">
-                  <Loader2 className="w-5 h-5 text-neutral-500 animate-spin" />
+                  <Loader2 className="w-5 h-5 text-neutral-400 animate-spin" />
                 </div>
               ) : item.error ? (
                 <div className="w-full h-full flex items-center justify-center p-2">
@@ -342,7 +342,7 @@ export default function StepPortfolioUpload({ onComplete }: StepPortfolioUploadP
                 </>
               ) : (
                 <div className="w-full h-full flex items-center justify-center">
-                  <ImageIcon className="w-5 h-5 text-neutral-700" />
+                  <ImageIcon className="w-5 h-5 text-neutral-400" />
                 </div>
               )}
             </div>

@@ -1,5 +1,6 @@
 'use client';
 
+import { MotionConfig } from 'framer-motion';
 import { AuthProvider } from '@/providers/AuthProvider';
 import { CartProvider } from '@/providers/CartProvider';
 
@@ -16,10 +17,14 @@ export function Providers({
   children: React.ReactNode;
 }) {
   return (
-    <AuthProvider initialUser={initialUser}>
-      <CartProvider>
-        {children}
-      </CartProvider>
-    </AuthProvider>
+    // reducedMotion="user": every framer-motion animation follows the phone's
+    // "reduce motion" setting (slides and zooms become simple fades).
+    <MotionConfig reducedMotion="user">
+      <AuthProvider initialUser={initialUser}>
+        <CartProvider>
+          {children}
+        </CartProvider>
+      </AuthProvider>
+    </MotionConfig>
   );
 }

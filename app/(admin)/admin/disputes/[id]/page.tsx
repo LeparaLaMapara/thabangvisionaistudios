@@ -233,7 +233,7 @@ export default function AdminDisputeDetailPage() {
         <div className="lg:col-span-2 space-y-4">
           {/* Filer Info */}
           <div className="rounded-xl border border-neutral-800 bg-neutral-900/50 p-4">
-            <h3 className="text-[10px] font-mono uppercase tracking-widest text-neutral-500 mb-2">
+            <h3 className="text-[10px] font-mono uppercase tracking-widest text-neutral-400 mb-2">
               Filed By
             </h3>
             <p className="text-sm text-white">
@@ -246,13 +246,13 @@ export default function AdminDisputeDetailPage() {
 
           {/* Reason */}
           <div className="rounded-xl border border-neutral-800 bg-neutral-900/50 p-4">
-            <h3 className="text-[10px] font-mono uppercase tracking-widest text-neutral-500 mb-2">
+            <h3 className="text-[10px] font-mono uppercase tracking-widest text-neutral-400 mb-2">
               Reason
             </h3>
             <p className="text-sm text-neutral-300">{dispute.reason}</p>
             {dispute.evidence_notes && (
               <>
-                <h3 className="text-[10px] font-mono uppercase tracking-widest text-neutral-500 mb-2 mt-4">
+                <h3 className="text-[10px] font-mono uppercase tracking-widest text-neutral-400 mb-2 mt-4">
                   Additional Notes
                 </h3>
                 <p className="text-sm text-neutral-300">{dispute.evidence_notes}</p>
@@ -263,7 +263,7 @@ export default function AdminDisputeDetailPage() {
           {/* Evidence Photos */}
           {dispute.evidence_photos && dispute.evidence_photos.length > 0 && (
             <div className="rounded-xl border border-neutral-800 bg-neutral-900/50 p-4">
-              <h3 className="text-[10px] font-mono uppercase tracking-widest text-neutral-500 mb-3 flex items-center gap-1.5">
+              <h3 className="text-[10px] font-mono uppercase tracking-widest text-neutral-400 mb-3 flex items-center gap-1.5">
                 <ImageIcon className="w-3 h-3" /> Evidence Photos
               </h3>
               <div className="grid grid-cols-4 gap-2">
@@ -283,13 +283,13 @@ export default function AdminDisputeDetailPage() {
           {/* Booking Photos (for gear disputes) */}
           {dispute.equipment_booking && (
             <div className="rounded-xl border border-neutral-800 bg-neutral-900/50 p-4">
-              <h3 className="text-[10px] font-mono uppercase tracking-widest text-neutral-500 mb-3">
+              <h3 className="text-[10px] font-mono uppercase tracking-widest text-neutral-400 mb-3">
                 Equipment Booking Photos
               </h3>
               <div className="grid grid-cols-2 gap-4">
                 {dispute.equipment_booking.checkout_photos && dispute.equipment_booking.checkout_photos.length > 0 && (
                   <div>
-                    <p className="text-[10px] font-mono uppercase text-neutral-600 mb-2">Checkout</p>
+                    <p className="text-[10px] font-mono uppercase text-neutral-400 mb-2">Checkout</p>
                     <div className="grid grid-cols-2 gap-1">
                       {dispute.equipment_booking.checkout_photos.map((url, i) => (
                         <a key={i} href={url} target="_blank" rel="noopener noreferrer">
@@ -304,7 +304,7 @@ export default function AdminDisputeDetailPage() {
                 )}
                 {dispute.equipment_booking.return_photos && dispute.equipment_booking.return_photos.length > 0 && (
                   <div>
-                    <p className="text-[10px] font-mono uppercase text-neutral-600 mb-2">Return</p>
+                    <p className="text-[10px] font-mono uppercase text-neutral-400 mb-2">Return</p>
                     <div className="grid grid-cols-2 gap-1">
                       {dispute.equipment_booking.return_photos.map((url, i) => (
                         <a key={i} href={url} target="_blank" rel="noopener noreferrer">
@@ -323,11 +323,11 @@ export default function AdminDisputeDetailPage() {
 
           {/* Timeline / Comments */}
           <div className="rounded-xl border border-neutral-800 bg-neutral-900/50 p-4">
-            <h3 className="text-[10px] font-mono uppercase tracking-widest text-neutral-500 mb-4">
+            <h3 className="text-[10px] font-mono uppercase tracking-widest text-neutral-400 mb-4">
               Timeline
             </h3>
             {dispute.comments.length === 0 ? (
-              <p className="text-xs text-neutral-500">No comments yet.</p>
+              <p className="text-xs text-neutral-400">No comments yet.</p>
             ) : (
               <div className="space-y-4">
                 {dispute.comments.map((c) => (
@@ -335,7 +335,7 @@ export default function AdminDisputeDetailPage() {
                     key={c.id}
                     className={`border-l-2 pl-3 ${c.is_internal ? 'border-[#D4A843]/50' : 'border-neutral-700'}`}
                   >
-                    <p className="text-[10px] text-neutral-500 flex items-center gap-1.5">
+                    <p className="text-[10px] text-neutral-400 flex items-center gap-1.5">
                       <Clock className="w-3 h-3" />
                       {formatDateTime(c.created_at)}
                       {c.is_internal && (
@@ -394,7 +394,7 @@ export default function AdminDisputeDetailPage() {
           {/* Booking Info */}
           {dispute.booking && (
             <div className="rounded-xl border border-neutral-800 bg-neutral-900/50 p-4">
-              <h3 className="text-[10px] font-mono uppercase tracking-widest text-neutral-500 mb-2">
+              <h3 className="text-[10px] font-mono uppercase tracking-widest text-neutral-400 mb-2">
                 Service Booking
               </h3>
               <div className="space-y-1.5 text-xs">
@@ -409,7 +409,7 @@ export default function AdminDisputeDetailPage() {
 
           {dispute.equipment_booking && (
             <div className="rounded-xl border border-neutral-800 bg-neutral-900/50 p-4">
-              <h3 className="text-[10px] font-mono uppercase tracking-widest text-neutral-500 mb-2">
+              <h3 className="text-[10px] font-mono uppercase tracking-widest text-neutral-400 mb-2">
                 Equipment Booking
               </h3>
               <div className="space-y-1.5 text-xs">
@@ -429,7 +429,7 @@ export default function AdminDisputeDetailPage() {
 
               {/* Status */}
               <div className="mb-3">
-                <label className="text-[10px] font-mono uppercase text-neutral-500 block mb-1">
+                <label className="text-[10px] font-mono uppercase text-neutral-400 block mb-1">
                   Status
                 </label>
                 <select
@@ -445,7 +445,7 @@ export default function AdminDisputeDetailPage() {
 
               {/* Resolution */}
               <div className="mb-3">
-                <label className="text-[10px] font-mono uppercase text-neutral-500 block mb-1">
+                <label className="text-[10px] font-mono uppercase text-neutral-400 block mb-1">
                   Resolution
                 </label>
                 <div className="space-y-2">
@@ -468,7 +468,7 @@ export default function AdminDisputeDetailPage() {
               {/* Partial refund amount */}
               {selectedResolution === 'partial_refund' && (
                 <div className="mb-3">
-                  <label className="text-[10px] font-mono uppercase text-neutral-500 block mb-1">
+                  <label className="text-[10px] font-mono uppercase text-neutral-400 block mb-1">
                     Refund Amount (ZAR)
                   </label>
                   <input
@@ -485,7 +485,7 @@ export default function AdminDisputeDetailPage() {
 
               {/* Resolution notes */}
               <div className="mb-3">
-                <label className="text-[10px] font-mono uppercase text-neutral-500 block mb-1">
+                <label className="text-[10px] font-mono uppercase text-neutral-400 block mb-1">
                   Resolution Notes (visible to user)
                 </label>
                 <Textarea
@@ -498,7 +498,7 @@ export default function AdminDisputeDetailPage() {
 
               {/* Internal notes */}
               <div className="mb-4">
-                <label className="text-[10px] font-mono uppercase text-neutral-500 block mb-1">
+                <label className="text-[10px] font-mono uppercase text-neutral-400 block mb-1">
                   Internal Notes (admin only)
                 </label>
                 <Textarea
@@ -537,7 +537,7 @@ export default function AdminDisputeDetailPage() {
                 <p className="text-xs text-neutral-400 mt-2">{dispute.resolution_notes}</p>
               )}
               {dispute.resolved_at && (
-                <p className="text-[10px] text-neutral-500 mt-2">
+                <p className="text-[10px] text-neutral-400 mt-2">
                   Resolved {formatDateTime(dispute.resolved_at)}
                 </p>
               )}

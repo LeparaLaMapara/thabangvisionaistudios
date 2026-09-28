@@ -80,7 +80,7 @@ export function DashboardSidebar({ isCreator }: DashboardSidebarProps) {
     <nav className="space-y-6">
       {groups.map((group) => (
         <div key={group.title + (group.creatorOnly ? '-creator' : group.hideForCreator ? '-unverified' : '')}>
-          <p className="text-[8px] font-mono uppercase tracking-[0.3em] text-neutral-600 mb-2 px-3">
+          <p className="text-[8px] font-mono uppercase tracking-[0.3em] text-neutral-400 mb-2 px-3">
             {group.title}
           </p>
           <div className="space-y-0.5">

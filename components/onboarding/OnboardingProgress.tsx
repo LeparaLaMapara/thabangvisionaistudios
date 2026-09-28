@@ -31,7 +31,7 @@ export default function OnboardingProgress({
                     ? 'bg-[#D4A843] text-black'
                     : isCurrent
                     ? 'border-2 border-[#D4A843] text-[#D4A843]'
-                    : 'border border-white/10 text-neutral-600'
+                    : 'border border-white/10 text-neutral-400'
                 }`}
               >
                 {isComplete ? (
@@ -48,7 +48,7 @@ export default function OnboardingProgress({
                     ? 'text-[#D4A843]'
                     : isComplete
                     ? 'text-neutral-400'
-                    : 'text-neutral-600'
+                    : 'text-neutral-400'
                 }`}
               >
                 {stepLabels[i]}

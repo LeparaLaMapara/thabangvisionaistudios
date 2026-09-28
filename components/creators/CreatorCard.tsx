@@ -42,7 +42,7 @@ export default function CreatorCard({ member, avgRating, totalReviews = 0 }: Cre
               className="object-cover group-hover:scale-105 transition-transform duration-500"
             />
           ) : (
-            <div className="w-full h-full flex items-center justify-center text-2xl font-display font-bold text-neutral-600">
+            <div className="w-full h-full flex items-center justify-center text-2xl font-display font-bold text-neutral-400">
               {initials}
             </div>
           )}
@@ -58,12 +58,12 @@ export default function CreatorCard({ member, avgRating, totalReviews = 0 }: Cre
           <h3 className="text-sm font-display font-medium uppercase text-white truncate">
             {member.display_name}
           </h3>
-          <p className="text-[10px] font-mono text-neutral-500 uppercase tracking-widest mt-0.5">
+          <p className="text-[10px] font-mono text-neutral-400 uppercase tracking-widest mt-0.5">
             {primarySpec}
           </p>
 
           {member.location && (
-            <p className="text-[10px] font-mono text-neutral-600 flex items-center gap-1 mt-2">
+            <p className="text-[10px] font-mono text-neutral-400 flex items-center gap-1 mt-2">
               <MapPin className="w-3 h-3" />
               {member.location}
             </p>
@@ -82,7 +82,7 @@ export default function CreatorCard({ member, avgRating, totalReviews = 0 }: Cre
                 {avgRating} ({totalReviews})
               </span>
             ) : (
-              <span className="text-[10px] font-mono text-neutral-600">New</span>
+              <span className="text-[10px] font-mono text-neutral-400">New</span>
             )}
           </div>
 
@@ -92,7 +92,7 @@ export default function CreatorCard({ member, avgRating, totalReviews = 0 }: Cre
               {member.specializations.slice(0, 3).map((spec) => (
                 <span
                   key={spec}
-                  className="text-[8px] font-mono uppercase tracking-widest text-neutral-500 border border-white/5 px-2 py-0.5"
+                  className="text-[8px] font-mono uppercase tracking-widest text-neutral-400 border border-white/5 px-2 py-0.5"
                 >
                   {spec}
                 </span>

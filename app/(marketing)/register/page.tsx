@@ -22,8 +22,10 @@ function GoogleIcon() {
 
 export default function RegisterPage() {
   return (
+    // The fallback holds a full screen of space, so the footer does not jump
+    // up and then down again while the form loads (layout shift 0.2 before).
     <Suspense fallback={
-      <div className="flex items-center justify-center py-40">
+      <div className="flex items-center justify-center py-40 min-h-screen">
         <div className="w-5 h-5 border-2 border-white/20 border-t-white rounded-full animate-spin" />
       </div>
     }>
@@ -161,7 +163,7 @@ function RegisterForm() {
       >
         {/* Header */}
         <div className="mb-10">
-          <p className="text-[9px] font-mono uppercase tracking-[0.2em] text-neutral-600 mb-3">
+          <p className="text-[9px] font-mono uppercase tracking-[0.2em] text-neutral-400 mb-3">
             {STUDIO.shortName.toUpperCase()}
           </p>
           <h1 className="text-3xl font-display font-medium uppercase tracking-tight text-white">
@@ -187,7 +189,7 @@ function RegisterForm() {
             {/* Divider */}
             <div className="flex items-center gap-3 py-1">
               <div className="flex-1 h-px bg-white/10" />
-              <span className="text-[9px] font-mono uppercase tracking-widest text-neutral-600">
+              <span className="text-[9px] font-mono uppercase tracking-widest text-neutral-400">
                 or
               </span>
               <div className="flex-1 h-px bg-white/10" />
@@ -196,7 +198,7 @@ function RegisterForm() {
             {/* Email + Password form */}
             <form onSubmit={handleSubmit} noValidate className="space-y-4">
               <div>
-                <label htmlFor="email" className="block text-[10px] font-bold uppercase tracking-widest text-neutral-500 mb-2">
+                <label htmlFor="email" className="block text-[10px] font-bold uppercase tracking-widest text-neutral-400 mb-2">
                   Email
                 </label>
                 <input
@@ -207,11 +209,11 @@ function RegisterForm() {
                   required
                   autoComplete="email"
                   placeholder="you@example.com"
-                  className="w-full bg-neutral-900 border border-white/10 text-white px-4 py-3 min-h-[44px] text-sm font-mono placeholder:text-neutral-700 focus:outline-none focus:border-[#D4A843] transition-colors"
+                  className="w-full bg-neutral-900 border border-white/10 text-white px-4 py-3 min-h-[44px] text-sm font-mono placeholder:text-neutral-400 focus:outline-none focus:border-[#D4A843] transition-colors"
                 />
               </div>
               <div>
-                <label htmlFor="password" className="block text-[10px] font-bold uppercase tracking-widest text-neutral-500 mb-2">
+                <label htmlFor="password" className="block text-[10px] font-bold uppercase tracking-widest text-neutral-400 mb-2">
                   Password
                 </label>
                 <input
@@ -222,11 +224,11 @@ function RegisterForm() {
                   required
                   autoComplete="new-password"
                   placeholder={`Min ${STUDIO.platform.minPasswordLength} characters`}
-                  className="w-full bg-neutral-900 border border-white/10 text-white px-4 py-3 min-h-[44px] text-sm font-mono placeholder:text-neutral-700 focus:outline-none focus:border-[#D4A843] transition-colors"
+                  className="w-full bg-neutral-900 border border-white/10 text-white px-4 py-3 min-h-[44px] text-sm font-mono placeholder:text-neutral-400 focus:outline-none focus:border-[#D4A843] transition-colors"
                 />
               </div>
               <div>
-                <label htmlFor="confirmPassword" className="block text-[10px] font-bold uppercase tracking-widest text-neutral-500 mb-2">
+                <label htmlFor="confirmPassword" className="block text-[10px] font-bold uppercase tracking-widest text-neutral-400 mb-2">
                   Confirm Password
                 </label>
                 <input
@@ -237,7 +239,7 @@ function RegisterForm() {
                   required
                   autoComplete="new-password"
                   placeholder="Repeat password"
-                  className="w-full bg-neutral-900 border border-white/10 text-white px-4 py-3 min-h-[44px] text-sm font-mono placeholder:text-neutral-700 focus:outline-none focus:border-[#D4A843] transition-colors"
+                  className="w-full bg-neutral-900 border border-white/10 text-white px-4 py-3 min-h-[44px] text-sm font-mono placeholder:text-neutral-400 focus:outline-none focus:border-[#D4A843] transition-colors"
                 />
               </div>
               <div>
@@ -248,7 +250,7 @@ function RegisterForm() {
                     onChange={(e) => setAgreedToTerms(e.target.checked)}
                     className="mt-0.5 w-5 h-5 min-w-[20px] border border-white/20 bg-neutral-900 accent-[#D4A843] cursor-pointer"
                   />
-                  <span className="text-xs font-mono text-neutral-500 leading-relaxed">
+                  <span className="text-xs font-mono text-neutral-400 leading-relaxed">
                     I agree to the{' '}
                     <Link href="/legal" className="text-white underline underline-offset-2 hover:opacity-70 transition-opacity">
                       Terms of Service
@@ -281,7 +283,7 @@ function RegisterForm() {
               type="button"
               onClick={handleMagicLink}
               disabled={magicLoading}
-              className="w-full text-xs font-mono text-neutral-500 hover:text-white transition-colors uppercase tracking-widest py-2 disabled:opacity-40"
+              className="w-full text-xs font-mono text-neutral-400 hover:text-white transition-colors uppercase tracking-widest py-2 disabled:opacity-40"
             >
               {magicLoading ? 'Sending Link...' : 'Send Me a Sign-In Link Instead'}
             </button>
@@ -303,7 +305,7 @@ function RegisterForm() {
         </div>
 
         {/* Footer */}
-        <p className="text-center text-[9px] font-mono uppercase tracking-[0.2em] text-neutral-600 mt-6">
+        <p className="text-center text-[9px] font-mono uppercase tracking-[0.2em] text-neutral-400 mt-6">
           Already have an account?{' '}
           <Link
             href={withRedirect('/login', next)}

@@ -45,7 +45,7 @@ export default async function AdminLayout({
 
           {/* Right: user email + logout */}
           <div className="flex items-center gap-4">
-            <span className="hidden sm:block text-[10px] font-mono text-neutral-600 truncate max-w-[200px]">
+            <span className="hidden sm:block text-[10px] font-mono text-neutral-400 truncate max-w-[200px]">
               {user.email}
             </span>
             <LogoutButton />
@@ -54,7 +54,7 @@ export default async function AdminLayout({
       </header>
 
       {/* Page content */}
-      <main>
+      <main id="main" tabIndex={-1} className="outline-none">
         {children}
       </main>
     </div>

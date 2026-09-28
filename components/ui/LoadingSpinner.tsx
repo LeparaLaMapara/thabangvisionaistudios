@@ -43,7 +43,7 @@ export function LoadingSpinner({ size = 'md', label, className = '' }: LoadingSp
           className={[
             cfg.text,
             'font-mono uppercase tracking-widest',
-            'text-neutral-500 dark:text-neutral-400',
+            'text-neutral-400 dark:text-neutral-400',
           ].join(' ')}
         >
           {label}

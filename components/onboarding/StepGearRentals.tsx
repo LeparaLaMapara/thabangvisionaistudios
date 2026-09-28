@@ -210,7 +210,7 @@ export default function StepGearRentals({ onComplete, onSkip }: StepGearRentalsP
         <h2 className="text-sm font-mono font-bold uppercase tracking-widest text-white mb-1">
           List Your Gear
         </h2>
-        <p className="text-[10px] font-mono text-neutral-500 leading-relaxed">
+        <p className="text-[10px] font-mono text-neutral-400 leading-relaxed">
           Upload photos of equipment you&apos;d like to rent out. Our AI will identify each item automatically.
         </p>
       </div>
@@ -233,7 +233,7 @@ export default function StepGearRentals({ onComplete, onSkip }: StepGearRentalsP
             {/* Fields */}
             <div className="flex-1 space-y-3">
               <div>
-                <label className="block text-[8px] font-bold uppercase tracking-widest text-neutral-600 mb-1">
+                <label className="block text-[8px] font-bold uppercase tracking-widest text-neutral-400 mb-1">
                   Name
                 </label>
                 <input
@@ -242,13 +242,13 @@ export default function StepGearRentals({ onComplete, onSkip }: StepGearRentalsP
                   onChange={(e) => updateItem(index, 'name', e.target.value)}
                   placeholder="e.g. Sony A7 III"
                   disabled={item.uploading || item.analyzing}
-                  className="w-full bg-neutral-900 border border-white/10 text-white px-3 py-2 text-xs font-mono placeholder:text-neutral-700 focus:outline-none focus:border-[#D4A843] transition-colors disabled:opacity-50"
+                  className="w-full bg-neutral-900 border border-white/10 text-white px-3 py-2 text-xs font-mono placeholder:text-neutral-400 focus:outline-none focus:border-[#D4A843] transition-colors disabled:opacity-50"
                 />
               </div>
 
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label className="block text-[8px] font-bold uppercase tracking-widest text-neutral-600 mb-1">
+                  <label className="block text-[8px] font-bold uppercase tracking-widest text-neutral-400 mb-1">
                     Category
                   </label>
                   <select
@@ -264,7 +264,7 @@ export default function StepGearRentals({ onComplete, onSkip }: StepGearRentalsP
                 </div>
 
                 <div>
-                  <label className="block text-[8px] font-bold uppercase tracking-widest text-neutral-600 mb-1">
+                  <label className="block text-[8px] font-bold uppercase tracking-widest text-neutral-400 mb-1">
                     Condition
                   </label>
                   <select
@@ -283,7 +283,7 @@ export default function StepGearRentals({ onComplete, onSkip }: StepGearRentalsP
               </div>
 
               <div>
-                <label className="block text-[8px] font-bold uppercase tracking-widest text-neutral-600 mb-1">
+                <label className="block text-[8px] font-bold uppercase tracking-widest text-neutral-400 mb-1">
                   Daily Rate ({STUDIO.currency.code})
                 </label>
                 <input
@@ -293,7 +293,7 @@ export default function StepGearRentals({ onComplete, onSkip }: StepGearRentalsP
                   placeholder="e.g. 500"
                   min="0"
                   disabled={item.uploading || item.analyzing}
-                  className="w-full bg-neutral-900 border border-white/10 text-white px-3 py-2 text-xs font-mono placeholder:text-neutral-700 focus:outline-none focus:border-[#D4A843] transition-colors disabled:opacity-50"
+                  className="w-full bg-neutral-900 border border-white/10 text-white px-3 py-2 text-xs font-mono placeholder:text-neutral-400 focus:outline-none focus:border-[#D4A843] transition-colors disabled:opacity-50"
                 />
               </div>
             </div>
@@ -302,7 +302,7 @@ export default function StepGearRentals({ onComplete, onSkip }: StepGearRentalsP
             <button
               type="button"
               onClick={() => removeItem(index)}
-              className="self-start p-2 text-neutral-600 hover:text-red-400 transition-colors"
+              className="self-start p-2 text-neutral-400 hover:text-red-400 transition-colors"
             >
               <Trash2 className="w-4 h-4" />
             </button>
@@ -313,7 +313,7 @@ export default function StepGearRentals({ onComplete, onSkip }: StepGearRentalsP
           )}
 
           {item.identification && item.identification.confidence > 0 && (
-            <p className="text-[9px] font-mono text-neutral-500">
+            <p className="text-[9px] font-mono text-neutral-400">
               AI confidence: {item.identification.confidence}% — {item.identification.equipmentType}
             </p>
           )}
@@ -323,7 +323,7 @@ export default function StepGearRentals({ onComplete, onSkip }: StepGearRentalsP
       {/* Add gear button */}
       <label className="cursor-pointer block">
         <div className="border border-dashed border-white/10 hover:border-[#D4A843]/30 transition-colors p-6 flex items-center justify-center gap-2">
-          <Plus className="w-4 h-4 text-neutral-500" />
+          <Plus className="w-4 h-4 text-neutral-400" />
           <span className="text-[10px] font-mono uppercase tracking-widest text-neutral-400">
             Add Gear Photo
           </span>

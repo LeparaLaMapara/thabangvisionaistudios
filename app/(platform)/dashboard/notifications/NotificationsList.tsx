@@ -41,8 +41,8 @@ export default function NotificationsList({
   if (notifications.length === 0) {
     return (
       <div className="border border-white/5 px-6 py-16 text-center">
-        <p className="text-xs font-mono text-neutral-600">No notifications yet.</p>
-        <p className="text-[10px] font-mono text-neutral-700 mt-2">
+        <p className="text-xs font-mono text-neutral-400">No notifications yet.</p>
+        <p className="text-[10px] font-mono text-neutral-400 mt-2">
           You will be notified when you receive gig requests or booking updates.
         </p>
       </div>
@@ -53,7 +53,7 @@ export default function NotificationsList({
     <div>
       {unreadCount > 0 && (
         <div className="flex items-center justify-between mb-4">
-          <p className="text-[10px] font-mono text-neutral-500">
+          <p className="text-[10px] font-mono text-neutral-400">
             {unreadCount} unread notification{unreadCount !== 1 ? 's' : ''}
           </p>
           <button
@@ -84,12 +84,12 @@ export default function NotificationsList({
               <div className={!n.is_read ? '' : 'ml-[18px]'}>
                 <div className="flex items-center gap-3">
                   <p className="text-xs font-mono text-white">{n.title}</p>
-                  <span className="text-[9px] font-mono uppercase tracking-widest text-neutral-700 bg-white/5 px-2 py-0.5">
+                  <span className="text-[9px] font-mono uppercase tracking-widest text-neutral-400 bg-white/5 px-2 py-0.5">
                     {n.type.replace(/_/g, ' ')}
                   </span>
                 </div>
-                <p className="text-[10px] font-mono text-neutral-500 mt-1">{n.body}</p>
-                <p className="text-[9px] font-mono text-neutral-700 mt-2">
+                <p className="text-[10px] font-mono text-neutral-400 mt-1">{n.body}</p>
+                <p className="text-[9px] font-mono text-neutral-400 mt-2">
                   {new Date(n.created_at).toLocaleDateString('en-ZA', {
                     day: 'numeric',
                     month: 'short',

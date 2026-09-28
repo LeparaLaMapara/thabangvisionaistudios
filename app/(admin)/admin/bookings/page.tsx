@@ -149,7 +149,7 @@ export default function AdminBookingsPage() {
             <h1 className="text-2xl font-display font-medium uppercase text-white mb-1">
               Bookings
             </h1>
-            <p className="text-[10px] font-mono uppercase tracking-widest text-neutral-500">
+            <p className="text-[10px] font-mono uppercase tracking-widest text-neutral-400">
               {bookings.length} total bookings
             </p>
           </div>
@@ -169,7 +169,7 @@ export default function AdminBookingsPage() {
         {/* Filters */}
         <div className="flex flex-col md:flex-row gap-4 mb-8">
           <div className="flex-1 relative">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-500" />
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-400" />
             <Input
               value={search}
               onChange={(e) => {
@@ -205,7 +205,7 @@ export default function AdminBookingsPage() {
         ) : (
           <>
             {/* Table header */}
-            <div className="hidden md:grid grid-cols-[2fr_1.5fr_1fr_1fr_1fr_auto] gap-4 px-5 py-3 text-[9px] font-mono uppercase tracking-widest text-neutral-600 border-b border-white/10">
+            <div className="hidden md:grid grid-cols-[2fr_1.5fr_1fr_1fr_1fr_auto] gap-4 px-5 py-3 text-[9px] font-mono uppercase tracking-widest text-neutral-400 border-b border-white/10">
               <span>Equipment</span>
               <span>Customer</span>
               <span>Dates</span>
@@ -226,7 +226,7 @@ export default function AdminBookingsPage() {
                     <p className="text-sm font-medium text-white truncate">
                       {booking.rental_title}
                     </p>
-                    <p className="text-[9px] font-mono text-neutral-600 uppercase tracking-widest">
+                    <p className="text-[9px] font-mono text-neutral-400 uppercase tracking-widest">
                       {booking.rental_category}
                     </p>
                   </div>
@@ -236,7 +236,7 @@ export default function AdminBookingsPage() {
                     <p className="text-sm text-white truncate">
                       {booking.user_name ?? 'Unknown'}
                     </p>
-                    <p className="text-[9px] font-mono text-neutral-600 truncate">
+                    <p className="text-[9px] font-mono text-neutral-400 truncate">
                       {booking.user_email}
                     </p>
                   </div>
@@ -320,26 +320,26 @@ export default function AdminBookingsPage() {
           <div className="space-y-6">
             {/* Equipment */}
             <div>
-              <h4 className="text-[10px] font-mono font-bold uppercase tracking-widest text-neutral-500 mb-2">
+              <h4 className="text-[10px] font-mono font-bold uppercase tracking-widest text-neutral-400 mb-2">
                 Equipment
               </h4>
               <p className="text-sm font-medium text-white">
                 {detailBooking.rental_title}
               </p>
-              <p className="text-[10px] font-mono text-neutral-500 uppercase tracking-widest">
+              <p className="text-[10px] font-mono text-neutral-400 uppercase tracking-widest">
                 {detailBooking.rental_category}
               </p>
             </div>
 
             {/* Customer */}
             <div>
-              <h4 className="text-[10px] font-mono font-bold uppercase tracking-widest text-neutral-500 mb-2">
+              <h4 className="text-[10px] font-mono font-bold uppercase tracking-widest text-neutral-400 mb-2">
                 Customer
               </h4>
               <p className="text-sm text-white">
                 {detailBooking.user_name ?? 'Unknown'}
               </p>
-              <p className="text-xs font-mono text-neutral-500">
+              <p className="text-xs font-mono text-neutral-400">
                 {detailBooking.user_email}
               </p>
             </div>
@@ -347,7 +347,7 @@ export default function AdminBookingsPage() {
             {/* Dates */}
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <h4 className="text-[10px] font-mono font-bold uppercase tracking-widest text-neutral-500 mb-2">
+                <h4 className="text-[10px] font-mono font-bold uppercase tracking-widest text-neutral-400 mb-2">
                   Start Date
                 </h4>
                 <p className="text-sm font-mono text-white">
@@ -359,7 +359,7 @@ export default function AdminBookingsPage() {
                 </p>
               </div>
               <div>
-                <h4 className="text-[10px] font-mono font-bold uppercase tracking-widest text-neutral-500 mb-2">
+                <h4 className="text-[10px] font-mono font-bold uppercase tracking-widest text-neutral-400 mb-2">
                   End Date
                 </h4>
                 <p className="text-sm font-mono text-white">
@@ -375,7 +375,7 @@ export default function AdminBookingsPage() {
             {/* Payment */}
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <h4 className="text-[10px] font-mono font-bold uppercase tracking-widest text-neutral-500 mb-2">
+                <h4 className="text-[10px] font-mono font-bold uppercase tracking-widest text-neutral-400 mb-2">
                   Total Price
                 </h4>
                 <p className="text-lg font-mono font-bold text-white">
@@ -383,7 +383,7 @@ export default function AdminBookingsPage() {
                 </p>
               </div>
               <div>
-                <h4 className="text-[10px] font-mono font-bold uppercase tracking-widest text-neutral-500 mb-2">
+                <h4 className="text-[10px] font-mono font-bold uppercase tracking-widest text-neutral-400 mb-2">
                   Deposit
                 </h4>
                 <p className="text-sm font-mono text-white">
@@ -394,7 +394,7 @@ export default function AdminBookingsPage() {
 
             {/* Status */}
             <div>
-              <h4 className="text-[10px] font-mono font-bold uppercase tracking-widest text-neutral-500 mb-2">
+              <h4 className="text-[10px] font-mono font-bold uppercase tracking-widest text-neutral-400 mb-2">
                 Status
               </h4>
               <Badge variant={STATUS_VARIANT[detailBooking.status]}>
@@ -405,7 +405,7 @@ export default function AdminBookingsPage() {
             {/* Gateway payment reference */}
             {detailBooking.payfast_payment_id && (
               <div>
-                <h4 className="text-[10px] font-mono font-bold uppercase tracking-widest text-neutral-500 mb-2">
+                <h4 className="text-[10px] font-mono font-bold uppercase tracking-widest text-neutral-400 mb-2">
                   Payment Reference
                 </h4>
                 <p className="text-xs font-mono text-neutral-400 break-all">
@@ -417,7 +417,7 @@ export default function AdminBookingsPage() {
             {/* Notes */}
             {detailBooking.notes && (
               <div>
-                <h4 className="text-[10px] font-mono font-bold uppercase tracking-widest text-neutral-500 mb-2">
+                <h4 className="text-[10px] font-mono font-bold uppercase tracking-widest text-neutral-400 mb-2">
                   Notes
                 </h4>
                 <p className="text-sm text-neutral-400 leading-relaxed whitespace-pre-wrap">

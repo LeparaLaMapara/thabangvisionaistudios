@@ -33,7 +33,7 @@ export function RelatedCategories({ currentSlug, type, locationSlug, className =
   return (
     <section className={`border-t border-white/5 py-12 ${className}`}>
       <div className="container mx-auto px-6">
-        <h2 className="text-xs font-mono uppercase tracking-widest text-neutral-500 mb-6">
+        <h2 className="text-xs font-mono uppercase tracking-widest text-neutral-400 mb-6">
           Related Services
         </h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -47,7 +47,7 @@ export function RelatedCategories({ currentSlug, type, locationSlug, className =
                 {cat.label}
                 <ArrowRight className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity" />
               </h3>
-              <p className="text-[11px] text-neutral-500 font-light line-clamp-2">
+              <p className="text-[11px] text-neutral-400 font-light line-clamp-2">
                 {cat.description}
               </p>
             </Link>

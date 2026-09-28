@@ -62,7 +62,7 @@ export default function CreatorRequestsManager({ initialRequests }: Props) {
             className={`text-[10px] font-mono uppercase tracking-widest px-3 py-2 border transition-all min-h-[36px] ${
               activeTab === tab
                 ? 'bg-[#D4A843] text-black border-[#D4A843]'
-                : 'bg-transparent text-neutral-500 border-white/10 hover:border-white/30'
+                : 'bg-transparent text-neutral-400 border-white/10 hover:border-white/30'
             }`}
           >
             {STUDIO.creators.statusLabels[tab as keyof typeof STUDIO.creators.statusLabels] || 'All'}
@@ -96,7 +96,7 @@ export default function CreatorRequestsManager({ initialRequests }: Props) {
                         {req.project_type}
                       </h3>
                       <StatusBadge status={req.status} />
-                      <span className="text-[9px] font-mono text-neutral-600">via {req.booked_via}</span>
+                      <span className="text-[9px] font-mono text-neutral-400">via {req.booked_via}</span>
                     </div>
                     <p className="text-xs font-mono text-neutral-400 mt-1">
                       {req.client_name} &mdash;{' '}
@@ -107,7 +107,7 @@ export default function CreatorRequestsManager({ initialRequests }: Props) {
                       })}
                     </p>
                   </div>
-                  <span className="text-[10px] font-mono text-neutral-600">
+                  <span className="text-[10px] font-mono text-neutral-400">
                     {isExpanded ? '—' : '+'}
                   </span>
                 </button>
@@ -117,20 +117,20 @@ export default function CreatorRequestsManager({ initialRequests }: Props) {
                   <div className="px-5 pb-5 border-t border-white/5 pt-4 space-y-5">
                     {/* Client info */}
                     <div>
-                      <p className="text-[10px] font-mono uppercase tracking-widest text-neutral-500 mb-2">
+                      <p className="text-[10px] font-mono uppercase tracking-widest text-neutral-400 mb-2">
                         Client
                       </p>
                       <div className="space-y-1 text-xs font-mono text-neutral-300">
                         <p>{req.client_name}</p>
                         <p className="flex items-center gap-1.5">
-                          <Mail className="w-3 h-3 text-neutral-500" />
+                          <Mail className="w-3 h-3 text-neutral-400" />
                           <a href={`mailto:${req.client_email}`} className="text-[#D4A843] hover:underline">
                             {req.client_email}
                           </a>
                         </p>
                         {req.client_phone && (
                           <p className="flex items-center gap-1.5">
-                            <Phone className="w-3 h-3 text-neutral-500" />
+                            <Phone className="w-3 h-3 text-neutral-400" />
                             <a href={`tel:${req.client_phone}`} className="hover:underline">
                               {req.client_phone}
                             </a>
@@ -142,21 +142,21 @@ export default function CreatorRequestsManager({ initialRequests }: Props) {
                     {/* Creator info */}
                     {creator && (
                       <div>
-                        <p className="text-[10px] font-mono uppercase tracking-widest text-neutral-500 mb-2">
+                        <p className="text-[10px] font-mono uppercase tracking-widest text-neutral-400 mb-2">
                           Requested Creator
                         </p>
                         <div className="space-y-1 text-xs font-mono text-neutral-300">
                           <p>{creator.display_name}</p>
                           {creator.phone && (
                             <p className="flex items-center gap-1.5">
-                              <Phone className="w-3 h-3 text-neutral-500" /> {creator.phone}
+                              <Phone className="w-3 h-3 text-neutral-400" /> {creator.phone}
                             </p>
                           )}
                           {creator.hourly_rate && (
                             <p>{STUDIO.currency.symbol}{creator.hourly_rate}/hr</p>
                           )}
                           {creator.specializations && (
-                            <p className="text-neutral-500">{creator.specializations.join(', ')}</p>
+                            <p className="text-neutral-400">{creator.specializations.join(', ')}</p>
                           )}
                         </div>
                       </div>
@@ -164,13 +164,13 @@ export default function CreatorRequestsManager({ initialRequests }: Props) {
 
                     {/* Project details */}
                     <div>
-                      <p className="text-[10px] font-mono uppercase tracking-widest text-neutral-500 mb-2">
+                      <p className="text-[10px] font-mono uppercase tracking-widest text-neutral-400 mb-2">
                         Project
                       </p>
                       <p className="text-xs font-mono text-neutral-300 leading-relaxed mb-2">
                         {req.description}
                       </p>
-                      <div className="flex flex-wrap gap-3 text-[10px] font-mono text-neutral-500">
+                      <div className="flex flex-wrap gap-3 text-[10px] font-mono text-neutral-400">
                         {req.preferred_dates && (
                           <span className="flex items-center gap-1">
                             <Calendar className="w-3 h-3" /> {req.preferred_dates}
@@ -192,7 +192,7 @@ export default function CreatorRequestsManager({ initialRequests }: Props) {
 
                     {/* Admin notes */}
                     <div>
-                      <p className="text-[10px] font-mono uppercase tracking-widest text-neutral-500 mb-2 flex items-center gap-1">
+                      <p className="text-[10px] font-mono uppercase tracking-widest text-neutral-400 mb-2 flex items-center gap-1">
                         <MessageSquare className="w-3 h-3" /> Admin Notes
                       </p>
                       <textarea
@@ -200,7 +200,7 @@ export default function CreatorRequestsManager({ initialRequests }: Props) {
                         onChange={(e) => setNotes((prev) => ({ ...prev, [req.id]: e.target.value }))}
                         placeholder="Add notes about this request..."
                         rows={3}
-                        className="w-full bg-neutral-900 border border-white/10 text-white px-4 py-3 text-xs font-mono placeholder:text-neutral-700 focus:outline-none focus:border-white transition-colors resize-none"
+                        className="w-full bg-neutral-900 border border-white/10 text-white px-4 py-3 text-xs font-mono placeholder:text-neutral-400 focus:outline-none focus:border-white transition-colors resize-none"
                       />
                     </div>
 
@@ -268,7 +268,7 @@ export default function CreatorRequestsManager({ initialRequests }: Props) {
           })}
         </div>
       ) : (
-        <div className="text-center py-16 text-neutral-500">
+        <div className="text-center py-16 text-neutral-400">
           <p className="text-sm font-mono">No requests found.</p>
         </div>
       )}
@@ -283,7 +283,7 @@ function StatusBadge({ status }: { status: string }) {
     confirmed: 'text-emerald-400 border-emerald-500/30',
     completed: 'text-neutral-400 border-neutral-500/30',
     declined: 'text-red-400 border-red-500/30',
-    cancelled: 'text-neutral-500 border-neutral-600/30',
+    cancelled: 'text-neutral-400 border-neutral-600/30',
   };
 
   const label =

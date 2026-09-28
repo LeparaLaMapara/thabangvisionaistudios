@@ -85,7 +85,7 @@ export default function StepSkillsDetection({ analyses, onComplete }: StepSkills
           <h2 className="text-sm font-mono font-bold uppercase tracking-widest text-white mb-1">
             Detecting Your Skills
           </h2>
-          <p className="text-[10px] font-mono text-neutral-500 leading-relaxed">
+          <p className="text-[10px] font-mono text-neutral-400 leading-relaxed">
             Analyzing your portfolio to identify your specialties...
           </p>
         </div>
@@ -103,7 +103,7 @@ export default function StepSkillsDetection({ analyses, onComplete }: StepSkills
         <h2 className="text-sm font-mono font-bold uppercase tracking-widest text-white mb-1">
           Your Skills
         </h2>
-        <p className="text-[10px] font-mono text-neutral-500 leading-relaxed">
+        <p className="text-[10px] font-mono text-neutral-400 leading-relaxed">
           Based on your portfolio, here are your detected specialties. Uncheck any that don&apos;t apply.
         </p>
       </div>
@@ -154,7 +154,7 @@ export default function StepSkillsDetection({ analyses, onComplete }: StepSkills
       </div>
 
       {skills.length === 0 && !error && (
-        <p className="text-xs font-mono text-neutral-500 text-center py-8">
+        <p className="text-xs font-mono text-neutral-400 text-center py-8">
           No skills detected. Please go back and upload more portfolio photos.
         </p>
       )}

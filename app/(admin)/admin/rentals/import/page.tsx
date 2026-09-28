@@ -308,7 +308,7 @@ export default function ImportRateCardPage() {
       <div className="flex items-center gap-4 mb-8">
         <Link
           href="/admin/rentals"
-          className="text-neutral-500 hover:text-white transition-colors"
+          className="text-neutral-400 hover:text-white transition-colors"
         >
           <ArrowLeft className="w-4 h-4" />
         </Link>
@@ -316,7 +316,7 @@ export default function ImportRateCardPage() {
           <h1 className="text-xl font-display font-medium text-white uppercase tracking-widest">
             Import Rate Card
           </h1>
-          <p className="text-[10px] font-mono text-neutral-600 uppercase tracking-widest mt-1">
+          <p className="text-[10px] font-mono text-neutral-400 uppercase tracking-widest mt-1">
             Upload a PDF rate card — AI extracts items for review
           </p>
         </div>
@@ -340,17 +340,17 @@ export default function ImportRateCardPage() {
               <p className="text-sm text-neutral-400">
                 Extracting items from <span className="text-white">{pdfName}</span>...
               </p>
-              <p className="text-[10px] font-mono text-neutral-600">
+              <p className="text-[10px] font-mono text-neutral-400">
                 AI is reading the rate card. This may take 10–30 seconds.
               </p>
             </div>
           ) : (
             <div className="flex flex-col items-center gap-4">
-              <FileUp className="w-10 h-10 text-neutral-600" />
+              <FileUp className="w-10 h-10 text-neutral-400" />
               <p className="text-sm text-neutral-400">
                 Drop your rate card PDF here, or <span className="text-[#D4A843]">browse</span>
               </p>
-              <p className="text-[10px] font-mono text-neutral-600">
+              <p className="text-[10px] font-mono text-neutral-400">
                 PDF only — AI will extract all rental items for review
               </p>
             </div>
@@ -382,7 +382,7 @@ export default function ImportRateCardPage() {
                   Select All
                 </span>
               </label>
-              <span className="text-[10px] font-mono text-neutral-600">
+              <span className="text-[10px] font-mono text-neutral-400">
                 {items.length} items extracted from {pdfName} ({pageCount} page{pageCount !== 1 ? 's' : ''})
               </span>
             </div>
@@ -403,7 +403,7 @@ export default function ImportRateCardPage() {
               <button
                 type="button"
                 onClick={() => { setItems([]); setPdfName(null); setImportResult(null); }}
-                className="text-[10px] font-mono uppercase tracking-widest text-neutral-500 hover:text-white transition-colors"
+                className="text-[10px] font-mono uppercase tracking-widest text-neutral-400 hover:text-white transition-colors"
               >
                 Re-upload
               </button>
@@ -415,7 +415,7 @@ export default function ImportRateCardPage() {
                 disabled={importing || selectedCount === 0}
                 className={`flex items-center gap-2 px-5 py-2 text-[10px] font-mono uppercase tracking-widest transition-colors ${
                   importing || selectedCount === 0
-                    ? 'bg-neutral-800 text-neutral-600 cursor-not-allowed'
+                    ? 'bg-neutral-800 text-neutral-400 cursor-not-allowed'
                     : 'bg-[#D4A843] text-black hover:bg-[#E8C96A] cursor-pointer'
                 }`}
               >
@@ -472,7 +472,7 @@ export default function ImportRateCardPage() {
                       // eslint-disable-next-line @next/next/no-img-element
                       <img src={item._gallery[0].url} alt="" className="w-full h-full object-cover" />
                     ) : (
-                      <Package className="w-4 h-4 text-neutral-600" />
+                      <Package className="w-4 h-4 text-neutral-400" />
                     )}
                   </div>
 
@@ -481,16 +481,16 @@ export default function ImportRateCardPage() {
                     <div className="md:col-span-2 truncate">
                       <span className="text-sm text-white font-medium">{item.title}</span>
                     </div>
-                    <span className="text-[10px] font-mono text-neutral-500 uppercase truncate">
+                    <span className="text-[10px] font-mono text-neutral-400 uppercase truncate">
                       {VALID_CATEGORIES.find((c) => c.value === item.category)?.label ?? item.category}
                     </span>
                     <span className="text-[10px] font-mono text-neutral-400 truncate">
                       {[item.brand, item.model].filter(Boolean).join(' ') || '—'}
                     </span>
                     <span className="text-sm font-mono text-white">
-                      {STUDIO.currency.symbol}{item.daily_rate.toLocaleString()}<span className="text-neutral-600">/day</span>
+                      {STUDIO.currency.symbol}{item.daily_rate.toLocaleString()}<span className="text-neutral-400">/day</span>
                     </span>
-                    <span className="text-[10px] font-mono text-neutral-500">
+                    <span className="text-[10px] font-mono text-neutral-400">
                       Dep: {STUDIO.currency.symbol}{item.deposit.toLocaleString()}
                     </span>
                   </div>
@@ -504,10 +504,10 @@ export default function ImportRateCardPage() {
                       <span className="text-[9px] font-mono uppercase tracking-widest text-amber-400">Duplicate</span>
                     )}
                     {item._status === 'skipped' && (
-                      <span className="text-[9px] font-mono uppercase tracking-widest text-neutral-600">Skipped</span>
+                      <span className="text-[9px] font-mono uppercase tracking-widest text-neutral-400">Skipped</span>
                     )}
                     {item._status === 'ready' && (
-                      <span className="text-[9px] font-mono uppercase tracking-widest text-neutral-500">Ready</span>
+                      <span className="text-[9px] font-mono uppercase tracking-widest text-neutral-400">Ready</span>
                     )}
                     {item._status === 'complete' && (
                       <span className="text-[9px] font-mono uppercase tracking-widest text-blue-400">Complete</span>
@@ -518,7 +518,7 @@ export default function ImportRateCardPage() {
                   <button
                     type="button"
                     onClick={() => toggleExpand(item._id)}
-                    className="text-neutral-500 hover:text-white transition-colors flex-shrink-0"
+                    className="text-neutral-400 hover:text-white transition-colors flex-shrink-0"
                   >
                     {item._expanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
                   </button>
@@ -561,7 +561,7 @@ export default function ImportRateCardPage() {
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                       {/* Title */}
                       <div>
-                        <label className="text-[9px] font-mono uppercase tracking-widest text-neutral-600 block mb-1">Title</label>
+                        <label className="text-[9px] font-mono uppercase tracking-widest text-neutral-400 block mb-1">Title</label>
                         <input
                           type="text"
                           value={item.title}
@@ -572,7 +572,7 @@ export default function ImportRateCardPage() {
 
                       {/* Category */}
                       <div>
-                        <label className="text-[9px] font-mono uppercase tracking-widest text-neutral-600 block mb-1">Category</label>
+                        <label className="text-[9px] font-mono uppercase tracking-widest text-neutral-400 block mb-1">Category</label>
                         <select
                           value={item.category}
                           onChange={(e) => updateItem(item._id, { category: e.target.value })}
@@ -586,7 +586,7 @@ export default function ImportRateCardPage() {
 
                       {/* Sub-category */}
                       <div>
-                        <label className="text-[9px] font-mono uppercase tracking-widest text-neutral-600 block mb-1">Sub-category</label>
+                        <label className="text-[9px] font-mono uppercase tracking-widest text-neutral-400 block mb-1">Sub-category</label>
                         <input
                           type="text"
                           value={item.sub_category ?? ''}
@@ -597,7 +597,7 @@ export default function ImportRateCardPage() {
 
                       {/* Brand */}
                       <div>
-                        <label className="text-[9px] font-mono uppercase tracking-widest text-neutral-600 block mb-1">Brand</label>
+                        <label className="text-[9px] font-mono uppercase tracking-widest text-neutral-400 block mb-1">Brand</label>
                         <input
                           type="text"
                           value={item.brand ?? ''}
@@ -608,7 +608,7 @@ export default function ImportRateCardPage() {
 
                       {/* Model */}
                       <div>
-                        <label className="text-[9px] font-mono uppercase tracking-widest text-neutral-600 block mb-1">Model</label>
+                        <label className="text-[9px] font-mono uppercase tracking-widest text-neutral-400 block mb-1">Model</label>
                         <input
                           type="text"
                           value={item.model ?? ''}
@@ -619,7 +619,7 @@ export default function ImportRateCardPage() {
 
                       {/* Daily Rate */}
                       <div>
-                        <label className="text-[9px] font-mono uppercase tracking-widest text-neutral-600 block mb-1">Daily Rate ({STUDIO.currency.code})</label>
+                        <label className="text-[9px] font-mono uppercase tracking-widest text-neutral-400 block mb-1">Daily Rate ({STUDIO.currency.code})</label>
                         <input
                           type="number"
                           value={item.daily_rate}
@@ -637,7 +637,7 @@ export default function ImportRateCardPage() {
 
                       {/* Weekly Rate */}
                       <div>
-                        <label className="text-[9px] font-mono uppercase tracking-widest text-neutral-600 block mb-1">Weekly Rate ({STUDIO.currency.code})</label>
+                        <label className="text-[9px] font-mono uppercase tracking-widest text-neutral-400 block mb-1">Weekly Rate ({STUDIO.currency.code})</label>
                         <input
                           type="number"
                           value={item.weekly_rate}
@@ -648,7 +648,7 @@ export default function ImportRateCardPage() {
 
                       {/* Deposit */}
                       <div>
-                        <label className="text-[9px] font-mono uppercase tracking-widest text-neutral-600 block mb-1">Deposit ({STUDIO.currency.code})</label>
+                        <label className="text-[9px] font-mono uppercase tracking-widest text-neutral-400 block mb-1">Deposit ({STUDIO.currency.code})</label>
                         <input
                           type="number"
                           value={item.deposit}
@@ -660,7 +660,7 @@ export default function ImportRateCardPage() {
 
                     {/* Description */}
                     <div>
-                      <label className="text-[9px] font-mono uppercase tracking-widest text-neutral-600 block mb-1">Description</label>
+                      <label className="text-[9px] font-mono uppercase tracking-widest text-neutral-400 block mb-1">Description</label>
                       <textarea
                         value={item.description ?? ''}
                         onChange={(e) => updateItem(item._id, { description: e.target.value || null })}
@@ -671,7 +671,7 @@ export default function ImportRateCardPage() {
 
                     {/* Features */}
                     <div>
-                      <label className="text-[9px] font-mono uppercase tracking-widest text-neutral-600 block mb-1">Features (comma-separated)</label>
+                      <label className="text-[9px] font-mono uppercase tracking-widest text-neutral-400 block mb-1">Features (comma-separated)</label>
                       <input
                         type="text"
                         value={item.features.join(', ')}
@@ -684,7 +684,7 @@ export default function ImportRateCardPage() {
 
                     {/* Tags */}
                     <div>
-                      <label className="text-[9px] font-mono uppercase tracking-widest text-neutral-600 block mb-1">Tags (comma-separated)</label>
+                      <label className="text-[9px] font-mono uppercase tracking-widest text-neutral-400 block mb-1">Tags (comma-separated)</label>
                       <input
                         type="text"
                         value={item.tags.join(', ')}
@@ -697,7 +697,7 @@ export default function ImportRateCardPage() {
 
                     {/* Gallery upload */}
                     <div>
-                      <label className="text-[9px] font-mono uppercase tracking-widest text-neutral-600 block mb-2">Photos</label>
+                      <label className="text-[9px] font-mono uppercase tracking-widest text-neutral-400 block mb-2">Photos</label>
                       <div className="flex items-center gap-3 flex-wrap">
                         {item._gallery.map((asset, gi) => (
                           <div key={gi} className="relative w-16 h-16 bg-neutral-800 rounded overflow-hidden group">
@@ -716,7 +716,7 @@ export default function ImportRateCardPage() {
                           </div>
                         ))}
                         <label className="w-16 h-16 border border-dashed border-white/10 rounded flex items-center justify-center cursor-pointer hover:border-[#D4A843]/50 transition-colors">
-                          <Upload className="w-4 h-4 text-neutral-600" />
+                          <Upload className="w-4 h-4 text-neutral-400" />
                           <input
                             ref={(el) => { galInputRefs.current[item._id] = el; }}
                             type="file"

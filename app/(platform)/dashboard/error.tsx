@@ -23,7 +23,7 @@ export default function DashboardError({
         <h2 className="text-2xl font-display font-medium uppercase text-black dark:text-white mb-3">
           Something went wrong
         </h2>
-        <p className="text-sm text-neutral-500 font-mono mb-8">
+        <p className="text-sm text-neutral-400 font-mono mb-8">
           We encountered an error loading this page. Please try again.
         </p>
         <Button onClick={reset}>Try Again</Button>

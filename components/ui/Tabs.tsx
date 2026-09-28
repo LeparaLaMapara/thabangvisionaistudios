@@ -37,7 +37,7 @@ export function Tabs({ tabs, activeTab, onTabChange, className = '' }: TabsProps
               'transition-colors duration-200',
               isActive
                 ? 'border-black dark:border-white text-black dark:text-white'
-                : 'border-transparent text-neutral-500 hover:text-black dark:hover:text-white',
+                : 'border-transparent text-neutral-400 hover:text-black dark:hover:text-white',
             ].join(' ')}
           >
             {tab.label}

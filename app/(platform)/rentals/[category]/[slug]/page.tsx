@@ -1,3 +1,4 @@
+import type { Metadata } from 'next';
 import { notFound, redirect } from 'next/navigation';
 import { getRentalBySlug, getRelatedRentals, getRentalOwner } from '@/lib/supabase/queries/smartRentals';
 import RentalDetailView from './RentalDetailView';
@@ -5,6 +6,23 @@ import { AskUbunyeButton } from '@/components/ubunye/AskUbunyeButton';
 import { ExitIntentModal } from '@/components/engagement/ExitIntentModal';
 
 export const revalidate = 60;
+
+/** The browser tab and search result name the item, not the site in general. */
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ category: string; slug: string }>;
+}): Promise<Metadata> {
+  const { slug } = await params;
+  const rental = await getRentalBySlug(slug);
+  if (!rental) return {};
+  const image = rental.thumbnail_url ?? undefined;
+  return {
+    title: rental.title,
+    description: rental.description?.slice(0, 160) ?? undefined,
+    openGraph: { title: rental.title, images: image ? [image] : undefined },
+  };
+}
 
 export default async function RentalDetailPage({
   params,
@@ -35,7 +53,7 @@ export default async function RentalDetailPage({
         relatedRentals={relatedRentals}
         owner={owner}
       />
-      <AskUbunyeButton
+      <AskUbunyeButton raised
         prompt={`Tell me more about the ${rental.title} and what it's best for`}
         label="Questions about this gear?"
       />

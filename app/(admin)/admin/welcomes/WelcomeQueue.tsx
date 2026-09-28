@@ -21,7 +21,7 @@ const STATUS_STYLE: Record<Welcome['status'], string> = {
   draft: 'text-[#D4A843] border-[#D4A843]/40',
   sending: 'text-neutral-300 border-neutral-600',
   sent: 'text-emerald-400 border-emerald-400/40',
-  discarded: 'text-neutral-500 border-neutral-700',
+  discarded: 'text-neutral-400 border-neutral-700',
 };
 
 export function WelcomeQueue() {
@@ -100,7 +100,7 @@ export function WelcomeQueue() {
             <button
               key={f}
               onClick={() => setFilter(f)}
-              className={`min-h-[44px] px-3 rounded border ${filter === f ? 'border-white text-white' : 'border-neutral-700 text-neutral-500'}`}
+              className={`min-h-[44px] px-3 rounded border ${filter === f ? 'border-white text-white' : 'border-neutral-700 text-neutral-400'}`}
             >
               {f === 'draft' ? `To send (${drafts})` : `All (${welcomes?.length ?? 0})`}
             </button>
@@ -109,9 +109,9 @@ export function WelcomeQueue() {
       </div>
 
       {error && <p className="text-sm text-red-400">{error}</p>}
-      {welcomes === null && !error && <p className="text-sm text-neutral-500">Loading…</p>}
+      {welcomes === null && !error && <p className="text-sm text-neutral-400">Loading…</p>}
       {welcomes !== null && shown.length === 0 && (
-        <p className="text-sm text-neutral-500">Nothing to send. New signups appear here within a minute.</p>
+        <p className="text-sm text-neutral-400">Nothing to send. New signups appear here within a minute.</p>
       )}
 
       {shown.map((w) => (
@@ -140,9 +140,9 @@ function WelcomeCard({
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div>
           <p className="text-white text-sm">
-            {w.first_name ?? 'No name'} <span className="text-neutral-500">· {w.email}</span>
+            {w.first_name ?? 'No name'} <span className="text-neutral-400">· {w.email}</span>
           </p>
-          <p className="text-[11px] font-mono text-neutral-500 mt-1">
+          <p className="text-[11px] font-mono text-neutral-400 mt-1">
             Joined {new Date(w.created_at).toLocaleString('en-ZA')} with {w.signup_method === 'google' ? 'Google' : 'email'} ·
             drafted by {w.drafted_by}
           </p>

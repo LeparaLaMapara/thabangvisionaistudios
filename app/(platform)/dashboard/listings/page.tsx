@@ -350,7 +350,7 @@ export default function ListingsPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-20 gap-2 text-neutral-500 font-mono text-sm">
+      <div className="flex items-center justify-center py-20 gap-2 text-neutral-400 font-mono text-sm">
         <Loader2 className="w-4 h-4 animate-spin" />
         Loading...
       </div>
@@ -446,7 +446,7 @@ export default function ListingsPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
             {/* Title */}
             <div>
-              <label className="block text-[10px] font-mono uppercase tracking-widest text-neutral-500 mb-2">
+              <label className="block text-[10px] font-mono uppercase tracking-widest text-neutral-400 mb-2">
                 Title
               </label>
               <input
@@ -460,7 +460,7 @@ export default function ListingsPage() {
 
             {/* Category */}
             <div>
-              <label className="block text-[10px] font-mono uppercase tracking-widest text-neutral-500 mb-2">
+              <label className="block text-[10px] font-mono uppercase tracking-widest text-neutral-400 mb-2">
                 Category
               </label>
               <select
@@ -481,7 +481,7 @@ export default function ListingsPage() {
 
             {/* Price per day */}
             <div>
-              <label className="block text-[10px] font-mono uppercase tracking-widest text-neutral-500 mb-2">
+              <label className="block text-[10px] font-mono uppercase tracking-widest text-neutral-400 mb-2">
                 Price per Day ({STUDIO.currency.code})
               </label>
               <input
@@ -499,7 +499,7 @@ export default function ListingsPage() {
 
             {/* Condition */}
             <div>
-              <label className="block text-[10px] font-mono uppercase tracking-widest text-neutral-500 mb-2">
+              <label className="block text-[10px] font-mono uppercase tracking-widest text-neutral-400 mb-2">
                 Condition
               </label>
               <select
@@ -520,7 +520,7 @@ export default function ListingsPage() {
 
             {/* Location */}
             <div className="md:col-span-2">
-              <label className="block text-[10px] font-mono uppercase tracking-widest text-neutral-500 mb-2">
+              <label className="block text-[10px] font-mono uppercase tracking-widest text-neutral-400 mb-2">
                 Location
               </label>
               <input
@@ -537,7 +537,7 @@ export default function ListingsPage() {
 
           {/* Description */}
           <div className="mb-6">
-            <label className="block text-[10px] font-mono uppercase tracking-widest text-neutral-500 mb-2">
+            <label className="block text-[10px] font-mono uppercase tracking-widest text-neutral-400 mb-2">
               Description
             </label>
             <textarea
@@ -547,13 +547,13 @@ export default function ListingsPage() {
               }
               rows={3}
               placeholder="Describe your equipment, what's included, any notes..."
-              className="w-full bg-neutral-100 dark:bg-neutral-950 border border-black/10 dark:border-white/10 text-black dark:text-white text-sm font-mono px-3 py-2 focus:outline-none focus:border-black/30 dark:focus:border-white/30 resize-none placeholder:text-neutral-400 dark:placeholder:text-neutral-700"
+              className="w-full bg-neutral-100 dark:bg-neutral-950 border border-black/10 dark:border-white/10 text-black dark:text-white text-sm font-mono px-3 py-2 focus:outline-none focus:border-black/30 dark:focus:border-white/30 resize-none placeholder:text-neutral-400 dark:placeholder:text-neutral-400"
             />
           </div>
 
           {/* Images */}
           <div className="mb-6">
-            <label className="block text-[10px] font-mono uppercase tracking-widest text-neutral-500 mb-2">
+            <label className="block text-[10px] font-mono uppercase tracking-widest text-neutral-400 mb-2">
               Images ({images.length}/{STUDIO.platform.maxListingImages})
             </label>
             <div className="flex flex-wrap gap-3">
@@ -639,7 +639,7 @@ export default function ListingsPage() {
                   </div>
                 ) : (
                   <div className="w-20 h-20 flex-shrink-0 bg-neutral-100 dark:bg-neutral-900 flex items-center justify-center">
-                    <Package className="w-6 h-6 text-neutral-300 dark:text-neutral-700" />
+                    <Package className="w-6 h-6 text-neutral-300 dark:text-neutral-400" />
                   </div>
                 )}
                 <div className="flex items-start justify-between gap-4 flex-1 min-w-0 p-5">
@@ -658,7 +658,7 @@ export default function ListingsPage() {
                         </span>
                       )}
                     </div>
-                    <p className="text-[10px] font-mono uppercase tracking-widest text-neutral-500">
+                    <p className="text-[10px] font-mono uppercase tracking-widest text-neutral-400">
                       {listing.category}
                       {listing.sub_category ? ` / ${listing.sub_category}` : ''}
                       {listing.metadata?.location ? ` / ${listing.metadata.location}` : ''}
@@ -683,7 +683,7 @@ export default function ListingsPage() {
                       <button
                         onClick={() => openEdit(listing)}
                         title="Edit"
-                        className="p-2 border border-black/10 dark:border-white/10 text-neutral-500 hover:border-black/30 dark:hover:border-white/30 hover:text-black dark:hover:text-white transition-colors"
+                        className="p-2 border border-black/10 dark:border-white/10 text-neutral-400 hover:border-black/30 dark:hover:border-white/30 hover:text-black dark:hover:text-white transition-colors"
                       >
                         <Pencil className="w-3.5 h-3.5" />
                       </button>

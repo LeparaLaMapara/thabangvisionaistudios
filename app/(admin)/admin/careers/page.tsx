@@ -193,7 +193,7 @@ export default function AdminCareersPage() {
       {/* Header */}
       <div className="flex items-center justify-between mb-10">
         <div>
-          <p className="text-[10px] font-mono uppercase tracking-widest text-neutral-600 mb-1">
+          <p className="text-[10px] font-mono uppercase tracking-widest text-neutral-400 mb-1">
             Admin
           </p>
           <h1 className="text-2xl font-display font-medium uppercase text-white">
@@ -238,7 +238,7 @@ export default function AdminCareersPage() {
               onChange={v => setForm(f => ({ ...f, location: v }))}
             />
             <div>
-              <label className="block text-[10px] font-mono uppercase tracking-widest text-neutral-500 mb-2">
+              <label className="block text-[10px] font-mono uppercase tracking-widest text-neutral-400 mb-2">
                 Employment Type
               </label>
               <select
@@ -261,7 +261,7 @@ export default function AdminCareersPage() {
             </div>
           </div>
           <div className="mb-4">
-            <label className="block text-[10px] font-mono uppercase tracking-widest text-neutral-500 mb-2">
+            <label className="block text-[10px] font-mono uppercase tracking-widest text-neutral-400 mb-2">
               Description
             </label>
             <textarea
@@ -272,7 +272,7 @@ export default function AdminCareersPage() {
             />
           </div>
           <div className="mb-4">
-            <label className="block text-[10px] font-mono uppercase tracking-widest text-neutral-500 mb-2">
+            <label className="block text-[10px] font-mono uppercase tracking-widest text-neutral-400 mb-2">
               Requirements (one per line)
             </label>
             <textarea
@@ -280,7 +280,7 @@ export default function AdminCareersPage() {
               onChange={e => setForm(f => ({ ...f, requirements: e.target.value }))}
               rows={4}
               placeholder="3+ years experience&#10;Proficiency in X&#10;Strong communication skills"
-              className="w-full bg-neutral-950 border border-white/10 text-white text-sm font-mono px-3 py-2 focus:outline-none focus:border-white/30 resize-none placeholder:text-neutral-700"
+              className="w-full bg-neutral-950 border border-white/10 text-white text-sm font-mono px-3 py-2 focus:outline-none focus:border-white/30 resize-none placeholder:text-neutral-400"
             />
           </div>
           <label className="flex items-center gap-2 text-[10px] font-mono uppercase tracking-widest text-neutral-400 cursor-pointer mb-6">
@@ -313,12 +313,12 @@ export default function AdminCareersPage() {
 
       {/* List */}
       {loading ? (
-        <div className="flex items-center justify-center py-20 gap-2 text-neutral-600 font-mono text-sm">
+        <div className="flex items-center justify-center py-20 gap-2 text-neutral-400 font-mono text-sm">
           <Loader2 className="w-4 h-4 animate-spin" />
           Loading…
         </div>
       ) : items.length === 0 ? (
-        <p className="text-neutral-600 font-mono text-sm text-center py-20">
+        <p className="text-neutral-400 font-mono text-sm text-center py-20">
           No roles yet. Create one above.
         </p>
       ) : (
@@ -337,7 +337,7 @@ export default function AdminCareersPage() {
                   />
                   <p className="text-sm font-mono text-white truncate">{item.title}</p>
                 </div>
-                <p className="text-[10px] font-mono text-neutral-600 pl-[18px]">
+                <p className="text-[10px] font-mono text-neutral-400 pl-[18px]">
                   {[item.department, item.location, item.employment_type]
                     .filter(Boolean)
                     .join(' · ')}
@@ -389,7 +389,7 @@ function Field({
 }) {
   return (
     <div>
-      <label className="block text-[10px] font-mono uppercase tracking-widest text-neutral-500 mb-2">
+      <label className="block text-[10px] font-mono uppercase tracking-widest text-neutral-400 mb-2">
         {label}
       </label>
       <input
@@ -420,7 +420,7 @@ function ActionBtn({
       className={`p-2 border transition-colors ${
         danger
           ? 'border-red-900/40 text-red-600 hover:border-red-500/40 hover:text-red-400'
-          : 'border-white/10 text-neutral-500 hover:border-white/30 hover:text-white'
+          : 'border-white/10 text-neutral-400 hover:border-white/30 hover:text-white'
       }`}
     >
       {children}

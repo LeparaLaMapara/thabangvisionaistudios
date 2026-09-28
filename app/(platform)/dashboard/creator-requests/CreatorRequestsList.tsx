@@ -15,8 +15,8 @@ const STATUS_COLORS: Record<string, string> = {
   confirmed: 'text-emerald-400 border-emerald-500/30',
   completed: 'text-neutral-400 border-neutral-500/30',
   declined: 'text-red-400 border-red-500/30',
-  cancelled: 'text-neutral-500 border-neutral-600/30',
-  expired: 'text-neutral-500 border-neutral-600/30',
+  cancelled: 'text-neutral-400 border-neutral-600/30',
+  expired: 'text-neutral-400 border-neutral-600/30',
 };
 
 interface CreatorRequestsListProps {
@@ -81,7 +81,7 @@ export default function CreatorRequestsList({ requests: initialRequests }: Creat
             className={`text-[10px] font-mono uppercase tracking-widest px-3 py-2 border transition-all min-h-[36px] ${
               activeTab === tab
                 ? 'bg-white text-black border-white'
-                : 'bg-transparent text-neutral-500 border-white/10 hover:border-white/30'
+                : 'bg-transparent text-neutral-400 border-white/10 hover:border-white/30'
             }`}
           >
             {STUDIO.creators.statusLabels[tab as keyof typeof STUDIO.creators.statusLabels] || 'All'}{' '}
@@ -137,7 +137,7 @@ export default function CreatorRequestsList({ requests: initialRequests }: Creat
                   {request.description}
                 </p>
 
-                <div className="flex flex-wrap gap-4 text-[10px] font-mono text-neutral-500">
+                <div className="flex flex-wrap gap-4 text-[10px] font-mono text-neutral-400">
                   {request.preferred_dates && (
                     <span className="flex items-center gap-1">
                       <Calendar className="w-3 h-3" /> {request.preferred_dates}
@@ -160,7 +160,7 @@ export default function CreatorRequestsList({ requests: initialRequests }: Creat
                   )}
                 </div>
 
-                <p className="text-[9px] font-mono text-neutral-700 mt-3">
+                <p className="text-[9px] font-mono text-neutral-400 mt-3">
                   Submitted{' '}
                   {new Date(request.created_at).toLocaleDateString('en-ZA', {
                     day: 'numeric',
@@ -173,9 +173,9 @@ export default function CreatorRequestsList({ requests: initialRequests }: Creat
           })}
         </div>
       ) : (
-        <div className="text-center py-16 text-neutral-500">
+        <div className="text-center py-16 text-neutral-400">
           <p className="text-sm font-mono">No creator requests yet.</p>
-          <p className="text-[10px] font-mono text-neutral-600 mt-1">
+          <p className="text-[10px] font-mono text-neutral-400 mt-1">
             Browse creators at{' '}
             <Link href="/studio" className="text-[#D4A843] hover:text-[#D4A843]/80 transition-colors">
               /studio

@@ -1,17 +1,30 @@
 import Link from 'next/link';
+import { Header } from '@/components/layout/Header';
+import { Footer } from '@/components/layout/Footer';
+import { MAIN_NAVIGATION } from '@/lib/constants';
+import { filterNavForFlags } from '@/lib/nav';
 
-export default function NotFound() {
+/**
+ * A missing page keeps the site around it (header, menu, footer), so nobody
+ * is left on a blank screen with one way out.
+ */
+export default async function NotFound() {
+  const navigation = await filterNavForFlags(MAIN_NAVIGATION);
   return (
-    <div className="h-screen flex flex-col items-center justify-center gap-6">
-      <p className="text-neutral-500 uppercase tracking-widest text-sm font-mono">
-        404 — Page Not Found
-      </p>
-      <Link
-        href="/"
-        className="text-xs font-mono uppercase tracking-widest border border-neutral-800 px-6 py-3 hover:bg-white hover:text-black dark:hover:bg-white dark:hover:text-black transition-colors duration-300"
-      >
-        Return Home
-      </Link>
+    <div className="flex flex-col min-h-screen bg-[#0A0A0B] text-white">
+      <Header navigation={navigation} />
+      <main id="main" tabIndex={-1} className="flex-grow outline-none flex flex-col items-center justify-center gap-6 py-40 px-6">
+        <p className="text-neutral-400 uppercase tracking-widest text-sm font-mono">
+          404 — Page Not Found
+        </p>
+        <Link
+          href="/"
+          className="min-h-[44px] inline-flex items-center text-xs font-mono uppercase tracking-widest border border-neutral-800 px-6 py-3 hover:bg-white hover:text-black transition-colors duration-300"
+        >
+          Return Home
+        </Link>
+      </main>
+      <Footer />
     </div>
   );
 }

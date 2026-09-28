@@ -23,7 +23,7 @@ export default function CreatorProfileError({
         <h2 className="text-2xl font-display font-medium uppercase text-black dark:text-white mb-3">
           Could not load profile
         </h2>
-        <p className="text-sm text-neutral-500 font-mono mb-8">
+        <p className="text-sm text-neutral-400 font-mono mb-8">
           We encountered an error loading this creator profile. Please try again.
         </p>
         <Button onClick={reset}>Try Again</Button>

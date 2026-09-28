@@ -105,7 +105,7 @@ export function ContentRepurposeAdmin({ articles }: { articles: Article[] }) {
       <div className="border border-white/10 p-6 mb-6">
         <label
           htmlFor="article-select"
-          className="block text-[10px] font-mono uppercase tracking-widest text-neutral-500 mb-3"
+          className="block text-[10px] font-mono uppercase tracking-widest text-neutral-400 mb-3"
         >
           Select Article
         </label>
@@ -153,7 +153,7 @@ export function ContentRepurposeAdmin({ articles }: { articles: Article[] }) {
         <div className="border border-white/10">
           <div className="flex items-center justify-between px-4 py-3 border-b border-white/10 bg-white/[0.02]">
             <div className="min-w-0">
-              <p className="text-[10px] font-mono uppercase tracking-widest text-neutral-500">
+              <p className="text-[10px] font-mono uppercase tracking-widest text-neutral-400">
                 Generated Content
               </p>
               {articleTitle && (

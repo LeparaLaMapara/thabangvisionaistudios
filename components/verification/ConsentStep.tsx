@@ -53,7 +53,7 @@ export function ConsentStep({ onConsented }: ConsentStepProps) {
           <h3 className="text-sm font-display font-medium uppercase text-white mb-1">
             Privacy Notice — POPIA Consent
           </h3>
-          <p className="text-[10px] font-mono uppercase tracking-widest text-neutral-500">
+          <p className="text-[10px] font-mono uppercase tracking-widest text-neutral-400">
             Required before we can process your ID documents
           </p>
         </div>
@@ -68,7 +68,7 @@ export function ConsentStep({ onConsented }: ConsentStepProps) {
 
         <div>
           <p className="text-white mb-2">What we collect and why.</p>
-          <ul className="list-disc pl-5 space-y-1 text-neutral-500">
+          <ul className="list-disc pl-5 space-y-1 text-neutral-400">
             <li>SA ID photos &amp; selfie — to verify your identity and prevent fraud.</li>
             <li>EXIF metadata from uploads — to detect duplicate or tampered documents.</li>
             <li>IP address &amp; device info — security audit trail and abuse prevention.</li>
@@ -78,7 +78,7 @@ export function ConsentStep({ onConsented }: ConsentStepProps) {
 
         <div>
           <p className="text-white mb-2">How long we keep it.</p>
-          <p className="text-neutral-500">
+          <p className="text-neutral-400">
             ID documents are automatically deleted {STUDIO.legal.popia.retentionDays} days
             after verification review. Consent records and verification status are retained
             for the life of your account plus 5 years for tax and legal audit.
@@ -87,7 +87,7 @@ export function ConsentStep({ onConsented }: ConsentStepProps) {
 
         <div>
           <p className="text-white mb-2">Your rights.</p>
-          <p className="text-neutral-500">
+          <p className="text-neutral-400">
             You may request access, correction, or deletion of your personal information
             at any time by emailing{' '}
             <a
@@ -106,7 +106,7 @@ export function ConsentStep({ onConsented }: ConsentStepProps) {
           all under written processing agreements. We never sell your data.
         </p>
 
-        <p className="text-neutral-600">
+        <p className="text-neutral-400">
           Read the full notice:{' '}
           <Link href="/privacy" className="text-[#D4A843] hover:underline">
             Privacy Policy
@@ -166,7 +166,7 @@ export function ConsentStep({ onConsented }: ConsentStepProps) {
           ].join(' ')}>
             {marketingOptIn && <Check className="w-3.5 h-3.5 text-black" strokeWidth={3} />}
           </span>
-          <span className="text-xs font-mono text-neutral-500 group-hover:text-neutral-300 transition-colors">
+          <span className="text-xs font-mono text-neutral-400 group-hover:text-neutral-300 transition-colors">
             <span className="text-neutral-400">(Optional)</span> Send me occasional updates
             about new features, creator opportunities, and SA industry insights. You can
             unsubscribe at any time.

@@ -10,8 +10,10 @@ import { safeNextPath, authCallbackUrl, withRedirect, signInErrorMessage } from 
 
 export default function LoginPage() {
   return (
+    // The fallback holds a full screen of space, so the footer does not jump
+    // up and then down again while the form loads (layout shift 0.2 before).
     <Suspense fallback={
-      <div className="flex items-center justify-center py-40">
+      <div className="flex items-center justify-center py-40 min-h-screen">
         <div className="w-5 h-5 border-2 border-white/20 border-t-white rounded-full animate-spin" />
       </div>
     }>
@@ -178,7 +180,7 @@ function LoginForm() {
       >
         {/* Header */}
         <div className="mb-10">
-          <p className="text-[9px] font-mono uppercase tracking-[0.2em] text-neutral-600 mb-3">
+          <p className="text-[9px] font-mono uppercase tracking-[0.2em] text-neutral-400 mb-3">
             {STUDIO.shortName.toUpperCase()}
           </p>
           <h1 className="text-3xl font-display font-medium uppercase tracking-tight text-white">
@@ -223,11 +225,11 @@ function LoginForm() {
               </div>
             ) : (
               <form onSubmit={handleResetPassword} noValidate className="space-y-5">
-                <p className="text-xs font-mono text-neutral-500 leading-relaxed">
+                <p className="text-xs font-mono text-neutral-400 leading-relaxed">
                   Enter your email address and we&apos;ll send you a link to reset your password.
                 </p>
                 <div>
-                  <label htmlFor="resetEmail" className="block text-[10px] font-bold uppercase tracking-widest text-neutral-500 mb-2">
+                  <label htmlFor="resetEmail" className="block text-[10px] font-bold uppercase tracking-widest text-neutral-400 mb-2">
                     Email
                   </label>
                   <input
@@ -238,7 +240,7 @@ function LoginForm() {
                     required
                     autoComplete="email"
                     placeholder={STUDIO.email}
-                    className="w-full bg-neutral-900 border border-white/10 text-white px-4 py-3 min-h-[44px] text-sm font-mono placeholder:text-neutral-700 focus:outline-none focus:border-[#D4A843] transition-colors"
+                    className="w-full bg-neutral-900 border border-white/10 text-white px-4 py-3 min-h-[44px] text-sm font-mono placeholder:text-neutral-400 focus:outline-none focus:border-[#D4A843] transition-colors"
                   />
                 </div>
                 {resetError && (
@@ -265,7 +267,7 @@ function LoginForm() {
                 <button
                   type="button"
                   onClick={() => { setShowForgot(false); setResetError(null); }}
-                  className="w-full text-xs font-mono text-neutral-500 hover:text-white transition-colors uppercase tracking-widest"
+                  className="w-full text-xs font-mono text-neutral-400 hover:text-white transition-colors uppercase tracking-widest"
                 >
                   Back to Sign In
                 </button>
@@ -288,7 +290,7 @@ function LoginForm() {
               {/* Divider */}
               <div className="flex items-center gap-3 py-1">
                 <div className="flex-1 h-px bg-white/10" />
-                <span className="text-[9px] font-mono uppercase tracking-widest text-neutral-600">
+                <span className="text-[9px] font-mono uppercase tracking-widest text-neutral-400">
                   or
                 </span>
                 <div className="flex-1 h-px bg-white/10" />
@@ -297,7 +299,7 @@ function LoginForm() {
               {/* Email + Password form */}
               <form onSubmit={handleSubmit} noValidate className="space-y-4">
                 <div>
-                  <label htmlFor="email" className="block text-[10px] font-bold uppercase tracking-widest text-neutral-500 mb-2">
+                  <label htmlFor="email" className="block text-[10px] font-bold uppercase tracking-widest text-neutral-400 mb-2">
                     Email
                   </label>
                   <input
@@ -308,11 +310,11 @@ function LoginForm() {
                     required
                     autoComplete="email"
                     placeholder="you@example.com"
-                    className="w-full bg-neutral-900 border border-white/10 text-white px-4 py-3 min-h-[44px] text-sm font-mono placeholder:text-neutral-700 focus:outline-none focus:border-[#D4A843] transition-colors"
+                    className="w-full bg-neutral-900 border border-white/10 text-white px-4 py-3 min-h-[44px] text-sm font-mono placeholder:text-neutral-400 focus:outline-none focus:border-[#D4A843] transition-colors"
                   />
                 </div>
                 <div>
-                  <label htmlFor="password" className="block text-[10px] font-bold uppercase tracking-widest text-neutral-500 mb-2">
+                  <label htmlFor="password" className="block text-[10px] font-bold uppercase tracking-widest text-neutral-400 mb-2">
                     Password
                   </label>
                   <input
@@ -323,7 +325,7 @@ function LoginForm() {
                     required
                     autoComplete="current-password"
                     placeholder="••••••••"
-                    className="w-full bg-neutral-900 border border-white/10 text-white px-4 py-3 min-h-[44px] text-sm font-mono placeholder:text-neutral-700 focus:outline-none focus:border-[#D4A843] transition-colors"
+                    className="w-full bg-neutral-900 border border-white/10 text-white px-4 py-3 min-h-[44px] text-sm font-mono placeholder:text-neutral-400 focus:outline-none focus:border-[#D4A843] transition-colors"
                   />
                 </div>
                 <button
@@ -347,7 +349,7 @@ function LoginForm() {
                 type="button"
                 onClick={handleMagicLink}
                 disabled={magicLoading}
-                className="w-full text-xs font-mono text-neutral-500 hover:text-white transition-colors uppercase tracking-widest py-2 disabled:opacity-40"
+                className="w-full text-xs font-mono text-neutral-400 hover:text-white transition-colors uppercase tracking-widest py-2 disabled:opacity-40"
               >
                 {magicLoading ? 'Sending Link...' : 'Send Me a Sign-In Link Instead'}
               </button>
@@ -378,7 +380,7 @@ function LoginForm() {
                 setShowForgot(true);
                 setResetEmail(email);
               }}
-              className="text-xs font-mono text-neutral-500 hover:text-white underline underline-offset-2 transition-colors"
+              className="text-xs font-mono text-neutral-400 hover:text-white underline underline-offset-2 transition-colors"
             >
               Forgot Password?
             </button>
@@ -386,7 +388,7 @@ function LoginForm() {
         )}
 
         {/* Footer note */}
-        <p className="text-center text-[9px] font-mono uppercase tracking-[0.2em] text-neutral-600 mt-6">
+        <p className="text-center text-[9px] font-mono uppercase tracking-[0.2em] text-neutral-400 mt-6">
           Don&apos;t have an account?{' '}
           <Link
             href={withRedirect('/register', redirectTo)}

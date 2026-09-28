@@ -7,7 +7,7 @@ interface BadgeProps {
 }
 
 const VARIANT_CLASSES: Record<BadgeVariant, string> = {
-  default:  'text-neutral-500 dark:text-neutral-400 bg-neutral-500/10',
+  default:  'text-neutral-400 dark:text-neutral-400 bg-neutral-500/10',
   success:  'text-emerald-400 bg-emerald-500/10',
   warning:  'text-amber-400 bg-amber-500/10',
   error:    'text-red-400 bg-red-500/10',

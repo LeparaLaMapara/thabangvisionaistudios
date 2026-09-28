@@ -587,14 +587,14 @@ export default function AdminRentalsPage() {
       {/* ── Header ── */}
       <div className="flex items-center justify-between mb-10">
         <div>
-          <p className="text-[10px] font-mono uppercase tracking-widest text-neutral-600 mb-1">Admin</p>
+          <p className="text-[10px] font-mono uppercase tracking-widest text-neutral-400 mb-1">Admin</p>
           <h1 className="text-2xl font-display font-medium uppercase text-white">Smart Rentals</h1>
         </div>
         <div className="flex items-center gap-3">
           <button
             onClick={load}
             title="Refresh"
-            className="p-2 border border-white/10 text-neutral-500 hover:text-white hover:border-white/30 transition-colors"
+            className="p-2 border border-white/10 text-neutral-400 hover:text-white hover:border-white/30 transition-colors"
           >
             <RefreshCw className="w-3.5 h-3.5" />
           </button>
@@ -625,7 +625,7 @@ export default function AdminRentalsPage() {
               </h2>
               <button
                 onClick={closeForm}
-                className="text-neutral-600 hover:text-white transition-colors"
+                className="text-neutral-400 hover:text-white transition-colors"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -713,7 +713,7 @@ export default function AdminRentalsPage() {
                   placeholder="One feature per line"
                   rows={4}
                 />
-                <p className="mt-2 text-[10px] font-mono text-neutral-700">
+                <p className="mt-2 text-[10px] font-mono text-neutral-400">
                   Each line is saved as a separate feature string.
                 </p>
               </Section>
@@ -726,7 +726,7 @@ export default function AdminRentalsPage() {
                   placeholder="One item per line"
                   rows={4}
                 />
-                <p className="mt-2 text-[10px] font-mono text-neutral-700">
+                <p className="mt-2 text-[10px] font-mono text-neutral-400">
                   Each line is saved as a separate rental include item.
                 </p>
               </Section>
@@ -735,7 +735,7 @@ export default function AdminRentalsPage() {
               <Section label="Technical Specifications">
                 <div className="space-y-2">
                   {form.meta_rows.length === 0 && (
-                    <p className="text-[10px] font-mono text-neutral-700 italic py-1">
+                    <p className="text-[10px] font-mono text-neutral-400 italic py-1">
                       No specs added yet — use &quot;+ Add Spec&quot; below.
                     </p>
                   )}
@@ -746,19 +746,19 @@ export default function AdminRentalsPage() {
                         value={row.key}
                         onChange={e => updateMetaRow(i, 'key', e.target.value)}
                         placeholder="Key  (e.g. sensor)"
-                        className="flex-1 bg-neutral-950 border border-white/10 text-white text-sm px-3 py-2 placeholder:text-neutral-700 focus:outline-none focus:border-white/30 transition-colors font-mono"
+                        className="flex-1 bg-neutral-950 border border-white/10 text-white text-sm px-3 py-2 placeholder:text-neutral-400 focus:outline-none focus:border-white/30 transition-colors font-mono"
                       />
                       <input
                         type="text"
                         value={row.value}
                         onChange={e => updateMetaRow(i, 'value', e.target.value)}
                         placeholder="Value  (e.g. Full Frame)"
-                        className="flex-1 bg-neutral-950 border border-white/10 text-white text-sm px-3 py-2 placeholder:text-neutral-700 focus:outline-none focus:border-white/30 transition-colors"
+                        className="flex-1 bg-neutral-950 border border-white/10 text-white text-sm px-3 py-2 placeholder:text-neutral-400 focus:outline-none focus:border-white/30 transition-colors"
                       />
                       <button
                         onClick={() => removeMetaRow(i)}
                         title="Remove spec"
-                        className="text-neutral-600 hover:text-red-400 transition-colors flex-shrink-0 p-1"
+                        className="text-neutral-400 hover:text-red-400 transition-colors flex-shrink-0 p-1"
                       >
                         <X className="w-4 h-4" />
                       </button>
@@ -767,7 +767,7 @@ export default function AdminRentalsPage() {
                 </div>
                 <button
                   onClick={addMetaRow}
-                  className="mt-3 flex items-center gap-2 text-[10px] font-mono uppercase tracking-widest text-neutral-500 hover:text-white transition-colors"
+                  className="mt-3 flex items-center gap-2 text-[10px] font-mono uppercase tracking-widest text-neutral-400 hover:text-white transition-colors"
                 >
                   <Plus className="w-3 h-3" /> Add Spec
                 </button>
@@ -836,7 +836,7 @@ export default function AdminRentalsPage() {
                     />
                   </div>
                 </div>
-                <p className="text-[9px] font-mono text-neutral-600 mt-2">
+                <p className="text-[9px] font-mono text-neutral-400 mt-2">
                   The value sets how much a new renter may take at once. The listing says &ldquo;serial-registered&rdquo; only when a serial is filled in.
                 </p>
               </Section>
@@ -863,7 +863,7 @@ export default function AdminRentalsPage() {
 
               {/* ── Gallery (first image = preview everywhere) ── */}
               <Section label={`Gallery${form.gallery.length > 0 ? ` (${form.gallery.length})` : ''}`}>
-                <p className="text-[9px] font-mono text-neutral-600 uppercase tracking-widest mb-3">
+                <p className="text-[9px] font-mono text-neutral-400 uppercase tracking-widest mb-3">
                   First image is used as the preview on listing pages
                 </p>
                 {form.gallery.length > 0 && (
@@ -936,8 +936,8 @@ export default function AdminRentalsPage() {
                     <input {...galDropzone.getInputProps()} />
                     {galUploading ? (
                       <>
-                        <Loader2 className="w-5 h-5 animate-spin text-neutral-500" />
-                        <span className="text-[9px] font-mono text-neutral-500 uppercase tracking-widest">
+                        <Loader2 className="w-5 h-5 animate-spin text-neutral-400" />
+                        <span className="text-[9px] font-mono text-neutral-400 uppercase tracking-widest">
                           {galUploaded} / {galTotal} uploaded
                         </span>
                         <div className="w-32 h-0.5 bg-white/10 overflow-hidden">
@@ -948,11 +948,11 @@ export default function AdminRentalsPage() {
                       <span className="text-[9px] font-mono text-white/60 uppercase tracking-widest">Drop files here</span>
                     ) : (
                       <>
-                        <Images className="w-5 h-5 text-neutral-700" />
-                        <span className="text-[9px] font-mono text-neutral-600 uppercase tracking-widest text-center">
+                        <Images className="w-5 h-5 text-neutral-400" />
+                        <span className="text-[9px] font-mono text-neutral-400 uppercase tracking-widest text-center">
                           Drop images / videos here
                         </span>
-                        <span className="text-[9px] font-mono text-neutral-700 uppercase tracking-widest">
+                        <span className="text-[9px] font-mono text-neutral-400 uppercase tracking-widest">
                           or click to browse
                         </span>
                       </>
@@ -963,7 +963,7 @@ export default function AdminRentalsPage() {
                   <label
                     className={`flex items-center gap-2 px-4 py-2 bg-neutral-950 border border-white/10 text-[10px] font-mono uppercase tracking-widest transition-colors w-fit ${
                       galUploading
-                        ? 'text-neutral-500 cursor-not-allowed'
+                        ? 'text-neutral-400 cursor-not-allowed'
                         : 'text-neutral-400 hover:text-white hover:border-white/30 cursor-pointer'
                     }`}
                   >
@@ -1013,9 +1013,9 @@ export default function AdminRentalsPage() {
                   )}
                 </div>
                 {form.video_provider && form.video_url && (
-                  <p className="mt-2 text-[10px] font-mono text-neutral-700">
+                  <p className="mt-2 text-[10px] font-mono text-neutral-400">
                     Video ID:{' '}
-                    <span className={extractVideoId(form.video_provider, form.video_url) ? 'text-neutral-500' : 'text-red-600/60'}>
+                    <span className={extractVideoId(form.video_provider, form.video_url) ? 'text-neutral-400' : 'text-red-600/60'}>
                       {extractVideoId(form.video_provider, form.video_url) ?? 'Could not extract — check URL'}
                     </span>
                   </p>
@@ -1094,24 +1094,24 @@ export default function AdminRentalsPage() {
       {/* ── List ── */}
       {loading ? (
         <div className="flex items-center justify-center py-40">
-          <Loader2 className="w-5 h-5 text-neutral-600 animate-spin" />
+          <Loader2 className="w-5 h-5 text-neutral-400 animate-spin" />
         </div>
       ) : fetchError ? (
         <div className="py-20 text-center bg-red-500/5 border border-red-500/20">
           <p className="text-red-400 font-mono text-sm mb-4">{fetchError}</p>
           <button
             onClick={load}
-            className="text-[10px] font-mono uppercase tracking-widest text-neutral-500 hover:text-white transition-colors"
+            className="text-[10px] font-mono uppercase tracking-widest text-neutral-400 hover:text-white transition-colors"
           >
             Retry
           </button>
         </div>
       ) : items.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-40 border border-white/5">
-          <p className="text-neutral-600 font-mono text-sm mb-4">No rentals yet.</p>
+          <p className="text-neutral-400 font-mono text-sm mb-4">No rentals yet.</p>
           <button
             onClick={openCreate}
-            className="text-[10px] font-mono uppercase tracking-widest text-neutral-500 hover:text-white transition-colors"
+            className="text-[10px] font-mono uppercase tracking-widest text-neutral-400 hover:text-white transition-colors"
           >
             Add the first one →
           </button>
@@ -1119,7 +1119,7 @@ export default function AdminRentalsPage() {
       ) : (
         <>
           {/* Column header */}
-          <div className="hidden md:grid grid-cols-[40px_1fr_100px_110px_90px_40px_160px] gap-4 px-4 py-3 text-[9px] font-mono uppercase tracking-widest text-neutral-700 border-b border-white/5">
+          <div className="hidden md:grid grid-cols-[40px_1fr_100px_110px_90px_40px_160px] gap-4 px-4 py-3 text-[9px] font-mono uppercase tracking-widest text-neutral-400 border-b border-white/5">
             <span></span>
             <span>Title</span>
             <span>Category</span>
@@ -1157,19 +1157,19 @@ export default function AdminRentalsPage() {
                     <div className="min-w-0">
                       <p className="text-sm font-mono text-white truncate leading-tight">{item.title}</p>
                       {(item.brand || item.model) && (
-                        <p className="text-[10px] font-mono text-neutral-600 mt-0.5 truncate">
+                        <p className="text-[10px] font-mono text-neutral-400 mt-0.5 truncate">
                           {[item.brand, item.model].filter(Boolean).join(' · ')}
                         </p>
                       )}
                     </div>
 
                     {/* Category */}
-                    <span className="hidden md:block text-[10px] font-mono uppercase tracking-widest text-neutral-500 truncate">
+                    <span className="hidden md:block text-[10px] font-mono uppercase tracking-widest text-neutral-400 truncate">
                       {item.category}
                     </span>
 
                     {/* Price per day */}
-                    <span className="hidden md:block text-[10px] font-mono text-neutral-500">
+                    <span className="hidden md:block text-[10px] font-mono text-neutral-400">
                       {item.price_per_day != null
                         ? `${item.currency} ${item.price_per_day.toLocaleString()}`
                         : '—'
@@ -1183,7 +1183,7 @@ export default function AdminRentalsPage() {
                           item.is_published ? 'bg-emerald-400' : 'bg-neutral-600'
                         }`}
                       />
-                      <span className="text-[9px] font-mono uppercase tracking-wider text-neutral-500">
+                      <span className="text-[9px] font-mono uppercase tracking-wider text-neutral-400">
                         {item.is_published ? 'Live' : 'Draft'}
                       </span>
                     </div>
@@ -1225,7 +1225,7 @@ export default function AdminRentalsPage() {
                           </button>
                           <button
                             onClick={() => setConfirmId(null)}
-                            className="px-2 py-1 text-[9px] font-mono text-neutral-500 border border-white/10 hover:border-white/30 transition-colors"
+                            className="px-2 py-1 text-[9px] font-mono text-neutral-400 border border-white/10 hover:border-white/30 transition-colors"
                           >
                             ✕
                           </button>
@@ -1247,7 +1247,7 @@ export default function AdminRentalsPage() {
             </AnimatePresence>
           </motion.div>
 
-          <p className="text-[9px] font-mono text-neutral-700 uppercase tracking-widest mt-6 text-right">
+          <p className="text-[9px] font-mono text-neutral-400 uppercase tracking-widest mt-6 text-right">
             {items.length} rental{items.length !== 1 ? 's' : ''}
           </p>
         </>
@@ -1263,7 +1263,7 @@ export default function AdminRentalsPage() {
 function Section({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
-      <p className="text-[9px] font-mono uppercase tracking-widest text-neutral-600 mb-3 pb-2 border-b border-white/5">
+      <p className="text-[9px] font-mono uppercase tracking-widest text-neutral-400 mb-3 pb-2 border-b border-white/5">
         {label}
       </p>
       {children}
@@ -1289,7 +1289,7 @@ function Field({
   return (
     <div>
       {label && (
-        <label className="block text-[10px] font-mono uppercase tracking-widest text-neutral-500 mb-2">
+        <label className="block text-[10px] font-mono uppercase tracking-widest text-neutral-400 mb-2">
           {label}
         </label>
       )}
@@ -1299,7 +1299,7 @@ function Field({
         onChange={e => onChange(e.target.value)}
         placeholder={placeholder}
         disabled={disabled}
-        className={`w-full bg-neutral-950 border border-white/10 text-white text-sm px-3 py-2 placeholder:text-neutral-700 focus:outline-none focus:border-white/30 disabled:opacity-30 disabled:cursor-not-allowed transition-colors ${
+        className={`w-full bg-neutral-950 border border-white/10 text-white text-sm px-3 py-2 placeholder:text-neutral-400 focus:outline-none focus:border-white/30 disabled:opacity-30 disabled:cursor-not-allowed transition-colors ${
           mono ? 'font-mono' : ''
         }`}
       />
@@ -1324,7 +1324,7 @@ function TextareaField({
       onChange={e => onChange(e.target.value)}
       placeholder={placeholder}
       rows={rows}
-      className="w-full bg-neutral-950 border border-white/10 text-white text-sm px-3 py-2 placeholder:text-neutral-700 focus:outline-none focus:border-white/30 resize-none transition-colors"
+      className="w-full bg-neutral-950 border border-white/10 text-white text-sm px-3 py-2 placeholder:text-neutral-400 focus:outline-none focus:border-white/30 resize-none transition-colors"
     />
   );
 }
@@ -1342,7 +1342,7 @@ function SelectField({
 }) {
   return (
     <div>
-      <label className="block text-[10px] font-mono uppercase tracking-widest text-neutral-500 mb-2">
+      <label className="block text-[10px] font-mono uppercase tracking-widest text-neutral-400 mb-2">
         {label}
       </label>
       <select
@@ -1403,7 +1403,7 @@ function ActionBtn({
       className={`p-2 border transition-colors disabled:opacity-40 ${
         danger
           ? 'border-red-900/40 text-red-600 hover:border-red-500/40 hover:text-red-400'
-          : 'border-white/10 text-neutral-500 hover:border-white/30 hover:text-white'
+          : 'border-white/10 text-neutral-400 hover:border-white/30 hover:text-white'
       }`}
     >
       {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : children}

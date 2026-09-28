@@ -26,7 +26,7 @@ export default function LabContent() {
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="max-w-5xl mb-24">
         <span className="text-[10px] font-mono text-[#D4A843] uppercase tracking-[0.3em] mb-4 block">Our Platform</span>
         <h1 className="text-5xl md:text-8xl font-display font-medium text-white tracking-tighter uppercase mb-8 leading-[0.9]">
-          The <span className="text-neutral-600">Lab</span>
+          The <span className="text-neutral-400">Lab</span>
         </h1>
         <div className="w-8 h-px bg-[#D4A843] mt-6 mb-8" />
         <p className="text-xl md:text-3xl text-neutral-300 font-light leading-relaxed max-w-4xl">
@@ -71,7 +71,7 @@ export default function LabContent() {
               <h3 className="text-2xl font-display uppercase mb-4 text-white tracking-tight">
                 {item.title}
               </h3>
-              <p className="text-neutral-500 font-mono text-xs leading-relaxed">{item.desc}</p>
+              <p className="text-neutral-400 font-mono text-xs leading-relaxed">{item.desc}</p>
             </div>
             <div className="mt-8 flex flex-col gap-3">
               <div className="w-8 h-px bg-white/20 group-hover:w-full transition-all duration-500" />
@@ -88,7 +88,7 @@ export default function LabContent() {
       {/* CTA Section */}
       <div className="bg-[#080808] border border-white/5 p-12 md:p-24 text-center">
         <h2 className="text-3xl md:text-5xl font-display font-bold uppercase mb-8 text-white">Ready to build something?</h2>
-        <p className="text-neutral-500 mb-12 max-w-xl mx-auto font-mono text-sm">
+        <p className="text-neutral-400 mb-12 max-w-xl mx-auto font-mono text-sm">
           Whether you&apos;re a creator, production house, or studio — we&apos;d love to hear about your next project.
         </p>
         <Link href="/contact" className="inline-flex items-center gap-3 bg-[#D4A843] text-black px-8 py-4 text-xs font-mono font-bold uppercase tracking-widest hover:opacity-80 transition-opacity">

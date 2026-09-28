@@ -51,7 +51,7 @@ export default function TeamSection({
           The People
         </span>
         <h2 className="text-5xl md:text-8xl font-display font-medium text-white tracking-tighter uppercase mb-8 leading-[0.9]">
-          Our <span className="text-neutral-600">Network</span>
+          Our <span className="text-neutral-400">Network</span>
         </h2>
         <p className="text-xl md:text-2xl text-neutral-300 font-light leading-relaxed max-w-4xl">
           The photographers, videographers and gear owners who supply {STUDIO.shortName}, and the belief that
@@ -77,7 +77,7 @@ export default function TeamSection({
             <p className="text-[10px] font-mono text-[#D4A843] uppercase tracking-widest mb-4">
               {d.roles}
             </p>
-            <p className="text-neutral-500 font-mono text-xs leading-relaxed">
+            <p className="text-neutral-400 font-mono text-xs leading-relaxed">
               {d.desc}
             </p>
             <div className="w-8 h-px bg-white/10 mt-auto pt-6" />
@@ -89,7 +89,7 @@ export default function TeamSection({
       {featuredCrew.length > 0 && (
         <div className="mb-16">
           <div className="flex items-center justify-between mb-8">
-            <span className="flex items-center gap-2 text-[10px] font-mono text-neutral-500 uppercase tracking-widest">
+            <span className="flex items-center gap-2 text-[10px] font-mono text-neutral-400 uppercase tracking-widest">
               <Users className="w-3 h-3" />
               Featured Creators
             </span>
@@ -127,7 +127,7 @@ export default function TeamSection({
         <h3 className="text-2xl md:text-4xl font-display font-bold uppercase mb-4 text-white">
           Join the team
         </h3>
-        <p className="text-neutral-500 mb-8 max-w-lg mx-auto font-mono text-sm">
+        <p className="text-neutral-400 mb-8 max-w-lg mx-auto font-mono text-sm">
           We&apos;re always looking for exceptional creatives, engineers, and production specialists
           who want to build the future of Africa&apos;s creative industry.
         </p>
