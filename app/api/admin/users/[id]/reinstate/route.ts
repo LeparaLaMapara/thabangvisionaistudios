@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin, rateLimitAdmin } from '@/lib/auth';
 import { createAdminClient } from '@/lib/supabase/server';
 import { sendAccountReinstated } from '@/lib/email';
+import { profileWithEmail } from '@/lib/supabase/profile-email';
 
 // ─── POST — Reinstate a suspended user (admin only) ─────────────────────────
 
@@ -89,11 +90,7 @@ export async function POST(
 
     // Send reinstatement email
     try {
-      const { data: userProfile } = await supabase
-        .from('profiles')
-        .select('email, display_name')
-        .eq('id', targetUserId)
-        .single();
+      const userProfile = await profileWithEmail(targetUserId);
 
       if (userProfile?.email) {
         await sendAccountReinstated({

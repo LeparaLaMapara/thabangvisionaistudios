@@ -11,6 +11,7 @@ import { autoPublishCreatorProductions } from '@/lib/supabase/queries/smartProdu
 import { effectiveHoldMinutes } from '@/lib/rental/availability-server';
 import { notifyClient } from '@/lib/bookings/notify-client';
 import { loadNoticeBookings, sendGearNotice } from '@/lib/rental/notices';
+import { paymentReference } from '@/lib/payments/eft';
 import { autoSendWelcomes, draftMissingWelcomes } from '@/lib/greetings/process';
 
 /**
@@ -55,8 +56,9 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   // sitting in 'pending' because a webhook has not landed must never be
   // released, or the gear gets sold twice.
   try {
-    // While online payment is off, requests hold their dates for 48 hours so
-    // the team can arrange payment; otherwise the usual short checkout hold.
+    // While online payment is off, EFT requests hold their dates for 48 hours
+    // so the customer can pay; otherwise the usual short checkout hold. Cash
+    // bookings are paid at collection and are handled below, not here.
     const holdCutoff = new Date(
       now.getTime() - effectiveHoldMinutes() * 60_000,
     ).toISOString();
@@ -71,13 +73,87 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       })
       .eq('status', 'pending')
       .is('payfast_payment_id', null)
+      .or('payment_method.is.null,payment_method.neq.cash')
       .lt('created_at', holdCutoff)
-      .select('id');
+      .select('id, checkout_group_id, amount_due, payment_method');
 
     if (error) throw new Error(error.message);
     results.expiredHoldsReleased = released?.length ?? 0;
+
+    // Tell each customer whose EFT order was released (one message per order),
+    // and give the owner the list.
+    const releasedOrders = (released ?? []).filter((b) => b.payment_method === 'eft' && b.amount_due != null);
+    for (const b of releasedOrders) {
+      const orderId = b.checkout_group_id ?? b.id;
+      await sendGearNotice('payment_released', await loadNoticeBookings([b.id]), { reference: paymentReference(orderId) });
+    }
+    if (releasedOrders.length > 0) {
+      await emailProvider.sendEmail({
+        to: STUDIO.bookingEmail,
+        subject: `[Released] ${releasedOrders.length} unpaid EFT booking(s) — ${STUDIO.name}`,
+        text: `These EFT bookings were not paid within ${STUDIO.bank.payWithinHours} hours and were released:\n\n${releasedOrders.map((b) => `${paymentReference(b.checkout_group_id ?? b.id)}: R${b.amount_due}`).join('\n')}\n\nThe customers were told. If one of them paid, mark it paid in admin and re-book the dates with them.`,
+      });
+    }
   } catch (err) {
     results.expiredHoldsError = String(err);
+  }
+
+  // ─── 0c. EFT reminder after 24 hours, once per order ────────────────────
+  try {
+    const dayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString();
+    const { data: waiting } = await supabase
+      .from('equipment_bookings')
+      .select('id, checkout_group_id, amount_due')
+      .eq('status', 'pending')
+      .eq('payment_method', 'eft')
+      .is('payfast_payment_id', null)
+      .not('amount_due', 'is', null)
+      .lt('created_at', dayAgo);
+    let reminded = 0;
+    for (const b of waiting ?? []) {
+      const { count } = await supabase
+        .from('notifications')
+        .select('id', { count: 'exact', head: true })
+        .eq('type', 'gear_payment_reminder')
+        .eq('link', `/dashboard/bookings/${b.id}`);
+      if ((count ?? 0) > 0) continue;
+      await sendGearNotice('payment_reminder', await loadNoticeBookings([b.id]), {
+        amountDue: Number(b.amount_due),
+        reference: paymentReference(b.checkout_group_id ?? b.id),
+      });
+      reminded++;
+    }
+    results.eftReminders = reminded;
+  } catch (err) {
+    results.eftRemindersError = String(err);
+  }
+
+  // ─── 0d. Cash bookings nobody collected: release the day after ──────────
+  try {
+    const today = now.toLocaleDateString('en-CA', { timeZone: 'Africa/Johannesburg' });
+    const { data: uncollected } = await supabase
+      .from('equipment_bookings')
+      .update({
+        status: 'cancelled',
+        cancelled_at: now.toISOString(),
+        updated_at: now.toISOString(),
+        cancellation_refund_status: 'not_required',
+      })
+      .eq('status', 'pending')
+      .eq('payment_method', 'cash')
+      .lt('start_date', today)
+      .select('id, checkout_group_id, amount_due');
+    results.cashNotCollectedReleased = uncollected?.length ?? 0;
+    const orders = (uncollected ?? []).filter((b) => b.amount_due != null);
+    if (orders.length > 0) {
+      await emailProvider.sendEmail({
+        to: STUDIO.bookingEmail,
+        subject: `[Released] ${orders.length} cash booking(s) not collected — ${STUDIO.name}`,
+        text: `These cash-at-collection bookings passed their first hire day without being collected and were released:\n\n${orders.map((b) => paymentReference(b.checkout_group_id ?? b.id)).join('\n')}`,
+      });
+    }
+  } catch (err) {
+    results.cashReleaseError = String(err);
   }
 
   // ─── 1. Cancel unpaid bookings > 72 hours ─────────────────────────────────

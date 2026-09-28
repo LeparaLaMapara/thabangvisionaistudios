@@ -27,6 +27,8 @@ export interface BookingHold {
   createdAt: string;
   /** Gateway reference. Null means nobody has paid yet. */
   paymentReference: string | null;
+  /** 'cash' = paid at collection: holds its dates until then, not for the short window. */
+  method?: string | null;
 }
 
 /** Statuses that occupy stock. Anything else has released it. */
@@ -49,6 +51,7 @@ export function isExpiredHold(
 ): boolean {
   if (hold.status !== 'pending') return false;
   if (hold.paymentReference) return false;
+  if (hold.method === 'cash') return false;
 
   const created = new Date(hold.createdAt).getTime();
   // An unparseable timestamp must not silently free stock.

@@ -28,11 +28,12 @@ import type {
   Invoice,
   BookingStatus,
 } from '@/types/booking';
-import { PaymentsOfflineNotice } from '@/components/booking/PaymentsOfflineNotice';
+import { PayPanel, type PaymentInfo } from '@/components/payments/PayPanel';
 
 /** Extended booking with optional joined rental fields from the API */
 type BookingWithRental = EquipmentBooking & {
   rental_title?: string;
+  payment_info?: PaymentInfo | null;
   rental_category?: string;
 };
 
@@ -201,7 +202,7 @@ export default function BookingDetailPage() {
       </Link>
 
       {/* Payment status banner */}
-      <PaymentsOfflineNotice />
+      {booking.payment_info && <PayPanel info={booking.payment_info} startDate={booking.start_date} />}
       {paymentStatus === 'success' && (
         <div className="flex items-center gap-3 p-4 mb-6 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400">
           <CheckCircle2 className="w-5 h-5 flex-shrink-0" />

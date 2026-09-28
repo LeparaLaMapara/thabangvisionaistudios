@@ -17,6 +17,8 @@ import { reportUnpaidRequest, PAYMENTS_OFF_MESSAGE } from '@/lib/payments/offlin
 import { checkProtection, itemValue } from '@/lib/rental/protection';
 import { loadRenterRecord } from '@/lib/rental/protection-server';
 import { effectiveHoldMinutes } from '@/lib/rental/availability-server';
+import { paymentReference } from '@/lib/payments/eft';
+import { loadNoticeBookings, sendGearNotice } from '@/lib/rental/notices';
 
 function daysBetween(start: string, end: string): number {
   return Math.ceil(
@@ -101,6 +103,7 @@ export async function POST(request: NextRequest) {
     notes,
     fulfilment_method,
     payment_plan,
+    payment_method,
     delivery_address,
     delivery_lat,
     delivery_lng,
@@ -113,7 +116,18 @@ export async function POST(request: NextRequest) {
   const fulfilment: 'collection' | 'delivery' =
     fulfilment_method === 'delivery' ? 'delivery' : 'collection';
 
+  // While online card payment is off, the customer pays the whole order by
+  // EFT to the business account, or in cash when they collect. With card
+  // payment on, the original plans (all now, or deposit now) apply.
+  const offline = !payments.isConfigured();
+  const method: 'eft' | 'cash' | 'online' = !offline
+    ? 'online'
+    : payment_method === 'cash' && fulfilment === 'collection'
+      ? 'cash'
+      : 'eft';
+
   const plan: 'full' | 'deposit_only' =
+    !offline &&
     fulfilment === 'collection' &&
     payment_plan === 'deposit_only' &&
     STUDIO.fulfilment.collection.allowBalanceOnCollection
@@ -204,7 +218,7 @@ export async function POST(request: NextRequest) {
     // their login would not see anyone else's and would sell the gear twice.
     const { data: overlapping, error: overlapErr } = await createAdminClient()
       .from('equipment_bookings')
-      .select('id, quantity, status, created_at, payfast_payment_id')
+      .select('id, quantity, status, created_at, payfast_payment_id, payment_method')
       .eq('rental_id', item.rental_id)
       .in('status', ['pending', 'confirmed', 'active', 'overdue'])
       .lt('start_date', itemEnd)
@@ -223,7 +237,7 @@ export async function POST(request: NextRequest) {
     const holds: BookingHold[] = (overlapping ?? []).map((b) => {
       const row = b as {
         id: string; quantity: number | null; status: string;
-        created_at: string; payfast_payment_id: string | null;
+        created_at: string; payfast_payment_id: string | null; payment_method?: string | null;
       };
       return {
         id: row.id,
@@ -231,6 +245,7 @@ export async function POST(request: NextRequest) {
         status: row.status,
         createdAt: row.created_at,
         paymentReference: row.payfast_payment_id,
+        method: row.payment_method ?? null,
       };
     });
 
@@ -352,6 +367,7 @@ export async function POST(request: NextRequest) {
       checkout_group_id: checkoutGroupId,
       fulfilment_method: fulfilment,
       payment_plan: plan,
+      payment_method: method,
       // The delivery charge and outstanding balance belong to the order, not
       // to each line, so they are recorded once against the first booking in
       // the group to avoid multiplying them by the number of items.
@@ -363,6 +379,7 @@ export async function POST(request: NextRequest) {
             delivery_distance_km: deliveryDistanceKm,
             delivery_fee: fulfilment === 'delivery' ? deliveryFee : null,
             balance_due: balanceDue > 0 ? balanceDue : null,
+            amount_due: amountDueNow,
           }
         : {}),
     };
@@ -453,25 +470,39 @@ export async function POST(request: NextRequest) {
     metadata: { kind: 'gear', source: 'cart', checkoutGroupId, items: bookings.length, amountDueNow, plan, fulfilment, paymentLink: Boolean(paymentUrl) },
   });
 
-  const paymentsOffline = !payments.isConfigured();
+  const paymentsOffline = offline;
+  const reference = paymentReference(checkoutGroupId);
+  // The order's first line carries the amount; the pay screen opens on it.
+  const ids = bookings.map((b) => b.id as string);
+  const { data: firstLine } = await adminClient
+    .from('equipment_bookings')
+    .select('id')
+    .in('id', ids)
+    .not('amount_due', 'is', null)
+    .maybeSingle();
+  const firstId = firstLine?.id ?? ids[0];
+
   if (paymentsOffline) {
     reportUnpaidRequest({
       kind: 'cart',
-      reference: checkoutGroupId,
+      reference,
       userId: user.id,
       userEmail: user.email,
       amount: amountDueNow,
-      summary: `${bookings.length} item(s) from the cart`,
+      summary: `${bookings.length} item(s) from the cart, paying by ${method === 'cash' ? 'cash at collection' : 'EFT'}`,
     });
+    const noticeItems = await loadNoticeBookings([firstId, ...ids.filter((i) => i !== firstId)]);
+    await sendGearNotice('awaiting_payment', noticeItems, { amountDue: amountDueNow, reference, method });
   }
 
   return NextResponse.json(
     {
       checkout_group_id: checkoutGroupId,
       booking_count: bookings.length,
+      booking_id: firstId,
       pricing,
       payment_url: paymentUrl,
-      ...(paymentsOffline ? { payments_offline: true, message: PAYMENTS_OFF_MESSAGE } : {}),
+      ...(paymentsOffline ? { payments_offline: true, payment_method: method, reference, amount_due: amountDueNow, message: PAYMENTS_OFF_MESSAGE } : {}),
     },
     { status: 201 },
   );

@@ -15,7 +15,27 @@ export const STUDIO = {
   bookingEmail: 'bookings@thabangvision.com',  //'thabangvisionstudios+booking@gmail.com',
   pressEmail: 'press@thabangvision.com',  //'thabangvisionstudios+press@gmail.com',
   privacyEmail: 'privacy@thabangvision.com',  //'thabangvisionstudios+privacy@gmail.com',
-  phone: '+27 79 539 9012',
+  phone: '+27 63 990 5802',
+  // WhatsApp: the same number, in the international form wa.me links need.
+  whatsapp: {
+    number: '27639905802',
+    display: '063 990 5802',
+  },
+
+  // How customers pay while online card payment is off (and afterwards, as an
+  // option). The details match Capitec's account confirmation letter of
+  // 27/09/2026. They are shown publicly on /pay on purpose: a customer can
+  // always check them there, which is the defence against scammers who send
+  // fake "new bank details" by WhatsApp or email.
+  bank: {
+    accountName: 'THABANGVISION STUDIO (PTY) LTD',
+    bankName: 'Capitec Business',
+    accountNumber: '1055250166',
+    branchCode: '450105',
+    accountType: 'Business account',
+    // Unpaid EFT bookings keep their dates this long (see lib/rental/availability-server.ts).
+    payWithinHours: 48,
+  },
 
   location: {
     city: 'Johannesburg',
@@ -493,6 +513,7 @@ export const FOOTER_SECTIONS = [
   {
     title: 'Support',
     links: [
+      { label: 'How to Pay', href: '/pay' },
       { label: 'Contact', href: '/contact' },
       { label: 'Report a Bug', href: '/support/report-bug' },
       { label: 'Legal / Terms', href: '/legal' },

@@ -5,6 +5,7 @@ import { requireAdmin, rateLimitAdmin } from '@/lib/auth';
 import { createAdminClient } from '@/lib/supabase/server';
 import { refundPayment } from '@/lib/payments/routing';
 import { sendDisputeResolved } from '@/lib/email';
+import { profileWithEmail } from '@/lib/supabase/profile-email';
 
 const VALID_STATUSES = ['open', 'investigating', 'resolved', 'escalated', 'dismissed'];
 const VALID_RESOLUTIONS = [
@@ -65,11 +66,7 @@ export async function GET(
     }
 
     // Fetch filer profile
-    const { data: filerProfile } = await supabase
-      .from('profiles')
-      .select('id, display_name, email')
-      .eq('id', dispute.filed_by)
-      .single();
+    const filerProfile = await profileWithEmail(dispute.filed_by);
 
     return NextResponse.json({
       ...dispute,
@@ -294,11 +291,7 @@ export async function PATCH(
     // Send resolution email to filer
     if (resolution && status === 'resolved') {
       try {
-        const { data: filerProfile } = await supabase
-          .from('profiles')
-          .select('email, display_name')
-          .eq('id', dispute.filed_by)
-          .single();
+        const filerProfile = await profileWithEmail(dispute.filed_by);
 
         if (filerProfile?.email) {
           await sendDisputeResolved({

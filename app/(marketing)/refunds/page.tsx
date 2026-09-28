@@ -46,7 +46,7 @@ export default function RefundsPage() {
 
           <Section title="2. Security Deposits on Equipment Hire">
             <p>Every equipment hire carries a refundable security deposit, shown on the listing and in your cart before you pay. It is a fixed amount per item, not a percentage of the hire, and it is held against late return, damage, and loss.</p>
-            <p>At checkout you choose how to pay: everything online, or, when you collect, the deposit online to hold the equipment and the hire charge when you collect. Checkout shows the amounts before you pay. While online payment is not yet open, we confirm your booking once we receive your payment by EFT, cash or a card link we send you.</p>
+            <p>At checkout you choose how to pay: everything online, or, when you collect, the deposit online to hold the equipment and the hire charge when you collect. Checkout shows the amounts before you pay. While online card payment is not offered, you pay the whole order by EFT within 48 hours of booking, using the reference on your booking, or in cash when you collect; we confirm your booking when the payment arrives.</p>
             <p>When the equipment comes back we inspect each item and photograph its condition, then compare it against the record made when it left us. The deposit is then settled in one of four ways:</p>
             <ul className="list-disc pl-5 space-y-1">
               <li><span className="text-white">Released in full</span> — everything came back on time and in the condition it went out in.</li>

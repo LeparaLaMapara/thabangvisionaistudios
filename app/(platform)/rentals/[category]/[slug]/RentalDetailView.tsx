@@ -10,6 +10,7 @@ import { BookingWidget } from '@/components/booking/BookingWidget';
 import { Badge } from '@/components/ui/Badge';
 import { protectionLine } from '@/lib/rental/protection';
 import { formatRand } from '@/lib/format/money';
+import { ContactButtons } from '@/components/payments/ContactButtons';
 
 // ─── Category label map ───────────────────────────────────────────────────────
 
@@ -507,6 +508,10 @@ export default function RentalDetailView({
                 Book This Equipment
               </h3>
               <BookingWidget rental={rental} paymentsOpen={paymentsOpen} />
+              <div className="mt-5 pt-4 border-t border-white/5 space-y-2">
+                <p className="text-xs font-mono uppercase tracking-widest text-neutral-400">Questions about this item?</p>
+                <ContactButtons message={`Hi, I have a question about the ${rental.title}`} />
+              </div>
               {protectionLine(rental) && (
                 <p className="mt-4 flex items-start gap-2 text-xs font-mono text-neutral-400">
                   <ShieldCheck className="w-3.5 h-3.5 mt-0.5 shrink-0 text-[#D4A843]" aria-hidden="true" />

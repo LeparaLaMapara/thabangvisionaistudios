@@ -314,7 +314,7 @@ function BookingWidget({ project }: { project: SmartProduction }) {
       <p className="text-xs font-mono text-neutral-400 mt-3 text-center">
         {hasPrice ? (
           <>{paymentsOpen === false
-              ? 'Pick a date and send a request. We contact you to confirm and arrange payment.'
+              ? 'Pick a date and send a request. We confirm who will shoot it and the price, then you pay by EFT.'
               : paymentsOpen ? 'Pick a date and pay.' : 'Pick a date and send a request.'} Questions?{' '}
             <a
               href={`/ubunye-ai-studio?${new URLSearchParams({ prompt: `I have a question about the "${project.title}" production` })}`}

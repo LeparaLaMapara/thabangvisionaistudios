@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth, checkNotSuspended } from '@/lib/auth';
 import { createClient, createAdminClient } from '@/lib/supabase/server';
 import { sendDisputeFiled } from '@/lib/email';
+import { profileWithEmail } from '@/lib/supabase/profile-email';
 
 const VALID_DISPUTE_TYPES = [
   'gear_damage',
@@ -214,11 +215,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     // Send dispute filed emails
     try {
-      const { data: filerProfile } = await adminClient
-        .from('profiles')
-        .select('email, display_name')
-        .eq('id', auth.user.id)
-        .single();
+      const filerProfile = await profileWithEmail(auth.user.id);
 
       if (filerProfile?.email) {
         await sendDisputeFiled({

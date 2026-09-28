@@ -10,6 +10,7 @@ import {
   paidOnlineForLine,
 } from '@/lib/rental/cancellation';
 import { logEvent } from '@/lib/data/events';
+import { paymentReference } from '@/lib/payments/eft';
 
 type BookingForQuote = {
   id: string;
@@ -108,7 +109,25 @@ export async function GET(
     .eq('id', data.rental_id)
     .maybeSingle();
 
-  return NextResponse.json({ ...data, rental_title: rental?.title ?? null, cancellation });
+  // How to pay, while the order waits for an EFT or cash at collection. The
+  // amount lives on the order's first line; any line of the order finds it.
+  let paymentInfo: { method: string; reference: string; amountDue: number } | null = null;
+  if (data.status === 'pending' && (data.payment_method === 'eft' || data.payment_method === 'cash')) {
+    const orderId: string = data.checkout_group_id ?? data.id;
+    let amountDue = data.amount_due as number | null;
+    if (amountDue == null && data.checkout_group_id) {
+      const { data: first } = await createAdminClient()
+        .from('equipment_bookings')
+        .select('amount_due')
+        .eq('checkout_group_id', data.checkout_group_id)
+        .not('amount_due', 'is', null)
+        .maybeSingle();
+      amountDue = (first?.amount_due as number | null) ?? null;
+    }
+    paymentInfo = { method: data.payment_method, reference: paymentReference(orderId), amountDue: Number(amountDue ?? 0) };
+  }
+
+  return NextResponse.json({ ...data, rental_title: rental?.title ?? null, cancellation, payment_info: paymentInfo });
 }
 
 export async function PUT(

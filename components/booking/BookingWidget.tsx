@@ -309,7 +309,7 @@ function BookingWidgetInner({ rental, paymentsOpen: paymentsOpenProp }: Props) {
             </div>
             <p className="text-xs font-mono text-neutral-400">
               {paymentsOpen === false
-                ? 'At checkout: collect it, or after your first hire have it delivered. We then contact you to arrange payment.'
+                ? 'At checkout: collect it, or after your first hire have it delivered. Pay by EFT, or in cash when you collect.'
                 : 'At checkout: collect it, or after your first hire have it delivered, and pay everything now or only the deposit now and the rest when you collect.'}
             </p>
           </div>

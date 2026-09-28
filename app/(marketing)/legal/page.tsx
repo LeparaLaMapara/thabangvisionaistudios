@@ -78,7 +78,7 @@ export default function LegalPage() {
             ) : (
               <p>Where VAT becomes applicable it is shown separately at checkout and on your invoice.</p>
             )}
-            <p>When online payment opens, card payments are processed by our authorised payment gateway, a registered South African payment service provider, over secure encrypted connections, and we accept South African debit and credit cards together with the other payment methods presented at checkout. Until then, payment is by EFT, cash or a card link, as set out in section 11. {STUDIO.shortName} does not store your full card details on our servers.</p>
+            <p>When online payment opens, card payments are processed by our authorised payment gateway, a registered South African payment service provider, over secure encrypted connections, and we accept South African debit and credit cards together with the other payment methods presented at checkout. Until then, you pay by EFT to our business account, THABANGVISION STUDIO (PTY) LTD at Capitec Business (the details are on thabangvision.com/pay), or in cash when you collect. {STUDIO.shortName} does not store your full card details on our servers.</p>
             <p>Payment is collected by {STUDIO.legal.companyName} as principal. Funds are not held in escrow or in trust for any third party, and no part of your payment is disbursed to a third party on your behalf.</p>
             <p>A booking is confirmed only once payment or the required deposit has been received and we have sent you a written confirmation.</p>
           </Section>
@@ -118,8 +118,8 @@ export default function LegalPage() {
 
           <Section title="10. Security Deposit">
             <p>A refundable security deposit is payable on every equipment hire. The deposit is a fixed amount per item, shown on each listing and in your cart before you pay. It is not a percentage of the hire value, and it is not part payment of the hire.</p>
-            <p>At checkout you choose how to pay: everything online, or, when you collect, the deposit online to hold the equipment and the hire charge when you collect. Checkout shows the amounts before you pay. While online payment is not yet open, we confirm your booking once we receive your payment by EFT, cash or a card link we send you.</p>
-            <p>After the equipment is returned and inspected, the deposit is released in full, released in part, or withheld, depending on the condition the equipment comes back in and whether it was returned on time. A deposit paid online is refunded to the card you paid with; a deposit paid at collection is refunded the same way it was paid. Where any part of the deposit is withheld, we give you a written breakdown of the deduction.</p>
+            <p>At checkout you choose how to pay: everything online, or, when you collect, the deposit online to hold the equipment and the hire charge when you collect. Checkout shows the amounts before you pay. While online card payment is not offered, you pay the whole order by EFT within 48 hours of booking, using the reference on your booking, or in cash when you collect; we confirm your booking when the payment arrives. An EFT booking not paid within 48 hours is released.</p>
+            <p>After the equipment is returned and inspected, the deposit is released in full, released in part, or withheld, depending on the condition the equipment comes back in and whether it was returned on time. A deposit paid online is refunded to the card you paid with; a deposit paid by EFT or in cash is paid back by EFT or in cash. Where any part of the deposit is withheld, we give you a written breakdown of the deduction.</p>
             <p>Full detail on timing and process is in our{' '}
               <Link href="/refunds" className={link}>Refunds, Returns and Cancellations Policy</Link>.
             </p>
