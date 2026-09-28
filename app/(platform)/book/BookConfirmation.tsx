@@ -80,7 +80,7 @@ export default function BookConfirmation({
       if (data.paymentUrl && isPaymentUrl(data.paymentUrl)) {
         window.location.href = data.paymentUrl;
       } else {
-        router.push(`/dashboard/bookings?ref=${data.booking?.reference}`);
+        router.push(`/dashboard/bookings?ref=${data.booking?.reference}${data.payments_offline ? '&payment=offline' : ''}`);
       }
     } catch {
       setError('Something went wrong. Please try again.');

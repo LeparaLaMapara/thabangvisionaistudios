@@ -24,6 +24,22 @@ function resolveUrl(path: string): string {
   return `${base}${path}`;
 }
 
+/**
+ * Whether Paystack may take payments here.
+ *
+ * Only the secret key matters on the server. This used to also require
+ * PAYSTACK_PUBLIC_KEY, a variable that was never set (Vercel has
+ * NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY), so production always read "not
+ * configured". That hid a worse problem: production holds TEST keys, and a
+ * test checkout would let anyone confirm a real booking with a test card. So
+ * the live site refuses test keys outright; previews and local use them.
+ */
+export function paystackReady(secretKey: string | undefined, vercelEnv: string | undefined): boolean {
+  if (!secretKey) return false;
+  if (vercelEnv === 'production' && secretKey.startsWith('sk_test_')) return false;
+  return true;
+}
+
 // ─── Paystack API helpers ────────────────────────────────────────────────────
 
 type PaystackInitResponse = {
@@ -131,10 +147,7 @@ export const paystack: PaymentProvider = {
   refund: (reference: string, amount?: number) => refundPayment(reference, amount),
 
   isConfigured(): boolean {
-    return !!(
-      process.env.PAYSTACK_SECRET_KEY &&
-      process.env.PAYSTACK_PUBLIC_KEY
-    );
+    return paystackReady(process.env.PAYSTACK_SECRET_KEY, process.env.VERCEL_ENV);
   },
 
   async createCheckout(params: CheckoutParams): Promise<CheckoutResult> {

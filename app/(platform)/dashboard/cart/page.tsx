@@ -258,7 +258,7 @@ export default function CartPage() {
       }
 
       await refresh();
-      router.push(`/dashboard/bookings?checkout=${data.checkout_group_id}`);
+      router.push(`/dashboard/bookings?checkout=${data.checkout_group_id}${data.payments_offline ? '&payment=offline' : ''}`);
     } catch {
       setError('Something went wrong. Please try again.');
       setSubmitting(false);

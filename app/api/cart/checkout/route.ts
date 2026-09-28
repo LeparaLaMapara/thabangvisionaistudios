@@ -13,6 +13,7 @@ import { recordUnmetDemandAsync } from '@/lib/demand/record';
 import { meetsLeadTime, leadTimeMessage } from '@/lib/rental/leadTime';
 import type { CartItemWithRental } from '@/types/cart';
 import { logEvent } from '@/lib/data/events';
+import { reportUnpaidRequest, PAYMENTS_OFF_MESSAGE } from '@/lib/payments/offline';
 
 function daysBetween(start: string, end: string): number {
   return Math.ceil(
@@ -434,12 +435,25 @@ export async function POST(request: NextRequest) {
     metadata: { kind: 'gear', source: 'cart', checkoutGroupId, items: bookings.length, amountDueNow, plan, fulfilment, paymentLink: Boolean(paymentUrl) },
   });
 
+  const paymentsOffline = !payments.isConfigured();
+  if (paymentsOffline) {
+    reportUnpaidRequest({
+      kind: 'cart',
+      reference: checkoutGroupId,
+      userId: user.id,
+      userEmail: user.email,
+      amount: amountDueNow,
+      summary: `${bookings.length} item(s) from the cart`,
+    });
+  }
+
   return NextResponse.json(
     {
       checkout_group_id: checkoutGroupId,
       booking_count: bookings.length,
       pricing,
       payment_url: paymentUrl,
+      ...(paymentsOffline ? { payments_offline: true, message: PAYMENTS_OFF_MESSAGE } : {}),
     },
     { status: 201 },
   );

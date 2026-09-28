@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { motion } from 'framer-motion';
@@ -13,6 +13,7 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import ServiceBookingsList from './ServiceBookingsList';
 import type { EquipmentBooking, BookingStatus } from '@/types/booking';
+import { PaymentsOfflineNotice } from '@/components/booking/PaymentsOfflineNotice';
 
 const STATUS_VARIANT: Record<BookingStatus, 'default' | 'warning' | 'success' | 'info' | 'error'> = {
   pending: 'warning',
@@ -64,6 +65,9 @@ export default function BookingsPage() {
       transition={{ duration: 0.3 }}
     >
       <DashboardSubTabs tabs={ACTIVITY_TABS} />
+      <Suspense fallback={null}>
+        <PaymentsOfflineNotice />
+      </Suspense>
       <h2 className="text-lg font-display font-medium uppercase text-white mb-6">
         My Rentals
       </h2>

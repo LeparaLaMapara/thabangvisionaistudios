@@ -7,6 +7,7 @@ import { STUDIO } from '@/lib/constants';
 import { checkRateLimit, checkNotSuspended } from '@/lib/auth';
 import { meetsLeadTime, leadTimeMessage } from '@/lib/rental/leadTime';
 import { logEvent } from '@/lib/data/events';
+import { reportUnpaidRequest, PAYMENTS_OFF_MESSAGE } from '@/lib/payments/offline';
 
 // Writes that touch money or status go through the service role, after the
 // route has checked who the user is and that the record is theirs. The users'
@@ -263,6 +264,21 @@ export async function POST(request: NextRequest) {
     userId: user.id,
     metadata: { kind: 'gear', source: 'listing', bookingId: booking.id, rentalId: rental_id, amount: totalPrice, paymentLink: Boolean(paymentUrl) },
   });
+
+  if (!payments.isConfigured() && totalPrice > 0) {
+    reportUnpaidRequest({
+      kind: 'gear',
+      reference: booking.id,
+      userId: user.id,
+      userEmail: user.email,
+      amount: totalPrice,
+      summary: `${rental.title ?? 'Equipment'}, ${start_date} to ${end_date}`,
+    });
+    return NextResponse.json(
+      { ...booking, payment_url: null, payments_offline: true, message: PAYMENTS_OFF_MESSAGE },
+      { status: 201 },
+    );
+  }
 
   return NextResponse.json(
     { ...booking, payment_url: paymentUrl },
