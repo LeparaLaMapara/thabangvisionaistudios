@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { motion, useScroll, useTransform } from 'framer-motion';
 import Link from 'next/link';
+import { ServiceGrid } from '@/components/cinematic/ServiceGrid';
 import { LatestWorkCarousel, type CarouselItem } from '@/components/cinematic/LatestWorkCarousel';
 import { ArrowRight, Calendar, Search, MapPin, RotateCcw, MessageCircle, ShieldCheck } from 'lucide-react';
 import { STUDIO } from '@/lib/constants';
@@ -294,6 +295,8 @@ export default function HomeClient({
       {/* Gear and recent shoots, directly under the hero. */}
       <LatestWorkCarousel items={carouselItems} />
       <HowItWorks paymentsOpen={paymentsOpen} />
+      {/* What we offer: the Rentals and Studio cards (owner asked to keep them). */}
+      <ServiceGrid />
       <TrustSignals />
       <BookingCTA />
       <UbunyeSection />

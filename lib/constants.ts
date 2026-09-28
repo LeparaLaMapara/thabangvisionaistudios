@@ -651,7 +651,7 @@ export const CAPABILITIES = [
   },
   {
     title: 'Studio',
-    subtitle: 'Book Professionals For Your Next Project',
+    subtitle: 'Photo and video shoots, by request',
     image: PLACEHOLDER_IMAGES.smartProductions,
     link: '/studio',
   },
