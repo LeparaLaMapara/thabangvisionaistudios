@@ -303,8 +303,10 @@ export const STUDIO = {
     type: 'video',  // 'video' | 'image'
     colorMode: 'color' as 'bw' | 'color',  // 'bw' = black & white (grayscale) | 'color' = full color
     imageSrc: 'https://res.cloudinary.com/dzymetqjr/image/upload/v1773909281/hero_image_erskic.avif',
-    videoSrc: 'https://res.cloudinary.com/dzymetqjr/video/upload/q_auto/f_auto/v1775368307/hero_htn3xp.mp4',                          // Cloudinary video URL (desktop)
-    mobileVideoSrc: 'https://res.cloudinary.com/dzymetqjr/video/upload/q_auto/f_auto/v1775368307/hero_htn3xp.mp4',                    // Smaller video for mobile (falls back to videoSrc)
+    // Shown at 40% opacity behind the headline, so a lighter encoding looks the same:
+    // 1280px wide ~1.4 MB for larger screens, 720px ~0.6 MB for phones (the original was 1.76 MB).
+    videoSrc: 'https://res.cloudinary.com/dzymetqjr/video/upload/q_auto:eco,f_auto,w_1280/v1775368307/hero_htn3xp.mp4',                          // Cloudinary video URL (desktop)
+    mobileVideoSrc: 'https://res.cloudinary.com/dzymetqjr/video/upload/q_auto:low,f_auto,w_720/v1775368307/hero_htn3xp.mp4',                    // Smaller video for mobile (falls back to videoSrc)
     poster: 'https://res.cloudinary.com/dzymetqjr/image/upload/v1773909281/hero_image_erskic.avif',                            // Static image shown while video loads
   },
 
