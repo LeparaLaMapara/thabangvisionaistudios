@@ -210,6 +210,13 @@ export const STUDIO = {
     },
   },
 
+  // Welcomes for new people (TASK-065, /admin/welcomes). null = the owner sends
+  // each one by hand. A number = drafts still unsent after that many hours are
+  // sent by the daily job. Off until the owner trusts the drafts.
+  welcomes: {
+    autoSendAfterHours: null as number | null,
+  },
+
   verification: {
     maxFileSizeMB: 5,
     acceptedTypes: ['image/jpeg', 'image/png'],

@@ -150,7 +150,7 @@ export async function processSignup(
 }
 
 /** Sends a queued welcome. Only a draft is ever sent, and only once. */
-export async function sendWelcome(userId: string, sentBy: string): Promise<{ ok: boolean; error?: string }> {
+export async function sendWelcome(userId: string, sentBy: string | null): Promise<{ ok: boolean; error?: string }> {
   const admin = createAdminClient();
 
   // Claim it first, so two clicks cannot send two emails.
@@ -175,6 +175,23 @@ export async function sendWelcome(userId: string, sentBy: string): Promise<{ ok:
     .update({ status: 'sent', sent_by: sentBy, sent_at: new Date().toISOString(), updated_at: new Date().toISOString() })
     .eq('user_id', userId);
   return { ok: true };
+}
+
+/** Sends drafts older than the configured hours (STUDIO.welcomes.autoSendAfterHours). */
+export async function autoSendWelcomes(afterHours: number | null): Promise<number> {
+  if (afterHours === null || afterHours <= 0) return 0;
+  const cutoff = new Date(Date.now() - afterHours * 3_600_000).toISOString();
+  const { data } = await createAdminClient()
+    .from('welcome_messages')
+    .select('user_id')
+    .eq('status', 'draft')
+    .lt('created_at', cutoff)
+    .limit(50);
+  let sent = 0;
+  for (const row of data ?? []) {
+    if ((await sendWelcome(row.user_id, null)).ok) sent++;
+  }
+  return sent;
 }
 
 /** Drafts a welcome for everyone who has none yet (the backfill, and the daily safety net). */
