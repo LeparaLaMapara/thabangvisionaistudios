@@ -58,7 +58,7 @@ export function coreFaqs(): CoreFaq[] {
       id: 'core-collect-deliver',
       category: 'equipment',
       question: 'Do I collect the gear or do you deliver?',
-      answer: `Either. Collect it in ${STUDIO.fulfilment.dispatchFrom.name}, Johannesburg, or we deliver within ${delivery.maxRadiusKm} km at R${delivery.ratePerKm} per km (minimum R${delivery.minimumFee}). The delivery fee is shown before you pay.`,
+      answer: `Either. Collect it at ${STUDIO.fulfilment.dispatchFrom.meetingPoint}, ${STUDIO.fulfilment.dispatchFrom.name}, Johannesburg, or we deliver within ${delivery.maxRadiusKm} km at R${delivery.ratePerKm} per km (minimum R${delivery.minimumFee}). The delivery fee is shown before you pay.`,
     },
     {
       id: 'core-deposit',
