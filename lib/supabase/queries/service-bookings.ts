@@ -23,7 +23,7 @@ export async function getCreatorBookings(creatorId: string) {
   // Creator does NOT see client email/phone for privacy
   const { data, error } = await supabase
     .from('bookings')
-    .select('id, reference, booking_type, project_category, project_description, deliverables, duration_hours, location, preferred_dates, creator_amount, payment_status, payout_status, status, client_rating, client_review, created_at, updated_at, accepted_at, completed_at')
+    .select('id, reference, booking_type, project_category, project_description, deliverables, duration_hours, location, preferred_dates, creator_amount, payment_status, payout_status, status, client_rating, client_review, created_at, updated_at, paid_at, accepted_at, arrived_at, delivered_at, completed_at, shoot_date')
     .eq('creator_id', creatorId)
     .order('created_at', { ascending: false });
 

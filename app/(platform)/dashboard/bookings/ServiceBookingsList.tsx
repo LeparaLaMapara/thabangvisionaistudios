@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import type { BookingStatus } from '@/types/booking-system';
+import { ShootTimeline } from '@/components/booking/ShootTimeline';
 
 interface ServiceBooking {
   id: string;
@@ -24,6 +25,10 @@ interface ServiceBooking {
   delivery_url: string | null;
   delivery_message: string | null;
   delivered_at: string | null;
+  paid_at?: string | null;
+  accepted_at?: string | null;
+  arrived_at?: string | null;
+  completed_at?: string | null;
   client_rating: number | null;
   created_at: string;
   creator: {
@@ -174,6 +179,8 @@ export default function ServiceBookingsList({ bookings }: { bookings: ServiceBoo
               </div>
 
               {/* Delivery info */}
+              <ShootTimeline booking={booking} viewer="client" />
+
               {booking.status === 'delivered' && booking.delivery_url && (
                 <div className="mt-4 rounded-lg border border-cyan-500/20 bg-cyan-500/5 p-4">
                   <p className="text-sm font-medium text-cyan-400 mb-2">

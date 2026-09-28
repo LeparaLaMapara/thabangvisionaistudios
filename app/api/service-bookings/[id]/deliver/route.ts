@@ -3,6 +3,7 @@ export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient, createAdminClient } from '@/lib/supabase/server';
 import { checkRateLimit } from '@/lib/auth';
+import { notifyClient } from '@/lib/bookings/notify-client';
 
 // Writes that touch money or status go through the service role, after the
 // route has checked who the user is and that the record is theirs. The users'
@@ -81,6 +82,14 @@ export async function PATCH(
     console.error('[deliver] Update error:', updateError.message);
     return NextResponse.json({ error: 'Failed to submit delivery' }, { status: 500 });
   }
+
+  // The client has 7 days to approve, so they must hear about it.
+  await notifyClient({
+    bookingId: id,
+    type: 'work_delivered',
+    title: 'Your photos or video are ready',
+    body: 'Your creator has delivered the work. Open your booking to see it, then tap "Looks good" or tell us what is wrong within 7 days. After 7 days it is approved automatically.',
+  });
 
   return NextResponse.json({ success: true });
 }

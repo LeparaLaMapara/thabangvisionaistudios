@@ -16,6 +16,7 @@ import { Button } from '@/components/ui/Button';
 import AddressAutocomplete from '@/components/ui/AddressAutocomplete';
 import type { AddressResult } from '@/components/ui/AddressAutocomplete';
 import BankingDetails from '@/components/dashboard/BankingDetails';
+import { PhoneCheck } from '@/components/profile/PhoneCheck';
 
 function RequiredLabel({ children }: { children: React.ReactNode }) {
   return (
@@ -30,6 +31,8 @@ export default function ProfileEditPage() {
   const [lastName, setLastName] = useState('');
   const [bio, setBio] = useState('');
   const [phone, setPhone] = useState('');
+  const [savedPhone, setSavedPhone] = useState('');
+  const [phoneVerified, setPhoneVerified] = useState(false);
   const [avatarUrl, setAvatarUrl] = useState('');
   const [skills, setSkills] = useState<string[]>([]);
   const [newSkill, setNewSkill] = useState('');
@@ -97,6 +100,8 @@ export default function ProfileEditPage() {
       setLastName(profile.last_name ?? '');
       setBio(profile.bio ?? '');
       setPhone(profile.phone ?? '');
+      setSavedPhone(profile.phone ?? '');
+      setPhoneVerified(Boolean((profile as { phone_verified_at?: string | null }).phone_verified_at));
       setAvatarUrl(profile.avatar_url ?? '');
       setSkills(profile.skills ?? []);
       setSocialLinks(profile.social_links ?? {});
@@ -462,6 +467,11 @@ export default function ProfileEditPage() {
             <p className="text-[9px] font-mono text-neutral-600 mt-1">
               <span className="text-red-400">*</span> Required
             </p>
+            <PhoneCheck
+              key={`${savedPhone}-${phoneVerified}`}
+              phone={phone}
+              verified={phoneVerified && phone.trim() === savedPhone.trim()}
+            />
           </div>
         </div>
 
