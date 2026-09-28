@@ -5,6 +5,7 @@ import { payments } from '@/lib/payments';
 import { email as emailProvider } from '@/lib/email';
 import { escapeIlike } from '@/lib/search/types';
 import { getHourlyRate } from '@/lib/supabase/queries/service-bookings';
+import { splitServiceBooking } from '@/lib/bookings/pricing';
 import { logEvent } from '@/lib/data/events';
 import { markConversion } from '@/lib/data/chat-history';
 import { createAdminClient } from '@/lib/supabase/server';
@@ -267,8 +268,7 @@ export function createBookingTools(
         const subtotal = Math.round(hourlyRate * params.duration_hours);
         const vat = Math.round(subtotal * (STUDIO.booking.vatRate / 100));
         const total = subtotal + vat;
-        const platformAmount = Math.round(total * (STUDIO.booking.platformCommission / 100));
-        const creatorAmount = total - platformAmount;
+        const { platformAmount, creatorAmount } = splitServiceBooking({ subtotal }, STUDIO.booking.platformCommission);
 
         const reference = `BK-${nanoid(10)}`;
         const baseUrl = process.env.NEXT_PUBLIC_APP_URL || STUDIO.meta.url;

@@ -56,7 +56,7 @@ export const STUDIO = {
     // POPIA requires a designated Information Officer, registered with the
     // Information Regulator. Rendered on /privacy only once the name is filled.
     informationOfficer: {
-      name: '',
+      name: 'Thabang Mashinini-Sekgoto',
       email: 'privacy@thabangvision.com',
     },
     // The statutory complaints authority for POPIA. Do not point users at a

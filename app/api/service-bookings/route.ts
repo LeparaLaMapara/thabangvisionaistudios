@@ -10,7 +10,7 @@ import { getHourlyRate } from '@/lib/supabase/queries/service-bookings';
 import { email as emailProvider } from '@/lib/email';
 import { logEvent } from '@/lib/data/events';
 import { validateBookingRequest } from '@/lib/bookings/validate';
-import { quoteHourly, quotePackage } from '@/lib/bookings/pricing';
+import { quoteHourly, quotePackage, splitServiceBooking } from '@/lib/bookings/pricing';
 import { getBookablePackage } from '@/lib/bookings/packages';
 
 // Writes that touch money or status go through the service role, after the
@@ -94,8 +94,7 @@ export async function POST(request: NextRequest) {
     ? quotePackage(pkg.price, pkg.priceUnit, duration_hours, STUDIO.booking.vatRate)
     : quoteHourly(getHourlyRate(project_category), duration_hours, STUDIO.booking.vatRate);
   const { subtotal, vat, total } = quote;
-  const platformAmount = Math.round(total * (STUDIO.booking.platformCommission / 100));
-  const creatorAmount = total - platformAmount;
+  const { platformAmount, creatorAmount } = splitServiceBooking(quote, STUDIO.booking.platformCommission);
 
   const reference = `BK-${nanoid(10)}`;
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL || STUDIO.meta.url;
