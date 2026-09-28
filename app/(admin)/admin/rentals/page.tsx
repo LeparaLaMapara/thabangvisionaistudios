@@ -28,6 +28,9 @@ type Rental = {
   price_per_day: number | null;
   price_per_week: number | null;
   deposit_amount: number | null;
+  replacement_value: number | null;
+  serial_number: string | null;
+  tracker_fitted: boolean | null;
   currency: string;
   thumbnail_url: string | null;
   cover_public_id: string | null;
@@ -60,6 +63,9 @@ type Form = {
   price_per_day: string;
   price_per_week: string;
   deposit_amount: string;
+  replacement_value: string;
+  serial_number: string;
+  tracker_fitted: boolean;
   currency: string;
   gallery: GalleryItem[];
   is_available: boolean;
@@ -87,6 +93,9 @@ const EMPTY_FORM: Form = {
   price_per_day: '',
   price_per_week: '',
   deposit_amount: '',
+  replacement_value: '',
+  serial_number: '',
+  tracker_fitted: false,
   currency: STUDIO.currency.code,
   gallery: [],
   is_available: true,
@@ -172,6 +181,9 @@ function formToPayload(f: Form) {
     price_per_day:   parseNum(f.price_per_day),
     price_per_week:  parseNum(f.price_per_week),
     deposit_amount:  parseNum(f.deposit_amount),
+    replacement_value: parseNum(f.replacement_value),
+    serial_number:   f.serial_number.trim()   || null,
+    tracker_fitted:  f.tracker_fitted,
     currency:        f.currency               || STUDIO.currency.code,
     thumbnail_url:   f.gallery.length > 0 ? f.gallery[0].url : null,
     cover_public_id: f.gallery.length > 0 ? f.gallery[0].public_id : null,
@@ -219,6 +231,9 @@ function rentalToForm(r: Rental): Form {
     price_per_day:   r.price_per_day   != null ? String(r.price_per_day)  : '',
     price_per_week:  r.price_per_week  != null ? String(r.price_per_week) : '',
     deposit_amount:  r.deposit_amount  != null ? String(r.deposit_amount) : '',
+    replacement_value: r.replacement_value != null ? String(r.replacement_value) : '',
+    serial_number:   r.serial_number   ?? '',
+    tracker_fitted:  Boolean(r.tracker_fitted),
     currency:        r.currency        || STUDIO.currency.code,
     gallery:         r.gallery         ?? [],
     is_available:    r.is_available,
@@ -794,6 +809,36 @@ export default function AdminRentalsPage() {
                     mono
                   />
                 </div>
+              </Section>
+
+              {/* ── Protection (TASK-067) ── */}
+              <Section label="Protection">
+                <div className="grid grid-cols-2 gap-4">
+                  <Field
+                    label="Replacement value"
+                    value={form.replacement_value}
+                    onChange={v => setF('replacement_value', v)}
+                    placeholder="What it costs to replace"
+                    mono
+                  />
+                  <Field
+                    label="Serial number"
+                    value={form.serial_number}
+                    onChange={v => setF('serial_number', v)}
+                    placeholder="From the body or box"
+                    mono
+                  />
+                  <div className="flex items-end pb-2 col-span-2">
+                    <CheckboxField
+                      label="Hidden tracker fitted in the kit bag"
+                      checked={form.tracker_fitted}
+                      onChange={v => setF('tracker_fitted', v)}
+                    />
+                  </div>
+                </div>
+                <p className="text-[9px] font-mono text-neutral-600 mt-2">
+                  The value sets how much a new renter may take at once. The listing says &ldquo;serial-registered&rdquo; only when a serial is filled in.
+                </p>
               </Section>
 
               {/* ── Stock ── */}

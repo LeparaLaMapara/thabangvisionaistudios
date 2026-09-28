@@ -183,6 +183,31 @@ export const STUDIO = {
       { minItems: 5, maxItems: 6, discountPercent: 15 },
       { minItems: 7, maxItems: Infinity, discountPercent: 20 },
     ],
+
+    // ── Gear protection (TASK-067): a trust ladder, not one heavy gate ──
+    // "Value" is an item's replacement value (smart_rentals.replacement_value),
+    // or its deposit when no value is recorded. The limit is on the value of
+    // gear a renter has booked or out at the same time, and it rises with
+    // returns made on time and undamaged. Applied by lib/rental/protection.ts
+    // in /api/bookings and /api/cart/checkout.
+    protection: {
+      trustTiers: [
+        { cleanReturns: 0, maxValue: 5000, label: 'New renter' },
+        { cleanReturns: 2, maxValue: 20000, label: 'Trusted renter' },
+        { cleanReturns: 5, maxValue: 60000, label: 'Regular renter' },
+      ],
+      // Orders above this value, and every first rental, are collection only,
+      // so staff can check the renter against their ID at handover.
+      collectionOnlyAboveValue: 20000,
+      firstRentalCollectionOnly: true,
+      // Damage fees, AppleCare style. Not shown anywhere until the owner sets
+      // the amounts and flips `published`; until then Terms section 13 (repair
+      // or replacement cost) applies.
+      damageFees: {
+        published: false,
+        items: [] as readonly { issue: string; fee: number }[],
+      },
+    },
   },
 
   verification: {

@@ -43,6 +43,12 @@ export function coreFaqs(): CoreFaq[] {
       answer: `Open the item, pick your dates and you will see whether it is available and the full price. Press to book, sign in (or create a free account), do a one-time ID check before your first rental, and pay online.`,
     },
     {
+      id: 'core-limits',
+      category: 'equipment',
+      question: 'Is there a limit on how much gear I can rent?',
+      answer: `Yes, while you are new. Your first hires can add up to R${STUDIO.rental.protection.trustTiers[0].maxValue.toLocaleString(STUDIO.currency.locale)} of gear at a time. After ${STUDIO.rental.protection.trustTiers[1].cleanReturns} returns on time the limit rises to R${STUDIO.rental.protection.trustTiers[1].maxValue.toLocaleString(STUDIO.currency.locale)}. Your first hire is collected in person so we can hand it over with you. Need more? Contact us and we will arrange it.`,
+    },
+    {
       id: 'core-notice',
       category: 'booking',
       question: 'How far ahead must I book gear?',

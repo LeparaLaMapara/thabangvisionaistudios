@@ -8,6 +8,8 @@ import { checkRateLimit, checkNotSuspended } from '@/lib/auth';
 import { meetsLeadTime, leadTimeMessage } from '@/lib/rental/leadTime';
 import { logEvent } from '@/lib/data/events';
 import { reportUnpaidRequest, PAYMENTS_OFF_MESSAGE } from '@/lib/payments/offline';
+import { checkProtection, itemValue } from '@/lib/rental/protection';
+import { loadRenterRecord } from '@/lib/rental/protection-server';
 
 // Writes that touch money or status go through the service role, after the
 // route has checked who the user is and that the record is theirs. The users'
@@ -135,7 +137,7 @@ export async function POST(request: NextRequest) {
   // Fetch the rental item
   const { data: rental, error: rentalError } = await supabase
     .from('smart_rentals')
-    .select('id, title, price_per_day, price_per_week, deposit_amount, currency, is_available, quantity')
+    .select('id, title, price_per_day, price_per_week, deposit_amount, replacement_value, currency, is_available, quantity')
     .eq('id', rental_id)
     .eq('is_available', true)
     .is('deleted_at', null)
@@ -146,6 +148,15 @@ export async function POST(request: NextRequest) {
       { error: 'Rental item not found or unavailable.' },
       { status: 404 },
     );
+  }
+
+  // Trust ladder (TASK-067): a limit on gear value at a time, rising with
+  // clean returns. Told before payment, with what raises it.
+  const record = await loadRenterRecord(admin(), user.id);
+  const protection = checkProtection({ ...record, orderValue: itemValue(rental), delivery: false });
+  if (!protection.ok) {
+    logEvent({ eventType: 'booking_blocked', eventCategory: 'booking', userId: user.id, metadata: { reason: protection.code, kind: 'gear', rentalId: rental_id } });
+    return NextResponse.json({ error: protection.message, code: protection.code }, { status: 403 });
   }
 
   // M9: Deduplication — reject if same user+rental+dates was created in the last 60 seconds

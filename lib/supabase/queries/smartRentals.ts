@@ -15,6 +15,10 @@ export type SmartRental = {
   price_per_day: number | null;
   price_per_week: number | null;
   deposit_amount: number | null;
+  /** Gear protection (migration 062); absent on list queries. */
+  replacement_value?: number | null;
+  serial_number?: string | null;
+  tracker_fitted?: boolean | null;
   currency: string;
   thumbnail_url: string | null;
   cover_public_id: string | null;
