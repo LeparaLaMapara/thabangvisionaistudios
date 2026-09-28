@@ -4,10 +4,11 @@ import { useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { motion } from 'framer-motion';
-import { ArrowLeft, Check, ChevronRight, User } from 'lucide-react';
+import { ArrowLeft, Check, ChevronRight, ShieldCheck, User } from 'lucide-react';
 import type { SmartRental, RentalOwner } from '@/lib/supabase/queries/smartRentals';
 import { BookingWidget } from '@/components/booking/BookingWidget';
 import { Badge } from '@/components/ui/Badge';
+import { protectionLine } from '@/lib/rental/protection';
 
 // ─── Category label map ───────────────────────────────────────────────────────
 
@@ -484,6 +485,12 @@ export default function RentalDetailView({
                 Book This Equipment
               </h3>
               <BookingWidget rental={rental} />
+              {protectionLine(rental) && (
+                <p className="mt-4 flex items-start gap-2 text-[11px] font-mono text-neutral-500">
+                  <ShieldCheck className="w-3.5 h-3.5 mt-0.5 shrink-0 text-[#D4A843]" aria-hidden="true" />
+                  {protectionLine(rental)}
+                </p>
+              )}
             </div>
 
             {/* ── Who owns this ──

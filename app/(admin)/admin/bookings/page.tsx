@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
+import Link from 'next/link';
 import { motion } from 'framer-motion';
 import { Calendar, Search, Eye, CheckCircle, XCircle } from 'lucide-react';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
@@ -436,6 +437,24 @@ export default function AdminBookingsPage() {
                   {detailBooking.notes}
                 </p>
               </div>
+            )}
+
+            {/* Hand over or take back the gear, in person */}
+            {detailBooking.status === 'confirmed' && (
+              <Link
+                href={`/admin/rentals/${detailBooking.id}/handover`}
+                className="flex items-center justify-center gap-2 bg-[#D4A843] text-[#050505] py-2.5 text-[10px] font-mono font-bold uppercase tracking-widest"
+              >
+                Hand over gear
+              </Link>
+            )}
+            {['active', 'overdue'].includes(detailBooking.status as string) && (
+              <Link
+                href={`/admin/rentals/${detailBooking.id}/review-return`}
+                className="flex items-center justify-center gap-2 border border-white/20 text-white py-2.5 text-[10px] font-mono font-bold uppercase tracking-widest"
+              >
+                Review return
+              </Link>
             )}
 
             {/* Actions */}

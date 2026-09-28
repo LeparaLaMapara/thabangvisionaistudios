@@ -31,3 +31,14 @@ keep the security invisible to honest people. Apply the same:
 - [ ] Handover screen for staff: ID match, condition photos, signature, saved to the booking
 - [ ] Damage fee table and agreement text generated from one config source
 - [ ] Tests for the tier rules
+
+## Done 2026-09-28
+- Trust ladder in lib/rental/protection.ts (tiers in STUDIO.rental.protection), enforced in
+  /api/bookings and /api/cart/checkout with the limit and what raises it in the message, before payment.
+- First hire and orders over R20 000 are collection only.
+- Migration 062: smart_rentals.replacement_value, serial_number, tracker_fitted; equipment_bookings.handover.
+  Admin gear form has a Protection section; the listing line appears only when a serial is recorded.
+- Handover screen /admin/rentals/[id]/handover (linked from admin bookings): ID check (selfie while
+  still kept), condition photos, renter photo, agreement from lib/rental/agreement.ts, on-screen signature.
+- Not done: damage fee amounts (owner to set, then flip damageFees.published); card-in-own-name check
+  (needs payment provider data); phone OTP (TASK-069 SMS layer).

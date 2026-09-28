@@ -14,6 +14,8 @@ import { meetsLeadTime, leadTimeMessage } from '@/lib/rental/leadTime';
 import type { CartItemWithRental } from '@/types/cart';
 import { logEvent } from '@/lib/data/events';
 import { reportUnpaidRequest, PAYMENTS_OFF_MESSAGE } from '@/lib/payments/offline';
+import { checkProtection, itemValue } from '@/lib/rental/protection';
+import { loadRenterRecord } from '@/lib/rental/protection-server';
 
 function daysBetween(start: string, end: string): number {
   return Math.ceil(
@@ -260,6 +262,18 @@ export async function POST(request: NextRequest) {
       { error: unavailableItems.join(' ') },
       { status: 409 },
     );
+  }
+
+  // Trust ladder and collection-only rules (TASK-067), before anything is charged.
+  const orderValue = items.reduce(
+    (sum, item) => sum + itemValue(item.rental as { replacement_value?: number | null; deposit_amount?: number | null }) * item.quantity,
+    0,
+  );
+  const record = await loadRenterRecord(createAdminClient(), user.id);
+  const protection = checkProtection({ ...record, orderValue, delivery: fulfilment === 'delivery' });
+  if (!protection.ok) {
+    logEvent({ eventType: 'booking_blocked', eventCategory: 'booking', userId: user.id, metadata: { reason: protection.code, kind: 'gear', source: 'cart', orderValue } });
+    return NextResponse.json({ error: protection.message, code: protection.code }, { status: 403 });
   }
 
   // Calculate pricing
