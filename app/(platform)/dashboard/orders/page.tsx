@@ -108,7 +108,7 @@ export default function OrdersPage() {
                     year: 'numeric',
                   })}
                 </p>
-                <span className="text-[10px] font-mono uppercase tracking-widest text-neutral-400 flex items-center gap-1">
+                <span className="text-xs font-mono uppercase tracking-widest text-neutral-400 flex items-center gap-1">
                   <ArrowRight className="w-3 h-3" />
                   #{order.id.slice(0, 8)}
                 </span>

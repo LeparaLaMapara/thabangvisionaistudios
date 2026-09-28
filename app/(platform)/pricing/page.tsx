@@ -199,7 +199,7 @@ export default function PricingPage() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5 }}
         >
-          <p className="text-[10px] font-mono uppercase tracking-widest text-neutral-400 mb-3">
+          <p className="text-xs font-mono uppercase tracking-widest text-neutral-400 mb-3">
             Pricing
           </p>
           <h1 className="text-4xl md:text-6xl font-display font-medium uppercase tracking-tight mb-4">
@@ -238,7 +238,7 @@ export default function PricingPage() {
             <button
               onClick={() => setBilling('monthly')}
               className={[
-                'px-5 py-2.5 text-[10px] font-mono uppercase tracking-widest transition-all',
+                'px-5 py-2.5 text-xs font-mono uppercase tracking-widest transition-all',
                 billing === 'monthly'
                   ? 'bg-black dark:bg-white text-white dark:text-black'
                   : 'text-neutral-400 hover:text-black dark:hover:text-white',
@@ -249,7 +249,7 @@ export default function PricingPage() {
             <button
               onClick={() => setBilling('annual')}
               className={[
-                'px-5 py-2.5 text-[10px] font-mono uppercase tracking-widest transition-all',
+                'px-5 py-2.5 text-xs font-mono uppercase tracking-widest transition-all',
                 billing === 'annual'
                   ? 'bg-black dark:bg-white text-white dark:text-black'
                   : 'text-neutral-400 hover:text-black dark:hover:text-white',
@@ -357,7 +357,7 @@ export default function PricingPage() {
 
         {/* FAQ note */}
         <div className="text-center mt-16">
-          <p className="text-[9px] font-mono uppercase tracking-[0.2em] text-neutral-400 dark:text-neutral-400">
+          <p className="text-xs font-mono uppercase tracking-[0.2em] text-neutral-400 dark:text-neutral-400">
             All prices in {STUDIO.currency.code}. {STUDIO.shortName} is the seller of record on
             every order. Where you supply an item or service, we retain a{' '}
             {STUDIO.creators.commissionRate}% commission and pay you the balance. Payments
@@ -410,7 +410,7 @@ function PayAsYouGoPricing() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5 }}
         >
-          <p className="text-[10px] font-mono uppercase tracking-widest text-neutral-400 mb-3">
+          <p className="text-xs font-mono uppercase tracking-widest text-neutral-400 mb-3">
             Pricing
           </p>
           <h1 className="text-4xl md:text-6xl font-display font-medium uppercase tracking-tight mb-4">
@@ -441,7 +441,7 @@ function PayAsYouGoPricing() {
                 </p>
                 <Link
                   href={row.href}
-                  className="mt-6 inline-flex items-center gap-2 text-[10px] font-mono font-bold uppercase tracking-widest text-black dark:text-white underline underline-offset-4"
+                  className="mt-6 inline-flex items-center gap-2 text-xs font-mono font-bold uppercase tracking-widest text-black dark:text-white underline underline-offset-4"
                 >
                   {row.cta}
                 </Link>
@@ -450,7 +450,7 @@ function PayAsYouGoPricing() {
           ))}
         </div>
 
-        <p className="text-center text-[9px] font-mono uppercase tracking-[0.2em] text-neutral-400 dark:text-neutral-400 mt-16">
+        <p className="text-center text-xs font-mono uppercase tracking-[0.2em] text-neutral-400 dark:text-neutral-400 mt-16">
           All prices in {STUDIO.currency.code}. {STUDIO.shortName} is the seller of record on
           every order. Payments processed securely via our authorised payment gateway.{' '}
           <Link href="/contact" className="text-black dark:text-white underline underline-offset-2">

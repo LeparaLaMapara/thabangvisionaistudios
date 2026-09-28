@@ -17,7 +17,7 @@ export default async function CareersPage() {
 
         {/* Header */}
         <div className="max-w-4xl mb-24">
-          <span className="text-[10px] font-mono text-[#D4A843] uppercase tracking-[0.3em] mb-4 block">
+          <span className="text-xs font-mono text-[#D4A843] uppercase tracking-[0.3em] mb-4 block">
             Recruitment
           </span>
           <h1 className="text-5xl md:text-8xl font-display font-medium text-white tracking-tighter uppercase mb-8 leading-[0.9]">
@@ -84,7 +84,7 @@ export default async function CareersPage() {
                       <h3 className="text-xl font-display font-bold uppercase text-white mb-2 group-hover:underline decoration-1 underline-offset-4">
                         {job.title}
                       </h3>
-                      <div className="flex flex-wrap gap-4 text-[10px] font-mono uppercase tracking-widest text-neutral-400 mb-4">
+                      <div className="flex flex-wrap gap-4 text-xs font-mono uppercase tracking-widest text-neutral-400 mb-4">
                         {job.department && <span>{job.department}</span>}
                         {job.department && job.location && (
                           <span className="w-px h-3 bg-neutral-700" />

@@ -98,7 +98,7 @@ export default function RentalDetailView({
       </p>
       <a
         href="#book"
-        className="min-h-[44px] inline-flex items-center px-5 bg-[#D4A843] text-black text-[10px] font-mono font-bold uppercase tracking-widest"
+        className="min-h-[44px] inline-flex items-center px-5 bg-[#D4A843] text-black text-xs font-mono font-bold uppercase tracking-widest"
       >
         Book This Equipment
       </a>
@@ -112,7 +112,7 @@ export default function RentalDetailView({
       {/* ── Breadcrumb ── */}
       <div className="bg-neutral-50 dark:bg-[#080808] border-b border-black/5 dark:border-white/5 py-6">
         <div className="container mx-auto px-6">
-          <div className="flex flex-wrap items-center gap-2 text-[10px] font-mono uppercase tracking-widest text-neutral-400">
+          <div className="flex flex-wrap items-center gap-2 text-xs font-mono uppercase tracking-widest text-neutral-400">
             <Link href="/" className="hover:text-black dark:hover:text-white transition-colors">
               Home
             </Link>
@@ -160,12 +160,12 @@ export default function RentalDetailView({
             {rental.is_available ? (
               <div className="flex items-center gap-1.5 bg-green-500/10 backdrop-blur-md px-3 py-1.5 rounded-full border border-green-500/20">
                 <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
-                <span className="text-[9px] font-mono font-bold text-green-600 dark:text-green-400 uppercase tracking-widest">
+                <span className="text-xs font-mono font-bold text-green-600 dark:text-green-400 uppercase tracking-widest">
                   Available
                 </span>
               </div>
             ) : (
-              <span className="bg-red-500 text-white text-[9px] font-mono font-bold px-3 py-1.5 uppercase tracking-widest">
+              <span className="bg-red-500 text-white text-xs font-mono font-bold px-3 py-1.5 uppercase tracking-widest">
                 Unavailable
               </span>
             )}
@@ -178,7 +178,7 @@ export default function RentalDetailView({
                 initial={{ y: 20, opacity: 0 }}
                 animate={{ y: 0, opacity: 1 }}
                 transition={{ delay: 0.5 }}
-                className="inline-block border border-black/10 dark:border-white/20 bg-white/50 dark:bg-black/50 backdrop-blur-sm px-3 py-1 text-[10px] font-bold tracking-widest uppercase mb-4 text-neutral-400 dark:text-neutral-300"
+                className="inline-block border border-black/10 dark:border-white/20 bg-white/50 dark:bg-black/50 backdrop-blur-sm px-3 py-1 text-xs font-bold tracking-widest uppercase mb-4 text-neutral-400 dark:text-neutral-300"
               >
                 {categoryLabel}
                 {rental.sub_category ? ` / ${rental.sub_category}` : ''}
@@ -249,7 +249,7 @@ export default function RentalDetailView({
                   />
                 ) : (
                   <div className="w-full h-full flex items-center justify-center">
-                    <span className="text-[10px] font-mono text-neutral-400 uppercase tracking-widest">
+                    <span className="text-xs font-mono text-neutral-400 uppercase tracking-widest">
                       No image
                     </span>
                   </div>
@@ -284,7 +284,7 @@ export default function RentalDetailView({
                   />
                 ) : (
                   <div className="w-full h-full flex items-center justify-center">
-                    <span className="text-[10px] font-mono text-neutral-400 uppercase tracking-widest">
+                    <span className="text-xs font-mono text-neutral-400 uppercase tracking-widest">
                       No image
                     </span>
                   </div>
@@ -362,7 +362,7 @@ export default function RentalDetailView({
             {/* Rental category label (shown when no gallery hero) */}
             {!heroImage && (
               <>
-                <p className="text-[10px] font-mono uppercase tracking-widest text-neutral-400 mb-3">
+                <p className="text-xs font-mono uppercase tracking-widest text-neutral-400 mb-3">
                   {categoryLabel}
                 </p>
                 <h1 className="text-3xl md:text-4xl font-display font-medium uppercase tracking-tight leading-tight text-black dark:text-white mb-2">
@@ -395,7 +395,7 @@ export default function RentalDetailView({
               <div className="border border-black/10 dark:border-white/10 p-5 mb-6 space-y-3 bg-neutral-50 dark:bg-[#0A0A0B]">
                 {rental.price_per_day != null && (
                   <div className="flex items-end justify-between">
-                    <span className="text-[10px] font-mono uppercase tracking-widest text-neutral-400">
+                    <span className="text-xs font-mono uppercase tracking-widest text-neutral-400">
                       Daily Rate
                     </span>
                     <span className="text-2xl font-bold text-accent-gold">
@@ -405,7 +405,7 @@ export default function RentalDetailView({
                 )}
                 {rental.price_per_week != null && (
                   <div className="flex items-end justify-between border-t border-black/5 dark:border-white/5 pt-3">
-                    <span className="text-[10px] font-mono uppercase tracking-widest text-neutral-400">
+                    <span className="text-xs font-mono uppercase tracking-widest text-neutral-400">
                       Weekly Rate
                     </span>
                     <span className="text-lg font-semibold text-black dark:text-white">
@@ -415,7 +415,7 @@ export default function RentalDetailView({
                 )}
               </div>
             ) : (
-              <p className="text-[10px] font-mono uppercase tracking-widest text-neutral-400 mb-6 border border-dashed border-black/10 dark:border-white/10 p-4">
+              <p className="text-xs font-mono uppercase tracking-widest text-neutral-400 mb-6 border border-dashed border-black/10 dark:border-white/10 p-4">
                 Contact us for pricing
               </p>
             )}
@@ -437,7 +437,7 @@ export default function RentalDetailView({
                   {hasFeatures && (
                     <button
                       onClick={() => setActiveTab('features')}
-                      className={`text-[10px] font-mono font-bold uppercase tracking-widest px-4 py-3 border-b-2 -mb-px transition-colors ${
+                      className={`text-xs font-mono font-bold uppercase tracking-widest px-4 py-3 border-b-2 -mb-px transition-colors ${
                         activeTab === 'features'
                           ? 'border-accent-gold text-black dark:text-white'
                           : 'border-transparent text-neutral-400 hover:text-black dark:hover:text-white'
@@ -449,7 +449,7 @@ export default function RentalDetailView({
                   {hasIncludes && (
                     <button
                       onClick={() => setActiveTab('includes')}
-                      className={`text-[10px] font-mono font-bold uppercase tracking-widest px-4 py-3 border-b-2 -mb-px transition-colors ${
+                      className={`text-xs font-mono font-bold uppercase tracking-widest px-4 py-3 border-b-2 -mb-px transition-colors ${
                         activeTab === 'includes'
                           ? 'border-accent-gold text-black dark:text-white'
                           : 'border-transparent text-neutral-400 hover:text-black dark:hover:text-white'
@@ -504,12 +504,12 @@ export default function RentalDetailView({
 
             {/* ── Booking Widget: always visible in sidebar ── */}
             <div id="book" className="mb-8 border border-black/10 dark:border-white/10 p-5 bg-neutral-50 dark:bg-[#0A0A0B] scroll-mt-24">
-              <h3 className="text-[10px] font-mono font-bold uppercase tracking-widest text-neutral-400 mb-4 border-b border-black/5 dark:border-white/5 pb-3">
+              <h3 className="text-xs font-mono font-bold uppercase tracking-widest text-neutral-400 mb-4 border-b border-black/5 dark:border-white/5 pb-3">
                 Book This Equipment
               </h3>
               <BookingWidget rental={rental} />
               {protectionLine(rental) && (
-                <p className="mt-4 flex items-start gap-2 text-[11px] font-mono text-neutral-400">
+                <p className="mt-4 flex items-start gap-2 text-xs font-mono text-neutral-400">
                   <ShieldCheck className="w-3.5 h-3.5 mt-0.5 shrink-0 text-[#D4A843]" aria-hidden="true" />
                   {protectionLine(rental)}
                 </p>
@@ -523,7 +523,7 @@ export default function RentalDetailView({
                 "owned by ThabangVision" on a ThabangVision page says nothing. */}
             {owner && (
               <div className="mb-8 border border-black/10 dark:border-white/10 p-5">
-                <h3 className="text-[10px] font-mono font-bold uppercase tracking-widest text-neutral-400 mb-4 border-b border-black/5 dark:border-white/5 pb-3">
+                <h3 className="text-xs font-mono font-bold uppercase tracking-widest text-neutral-400 mb-4 border-b border-black/5 dark:border-white/5 pb-3">
                   Owned By
                 </h3>
                 <Link href={`/creators/${owner.id}`} className="group flex items-center gap-3">
@@ -550,7 +550,7 @@ export default function RentalDetailView({
                       )}
                     </p>
                     {owner.specializations && owner.specializations.length > 0 && (
-                      <p className="text-[10px] font-mono uppercase tracking-widest text-neutral-400 mt-0.5 truncate">
+                      <p className="text-xs font-mono uppercase tracking-widest text-neutral-400 mt-0.5 truncate">
                         {owner.specializations.slice(0, 2).join(' · ')}
                       </p>
                     )}
@@ -576,7 +576,7 @@ export default function RentalDetailView({
                 {rental.tags.map((tag, i) => (
                   <span
                     key={i}
-                    className="text-[9px] font-mono uppercase tracking-widest text-neutral-400 border border-black/10 dark:border-white/10 px-2 py-1 bg-neutral-50 dark:bg-white/5"
+                    className="text-xs font-mono uppercase tracking-widest text-neutral-400 border border-black/10 dark:border-white/10 px-2 py-1 bg-neutral-50 dark:bg-white/5"
                   >
                     {tag}
                   </span>
@@ -598,7 +598,7 @@ export default function RentalDetailView({
                         key={key}
                         className="flex flex-col gap-1 p-4 bg-white dark:bg-[#0A0A0B]"
                       >
-                        <dt className="text-[10px] font-mono uppercase tracking-widest text-neutral-400">
+                        <dt className="text-xs font-mono uppercase tracking-widest text-neutral-400">
                           {humanizeKey(key)}
                         </dt>
                         <dd className="text-sm font-medium text-black dark:text-white">
@@ -642,7 +642,7 @@ export default function RentalDetailView({
                         />
                       ) : (
                         <div className="w-full h-full flex items-center justify-center">
-                          <span className="text-[10px] font-mono text-neutral-400 uppercase tracking-widest">
+                          <span className="text-xs font-mono text-neutral-400 uppercase tracking-widest">
                             No image
                           </span>
                         </div>
@@ -655,14 +655,14 @@ export default function RentalDetailView({
                         {item.title}
                       </h3>
                       {item.brand && (
-                        <p className="text-[10px] font-mono text-neutral-400 uppercase tracking-widest mt-1">
+                        <p className="text-xs font-mono text-neutral-400 uppercase tracking-widest mt-1">
                           {item.brand}
                         </p>
                       )}
                       {item.price_per_day != null && (
                         <p className="text-sm font-mono font-bold text-accent-gold mt-2">
                           {item.currency} {item.price_per_day.toLocaleString()}
-                          <span className="text-[10px] font-normal text-neutral-400"> /day</span>
+                          <span className="text-xs font-normal text-neutral-400"> /day</span>
                         </p>
                       )}
                     </div>
@@ -677,7 +677,7 @@ export default function RentalDetailView({
         <div className="mt-16 pt-8 border-t border-black/5 dark:border-white/5">
           <Link
             href={`/rentals/${category}`}
-            className="inline-flex items-center gap-2 text-[10px] font-mono font-bold uppercase tracking-widest text-neutral-400 hover:text-accent-gold transition-colors"
+            className="inline-flex items-center gap-2 text-xs font-mono font-bold uppercase tracking-widest text-neutral-400 hover:text-accent-gold transition-colors"
           >
             <ArrowLeft className="w-3 h-3" />
             Back to {categoryLabel}

@@ -280,7 +280,7 @@ export default function CartPage() {
         <p className="text-sm font-mono text-neutral-400">Your cart is empty</p>
         <Link
           href="/rentals"
-          className="inline-flex items-center gap-2 text-[10px] font-mono font-bold uppercase tracking-widest text-[#D4A843] hover:underline"
+          className="inline-flex items-center gap-2 text-xs font-mono font-bold uppercase tracking-widest text-[#D4A843] hover:underline"
         >
           Browse Equipment <ArrowRight className="w-3 h-3" />
         </Link>
@@ -292,7 +292,7 @@ export default function CartPage() {
     <div className="space-y-8">
       <DashboardSubTabs tabs={ACTIVITY_TABS} />
       <div>
-        <p className="text-[10px] font-mono uppercase tracking-widest text-neutral-400 mb-2">
+        <p className="text-xs font-mono uppercase tracking-widest text-neutral-400 mb-2">
           Rental Cart
         </p>
         <h2 className="text-xl font-display font-medium text-white">
@@ -345,7 +345,7 @@ export default function CartPage() {
                         className="w-full h-full object-cover"
                       />
                     ) : (
-                      <div className="w-full h-full flex items-center justify-center text-neutral-400 text-[10px] font-mono">
+                      <div className="w-full h-full flex items-center justify-center text-neutral-400 text-xs font-mono">
                         No image
                       </div>
                     )}
@@ -359,7 +359,7 @@ export default function CartPage() {
                     >
                       {item.rental.title}
                     </Link>
-                    <p className="text-[10px] font-mono text-neutral-400 mt-0.5">
+                    <p className="text-xs font-mono text-neutral-400 mt-0.5">
                       {item.rental.category}{item.rental.brand ? ` / ${item.rental.brand}` : ''}
                     </p>
                     <p className="text-xs font-mono text-neutral-400 mt-1">
@@ -412,7 +412,7 @@ export default function CartPage() {
                     label="Rental dates"
                   />
                   {hasDates && (
-                    <p className="text-[10px] font-mono text-neutral-400 mt-1.5">
+                    <p className="text-xs font-mono text-neutral-400 mt-1.5">
                       {days} day{days !== 1 ? 's' : ''}
                       {days >= 7 ? ` (${Math.floor(days / 7)}w ${days % 7}d)` : ''}
                     </p>
@@ -428,7 +428,7 @@ export default function CartPage() {
           {/* Pricing breakdown */}
           {pricing && (
             <div className="border border-white/10 bg-[#0A0A0B] p-5 space-y-3">
-              <p className="text-[10px] font-mono uppercase tracking-widest text-neutral-400">
+              <p className="text-xs font-mono uppercase tracking-widest text-neutral-400">
                 Pricing
               </p>
 
@@ -499,7 +499,7 @@ export default function CartPage() {
               )}
 
               {pricing.bulkDiscountPercent > 0 && (
-                <p className="text-[9px] font-mono text-emerald-400/70">
+                <p className="text-xs font-mono text-emerald-400/70">
                   You save R {pricing.bulkDiscountAmount.toLocaleString()} with bulk discount
                 </p>
               )}
@@ -517,7 +517,7 @@ export default function CartPage() {
           {/* How the customer gets the gear */}
           {items.length > 0 && (
             <div className="border border-white/10 bg-[#0A0A0B] p-5 space-y-4">
-              <p className="text-[10px] font-mono uppercase tracking-widest text-neutral-400">
+              <p className="text-xs font-mono uppercase tracking-widest text-neutral-400">
                 How would you like to receive your gear?
               </p>
 
@@ -540,14 +540,14 @@ export default function CartPage() {
 
               {fulfilment === 'collection' ? (
                 <div className="space-y-3">
-                  <p className="text-[11px] font-mono text-neutral-400 leading-relaxed">
+                  <p className="text-xs font-mono text-neutral-400 leading-relaxed">
                     Collect from our {STUDIO.location.city} studio. {STUDIO.hours.weekday},{' '}
                     {STUDIO.hours.weekend}. Bring the ID you verified with.
                   </p>
 
                   {STUDIO.fulfilment.collection.allowBalanceOnCollection && (
                     <div className="space-y-2">
-                      <p className="text-[10px] font-mono uppercase tracking-widest text-neutral-400">
+                      <p className="text-xs font-mono uppercase tracking-widest text-neutral-400">
                         Payment
                       </p>
                       {(
@@ -575,7 +575,7 @@ export default function CartPage() {
                 </div>
               ) : (
                 <div className="space-y-3">
-                  <p className="text-[11px] font-mono text-neutral-400 leading-relaxed">
+                  <p className="text-xs font-mono text-neutral-400 leading-relaxed">
                     We deliver in our own vehicle. The fee is worked out from the distance
                     and the size of your order, and shown below before you pay.
                   </p>
@@ -583,7 +583,7 @@ export default function CartPage() {
                   <AddressAutocomplete onSelect={setAddress} />
 
                   {delivery && !isDeliveryQuote(delivery) && address && (
-                    <p className="text-[11px] font-mono text-amber-400 leading-relaxed">
+                    <p className="text-xs font-mono text-amber-400 leading-relaxed">
                       {delivery.reason === 'out_of_range'
                         ? `That address is about ${delivery.distanceKm}km away, past our ${delivery.maxRadiusKm}km delivery radius. Choose Collect, or contact us for a delivery quote.`
                         : 'Pick your address from the suggestions so we can work out the distance.'}
@@ -591,7 +591,7 @@ export default function CartPage() {
                   )}
 
                   {delivery && isDeliveryQuote(delivery) && (
-                    <p className="text-[11px] font-mono text-neutral-400">
+                    <p className="text-xs font-mono text-neutral-400">
                       About {delivery.distanceKm}km from our {delivery.fromLocation} studio.
                       {delivery.minimumApplied && ' Minimum delivery fee applied.'}
                     </p>
@@ -626,7 +626,7 @@ export default function CartPage() {
                 : `Checkout — R ${(totals?.dueNow ?? pricing.grandTotal).toLocaleString()}`}
           </Button>
 
-          <p className="text-[9px] font-mono text-neutral-400 text-center">
+          <p className="text-xs font-mono text-neutral-400 text-center">
             Each item has its own rental period. Deposits are refundable and
             carry no VAT. Bulk discounts apply on 3+ items.
           </p>

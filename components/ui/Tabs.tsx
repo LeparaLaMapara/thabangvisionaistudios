@@ -32,7 +32,7 @@ export function Tabs({ tabs, activeTab, onTabChange, className = '' }: TabsProps
             aria-selected={isActive}
             onClick={() => onTabChange(tab.id)}
             className={[
-              'text-[10px] font-mono uppercase tracking-widest',
+              'text-xs font-mono uppercase tracking-widest',
               'px-4 py-3 border-b-2 -mb-px',
               'transition-colors duration-200',
               isActive

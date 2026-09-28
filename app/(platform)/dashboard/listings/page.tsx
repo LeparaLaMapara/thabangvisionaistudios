@@ -446,7 +446,7 @@ export default function ListingsPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
             {/* Title */}
             <div>
-              <label className="block text-[10px] font-mono uppercase tracking-widest text-neutral-400 mb-2">
+              <label className="block text-xs font-mono uppercase tracking-widest text-neutral-400 mb-2">
                 Title
               </label>
               <input
@@ -460,7 +460,7 @@ export default function ListingsPage() {
 
             {/* Category */}
             <div>
-              <label className="block text-[10px] font-mono uppercase tracking-widest text-neutral-400 mb-2">
+              <label className="block text-xs font-mono uppercase tracking-widest text-neutral-400 mb-2">
                 Category
               </label>
               <select
@@ -481,7 +481,7 @@ export default function ListingsPage() {
 
             {/* Price per day */}
             <div>
-              <label className="block text-[10px] font-mono uppercase tracking-widest text-neutral-400 mb-2">
+              <label className="block text-xs font-mono uppercase tracking-widest text-neutral-400 mb-2">
                 Price per Day ({STUDIO.currency.code})
               </label>
               <input
@@ -499,7 +499,7 @@ export default function ListingsPage() {
 
             {/* Condition */}
             <div>
-              <label className="block text-[10px] font-mono uppercase tracking-widest text-neutral-400 mb-2">
+              <label className="block text-xs font-mono uppercase tracking-widest text-neutral-400 mb-2">
                 Condition
               </label>
               <select
@@ -520,7 +520,7 @@ export default function ListingsPage() {
 
             {/* Location */}
             <div className="md:col-span-2">
-              <label className="block text-[10px] font-mono uppercase tracking-widest text-neutral-400 mb-2">
+              <label className="block text-xs font-mono uppercase tracking-widest text-neutral-400 mb-2">
                 Location
               </label>
               <input
@@ -537,7 +537,7 @@ export default function ListingsPage() {
 
           {/* Description */}
           <div className="mb-6">
-            <label className="block text-[10px] font-mono uppercase tracking-widest text-neutral-400 mb-2">
+            <label className="block text-xs font-mono uppercase tracking-widest text-neutral-400 mb-2">
               Description
             </label>
             <textarea
@@ -553,7 +553,7 @@ export default function ListingsPage() {
 
           {/* Images */}
           <div className="mb-6">
-            <label className="block text-[10px] font-mono uppercase tracking-widest text-neutral-400 mb-2">
+            <label className="block text-xs font-mono uppercase tracking-widest text-neutral-400 mb-2">
               Images ({images.length}/{STUDIO.platform.maxListingImages})
             </label>
             <div className="flex flex-wrap gap-3">
@@ -572,7 +572,7 @@ export default function ListingsPage() {
                     <X className="w-3 h-3" />
                   </button>
                   {i === 0 && (
-                    <span className="absolute bottom-0 left-0 right-0 bg-black/60 text-[8px] text-white text-center font-mono uppercase py-0.5">
+                    <span className="absolute bottom-0 left-0 right-0 bg-black/60 text-xs text-white text-center font-mono uppercase py-0.5">
                       Cover
                     </span>
                   )}
@@ -583,12 +583,12 @@ export default function ListingsPage() {
                   {uploading ? (
                     <>
                       <Loader2 className="w-4 h-4 text-neutral-400 animate-spin" />
-                      <span className="text-[9px] font-mono text-neutral-400 mt-1">{uploadProgress}%</span>
+                      <span className="text-xs font-mono text-neutral-400 mt-1">{uploadProgress}%</span>
                     </>
                   ) : (
                     <>
                       <ImagePlus className="w-4 h-4 text-neutral-400" />
-                      <span className="text-[9px] font-mono text-neutral-400 mt-1">Add</span>
+                      <span className="text-xs font-mono text-neutral-400 mt-1">Add</span>
                     </>
                   )}
                   <input
@@ -652,13 +652,13 @@ export default function ListingsPage() {
                         {listing.is_published ? 'Active' : 'Draft'}
                       </Badge>
                       {listing.is_ai_generated && (
-                        <span className="inline-flex items-center gap-1 text-[9px] font-mono uppercase tracking-widest text-[#D4A843] border border-[#D4A843]/30 px-1.5 py-0.5">
+                        <span className="inline-flex items-center gap-1 text-xs font-mono uppercase tracking-widest text-[#D4A843] border border-[#D4A843]/30 px-1.5 py-0.5">
                           <Sparkles className="w-2.5 h-2.5" />
                           AI drafted
                         </span>
                       )}
                     </div>
-                    <p className="text-[10px] font-mono uppercase tracking-widest text-neutral-400">
+                    <p className="text-xs font-mono uppercase tracking-widest text-neutral-400">
                       {listing.category}
                       {listing.sub_category ? ` / ${listing.sub_category}` : ''}
                       {listing.metadata?.location ? ` / ${listing.metadata.location}` : ''}

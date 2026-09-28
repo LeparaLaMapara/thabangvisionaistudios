@@ -110,7 +110,7 @@ function CategoryCard({
 
           <div className="absolute inset-0 z-20 flex flex-col justify-between p-8">
             <div className="flex justify-between items-start">
-              <span className="text-[10px] font-mono text-white/70 group-hover:text-white transition-colors">
+              <span className="text-xs font-mono text-white/70 group-hover:text-white transition-colors">
                 0{index + 1}
               </span>
               <ArrowUpRight className="text-white opacity-0 -translate-y-2 group-hover:translate-y-0 group-hover:opacity-100 transition-all duration-500 w-5 h-5" />
@@ -205,7 +205,7 @@ export default function SmartRentalsClient({ rentals }: { rentals: SmartRental[]
           transition={{ duration: 0.8 }}
         >
           <div className="border-l border-black/20 dark:border-white/20 pl-4 md:pl-16 py-4 min-w-0">
-            <span className="text-[10px] font-mono text-[#D4A843] uppercase tracking-[0.3em] mb-4 block">
+            <span className="text-xs font-mono text-[#D4A843] uppercase tracking-[0.3em] mb-4 block">
               02 // Equipment Fleet
             </span>
             <h1 className="text-5xl md:text-8xl font-display font-medium text-black dark:text-white tracking-tight leading-[0.9] mb-8 uppercase break-words hyphens-auto">

@@ -60,7 +60,7 @@ export function DashboardNav({ isCreator, vertical }: DashboardNavProps) {
           <Link
             key={link.href}
             href={link.href}
-            className={`block text-[10px] font-mono uppercase tracking-widest py-2 px-3 transition-colors ${
+            className={`block text-xs font-mono uppercase tracking-widest py-2 px-3 transition-colors ${
               isActive(link.href, link.exact)
                 ? 'text-[#D4A843] bg-[#D4A843]/5 border-l-2 border-[#D4A843]'
                 : 'text-neutral-400 hover:text-white hover:bg-white/5'
@@ -79,7 +79,7 @@ export function DashboardNav({ isCreator, vertical }: DashboardNavProps) {
         <Link
           key={link.href}
           href={link.href}
-          className={`text-[10px] font-mono uppercase tracking-widest py-2 px-3 whitespace-nowrap transition-colors ${
+          className={`text-xs font-mono uppercase tracking-widest py-2 px-3 whitespace-nowrap transition-colors ${
             isActive(link.href, link.exact)
               ? 'text-[#D4A843] border-b-2 border-[#D4A843]'
               : 'text-neutral-400 hover:text-white'

@@ -78,7 +78,7 @@ export default function CreatorRequestsList({ requests: initialRequests }: Creat
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
-            className={`text-[10px] font-mono uppercase tracking-widest px-3 py-2 border transition-all min-h-[36px] ${
+            className={`text-xs font-mono uppercase tracking-widest px-3 py-2 border transition-all min-h-[36px] ${
               activeTab === tab
                 ? 'bg-white text-black border-white'
                 : 'bg-transparent text-neutral-400 border-white/10 hover:border-white/30'
@@ -86,7 +86,7 @@ export default function CreatorRequestsList({ requests: initialRequests }: Creat
           >
             {STUDIO.creators.statusLabels[tab as keyof typeof STUDIO.creators.statusLabels] || 'All'}{' '}
             {counts[tab as keyof typeof counts] > 0 && (
-              <span className="ml-1 text-[9px]">({counts[tab as keyof typeof counts]})</span>
+              <span className="ml-1 text-xs">({counts[tab as keyof typeof counts]})</span>
             )}
           </button>
         ))}
@@ -110,7 +110,7 @@ export default function CreatorRequestsList({ requests: initialRequests }: Creat
                       <Link
                         href={`/studio/${creator.crew_slug || creator.id}`}
                         onClick={(e) => e.stopPropagation()}
-                        className="text-[10px] font-mono uppercase tracking-widest text-[#D4A843] hover:text-[#D4A843]/80 transition-colors flex items-center gap-1 mb-1"
+                        className="text-xs font-mono uppercase tracking-widest text-[#D4A843] hover:text-[#D4A843]/80 transition-colors flex items-center gap-1 mb-1"
                       >
                         <User className="w-3 h-3" />
                         {creator.display_name}
@@ -125,7 +125,7 @@ export default function CreatorRequestsList({ requests: initialRequests }: Creat
                     <button
                       onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleCancel(request.id); }}
                       disabled={cancellingId === request.id}
-                      className="text-[9px] font-mono uppercase tracking-widest text-red-400 border border-red-500/30 px-2 py-1 hover:bg-red-500/10 transition-colors flex items-center gap-1 flex-shrink-0 disabled:opacity-50"
+                      className="text-xs font-mono uppercase tracking-widest text-red-400 border border-red-500/30 px-2 py-1 hover:bg-red-500/10 transition-colors flex items-center gap-1 flex-shrink-0 disabled:opacity-50"
                     >
                       <X className="w-3 h-3" />
                       {cancellingId === request.id ? 'Cancelling...' : 'Cancel Request'}
@@ -137,7 +137,7 @@ export default function CreatorRequestsList({ requests: initialRequests }: Creat
                   {request.description}
                 </p>
 
-                <div className="flex flex-wrap gap-4 text-[10px] font-mono text-neutral-400">
+                <div className="flex flex-wrap gap-4 text-xs font-mono text-neutral-400">
                   {request.preferred_dates && (
                     <span className="flex items-center gap-1">
                       <Calendar className="w-3 h-3" /> {request.preferred_dates}
@@ -160,7 +160,7 @@ export default function CreatorRequestsList({ requests: initialRequests }: Creat
                   )}
                 </div>
 
-                <p className="text-[9px] font-mono text-neutral-400 mt-3">
+                <p className="text-xs font-mono text-neutral-400 mt-3">
                   Submitted{' '}
                   {new Date(request.created_at).toLocaleDateString('en-ZA', {
                     day: 'numeric',
@@ -175,7 +175,7 @@ export default function CreatorRequestsList({ requests: initialRequests }: Creat
       ) : (
         <div className="text-center py-16 text-neutral-400">
           <p className="text-sm font-mono">No creator requests yet.</p>
-          <p className="text-[10px] font-mono text-neutral-400 mt-1">
+          <p className="text-xs font-mono text-neutral-400 mt-1">
             Browse creators at{' '}
             <Link href="/studio" className="text-[#D4A843] hover:text-[#D4A843]/80 transition-colors">
               /studio
@@ -194,7 +194,7 @@ function StatusBadge({ status }: { status: string }) {
 
   return (
     <span
-      className={`inline-block text-[8px] font-mono uppercase tracking-widest border px-2 py-0.5 mt-1 ${STATUS_COLORS[status] || 'text-neutral-400 border-white/10'}`}
+      className={`inline-block text-xs font-mono uppercase tracking-widest border px-2 py-0.5 mt-1 ${STATUS_COLORS[status] || 'text-neutral-400 border-white/10'}`}
     >
       {label}
     </span>

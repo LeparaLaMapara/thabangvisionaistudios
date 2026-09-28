@@ -133,7 +133,7 @@ export default function AdminBugReportsPage() {
     >
       {/* Header */}
       <div className="mb-8">
-        <span className="text-[10px] font-mono text-[#D4A843] uppercase tracking-[0.3em] mb-2 block">
+        <span className="text-xs font-mono text-[#D4A843] uppercase tracking-[0.3em] mb-2 block">
           Admin
         </span>
         <h1 className="text-2xl font-display font-medium uppercase text-white">
@@ -183,14 +183,14 @@ export default function AdminBugReportsPage() {
                   </p>
                 </div>
                 <div className="text-right flex-shrink-0">
-                  <p className="text-[10px] font-mono text-neutral-400">
+                  <p className="text-xs font-mono text-neutral-400">
                     {new Date(report.created_at).toLocaleDateString()}
                   </p>
-                  <p className="text-[10px] font-mono text-neutral-400 mt-0.5">
+                  <p className="text-xs font-mono text-neutral-400 mt-0.5">
                     {report.user_email}
                   </p>
                   {report.device_info && (
-                    <p className="text-[10px] font-mono text-neutral-400 mt-0.5">
+                    <p className="text-xs font-mono text-neutral-400 mt-0.5">
                       {report.device_info}
                     </p>
                   )}
@@ -221,20 +221,20 @@ export default function AdminBugReportsPage() {
               <Badge variant={STATUS_BADGE[selectedReport.status] || 'default'}>
                 {STATUS_LABELS[selectedReport.status] || selectedReport.status}
               </Badge>
-              <span className="text-[10px] font-mono text-neutral-400">
+              <span className="text-xs font-mono text-neutral-400">
                 {selectedReport.user_email} · {new Date(selectedReport.created_at).toLocaleString()}
               </span>
             </div>
 
             {/* Description */}
             <div>
-              <h4 className="text-[10px] font-mono font-bold uppercase tracking-widest text-neutral-400 mb-1">Description</h4>
+              <h4 className="text-xs font-mono font-bold uppercase tracking-widest text-neutral-400 mb-1">Description</h4>
               <p className="text-sm font-mono text-neutral-300 whitespace-pre-wrap">{selectedReport.description}</p>
             </div>
 
             {selectedReport.steps_to_reproduce && (
               <div>
-                <h4 className="text-[10px] font-mono font-bold uppercase tracking-widest text-neutral-400 mb-1">Steps to Reproduce</h4>
+                <h4 className="text-xs font-mono font-bold uppercase tracking-widest text-neutral-400 mb-1">Steps to Reproduce</h4>
                 <p className="text-sm font-mono text-neutral-300 whitespace-pre-wrap">{selectedReport.steps_to_reproduce}</p>
               </div>
             )}
@@ -242,13 +242,13 @@ export default function AdminBugReportsPage() {
             <div className="grid grid-cols-2 gap-4">
               {selectedReport.expected_behaviour && (
                 <div>
-                  <h4 className="text-[10px] font-mono font-bold uppercase tracking-widest text-neutral-400 mb-1">Expected</h4>
+                  <h4 className="text-xs font-mono font-bold uppercase tracking-widest text-neutral-400 mb-1">Expected</h4>
                   <p className="text-xs font-mono text-neutral-300">{selectedReport.expected_behaviour}</p>
                 </div>
               )}
               {selectedReport.actual_behaviour && (
                 <div>
-                  <h4 className="text-[10px] font-mono font-bold uppercase tracking-widest text-neutral-400 mb-1">Actual</h4>
+                  <h4 className="text-xs font-mono font-bold uppercase tracking-widest text-neutral-400 mb-1">Actual</h4>
                   <p className="text-xs font-mono text-neutral-300">{selectedReport.actual_behaviour}</p>
                 </div>
               )}
@@ -256,19 +256,19 @@ export default function AdminBugReportsPage() {
 
             {selectedReport.page_url && (
               <div className="flex items-center gap-2">
-                <h4 className="text-[10px] font-mono font-bold uppercase tracking-widest text-neutral-400">Page:</h4>
+                <h4 className="text-xs font-mono font-bold uppercase tracking-widest text-neutral-400">Page:</h4>
                 <span className="text-xs font-mono text-[#D4A843]">{selectedReport.page_url}</span>
               </div>
             )}
 
             {/* Device info */}
-            <div className="flex items-center gap-4 text-[10px] font-mono text-neutral-400">
+            <div className="flex items-center gap-4 text-xs font-mono text-neutral-400">
               {selectedReport.device_info && <span>Device: {selectedReport.device_info}</span>}
             </div>
 
             {/* Admin notes */}
             <div>
-              <h4 className="text-[10px] font-mono font-bold uppercase tracking-widest text-neutral-400 mb-2">Admin Notes</h4>
+              <h4 className="text-xs font-mono font-bold uppercase tracking-widest text-neutral-400 mb-2">Admin Notes</h4>
               <textarea
                 value={adminNotes}
                 onChange={(e) => setAdminNotes(e.target.value)}
@@ -279,7 +279,7 @@ export default function AdminBugReportsPage() {
               <button
                 onClick={() => saveNotes(selectedReport.id)}
                 disabled={updating}
-                className="mt-2 text-[10px] font-mono font-bold uppercase tracking-widest px-4 py-2 border border-white/10 text-white hover:border-white/30 transition-colors disabled:opacity-50"
+                className="mt-2 text-xs font-mono font-bold uppercase tracking-widest px-4 py-2 border border-white/10 text-white hover:border-white/30 transition-colors disabled:opacity-50"
               >
                 <MessageSquare className="w-3 h-3 inline mr-1.5" />
                 Save Notes
@@ -288,7 +288,7 @@ export default function AdminBugReportsPage() {
 
             {/* Status actions */}
             <div className="border-t border-white/5 pt-4">
-              <h4 className="text-[10px] font-mono font-bold uppercase tracking-widest text-neutral-400 mb-3">Update Status</h4>
+              <h4 className="text-xs font-mono font-bold uppercase tracking-widest text-neutral-400 mb-3">Update Status</h4>
               <div className="flex flex-wrap gap-2">
                 {selectedReport.status === 'open' && (
                   <>
@@ -331,7 +331,7 @@ function StatusButton({
     <button
       onClick={onClick}
       disabled={disabled}
-      className="inline-flex items-center gap-1.5 text-[10px] font-mono font-bold uppercase tracking-widest px-4 py-2 border border-white/10 text-white hover:border-[#D4A843]/50 hover:text-[#D4A843] transition-colors disabled:opacity-50"
+      className="inline-flex items-center gap-1.5 text-xs font-mono font-bold uppercase tracking-widest px-4 py-2 border border-white/10 text-white hover:border-[#D4A843]/50 hover:text-[#D4A843] transition-colors disabled:opacity-50"
     >
       <Icon className="w-3 h-3" />
       {label}

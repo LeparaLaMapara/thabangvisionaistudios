@@ -71,7 +71,7 @@ export default function CatalogDetailClient({ rental }: Props) {
                 initial={{ y: 20, opacity: 0 }}
                 animate={{ y: 0, opacity: 1 }}
                 transition={{ delay: 0.5 }}
-                className="inline-block border border-black/10 dark:border-white/20 bg-white/50 dark:bg-black/50 backdrop-blur-sm px-3 py-1 text-[10px] font-bold tracking-widest uppercase mb-4 text-neutral-400 dark:text-neutral-300"
+                className="inline-block border border-black/10 dark:border-white/20 bg-white/50 dark:bg-black/50 backdrop-blur-sm px-3 py-1 text-xs font-bold tracking-widest uppercase mb-4 text-neutral-400 dark:text-neutral-300"
               >
                 {rental.category}
                 {rental.sub_category ? ` / ${rental.sub_category}` : ''}
@@ -256,14 +256,14 @@ export default function CatalogDetailClient({ rental }: Props) {
 
               {tags.length > 0 && (
                 <div className="mb-8">
-                  <span className="text-[9px] font-mono uppercase tracking-widest text-neutral-400 block mb-3">
+                  <span className="text-xs font-mono uppercase tracking-widest text-neutral-400 block mb-3">
                     Tags
                   </span>
                   <div className="flex flex-wrap gap-2">
                     {tags.map((tag) => (
                       <span
                         key={tag}
-                        className="inline-flex items-center gap-1 text-[9px] font-mono uppercase tracking-widest border border-black/10 dark:border-white/10 px-2 py-0.5 text-neutral-400"
+                        className="inline-flex items-center gap-1 text-xs font-mono uppercase tracking-widest border border-black/10 dark:border-white/10 px-2 py-0.5 text-neutral-400"
                       >
                         <Tag className="w-2.5 h-2.5" />
                         {tag}
@@ -275,7 +275,7 @@ export default function CatalogDetailClient({ rental }: Props) {
 
               <Link
                 href="/contact"
-                className="block w-full text-center text-[10px] font-mono font-bold tracking-widest border border-black dark:border-white text-black dark:text-white py-3 hover:bg-black hover:text-white dark:hover:bg-white dark:hover:text-black transition-all uppercase"
+                className="block w-full text-center text-xs font-mono font-bold tracking-widest border border-black dark:border-white text-black dark:text-white py-3 hover:bg-black hover:text-white dark:hover:bg-white dark:hover:text-black transition-all uppercase"
               >
                 Enquire Now
               </Link>

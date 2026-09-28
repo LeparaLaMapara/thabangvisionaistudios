@@ -106,29 +106,29 @@ function RentalCard({ rental, category }: { rental: SmartRental; category: strin
       {/* Status badges */}
       <div className="absolute top-3 left-3 z-20 flex flex-wrap gap-1.5">
         {!rental.is_available && (
-          <span className="bg-red-500 text-white text-[9px] font-mono font-bold px-2 py-0.5 uppercase tracking-widest">
+          <span className="bg-red-500 text-white text-xs font-mono font-bold px-2 py-0.5 uppercase tracking-widest">
             Unavailable
           </span>
         )}
         {(rental as Record<string, unknown>).owner_type === 'studio' || !(rental as Record<string, unknown>).owner_type ? (
-          <span className="flex items-center gap-1 bg-[#D4A843] text-black text-[9px] font-mono font-bold px-2 py-0.5 uppercase tracking-widest">
+          <span className="flex items-center gap-1 bg-[#D4A843] text-black text-xs font-mono font-bold px-2 py-0.5 uppercase tracking-widest">
             <Building2 className="w-2.5 h-2.5" />
             Studio
           </span>
         ) : (
-          <span className="flex items-center gap-1 bg-violet-500/90 backdrop-blur-md text-white text-[9px] font-mono font-bold px-2 py-0.5 uppercase tracking-widest">
+          <span className="flex items-center gap-1 bg-violet-500/90 backdrop-blur-md text-white text-xs font-mono font-bold px-2 py-0.5 uppercase tracking-widest">
             <Users className="w-2.5 h-2.5" />
             Community
           </span>
         )}
         {Boolean((rental as Record<string, unknown>).is_verified) && (
-          <span className="flex items-center gap-1 bg-emerald-600 text-white text-[9px] font-mono font-bold px-2 py-0.5 uppercase tracking-widest">
+          <span className="flex items-center gap-1 bg-emerald-600 text-white text-xs font-mono font-bold px-2 py-0.5 uppercase tracking-widest">
             <ShieldCheck className="w-2.5 h-2.5" />
             Verified
           </span>
         )}
         {rental.is_featured && (
-          <span className="flex items-center gap-1 bg-[#D4A843] text-black text-[9px] font-mono font-bold px-2 py-0.5 uppercase tracking-widest">
+          <span className="flex items-center gap-1 bg-[#D4A843] text-black text-xs font-mono font-bold px-2 py-0.5 uppercase tracking-widest">
             <Star className="w-2.5 h-2.5" />
             Featured
           </span>
@@ -139,7 +139,7 @@ function RentalCard({ rental, category }: { rental: SmartRental; category: strin
         <div className="absolute top-3 right-3 z-20">
           <div className="flex items-center gap-1.5 bg-green-500/10 backdrop-blur-md px-2 py-1 rounded-full border border-green-500/20">
             <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
-            <span className="text-[9px] font-mono font-bold text-green-600 dark:text-green-400 uppercase tracking-widest">
+            <span className="text-xs font-mono font-bold text-green-600 dark:text-green-400 uppercase tracking-widest">
               Available
             </span>
           </div>
@@ -164,7 +164,7 @@ function RentalCard({ rental, category }: { rental: SmartRental; category: strin
           </>
         ) : (
           <div className="w-full h-full flex items-center justify-center">
-            <span className="text-[10px] font-mono text-neutral-400 uppercase tracking-widest">
+            <span className="text-xs font-mono text-neutral-400 uppercase tracking-widest">
               No image
             </span>
           </div>
@@ -175,11 +175,11 @@ function RentalCard({ rental, category }: { rental: SmartRental; category: strin
       <div className="p-5 flex-grow flex flex-col justify-between">
         <div>
           {rental.brand ? (
-            <div className="text-[10px] font-mono uppercase tracking-widest text-neutral-400 mb-1">
+            <div className="text-xs font-mono uppercase tracking-widest text-neutral-400 mb-1">
               {rental.brand}
             </div>
           ) : (rental as Record<string, unknown>).owner_type === 'community' && rental.metadata?.location ? (
-            <div className="text-[10px] font-mono uppercase tracking-widest text-neutral-400 mb-1">
+            <div className="text-xs font-mono uppercase tracking-widest text-neutral-400 mb-1">
               {rental.metadata.location}
             </div>
           ) : null}
@@ -187,10 +187,10 @@ function RentalCard({ rental, category }: { rental: SmartRental; category: strin
             {rental.title}
           </h3>
           {rental.model && (
-            <p className="text-[10px] font-mono text-neutral-400 mb-3 -mt-2">{rental.model}</p>
+            <p className="text-xs font-mono text-neutral-400 mb-3 -mt-2">{rental.model}</p>
           )}
           {(rental as Record<string, unknown>).owner_type === 'community' && (rental.metadata as Record<string, string> | null)?.display_name && (
-            <p className="text-[10px] font-mono text-violet-400 mb-2 -mt-1">
+            <p className="text-xs font-mono text-violet-400 mb-2 -mt-1">
               Listed by {(rental.metadata as Record<string, string>).display_name}
             </p>
           )}
@@ -200,7 +200,7 @@ function RentalCard({ rental, category }: { rental: SmartRental; category: strin
               {specs.map((spec, i) => (
                 <span
                   key={i}
-                  className="text-[9px] font-mono text-neutral-400 dark:text-neutral-400 border border-black/10 dark:border-white/10 px-1.5 py-0.5 bg-neutral-50 dark:bg-white/5 uppercase"
+                  className="text-xs font-mono text-neutral-400 dark:text-neutral-400 border border-black/10 dark:border-white/10 px-1.5 py-0.5 bg-neutral-50 dark:bg-white/5 uppercase"
                 >
                   {spec}
                 </span>
@@ -215,10 +215,10 @@ function RentalCard({ rental, category }: { rental: SmartRental; category: strin
               <span className="text-sm font-bold text-black dark:text-white">
                 {rental.currency} {rental.price_per_day.toLocaleString()}
               </span>
-              <span className="text-[10px] text-neutral-400 mb-0.5">/ day</span>
+              <span className="text-xs text-neutral-400 mb-0.5">/ day</span>
             </div>
           ) : (
-            <p className="text-[10px] font-mono text-neutral-400 mb-4 uppercase tracking-widest">
+            <p className="text-xs font-mono text-neutral-400 mb-4 uppercase tracking-widest">
               Contact for pricing
             </p>
           )}
@@ -226,13 +226,13 @@ function RentalCard({ rental, category }: { rental: SmartRental; category: strin
           {rental.is_available ? (
             <Link
               href={`/rentals/${category}/${rental.slug}`}
-              className="w-full py-3 text-[10px] font-mono font-bold uppercase tracking-widest transition-all relative overflow-hidden group/btn bg-[#D4A843] text-black border border-[#D4A843] hover:opacity-80 flex items-center justify-center gap-2"
+              className="w-full py-3 text-xs font-mono font-bold uppercase tracking-widest transition-all relative overflow-hidden group/btn bg-[#D4A843] text-black border border-[#D4A843] hover:opacity-80 flex items-center justify-center gap-2"
             >
               View Details
               <ArrowRight className="w-3 h-3 group-hover/btn:translate-x-1 transition-transform" />
             </Link>
           ) : (
-            <div className="w-full py-3 text-[10px] font-mono font-bold uppercase tracking-widest bg-neutral-200 dark:bg-neutral-800 text-neutral-400 border border-transparent text-center">
+            <div className="w-full py-3 text-xs font-mono font-bold uppercase tracking-widest bg-neutral-200 dark:bg-neutral-800 text-neutral-400 border border-transparent text-center">
               Unavailable
             </div>
           )}
@@ -479,7 +479,7 @@ export default function RentalCategoryClient({
       <div className="pt-8">
         <button
           onClick={clearFilters}
-          className="text-[10px] font-mono uppercase tracking-widest text-neutral-400 hover:text-black dark:hover:text-white transition-colors border-b border-transparent hover:border-black dark:hover:border-white pb-0.5"
+          className="text-xs font-mono uppercase tracking-widest text-neutral-400 hover:text-black dark:hover:text-white transition-colors border-b border-transparent hover:border-black dark:hover:border-white pb-0.5"
         >
           Clear All Filters
         </button>
@@ -493,7 +493,7 @@ export default function RentalCategoryClient({
       {/* ── Breadcrumbs + header ── */}
       <div className="bg-neutral-50 dark:bg-[#080808] border-b border-black/5 dark:border-white/5 py-12">
         <div className="container mx-auto px-6">
-          <div className="flex items-center gap-2 text-[10px] font-mono uppercase tracking-widest text-neutral-400 mb-6">
+          <div className="flex items-center gap-2 text-xs font-mono uppercase tracking-widest text-neutral-400 mb-6">
             <Link href="/" className="hover:text-black dark:hover:text-white">Home</Link>
             <span>/</span>
             <Link href="/rentals" className="hover:text-black dark:hover:text-white">Rentals</Link>

@@ -30,7 +30,7 @@ function UnsubscribeShell({ children }: { children?: React.ReactNode }) {
   return (
     <div className="min-h-screen bg-[#050505] pt-32 pb-20">
       <div className="container mx-auto px-6 max-w-xl">
-        <span className="text-[10px] font-mono text-[#D4A843] uppercase tracking-[0.3em] mb-3 block">
+        <span className="text-xs font-mono text-[#D4A843] uppercase tracking-[0.3em] mb-3 block">
           Email preferences
         </span>
         <h1 className="text-3xl md:text-5xl font-display font-medium text-white uppercase tracking-tight">
@@ -134,7 +134,7 @@ function UnsubscribeForm() {
               <button
                 type="submit"
                 disabled={status === 'loading'}
-                className="w-full min-h-[44px] bg-[#D4A843] text-black text-[11px] font-mono font-bold uppercase tracking-widest px-6 py-3 disabled:opacity-50 hover:opacity-90 transition-opacity"
+                className="w-full min-h-[44px] bg-[#D4A843] text-black text-xs font-mono font-bold uppercase tracking-widest px-6 py-3 disabled:opacity-50 hover:opacity-90 transition-opacity"
               >
                 {status === 'loading' ? 'Removing…' : 'Unsubscribe'}
               </button>

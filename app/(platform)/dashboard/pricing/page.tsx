@@ -145,7 +145,7 @@ export default function PricingPage() {
           <h2 className="text-lg font-display font-medium uppercase text-white">
             Pricing Guide
           </h2>
-          <p className="text-[9px] font-mono uppercase tracking-widest text-neutral-400 mt-1">
+          <p className="text-xs font-mono uppercase tracking-widest text-neutral-400 mt-1">
             Rate suggestions &middot; Market comparison
           </p>
         </div>
@@ -189,7 +189,7 @@ export default function PricingPage() {
 
                 {/* Market range bar */}
                 <div className="mb-3">
-                  <div className="flex justify-between text-[9px] font-mono text-neutral-400 mb-1">
+                  <div className="flex justify-between text-xs font-mono text-neutral-400 mb-1">
                     <span>R{s.marketRange.low.toLocaleString()}</span>
                     <span>R{s.marketRange.high.toLocaleString()}</span>
                   </div>
@@ -210,7 +210,7 @@ export default function PricingPage() {
                   </div>
                 </div>
 
-                <p className="text-[11px] font-mono text-neutral-400 leading-relaxed">
+                <p className="text-xs font-mono text-neutral-400 leading-relaxed">
                   {s.reasoning}
                 </p>
               </Card>
@@ -238,11 +238,11 @@ export default function PricingPage() {
                       {formatCategory(c.category)}
                     </h4>
                     <div className="flex items-center gap-3 mt-1">
-                      <span className="text-[10px] font-mono text-neutral-400">
+                      <span className="text-xs font-mono text-neutral-400">
                         Your rate: <span className="text-white">R{c.currentRate.toLocaleString()}/hr</span>
                       </span>
-                      <span className="text-[10px] font-mono text-neutral-400">|</span>
-                      <span className="text-[10px] font-mono text-neutral-400">
+                      <span className="text-xs font-mono text-neutral-400">|</span>
+                      <span className="text-xs font-mono text-neutral-400">
                         Market avg: <span className="text-neutral-300">R{c.marketAverage.toLocaleString()}/hr</span>
                       </span>
                     </div>
@@ -252,7 +252,7 @@ export default function PricingPage() {
                       {POSITION_LABEL[c.position]}
                     </Badge>
                     {c.percentDifference !== 0 && (
-                      <p className={`text-[10px] font-mono mt-1 ${
+                      <p className={`text-xs font-mono mt-1 ${
                         c.percentDifference > 0 ? 'text-emerald-400' : 'text-amber-400'
                       }`}>
                         {c.percentDifference > 0 ? '+' : ''}{c.percentDifference}%

@@ -200,7 +200,7 @@ export default function ServiceBookingsList({ bookings }: { bookings: ServiceBoo
                     View Deliverables &rarr;
                   </a>
                   {booking.delivered_at && (
-                    <p className="mt-2 text-[10px] text-neutral-400">
+                    <p className="mt-2 text-xs text-neutral-400">
                       Delivered {new Date(booking.delivered_at).toLocaleDateString('en-ZA', { day: 'numeric', month: 'short', year: 'numeric' })}
                     </p>
                   )}

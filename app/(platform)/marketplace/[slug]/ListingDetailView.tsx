@@ -53,7 +53,7 @@ export default function ListingDetailView({
       <div className="container mx-auto px-6 py-8">
         <Link
           href="/marketplace"
-          className="inline-flex items-center gap-2 text-[10px] font-mono font-bold tracking-widest text-neutral-400 hover:text-black dark:hover:text-white uppercase mb-8 transition-colors"
+          className="inline-flex items-center gap-2 text-xs font-mono font-bold tracking-widest text-neutral-400 hover:text-black dark:hover:text-white uppercase mb-8 transition-colors"
         >
           <ArrowLeft className="w-3 h-3" /> Back to Marketplace
         </Link>
@@ -89,11 +89,11 @@ export default function ListingDetailView({
           {/* Left: title + description + tags */}
           <div className="lg:col-span-8">
             <div className="flex items-center gap-3 mb-4">
-              <span className="px-3 py-1 text-[10px] font-mono font-bold uppercase tracking-widest bg-black text-white dark:bg-white dark:text-black">
+              <span className="px-3 py-1 text-xs font-mono font-bold uppercase tracking-widest bg-black text-white dark:bg-white dark:text-black">
                 {listing.type}
               </span>
               {listing.category && (
-                <span className="px-3 py-1 text-[10px] font-mono uppercase tracking-widest border border-black/10 dark:border-white/10 text-neutral-400">
+                <span className="px-3 py-1 text-xs font-mono uppercase tracking-widest border border-black/10 dark:border-white/10 text-neutral-400">
                   {listing.category.replace(/-/g, ' ')}
                 </span>
               )}
@@ -113,7 +113,7 @@ export default function ListingDetailView({
                 {listing.tags.map((tag) => (
                   <span
                     key={tag}
-                    className="px-3 py-1 border border-black/10 dark:border-white/10 text-[10px] font-mono uppercase tracking-widest text-neutral-400 dark:text-neutral-400"
+                    className="px-3 py-1 border border-black/10 dark:border-white/10 text-xs font-mono uppercase tracking-widest text-neutral-400 dark:text-neutral-400"
                   >
                     {tag}
                   </span>
@@ -131,7 +131,7 @@ export default function ListingDetailView({
             {/* Features */}
             {listing.features && listing.features.length > 0 && (
               <div className="mb-10">
-                <h3 className="text-[10px] font-mono font-bold text-neutral-400 uppercase tracking-widest mb-4">
+                <h3 className="text-xs font-mono font-bold text-neutral-400 uppercase tracking-widest mb-4">
                   Features
                 </h3>
                 <ul className="space-y-2">
@@ -153,7 +153,7 @@ export default function ListingDetailView({
           <div className="lg:col-span-4 space-y-6">
             {/* Price card */}
             <div className="bg-neutral-50 dark:bg-[#0A0A0B] border border-black/5 dark:border-white/5 p-6">
-              <span className="block text-[10px] font-mono text-neutral-400 uppercase tracking-widest mb-2">
+              <span className="block text-xs font-mono text-neutral-400 uppercase tracking-widest mb-2">
                 Price
               </span>
               <span className="text-3xl font-display font-bold text-black dark:text-white">
@@ -172,7 +172,7 @@ export default function ListingDetailView({
             {/* Meta fields */}
             {condition && (
               <div className="border-t border-black/10 dark:border-white/10 pt-4">
-                <span className="block text-[10px] font-mono text-neutral-400 uppercase tracking-widest mb-1">
+                <span className="block text-xs font-mono text-neutral-400 uppercase tracking-widest mb-1">
                   Condition
                 </span>
                 <span className="text-lg font-display text-black dark:text-white">
@@ -183,7 +183,7 @@ export default function ListingDetailView({
 
             {listing.location && (
               <div className="border-t border-black/10 dark:border-white/10 pt-4">
-                <span className="block text-[10px] font-mono text-neutral-400 uppercase tracking-widest mb-1">
+                <span className="block text-xs font-mono text-neutral-400 uppercase tracking-widest mb-1">
                   Location
                 </span>
                 <span className="flex items-center gap-2 text-lg font-display text-black dark:text-white">
@@ -195,7 +195,7 @@ export default function ListingDetailView({
 
             {listing.pricing_model && listing.pricing_model !== 'fixed' && (
               <div className="border-t border-black/10 dark:border-white/10 pt-4">
-                <span className="block text-[10px] font-mono text-neutral-400 uppercase tracking-widest mb-1">
+                <span className="block text-xs font-mono text-neutral-400 uppercase tracking-widest mb-1">
                   Pricing Model
                 </span>
                 <span className="text-lg font-display text-black dark:text-white capitalize">
@@ -206,7 +206,7 @@ export default function ListingDetailView({
 
             {listing.sub_category && (
               <div className="border-t border-black/10 dark:border-white/10 pt-4">
-                <span className="block text-[10px] font-mono text-neutral-400 uppercase tracking-widest mb-1">
+                <span className="block text-xs font-mono text-neutral-400 uppercase tracking-widest mb-1">
                   Sub-Category
                 </span>
                 <span className="text-lg font-display text-black dark:text-white">
@@ -216,7 +216,7 @@ export default function ListingDetailView({
             )}
 
             <div className="border-t border-black/10 dark:border-white/10 pt-4">
-              <span className="block text-[10px] font-mono text-neutral-400 uppercase tracking-widest mb-1">
+              <span className="block text-xs font-mono text-neutral-400 uppercase tracking-widest mb-1">
                 Listed
               </span>
               <span className="text-sm font-mono text-neutral-400 dark:text-neutral-400">

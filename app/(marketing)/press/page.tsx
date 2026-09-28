@@ -27,7 +27,7 @@ export default async function PressPage() {
 
         {/* Header */}
         <div className="mb-20">
-          <span className="text-[10px] font-mono text-[#D4A843] uppercase tracking-[0.3em] mb-4 block">
+          <span className="text-xs font-mono text-[#D4A843] uppercase tracking-[0.3em] mb-4 block">
             Newsroom
           </span>
           <h1 className="text-5xl md:text-8xl font-display font-medium text-white tracking-tighter uppercase">
@@ -66,10 +66,10 @@ export default async function PressPage() {
                         </div>
                       )}
                       <div className={`${featured.cover_url ? '' : 'lg:col-span-2'} flex flex-col justify-center p-8 lg:p-12`}>
-                        <span className="inline-block text-[10px] font-mono font-bold uppercase tracking-widest text-[#D4A843] mb-4">
+                        <span className="inline-block text-xs font-mono font-bold uppercase tracking-widest text-[#D4A843] mb-4">
                           Featured
                         </span>
-                        <div className="flex flex-wrap items-center gap-4 text-[10px] font-mono uppercase tracking-widest text-neutral-400 mb-6">
+                        <div className="flex flex-wrap items-center gap-4 text-xs font-mono uppercase tracking-widest text-neutral-400 mb-6">
                           {featured.published_at && <span>{formatDate(featured.published_at)}</span>}
                           {featured.category && (
                             <>
@@ -122,7 +122,7 @@ export default async function PressPage() {
                             className={`${article.cover_url ? 'md:col-span-8' : 'md:col-span-12'} flex flex-col justify-between py-4`}
                           >
                             <div>
-                              <div className="flex items-center gap-4 text-[10px] font-mono uppercase tracking-widest text-neutral-400 mb-4">
+                              <div className="flex items-center gap-4 text-xs font-mono uppercase tracking-widest text-neutral-400 mb-4">
                                 {article.published_at && <span>{formatDate(article.published_at)}</span>}
                                 {article.category && (
                                   <>

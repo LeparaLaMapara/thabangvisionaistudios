@@ -29,7 +29,7 @@ export function FollowUpSuggestions({ toolName, onSelect }: FollowUpSuggestionsP
         <button
           key={text}
           onClick={() => onSelect(text)}
-          className="px-2.5 py-1 text-[11px] text-neutral-400 border border-neutral-800/50 hover:text-[#D4A843]/80 hover:border-[#D4A843]/20 transition-all duration-200"
+          className="px-2.5 py-1 text-xs text-neutral-400 border border-neutral-800/50 hover:text-[#D4A843]/80 hover:border-[#D4A843]/20 transition-all duration-200"
         >
           {text}
         </button>

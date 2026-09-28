@@ -14,7 +14,7 @@ export function Input({ label, error, hint, id, className = '', ...props }: Inpu
       {label && (
         <label
           htmlFor={inputId}
-          className="block text-[10px] font-mono uppercase tracking-widest text-neutral-400 mb-2"
+          className="block text-xs font-mono uppercase tracking-widest text-neutral-400 mb-2"
         >
           {label}
         </label>
@@ -43,10 +43,10 @@ export function Input({ label, error, hint, id, className = '', ...props }: Inpu
           .join(' ')}
       />
       {error && (
-        <p className="mt-1.5 text-[10px] font-mono text-red-500">{error}</p>
+        <p className="mt-1.5 text-xs font-mono text-red-500">{error}</p>
       )}
       {hint && !error && (
-        <p className="mt-1.5 text-[10px] font-mono text-neutral-400 dark:text-neutral-400">
+        <p className="mt-1.5 text-xs font-mono text-neutral-400 dark:text-neutral-400">
           {hint}
         </p>
       )}

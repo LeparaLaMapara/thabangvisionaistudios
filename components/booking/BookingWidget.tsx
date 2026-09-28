@@ -234,7 +234,7 @@ function BookingWidgetInner({ rental }: Props) {
         )}
       </div>
 
-      {error && <p className="text-[10px] font-mono text-red-400">{error}</p>}
+      {error && <p className="text-xs font-mono text-red-400">{error}</p>}
 
       {/* Dates, availability and price: for everyone */}
       <div className="space-y-4">
@@ -246,14 +246,14 @@ function BookingWidgetInner({ rental }: Props) {
           label="Rental dates"
         />
 
-        <p className="text-[10px] font-mono text-neutral-400 leading-relaxed">
+        <p className="text-xs font-mono text-neutral-400 leading-relaxed">
           {noticeMessage}
         </p>
 
         {checkingAvailability && (
           <div className="flex items-center gap-2">
             <Loader2 className="w-3 h-3 text-neutral-400 animate-spin" />
-            <p className="text-[10px] font-mono text-neutral-400">
+            <p className="text-xs font-mono text-neutral-400">
               Checking availability...
             </p>
           </div>
@@ -268,7 +268,7 @@ function BookingWidgetInner({ rental }: Props) {
             ) : (
               <AlertCircle className="w-3 h-3" />
             )}
-            <p className="text-[10px] font-mono">
+            <p className="text-xs font-mono">
               {availability.available
                 ? 'Available for selected dates'
                 : 'Not available for selected dates'}
@@ -301,7 +301,7 @@ function BookingWidgetInner({ rental }: Props) {
                 {rental.currency} {(rentalPrice + depositAmount).toLocaleString()}
               </span>
             </div>
-            <p className="text-[9px] font-mono text-neutral-400">
+            <p className="text-xs font-mono text-neutral-400">
               At checkout: collect or have it delivered, and pay everything now or only the deposit now and the rest when you collect.
             </p>
           </div>
@@ -315,12 +315,12 @@ function BookingWidgetInner({ rental }: Props) {
         <div className="space-y-3">
           <Link
             href={`/login?redirect=${encodeURIComponent(here)}`}
-            className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-[#D4A843] text-black text-[10px] font-mono font-bold uppercase tracking-widest hover:opacity-80 transition-all min-h-[44px]"
+            className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-[#D4A843] text-black text-xs font-mono font-bold uppercase tracking-widest hover:opacity-80 transition-all min-h-[44px]"
           >
             <LogIn className="w-4 h-4" />
             {datesReady ? `Sign in to book: ${rental.currency} ${rentalPrice.toLocaleString()}` : 'Sign in to book'}
           </Link>
-          <p className="text-[9px] font-mono text-neutral-400 text-center">
+          <p className="text-xs font-mono text-neutral-400 text-center">
             {datesReady ? 'Your dates are kept.' : 'Choose your dates above to see the price.'}
           </p>
         </div>
@@ -330,7 +330,7 @@ function BookingWidgetInner({ rental }: Props) {
             <Clock className="w-5 h-5 text-[#D4A843]" />
             <p className="text-sm font-mono font-bold text-white">Your ID check is being reviewed</p>
           </div>
-          <p className="text-[10px] font-mono text-neutral-400">
+          <p className="text-xs font-mono text-neutral-400">
             You can book as soon as it is approved. Your dates are kept on this page.
           </p>
         </div>
@@ -338,12 +338,12 @@ function BookingWidgetInner({ rental }: Props) {
         <div className="space-y-3">
           <Link
             href={`/dashboard/verification?redirect=${encodeURIComponent(here)}`}
-            className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-[#D4A843] text-black text-[10px] font-mono font-bold uppercase tracking-widest hover:opacity-80 transition-all min-h-[44px]"
+            className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-[#D4A843] text-black text-xs font-mono font-bold uppercase tracking-widest hover:opacity-80 transition-all min-h-[44px]"
           >
             <ShieldCheck className="w-4 h-4" />
             Check my ID to book
           </Link>
-          <p className="text-[9px] font-mono text-neutral-400 text-center">
+          <p className="text-xs font-mono text-neutral-400 text-center">
             {verification === 'rejected'
               ? 'Your last ID check was not approved. You can try again.'
               : 'A one-time check before your first rental. Your dates are kept.'}
@@ -354,7 +354,7 @@ function BookingWidgetInner({ rental }: Props) {
           <button
             onClick={handleBookNow}
             disabled={!canBook}
-            className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-[#D4A843] text-black text-[10px] font-mono font-bold uppercase tracking-widest hover:opacity-80 disabled:opacity-30 disabled:cursor-not-allowed transition-all min-h-[44px]"
+            className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-[#D4A843] text-black text-xs font-mono font-bold uppercase tracking-widest hover:opacity-80 disabled:opacity-30 disabled:cursor-not-allowed transition-all min-h-[44px]"
           >
             {booking ? (
               <>
@@ -371,7 +371,7 @@ function BookingWidgetInner({ rental }: Props) {
           {added ? (
             <Link
               href="/dashboard/cart"
-              className="w-full flex items-center justify-center gap-2 py-2.5 border border-emerald-500/30 text-emerald-400 text-[10px] font-mono font-bold uppercase tracking-widest hover:opacity-80 transition-all"
+              className="w-full flex items-center justify-center gap-2 py-2.5 border border-emerald-500/30 text-emerald-400 text-xs font-mono font-bold uppercase tracking-widest hover:opacity-80 transition-all"
             >
               <Check className="w-3.5 h-3.5" />
               Added — View Cart
@@ -380,7 +380,7 @@ function BookingWidgetInner({ rental }: Props) {
             <button
               onClick={handleAddToCart}
               disabled={cartLoading}
-              className="w-full flex items-center justify-center gap-2 py-2.5 border border-white/10 text-neutral-400 text-[10px] font-mono uppercase tracking-widest hover:text-white hover:border-white/20 disabled:opacity-50 transition-all"
+              className="w-full flex items-center justify-center gap-2 py-2.5 border border-white/10 text-neutral-400 text-xs font-mono uppercase tracking-widest hover:text-white hover:border-white/20 disabled:opacity-50 transition-all"
             >
               <ShoppingCart className="w-3.5 h-3.5" />
               {cartLoading ? 'Adding...' : 'Add to cart and keep browsing'}
@@ -390,7 +390,7 @@ function BookingWidgetInner({ rental }: Props) {
       )}
 
       {/* Info line */}
-      <div className="flex items-start gap-2 text-[9px] font-mono text-neutral-400">
+      <div className="flex items-start gap-2 text-xs font-mono text-neutral-400">
         <Info className="w-3 h-3 mt-0.5 flex-shrink-0" />
         <span>
           Renting 3 or more items? Add them to your cart for a bulk discount.

@@ -13,7 +13,7 @@ export function PaymentsOfflineNotice() {
       <Info className="w-5 h-5 flex-shrink-0 mt-0.5" aria-hidden="true" />
       <div>
         <p className="text-sm font-mono font-bold">Request received, not paid</p>
-        <p className="text-[10px] font-mono text-[#D4A843]/80">{PAYMENTS_OFF_MESSAGE}</p>
+        <p className="text-xs font-mono text-[#D4A843]/80">{PAYMENTS_OFF_MESSAGE}</p>
       </div>
     </div>
   );

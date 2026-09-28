@@ -53,7 +53,7 @@ export function ConsentStep({ onConsented }: ConsentStepProps) {
           <h3 className="text-sm font-display font-medium uppercase text-white mb-1">
             Privacy Notice — POPIA Consent
           </h3>
-          <p className="text-[10px] font-mono uppercase tracking-widest text-neutral-400">
+          <p className="text-xs font-mono uppercase tracking-widest text-neutral-400">
             Required before we can process your ID documents
           </p>
         </div>

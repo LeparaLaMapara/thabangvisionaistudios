@@ -162,7 +162,7 @@ export function FaqsAdmin({ faqs }: { faqs: Faq[] }) {
       <div className="flex flex-wrap items-center gap-2 mb-6">
         <button
           onClick={() => setActiveCategory('all')}
-          className={`px-3 py-1.5 text-[10px] font-mono uppercase tracking-widest border transition-colors min-h-[44px] ${
+          className={`px-3 py-1.5 text-xs font-mono uppercase tracking-widest border transition-colors min-h-[44px] ${
             activeCategory === 'all'
               ? 'border-[#D4A843] text-[#D4A843] bg-[#D4A843]/10'
               : 'border-white/10 text-neutral-400 hover:border-white/30 hover:text-white'
@@ -176,7 +176,7 @@ export function FaqsAdmin({ faqs }: { faqs: Faq[] }) {
             <button
               key={cat}
               onClick={() => setActiveCategory(cat)}
-              className={`px-3 py-1.5 text-[10px] font-mono uppercase tracking-widest border transition-colors min-h-[44px] ${
+              className={`px-3 py-1.5 text-xs font-mono uppercase tracking-widest border transition-colors min-h-[44px] ${
                 activeCategory === cat
                   ? 'border-[#D4A843] text-[#D4A843] bg-[#D4A843]/10'
                   : 'border-white/10 text-neutral-400 hover:border-white/30 hover:text-white'
@@ -212,7 +212,7 @@ export function FaqsAdmin({ faqs }: { faqs: Faq[] }) {
             </div>
             <div className="p-6 space-y-4">
               <div>
-                <label className="block text-[10px] font-mono uppercase tracking-widest text-neutral-400 mb-2">
+                <label className="block text-xs font-mono uppercase tracking-widest text-neutral-400 mb-2">
                   Question
                 </label>
                 <textarea
@@ -223,7 +223,7 @@ export function FaqsAdmin({ faqs }: { faqs: Faq[] }) {
                 />
               </div>
               <div>
-                <label className="block text-[10px] font-mono uppercase tracking-widest text-neutral-400 mb-2">
+                <label className="block text-xs font-mono uppercase tracking-widest text-neutral-400 mb-2">
                   Answer
                 </label>
                 <textarea
@@ -234,7 +234,7 @@ export function FaqsAdmin({ faqs }: { faqs: Faq[] }) {
                 />
               </div>
               <div>
-                <label className="block text-[10px] font-mono uppercase tracking-widest text-neutral-400 mb-2">
+                <label className="block text-xs font-mono uppercase tracking-widest text-neutral-400 mb-2">
                   Category
                 </label>
                 <select
@@ -253,13 +253,13 @@ export function FaqsAdmin({ faqs }: { faqs: Faq[] }) {
                 <button
                   onClick={onSaveEdit}
                   disabled={pending || !editForm.question.trim() || !editForm.answer.trim()}
-                  className="flex items-center gap-2 px-5 py-2 bg-[#D4A843] text-black text-[10px] font-mono font-bold uppercase tracking-widest hover:opacity-80 transition-opacity disabled:opacity-50 min-h-[44px]"
+                  className="flex items-center gap-2 px-5 py-2 bg-[#D4A843] text-black text-xs font-mono font-bold uppercase tracking-widest hover:opacity-80 transition-opacity disabled:opacity-50 min-h-[44px]"
                 >
                   Save
                 </button>
                 <button
                   onClick={closeEdit}
-                  className="px-5 py-2 border border-white/20 text-[10px] font-mono uppercase tracking-widest text-neutral-400 hover:text-white hover:border-white/40 transition-colors min-h-[44px]"
+                  className="px-5 py-2 border border-white/20 text-xs font-mono uppercase tracking-widest text-neutral-400 hover:text-white hover:border-white/40 transition-colors min-h-[44px]"
                 >
                   Cancel
                 </button>
@@ -273,12 +273,12 @@ export function FaqsAdmin({ faqs }: { faqs: Faq[] }) {
       <div className="border border-white/10 divide-y divide-white/10">
         {/* Header row */}
         <div className="hidden md:grid md:grid-cols-[1fr_1fr_auto_auto_auto_auto] gap-4 px-4 py-3 bg-white/[0.02]">
-          <span className="text-[10px] font-mono uppercase tracking-widest text-neutral-400">Question</span>
-          <span className="text-[10px] font-mono uppercase tracking-widest text-neutral-400">Answer</span>
-          <span className="text-[10px] font-mono uppercase tracking-widest text-neutral-400">Category</span>
-          <span className="text-[10px] font-mono uppercase tracking-widest text-neutral-400">Views</span>
-          <span className="text-[10px] font-mono uppercase tracking-widest text-neutral-400">Created</span>
-          <span className="text-[10px] font-mono uppercase tracking-widest text-neutral-400">Actions</span>
+          <span className="text-xs font-mono uppercase tracking-widest text-neutral-400">Question</span>
+          <span className="text-xs font-mono uppercase tracking-widest text-neutral-400">Answer</span>
+          <span className="text-xs font-mono uppercase tracking-widest text-neutral-400">Category</span>
+          <span className="text-xs font-mono uppercase tracking-widest text-neutral-400">Views</span>
+          <span className="text-xs font-mono uppercase tracking-widest text-neutral-400">Created</span>
+          <span className="text-xs font-mono uppercase tracking-widest text-neutral-400">Actions</span>
         </div>
 
         {filtered.map((faq) => (
@@ -299,7 +299,7 @@ export function FaqsAdmin({ faqs }: { faqs: Faq[] }) {
                 </p>
               </div>
               {faq.source_conversation_id && (
-                <p className="mt-1 ml-3.5 text-[10px] font-mono text-neutral-400">
+                <p className="mt-1 ml-3.5 text-xs font-mono text-neutral-400">
                   from chat
                 </p>
               )}
@@ -315,7 +315,7 @@ export function FaqsAdmin({ faqs }: { faqs: Faq[] }) {
             {/* Category badge */}
             <div className="flex items-start md:items-center">
               <span
-                className={`inline-block px-2 py-0.5 text-[10px] font-mono uppercase tracking-widest border ${
+                className={`inline-block px-2 py-0.5 text-xs font-mono uppercase tracking-widest border ${
                   CATEGORY_COLORS[faq.category as Category] ?? CATEGORY_COLORS.general
                 }`}
               >
@@ -332,7 +332,7 @@ export function FaqsAdmin({ faqs }: { faqs: Faq[] }) {
 
             {/* Created date */}
             <div className="flex items-center">
-              <span className="text-[10px] font-mono text-neutral-400 whitespace-nowrap">
+              <span className="text-xs font-mono text-neutral-400 whitespace-nowrap">
                 {formatDate(faq.created_at)}
               </span>
             </div>

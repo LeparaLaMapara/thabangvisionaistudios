@@ -61,7 +61,7 @@ export default async function FaqPage() {
       <div className="min-h-screen bg-white dark:bg-[#050505] pt-32 pb-20 transition-colors duration-500">
         <div className="container mx-auto px-6 max-w-3xl">
           <div className="mb-16">
-            <p className="text-[10px] font-mono uppercase tracking-widest text-neutral-400 mb-3">
+            <p className="text-xs font-mono uppercase tracking-widest text-neutral-400 mb-3">
               FAQ
             </p>
             <h1 className="text-4xl md:text-6xl font-display font-medium uppercase tracking-tight text-black dark:text-white mb-4">

@@ -123,7 +123,7 @@ const ToolCard = ({
          <p className="text-xs text-neutral-400 font-light leading-relaxed mb-6">{description}</p>
       </div>
 
-      <div className="flex items-center gap-2 text-[9px] font-mono font-bold tracking-widest text-black dark:text-white uppercase">
+      <div className="flex items-center gap-2 text-xs font-mono font-bold tracking-widest text-black dark:text-white uppercase">
          Launch Tool <ChevronRight className="w-3 h-3 group-hover:translate-x-1 transition-transform" />
       </div>
     </div>
@@ -149,7 +149,7 @@ const RangeInput = ({
 }) => (
   <div className="mb-6">
     <div className="flex justify-between items-end mb-3">
-      <label className="text-[10px] font-bold uppercase tracking-widest text-neutral-400">{label}</label>
+      <label className="text-xs font-bold uppercase tracking-widest text-neutral-400">{label}</label>
       <span className="font-mono text-sm text-black dark:text-white">{value}{unit}</span>
     </div>
     <input
@@ -183,7 +183,7 @@ const FOVCalculator = () => {
     <div className="grid grid-cols-1 lg:grid-cols-12 gap-12">
       <div className="lg:col-span-4 space-y-8">
         <div>
-          <label className="block text-[10px] font-bold uppercase tracking-widest mb-3 text-neutral-400">Sensor Format</label>
+          <label className="block text-xs font-bold uppercase tracking-widest mb-3 text-neutral-400">Sensor Format</label>
           <select
             value={sensorId}
             onChange={(e) => setSensorId(e.target.value)}
@@ -197,7 +197,7 @@ const FOVCalculator = () => {
         <RangeInput label="Subject Distance" value={distance} min={1} max={50} onChange={setDistance} unit="m" />
 
         <div className="bg-neutral-100 dark:bg-neutral-900 p-6 border border-black/5 dark:border-white/5">
-           <h4 className="text-[10px] font-bold uppercase tracking-widest mb-4 text-black dark:text-white">Format Equivalents (FOV Match)</h4>
+           <h4 className="text-xs font-bold uppercase tracking-widest mb-4 text-black dark:text-white">Format Equivalents (FOV Match)</h4>
            <div className="space-y-3">
              {SENSOR_PRESETS.filter(s => s.id !== sensorId).map(s => {
                const equiv = Math.round(focalLength * (s.width / sensor.width));
@@ -213,7 +213,7 @@ const FOVCalculator = () => {
       </div>
 
       <div className="lg:col-span-8 bg-neutral-100 dark:bg-neutral-900/50 border border-black/5 dark:border-white/5 relative min-h-[500px] flex items-center justify-center p-8 overflow-hidden">
-         <div className="absolute top-4 left-4 text-[10px] tracking-widest uppercase text-neutral-400">Visualization</div>
+         <div className="absolute top-4 left-4 text-xs tracking-widest uppercase text-neutral-400">Visualization</div>
 
          <div className="relative z-10 w-full max-w-lg aspect-square flex flex-col items-center justify-end">
             <div className="w-12 h-8 bg-black dark:bg-white rounded-sm mb-1 relative z-20">
@@ -229,18 +229,18 @@ const FOVCalculator = () => {
                transition={{ type: 'spring', bounce: 0, duration: 0.5 }}
             >
                <div className="w-full border-t border-dashed border-black/30 dark:border-white/30 absolute top-0 left-0 flex justify-center">
-                 <span className="bg-neutral-100 dark:bg-[#111] px-2 text-[9px] font-mono -mt-2.5 text-neutral-400">{distance}m</span>
+                 <span className="bg-neutral-100 dark:bg-[#111] px-2 text-xs font-mono -mt-2.5 text-neutral-400">{distance}m</span>
                </div>
             </motion.div>
          </div>
 
          <div className="absolute bottom-4 left-4 right-4 grid grid-cols-2 gap-4">
              <div className="bg-white dark:bg-black p-4 border border-black/10 dark:border-white/10">
-                <div className="text-[9px] uppercase tracking-widest text-neutral-400 mb-1">Field Width</div>
+                <div className="text-xs uppercase tracking-widest text-neutral-400 mb-1">Field Width</div>
                 <div className="text-xl font-mono text-black dark:text-white">{fieldWidth.toFixed(1)} m</div>
              </div>
              <div className="bg-white dark:bg-black p-4 border border-black/10 dark:border-white/10">
-                <div className="text-[9px] uppercase tracking-widest text-neutral-400 mb-1">Horizontal Angle</div>
+                <div className="text-xs uppercase tracking-widest text-neutral-400 mb-1">Horizontal Angle</div>
                 <div className="text-xl font-mono text-black dark:text-white">{hAOV.toFixed(1)}°</div>
              </div>
          </div>
@@ -280,7 +280,7 @@ const DOFCalculator = () => {
     <div className="grid grid-cols-1 lg:grid-cols-12 gap-12">
       <div className="lg:col-span-4 space-y-8">
         <div>
-          <label className="block text-[10px] font-bold uppercase tracking-widest mb-3 text-neutral-400">Sensor Format</label>
+          <label className="block text-xs font-bold uppercase tracking-widest mb-3 text-neutral-400">Sensor Format</label>
           <select
             value={sensorId}
             onChange={(e) => setSensorId(e.target.value)}
@@ -295,18 +295,18 @@ const DOFCalculator = () => {
         <RangeInput label="Focus Distance" value={focusDist} min={0.5} max={50} onChange={setFocusDist} unit="m" />
 
         <div className="bg-neutral-100 dark:bg-neutral-900 p-6 border border-black/5 dark:border-white/5">
-           <h4 className="text-[10px] font-bold uppercase tracking-widest mb-4 text-black dark:text-white">Hyperfocal Distance</h4>
+           <h4 className="text-xs font-bold uppercase tracking-widest mb-4 text-black dark:text-white">Hyperfocal Distance</h4>
            <div className="text-3xl font-mono text-black dark:text-white mb-1">
              {mmToM(H)}m
            </div>
-           <p className="text-[10px] text-neutral-400">Focus here to keep everything from {(mmToM(H/2))}m to Infinity in acceptable sharpness.</p>
+           <p className="text-xs text-neutral-400">Focus here to keep everything from {(mmToM(H/2))}m to Infinity in acceptable sharpness.</p>
         </div>
       </div>
 
       <div className="lg:col-span-8 flex flex-col justify-center space-y-8">
          <div className="relative h-48 bg-neutral-100 dark:bg-neutral-900/50 border-x border-black/10 dark:border-white/10 overflow-hidden flex items-center">
             <div className="absolute left-1/2 top-0 bottom-0 w-px bg-blue-500 z-30" />
-            <div className="absolute left-1/2 top-4 -translate-x-1/2 text-[9px] font-mono text-blue-500 uppercase tracking-widest bg-white dark:bg-black px-1">Focus Plane</div>
+            <div className="absolute left-1/2 top-4 -translate-x-1/2 text-xs font-mono text-blue-500 uppercase tracking-widest bg-white dark:bg-black px-1">Focus Plane</div>
 
             <motion.div
                className="h-24 bg-black/10 dark:bg-white/10 absolute top-1/2 -translate-y-1/2 z-20"
@@ -321,15 +321,15 @@ const DOFCalculator = () => {
 
          <div className="grid grid-cols-3 gap-4">
             <div className="p-6 border border-black/10 dark:border-white/10 text-center">
-               <div className="text-[9px] uppercase tracking-widest text-neutral-400 mb-2">Near Limit</div>
+               <div className="text-xs uppercase tracking-widest text-neutral-400 mb-2">Near Limit</div>
                <div className="text-xl font-mono font-bold text-black dark:text-white">{fmtDist(nearLimit)}</div>
             </div>
             <div className="p-6 border border-black/10 dark:border-white/10 text-center bg-black dark:bg-white text-white dark:text-black">
-               <div className="text-[9px] uppercase tracking-widest opacity-70 mb-2">Total Depth</div>
+               <div className="text-xs uppercase tracking-widest opacity-70 mb-2">Total Depth</div>
                <div className="text-xl font-mono font-bold">{fmtDist(dofTotal)}</div>
             </div>
             <div className="p-6 border border-black/10 dark:border-white/10 text-center">
-               <div className="text-[9px] uppercase tracking-widest text-neutral-400 mb-2">Far Limit</div>
+               <div className="text-xs uppercase tracking-widest text-neutral-400 mb-2">Far Limit</div>
                <div className="text-xl font-mono font-bold text-black dark:text-white">{fmtDist(farLimit)}</div>
             </div>
          </div>
@@ -395,7 +395,7 @@ const PowerCalculator = () => {
                    <div key={item.fixtureId} className="flex justify-between items-center bg-white dark:bg-black p-3 border border-black/5 dark:border-white/5">
                       <div>
                         <div className="text-xs font-bold text-black dark:text-white">{fixture.name}</div>
-                        <div className="text-[10px] text-neutral-400">{fixture.watts}W x {item.quantity} = {fixture.watts * item.quantity}W</div>
+                        <div className="text-xs text-neutral-400">{fixture.watts}W x {item.quantity} = {fixture.watts * item.quantity}W</div>
                       </div>
                       <button onClick={() => removeItem(item.fixtureId)} className="text-neutral-400 hover:text-red-500 transition-colors">
                         <Trash2 className="w-4 h-4" />
@@ -419,11 +419,11 @@ const PowerCalculator = () => {
 
                <div className="grid grid-cols-2 gap-8 border-t border-white/20 dark:border-black/20 pt-8">
                   <div>
-                    <div className="text-[10px] font-mono uppercase tracking-widest opacity-60 mb-1">Amps @ 120V</div>
+                    <div className="text-xs font-mono uppercase tracking-widest opacity-60 mb-1">Amps @ 120V</div>
                     <div className="text-3xl font-mono">{totalAmps120.toFixed(1)}A</div>
                   </div>
                   <div>
-                    <div className="text-[10px] font-mono uppercase tracking-widest opacity-60 mb-1">Amps @ 230V</div>
+                    <div className="text-xs font-mono uppercase tracking-widest opacity-60 mb-1">Amps @ 230V</div>
                     <div className="text-3xl font-mono">{totalAmps230.toFixed(1)}A</div>
                   </div>
                </div>
@@ -461,7 +461,7 @@ const StorageCalculator = () => {
      <div className="grid grid-cols-1 lg:grid-cols-12 gap-12">
       <div className="lg:col-span-4 space-y-8">
         <div>
-          <label className="block text-[10px] font-bold uppercase tracking-widest mb-3 text-neutral-400">Camera Codec</label>
+          <label className="block text-xs font-bold uppercase tracking-widest mb-3 text-neutral-400">Camera Codec</label>
           <select
             value={formatId}
             onChange={(e) => setFormatId(e.target.value)}
@@ -485,17 +485,17 @@ const StorageCalculator = () => {
 
             <div className="grid grid-cols-2 gap-12 w-full max-w-lg">
                <div>
-                  <div className="text-[10px] font-mono uppercase tracking-widest text-neutral-400 mb-2">Total Capacity</div>
+                  <div className="text-xs font-mono uppercase tracking-widest text-neutral-400 mb-2">Total Capacity</div>
                   <div className="text-5xl font-mono font-bold text-black dark:text-white">{totalTB.toFixed(2)}<span className="text-xl ml-1">TB</span></div>
                </div>
                <div>
-                  <div className="text-[10px] font-mono uppercase tracking-widest text-neutral-400 mb-2">Data Rate</div>
+                  <div className="text-xs font-mono uppercase tracking-widest text-neutral-400 mb-2">Data Rate</div>
                   <div className="text-5xl font-mono font-bold text-black dark:text-white">{(format.dataRateMBs * (framerate/24)).toFixed(0)}<span className="text-xl ml-1">MB/s</span></div>
                </div>
             </div>
 
             <div className="mt-12 w-full max-w-md bg-white dark:bg-black p-4 border border-black/10 dark:border-white/10 text-left">
-               <div className="text-[10px] font-mono uppercase tracking-widest text-neutral-400 mb-2">Recommended Media</div>
+               <div className="text-xs font-mono uppercase tracking-widest text-neutral-400 mb-2">Recommended Media</div>
                <div className="text-sm font-bold text-black dark:text-white">
                  {totalTB > 2 ? '4TB NVMe RAID Shuttle or 8TB HDD Array' : '2TB Portable NVMe SSD'}
                </div>
@@ -518,14 +518,14 @@ const BudgetEstimator = () => {
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-12">
          <div className="lg:col-span-5 space-y-6">
             <div>
-               <label className="block text-[10px] font-bold uppercase tracking-widest mb-3 text-neutral-400">Shoot Duration (Days)</label>
+               <label className="block text-xs font-bold uppercase tracking-widest mb-3 text-neutral-400">Shoot Duration (Days)</label>
                <input
                   type="number" min="1" max="60" value={days} onChange={e => setDays(Number(e.target.value))}
                   className="w-full bg-neutral-100 dark:bg-neutral-900 border border-black/10 dark:border-white/10 p-3 text-sm"
                />
             </div>
             <div>
-               <label className="block text-[10px] font-bold uppercase tracking-widest mb-3 text-neutral-400">Camera Package</label>
+               <label className="block text-xs font-bold uppercase tracking-widest mb-3 text-neutral-400">Camera Package</label>
                <select
                   className="w-full bg-neutral-100 dark:bg-neutral-900 border border-black/10 dark:border-white/10 p-3 text-sm"
                   value={camera} onChange={e => setCamera(Number(e.target.value))}
@@ -536,7 +536,7 @@ const BudgetEstimator = () => {
                </select>
             </div>
             <div>
-               <label className="block text-[10px] font-bold uppercase tracking-widest mb-3 text-neutral-400">Lighting & Grip</label>
+               <label className="block text-xs font-bold uppercase tracking-widest mb-3 text-neutral-400">Lighting & Grip</label>
                <select
                   className="w-full bg-neutral-100 dark:bg-neutral-900 border border-black/10 dark:border-white/10 p-3 text-sm"
                   value={lighting} onChange={e => setLighting(Number(e.target.value))}
@@ -547,7 +547,7 @@ const BudgetEstimator = () => {
                </select>
             </div>
             <div>
-               <label className="block text-[10px] font-bold uppercase tracking-widest mb-3 text-neutral-400">Crew Size</label>
+               <label className="block text-xs font-bold uppercase tracking-widest mb-3 text-neutral-400">Crew Size</label>
                <select
                   className="w-full bg-neutral-100 dark:bg-neutral-900 border border-black/10 dark:border-white/10 p-3 text-sm"
                   value={crew} onChange={e => setCrew(Number(e.target.value))}
@@ -562,7 +562,7 @@ const BudgetEstimator = () => {
          <div className="lg:col-span-7 flex flex-col items-center justify-center bg-black dark:bg-white text-white dark:text-black p-10 text-center relative overflow-hidden">
              <Banknote className="absolute -bottom-10 -right-10 w-64 h-64 opacity-5 rotate-12" />
              <div className="relative z-10">
-               <div className="text-[10px] font-mono uppercase tracking-widest opacity-60 mb-4">Estimated Total</div>
+               <div className="text-xs font-mono uppercase tracking-widest opacity-60 mb-4">Estimated Total</div>
                <div className="text-5xl md:text-7xl font-display font-medium mb-8">
                   R{total.toLocaleString()}
                </div>
@@ -590,7 +590,7 @@ const LocationScout = () => {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 h-full">
          <div className="space-y-6">
             <div>
-               <label className="block text-[10px] font-bold uppercase tracking-widest mb-3 text-neutral-400">Select Location</label>
+               <label className="block text-xs font-bold uppercase tracking-widest mb-3 text-neutral-400">Select Location</label>
                <select
                   className="w-full bg-neutral-100 dark:bg-neutral-900 border border-black/10 dark:border-white/10 p-3 text-sm"
                   value={selectedLoc} onChange={e => setSelectedLoc(e.target.value)}
@@ -608,7 +608,7 @@ const LocationScout = () => {
                   <span className="text-xs font-bold uppercase tracking-widest">Permit Requirements</span>
                </div>
                <p className="text-xs text-neutral-400 mb-4">Commercial shoots in {loc.name} require a JOC permit filed 14 days in advance.</p>
-               <a href="#" className="text-[10px] font-mono font-bold underline decoration-1 underline-offset-4 hover:text-neutral-400">
+               <a href="#" className="text-xs font-mono font-bold underline decoration-1 underline-offset-4 hover:text-neutral-400">
                   Download City of Joburg Permit Forms
                </a>
             </div>
@@ -658,7 +658,7 @@ const LensComparator = () => {
   return (
     <div className="space-y-8">
        <div className="bg-neutral-100 dark:bg-neutral-900 border border-black/10 dark:border-white/10 p-6">
-          <label className="block text-[10px] font-bold uppercase tracking-widest mb-4 text-neutral-400">Select Lenses to Compare (Max 3)</label>
+          <label className="block text-xs font-bold uppercase tracking-widest mb-4 text-neutral-400">Select Lenses to Compare (Max 3)</label>
           <div className="flex flex-wrap gap-2">
              {LENSES_DB.map(lens => (
                <button
@@ -688,7 +688,7 @@ const LensComparator = () => {
                   className="bg-white dark:bg-[#0A0A0B] border border-black/10 dark:border-white/10 p-8 flex flex-col h-full"
                 >
                    <div className="mb-6 pb-6 border-b border-black/5 dark:border-white/5">
-                      <div className="text-[10px] font-mono uppercase tracking-widest text-neutral-400 mb-1">{lens.brand}</div>
+                      <div className="text-xs font-mono uppercase tracking-widest text-neutral-400 mb-1">{lens.brand}</div>
                       <h3 className="text-xl font-display font-bold text-black dark:text-white uppercase">{lens.name}</h3>
                    </div>
 
@@ -720,7 +720,7 @@ const LensComparator = () => {
                    </dl>
 
                    <div className="pt-8 mt-6 border-t border-black/5 dark:border-white/5">
-                      <Link href="/catalog" className="block text-center w-full py-3 bg-black text-white dark:bg-white dark:text-black text-[10px] font-bold uppercase tracking-widest hover:opacity-80 transition-opacity">
+                      <Link href="/catalog" className="block text-center w-full py-3 bg-black text-white dark:bg-white dark:text-black text-xs font-bold uppercase tracking-widest hover:opacity-80 transition-opacity">
                          Request Rental
                       </Link>
                    </div>
@@ -738,12 +738,12 @@ const CameraMatrix = () => {
       <table className="w-full text-left border-collapse">
         <thead>
            <tr className="bg-neutral-100 dark:bg-neutral-900 border-b border-black/10 dark:border-white/10">
-              <th className="p-4 text-[10px] font-bold uppercase tracking-widest text-neutral-400">Model</th>
-              <th className="p-4 text-[10px] font-bold uppercase tracking-widest text-neutral-400">Sensor</th>
-              <th className="p-4 text-[10px] font-bold uppercase tracking-widest text-neutral-400">Resolution</th>
-              <th className="p-4 text-[10px] font-bold uppercase tracking-widest text-neutral-400">Dyn. Range</th>
-              <th className="p-4 text-[10px] font-bold uppercase tracking-widest text-neutral-400">Mount</th>
-              <th className="p-4 text-[10px] font-bold uppercase tracking-widest text-neutral-400">Media</th>
+              <th className="p-4 text-xs font-bold uppercase tracking-widest text-neutral-400">Model</th>
+              <th className="p-4 text-xs font-bold uppercase tracking-widest text-neutral-400">Sensor</th>
+              <th className="p-4 text-xs font-bold uppercase tracking-widest text-neutral-400">Resolution</th>
+              <th className="p-4 text-xs font-bold uppercase tracking-widest text-neutral-400">Dyn. Range</th>
+              <th className="p-4 text-xs font-bold uppercase tracking-widest text-neutral-400">Mount</th>
+              <th className="p-4 text-xs font-bold uppercase tracking-widest text-neutral-400">Media</th>
            </tr>
         </thead>
         <tbody>
@@ -796,7 +796,7 @@ const MountChecker = () => {
     <div className="grid grid-cols-1 md:grid-cols-2 gap-12 items-center">
        <div className="space-y-6">
           <div>
-            <label className="block text-[10px] font-bold uppercase tracking-widest mb-3 text-neutral-400">Camera Mount</label>
+            <label className="block text-xs font-bold uppercase tracking-widest mb-3 text-neutral-400">Camera Mount</label>
             <select
               value={cameraMount}
               onChange={(e) => setCameraMount(e.target.value)}
@@ -811,7 +811,7 @@ const MountChecker = () => {
           </div>
 
           <div>
-            <label className="block text-[10px] font-bold uppercase tracking-widest mb-3 text-neutral-400">Lens Mount</label>
+            <label className="block text-xs font-bold uppercase tracking-widest mb-3 text-neutral-400">Lens Mount</label>
             <select
               value={lensMount}
               onChange={(e) => setLensMount(e.target.value)}
@@ -902,7 +902,7 @@ function ToolsInner() {
 
         {/* Header */}
         <div className="flex flex-col mb-16">
-          <div className="text-[10px] font-mono text-neutral-400 dark:text-accent uppercase tracking-widest mb-4">
+          <div className="text-xs font-mono text-neutral-400 dark:text-accent uppercase tracking-widest mb-4">
              {activeTool ? (
                 <button onClick={() => setActiveTool(null)} className="hover:text-black dark:hover:text-white flex items-center gap-1 transition-colors">
                    <ArrowLeft className="w-3 h-3" /> Back to Dashboard

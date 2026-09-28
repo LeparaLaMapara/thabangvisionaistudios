@@ -52,14 +52,14 @@ export function EmptyState({
           {action.href ? (
             <Link
               href={action.href}
-              className="inline-block text-[10px] font-mono uppercase tracking-widest text-black bg-[#D4A843] px-6 py-3 hover:opacity-80 transition-opacity"
+              className="inline-block text-xs font-mono uppercase tracking-widest text-black bg-[#D4A843] px-6 py-3 hover:opacity-80 transition-opacity"
             >
               {action.label}
             </Link>
           ) : (
             <button
               onClick={action.onClick}
-              className="text-[10px] font-mono uppercase tracking-widest text-black bg-[#D4A843] px-6 py-3 hover:opacity-80 transition-opacity"
+              className="text-xs font-mono uppercase tracking-widest text-black bg-[#D4A843] px-6 py-3 hover:opacity-80 transition-opacity"
             >
               {action.label}
             </button>

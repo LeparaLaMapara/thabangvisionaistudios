@@ -12,9 +12,9 @@ export function SuspensionBanner({ reason }: SuspensionBannerProps) {
       <div>
         <p className="text-sm font-mono font-bold">Account Suspended</p>
         {reason && (
-          <p className="text-[11px] font-mono text-red-400/80 mt-1">{reason}</p>
+          <p className="text-xs font-mono text-red-400/80 mt-1">{reason}</p>
         )}
-        <p className="text-[10px] font-mono text-red-400/60 mt-2">
+        <p className="text-xs font-mono text-red-400/60 mt-2">
           Some features are restricted while your account is suspended. Contact{' '}
           <a
             href={`mailto:${STUDIO.supportEmail}`}

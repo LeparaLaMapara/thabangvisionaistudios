@@ -35,7 +35,7 @@ export default async function DashboardLayout({
         {/* Dashboard Header */}
         <div className="border-b border-white/10 pb-6 mb-10">
           <div className="flex items-center justify-between">
-            <p className="text-[10px] font-mono uppercase tracking-[0.3em] text-[#D4A843]">
+            <p className="text-xs font-mono uppercase tracking-[0.3em] text-[#D4A843]">
               {isCreator ? 'Creator Dashboard' : 'Dashboard'}
             </p>
             <NotificationBell />

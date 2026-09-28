@@ -142,12 +142,12 @@ function WelcomeCard({
           <p className="text-white text-sm">
             {w.first_name ?? 'No name'} <span className="text-neutral-400">· {w.email}</span>
           </p>
-          <p className="text-[11px] font-mono text-neutral-400 mt-1">
+          <p className="text-xs font-mono text-neutral-400 mt-1">
             Joined {new Date(w.created_at).toLocaleString('en-ZA')} with {w.signup_method === 'google' ? 'Google' : 'email'} ·
             drafted by {w.drafted_by}
           </p>
         </div>
-        <span className={`text-[10px] font-mono uppercase tracking-widest border rounded px-2 py-1 ${STATUS_STYLE[w.status]}`}>
+        <span className={`text-xs font-mono uppercase tracking-widest border rounded px-2 py-1 ${STATUS_STYLE[w.status]}`}>
           {w.status}
           {w.sent_at ? ` ${new Date(w.sent_at).toLocaleDateString('en-ZA')}` : ''}
         </span>

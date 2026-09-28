@@ -59,7 +59,7 @@ export default function CreatorRequestsManager({ initialRequests }: Props) {
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
-            className={`text-[10px] font-mono uppercase tracking-widest px-3 py-2 border transition-all min-h-[36px] ${
+            className={`text-xs font-mono uppercase tracking-widest px-3 py-2 border transition-all min-h-[36px] ${
               activeTab === tab
                 ? 'bg-[#D4A843] text-black border-[#D4A843]'
                 : 'bg-transparent text-neutral-400 border-white/10 hover:border-white/30'
@@ -96,7 +96,7 @@ export default function CreatorRequestsManager({ initialRequests }: Props) {
                         {req.project_type}
                       </h3>
                       <StatusBadge status={req.status} />
-                      <span className="text-[9px] font-mono text-neutral-400">via {req.booked_via}</span>
+                      <span className="text-xs font-mono text-neutral-400">via {req.booked_via}</span>
                     </div>
                     <p className="text-xs font-mono text-neutral-400 mt-1">
                       {req.client_name} &mdash;{' '}
@@ -107,7 +107,7 @@ export default function CreatorRequestsManager({ initialRequests }: Props) {
                       })}
                     </p>
                   </div>
-                  <span className="text-[10px] font-mono text-neutral-400">
+                  <span className="text-xs font-mono text-neutral-400">
                     {isExpanded ? '—' : '+'}
                   </span>
                 </button>
@@ -117,7 +117,7 @@ export default function CreatorRequestsManager({ initialRequests }: Props) {
                   <div className="px-5 pb-5 border-t border-white/5 pt-4 space-y-5">
                     {/* Client info */}
                     <div>
-                      <p className="text-[10px] font-mono uppercase tracking-widest text-neutral-400 mb-2">
+                      <p className="text-xs font-mono uppercase tracking-widest text-neutral-400 mb-2">
                         Client
                       </p>
                       <div className="space-y-1 text-xs font-mono text-neutral-300">
@@ -142,7 +142,7 @@ export default function CreatorRequestsManager({ initialRequests }: Props) {
                     {/* Creator info */}
                     {creator && (
                       <div>
-                        <p className="text-[10px] font-mono uppercase tracking-widest text-neutral-400 mb-2">
+                        <p className="text-xs font-mono uppercase tracking-widest text-neutral-400 mb-2">
                           Requested Creator
                         </p>
                         <div className="space-y-1 text-xs font-mono text-neutral-300">
@@ -164,13 +164,13 @@ export default function CreatorRequestsManager({ initialRequests }: Props) {
 
                     {/* Project details */}
                     <div>
-                      <p className="text-[10px] font-mono uppercase tracking-widest text-neutral-400 mb-2">
+                      <p className="text-xs font-mono uppercase tracking-widest text-neutral-400 mb-2">
                         Project
                       </p>
                       <p className="text-xs font-mono text-neutral-300 leading-relaxed mb-2">
                         {req.description}
                       </p>
-                      <div className="flex flex-wrap gap-3 text-[10px] font-mono text-neutral-400">
+                      <div className="flex flex-wrap gap-3 text-xs font-mono text-neutral-400">
                         {req.preferred_dates && (
                           <span className="flex items-center gap-1">
                             <Calendar className="w-3 h-3" /> {req.preferred_dates}
@@ -192,7 +192,7 @@ export default function CreatorRequestsManager({ initialRequests }: Props) {
 
                     {/* Admin notes */}
                     <div>
-                      <p className="text-[10px] font-mono uppercase tracking-widest text-neutral-400 mb-2 flex items-center gap-1">
+                      <p className="text-xs font-mono uppercase tracking-widest text-neutral-400 mb-2 flex items-center gap-1">
                         <MessageSquare className="w-3 h-3" /> Admin Notes
                       </p>
                       <textarea
@@ -291,7 +291,7 @@ function StatusBadge({ status }: { status: string }) {
 
   return (
     <span
-      className={`text-[8px] font-mono uppercase tracking-widest border px-2 py-0.5 ${colors[status] || 'text-neutral-400 border-white/10'}`}
+      className={`text-xs font-mono uppercase tracking-widest border px-2 py-0.5 ${colors[status] || 'text-neutral-400 border-white/10'}`}
     >
       {label}
     </span>
@@ -319,7 +319,7 @@ function ActionButton({
     <button
       onClick={onClick}
       disabled={loading}
-      className={`text-[10px] font-mono uppercase tracking-widest border px-4 py-2 min-h-[36px] transition-colors disabled:opacity-40 ${colorClasses[color]}`}
+      className={`text-xs font-mono uppercase tracking-widest border px-4 py-2 min-h-[36px] transition-colors disabled:opacity-40 ${colorClasses[color]}`}
     >
       {loading ? 'Updating...' : label}
     </button>

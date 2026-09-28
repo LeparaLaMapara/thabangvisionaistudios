@@ -307,7 +307,7 @@ export default function AdminVerificationsPage() {
     <div className="max-w-6xl mx-auto px-3 md:px-6 py-6 md:py-12">
       {/* Header */}
       <div className="mb-8">
-        <p className="text-[9px] font-mono uppercase tracking-[0.3em] text-neutral-400 mb-2">
+        <p className="text-xs font-mono uppercase tracking-[0.3em] text-neutral-400 mb-2">
           Admin
         </p>
         <h1 className="text-2xl font-display font-medium uppercase text-white tracking-wide">
@@ -322,7 +322,7 @@ export default function AdminVerificationsPage() {
           <button
             key={tab.key}
             onClick={() => setActiveTab(tab.key)}
-            className={`flex-1 sm:flex-none px-5 py-3 text-[10px] font-mono uppercase tracking-widest transition-colors ${
+            className={`flex-1 sm:flex-none px-5 py-3 text-xs font-mono uppercase tracking-widest transition-colors ${
               activeTab === tab.key
                 ? 'bg-neutral-800 text-white'
                 : 'bg-neutral-900 text-neutral-400 hover:text-neutral-400'
@@ -331,7 +331,7 @@ export default function AdminVerificationsPage() {
             {tab.label}
             {counts[tab.key] > 0 && (
               <span
-                className={`ml-2 px-1.5 py-0.5 text-[9px] tabular-nums rounded ${
+                className={`ml-2 px-1.5 py-0.5 text-xs tabular-nums rounded ${
                   tab.key === 'pending' && counts.pending > 0
                     ? 'bg-amber-500/15 text-amber-400'
                     : 'bg-white/5 text-neutral-400'
@@ -392,7 +392,7 @@ export default function AdminVerificationsPage() {
                       />
                     ) : (
                       <div className="w-10 h-10 rounded-full bg-neutral-800 flex items-center justify-center">
-                        <span className="text-[11px] font-mono font-bold text-neutral-400">
+                        <span className="text-xs font-mono font-bold text-neutral-400">
                           {getInitials(sub.display_name)}
                         </span>
                       </div>
@@ -406,19 +406,19 @@ export default function AdminVerificationsPage() {
                         {sub.display_name || 'Unknown User'}
                       </p>
                       <span
-                        className={`inline-flex items-center gap-1 text-[9px] font-mono uppercase tracking-widest px-2 py-0.5 flex-shrink-0 ${config.color}`}
+                        className={`inline-flex items-center gap-1 text-xs font-mono uppercase tracking-widest px-2 py-0.5 flex-shrink-0 ${config.color}`}
                       >
                         {config.icon}
                         {config.label}
                       </span>
                       {highFlags.length > 0 && (
-                        <span className="inline-flex items-center gap-1 text-[9px] font-mono uppercase tracking-widest px-2 py-0.5 flex-shrink-0 text-red-400 bg-red-500/10">
+                        <span className="inline-flex items-center gap-1 text-xs font-mono uppercase tracking-widest px-2 py-0.5 flex-shrink-0 text-red-400 bg-red-500/10">
                           <AlertTriangle className="w-3 h-3" />
                           {highFlags.length} flag{highFlags.length !== 1 ? 's' : ''}
                         </span>
                       )}
                     </div>
-                    <p className="text-[10px] font-mono text-neutral-400">
+                    <p className="text-xs font-mono text-neutral-400">
                       {sub.email || 'No email'}
                       {sub.verification_submitted_at && (
                         <> / Submitted {formatDate(sub.verification_submitted_at)}</>
@@ -473,7 +473,7 @@ export default function AdminVerificationsPage() {
                                 {sub.display_name || 'Unknown User'}
                               </h3>
                               <span
-                                className={`inline-flex items-center gap-1.5 text-[9px] font-mono uppercase tracking-widest px-2.5 py-1 ${config.color}`}
+                                className={`inline-flex items-center gap-1.5 text-xs font-mono uppercase tracking-widest px-2.5 py-1 ${config.color}`}
                               >
                                 {config.icon}
                                 {config.label}
@@ -513,7 +513,7 @@ export default function AdminVerificationsPage() {
                               )}
                             </div>
 
-                            <div className="flex items-center gap-4 flex-wrap text-[10px] font-mono text-neutral-400">
+                            <div className="flex items-center gap-4 flex-wrap text-xs font-mono text-neutral-400">
                               {sub.verification_submitted_at && (
                                 <span>Submitted {formatDate(sub.verification_submitted_at)}</span>
                               )}
@@ -535,7 +535,7 @@ export default function AdminVerificationsPage() {
                             {sub.skills && sub.skills.length > 0 && (
                               <div className="flex flex-wrap gap-1.5">
                                 {sub.skills.map((skill) => (
-                                  <span key={skill} className="px-2.5 py-1 text-[9px] font-mono font-bold uppercase tracking-widest bg-white/5 text-neutral-400 border border-white/5">
+                                  <span key={skill} className="px-2.5 py-1 text-xs font-mono font-bold uppercase tracking-widest bg-white/5 text-neutral-400 border border-white/5">
                                     {skill}
                                   </span>
                                 ))}
@@ -574,7 +574,7 @@ export default function AdminVerificationsPage() {
                                   </span>
                                 </div>
                                 {sub.verification_metadata.face_match.reasoning && (
-                                  <p className="text-[10px] text-neutral-400 mt-1">
+                                  <p className="text-xs text-neutral-400 mt-1">
                                     {sub.verification_metadata.face_match.reasoning}
                                   </p>
                                 )}
@@ -603,7 +603,7 @@ export default function AdminVerificationsPage() {
                                 >
                                   <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
                                   <div>
-                                    <span className="uppercase text-[9px] tracking-widest font-bold mr-2">
+                                    <span className="uppercase text-xs tracking-widest font-bold mr-2">
                                       {flag.severity}
                                     </span>
                                     {flag.message}
@@ -630,7 +630,7 @@ export default function AdminVerificationsPage() {
                         {/* Rejection reason display */}
                         {sub.verification_status === 'rejected' && sub.verification_rejected_reason && (
                           <div className="px-4 py-3 bg-red-950 border border-red-700/40">
-                            <p className="text-[10px] font-mono uppercase tracking-widest text-red-500 mb-1">Rejection Reason</p>
+                            <p className="text-xs font-mono uppercase tracking-widest text-red-500 mb-1">Rejection Reason</p>
                             <p className="text-xs font-mono text-red-400">{sub.verification_rejected_reason}</p>
                           </div>
                         )}
@@ -679,7 +679,7 @@ export default function AdminVerificationsPage() {
                               <button
                                 onClick={(e) => { e.stopPropagation(); handleAction(sub.id, 'approve'); }}
                                 disabled={actionLoading}
-                                className="flex items-center gap-2 px-6 py-2.5 bg-emerald-600 text-white text-[10px] font-mono font-bold uppercase tracking-widest hover:bg-emerald-500 transition-colors disabled:opacity-50"
+                                className="flex items-center gap-2 px-6 py-2.5 bg-emerald-600 text-white text-xs font-mono font-bold uppercase tracking-widest hover:bg-emerald-500 transition-colors disabled:opacity-50"
                               >
                                 {actionLoading && showRejectInput !== sub.id && (
                                   <Loader2 className="w-3 h-3 animate-spin" />
@@ -692,7 +692,7 @@ export default function AdminVerificationsPage() {
                                 <button
                                   onClick={(e) => { e.stopPropagation(); handleAction(sub.id, 'reject'); }}
                                   disabled={actionLoading}
-                                  className="flex items-center gap-2 px-6 py-2.5 bg-red-600 text-white text-[10px] font-mono font-bold uppercase tracking-widest hover:bg-red-500 transition-colors disabled:opacity-50"
+                                  className="flex items-center gap-2 px-6 py-2.5 bg-red-600 text-white text-xs font-mono font-bold uppercase tracking-widest hover:bg-red-500 transition-colors disabled:opacity-50"
                                 >
                                   {actionLoading && showRejectInput === sub.id && (
                                     <Loader2 className="w-3 h-3 animate-spin" />
@@ -715,7 +715,7 @@ export default function AdminVerificationsPage() {
 
                             {/* Request metadata */}
                             {(sub.verification_ip || sub.verification_user_agent) && (
-                              <div className="text-[9px] font-mono text-neutral-400 space-y-0.5 pt-2">
+                              <div className="text-xs font-mono text-neutral-400 space-y-0.5 pt-2">
                                 {sub.verification_ip && <p>IP: {sub.verification_ip}</p>}
                                 {sub.verification_user_agent && (
                                   <p className="truncate max-w-lg">UA: {sub.verification_user_agent}</p>
@@ -744,11 +744,11 @@ function MetadataCard({ label, metadata }: { label: string; metadata: PhotoMetad
 
   return (
     <div className="border border-white/5 p-3 space-y-2">
-      <p className="text-[10px] font-mono uppercase tracking-widest text-neutral-400">{label}</p>
+      <p className="text-xs font-mono uppercase tracking-widest text-neutral-400">{label}</p>
       {!hasData ? (
-        <p className="text-[10px] font-mono text-neutral-400">No EXIF data available</p>
+        <p className="text-xs font-mono text-neutral-400">No EXIF data available</p>
       ) : (
-        <div className="space-y-1.5 text-[10px] font-mono">
+        <div className="space-y-1.5 text-xs font-mono">
           {metadata.dateTaken && (
             <div className="flex items-center gap-1.5 text-neutral-400">
               <Calendar className="w-3 h-3 text-neutral-400" />
@@ -816,8 +816,8 @@ function ConsistencyChecks({ metadata }: { metadata: { id_front: PhotoMetadata; 
 
   return (
     <div className="border border-white/5 p-3">
-      <p className="text-[9px] font-mono uppercase tracking-widest text-neutral-400 mb-2">Consistency</p>
-      <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 text-[10px] font-mono">
+      <p className="text-xs font-mono uppercase tracking-widest text-neutral-400 mb-2">Consistency</p>
+      <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 text-xs font-mono">
         <ConsistencyItem label="Same device" value={sameDevice} />
         <ConsistencyItem label="Same location" value={sameLocation} />
         <ConsistencyItem label={`Same time${timeDiffMinutes !== null ? ` (${Math.round(timeDiffMinutes)}m)` : ''}`} value={timeDiffMinutes !== null ? timeDiffMinutes < 5 : null} />
@@ -849,7 +849,7 @@ function ConsistencyItem({ label, value }: { label: string; value: boolean | nul
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
   return (
-    <p className="text-[9px] font-mono uppercase tracking-[0.25em] text-neutral-400">
+    <p className="text-xs font-mono uppercase tracking-[0.25em] text-neutral-400">
       {children}
     </p>
   );
@@ -868,8 +868,8 @@ function DocumentCard({
     return (
       <div className="border border-white/5 p-4 flex flex-col items-center justify-center gap-2 min-h-[140px]">
         <ImageIcon className="w-5 h-5 text-neutral-400" />
-        <p className="text-[10px] font-mono uppercase tracking-widest text-neutral-400">{label}</p>
-        <p className="text-[9px] font-mono text-neutral-800">Not submitted</p>
+        <p className="text-xs font-mono uppercase tracking-widest text-neutral-400">{label}</p>
+        <p className="text-xs font-mono text-neutral-800">Not submitted</p>
       </div>
     );
   }
@@ -878,15 +878,15 @@ function DocumentCard({
     return (
       <div className="border border-white/5 p-4 flex flex-col items-center justify-center gap-2 min-h-[140px]">
         <ImageIcon className="w-5 h-5 text-neutral-400" />
-        <p className="text-[10px] font-mono uppercase tracking-widest text-neutral-400">{label}</p>
-        <p className="text-[9px] font-mono text-neutral-400">URL unavailable</p>
+        <p className="text-xs font-mono uppercase tracking-widest text-neutral-400">{label}</p>
+        <p className="text-xs font-mono text-neutral-400">URL unavailable</p>
       </div>
     );
   }
 
   return (
     <div className="border border-white/10 overflow-hidden">
-      <p className="text-[10px] font-mono uppercase tracking-widest text-neutral-400 px-3 py-2 border-b border-white/5">
+      <p className="text-xs font-mono uppercase tracking-widest text-neutral-400 px-3 py-2 border-b border-white/5">
         {label}
       </p>
       <a href={url} target="_blank" rel="noopener noreferrer" className="block group">
@@ -896,7 +896,7 @@ function DocumentCard({
           alt={label}
           className="w-full h-36 object-cover bg-neutral-950 group-hover:opacity-80 transition-opacity"
         />
-        <div className="flex items-center justify-center gap-1 py-2 text-[9px] font-mono text-neutral-400 group-hover:text-white transition-colors">
+        <div className="flex items-center justify-center gap-1 py-2 text-xs font-mono text-neutral-400 group-hover:text-white transition-colors">
           <ExternalLink className="w-2.5 h-2.5" />
           Open full size
         </div>

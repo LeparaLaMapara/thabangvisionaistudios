@@ -98,7 +98,7 @@ export function DateRangePicker({
   return (
     <div className={['relative w-full', className].filter(Boolean).join(' ')}>
       {label && (
-        <span className="block text-[10px] font-mono uppercase tracking-widest text-neutral-400 mb-2">
+        <span className="block text-xs font-mono uppercase tracking-widest text-neutral-400 mb-2">
           {label}
         </span>
       )}
@@ -130,7 +130,7 @@ export function DateRangePicker({
       </button>
 
       {error && (
-        <p className="mt-1.5 text-[10px] font-mono text-red-500">{error}</p>
+        <p className="mt-1.5 text-xs font-mono text-red-500">{error}</p>
       )}
 
       {/* Dropdown calendar */}
@@ -160,7 +160,7 @@ export function DateRangePicker({
               >
                 <ChevronLeft className="w-4 h-4" />
               </button>
-              <span className="text-[10px] font-mono uppercase tracking-widest text-black dark:text-white">
+              <span className="text-xs font-mono uppercase tracking-widest text-black dark:text-white">
                 {monthLabel}
               </span>
               <button
@@ -178,7 +178,7 @@ export function DateRangePicker({
               {DAYS.map((d) => (
                 <div
                   key={d}
-                  className="text-center text-[9px] font-mono uppercase tracking-widest text-neutral-400 py-1"
+                  className="text-center text-xs font-mono uppercase tracking-widest text-neutral-400 py-1"
                 >
                   {d}
                 </div>
@@ -204,7 +204,7 @@ export function DateRangePicker({
                     disabled={disabled}
                     onClick={() => handleDayClick(day)}
                     className={[
-                      'h-8 text-[11px] font-mono transition-colors duration-100',
+                      'h-8 text-xs font-mono transition-colors duration-100',
                       'disabled:opacity-30 disabled:cursor-not-allowed',
                       !isCurrentMonth && 'opacity-30',
                       selected

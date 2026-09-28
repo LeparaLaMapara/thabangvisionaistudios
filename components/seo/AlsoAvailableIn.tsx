@@ -26,7 +26,7 @@ export function AlsoAvailableIn({ basePath, currentCitySlug, className = '', cit
           {!currentCitySlug && (
             <Link
               href={`${basePath}/in/${COUNTRY_SLUG}`}
-              className="px-4 py-2 text-[11px] font-mono uppercase tracking-wider border border-white/10 text-neutral-400 hover:text-white hover:border-white/30 transition-colors"
+              className="px-4 py-2 text-xs font-mono uppercase tracking-wider border border-white/10 text-neutral-400 hover:text-white hover:border-white/30 transition-colors"
             >
               All South Africa
             </Link>
@@ -35,7 +35,7 @@ export function AlsoAvailableIn({ basePath, currentCitySlug, className = '', cit
             <Link
               key={city.slug}
               href={`${basePath}/in/${city.slug}`}
-              className="px-4 py-2 text-[11px] font-mono uppercase tracking-wider border border-white/10 text-neutral-400 hover:text-white hover:border-white/30 transition-colors"
+              className="px-4 py-2 text-xs font-mono uppercase tracking-wider border border-white/10 text-neutral-400 hover:text-white hover:border-white/30 transition-colors"
             >
               {city.name}
             </Link>
