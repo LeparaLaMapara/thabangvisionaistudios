@@ -25,16 +25,27 @@ const Hero = () => {
   const { hero } = STUDIO;
   const useVideo = hero.type === 'video' && !!hero.videoSrc;
   const posterSrc = hero.poster || hero.imageSrc;
-  const [showVideo, setShowVideo] = useState(false);
+  // The video plays on every screen, phones included, but it starts only once
+  // the page has loaded, so the headline and picture are never kept waiting.
+  // Phones get the 720px version. Only people who asked their phone to save
+  // data or reduce motion keep the still picture.
+  const [videoSrc, setVideoSrc] = useState<string | null>(null);
+  const [videoPlaying, setVideoPlaying] = useState(false);
   useEffect(() => {
-    const wide = window.matchMedia('(min-width: 768px)').matches;
+    if (!useVideo) return;
     const calm = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     const saveData = (navigator as Navigator & { connection?: { saveData?: boolean } }).connection?.saveData === true;
-    if (wide && !calm && !saveData) {
-      const id = window.setTimeout(() => setShowVideo(true), 0);
+    if (calm || saveData) return;
+    const phone = window.matchMedia('(max-width: 767px)').matches;
+    const src = phone && hero.mobileVideoSrc ? hero.mobileVideoSrc : hero.videoSrc;
+    const start = () => setVideoSrc(src);
+    if (document.readyState === 'complete') {
+      const id = window.setTimeout(start, 0);
       return () => window.clearTimeout(id);
     }
-  }, []);
+    window.addEventListener('load', start, { once: true });
+    return () => window.removeEventListener('load', start);
+  }, [useVideo, hero.mobileVideoSrc, hero.videoSrc]);
   const filterClass = hero.colorMode === 'bw' ? 'grayscale contrast-125' : 'contrast-110 saturate-[0.85]';
 
   return (
@@ -42,10 +53,8 @@ const Hero = () => {
       <motion.div style={{ y: y1 }} className="absolute inset-0 z-0">
         <div className="absolute inset-0 bg-gradient-to-t from-[#050505] via-transparent to-[#050505]/50 z-10" />
 
-        {/* A right-sized picture first, shown at once (it is what people see
-            first on a phone). The video is added only on larger screens, and
-            never when the phone asks for less data or less motion: it was a
-            1 MB download for everyone, plus a hidden 604 KB picture. */}
+        {/* A right-sized picture first, shown at once; the video fades in over
+            it after the page has loaded (see the effect above). */}
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src={cld(posterSrc, 'w_900,q_auto,f_auto')}
@@ -55,16 +64,17 @@ const Hero = () => {
           fetchPriority="high"
           className={`absolute inset-0 w-full h-full object-cover opacity-40 ${filterClass}`}
         />
-        {useVideo && showVideo && (
+        {videoSrc && (
           <video
+            src={videoSrc}
             autoPlay
             loop
             muted
             playsInline
-            className={`absolute inset-0 w-full h-full object-cover opacity-40 ${filterClass}`}
-          >
-            <source src={hero.videoSrc} type="video/mp4" />
-          </video>
+            aria-hidden="true"
+            onPlaying={() => setVideoPlaying(true)}
+            className={`absolute inset-0 w-full h-full object-cover ${filterClass} transition-opacity duration-1000 ${videoPlaying ? 'opacity-40' : 'opacity-0'}`}
+          />
         )}
       </motion.div>
 
