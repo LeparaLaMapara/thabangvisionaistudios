@@ -59,11 +59,11 @@ function FilterSection({
         onClick={() => setOpen(o => !o)}
         className="flex w-full justify-between items-center group"
       >
-        <span className="text-xs font-bold uppercase tracking-widest text-black dark:text-white group-hover:text-neutral-600 dark:group-hover:text-neutral-400 transition-colors">
+        <span className="text-xs font-bold uppercase tracking-widest text-black dark:text-white group-hover:text-neutral-400 dark:group-hover:text-neutral-400 transition-colors">
           {title}
         </span>
         <ChevronDown
-          className={`w-4 h-4 text-neutral-500 transition-transform duration-300 ${open ? 'rotate-180' : ''}`}
+          className={`w-4 h-4 text-neutral-400 transition-transform duration-300 ${open ? 'rotate-180' : ''}`}
         />
       </button>
       <AnimatePresence initial={false}>
@@ -164,7 +164,7 @@ function RentalCard({ rental, category }: { rental: SmartRental; category: strin
           </>
         ) : (
           <div className="w-full h-full flex items-center justify-center">
-            <span className="text-[10px] font-mono text-neutral-500 uppercase tracking-widest">
+            <span className="text-[10px] font-mono text-neutral-400 uppercase tracking-widest">
               No image
             </span>
           </div>
@@ -175,11 +175,11 @@ function RentalCard({ rental, category }: { rental: SmartRental; category: strin
       <div className="p-5 flex-grow flex flex-col justify-between">
         <div>
           {rental.brand ? (
-            <div className="text-[10px] font-mono uppercase tracking-widest text-neutral-500 mb-1">
+            <div className="text-[10px] font-mono uppercase tracking-widest text-neutral-400 mb-1">
               {rental.brand}
             </div>
           ) : (rental as Record<string, unknown>).owner_type === 'community' && rental.metadata?.location ? (
-            <div className="text-[10px] font-mono uppercase tracking-widest text-neutral-500 mb-1">
+            <div className="text-[10px] font-mono uppercase tracking-widest text-neutral-400 mb-1">
               {rental.metadata.location}
             </div>
           ) : null}
@@ -187,7 +187,7 @@ function RentalCard({ rental, category }: { rental: SmartRental; category: strin
             {rental.title}
           </h3>
           {rental.model && (
-            <p className="text-[10px] font-mono text-neutral-500 mb-3 -mt-2">{rental.model}</p>
+            <p className="text-[10px] font-mono text-neutral-400 mb-3 -mt-2">{rental.model}</p>
           )}
           {(rental as Record<string, unknown>).owner_type === 'community' && (rental.metadata as Record<string, string> | null)?.display_name && (
             <p className="text-[10px] font-mono text-violet-400 mb-2 -mt-1">
@@ -200,7 +200,7 @@ function RentalCard({ rental, category }: { rental: SmartRental; category: strin
               {specs.map((spec, i) => (
                 <span
                   key={i}
-                  className="text-[9px] font-mono text-neutral-600 dark:text-neutral-400 border border-black/10 dark:border-white/10 px-1.5 py-0.5 bg-neutral-50 dark:bg-white/5 uppercase"
+                  className="text-[9px] font-mono text-neutral-400 dark:text-neutral-400 border border-black/10 dark:border-white/10 px-1.5 py-0.5 bg-neutral-50 dark:bg-white/5 uppercase"
                 >
                   {spec}
                 </span>
@@ -215,10 +215,10 @@ function RentalCard({ rental, category }: { rental: SmartRental; category: strin
               <span className="text-sm font-bold text-black dark:text-white">
                 {rental.currency} {rental.price_per_day.toLocaleString()}
               </span>
-              <span className="text-[10px] text-neutral-500 mb-0.5">/ day</span>
+              <span className="text-[10px] text-neutral-400 mb-0.5">/ day</span>
             </div>
           ) : (
-            <p className="text-[10px] font-mono text-neutral-500 mb-4 uppercase tracking-widest">
+            <p className="text-[10px] font-mono text-neutral-400 mb-4 uppercase tracking-widest">
               Contact for pricing
             </p>
           )}
@@ -358,7 +358,7 @@ export default function RentalCategoryClient({
                   )
                 }
               />
-              <span className="text-xs font-mono text-neutral-600 dark:text-neutral-400 group-hover:text-black dark:group-hover:text-white uppercase">
+              <span className="text-xs font-mono text-neutral-400 dark:text-neutral-400 group-hover:text-black dark:group-hover:text-white uppercase">
                 {brand}
               </span>
             </label>
@@ -391,7 +391,7 @@ export default function RentalCategoryClient({
                   )
                 }
               />
-              <span className="text-xs font-mono text-neutral-600 dark:text-neutral-400 group-hover:text-black dark:group-hover:text-white uppercase">
+              <span className="text-xs font-mono text-neutral-400 dark:text-neutral-400 group-hover:text-black dark:group-hover:text-white uppercase">
                 {type}
               </span>
             </label>
@@ -411,7 +411,7 @@ export default function RentalCategoryClient({
               onChange={e => setMaxPrice(Number(e.target.value))}
               className="w-full h-1 bg-neutral-200 dark:bg-neutral-800 appearance-none cursor-pointer accent-[#D4A843] rounded-lg"
             />
-            <div className="flex justify-between mt-4 font-mono text-xs text-neutral-500">
+            <div className="flex justify-between mt-4 font-mono text-xs text-neutral-400">
               <span>0</span>
               <span className="text-[#D4A843] font-bold">
                 Max: {rentals[0]?.currency ?? 'ZAR'} {maxPrice.toLocaleString()}
@@ -423,7 +423,7 @@ export default function RentalCategoryClient({
 
       <FilterSection title="Availability">
         <label className="flex items-center justify-between cursor-pointer group">
-          <span className="text-xs font-mono text-neutral-600 dark:text-neutral-400 group-hover:text-black dark:group-hover:text-white uppercase">
+          <span className="text-xs font-mono text-neutral-400 dark:text-neutral-400 group-hover:text-black dark:group-hover:text-white uppercase">
             Available Only
           </span>
           <div
@@ -468,7 +468,7 @@ export default function RentalCategoryClient({
                 checked={sourceFilter === opt}
                 onChange={() => setSourceFilter(opt)}
               />
-              <span className="text-xs font-mono text-neutral-600 dark:text-neutral-400 group-hover:text-black dark:group-hover:text-white uppercase">
+              <span className="text-xs font-mono text-neutral-400 dark:text-neutral-400 group-hover:text-black dark:group-hover:text-white uppercase">
                 {opt === 'all' ? 'All Gear' : opt === 'studio' ? 'Studio Gear' : 'Community Gear'}
               </span>
             </label>
@@ -493,7 +493,7 @@ export default function RentalCategoryClient({
       {/* ── Breadcrumbs + header ── */}
       <div className="bg-neutral-50 dark:bg-[#080808] border-b border-black/5 dark:border-white/5 py-12">
         <div className="container mx-auto px-6">
-          <div className="flex items-center gap-2 text-[10px] font-mono uppercase tracking-widest text-neutral-500 mb-6">
+          <div className="flex items-center gap-2 text-[10px] font-mono uppercase tracking-widest text-neutral-400 mb-6">
             <Link href="/" className="hover:text-black dark:hover:text-white">Home</Link>
             <span>/</span>
             <Link href="/rentals" className="hover:text-black dark:hover:text-white">Rentals</Link>
@@ -522,7 +522,7 @@ export default function RentalCategoryClient({
           >
             <SlidersHorizontal className="w-3 h-3" /> Filters
           </button>
-          <span className="text-xs font-mono text-neutral-500">{filtered.length} results</span>
+          <span className="text-xs font-mono text-neutral-400">{filtered.length} results</span>
         </div>
 
         <div className="flex gap-12">
@@ -542,15 +542,15 @@ export default function RentalCategoryClient({
 
             {/* Sort controls */}
             <div className="hidden lg:flex justify-between items-center mb-8 pb-4 border-b border-black/5 dark:border-white/5">
-              <span className="text-xs font-mono text-neutral-500 uppercase tracking-widest">
+              <span className="text-xs font-mono text-neutral-400 uppercase tracking-widest">
                 {filtered.length} product{filtered.length !== 1 ? 's' : ''} found
               </span>
               <div className="flex items-center gap-4">
-                <span className="text-xs font-mono text-neutral-500 uppercase tracking-widest">Sort:</span>
+                <span className="text-xs font-mono text-neutral-400 uppercase tracking-widest">Sort:</span>
                 <select
                   value={sortBy}
                   onChange={e => setSortBy(e.target.value as SortKey)}
-                  className="bg-transparent text-xs font-bold uppercase tracking-widest border-none outline-none cursor-pointer hover:text-neutral-600 dark:hover:text-neutral-400"
+                  className="bg-transparent text-xs font-bold uppercase tracking-widest border-none outline-none cursor-pointer hover:text-neutral-400 dark:hover:text-neutral-400"
                 >
                   <option value="recommended">Recommended</option>
                   <option value="newest">Newest</option>
@@ -564,7 +564,7 @@ export default function RentalCategoryClient({
             {rentals.length === 0 ? (
               /* Category exists in URL but no rentals published yet */
               <div className="py-32 text-center border border-dashed border-black/10 dark:border-white/10">
-                <p className="text-neutral-500 font-mono text-sm uppercase tracking-widest">
+                <p className="text-neutral-400 font-mono text-sm uppercase tracking-widest">
                   No equipment published in this category yet.
                 </p>
                 <Link
@@ -577,7 +577,7 @@ export default function RentalCategoryClient({
             ) : filtered.length === 0 ? (
               /* Filters produced no results */
               <div className="py-20 text-center border border-dashed border-black/10 dark:border-white/10">
-                <p className="text-neutral-500 font-mono text-sm uppercase tracking-widest">
+                <p className="text-neutral-400 font-mono text-sm uppercase tracking-widest">
                   No equipment matches your criteria.
                 </p>
                 <button

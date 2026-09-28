@@ -120,7 +120,7 @@ export default function ProductionCreatorDetailView({
       {/* ── Breadcrumb ── */}
       <div className="bg-[#080808] border-b border-white/5 py-6">
         <div className="container mx-auto px-6">
-          <div className="flex flex-wrap items-center gap-2 text-[10px] font-mono uppercase tracking-widest text-neutral-500">
+          <div className="flex flex-wrap items-center gap-2 text-[10px] font-mono uppercase tracking-widest text-neutral-400">
             <Link href="/" className="hover:text-white transition-colors">Home</Link>
             <ChevronRight className="w-3 h-3 flex-shrink-0" />
             <Link href="/studio" className="hover:text-white transition-colors">
@@ -240,7 +240,7 @@ export default function ProductionCreatorDetailView({
                 />
               ) : (
                 <div className="w-full h-full flex items-center justify-center">
-                  <span className="text-[10px] font-mono text-neutral-500 uppercase tracking-widest">
+                  <span className="text-[10px] font-mono text-neutral-400 uppercase tracking-widest">
                     No portfolio yet
                   </span>
                 </div>
@@ -328,12 +328,12 @@ export default function ProductionCreatorDetailView({
                           />
                         ) : (
                           <div className="w-full h-full flex items-center justify-center">
-                            <span className="text-[10px] font-mono text-neutral-500 uppercase">No image</span>
+                            <span className="text-[10px] font-mono text-neutral-400 uppercase">No image</span>
                           </div>
                         )}
                       </div>
                       <div className="p-4">
-                        <p className="text-[10px] font-mono text-neutral-500 uppercase tracking-widest mb-1">
+                        <p className="text-[10px] font-mono text-neutral-400 uppercase tracking-widest mb-1">
                           {prod.project_type}
                         </p>
                         <h3 className="text-sm font-bold text-white uppercase group-hover:text-[#D4A843] transition-colors truncate">
@@ -359,7 +359,7 @@ export default function ProductionCreatorDetailView({
                         <h3 className="text-sm font-bold text-white uppercase">
                           {project.title}
                         </h3>
-                        <span className="text-[9px] font-mono text-neutral-500 border border-white/10 px-2 py-0.5 uppercase">
+                        <span className="text-[9px] font-mono text-neutral-400 border border-white/10 px-2 py-0.5 uppercase">
                           {project.project_type}
                         </span>
                       </div>
@@ -429,7 +429,7 @@ export default function ProductionCreatorDetailView({
                           <Star
                             key={i}
                             className={`w-4 h-4 ${
-                              i < review.rating ? 'text-[#D4A843] fill-[#D4A843]' : 'text-neutral-700'
+                              i < review.rating ? 'text-[#D4A843] fill-[#D4A843]' : 'text-neutral-400'
                             }`}
                           />
                         ))}
@@ -439,7 +439,7 @@ export default function ProductionCreatorDetailView({
                           {review.comment}
                         </p>
                       )}
-                      <p className="text-[10px] font-mono text-neutral-500 uppercase tracking-widest">
+                      <p className="text-[10px] font-mono text-neutral-400 uppercase tracking-widest">
                         {new Date(review.created_at).toLocaleDateString('en-ZA', {
                           year: 'numeric',
                           month: 'short',
@@ -458,7 +458,7 @@ export default function ProductionCreatorDetailView({
             {/* When no hero image, show title here */}
             {!heroImage && (
               <>
-                <p className="text-[10px] font-mono uppercase tracking-widest text-neutral-500 mb-3">
+                <p className="text-[10px] font-mono uppercase tracking-widest text-neutral-400 mb-3">
                   {category.name} / Community
                 </p>
                 <h1 className="text-3xl md:text-4xl font-display font-medium uppercase tracking-tight leading-tight text-white mb-6">
@@ -475,7 +475,7 @@ export default function ProductionCreatorDetailView({
                     <Star
                       key={i}
                       className={`w-3.5 h-3.5 ${
-                        i < Math.round(avgRating) ? 'text-[#D4A843] fill-[#D4A843]' : 'text-neutral-700'
+                        i < Math.round(avgRating) ? 'text-[#D4A843] fill-[#D4A843]' : 'text-neutral-400'
                       }`}
                     />
                   ))}
@@ -490,7 +490,7 @@ export default function ProductionCreatorDetailView({
             {crew.hourly_rate != null ? (
               <div className="border border-white/10 p-5 mb-6 space-y-3 bg-[#0A0A0B]">
                 <div className="flex items-end justify-between">
-                  <span className="text-[10px] font-mono uppercase tracking-widest text-neutral-500">
+                  <span className="text-[10px] font-mono uppercase tracking-widest text-neutral-400">
                     Hourly Rate
                   </span>
                   <span className="text-2xl font-bold text-[#D4A843]">
@@ -498,7 +498,7 @@ export default function ProductionCreatorDetailView({
                   </span>
                 </div>
                 <div className="flex items-end justify-between border-t border-white/5 pt-3">
-                  <span className="text-[10px] font-mono uppercase tracking-widest text-neutral-500">
+                  <span className="text-[10px] font-mono uppercase tracking-widest text-neutral-400">
                     Min. Booking
                   </span>
                   <span className="text-sm font-mono text-neutral-400">
@@ -507,7 +507,7 @@ export default function ProductionCreatorDetailView({
                 </div>
               </div>
             ) : (
-              <p className="text-[10px] font-mono uppercase tracking-widest text-neutral-500 mb-6 border border-dashed border-white/10 p-4">
+              <p className="text-[10px] font-mono uppercase tracking-widest text-neutral-400 mb-6 border border-dashed border-white/10 p-4">
                 Contact for rates
               </p>
             )}
@@ -516,20 +516,20 @@ export default function ProductionCreatorDetailView({
             <div className="space-y-4 mb-8">
               {crew.location && (
                 <div className="flex items-center gap-3">
-                  <MapPin className="w-4 h-4 text-neutral-500 flex-shrink-0" />
+                  <MapPin className="w-4 h-4 text-neutral-400 flex-shrink-0" />
                   <span className="text-sm text-neutral-300">{crew.location}</span>
                 </div>
               )}
               {crew.years_experience != null && (
                 <div className="flex items-center gap-3">
-                  <Clock className="w-4 h-4 text-neutral-500 flex-shrink-0" />
+                  <Clock className="w-4 h-4 text-neutral-400 flex-shrink-0" />
                   <span className="text-sm text-neutral-300">
                     {crew.years_experience} year{crew.years_experience !== 1 ? 's' : ''} experience
                   </span>
                 </div>
               )}
               <div className="flex items-center gap-3">
-                <Briefcase className="w-4 h-4 text-neutral-500 flex-shrink-0" />
+                <Briefcase className="w-4 h-4 text-neutral-400 flex-shrink-0" />
                 <span className="text-sm text-neutral-300">
                   {portfolio.length} production{portfolio.length !== 1 ? 's' : ''} completed
                 </span>
@@ -538,7 +538,7 @@ export default function ProductionCreatorDetailView({
 
             {/* Specializations */}
             <div className="mb-8">
-              <h3 className="text-[10px] font-mono font-bold uppercase tracking-widest text-neutral-500 mb-4 border-b border-white/5 pb-3">
+              <h3 className="text-[10px] font-mono font-bold uppercase tracking-widest text-neutral-400 mb-4 border-b border-white/5 pb-3">
                 Specializations
               </h3>
               <div className="flex flex-wrap gap-1.5">
@@ -556,14 +556,14 @@ export default function ProductionCreatorDetailView({
             {/* Skills */}
             {crew.skills && crew.skills.length > 0 && (
               <div className="mb-8">
-                <h3 className="text-[10px] font-mono font-bold uppercase tracking-widest text-neutral-500 mb-4 border-b border-white/5 pb-3">
+                <h3 className="text-[10px] font-mono font-bold uppercase tracking-widest text-neutral-400 mb-4 border-b border-white/5 pb-3">
                   Skills
                 </h3>
                 <div className="flex flex-wrap gap-1.5">
                   {crew.skills.map((skill) => (
                     <span
                       key={skill}
-                      className="text-[9px] font-mono uppercase tracking-widest text-neutral-500 border border-white/5 px-2 py-1"
+                      className="text-[9px] font-mono uppercase tracking-widest text-neutral-400 border border-white/5 px-2 py-1"
                     >
                       {skill}
                     </span>
@@ -574,7 +574,7 @@ export default function ProductionCreatorDetailView({
 
             {/* Book CTA */}
             <div className="border border-white/10 p-5 bg-[#0A0A0B] mb-6">
-              <h3 className="text-[10px] font-mono font-bold uppercase tracking-widest text-neutral-500 mb-4 border-b border-white/5 pb-3">
+              <h3 className="text-[10px] font-mono font-bold uppercase tracking-widest text-neutral-400 mb-4 border-b border-white/5 pb-3">
                 Book This Creator
               </h3>
               <p className="text-xs text-neutral-400 mb-4 leading-relaxed">
@@ -589,7 +589,7 @@ export default function ProductionCreatorDetailView({
             </div>
 
             {/* Info */}
-            <div className="flex items-start gap-2 text-[9px] font-mono text-neutral-600">
+            <div className="flex items-start gap-2 text-[9px] font-mono text-neutral-400">
               <Info className="w-3 h-3 mt-0.5 flex-shrink-0" />
               <span>
                 Minimum booking is 4 hours. Community creators set their own rates.
@@ -603,7 +603,7 @@ export default function ProductionCreatorDetailView({
         <div className="mt-16 pt-8 border-t border-white/5">
           <Link
             href={`/studio/category/${category.slug}`}
-            className="inline-flex items-center gap-2 text-[10px] font-mono font-bold uppercase tracking-widest text-neutral-500 hover:text-[#D4A843] transition-colors"
+            className="inline-flex items-center gap-2 text-[10px] font-mono font-bold uppercase tracking-widest text-neutral-400 hover:text-[#D4A843] transition-colors"
           >
             <ArrowLeft className="w-3 h-3" />
             Back to {category.name}

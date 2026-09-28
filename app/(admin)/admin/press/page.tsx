@@ -354,7 +354,7 @@ export default function AdminPressPage() {
       {/* Header */}
       <div className="flex items-center justify-between mb-10">
         <div>
-          <p className="text-[10px] font-mono uppercase tracking-widest text-neutral-600 mb-1">
+          <p className="text-[10px] font-mono uppercase tracking-widest text-neutral-400 mb-1">
             Admin
           </p>
           <h1 className="text-2xl font-display font-medium uppercase text-white">
@@ -425,7 +425,7 @@ export default function AdminPressPage() {
 
           {/* Cover image upload */}
           <div className="mb-6">
-            <p className="text-[10px] font-mono uppercase tracking-widest text-neutral-500 mb-3">
+            <p className="text-[10px] font-mono uppercase tracking-widest text-neutral-400 mb-3">
               Cover Image
             </p>
             {form.cover_url ? (
@@ -482,8 +482,8 @@ export default function AdminPressPage() {
                 }`}
               >
                 <input {...getInputProps()} />
-                <ImagePlus className="w-5 h-5 mx-auto mb-2 text-neutral-600" />
-                <p className="text-[10px] font-mono text-neutral-600 uppercase tracking-widest">
+                <ImagePlus className="w-5 h-5 mx-auto mb-2 text-neutral-400" />
+                <p className="text-[10px] font-mono text-neutral-400 uppercase tracking-widest">
                   Drop image here or click to browse
                 </p>
               </div>
@@ -524,7 +524,7 @@ export default function AdminPressPage() {
             />
           </div>
           <div className="mb-4">
-            <label className="block text-[10px] font-mono uppercase tracking-widest text-neutral-500 mb-2">
+            <label className="block text-[10px] font-mono uppercase tracking-widest text-neutral-400 mb-2">
               Excerpt
             </label>
             <textarea
@@ -535,7 +535,7 @@ export default function AdminPressPage() {
             />
           </div>
           <div className="mb-4">
-            <label className="block text-[10px] font-mono uppercase tracking-widest text-neutral-500 mb-2">
+            <label className="block text-[10px] font-mono uppercase tracking-widest text-neutral-400 mb-2">
               Content
             </label>
             <textarea
@@ -586,12 +586,12 @@ export default function AdminPressPage() {
 
       {/* List */}
       {loading ? (
-        <div className="flex items-center justify-center py-20 gap-2 text-neutral-600 font-mono text-sm">
+        <div className="flex items-center justify-center py-20 gap-2 text-neutral-400 font-mono text-sm">
           <Loader2 className="w-4 h-4 animate-spin" />
           Loading…
         </div>
       ) : items.length === 0 ? (
-        <p className="text-neutral-600 font-mono text-sm text-center py-20">
+        <p className="text-neutral-400 font-mono text-sm text-center py-20">
           No articles yet. Create one above.
         </p>
       ) : (
@@ -622,7 +622,7 @@ export default function AdminPressPage() {
                       <Star className="w-3 h-3 text-yellow-500 flex-shrink-0" />
                     )}
                   </div>
-                  <p className="text-[10px] font-mono text-neutral-600 pl-[18px]">
+                  <p className="text-[10px] font-mono text-neutral-400 pl-[18px]">
                     /{item.slug}
                     {item.published_at ? ` · ${item.published_at}` : ''}
                     {item.author ? ` · ${item.author}` : ''}
@@ -678,7 +678,7 @@ function Field({
 }) {
   return (
     <div>
-      <label className="block text-[10px] font-mono uppercase tracking-widest text-neutral-500 mb-2">
+      <label className="block text-[10px] font-mono uppercase tracking-widest text-neutral-400 mb-2">
         {label}
       </label>
       <input
@@ -709,7 +709,7 @@ function ActionBtn({
       className={`p-2 border transition-colors ${
         danger
           ? 'border-red-900/40 text-red-600 hover:border-red-500/40 hover:text-red-400'
-          : 'border-white/10 text-neutral-500 hover:border-white/30 hover:text-white'
+          : 'border-white/10 text-neutral-400 hover:border-white/30 hover:text-white'
       }`}
     >
       {children}

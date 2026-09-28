@@ -32,7 +32,7 @@ export function DashboardSubTabs({ tabs }: DashboardSubTabsProps) {
           className={`text-[10px] font-mono uppercase tracking-wider px-3 py-1.5 rounded-full whitespace-nowrap transition-colors ${
             isActive(tab.href)
               ? 'bg-[#D4A843]/10 text-[#D4A843] border border-[#D4A843]/30'
-              : 'text-neutral-500 border border-white/10 hover:text-white hover:border-white/20'
+              : 'text-neutral-400 border border-white/10 hover:text-white hover:border-white/20'
           }`}
         >
           {tab.label}

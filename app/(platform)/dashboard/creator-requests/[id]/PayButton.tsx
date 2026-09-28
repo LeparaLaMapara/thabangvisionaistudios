@@ -23,7 +23,7 @@ export default function PayButton({ requestId, amount }: { requestId: string; am
 
   return (
     <div className="bg-[#0A0A0B] border border-white/5 p-5 mt-6">
-      <h3 className="text-[10px] font-mono uppercase tracking-widest text-neutral-500 mb-3">Payment Required</h3>
+      <h3 className="text-[10px] font-mono uppercase tracking-widest text-neutral-400 mb-3">Payment Required</h3>
       <p className="text-sm font-mono text-white mb-4">Total: R{amount.toLocaleString()}</p>
       <button
         onClick={handlePay}

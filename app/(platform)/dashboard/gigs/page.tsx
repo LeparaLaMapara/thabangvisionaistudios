@@ -39,7 +39,7 @@ export default async function GigsPage() {
         <h2 className="text-lg font-display font-medium uppercase text-white">
           Gigs
         </h2>
-        <p className="text-xs font-mono text-neutral-500 mt-2">
+        <p className="text-xs font-mono text-neutral-400 mt-2">
           Gig requests are managed by {STUDIO.shortName}. We handle all client communication.
         </p>
       </div>
@@ -51,7 +51,7 @@ export default async function GigsPage() {
           </svg>
           <div>
             <p className="text-sm font-mono font-bold text-white">Add banking details to get paid</p>
-            <p className="text-xs font-mono text-neutral-500 mt-1">
+            <p className="text-xs font-mono text-neutral-400 mt-1">
               You need banking details on file before you can receive payouts from gigs.
             </p>
             <Link
@@ -85,7 +85,7 @@ export default async function GigsPage() {
       )}
 
       {gigs.length === 0 && serviceGigs.length === 0 && (
-        <div className="py-12 text-center text-neutral-500">
+        <div className="py-12 text-center text-neutral-400">
           <p>No gigs yet.</p>
           <p className="mt-1 text-sm">When clients book you, their gigs will appear here.</p>
         </div>

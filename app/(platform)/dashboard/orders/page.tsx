@@ -100,7 +100,7 @@ export default function OrdersPage() {
               </div>
 
               <div className="flex items-center justify-between">
-                <p className="text-xs font-mono text-neutral-500 flex items-center gap-2">
+                <p className="text-xs font-mono text-neutral-400 flex items-center gap-2">
                   <ShoppingBag className="w-3 h-3" />
                   {new Date(order.created_at).toLocaleDateString('en-ZA', {
                     day: 'numeric',
@@ -108,7 +108,7 @@ export default function OrdersPage() {
                     year: 'numeric',
                   })}
                 </p>
-                <span className="text-[10px] font-mono uppercase tracking-widest text-neutral-500 flex items-center gap-1">
+                <span className="text-[10px] font-mono uppercase tracking-widest text-neutral-400 flex items-center gap-1">
                   <ArrowRight className="w-3 h-3" />
                   #{order.id.slice(0, 8)}
                 </span>

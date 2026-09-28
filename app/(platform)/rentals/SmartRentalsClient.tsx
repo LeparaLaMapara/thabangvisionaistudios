@@ -204,15 +204,15 @@ export default function SmartRentalsClient({ rentals }: { rentals: SmartRental[]
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.8 }}
         >
-          <div className="border-l border-black/20 dark:border-white/20 pl-8 md:pl-16 py-4">
+          <div className="border-l border-black/20 dark:border-white/20 pl-4 md:pl-16 py-4 min-w-0">
             <span className="text-[10px] font-mono text-[#D4A843] uppercase tracking-[0.3em] mb-4 block">
               02 // Equipment Fleet
             </span>
-            <h1 className="text-5xl md:text-8xl font-display font-medium text-black dark:text-white tracking-tight leading-[0.9] mb-8 uppercase">
+            <h1 className="text-5xl md:text-8xl font-display font-medium text-black dark:text-white tracking-tight leading-[0.9] mb-8 uppercase break-words hyphens-auto">
               Professional Gear <br />
-              <span className="text-neutral-400 dark:text-neutral-500">For Every Shoot</span>
+              <span className="text-neutral-400 dark:text-neutral-400">For Every Shoot</span>
             </h1>
-            <p className="max-w-2xl text-lg text-neutral-600 dark:text-neutral-300 font-light leading-relaxed">
+            <p className="max-w-2xl text-lg text-neutral-400 dark:text-neutral-300 font-light leading-relaxed">
               Rent professional cameras, lenses, lighting, audio equipment, drones, and studio gear from ThabangVision and verified suppliers. Collect in Johannesburg or have it delivered, with a refundable deposit and the full price shown before you pay.
             </p>
           </div>
@@ -228,7 +228,7 @@ export default function SmartRentalsClient({ rentals }: { rentals: SmartRental[]
           {categories.length === 0 ? (
             /* Empty state. No published rentals yet. */
             <div className="py-32 text-center">
-              <p className="text-neutral-500 dark:text-neutral-600 font-mono text-sm uppercase tracking-widest">
+              <p className="text-neutral-400 dark:text-neutral-400 font-mono text-sm uppercase tracking-widest">
                 Professional Equipment for Every Production
               </p>
             </div>

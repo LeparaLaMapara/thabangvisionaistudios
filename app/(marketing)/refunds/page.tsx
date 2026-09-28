@@ -32,7 +32,7 @@ export default function RefundsPage() {
           <div className="w-8 h-px bg-[#D4A843] mt-6" />
         </div>
 
-        <p className="text-sm font-mono text-neutral-500 mb-10">Last Updated: {LAST_UPDATED}</p>
+        <p className="text-sm font-mono text-neutral-400 mb-10">Last Updated: {LAST_UPDATED}</p>
 
         <div className="space-y-10 text-sm font-mono text-neutral-400 leading-relaxed">
           <Section title="1. About This Policy">

@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import { motion, useScroll, useTransform } from 'framer-motion';
 import Link from 'next/link';
 import { ServiceGrid } from '@/components/cinematic/ServiceGrid';
@@ -12,12 +13,28 @@ type Capability = (typeof CAPABILITIES)[number];
 
 // ─── Hero ────────────────────────────────────────────────────────────────────
 
+/** A Cloudinary image at the size and format asked for (w_900,q_auto,f_auto...). */
+function cld(url: string, transform: string): string {
+  return url.includes('/image/upload/') ? url.replace('/image/upload/', `/image/upload/${transform}/`) : url;
+}
+
 const Hero = () => {
   const { scrollY } = useScroll();
   const y1 = useTransform(scrollY, [0, 500], [0, 200]);
   const opacity = useTransform(scrollY, [0, 300], [1, 0]);
   const { hero } = STUDIO;
   const useVideo = hero.type === 'video' && !!hero.videoSrc;
+  const posterSrc = hero.poster || hero.imageSrc;
+  const [showVideo, setShowVideo] = useState(false);
+  useEffect(() => {
+    const wide = window.matchMedia('(min-width: 768px)').matches;
+    const calm = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const saveData = (navigator as Navigator & { connection?: { saveData?: boolean } }).connection?.saveData === true;
+    if (wide && !calm && !saveData) {
+      const id = window.setTimeout(() => setShowVideo(true), 0);
+      return () => window.clearTimeout(id);
+    }
+  }, []);
   const filterClass = hero.colorMode === 'bw' ? 'grayscale contrast-125' : 'contrast-110 saturate-[0.85]';
 
   return (
@@ -25,36 +42,29 @@ const Hero = () => {
       <motion.div style={{ y: y1 }} className="absolute inset-0 z-0">
         <div className="absolute inset-0 bg-gradient-to-t from-[#050505] via-transparent to-[#050505]/50 z-10" />
 
-        {useVideo ? (
+        {/* A right-sized picture first, shown at once (it is what people see
+            first on a phone). The video is added only on larger screens, and
+            never when the phone asks for less data or less motion: it was a
+            1 MB download for everyone, plus a hidden 604 KB picture. */}
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={cld(posterSrc, 'w_900,q_auto,f_auto')}
+          srcSet={`${cld(posterSrc, 'w_900,q_auto,f_auto')} 900w, ${cld(posterSrc, 'w_1920,q_auto,f_auto')} 1920w`}
+          sizes="100vw"
+          alt=""
+          fetchPriority="high"
+          className={`absolute inset-0 w-full h-full object-cover opacity-40 ${filterClass}`}
+        />
+        {useVideo && showVideo && (
           <video
             autoPlay
             loop
             muted
             playsInline
-            poster={hero.poster || undefined}
-            className={`w-full h-full object-cover opacity-40 ${filterClass} motion-reduce:hidden`}
+            className={`absolute inset-0 w-full h-full object-cover opacity-40 ${filterClass}`}
           >
-            {hero.mobileVideoSrc && (
-              <source src={hero.mobileVideoSrc} type="video/mp4" media="(max-width: 767px)" />
-            )}
             <source src={hero.videoSrc} type="video/mp4" />
           </video>
-        ) : (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={hero.imageSrc}
-            alt="Studio Abstract"
-            className={`w-full h-full object-cover opacity-40 ${filterClass}`}
-          />
-        )}
-
-        {useVideo && hero.poster && (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={hero.poster}
-            alt=""
-            className={`w-full h-full object-cover opacity-40 ${filterClass} hidden motion-reduce:block absolute inset-0`}
-          />
         )}
       </motion.div>
 
@@ -62,28 +72,27 @@ const Hero = () => {
 
       <motion.div style={{ opacity }} className="relative z-20 px-6 max-w-7xl w-full overflow-hidden">
         <div className="border-l border-white/20 pl-8 md:pl-16 py-4 overflow-hidden">
-          <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.8 }}>
+          <motion.div initial={false} animate={{ opacity: 1, x: 0 }}>
             <h2 className="text-xs md:text-sm font-mono tracking-[0.3em] text-neutral-400 mb-6 uppercase">
               ThabangVision
             </h2>
           </motion.div>
 
           <motion.h1
-            initial={{ opacity: 0, y: 20 }}
+            initial={false}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8, delay: 0.2 }}
             className="text-4xl sm:text-5xl md:text-8xl font-display font-medium text-white tracking-tighter leading-[0.9] mb-8 uppercase max-w-full break-words"
           >
             Book South Africa&apos;s <br />
-            <span className="text-neutral-500">Best Creators And Gear.</span>
+            <span className="text-neutral-400">Best Creators And Gear.</span>
           </motion.h1>
 
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.8, delay: 0.4 }} className="max-w-xl">
+          <motion.div initial={false} animate={{ opacity: 1 }} className="max-w-xl">
             <p className="text-lg text-neutral-300 font-light leading-relaxed mb-10">
               Find photographers, videographers, production crews, and professional gear. All in one trusted platform.
             </p>
             <div className="flex flex-wrap gap-4">
-              <Link href="/studio" className="group inline-flex items-center gap-2 min-h-[44px] bg-white text-black px-8 py-4 text-[10px] font-mono font-bold uppercase tracking-widest hover:opacity-80 transition-opacity">
+              <Link href="/studio/category/photography" className="group inline-flex items-center gap-2 min-h-[44px] bg-white text-black px-8 py-4 text-[10px] font-mono font-bold uppercase tracking-widest hover:opacity-80 transition-opacity">
                 Hire a Photographer <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
               </Link>
               <Link href="/rentals" className="group inline-flex items-center gap-2 min-h-[44px] border border-white/20 text-white px-8 py-4 text-[10px] font-mono font-bold uppercase tracking-widest hover:bg-white/5 transition-colors">
@@ -91,11 +100,11 @@ const Hero = () => {
               </Link>
             </div>
             <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-6">
-              <span className="text-[10px] font-mono text-neutral-500 uppercase tracking-widest">Verified Creators</span>
-              <span className="text-neutral-600 text-[10px]">•</span>
-              <span className="text-[10px] font-mono text-neutral-500 uppercase tracking-widest">Secure Payments</span>
-              <span className="text-neutral-600 text-[10px]">•</span>
-              <span className="text-[10px] font-mono text-neutral-500 uppercase tracking-widest">Refundable Deposits</span>
+              <span className="text-[10px] font-mono text-neutral-400 uppercase tracking-widest">Verified Creators</span>
+              <span className="text-neutral-400 text-[10px]">•</span>
+              <span className="text-[10px] font-mono text-neutral-400 uppercase tracking-widest">Secure Payments</span>
+              <span className="text-neutral-400 text-[10px]">•</span>
+              <span className="text-[10px] font-mono text-neutral-400 uppercase tracking-widest">Refundable Deposits</span>
             </div>
           </motion.div>
         </div>
@@ -129,7 +138,7 @@ const HowItWorks = () => {
         >
           <span className="text-[10px] font-mono text-accent uppercase tracking-widest mb-4 block">03 // Process</span>
           <h2 className="text-4xl md:text-5xl font-display font-medium text-white uppercase">
-            How It <span className="text-neutral-500">Works</span>
+            How It <span className="text-neutral-400">Works</span>
           </h2>
           <p className="text-neutral-400 font-light leading-relaxed mt-4 max-w-2xl mx-auto">
             One place to book crew and gear. You book and pay ThabangVision, and we supply the creators and equipment your production needs.
@@ -146,10 +155,10 @@ const HowItWorks = () => {
               transition={{ delay: index * 0.1 }}
               className="relative bg-[#0A0A0B] border border-white/5 p-8 text-center hover:border-white/20 transition-colors"
             >
-              <div className="text-[10px] font-mono text-neutral-600 mb-4">0{index + 1}</div>
+              <div className="text-[10px] font-mono text-neutral-400 mb-4">0{index + 1}</div>
               <step.icon className="w-8 h-8 text-accent mx-auto mb-4" />
               <h3 className="text-lg font-display font-medium text-white uppercase mb-2">{step.title}</h3>
-              <p className="text-sm font-mono text-neutral-500 leading-relaxed">{step.description}</p>
+              <p className="text-sm font-mono text-neutral-400 leading-relaxed">{step.description}</p>
             </motion.div>
           ))}
         </div>
@@ -171,7 +180,7 @@ const CommunitySection = () => (
         >
           <span className="text-[10px] font-mono text-accent uppercase tracking-widest mb-4 block">06 // Community</span>
           <h2 className="text-4xl md:text-5xl font-display font-medium text-white uppercase">
-            For <span className="text-neutral-500">Creators</span>
+            For <span className="text-neutral-400">Creators</span>
           </h2>
         </motion.div>
         <Link href="/rentals" className="hidden md:flex items-center gap-2 text-xs font-mono text-neutral-400 hover:text-white transition-colors uppercase tracking-widest mt-6 md:mt-0">
@@ -212,11 +221,11 @@ const CommunitySection = () => (
           >
             <Link href={item.href} className="group block h-full">
               <div className="h-full bg-[#0A0A0B] border border-white/5 p-8 hover:border-white/20 transition-all">
-                <item.icon className="w-6 h-6 text-neutral-600 mb-6 group-hover:text-white transition-colors" />
+                <item.icon className="w-6 h-6 text-neutral-400 mb-6 group-hover:text-white transition-colors" />
                 <h3 className="text-lg font-display font-medium uppercase text-white mb-3">
                   {item.title}
                 </h3>
-                <p className="text-sm font-mono text-neutral-500 leading-relaxed mb-6">
+                <p className="text-sm font-mono text-neutral-400 leading-relaxed mb-6">
                   {item.description}
                 </p>
                 <span className="flex items-center gap-2 text-xs font-mono font-bold uppercase tracking-widest text-white group-hover:translate-x-1 transition-transform">
@@ -251,7 +260,7 @@ const BookingCTA = ({ minDayRate }: { minDayRate: number | null }) => (
           <span className="text-[10px] font-mono text-accent uppercase tracking-widest mb-4 block">05 // Rentals</span>
           <h2 className="text-4xl md:text-5xl font-display font-medium text-white tracking-tighter uppercase mb-6 leading-[0.95]">
             Book <br />
-            <span className="text-neutral-500">Professional Gear</span>
+            <span className="text-neutral-400">Professional Gear</span>
           </h2>
           <p className="text-neutral-400 font-light leading-relaxed mb-8 max-w-md">
             From cinema cameras to lighting kits. See live availability and the full price before you pay, then book online.
@@ -281,7 +290,7 @@ const BookingCTA = ({ minDayRate }: { minDayRate: number | null }) => (
             { label: 'Deposit Protection', value: 'Secured' },
           ].map(stat => (
             <div key={stat.label} className="bg-[#0A0A0B] border border-white/5 p-6">
-              <p className="text-[10px] font-mono uppercase tracking-widest text-neutral-500 mb-2">
+              <p className="text-[10px] font-mono uppercase tracking-widest text-neutral-400 mb-2">
                 {stat.label}
               </p>
               <p className="text-2xl font-display font-medium text-white">
@@ -313,7 +322,7 @@ const TrustSignals = () => (
           <div key={item.label} className="text-center p-4">
             <item.icon className="w-6 h-6 text-accent mx-auto mb-3" />
             <p className="text-sm font-display font-medium text-white uppercase mb-1">{item.label}</p>
-            <p className="text-[11px] font-mono text-neutral-500">{item.detail}</p>
+            <p className="text-[11px] font-mono text-neutral-400">{item.detail}</p>
           </div>
         ))}
       </div>
@@ -335,7 +344,7 @@ const UbunyeSection = () => (
         <span className="text-[10px] font-mono text-accent uppercase tracking-widest mb-4 block">07 // AI Assistant</span>
         <MessageCircle className="w-10 h-10 text-accent mx-auto mb-6" />
         <h2 className="text-3xl md:text-4xl font-display font-medium text-white uppercase mb-4">
-          Need Help <span className="text-neutral-500">Deciding?</span>
+          Need Help <span className="text-neutral-400">Deciding?</span>
         </h2>
         <p className="text-neutral-400 font-light leading-relaxed mb-8">
           Ask Ubunye — our AI assistant finds the right creator and gear for your project.

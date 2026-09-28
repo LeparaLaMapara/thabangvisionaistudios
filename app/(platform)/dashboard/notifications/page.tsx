@@ -26,7 +26,7 @@ export default async function NotificationsPage() {
       <DashboardSubTabs tabs={isCreator ? ACCOUNT_TABS_CREATOR : ACCOUNT_TABS_USER} />
       <div className="mb-8">
         <h2 className="text-lg font-display font-medium uppercase text-white">Alerts</h2>
-        <p className="text-xs font-mono text-neutral-500 mt-2">
+        <p className="text-xs font-mono text-neutral-400 mt-2">
           Stay updated on your bookings and gig requests.
         </p>
       </div>

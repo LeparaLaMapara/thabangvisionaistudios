@@ -104,9 +104,9 @@ export default async function DashboardPage() {
           Dashboard
         </span>
         <h1 className="text-3xl md:text-4xl font-display font-medium uppercase text-black dark:text-white tracking-tight">
-          Hello, <span className="text-neutral-400 dark:text-neutral-500">{displayName}</span>
+          Hello, <span className="text-neutral-400 dark:text-neutral-400">{displayName}</span>
         </h1>
-        <p className="text-sm text-neutral-500 dark:text-neutral-400 font-mono mt-3">
+        <p className="text-sm text-neutral-400 dark:text-neutral-400 font-mono mt-3">
           {isVerified
             ? 'You are a verified creator. List gear, book equipment, and manage your orders.'
             : 'Rent equipment, hire photographers, and explore the platform. Get verified to list your own gear and services.'}
@@ -158,7 +158,7 @@ export default async function DashboardPage() {
             <Clock className="w-6 h-6 text-amber-500 flex-shrink-0" />
             <div>
               <p className="text-sm font-mono font-bold text-amber-400">Verification processing</p>
-              <p className="text-xs font-mono text-neutral-500 mt-1">
+              <p className="text-xs font-mono text-neutral-400 mt-1">
                 A person is checking your documents, {STUDIO.verification.reviewTime}. We&apos;ll email you the result.
               </p>
             </div>
@@ -294,11 +294,11 @@ function StatCard({
     <Link href={href} className="group block">
       <div className="bg-neutral-100 dark:bg-[#0A0A0B] border border-black/5 dark:border-white/5 p-6 hover:border-black/20 dark:hover:border-white/20 transition-colors">
         <div className="flex items-center justify-between mb-3">
-          <Icon className="w-4 h-4 text-neutral-400 dark:text-neutral-600 group-hover:text-black dark:group-hover:text-white transition-colors" />
-          <ArrowRight className="w-3 h-3 text-neutral-300 dark:text-neutral-700 opacity-0 group-hover:opacity-100 group-hover:translate-x-1 transition-all" />
+          <Icon className="w-4 h-4 text-neutral-400 dark:text-neutral-400 group-hover:text-black dark:group-hover:text-white transition-colors" />
+          <ArrowRight className="w-3 h-3 text-neutral-300 dark:text-neutral-400 opacity-0 group-hover:opacity-100 group-hover:translate-x-1 transition-all" />
         </div>
         <p className="text-2xl font-display font-medium text-black dark:text-white">{value}</p>
-        <p className="text-[10px] font-mono uppercase tracking-widest text-neutral-500 mt-1">{label}</p>
+        <p className="text-[10px] font-mono uppercase tracking-widest text-neutral-400 mt-1">{label}</p>
       </div>
     </Link>
   );
@@ -352,11 +352,11 @@ function ChecklistItem({
           }`}>
             {label}
           </p>
-          <p className={`text-xs mt-0.5 ${pending ? 'text-amber-500/70 dark:text-amber-400/70' : 'text-neutral-500'}`}>
+          <p className={`text-xs mt-0.5 ${pending ? 'text-amber-500/70 dark:text-amber-400/70' : 'text-neutral-400'}`}>
             {description}
           </p>
         </div>
-        <ArrowRight className="w-3 h-3 text-neutral-300 dark:text-neutral-700 flex-shrink-0 mt-1 opacity-0 group-hover:opacity-100 transition-opacity" />
+        <ArrowRight className="w-3 h-3 text-neutral-300 dark:text-neutral-400 flex-shrink-0 mt-1 opacity-0 group-hover:opacity-100 transition-opacity" />
       </div>
     </Link>
   );
@@ -376,11 +376,11 @@ function QuickAction({
   return (
     <Link href={href} className="group block">
       <div className="h-full bg-neutral-100 dark:bg-[#0A0A0B] border border-black/5 dark:border-white/5 p-6 hover:border-black/20 dark:hover:border-white/20 transition-colors">
-        <Icon className="w-5 h-5 text-neutral-400 dark:text-neutral-600 mb-4 group-hover:text-black dark:group-hover:text-white transition-colors" />
+        <Icon className="w-5 h-5 text-neutral-400 dark:text-neutral-400 mb-4 group-hover:text-black dark:group-hover:text-white transition-colors" />
         <h3 className="text-sm font-mono font-bold text-black dark:text-white uppercase tracking-wide mb-1">
           {title}
         </h3>
-        <p className="text-xs text-neutral-500 leading-relaxed">{description}</p>
+        <p className="text-xs text-neutral-400 leading-relaxed">{description}</p>
       </div>
     </Link>
   );

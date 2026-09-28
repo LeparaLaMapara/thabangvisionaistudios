@@ -132,7 +132,7 @@ export default function InlinePayPage() {
       <div className="w-full max-w-md">
         <Link
           href="/dashboard/bookings"
-          className="inline-flex items-center gap-2 text-[10px] font-mono uppercase tracking-widest text-neutral-500 hover:text-white transition-colors mb-8"
+          className="inline-flex items-center gap-2 text-[10px] font-mono uppercase tracking-widest text-neutral-400 hover:text-white transition-colors mb-8"
         >
           <ArrowLeft className="w-3 h-3" />
           Back to Bookings
@@ -156,11 +156,11 @@ export default function InlinePayPage() {
                 <p className="text-2xl font-display font-bold text-[#D4A843]">
                   R{booking.total.toLocaleString('en-ZA')}
                 </p>
-                <p className="text-[10px] font-mono text-neutral-500 mt-2">
+                <p className="text-[10px] font-mono text-neutral-400 mt-2">
                   Ref: {booking.reference}
                 </p>
               </div>
-              <p className="text-[10px] font-mono text-neutral-500 mt-2">
+              <p className="text-[10px] font-mono text-neutral-400 mt-2">
                 {state === 'paying' ? 'Complete payment in the popup...' : 'Opening payment...'}
               </p>
             </div>
@@ -186,7 +186,7 @@ export default function InlinePayPage() {
 
           {state === 'closed' && booking && (
             <div className="flex flex-col items-center gap-4 py-8">
-              <XCircle className="w-12 h-12 text-neutral-500" />
+              <XCircle className="w-12 h-12 text-neutral-400" />
               <div className="text-center">
                 <p className="text-lg font-display font-bold text-white mb-1">Payment Cancelled</p>
                 <p className="text-sm font-mono text-neutral-400">

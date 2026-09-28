@@ -100,7 +100,7 @@ export default function PackagePricing() {
                   <span className="text-2xl font-bold text-white font-mono">
                     {formatZAR(price.total)}
                   </span>
-                  <span className="block text-neutral-500 text-xs mt-1">
+                  <span className="block text-neutral-400 text-xs mt-1">
                     incl. {vatRate}% VAT ({formatZAR(price.subtotal)} excl.)
                   </span>
                 </div>

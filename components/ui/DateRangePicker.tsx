@@ -98,7 +98,7 @@ export function DateRangePicker({
   return (
     <div className={['relative w-full', className].filter(Boolean).join(' ')}>
       {label && (
-        <span className="block text-[10px] font-mono uppercase tracking-widest text-neutral-500 mb-2">
+        <span className="block text-[10px] font-mono uppercase tracking-widest text-neutral-400 mb-2">
           {label}
         </span>
       )}
@@ -124,7 +124,7 @@ export function DateRangePicker({
         ].join(' ')}
       >
         <Calendar className="w-4 h-4 text-neutral-400 flex-shrink-0" />
-        <span className={!value.start ? 'text-neutral-300 dark:text-neutral-700' : ''}>
+        <span className={!value.start ? 'text-neutral-300 dark:text-neutral-400' : ''}>
           {value.start ? formatDisplay() : 'Select dates'}
         </span>
       </button>
@@ -211,7 +211,7 @@ export function DateRangePicker({
                         ? 'bg-black dark:bg-white text-white dark:text-black font-medium'
                         : inRange
                           ? 'bg-black/10 dark:bg-white/10 text-black dark:text-white'
-                          : 'text-neutral-600 dark:text-neutral-400 hover:bg-black/5 dark:hover:bg-white/5',
+                          : 'text-neutral-400 dark:text-neutral-400 hover:bg-black/5 dark:hover:bg-white/5',
                     ]
                       .filter(Boolean)
                       .join(' ')}

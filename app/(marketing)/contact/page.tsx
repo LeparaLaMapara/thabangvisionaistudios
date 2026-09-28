@@ -40,7 +40,7 @@ export default function ContactPage() {
         <div className="max-w-4xl mb-20">
           <span className="text-[10px] font-mono text-[#D4A843] uppercase tracking-[0.3em] mb-4 block">Get In Touch</span>
           <h1 className="text-5xl md:text-8xl font-display font-medium text-white tracking-tighter uppercase mb-8 leading-[0.9]">
-            Contact <span className="text-neutral-500">Us</span>
+            Contact <span className="text-neutral-400">Us</span>
           </h1>
           <div className="w-8 h-px bg-[#D4A843] mt-6" />
         </div>
@@ -59,7 +59,7 @@ export default function ContactPage() {
                     <Send className="text-black w-6 h-6" />
                  </div>
                  <h3 className="text-2xl font-display uppercase mb-2 text-white">Message Sent</h3>
-                 <p className="text-neutral-500 font-mono text-sm">We&apos;ll get back to you within 24 hours.</p>
+                 <p className="text-neutral-400 font-mono text-sm">We&apos;ll get back to you within 24 hours.</p>
                  <button
                    onClick={() => setIsSubmitted(false)}
                    className="mt-8 text-xs font-mono font-bold uppercase tracking-widest text-[#D4A843] hover:text-[#D4A843]/80 transition-colors"
@@ -89,23 +89,23 @@ export default function ContactPage() {
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                   <div className="space-y-2">
-                    <label className="text-[10px] font-mono font-bold uppercase tracking-widest text-neutral-500">Name</label>
+                    <label className="text-[10px] font-mono font-bold uppercase tracking-widest text-neutral-400">Name</label>
                     <input
                       type="text"
                       required
                       placeholder="Your full name"
-                      className="w-full bg-transparent border-b border-white/20 py-4 text-white focus:border-[#D4A843] outline-none transition-colors font-mono text-sm placeholder:text-neutral-700"
+                      className="w-full bg-transparent border-b border-white/20 py-4 text-white focus:border-[#D4A843] outline-none transition-colors font-mono text-sm placeholder:text-neutral-400"
                       value={formState.name}
                       onChange={e => setFormState({...formState, name: e.target.value})}
                     />
                   </div>
                   <div className="space-y-2">
-                    <label className="text-[10px] font-mono font-bold uppercase tracking-widest text-neutral-500">Email</label>
+                    <label className="text-[10px] font-mono font-bold uppercase tracking-widest text-neutral-400">Email</label>
                     <input
                       type="email"
                       required
                       placeholder="you@example.com"
-                      className="w-full bg-transparent border-b border-white/20 py-4 text-white focus:border-[#D4A843] outline-none transition-colors font-mono text-sm placeholder:text-neutral-700"
+                      className="w-full bg-transparent border-b border-white/20 py-4 text-white focus:border-[#D4A843] outline-none transition-colors font-mono text-sm placeholder:text-neutral-400"
                       value={formState.email}
                       onChange={e => setFormState({...formState, email: e.target.value})}
                     />
@@ -113,7 +113,7 @@ export default function ContactPage() {
                 </div>
 
                 <div className="space-y-2">
-                  <label className="text-[10px] font-mono font-bold uppercase tracking-widest text-neutral-500">Subject</label>
+                  <label className="text-[10px] font-mono font-bold uppercase tracking-widest text-neutral-400">Subject</label>
                   <select
                     className="w-full bg-transparent border-b border-white/20 py-4 text-white focus:border-[#D4A843] outline-none transition-colors font-mono text-sm uppercase appearance-none"
                     value={formState.subject}
@@ -128,12 +128,12 @@ export default function ContactPage() {
                 </div>
 
                 <div className="space-y-2">
-                  <label className="text-[10px] font-mono font-bold uppercase tracking-widest text-neutral-500">Message</label>
+                  <label className="text-[10px] font-mono font-bold uppercase tracking-widest text-neutral-400">Message</label>
                   <textarea
                     required
                     rows={6}
                     placeholder="Tell us about your project..."
-                    className="w-full bg-transparent border-b border-white/20 py-4 text-white focus:border-[#D4A843] outline-none transition-colors font-mono text-sm placeholder:text-neutral-700"
+                    className="w-full bg-transparent border-b border-white/20 py-4 text-white focus:border-[#D4A843] outline-none transition-colors font-mono text-sm placeholder:text-neutral-400"
                     value={formState.message}
                     onChange={e => setFormState({...formState, message: e.target.value})}
                   />

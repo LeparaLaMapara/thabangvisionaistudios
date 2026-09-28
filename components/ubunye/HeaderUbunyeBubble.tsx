@@ -32,7 +32,7 @@ export function HeaderUbunyeBubble() {
       </div>
 
       {/* Label — always visible */}
-      <span className="text-[10px] font-mono tracking-[0.2em] text-neutral-500 group-hover:text-[#D4A843]/80 transition-colors duration-500 uppercase">
+      <span className="text-[10px] font-mono tracking-[0.2em] text-neutral-400 group-hover:text-[#D4A843]/80 transition-colors duration-500 uppercase">
         Ask Ubunye
       </span>
 

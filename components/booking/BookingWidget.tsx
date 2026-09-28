@@ -194,7 +194,7 @@ function BookingWidgetInner({ rental }: Props) {
   if (!rental.is_available) {
     return (
       <div className="border border-dashed border-white/10 p-6 text-center">
-        <p className="text-sm text-neutral-500 font-mono">
+        <p className="text-sm text-neutral-400 font-mono">
           This item is currently unavailable.
         </p>
       </div>
@@ -211,14 +211,14 @@ function BookingWidgetInner({ rental }: Props) {
       {/* Rate card */}
       <div className="border border-white/10 p-4 space-y-2 bg-[#0A0A0B]">
         <div className="flex justify-between text-sm">
-          <span className="text-neutral-500 font-mono">Daily rate</span>
+          <span className="text-neutral-400 font-mono">Daily rate</span>
           <span className="font-mono font-bold text-white">
             {rental.currency} {(rental.price_per_day ?? 0).toLocaleString()}/day
           </span>
         </div>
         {rental.price_per_week && (
           <div className="flex justify-between text-sm">
-            <span className="text-neutral-500 font-mono">Weekly rate</span>
+            <span className="text-neutral-400 font-mono">Weekly rate</span>
             <span className="font-mono font-bold text-white">
               {rental.currency} {rental.price_per_week.toLocaleString()}/week
             </span>
@@ -226,7 +226,7 @@ function BookingWidgetInner({ rental }: Props) {
         )}
         {depositAmount > 0 && (
           <div className="flex justify-between text-sm">
-            <span className="text-neutral-500 font-mono">Refundable deposit</span>
+            <span className="text-neutral-400 font-mono">Refundable deposit</span>
             <span className="font-mono text-neutral-400">
               {rental.currency} {depositAmount.toLocaleString()}
             </span>
@@ -246,7 +246,7 @@ function BookingWidgetInner({ rental }: Props) {
           label="Rental dates"
         />
 
-        <p className="text-[10px] font-mono text-neutral-500 leading-relaxed">
+        <p className="text-[10px] font-mono text-neutral-400 leading-relaxed">
           {noticeMessage}
         </p>
 
@@ -280,7 +280,7 @@ function BookingWidgetInner({ rental }: Props) {
         {datesReady && (
           <div className="border border-white/10 p-4 space-y-2 bg-[#0A0A0B]">
             <div className="flex justify-between text-sm">
-              <span className="text-neutral-500 font-mono">
+              <span className="text-neutral-400 font-mono">
                 {days} day{days !== 1 ? 's' : ''} rental, incl. VAT
               </span>
               <span className="font-mono text-white">
@@ -289,19 +289,19 @@ function BookingWidgetInner({ rental }: Props) {
             </div>
             {depositAmount > 0 && (
               <div className="flex justify-between text-sm">
-                <span className="text-neutral-500 font-mono">Refundable deposit</span>
+                <span className="text-neutral-400 font-mono">Refundable deposit</span>
                 <span className="font-mono text-neutral-400">
                   {rental.currency} {depositAmount.toLocaleString()}
                 </span>
               </div>
             )}
             <div className="flex justify-between text-sm border-t border-white/5 pt-2">
-              <span className="text-neutral-500 font-mono font-bold">Total with deposit</span>
+              <span className="text-neutral-400 font-mono font-bold">Total with deposit</span>
               <span className="font-mono font-bold text-[#D4A843]">
                 {rental.currency} {(rentalPrice + depositAmount).toLocaleString()}
               </span>
             </div>
-            <p className="text-[9px] font-mono text-neutral-500">
+            <p className="text-[9px] font-mono text-neutral-400">
               At checkout: collect or have it delivered, and pay everything now or only the deposit now and the rest when you collect.
             </p>
           </div>
@@ -320,7 +320,7 @@ function BookingWidgetInner({ rental }: Props) {
             <LogIn className="w-4 h-4" />
             {datesReady ? `Sign in to book: ${rental.currency} ${rentalPrice.toLocaleString()}` : 'Sign in to book'}
           </Link>
-          <p className="text-[9px] font-mono text-neutral-500 text-center">
+          <p className="text-[9px] font-mono text-neutral-400 text-center">
             {datesReady ? 'Your dates are kept.' : 'Choose your dates above to see the price.'}
           </p>
         </div>
@@ -343,7 +343,7 @@ function BookingWidgetInner({ rental }: Props) {
             <ShieldCheck className="w-4 h-4" />
             Check my ID to book
           </Link>
-          <p className="text-[9px] font-mono text-neutral-500 text-center">
+          <p className="text-[9px] font-mono text-neutral-400 text-center">
             {verification === 'rejected'
               ? 'Your last ID check was not approved. You can try again.'
               : 'A one-time check before your first rental. Your dates are kept.'}
@@ -390,7 +390,7 @@ function BookingWidgetInner({ rental }: Props) {
       )}
 
       {/* Info line */}
-      <div className="flex items-start gap-2 text-[9px] font-mono text-neutral-600">
+      <div className="flex items-start gap-2 text-[9px] font-mono text-neutral-400">
         <Info className="w-3 h-3 mt-0.5 flex-shrink-0" />
         <span>
           Renting 3 or more items? Add them to your cart for a bulk discount.

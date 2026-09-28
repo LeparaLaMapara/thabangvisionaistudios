@@ -58,14 +58,14 @@ export default async function PressArticlePage({ params }: Props) {
         {/* Back link */}
         <Link
           href="/press"
-          className="inline-flex items-center gap-2 text-xs font-mono text-neutral-500 hover:text-black dark:hover:text-white transition-colors uppercase tracking-widest mb-12"
+          className="inline-flex items-center gap-2 text-xs font-mono text-neutral-400 hover:text-black dark:hover:text-white transition-colors uppercase tracking-widest mb-12"
         >
           <ArrowLeft className="w-3 h-3" /> Back to Press
         </Link>
 
         {/* Article header */}
         <article className="max-w-3xl">
-          <div className="flex flex-wrap items-center gap-4 text-[10px] font-mono uppercase tracking-widest text-neutral-500 mb-6">
+          <div className="flex flex-wrap items-center gap-4 text-[10px] font-mono uppercase tracking-widest text-neutral-400 mb-6">
             {article.published_at && <span>{formatDate(article.published_at)}</span>}
             {article.category && (
               <>
@@ -86,7 +86,7 @@ export default async function PressArticlePage({ params }: Props) {
           </h1>
 
           {article.excerpt && (
-            <p className="text-xl text-neutral-600 dark:text-neutral-400 font-light leading-relaxed mb-12 border-l-2 border-black/10 dark:border-white/10 pl-6">
+            <p className="text-xl text-neutral-400 dark:text-neutral-400 font-light leading-relaxed mb-12 border-l-2 border-black/10 dark:border-white/10 pl-6">
               {article.excerpt}
             </p>
           )}
@@ -105,12 +105,12 @@ export default async function PressArticlePage({ params }: Props) {
 
           {/* Article content */}
           {article.content ? (
-            <div className="prose prose-neutral dark:prose-invert max-w-none font-light leading-relaxed text-neutral-700 dark:text-neutral-300 whitespace-pre-line">
+            <div className="prose prose-neutral dark:prose-invert max-w-none font-light leading-relaxed text-neutral-400 dark:text-neutral-300 whitespace-pre-line">
               {article.content}
             </div>
           ) : (
             <div className="py-12 text-center border border-black/5 dark:border-white/5">
-              <p className="text-neutral-500 font-mono text-sm">Full article content coming soon.</p>
+              <p className="text-neutral-400 font-mono text-sm">Full article content coming soon.</p>
             </div>
           )}
         </article>
@@ -119,7 +119,7 @@ export default async function PressArticlePage({ params }: Props) {
         <div className="mt-20 pt-12 border-t border-black/10 dark:border-white/10 flex items-center justify-between flex-wrap gap-4">
           <Link
             href="/press"
-            className="inline-flex items-center gap-2 text-xs font-mono font-bold text-black dark:text-white uppercase tracking-widest hover:text-neutral-500 transition-colors"
+            className="inline-flex items-center gap-2 text-xs font-mono font-bold text-black dark:text-white uppercase tracking-widest hover:text-neutral-400 transition-colors"
           >
             <ArrowLeft className="w-3 h-3" /> All Articles
           </Link>

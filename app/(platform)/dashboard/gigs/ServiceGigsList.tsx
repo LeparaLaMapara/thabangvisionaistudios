@@ -108,7 +108,7 @@ export default function ServiceGigsList({ gigs }: { gigs: ServiceGig[] }) {
 
   if (gigs.length === 0) {
     return (
-      <div className="py-8 text-center text-neutral-500">
+      <div className="py-8 text-center text-neutral-400">
         <p>No service gigs yet.</p>
         <p className="mt-1 text-sm">When clients book you, their gigs will appear here.</p>
       </div>
@@ -166,7 +166,7 @@ export default function ServiceGigsList({ gigs }: { gigs: ServiceGig[] }) {
       {/* Completed */}
       {completed.length > 0 && (
         <section>
-          <h3 className="mb-3 text-sm font-medium uppercase tracking-wider text-neutral-500">Completed</h3>
+          <h3 className="mb-3 text-sm font-medium uppercase tracking-wider text-neutral-400">Completed</h3>
           <div className="space-y-3">
             {completed.map((gig) => (
               <GigCard key={gig.id} gig={gig} updating={updating} onAction={handleAction} />
@@ -229,7 +229,7 @@ function GigCard({
       <div className="flex items-start justify-between gap-4">
         <div>
           <div className="flex items-center gap-3">
-            <span className="font-mono text-xs text-neutral-500">{gig.reference}</span>
+            <span className="font-mono text-xs text-neutral-400">{gig.reference}</span>
             <span className={`rounded-full border px-2 py-0.5 text-xs ${STATUS_COLORS[gig.status] || 'text-neutral-400 border-neutral-600'}`}>
               {STATUS_LABELS[gig.status] || gig.status}
             </span>
@@ -238,13 +238,13 @@ function GigCard({
         </div>
         <div className="text-right">
           <p className="text-lg font-bold text-[#D4A843]">R{gig.creator_amount.toLocaleString()}</p>
-          <p className="text-xs text-neutral-500">your earnings</p>
+          <p className="text-xs text-neutral-400">your earnings</p>
         </div>
       </div>
 
       <p className="mt-2 text-sm text-neutral-400">{gig.project_description}</p>
 
-      <div className="mt-3 flex flex-wrap gap-4 text-xs text-neutral-500">
+      <div className="mt-3 flex flex-wrap gap-4 text-xs text-neutral-400">
         <span>{gig.duration_hours}hrs</span>
         {gig.deliverables && <span>{gig.deliverables}</span>}
         {gig.location && <span>{gig.location}</span>}
@@ -267,7 +267,7 @@ function GigCard({
       {/* Payout status for completed gigs */}
       {['completed', 'paid_out'].includes(gig.status) && (
         <div className="mt-3 text-xs">
-          <span className="text-neutral-500">Payout: </span>
+          <span className="text-neutral-400">Payout: </span>
           <span className={gig.payout_status === 'paid' ? 'text-green-400' : gig.payout_status === 'failed' ? 'text-red-400' : 'text-yellow-400'}>
             {PAYOUT_LABELS[gig.payout_status] || gig.payout_status}
           </span>

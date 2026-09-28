@@ -18,7 +18,7 @@ export function AlsoAvailableIn({ basePath, currentCitySlug, className = '', cit
   return (
     <section className={`border-t border-white/5 py-12 ${className}`}>
       <div className="container mx-auto px-6">
-        <h2 className="text-xs font-mono uppercase tracking-widest text-neutral-500 mb-6 flex items-center gap-2">
+        <h2 className="text-xs font-mono uppercase tracking-widest text-neutral-400 mb-6 flex items-center gap-2">
           <MapPin className="w-3 h-3" />
           Also available in
         </h2>

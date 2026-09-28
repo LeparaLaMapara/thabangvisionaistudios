@@ -307,7 +307,7 @@ export default function AdminVerificationsPage() {
     <div className="max-w-6xl mx-auto px-3 md:px-6 py-6 md:py-12">
       {/* Header */}
       <div className="mb-8">
-        <p className="text-[9px] font-mono uppercase tracking-[0.3em] text-neutral-600 mb-2">
+        <p className="text-[9px] font-mono uppercase tracking-[0.3em] text-neutral-400 mb-2">
           Admin
         </p>
         <h1 className="text-2xl font-display font-medium uppercase text-white tracking-wide">
@@ -325,7 +325,7 @@ export default function AdminVerificationsPage() {
             className={`flex-1 sm:flex-none px-5 py-3 text-[10px] font-mono uppercase tracking-widest transition-colors ${
               activeTab === tab.key
                 ? 'bg-neutral-800 text-white'
-                : 'bg-neutral-900 text-neutral-600 hover:text-neutral-400'
+                : 'bg-neutral-900 text-neutral-400 hover:text-neutral-400'
             }`}
           >
             {tab.label}
@@ -334,7 +334,7 @@ export default function AdminVerificationsPage() {
                 className={`ml-2 px-1.5 py-0.5 text-[9px] tabular-nums rounded ${
                   tab.key === 'pending' && counts.pending > 0
                     ? 'bg-amber-500/15 text-amber-400'
-                    : 'bg-white/5 text-neutral-500'
+                    : 'bg-white/5 text-neutral-400'
                 }`}
               >
                 {counts[tab.key]}
@@ -353,13 +353,13 @@ export default function AdminVerificationsPage() {
 
       {/* Loading */}
       {loading ? (
-        <div className="flex items-center justify-center py-20 gap-2 text-neutral-600 font-mono text-sm">
+        <div className="flex items-center justify-center py-20 gap-2 text-neutral-400 font-mono text-sm">
           <Loader2 className="w-4 h-4 animate-spin" />
           Loading...
         </div>
       ) : filtered.length === 0 ? (
         <div className="bg-neutral-900 border border-white/5 flex items-center justify-center py-20">
-          <p className="text-neutral-600 font-mono text-xs uppercase tracking-widest">
+          <p className="text-neutral-400 font-mono text-xs uppercase tracking-widest">
             No {activeTab === 'all' ? '' : activeTab} verifications found.
           </p>
         </div>
@@ -392,7 +392,7 @@ export default function AdminVerificationsPage() {
                       />
                     ) : (
                       <div className="w-10 h-10 rounded-full bg-neutral-800 flex items-center justify-center">
-                        <span className="text-[11px] font-mono font-bold text-neutral-500">
+                        <span className="text-[11px] font-mono font-bold text-neutral-400">
                           {getInitials(sub.display_name)}
                         </span>
                       </div>
@@ -418,7 +418,7 @@ export default function AdminVerificationsPage() {
                         </span>
                       )}
                     </div>
-                    <p className="text-[10px] font-mono text-neutral-600">
+                    <p className="text-[10px] font-mono text-neutral-400">
                       {sub.email || 'No email'}
                       {sub.verification_submitted_at && (
                         <> / Submitted {formatDate(sub.verification_submitted_at)}</>
@@ -430,7 +430,7 @@ export default function AdminVerificationsPage() {
                   </div>
 
                   {/* Chevron */}
-                  <div className="flex-shrink-0 text-neutral-600">
+                  <div className="flex-shrink-0 text-neutral-400">
                     {isExpanded ? (
                       <ChevronUp className="w-4 h-4" />
                     ) : (
@@ -443,7 +443,7 @@ export default function AdminVerificationsPage() {
                 {isExpanded && (
                   <div className="border-t border-white/5" onClick={(e) => e.stopPropagation()}>
                     {detailLoading ? (
-                      <div className="flex items-center gap-2 text-neutral-600 font-mono text-sm py-10 justify-center">
+                      <div className="flex items-center gap-2 text-neutral-400 font-mono text-sm py-10 justify-center">
                         <Loader2 className="w-4 h-4 animate-spin" />
                         Loading...
                       </div>
@@ -462,7 +462,7 @@ export default function AdminVerificationsPage() {
                               />
                             ) : (
                               <div className="w-24 h-24 rounded-full bg-neutral-800 flex items-center justify-center">
-                                <User className="w-8 h-8 text-neutral-600" />
+                                <User className="w-8 h-8 text-neutral-400" />
                               </div>
                             )}
                           </div>
@@ -483,7 +483,7 @@ export default function AdminVerificationsPage() {
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1.5">
                               {sub.email && (
                                 <div className="flex items-center gap-2">
-                                  <Mail className="w-3.5 h-3.5 text-neutral-600 flex-shrink-0" />
+                                  <Mail className="w-3.5 h-3.5 text-neutral-400 flex-shrink-0" />
                                   <a href={`mailto:${sub.email}`} className="text-xs font-mono text-neutral-400 hover:text-white transition-colors truncate">
                                     {sub.email}
                                   </a>
@@ -491,7 +491,7 @@ export default function AdminVerificationsPage() {
                               )}
                               {sub.phone && (
                                 <div className="flex items-center gap-2">
-                                  <Phone className="w-3.5 h-3.5 text-neutral-600 flex-shrink-0" />
+                                  <Phone className="w-3.5 h-3.5 text-neutral-400 flex-shrink-0" />
                                   <a href={`tel:${sub.phone}`} className="text-xs font-mono text-neutral-400 hover:text-white transition-colors">
                                     {sub.phone}
                                   </a>
@@ -499,21 +499,21 @@ export default function AdminVerificationsPage() {
                               )}
                               {sub.location && (
                                 <div className="flex items-center gap-2">
-                                  <MapPin className="w-3.5 h-3.5 text-neutral-600 flex-shrink-0" />
-                                  <span className="text-xs font-mono text-neutral-500">{sub.location}</span>
+                                  <MapPin className="w-3.5 h-3.5 text-neutral-400 flex-shrink-0" />
+                                  <span className="text-xs font-mono text-neutral-400">{sub.location}</span>
                                 </div>
                               )}
                               {sub.created_at && (
                                 <div className="flex items-center gap-2">
-                                  <Calendar className="w-3.5 h-3.5 text-neutral-600 flex-shrink-0" />
-                                  <span className="text-xs font-mono text-neutral-500">
+                                  <Calendar className="w-3.5 h-3.5 text-neutral-400 flex-shrink-0" />
+                                  <span className="text-xs font-mono text-neutral-400">
                                     Member since {formatDate(sub.created_at)}
                                   </span>
                                 </div>
                               )}
                             </div>
 
-                            <div className="flex items-center gap-4 flex-wrap text-[10px] font-mono text-neutral-700">
+                            <div className="flex items-center gap-4 flex-wrap text-[10px] font-mono text-neutral-400">
                               {sub.verification_submitted_at && (
                                 <span>Submitted {formatDate(sub.verification_submitted_at)}</span>
                               )}
@@ -564,7 +564,7 @@ export default function AdminVerificationsPage() {
                             {sub.verification_metadata.face_match && (
                               <div className="mt-2 px-3 py-2 border border-white/10 bg-white/[0.02] text-xs font-mono">
                                 <div className="flex items-center justify-between">
-                                  <span className="text-neutral-500">Selfie ↔ ID face match</span>
+                                  <span className="text-neutral-400">Selfie ↔ ID face match</span>
                                   <span className={sub.verification_metadata.face_match.match
                                     ? 'text-emerald-400'
                                     : 'text-red-400'}>
@@ -654,7 +654,7 @@ export default function AdminVerificationsPage() {
                                       }}
                                       className="w-3.5 h-3.5 bg-neutral-900 border border-white/20 rounded-sm accent-emerald-500"
                                     />
-                                    <span className="text-xs font-mono text-neutral-500 group-hover:text-neutral-300 transition-colors">
+                                    <span className="text-xs font-mono text-neutral-400 group-hover:text-neutral-300 transition-colors">
                                       {item}
                                     </span>
                                   </label>
@@ -715,7 +715,7 @@ export default function AdminVerificationsPage() {
 
                             {/* Request metadata */}
                             {(sub.verification_ip || sub.verification_user_agent) && (
-                              <div className="text-[9px] font-mono text-neutral-700 space-y-0.5 pt-2">
+                              <div className="text-[9px] font-mono text-neutral-400 space-y-0.5 pt-2">
                                 {sub.verification_ip && <p>IP: {sub.verification_ip}</p>}
                                 {sub.verification_user_agent && (
                                   <p className="truncate max-w-lg">UA: {sub.verification_user_agent}</p>
@@ -746,24 +746,24 @@ function MetadataCard({ label, metadata }: { label: string; metadata: PhotoMetad
     <div className="border border-white/5 p-3 space-y-2">
       <p className="text-[10px] font-mono uppercase tracking-widest text-neutral-400">{label}</p>
       {!hasData ? (
-        <p className="text-[10px] font-mono text-neutral-700">No EXIF data available</p>
+        <p className="text-[10px] font-mono text-neutral-400">No EXIF data available</p>
       ) : (
         <div className="space-y-1.5 text-[10px] font-mono">
           {metadata.dateTaken && (
             <div className="flex items-center gap-1.5 text-neutral-400">
-              <Calendar className="w-3 h-3 text-neutral-600" />
+              <Calendar className="w-3 h-3 text-neutral-400" />
               {formatDateTime(metadata.dateTaken)}
             </div>
           )}
           {metadata.device && (
             <div className="flex items-center gap-1.5 text-neutral-400">
-              <Smartphone className="w-3 h-3 text-neutral-600" />
+              <Smartphone className="w-3 h-3 text-neutral-400" />
               {metadata.device}
             </div>
           )}
           {metadata.gps && (
             <div className="flex items-center gap-1.5 text-neutral-400">
-              <MapPin className="w-3 h-3 text-neutral-600" />
+              <MapPin className="w-3 h-3 text-neutral-400" />
               <a
                 href={`https://www.google.com/maps?q=${metadata.gps.latitude},${metadata.gps.longitude}`}
                 target="_blank"
@@ -777,7 +777,7 @@ function MetadataCard({ label, metadata }: { label: string; metadata: PhotoMetad
           )}
           {metadata.software && (
             <div className="flex items-center gap-1.5 text-neutral-400">
-              <ImageIcon className="w-3 h-3 text-neutral-600" />
+              <ImageIcon className="w-3 h-3 text-neutral-400" />
               {metadata.software}
             </div>
           )}
@@ -816,7 +816,7 @@ function ConsistencyChecks({ metadata }: { metadata: { id_front: PhotoMetadata; 
 
   return (
     <div className="border border-white/5 p-3">
-      <p className="text-[9px] font-mono uppercase tracking-widest text-neutral-600 mb-2">Consistency</p>
+      <p className="text-[9px] font-mono uppercase tracking-widest text-neutral-400 mb-2">Consistency</p>
       <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 text-[10px] font-mono">
         <ConsistencyItem label="Same device" value={sameDevice} />
         <ConsistencyItem label="Same location" value={sameLocation} />
@@ -832,13 +832,13 @@ function ConsistencyItem({ label, value }: { label: string; value: boolean | nul
   return (
     <div className="flex items-center gap-1.5">
       {value === null ? (
-        <span className="text-neutral-700">—</span>
+        <span className="text-neutral-400">—</span>
       ) : value ? (
         <CheckCircle className="w-3 h-3 text-emerald-400" />
       ) : (
         <XCircle className="w-3 h-3 text-red-400" />
       )}
-      <span className={value === null ? 'text-neutral-700' : value ? 'text-neutral-400' : 'text-red-400'}>
+      <span className={value === null ? 'text-neutral-400' : value ? 'text-neutral-400' : 'text-red-400'}>
         {label}
       </span>
     </div>
@@ -849,7 +849,7 @@ function ConsistencyItem({ label, value }: { label: string; value: boolean | nul
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
   return (
-    <p className="text-[9px] font-mono uppercase tracking-[0.25em] text-neutral-600">
+    <p className="text-[9px] font-mono uppercase tracking-[0.25em] text-neutral-400">
       {children}
     </p>
   );
@@ -867,8 +867,8 @@ function DocumentCard({
   if (!path) {
     return (
       <div className="border border-white/5 p-4 flex flex-col items-center justify-center gap-2 min-h-[140px]">
-        <ImageIcon className="w-5 h-5 text-neutral-700" />
-        <p className="text-[10px] font-mono uppercase tracking-widest text-neutral-700">{label}</p>
+        <ImageIcon className="w-5 h-5 text-neutral-400" />
+        <p className="text-[10px] font-mono uppercase tracking-widest text-neutral-400">{label}</p>
         <p className="text-[9px] font-mono text-neutral-800">Not submitted</p>
       </div>
     );
@@ -877,9 +877,9 @@ function DocumentCard({
   if (!url) {
     return (
       <div className="border border-white/5 p-4 flex flex-col items-center justify-center gap-2 min-h-[140px]">
-        <ImageIcon className="w-5 h-5 text-neutral-600" />
-        <p className="text-[10px] font-mono uppercase tracking-widest text-neutral-500">{label}</p>
-        <p className="text-[9px] font-mono text-neutral-700">URL unavailable</p>
+        <ImageIcon className="w-5 h-5 text-neutral-400" />
+        <p className="text-[10px] font-mono uppercase tracking-widest text-neutral-400">{label}</p>
+        <p className="text-[9px] font-mono text-neutral-400">URL unavailable</p>
       </div>
     );
   }
@@ -896,7 +896,7 @@ function DocumentCard({
           alt={label}
           className="w-full h-36 object-cover bg-neutral-950 group-hover:opacity-80 transition-opacity"
         />
-        <div className="flex items-center justify-center gap-1 py-2 text-[9px] font-mono text-neutral-500 group-hover:text-white transition-colors">
+        <div className="flex items-center justify-center gap-1 py-2 text-[9px] font-mono text-neutral-400 group-hover:text-white transition-colors">
           <ExternalLink className="w-2.5 h-2.5" />
           Open full size
         </div>

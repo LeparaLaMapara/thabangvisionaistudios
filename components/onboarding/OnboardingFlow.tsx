@@ -170,13 +170,13 @@ export default function OnboardingFlow() {
       >
         {/* Header */}
         <div className="mb-6">
-          <p className="text-[9px] font-mono uppercase tracking-[0.2em] text-neutral-600 mb-3">
+          <p className="text-[9px] font-mono uppercase tracking-[0.2em] text-neutral-400 mb-3">
             {STUDIO.shortName.toUpperCase()} / CREATOR ONBOARDING
           </p>
           <h1 className="text-3xl font-display font-medium uppercase tracking-tight text-white">
             Join the Network
           </h1>
-          <p className="text-xs font-mono text-neutral-500 mt-3 leading-relaxed">
+          <p className="text-xs font-mono text-neutral-400 mt-3 leading-relaxed">
             Show us your work and we&apos;ll build your creator profile.
           </p>
           <div className="w-8 h-px bg-[#D4A843] mt-5" />
@@ -249,7 +249,7 @@ export default function OnboardingFlow() {
               <button
                 type="button"
                 onClick={goBack}
-                className="flex items-center gap-1 text-[10px] font-mono uppercase tracking-widest text-neutral-500 hover:text-white transition-colors min-h-[44px] px-2"
+                className="flex items-center gap-1 text-[10px] font-mono uppercase tracking-widest text-neutral-400 hover:text-white transition-colors min-h-[44px] px-2"
               >
                 <ChevronLeft className="w-3 h-3" />
                 Back
@@ -260,12 +260,12 @@ export default function OnboardingFlow() {
 
         {/* Step indicator + skip */}
         <div className="flex items-center justify-between mt-4">
-          <p className="text-[9px] font-mono text-neutral-600">
+          <p className="text-[9px] font-mono text-neutral-400">
             Step {step} of {TOTAL_STEPS}
           </p>
           <Link
             href="/dashboard"
-            className="flex items-center gap-1 text-[10px] font-mono uppercase tracking-widest text-neutral-500 hover:text-white transition-colors min-h-[44px] px-2"
+            className="flex items-center gap-1 text-[10px] font-mono uppercase tracking-widest text-neutral-400 hover:text-white transition-colors min-h-[44px] px-2"
           >
             Skip to Dashboard
             <ArrowRight className="w-3 h-3" />

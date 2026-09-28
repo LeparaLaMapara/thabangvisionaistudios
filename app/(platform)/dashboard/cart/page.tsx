@@ -276,8 +276,8 @@ export default function CartPage() {
   if (items.length === 0) {
     return (
       <div className="text-center py-20 space-y-4">
-        <ShoppingCart className="w-12 h-12 mx-auto text-neutral-600" />
-        <p className="text-sm font-mono text-neutral-500">Your cart is empty</p>
+        <ShoppingCart className="w-12 h-12 mx-auto text-neutral-400" />
+        <p className="text-sm font-mono text-neutral-400">Your cart is empty</p>
         <Link
           href="/rentals"
           className="inline-flex items-center gap-2 text-[10px] font-mono font-bold uppercase tracking-widest text-[#D4A843] hover:underline"
@@ -292,7 +292,7 @@ export default function CartPage() {
     <div className="space-y-8">
       <DashboardSubTabs tabs={ACTIVITY_TABS} />
       <div>
-        <p className="text-[10px] font-mono uppercase tracking-widest text-neutral-500 mb-2">
+        <p className="text-[10px] font-mono uppercase tracking-widest text-neutral-400 mb-2">
           Rental Cart
         </p>
         <h2 className="text-xl font-display font-medium text-white">
@@ -345,7 +345,7 @@ export default function CartPage() {
                         className="w-full h-full object-cover"
                       />
                     ) : (
-                      <div className="w-full h-full flex items-center justify-center text-neutral-700 text-[10px] font-mono">
+                      <div className="w-full h-full flex items-center justify-center text-neutral-400 text-[10px] font-mono">
                         No image
                       </div>
                     )}
@@ -359,7 +359,7 @@ export default function CartPage() {
                     >
                       {item.rental.title}
                     </Link>
-                    <p className="text-[10px] font-mono text-neutral-500 mt-0.5">
+                    <p className="text-[10px] font-mono text-neutral-400 mt-0.5">
                       {item.rental.category}{item.rental.brand ? ` / ${item.rental.brand}` : ''}
                     </p>
                     <p className="text-xs font-mono text-neutral-400 mt-1">
@@ -391,7 +391,7 @@ export default function CartPage() {
                   <div className="flex flex-col items-end justify-between">
                     <button
                       onClick={() => handleRemove(item.id)}
-                      className="text-neutral-600 hover:text-red-400 transition-colors"
+                      className="text-neutral-400 hover:text-red-400 transition-colors"
                     >
                       <Trash2 className="w-4 h-4" />
                     </button>
@@ -412,7 +412,7 @@ export default function CartPage() {
                     label="Rental dates"
                   />
                   {hasDates && (
-                    <p className="text-[10px] font-mono text-neutral-500 mt-1.5">
+                    <p className="text-[10px] font-mono text-neutral-400 mt-1.5">
                       {days} day{days !== 1 ? 's' : ''}
                       {days >= 7 ? ` (${Math.floor(days / 7)}w ${days % 7}d)` : ''}
                     </p>
@@ -428,7 +428,7 @@ export default function CartPage() {
           {/* Pricing breakdown */}
           {pricing && (
             <div className="border border-white/10 bg-[#0A0A0B] p-5 space-y-3">
-              <p className="text-[10px] font-mono uppercase tracking-widest text-neutral-500">
+              <p className="text-[10px] font-mono uppercase tracking-widest text-neutral-400">
                 Pricing
               </p>
 
@@ -444,7 +444,7 @@ export default function CartPage() {
               ))}
 
               <div className="border-t border-white/5 pt-3 flex justify-between text-xs font-mono">
-                <span className="text-neutral-500">Subtotal</span>
+                <span className="text-neutral-400">Subtotal</span>
                 <span className="text-white">R {pricing.subtotal.toLocaleString()}</span>
               </div>
 
@@ -460,13 +460,13 @@ export default function CartPage() {
               )}
 
               <div className="flex justify-between text-xs font-mono">
-                <span className="text-neutral-500">Deposits</span>
+                <span className="text-neutral-400">Deposits</span>
                 <span className="text-neutral-400">R {pricing.totalDeposit.toLocaleString()}</span>
               </div>
 
               {STUDIO.legal.vatRegistered && (
                 <div className="flex justify-between text-xs font-mono">
-                  <span className="text-neutral-500">
+                  <span className="text-neutral-400">
                     Incl. VAT ({pricing.vatRate}%)
                   </span>
                   <span className="text-neutral-400">R {pricing.vatAmount.toLocaleString()}</span>
@@ -475,7 +475,7 @@ export default function CartPage() {
 
               {deliveryFee > 0 && (
                 <div className="flex justify-between text-xs font-mono">
-                  <span className="text-neutral-500">Delivery</span>
+                  <span className="text-neutral-400">Delivery</span>
                   <span className="text-neutral-400">R {deliveryFee.toLocaleString()}</span>
                 </div>
               )}
@@ -491,7 +491,7 @@ export default function CartPage() {
 
               {totals && totals.balanceOnCollection > 0 && (
                 <div className="flex justify-between text-xs font-mono">
-                  <span className="text-neutral-500">Due on collection</span>
+                  <span className="text-neutral-400">Due on collection</span>
                   <span className="text-neutral-400">
                     R {totals.balanceOnCollection.toLocaleString()}
                   </span>
@@ -508,7 +508,7 @@ export default function CartPage() {
 
           {!allDatesSet && items.length > 0 && (
             <div className="border border-white/10 bg-[#0A0A0B] p-5">
-              <p className="text-xs font-mono text-neutral-500 text-center">
+              <p className="text-xs font-mono text-neutral-400 text-center">
                 Select rental dates for each item to see pricing
               </p>
             </div>
@@ -517,7 +517,7 @@ export default function CartPage() {
           {/* How the customer gets the gear */}
           {items.length > 0 && (
             <div className="border border-white/10 bg-[#0A0A0B] p-5 space-y-4">
-              <p className="text-[10px] font-mono uppercase tracking-widest text-neutral-500">
+              <p className="text-[10px] font-mono uppercase tracking-widest text-neutral-400">
                 How would you like to receive your gear?
               </p>
 
@@ -540,14 +540,14 @@ export default function CartPage() {
 
               {fulfilment === 'collection' ? (
                 <div className="space-y-3">
-                  <p className="text-[11px] font-mono text-neutral-500 leading-relaxed">
+                  <p className="text-[11px] font-mono text-neutral-400 leading-relaxed">
                     Collect from our {STUDIO.location.city} studio. {STUDIO.hours.weekday},{' '}
                     {STUDIO.hours.weekend}. Bring the ID you verified with.
                   </p>
 
                   {STUDIO.fulfilment.collection.allowBalanceOnCollection && (
                     <div className="space-y-2">
-                      <p className="text-[10px] font-mono uppercase tracking-widest text-neutral-500">
+                      <p className="text-[10px] font-mono uppercase tracking-widest text-neutral-400">
                         Payment
                       </p>
                       {(
@@ -575,7 +575,7 @@ export default function CartPage() {
                 </div>
               ) : (
                 <div className="space-y-3">
-                  <p className="text-[11px] font-mono text-neutral-500 leading-relaxed">
+                  <p className="text-[11px] font-mono text-neutral-400 leading-relaxed">
                     We deliver in our own vehicle. The fee is worked out from the distance
                     and the size of your order, and shown below before you pay.
                   </p>
@@ -591,7 +591,7 @@ export default function CartPage() {
                   )}
 
                   {delivery && isDeliveryQuote(delivery) && (
-                    <p className="text-[11px] font-mono text-neutral-500">
+                    <p className="text-[11px] font-mono text-neutral-400">
                       About {delivery.distanceKm}km from our {delivery.fromLocation} studio.
                       {delivery.minimumApplied && ' Minimum delivery fee applied.'}
                     </p>
@@ -608,7 +608,7 @@ export default function CartPage() {
             placeholder="Pickup/delivery notes (optional)"
             maxLength={500}
             rows={2}
-            className="w-full bg-transparent border border-white/10 p-3 text-xs font-mono text-white placeholder:text-neutral-600 focus:border-[#D4A843]/50 focus:outline-none resize-none"
+            className="w-full bg-transparent border border-white/10 p-3 text-xs font-mono text-white placeholder:text-neutral-400 focus:border-[#D4A843]/50 focus:outline-none resize-none"
           />
 
           {/* Checkout button */}
@@ -626,7 +626,7 @@ export default function CartPage() {
                 : `Checkout — R ${(totals?.dueNow ?? pricing.grandTotal).toLocaleString()}`}
           </Button>
 
-          <p className="text-[9px] font-mono text-neutral-600 text-center">
+          <p className="text-[9px] font-mono text-neutral-400 text-center">
             Each item has its own rental period. Deposits are refundable and
             carry no VAT. Bulk discounts apply on 3+ items.
           </p>

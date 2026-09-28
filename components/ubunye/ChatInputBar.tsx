@@ -81,7 +81,7 @@ export function ChatInputBar({
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -8 }}
               transition={{ duration: 0.3 }}
-              className="text-xs text-neutral-600 text-center"
+              className="text-xs text-neutral-400 text-center"
             >
               Try: &ldquo;{UBUNYE_EXAMPLE_PROMPTS[suggestionIndex]}&rdquo;
             </motion.p>
@@ -96,7 +96,7 @@ export function ChatInputBar({
             initial={{ opacity: 0, y: 4 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0 }}
-            className="text-[10px] text-neutral-500 text-center mb-2 font-mono"
+            className="text-[10px] text-neutral-400 text-center mb-2 font-mono"
           >
             {comingSoon} coming soon
           </motion.div>
@@ -115,7 +115,7 @@ export function ChatInputBar({
               type="button"
               onClick={() => showComingSoon('Attachments')}
               disabled={limitReached}
-              className="p-1.5 text-neutral-600 hover:text-neutral-400 transition-colors disabled:opacity-50"
+              className="p-1.5 text-neutral-400 hover:text-neutral-400 transition-colors disabled:opacity-50"
             >
               <Paperclip className="w-4 h-4" />
             </button>
@@ -123,7 +123,7 @@ export function ChatInputBar({
               type="button"
               onClick={() => showComingSoon('Voice input')}
               disabled={limitReached}
-              className="p-1.5 text-neutral-600 hover:text-neutral-400 transition-colors disabled:opacity-50"
+              className="p-1.5 text-neutral-400 hover:text-neutral-400 transition-colors disabled:opacity-50"
             >
               <Mic className="w-4 h-4" />
             </button>
@@ -150,7 +150,7 @@ export function ChatInputBar({
               className={`w-8 h-8 flex items-center justify-center rounded-lg transition-all duration-200 ${
                 input.trim() && !isLoading && !limitReached
                   ? 'bg-[#D4A843] text-black hover:bg-[#E8C96A]'
-                  : 'text-neutral-600'
+                  : 'text-neutral-400'
               }`}
             >
               {input.trim() ? (
@@ -165,11 +165,11 @@ export function ChatInputBar({
 
       {/* Footer */}
       <div className="flex items-center justify-between mt-2 px-1">
-        <p className="text-[10px] text-neutral-700">
+        <p className="text-[10px] text-neutral-400">
           Powered by Ubunye AI
         </p>
         {!limitReached && remaining !== -1 && (
-          <p className="text-[10px] text-neutral-600">
+          <p className="text-[10px] text-neutral-400">
             {remaining} left{isAuthenticated ? ' today' : ''}
           </p>
         )}

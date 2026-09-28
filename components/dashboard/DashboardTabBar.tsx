@@ -125,11 +125,11 @@ export function DashboardTabBar({ isCreator }: DashboardTabBarProps) {
               key={tab.id}
               href={tab.href}
               className={`flex flex-col items-center justify-center flex-1 h-full transition-colors relative ${
-                active ? 'text-[#D4A843]' : 'text-neutral-500'
+                active ? 'text-[#D4A843]' : 'text-neutral-400'
               }`}
             >
               <div className="relative">
-                <Icon size={20} className={active ? 'text-[#D4A843]' : 'text-neutral-500'} />
+                <Icon size={20} className={active ? 'text-[#D4A843]' : 'text-neutral-400'} />
                 {tab.id === 'alerts' && unreadCount > 0 && (
                   <span className="absolute -top-1.5 -right-2 min-w-[16px] h-4 bg-red-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center px-1">
                     {unreadCount > 9 ? '9+' : unreadCount}

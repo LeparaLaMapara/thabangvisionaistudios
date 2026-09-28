@@ -63,7 +63,7 @@ export function DashboardNav({ isCreator, vertical }: DashboardNavProps) {
             className={`block text-[10px] font-mono uppercase tracking-widest py-2 px-3 transition-colors ${
               isActive(link.href, link.exact)
                 ? 'text-[#D4A843] bg-[#D4A843]/5 border-l-2 border-[#D4A843]'
-                : 'text-neutral-500 hover:text-white hover:bg-white/5'
+                : 'text-neutral-400 hover:text-white hover:bg-white/5'
             }`}
           >
             {link.label}
@@ -82,7 +82,7 @@ export function DashboardNav({ isCreator, vertical }: DashboardNavProps) {
           className={`text-[10px] font-mono uppercase tracking-widest py-2 px-3 whitespace-nowrap transition-colors ${
             isActive(link.href, link.exact)
               ? 'text-[#D4A843] border-b-2 border-[#D4A843]'
-              : 'text-neutral-500 hover:text-white'
+              : 'text-neutral-400 hover:text-white'
           }`}
         >
           {link.label}

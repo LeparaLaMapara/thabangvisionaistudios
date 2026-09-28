@@ -106,7 +106,7 @@ function ProductionCard({
         />
       ) : (
         <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-neutral-900 to-neutral-800">
-          <Camera className="w-10 h-10 text-neutral-700" />
+          <Camera className="w-10 h-10 text-neutral-400" />
         </div>
       )}
 
@@ -158,7 +158,7 @@ export default function SmartProductionClient({ productions }: Props) {
             </span>
             <h1 className="text-5xl md:text-8xl font-display font-medium text-white tracking-tight leading-[0.9] mb-8 uppercase">
               Our <br />
-              <span className="text-neutral-500">Studio</span>
+              <span className="text-neutral-400">Studio</span>
             </h1>
             <p className="max-w-2xl text-lg text-neutral-300 font-light leading-relaxed">
               Hire trusted photographers, videographers, and production teams from our in-house studio or verified creator network.
@@ -200,11 +200,11 @@ export default function SmartProductionClient({ productions }: Props) {
         <div className="container mx-auto px-6 py-16 relative z-10">
           {count === 0 ? (
             <div className="border border-white/10 bg-[#0A0A0B] px-8 py-20 text-center">
-              <Camera className="w-8 h-8 text-neutral-700 mx-auto mb-6" />
+              <Camera className="w-8 h-8 text-neutral-400 mx-auto mb-6" />
               <p className="text-neutral-400 font-light mb-2">
                 No projects published yet.
               </p>
-              <p className="text-sm text-neutral-500 font-light">
+              <p className="text-sm text-neutral-400 font-light">
                 Talk to us about your shoot and we will put a team together.
               </p>
               <Link
@@ -220,7 +220,7 @@ export default function SmartProductionClient({ productions }: Props) {
                 <h2 className="text-2xl md:text-3xl font-display font-medium text-white uppercase tracking-tight">
                   The Work
                 </h2>
-                <span className="text-[10px] font-mono text-neutral-500 uppercase tracking-[0.2em]">
+                <span className="text-[10px] font-mono text-neutral-400 uppercase tracking-[0.2em]">
                   {count} project{count !== 1 ? 's' : ''}
                 </span>
               </div>

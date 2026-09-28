@@ -35,7 +35,7 @@ export default async function CreatorRequestsPage() {
         <h2 className="text-lg font-display font-medium uppercase text-white">
           My Hires
         </h2>
-        <p className="text-xs font-mono text-neutral-500 mt-2">
+        <p className="text-xs font-mono text-neutral-400 mt-2">
           Track requests you have submitted for creators.
         </p>
       </div>

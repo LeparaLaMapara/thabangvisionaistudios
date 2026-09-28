@@ -129,7 +129,7 @@ function UnsubscribeForm() {
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="you@example.com"
                 autoComplete="email"
-                className="w-full bg-transparent border border-white/15 px-4 py-3 text-white placeholder:text-neutral-600 focus:border-[#D4A843] focus:outline-none"
+                className="w-full bg-transparent border border-white/15 px-4 py-3 text-white placeholder:text-neutral-400 focus:border-[#D4A843] focus:outline-none"
               />
               <button
                 type="submit"
@@ -144,7 +144,7 @@ function UnsubscribeForm() {
               <p className="text-red-400" role="alert">{message}</p>
             )}
 
-            <p className="text-neutral-500">
+            <p className="text-neutral-400">
               Trouble with this? Email{' '}
               <a href={`mailto:${STUDIO.privacyEmail}`} className={link}>
                 {STUDIO.privacyEmail}

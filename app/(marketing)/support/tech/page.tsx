@@ -67,13 +67,13 @@ export default function PlatformSupportPage() {
         {/* Header */}
         <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-16 gap-4">
           <div>
-            <span className="text-[10px] font-mono text-neutral-500 uppercase tracking-widest mb-4 block">
+            <span className="text-[10px] font-mono text-neutral-400 uppercase tracking-widest mb-4 block">
               00 // Platform Support
             </span>
             <h1 className="text-4xl md:text-6xl font-display font-medium text-white tracking-tighter uppercase">
               Report an Issue
             </h1>
-            <p className="text-neutral-500 font-mono text-sm mt-4 max-w-lg">
+            <p className="text-neutral-400 font-mono text-sm mt-4 max-w-lg">
               Found a bug? Have feedback? Let us know and we&apos;ll fix it.
               For equipment support, visit us at our{' '}
               <span className="text-white">{STUDIO.location.city} studio</span>.
@@ -102,14 +102,14 @@ export default function PlatformSupportPage() {
                 }`}
               >
                 <type.icon className={`w-5 h-5 mb-3 ${
-                  reportType === type.value ? 'text-[#D4A843]' : 'text-neutral-600'
+                  reportType === type.value ? 'text-[#D4A843]' : 'text-neutral-400'
                 }`} />
                 <h3 className={`text-sm font-display uppercase font-medium mb-1 ${
                   reportType === type.value ? 'text-white' : 'text-neutral-400'
                 }`}>
                   {type.label}
                 </h3>
-                <p className="text-[10px] font-mono text-neutral-600 leading-relaxed">
+                <p className="text-[10px] font-mono text-neutral-400 leading-relaxed">
                   {type.desc}
                 </p>
               </button>
@@ -124,7 +124,7 @@ export default function PlatformSupportPage() {
                 <h4 className="text-2xl font-display uppercase mb-2 text-white">
                   Report Received
                 </h4>
-                <p className="text-neutral-500 font-mono text-sm max-w-md mx-auto">
+                <p className="text-neutral-400 font-mono text-sm max-w-md mx-auto">
                   Thanks for helping us improve the platform. We&apos;ll review your report and
                   follow up via email if we need more details.
                 </p>
@@ -139,30 +139,30 @@ export default function PlatformSupportPage() {
               <form onSubmit={handleSubmit} className="space-y-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div>
-                    <label className="block text-[10px] font-bold uppercase tracking-widest text-neutral-500 mb-2">
+                    <label className="block text-[10px] font-bold uppercase tracking-widest text-neutral-400 mb-2">
                       Page / Feature
                     </label>
                     <input
                       name="page"
                       type="text"
-                      className="w-full bg-neutral-900 border border-white/10 p-3 font-mono text-sm text-white placeholder:text-neutral-700 focus:border-white/30 focus:outline-none transition-colors"
+                      className="w-full bg-neutral-900 border border-white/10 p-3 font-mono text-sm text-white placeholder:text-neutral-400 focus:border-white/30 focus:outline-none transition-colors"
                       placeholder="e.g. Smart Rentals, Dashboard, Checkout"
                     />
                   </div>
                   <div>
-                    <label className="block text-[10px] font-bold uppercase tracking-widest text-neutral-500 mb-2">
+                    <label className="block text-[10px] font-bold uppercase tracking-widest text-neutral-400 mb-2">
                       Device
                     </label>
                     <div className="flex gap-2">
                       <label className="flex-1 cursor-pointer">
                         <input type="radio" name="device" value="Desktop" className="sr-only peer" defaultChecked />
-                        <span className="flex items-center justify-center gap-2 w-full bg-neutral-900 border border-white/10 p-3 font-mono text-sm text-neutral-500 peer-checked:text-white peer-checked:border-white/30 transition-colors">
+                        <span className="flex items-center justify-center gap-2 w-full bg-neutral-900 border border-white/10 p-3 font-mono text-sm text-neutral-400 peer-checked:text-white peer-checked:border-white/30 transition-colors">
                           <Monitor className="w-4 h-4" /> Desktop
                         </span>
                       </label>
                       <label className="flex-1 cursor-pointer">
                         <input type="radio" name="device" value="Mobile" className="sr-only peer" />
-                        <span className="flex items-center justify-center gap-2 w-full bg-neutral-900 border border-white/10 p-3 font-mono text-sm text-neutral-500 peer-checked:text-white peer-checked:border-white/30 transition-colors">
+                        <span className="flex items-center justify-center gap-2 w-full bg-neutral-900 border border-white/10 p-3 font-mono text-sm text-neutral-400 peer-checked:text-white peer-checked:border-white/30 transition-colors">
                           <Smartphone className="w-4 h-4" /> Mobile
                         </span>
                       </label>
@@ -172,27 +172,27 @@ export default function PlatformSupportPage() {
 
                 {reportType === 'bug' && (
                   <div>
-                    <label className="block text-[10px] font-bold uppercase tracking-widest text-neutral-500 mb-2">
+                    <label className="block text-[10px] font-bold uppercase tracking-widest text-neutral-400 mb-2">
                       Steps to Reproduce
                     </label>
                     <textarea
                       name="steps"
                       rows={3}
-                      className="w-full bg-neutral-900 border border-white/10 p-3 font-mono text-sm text-white placeholder:text-neutral-700 focus:border-white/30 focus:outline-none transition-colors"
+                      className="w-full bg-neutral-900 border border-white/10 p-3 font-mono text-sm text-white placeholder:text-neutral-400 focus:border-white/30 focus:outline-none transition-colors"
                       placeholder={"1. Go to Smart Rentals\n2. Click on a rental\n3. The page shows an error"}
                     />
                   </div>
                 )}
 
                 <div>
-                  <label className="block text-[10px] font-bold uppercase tracking-widest text-neutral-500 mb-2">
+                  <label className="block text-[10px] font-bold uppercase tracking-widest text-neutral-400 mb-2">
                     {reportType === 'feedback' ? 'Your Suggestion' : 'Describe the Issue'}
                   </label>
                   <textarea
                     name="description"
                     required
                     rows={5}
-                    className="w-full bg-neutral-900 border border-white/10 p-3 font-mono text-sm text-white placeholder:text-neutral-700 focus:border-white/30 focus:outline-none transition-colors"
+                    className="w-full bg-neutral-900 border border-white/10 p-3 font-mono text-sm text-white placeholder:text-neutral-400 focus:border-white/30 focus:outline-none transition-colors"
                     placeholder={
                       reportType === 'feedback'
                         ? 'Tell us what you would like to see improved or added...'
@@ -202,14 +202,14 @@ export default function PlatformSupportPage() {
                 </div>
 
                 <div>
-                  <label className="block text-[10px] font-bold uppercase tracking-widest text-neutral-500 mb-2">
+                  <label className="block text-[10px] font-bold uppercase tracking-widest text-neutral-400 mb-2">
                     Your Email
                   </label>
                   <input
                     name="email"
                     type="email"
                     required
-                    className="w-full bg-neutral-900 border border-white/10 p-3 font-mono text-sm text-white placeholder:text-neutral-700 focus:border-white/30 focus:outline-none transition-colors"
+                    className="w-full bg-neutral-900 border border-white/10 p-3 font-mono text-sm text-white placeholder:text-neutral-400 focus:border-white/30 focus:outline-none transition-colors"
                     placeholder="so we can follow up with you"
                   />
                 </div>

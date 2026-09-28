@@ -103,16 +103,16 @@ export default function TakeBackPage() {
 
   return (
     <div className="max-w-2xl mx-auto p-6 md:p-10 space-y-8">
-      <Link href="/admin/bookings" className="inline-flex items-center gap-2 text-[10px] font-mono uppercase tracking-widest text-neutral-500">
+      <Link href="/admin/bookings" className="inline-flex items-center gap-2 text-[10px] font-mono uppercase tracking-widest text-neutral-400">
         <ArrowLeft className="w-3 h-3" /> Bookings
       </Link>
       <header>
-        <p className="text-[10px] font-mono uppercase tracking-widest text-neutral-600 mb-1">Take back</p>
+        <p className="text-[10px] font-mono uppercase tracking-widest text-neutral-400 mb-1">Take back</p>
         <h1 className="text-2xl font-display text-white tracking-tight">
           {data ? `${data.title}${data.quantity > 1 ? ` x${data.quantity}` : ''}` : 'Loading…'}
         </h1>
         {data && (
-          <p className="text-xs font-mono text-neutral-500 mt-2">
+          <p className="text-xs font-mono text-neutral-400 mt-2">
             Due back {data.end_date}
             {data.days_late > 0 ? ` · ${data.days_late} day(s) late` : ' · on time'}
           </p>
@@ -142,7 +142,7 @@ export default function TakeBackPage() {
               <Camera className="w-4 h-4" aria-hidden="true" /> Photos of the returned gear
               <input type="file" accept="image/*" capture="environment" multiple className="sr-only" onChange={(e) => upload(e.target.files)} />
             </label>
-            {uploading && <p className="text-xs text-neutral-500 flex items-center gap-2"><Loader2 className="w-3 h-3 animate-spin" /> Uploading…</p>}
+            {uploading && <p className="text-xs text-neutral-400 flex items-center gap-2"><Loader2 className="w-3 h-3 animate-spin" /> Uploading…</p>}
             {photos.length > 0 && <p className="text-xs text-neutral-400">{photos.length} photo(s) added</p>}
           </section>
 
@@ -159,9 +159,9 @@ export default function TakeBackPage() {
               </label>
             </div>
             <dl className="border border-white/10 rounded p-4 space-y-1 text-sm font-mono">
-              <div className="flex justify-between"><dt className="text-neutral-500">Deposit</dt><dd className="text-white">{rand(data.deposit)}</dd></div>
-              <div className="flex justify-between"><dt className="text-neutral-500">Late fee</dt><dd className="text-white">{rand(data.late_fee)}</dd></div>
-              <div className="flex justify-between"><dt className="text-neutral-500">Damage</dt><dd className="text-white">{rand(Math.min(damageFee, data.deposit))}</dd></div>
+              <div className="flex justify-between"><dt className="text-neutral-400">Deposit</dt><dd className="text-white">{rand(data.deposit)}</dd></div>
+              <div className="flex justify-between"><dt className="text-neutral-400">Late fee</dt><dd className="text-white">{rand(data.late_fee)}</dd></div>
+              <div className="flex justify-between"><dt className="text-neutral-400">Damage</dt><dd className="text-white">{rand(Math.min(damageFee, data.deposit))}</dd></div>
               <div className="flex justify-between border-t border-white/10 pt-1"><dt className="text-white">Back to the renter</dt><dd className="text-[#D4A843]">{rand(release)}</dd></div>
             </dl>
             {release > 0 && data.deposit_on_card && (

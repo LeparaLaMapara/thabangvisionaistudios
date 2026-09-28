@@ -26,7 +26,7 @@ export function Textarea({
       {label && (
         <label
           htmlFor={inputId}
-          className="block text-[10px] font-mono uppercase tracking-widest text-neutral-500 mb-2"
+          className="block text-[10px] font-mono uppercase tracking-widest text-neutral-400 mb-2"
         >
           {label}
         </label>
@@ -43,7 +43,7 @@ export function Textarea({
             : 'border-black/20 dark:border-white/10',
           'text-black dark:text-white',
           'px-4 py-3 font-mono text-sm',
-          'placeholder:text-neutral-300 dark:placeholder:text-neutral-700',
+          'placeholder:text-neutral-300 dark:placeholder:text-neutral-400',
           'focus:outline-none',
           error
             ? 'focus:border-red-500'
@@ -62,13 +62,13 @@ export function Textarea({
             <p className="text-[10px] font-mono text-red-500">{error}</p>
           )}
           {hint && !error && (
-            <p className="text-[10px] font-mono text-neutral-400 dark:text-neutral-600">
+            <p className="text-[10px] font-mono text-neutral-400 dark:text-neutral-400">
               {hint}
             </p>
           )}
         </div>
         {maxLength != null && (
-          <p className="text-[10px] font-mono text-neutral-400 dark:text-neutral-600 ml-auto">
+          <p className="text-[10px] font-mono text-neutral-400 dark:text-neutral-400 ml-auto">
             {charCount}/{maxLength}
           </p>
         )}
