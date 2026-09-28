@@ -103,7 +103,7 @@ export const STUDIO = {
   locations: [
     {
       name: 'Johannesburg collection point',
-      address: 'Braamfontein (Wits area). The exact spot is in your booking confirmation.',
+      address: '99 Smith Street, Braamfontein, Johannesburg. Collections by booking, during business hours.',
       city: 'Johannesburg',
       province: 'Gauteng',
       phone: '',
@@ -246,7 +246,7 @@ export const STUDIO = {
       lng: 28.0305,
       // The exact meeting place, sent in every confirmation. Empty until the
       // owner sets it; messages then say the spot follows the day before.
-      meetingPoint: '',
+      meetingPoint: '99 Smith Street',
     },
     collection: {
       enabled: true,

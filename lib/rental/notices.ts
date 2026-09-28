@@ -14,7 +14,7 @@ const where = (): string => {
   const f = STUDIO.fulfilment.dispatchFrom;
   return f.meetingPoint
     ? `${f.meetingPoint}, ${f.name}`
-    : `${f.name} (Wits area). We send you the exact spot the day before`;
+    : `${f.name}. We send you the exact spot the day before`;
 };
 
 export interface NoticeBooking {
