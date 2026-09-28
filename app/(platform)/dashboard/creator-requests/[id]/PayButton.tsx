@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { isPaymentUrl } from '@/lib/payments/hosts';
 
 export default function PayButton({ requestId, amount }: { requestId: string; amount: number }) {
   const [loading, setLoading] = useState(false);
@@ -10,7 +11,7 @@ export default function PayButton({ requestId, amount }: { requestId: string; am
     try {
       const res = await fetch(`/api/creator-requests/${requestId}/pay`, { method: 'POST' });
       const data = await res.json();
-      if (data.paymentUrl) {
+      if (data.paymentUrl && isPaymentUrl(data.paymentUrl)) {
         window.location.href = data.paymentUrl;
       }
     } catch {

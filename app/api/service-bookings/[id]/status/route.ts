@@ -6,7 +6,7 @@ import { email as emailProvider } from '@/lib/email';
 import { STUDIO } from '@/lib/constants';
 import { checkRateLimit } from '@/lib/auth';
 import { triggerCreatorPayout } from '@/lib/payments/payout';
-import { refundPayment } from '@/lib/payments/paystack';
+import { refundPayment } from '@/lib/payments/routing';
 import { calculateServiceCancellationRefund } from '@/lib/rental/cancellation';
 import { logEvent } from '@/lib/data/events';
 

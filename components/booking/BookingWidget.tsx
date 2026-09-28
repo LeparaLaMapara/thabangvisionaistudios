@@ -23,6 +23,7 @@ import { STUDIO } from '@/lib/constants';
 import { earliestBookableDate, leadTimeMessage } from '@/lib/rental/leadTime';
 import { toLocalYmd, fromLocalYmd } from '@/lib/rental/dates';
 import type { SmartRental } from '@/lib/supabase/queries/smartRentals';
+import { isPaymentUrl } from '@/lib/payments/hosts';
 
 interface Props {
   rental: SmartRental;
@@ -184,7 +185,7 @@ function BookingWidgetInner({ rental }: Props) {
         throw new Error(data.error || 'Booking failed.');
       }
 
-      if (data.payment_url) {
+      if (data.payment_url && isPaymentUrl(data.payment_url)) {
         window.location.assign(data.payment_url);
       } else {
         router.push(`/dashboard/bookings/${data.id}`);

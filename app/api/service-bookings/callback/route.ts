@@ -1,7 +1,7 @@
 export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
-import { verifyPayment } from '@/lib/payments/paystack';
+import { verifyPayment } from '@/lib/payments/routing';
 import { STUDIO } from '@/lib/constants';
 
 // ─── GET — Paystack redirects here after client pays ─────────────────────────

@@ -114,4 +114,11 @@ export interface PaymentProvider {
    * Used by client-side redirect validation.
    */
   readonly allowedHosts: readonly string[];
+
+  /**
+   * Refund a payment in full, or part of it (amount in rands). The reference
+   * is the one this provider gave us (lib/payments/index.ts routes a stored
+   * reference to the provider that issued it).
+   */
+  refund(reference: string, amount?: number): Promise<{ success: boolean; error?: string }>;
 }
