@@ -801,14 +801,14 @@ export default function AdminProjectsPage() {
       {/* ── Header ── */}
       <div className="flex items-center justify-between mb-10">
         <div>
-          <p className="text-[10px] font-mono uppercase tracking-widest text-neutral-600 mb-1">Admin</p>
+          <p className="text-[10px] font-mono uppercase tracking-widest text-neutral-400 mb-1">Admin</p>
           <h1 className="text-2xl font-display font-medium uppercase text-white">Smart Productions</h1>
         </div>
         <div className="flex items-center gap-3">
           <button
             onClick={load}
             title="Refresh"
-            className="p-2 border border-white/10 text-neutral-500 hover:text-white hover:border-white/30 transition-colors"
+            className="p-2 border border-white/10 text-neutral-400 hover:text-white hover:border-white/30 transition-colors"
           >
             <RefreshCw className="w-3.5 h-3.5" />
           </button>
@@ -839,7 +839,7 @@ export default function AdminProjectsPage() {
               </h2>
               <button
                 onClick={closeForm}
-                className="text-neutral-600 hover:text-white transition-colors"
+                className="text-neutral-400 hover:text-white transition-colors"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -934,7 +934,7 @@ export default function AdminProjectsPage() {
                     if (selectedCat) {
                       return (
                         <div className="flex items-end pb-2">
-                          <p className="text-[10px] font-mono text-neutral-500">
+                          <p className="text-[10px] font-mono text-neutral-400">
                             Category starting rate: <span className="text-[#D4A843]">R{selectedCat.starting_rate.toLocaleString('en-ZA')}/{selectedCat.starting_unit}</span>
                           </p>
                         </div>
@@ -1014,7 +1014,7 @@ export default function AdminProjectsPage() {
                       <button
                         onClick={openReCrop}
                         title="Open crop editor"
-                        className="flex items-center gap-1 text-[9px] font-mono uppercase tracking-widest text-neutral-500 hover:text-white transition-colors self-start"
+                        className="flex items-center gap-1 text-[9px] font-mono uppercase tracking-widest text-neutral-400 hover:text-white transition-colors self-start"
                       >
                         <Crop className="w-2.5 h-2.5" />
                         Crop
@@ -1038,8 +1038,8 @@ export default function AdminProjectsPage() {
                       <input {...thumbDropzone.getInputProps()} />
                       {thumbUploading ? (
                         <>
-                          <Loader2 className="w-4 h-4 animate-spin text-neutral-500" />
-                          <span className="text-[9px] font-mono text-neutral-600">{thumbPct}%</span>
+                          <Loader2 className="w-4 h-4 animate-spin text-neutral-400" />
+                          <span className="text-[9px] font-mono text-neutral-400">{thumbPct}%</span>
                           <div className="w-32 h-0.5 bg-white/10 overflow-hidden">
                             <div className="h-full bg-white transition-all duration-150" style={{ width: `${thumbPct}%` }} />
                           </div>
@@ -1048,8 +1048,8 @@ export default function AdminProjectsPage() {
                         <span className="text-[9px] font-mono text-white/60 uppercase tracking-widest">Drop here</span>
                       ) : (
                         <>
-                          <ImagePlus className="w-4 h-4 text-neutral-600" />
-                          <span className="text-[9px] font-mono text-neutral-600 uppercase tracking-widest text-center leading-tight px-2">
+                          <ImagePlus className="w-4 h-4 text-neutral-400" />
+                          <span className="text-[9px] font-mono text-neutral-400 uppercase tracking-widest text-center leading-tight px-2">
                             Drop or click to upload
                           </span>
                         </>
@@ -1060,7 +1060,7 @@ export default function AdminProjectsPage() {
                     <label
                       className={`flex items-center gap-2 px-4 py-2 bg-neutral-950 border border-white/10 text-[10px] font-mono uppercase tracking-widest transition-colors w-fit ${
                         thumbUploading
-                          ? 'text-neutral-500 cursor-not-allowed'
+                          ? 'text-neutral-400 cursor-not-allowed'
                           : 'text-neutral-400 hover:text-white hover:border-white/30 cursor-pointer'
                       }`}
                     >
@@ -1080,7 +1080,7 @@ export default function AdminProjectsPage() {
                     </label>
 
                     {form.cover_public_id && (
-                      <p className="text-[9px] font-mono text-neutral-700 max-w-[200px] truncate">
+                      <p className="text-[9px] font-mono text-neutral-400 max-w-[200px] truncate">
                         {form.cover_public_id}
                       </p>
                     )}
@@ -1088,9 +1088,9 @@ export default function AdminProjectsPage() {
                 </div>
 
                 {form.sub_category && (
-                  <p className="text-[9px] font-mono text-neutral-700 mt-3">
+                  <p className="text-[9px] font-mono text-neutral-400 mt-3">
                     Folder → thabangvision_usecase/media/smartproductions/
-                    <span className="text-neutral-500">
+                    <span className="text-neutral-400">
                       {form.sub_category.trim().toLowerCase().replace(/\s+/g, '-') || 'general'}
                     </span>
                   </p>
@@ -1177,8 +1177,8 @@ export default function AdminProjectsPage() {
                     <input {...galDropzone.getInputProps()} />
                     {galUploading ? (
                       <>
-                        <Loader2 className="w-5 h-5 animate-spin text-neutral-500" />
-                        <span className="text-[9px] font-mono text-neutral-500 uppercase tracking-widest">
+                        <Loader2 className="w-5 h-5 animate-spin text-neutral-400" />
+                        <span className="text-[9px] font-mono text-neutral-400 uppercase tracking-widest">
                           {galUploaded} / {galTotal} uploaded
                         </span>
                         <div className="w-32 h-0.5 bg-white/10 overflow-hidden">
@@ -1189,11 +1189,11 @@ export default function AdminProjectsPage() {
                       <span className="text-[9px] font-mono text-white/60 uppercase tracking-widest">Drop files here</span>
                     ) : (
                       <>
-                        <Images className="w-5 h-5 text-neutral-700" />
-                        <span className="text-[9px] font-mono text-neutral-600 uppercase tracking-widest text-center">
+                        <Images className="w-5 h-5 text-neutral-400" />
+                        <span className="text-[9px] font-mono text-neutral-400 uppercase tracking-widest text-center">
                           Drop images / videos here
                         </span>
-                        <span className="text-[9px] font-mono text-neutral-700 uppercase tracking-widest">
+                        <span className="text-[9px] font-mono text-neutral-400 uppercase tracking-widest">
                           or click to browse
                         </span>
                       </>
@@ -1204,7 +1204,7 @@ export default function AdminProjectsPage() {
                   <label
                     className={`flex items-center gap-2 px-4 py-2 bg-neutral-950 border border-white/10 text-[10px] font-mono uppercase tracking-widest transition-colors w-fit ${
                       galUploading
-                        ? 'text-neutral-500 cursor-not-allowed'
+                        ? 'text-neutral-400 cursor-not-allowed'
                         : 'text-neutral-400 hover:text-white hover:border-white/30 cursor-pointer'
                     }`}
                   >
@@ -1232,7 +1232,7 @@ export default function AdminProjectsPage() {
                       disabled={extracting || galUploading}
                       className={`flex items-center gap-2 px-4 py-2 bg-neutral-950 border border-white/10 text-[10px] font-mono uppercase tracking-widest transition-colors w-fit ${
                         extracting
-                          ? 'text-neutral-500 cursor-not-allowed'
+                          ? 'text-neutral-400 cursor-not-allowed'
                           : 'text-amber-400 hover:text-amber-300 hover:border-amber-500/30 cursor-pointer'
                       }`}
                     >
@@ -1255,7 +1255,7 @@ export default function AdminProjectsPage() {
                       <button
                         type="button"
                         onClick={() => setForm(f => ({ ...f, image_metadata: [] }))}
-                        className="text-[9px] font-mono text-neutral-600 hover:text-red-400 transition-colors uppercase tracking-widest"
+                        className="text-[9px] font-mono text-neutral-400 hover:text-red-400 transition-colors uppercase tracking-widest"
                       >
                         Clear
                       </button>
@@ -1268,11 +1268,11 @@ export default function AdminProjectsPage() {
                         {meta.aperture && <span>f/{meta.aperture}</span>}
                         {meta.iso && <span>ISO {meta.iso}</span>}
                         {meta.shutterSpeed && <span>{meta.shutterSpeed}</span>}
-                        {meta.software && <span className="text-neutral-600">{meta.software}</span>}
+                        {meta.software && <span className="text-neutral-400">{meta.software}</span>}
                       </div>
                     ))}
                     {form.image_metadata.length > 5 && (
-                      <p className="text-[9px] font-mono text-neutral-700">
+                      <p className="text-[9px] font-mono text-neutral-400">
                         +{form.image_metadata.length - 5} more...
                       </p>
                     )}
@@ -1386,24 +1386,24 @@ export default function AdminProjectsPage() {
       {/* ── List ── */}
       {loading ? (
         <div className="flex items-center justify-center py-40">
-          <Loader2 className="w-5 h-5 text-neutral-600 animate-spin" />
+          <Loader2 className="w-5 h-5 text-neutral-400 animate-spin" />
         </div>
       ) : fetchError ? (
         <div className="py-20 text-center bg-red-500/5 border border-red-500/20">
           <p className="text-red-400 font-mono text-sm mb-4">{fetchError}</p>
           <button
             onClick={load}
-            className="text-[10px] font-mono uppercase tracking-widest text-neutral-500 hover:text-white transition-colors"
+            className="text-[10px] font-mono uppercase tracking-widest text-neutral-400 hover:text-white transition-colors"
           >
             Retry
           </button>
         </div>
       ) : items.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-40 border border-white/5">
-          <p className="text-neutral-600 font-mono text-sm mb-4">No projects yet.</p>
+          <p className="text-neutral-400 font-mono text-sm mb-4">No projects yet.</p>
           <button
             onClick={openCreate}
-            className="text-[10px] font-mono uppercase tracking-widest text-neutral-500 hover:text-white transition-colors"
+            className="text-[10px] font-mono uppercase tracking-widest text-neutral-400 hover:text-white transition-colors"
           >
             Create the first one →
           </button>
@@ -1411,7 +1411,7 @@ export default function AdminProjectsPage() {
       ) : (
         <>
           {/* Column header */}
-          <div className="hidden md:grid grid-cols-[40px_1fr_100px_80px_64px_90px_40px_160px] gap-4 px-4 py-3 text-[9px] font-mono uppercase tracking-widest text-neutral-700 border-b border-white/5">
+          <div className="hidden md:grid grid-cols-[40px_1fr_100px_80px_64px_90px_40px_160px] gap-4 px-4 py-3 text-[9px] font-mono uppercase tracking-widest text-neutral-400 border-b border-white/5">
             <span></span>
             <span>Title</span>
             <span>Category</span>
@@ -1455,12 +1455,12 @@ export default function AdminProjectsPage() {
                     <div className="min-w-0">
                       <p className="text-sm font-mono text-white truncate leading-tight">{item.title}</p>
                       {item.client && (
-                        <p className="text-[10px] font-mono text-neutral-600 mt-0.5 truncate">{item.client}</p>
+                        <p className="text-[10px] font-mono text-neutral-400 mt-0.5 truncate">{item.client}</p>
                       )}
                     </div>
 
                     {/* Category */}
-                    <span className="hidden md:block text-[10px] font-mono uppercase tracking-widest text-neutral-500 truncate">
+                    <span className="hidden md:block text-[10px] font-mono uppercase tracking-widest text-neutral-400 truncate">
                       {categories.find(c => c.id === item.production_category_id)?.name ?? item.project_type}
                     </span>
 
@@ -1470,7 +1470,7 @@ export default function AdminProjectsPage() {
                     </span>
 
                     {/* Year */}
-                    <span className="hidden md:block text-[10px] font-mono text-neutral-500">
+                    <span className="hidden md:block text-[10px] font-mono text-neutral-400">
                       {item.year ?? '—'}
                     </span>
 
@@ -1481,7 +1481,7 @@ export default function AdminProjectsPage() {
                           item.is_published ? 'bg-emerald-400' : 'bg-neutral-600'
                         }`}
                       />
-                      <span className="text-[9px] font-mono uppercase tracking-wider text-neutral-500">
+                      <span className="text-[9px] font-mono uppercase tracking-wider text-neutral-400">
                         {item.is_published ? 'Live' : 'Draft'}
                       </span>
                     </div>
@@ -1523,7 +1523,7 @@ export default function AdminProjectsPage() {
                           </button>
                           <button
                             onClick={() => setConfirmId(null)}
-                            className="px-2 py-1 text-[9px] font-mono text-neutral-500 border border-white/10 hover:border-white/30 transition-colors"
+                            className="px-2 py-1 text-[9px] font-mono text-neutral-400 border border-white/10 hover:border-white/30 transition-colors"
                           >
                             ✕
                           </button>
@@ -1545,7 +1545,7 @@ export default function AdminProjectsPage() {
             </AnimatePresence>
           </motion.div>
 
-          <p className="text-[9px] font-mono text-neutral-700 uppercase tracking-widest mt-6 text-right">
+          <p className="text-[9px] font-mono text-neutral-400 uppercase tracking-widest mt-6 text-right">
             {items.length} project{items.length !== 1 ? 's' : ''}
           </p>
         </>
@@ -1558,14 +1558,14 @@ export default function AdminProjectsPage() {
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-white/10 flex-shrink-0">
           <div className="flex items-center gap-3">
-            <Crop className="w-4 h-4 text-neutral-500" />
+            <Crop className="w-4 h-4 text-neutral-400" />
             <h3 className="text-xs font-mono uppercase tracking-widest text-white">Crop Thumbnail</h3>
-            <span className="text-[10px] font-mono text-neutral-600 uppercase tracking-widest">3 : 2</span>
+            <span className="text-[10px] font-mono text-neutral-400 uppercase tracking-widest">3 : 2</span>
           </div>
           <button
             onClick={skipCrop}
             title="Close without cropping"
-            className="text-neutral-600 hover:text-white transition-colors"
+            className="text-neutral-400 hover:text-white transition-colors"
           >
             <X className="w-4 h-4" />
           </button>
@@ -1586,7 +1586,7 @@ export default function AdminProjectsPage() {
 
         {/* Zoom + actions */}
         <div className="flex-shrink-0 flex items-center gap-4 px-6 py-4 border-t border-white/10 bg-black">
-          <span className="text-[10px] font-mono text-neutral-600 uppercase tracking-widest w-10 flex-shrink-0">
+          <span className="text-[10px] font-mono text-neutral-400 uppercase tracking-widest w-10 flex-shrink-0">
             Zoom
           </span>
           <input
@@ -1625,7 +1625,7 @@ export default function AdminProjectsPage() {
 function Section({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
-      <p className="text-[9px] font-mono uppercase tracking-widest text-neutral-600 mb-3 pb-2 border-b border-white/5">
+      <p className="text-[9px] font-mono uppercase tracking-widest text-neutral-400 mb-3 pb-2 border-b border-white/5">
         {label}
       </p>
       {children}
@@ -1653,7 +1653,7 @@ function Field({
   return (
     <div>
       {label && (
-        <label className="block text-[10px] font-mono uppercase tracking-widest text-neutral-500 mb-2">
+        <label className="block text-[10px] font-mono uppercase tracking-widest text-neutral-400 mb-2">
           {label}
         </label>
       )}
@@ -1663,7 +1663,7 @@ function Field({
         onChange={e => onChange(e.target.value)}
         placeholder={placeholder}
         disabled={disabled}
-        className={`w-full bg-neutral-950 border border-white/10 text-white text-sm px-3 py-2 placeholder:text-neutral-700 focus:outline-none focus:border-white/30 disabled:opacity-30 disabled:cursor-not-allowed transition-colors ${
+        className={`w-full bg-neutral-950 border border-white/10 text-white text-sm px-3 py-2 placeholder:text-neutral-400 focus:outline-none focus:border-white/30 disabled:opacity-30 disabled:cursor-not-allowed transition-colors ${
           mono ? 'font-mono' : ''
         }`}
       />
@@ -1688,7 +1688,7 @@ function TextareaField({
       onChange={e => onChange(e.target.value)}
       placeholder={placeholder}
       rows={rows}
-      className="w-full bg-neutral-950 border border-white/10 text-white text-sm px-3 py-2 placeholder:text-neutral-700 focus:outline-none focus:border-white/30 resize-none transition-colors"
+      className="w-full bg-neutral-950 border border-white/10 text-white text-sm px-3 py-2 placeholder:text-neutral-400 focus:outline-none focus:border-white/30 resize-none transition-colors"
     />
   );
 }
@@ -1706,7 +1706,7 @@ function SelectField({
 }) {
   return (
     <div>
-      <label className="block text-[10px] font-mono uppercase tracking-widest text-neutral-500 mb-2">
+      <label className="block text-[10px] font-mono uppercase tracking-widest text-neutral-400 mb-2">
         {label}
       </label>
       <select
@@ -1767,7 +1767,7 @@ function ActionBtn({
       className={`p-2 border transition-colors disabled:opacity-40 ${
         danger
           ? 'border-red-900/40 text-red-600 hover:border-red-500/40 hover:text-red-400'
-          : 'border-white/10 text-neutral-500 hover:border-white/30 hover:text-white'
+          : 'border-white/10 text-neutral-400 hover:border-white/30 hover:text-white'
       }`}
     >
       {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : children}

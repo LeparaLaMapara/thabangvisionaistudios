@@ -328,7 +328,7 @@ export default function PortfolioPage() {
   if (loading) {
     return (
       <div className="min-h-[60vh] flex items-center justify-center">
-        <Loader2 className="w-6 h-6 text-neutral-500 animate-spin" />
+        <Loader2 className="w-6 h-6 text-neutral-400 animate-spin" />
       </div>
     );
   }
@@ -336,7 +336,7 @@ export default function PortfolioPage() {
   if (notVerified) {
     return (
       <div className="max-w-2xl mx-auto py-20 text-center">
-        <AlertCircle className="w-10 h-10 text-neutral-500 mx-auto mb-4" />
+        <AlertCircle className="w-10 h-10 text-neutral-400 mx-auto mb-4" />
         <h1 className="text-2xl font-display font-bold uppercase text-white mb-3">
           Verification Required
         </h1>
@@ -407,7 +407,7 @@ export default function PortfolioPage() {
             <div className="flex items-start justify-between gap-4 mb-6">
               <div className="flex-grow space-y-3">
                 <div className="flex items-center gap-3">
-                  <span className="text-[10px] font-mono text-neutral-500 uppercase tracking-widest">
+                  <span className="text-[10px] font-mono text-neutral-400 uppercase tracking-widest">
                     Project {idx + 1}
                   </span>
                 </div>
@@ -417,7 +417,7 @@ export default function PortfolioPage() {
                   onChange={(e) => updateProject(project.id, 'title', e.target.value)}
                   placeholder="Project title"
                   maxLength={100}
-                  className="w-full bg-transparent border-b border-white/10 text-white text-lg font-display font-bold uppercase pb-2 focus:outline-none focus:border-[#D4A843] transition-colors placeholder:text-neutral-600"
+                  className="w-full bg-transparent border-b border-white/10 text-white text-lg font-display font-bold uppercase pb-2 focus:outline-none focus:border-[#D4A843] transition-colors placeholder:text-neutral-400"
                 />
                 <select
                   value={project.project_type}
@@ -433,7 +433,7 @@ export default function PortfolioPage() {
               </div>
               <button
                 onClick={() => setConfirmDelete({ projectId: project.id, type: 'project' })}
-                className="text-neutral-500 hover:text-red-400 transition-colors p-2"
+                className="text-neutral-400 hover:text-red-400 transition-colors p-2"
                 title="Delete project"
               >
                 <Trash2 className="w-4 h-4" />
@@ -443,7 +443,7 @@ export default function PortfolioPage() {
             {/* Photos section */}
             <div className="mb-6">
               <div className="flex items-center justify-between mb-3">
-                <span className="text-[10px] font-mono text-neutral-500 uppercase tracking-widest flex items-center gap-2">
+                <span className="text-[10px] font-mono text-neutral-400 uppercase tracking-widest flex items-center gap-2">
                   <Camera className="w-3 h-3" />
                   Photos ({project.photos.length}/{maxPhotosPerProject})
                 </span>
@@ -475,17 +475,17 @@ export default function PortfolioPage() {
                     {uploadingPhotos[project.id] ? (
                       <div className="text-center">
                         <Loader2 className="w-5 h-5 text-[#D4A843] animate-spin mx-auto mb-1" />
-                        <span className="text-[9px] font-mono text-neutral-500">
+                        <span className="text-[9px] font-mono text-neutral-400">
                           {uploadProgress[`${project.id}-photo`] ?? 0}%
                         </span>
                       </div>
                     ) : (
                       <>
-                        <Upload className="w-5 h-5 text-neutral-500 mb-1" />
-                        <span className="text-[9px] font-mono text-neutral-500 uppercase">
+                        <Upload className="w-5 h-5 text-neutral-400 mb-1" />
+                        <span className="text-[9px] font-mono text-neutral-400 uppercase">
                           Add Photo
                         </span>
-                        <span className="text-[8px] font-mono text-neutral-600 mt-0.5">
+                        <span className="text-[8px] font-mono text-neutral-400 mt-0.5">
                           JPG/PNG, {maxPhotoSizeMB}MB max
                         </span>
                       </>
@@ -511,7 +511,7 @@ export default function PortfolioPage() {
             {/* Video section */}
             <div>
               <div className="flex items-center justify-between mb-3">
-                <span className="text-[10px] font-mono text-neutral-500 uppercase tracking-widest flex items-center gap-2">
+                <span className="text-[10px] font-mono text-neutral-400 uppercase tracking-widest flex items-center gap-2">
                   <Film className="w-3 h-3" />
                   Showreel ({project.video ? '1' : '0'}/1)
                 </span>
@@ -539,17 +539,17 @@ export default function PortfolioPage() {
                   {uploadingVideo[project.id] ? (
                     <div className="text-center">
                       <Loader2 className="w-6 h-6 text-[#D4A843] animate-spin mx-auto mb-2" />
-                      <span className="text-xs font-mono text-neutral-500">
+                      <span className="text-xs font-mono text-neutral-400">
                         Uploading {uploadProgress[`${project.id}-video`] ?? 0}%
                       </span>
                     </div>
                   ) : (
                     <div className="text-center">
-                      <Film className="w-6 h-6 text-neutral-500 mx-auto mb-2" />
-                      <span className="text-xs font-mono text-neutral-500 uppercase block">
+                      <Film className="w-6 h-6 text-neutral-400 mx-auto mb-2" />
+                      <span className="text-xs font-mono text-neutral-400 uppercase block">
                         Upload Showreel
                       </span>
-                      <span className="text-[9px] font-mono text-neutral-600 mt-1 block">
+                      <span className="text-[9px] font-mono text-neutral-400 mt-1 block">
                         MP4 only, {maxVideoSizeMB}MB max, {maxVideoDurationSeconds}s max
                       </span>
                     </div>

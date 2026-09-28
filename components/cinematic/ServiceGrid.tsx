@@ -21,13 +21,13 @@ export const ServiceGrid = ({ capabilities = CAPABILITIES }: { capabilities?: re
              whileInView={{ opacity: 1, y: 0 }}
              viewport={{ once: true }}
           >
-            <span className="text-[10px] font-mono text-neutral-500 dark:text-accent uppercase tracking-widest mb-4 block">04 // Core Capabilities</span>
+            <span className="text-[10px] font-mono text-neutral-400 dark:text-accent uppercase tracking-widest mb-4 block">04 // Core Capabilities</span>
             <h2 className="text-4xl md:text-6xl font-display font-medium text-black dark:text-white tracking-tight">
-              WHAT WE <span className="text-neutral-400 dark:text-neutral-500">OFFER</span>
+              WHAT WE <span className="text-neutral-400 dark:text-neutral-400">OFFER</span>
             </h2>
           </motion.div>
           <div className="max-w-md mt-8 md:mt-0">
-            <p className="text-neutral-500 dark:text-neutral-400 font-light leading-relaxed">
+            <p className="text-neutral-400 dark:text-neutral-400 font-light leading-relaxed">
               Verified creators, professional equipment, and full production services — everything you need to bring your creative vision to life.
             </p>
           </div>

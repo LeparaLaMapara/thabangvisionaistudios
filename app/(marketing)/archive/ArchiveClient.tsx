@@ -42,17 +42,17 @@ export default function ArchiveClient({ items }: { items: ArchiveItem[] }) {
           <div className="mb-16">
             <Link
               href="/"
-              className="inline-flex items-center gap-2 text-xs font-mono text-neutral-500 hover:text-black dark:hover:text-white transition-colors uppercase tracking-widest mb-8"
+              className="inline-flex items-center gap-2 text-xs font-mono text-neutral-400 hover:text-black dark:hover:text-white transition-colors uppercase tracking-widest mb-8"
             >
               <ArrowLeft className="w-3 h-3" /> Back to Home
             </Link>
-            <span className="text-[10px] font-mono text-neutral-500 dark:text-accent uppercase tracking-widest mb-4 block">
+            <span className="text-[10px] font-mono text-neutral-400 dark:text-accent uppercase tracking-widest mb-4 block">
               Archive
             </span>
             <h1 className="text-5xl md:text-7xl font-display font-medium text-black dark:text-white tracking-tighter uppercase">
-              Past <span className="text-neutral-400 dark:text-neutral-500">Work</span>
+              Past <span className="text-neutral-400 dark:text-neutral-400">Work</span>
             </h1>
-            <p className="text-neutral-500 dark:text-neutral-400 font-light leading-relaxed mt-6 max-w-xl">
+            <p className="text-neutral-400 dark:text-neutral-400 font-light leading-relaxed mt-6 max-w-xl">
               Archived productions and equipment from our catalog. A record of everything we&apos;ve built and used.
             </p>
           </div>
@@ -66,11 +66,11 @@ export default function ArchiveClient({ items }: { items: ArchiveItem[] }) {
                 className={`text-xs font-mono uppercase tracking-widest pb-2 transition-all ${
                   filter === f.key
                     ? 'text-black dark:text-white border-b-2 border-black dark:border-white'
-                    : 'text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300'
+                    : 'text-neutral-400 hover:text-neutral-400 dark:hover:text-neutral-300'
                 }`}
               >
                 {f.label}
-                <span className="ml-2 text-neutral-400 dark:text-neutral-600">
+                <span className="ml-2 text-neutral-400 dark:text-neutral-400">
                   {f.key === 'all' ? items.length : items.filter((i) => i.category === f.key).length}
                 </span>
               </button>
@@ -80,8 +80,8 @@ export default function ArchiveClient({ items }: { items: ArchiveItem[] }) {
           {/* Grid */}
           {filtered.length === 0 ? (
             <div className="text-center py-32">
-              <p className="text-neutral-500 font-mono text-sm">No archived items yet.</p>
-              <p className="text-neutral-400 dark:text-neutral-600 font-mono text-xs mt-2">
+              <p className="text-neutral-400 font-mono text-sm">No archived items yet.</p>
+              <p className="text-neutral-400 dark:text-neutral-400 font-mono text-xs mt-2">
                 Items marked as archived in the admin panel will appear here.
               </p>
             </div>
@@ -113,14 +113,14 @@ export default function ArchiveClient({ items }: { items: ArchiveItem[] }) {
                           />
                         ) : (
                           <div className="w-full h-full flex items-center justify-center">
-                            <Icon className="w-10 h-10 text-neutral-300 dark:text-neutral-700" />
+                            <Icon className="w-10 h-10 text-neutral-300 dark:text-neutral-400" />
                           </div>
                         )}
                       </div>
-                      <h3 className="text-lg font-display font-medium text-black dark:text-white uppercase truncate group-hover:text-neutral-600 dark:group-hover:text-neutral-300 transition-colors">
+                      <h3 className="text-lg font-display font-medium text-black dark:text-white uppercase truncate group-hover:text-neutral-400 dark:group-hover:text-neutral-300 transition-colors">
                         {item.title}
                       </h3>
-                      <p className="text-xs font-mono text-neutral-500 mt-1">{item.meta}</p>
+                      <p className="text-xs font-mono text-neutral-400 mt-1">{item.meta}</p>
                       {item.description && (
                         <p className="text-sm text-neutral-400 mt-2 line-clamp-2">{item.description}</p>
                       )}

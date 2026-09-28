@@ -86,7 +86,7 @@ export default function GigsList({ gigs: initialGigs }: GigsListProps) {
             className={`text-[10px] font-mono uppercase tracking-widest px-3 py-2 border transition-all min-h-[36px] ${
               activeTab === tab
                 ? 'bg-white text-black border-white'
-                : 'bg-transparent text-neutral-500 border-white/10 hover:border-white/30'
+                : 'bg-transparent text-neutral-400 border-white/10 hover:border-white/30'
             }`}
           >
             {STUDIO.creators.statusLabels[tab as keyof typeof STUDIO.creators.statusLabels] || 'All'}{' '}
@@ -113,7 +113,7 @@ export default function GigsList({ gigs: initialGigs }: GigsListProps) {
                   </h3>
                   <StatusBadge status={gig.status} />
                 </div>
-                <span className="text-[9px] font-mono text-neutral-600 flex-shrink-0">
+                <span className="text-[9px] font-mono text-neutral-400 flex-shrink-0">
                   via {gig.booked_via}
                 </span>
               </div>
@@ -122,7 +122,7 @@ export default function GigsList({ gigs: initialGigs }: GigsListProps) {
                 {gig.description}
               </p>
 
-              <div className="flex flex-wrap gap-4 text-[10px] font-mono text-neutral-500">
+              <div className="flex flex-wrap gap-4 text-[10px] font-mono text-neutral-400">
                 {gig.preferred_dates && (
                   <span className="flex items-center gap-1">
                     <Calendar className="w-3 h-3" /> {gig.preferred_dates}
@@ -143,7 +143,7 @@ export default function GigsList({ gigs: initialGigs }: GigsListProps) {
                 )}
               </div>
 
-              <p className="text-[9px] font-mono text-neutral-600 mt-3 italic">
+              <p className="text-[9px] font-mono text-neutral-400 mt-3 italic">
                 {STATUS_MESSAGES[gig.status] || ''}
               </p>
 
@@ -208,7 +208,7 @@ export default function GigsList({ gigs: initialGigs }: GigsListProps) {
                 </div>
               )}
 
-              <p className="text-[9px] font-mono text-neutral-700 mt-2">
+              <p className="text-[9px] font-mono text-neutral-400 mt-2">
                 Submitted {new Date(gig.created_at).toLocaleDateString('en-ZA', {
                   day: 'numeric',
                   month: 'short',
@@ -219,9 +219,9 @@ export default function GigsList({ gigs: initialGigs }: GigsListProps) {
           ))}
         </div>
       ) : (
-        <div className="text-center py-16 text-neutral-500">
+        <div className="text-center py-16 text-neutral-400">
           <p className="text-sm font-mono">No gigs found.</p>
-          <p className="text-[10px] font-mono text-neutral-600 mt-1">
+          <p className="text-[10px] font-mono text-neutral-400 mt-1">
             Gigs appear here when clients book you through the platform.
           </p>
         </div>
@@ -239,8 +239,8 @@ function StatusBadge({ status }: { status: string }) {
     in_progress: 'text-cyan-400 border-cyan-500/30',
     completed: 'text-neutral-400 border-neutral-500/30',
     declined: 'text-red-400 border-red-500/30',
-    cancelled: 'text-neutral-500 border-neutral-600/30',
-    expired: 'text-neutral-500 border-neutral-600/30',
+    cancelled: 'text-neutral-400 border-neutral-600/30',
+    expired: 'text-neutral-400 border-neutral-600/30',
   };
 
   const label =

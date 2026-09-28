@@ -46,7 +46,7 @@ export function ShareButtons({ title, path, className = '' }: ShareButtonsProps)
 
   return (
     <div className={`flex items-center gap-1 ${className}`}>
-      <span className="text-[9px] font-mono uppercase tracking-widest text-neutral-500 mr-2">
+      <span className="text-[9px] font-mono uppercase tracking-widest text-neutral-400 mr-2">
         <Share2 className="w-3 h-3 inline mr-1" />
         Share
       </span>
@@ -57,7 +57,7 @@ export function ShareButtons({ title, path, className = '' }: ShareButtonsProps)
           target="_blank"
           rel="noopener noreferrer"
           aria-label={`Share on ${label}`}
-          className="p-2 text-neutral-500 hover:text-white transition-colors"
+          className="p-2 text-neutral-400 hover:text-white transition-colors"
         >
           <Icon className="w-3.5 h-3.5" />
         </a>
@@ -65,7 +65,7 @@ export function ShareButtons({ title, path, className = '' }: ShareButtonsProps)
       <button
         onClick={handleCopy}
         aria-label="Copy link"
-        className="p-2 text-neutral-500 hover:text-white transition-colors"
+        className="p-2 text-neutral-400 hover:text-white transition-colors"
       >
         {copied ? (
           <Check className="w-3.5 h-3.5 text-emerald-500" />

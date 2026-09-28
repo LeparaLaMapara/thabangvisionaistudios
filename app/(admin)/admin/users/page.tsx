@@ -248,8 +248,8 @@ export default function AdminUsersPage(): React.ReactElement {
   if (loading) {
     return (
       <div className="max-w-5xl mx-auto px-3 md:px-6 py-12 flex items-center justify-center gap-3">
-        <Loader2 className="w-4 h-4 animate-spin text-neutral-500" />
-        <span className="text-[10px] font-mono uppercase tracking-widest text-neutral-600">
+        <Loader2 className="w-4 h-4 animate-spin text-neutral-400" />
+        <span className="text-[10px] font-mono uppercase tracking-widest text-neutral-400">
           Loading users...
         </span>
       </div>
@@ -281,12 +281,12 @@ export default function AdminUsersPage(): React.ReactElement {
       {/* Header */}
       <div className="border-b border-white/5 pb-6">
         <div className="flex items-center gap-3 mb-2">
-          <Users className="w-4 h-4 text-neutral-600" />
+          <Users className="w-4 h-4 text-neutral-400" />
           <h1 className="text-xl font-display font-medium uppercase text-white tracking-wide">
             User Management
           </h1>
         </div>
-        <p className="text-[10px] font-mono text-neutral-600 uppercase tracking-widest">
+        <p className="text-[10px] font-mono text-neutral-400 uppercase tracking-widest">
           {users.length} users · {adminCount} admin{adminCount !== 1 ? 's' : ''} · {suspendedCount} suspended
         </p>
       </div>
@@ -300,7 +300,7 @@ export default function AdminUsersPage(): React.ReactElement {
             className={`px-3 py-1.5 text-[9px] font-mono uppercase tracking-widest transition-colors ${
               filterTab === tab
                 ? 'bg-white/10 text-white'
-                : 'text-neutral-600 hover:text-neutral-400 hover:bg-white/[0.03]'
+                : 'text-neutral-400 hover:text-neutral-400 hover:bg-white/[0.03]'
             }`}
           >
             {tab}
@@ -315,19 +315,19 @@ export default function AdminUsersPage(): React.ReactElement {
       <div className="bg-neutral-900 border border-white/5 overflow-hidden">
         {/* Table Header */}
         <div className="grid grid-cols-[1fr_auto_auto_auto] md:grid-cols-[1fr_1fr_auto_auto_auto] gap-4 px-4 py-3 border-b border-white/[0.06] bg-neutral-900/50">
-          <span className="text-[9px] font-mono uppercase tracking-widest text-neutral-600">
+          <span className="text-[9px] font-mono uppercase tracking-widest text-neutral-400">
             User
           </span>
-          <span className="text-[9px] font-mono uppercase tracking-widest text-neutral-600 hidden md:block">
+          <span className="text-[9px] font-mono uppercase tracking-widest text-neutral-400 hidden md:block">
             Email
           </span>
-          <span className="text-[9px] font-mono uppercase tracking-widest text-neutral-600">
+          <span className="text-[9px] font-mono uppercase tracking-widest text-neutral-400">
             Status
           </span>
-          <span className="text-[9px] font-mono uppercase tracking-widest text-neutral-600">
+          <span className="text-[9px] font-mono uppercase tracking-widest text-neutral-400">
             Role
           </span>
-          <span className="text-[9px] font-mono uppercase tracking-widest text-neutral-600 text-right">
+          <span className="text-[9px] font-mono uppercase tracking-widest text-neutral-400 text-right">
             Actions
           </span>
         </div>
@@ -354,21 +354,21 @@ export default function AdminUsersPage(): React.ReactElement {
                       className="w-full h-full object-cover"
                     />
                   ) : (
-                    <User className="w-3 h-3 text-neutral-600" />
+                    <User className="w-3 h-3 text-neutral-400" />
                   )}
                 </div>
                 <div className="min-w-0">
                   <p className="text-xs font-mono text-neutral-300 truncate">
                     {user.display_name || 'Unnamed'}
                   </p>
-                  <p className="text-[10px] font-mono text-neutral-700 truncate md:hidden">
+                  <p className="text-[10px] font-mono text-neutral-400 truncate md:hidden">
                     {user.email || '\u2014'}
                   </p>
                 </div>
               </div>
 
               {/* Email (desktop) */}
-              <p className="text-[10px] font-mono text-neutral-600 truncate hidden md:block">
+              <p className="text-[10px] font-mono text-neutral-400 truncate hidden md:block">
                 {user.email || '\u2014'}
               </p>
 
@@ -398,7 +398,7 @@ export default function AdminUsersPage(): React.ReactElement {
               {/* Actions */}
               <div className="flex items-center gap-1 flex-shrink-0">
                 {isUpdating ? (
-                  <Loader2 className="w-3 h-3 animate-spin text-neutral-500" />
+                  <Loader2 className="w-3 h-3 animate-spin text-neutral-400" />
                 ) : (
                   <>
                     <select
@@ -431,7 +431,7 @@ export default function AdminUsersPage(): React.ReactElement {
 
                     <button
                       onClick={() => openHistory(user)}
-                      className="px-2 py-1 text-[9px] font-mono uppercase tracking-widest text-neutral-500 hover:text-neutral-300 hover:bg-white/[0.05] transition-colors"
+                      className="px-2 py-1 text-[9px] font-mono uppercase tracking-widest text-neutral-400 hover:text-neutral-300 hover:bg-white/[0.05] transition-colors"
                       title="View moderation history"
                     >
                       History
@@ -445,7 +445,7 @@ export default function AdminUsersPage(): React.ReactElement {
 
         {filteredUsers.length === 0 && (
           <div className="px-4 py-10 text-center">
-            <p className="text-[10px] font-mono text-neutral-700 uppercase tracking-widest">
+            <p className="text-[10px] font-mono text-neutral-400 uppercase tracking-widest">
               No users found.
             </p>
           </div>
@@ -454,10 +454,10 @@ export default function AdminUsersPage(): React.ReactElement {
 
       {/* Info */}
       <div className="bg-neutral-900/50 border border-white/5 px-4 py-3 space-y-1">
-        <p className="text-[9px] font-mono text-neutral-600 uppercase tracking-widest">
+        <p className="text-[9px] font-mono text-neutral-400 uppercase tracking-widest">
           Role permissions
         </p>
-        <ul className="text-[10px] font-mono text-neutral-700 space-y-0.5">
+        <ul className="text-[10px] font-mono text-neutral-400 space-y-0.5">
           <li>
             <span className="text-amber-400/60">Admin</span> — Full access to all admin features and user management
           </li>
@@ -465,7 +465,7 @@ export default function AdminUsersPage(): React.ReactElement {
             <span className="text-blue-400/60">Moderator</span> — Can manage content but cannot change user roles
           </li>
           <li>
-            <span className="text-neutral-500">User</span> — Standard platform access
+            <span className="text-neutral-400">User</span> — Standard platform access
           </li>
         </ul>
       </div>
@@ -483,20 +483,20 @@ export default function AdminUsersPage(): React.ReactElement {
               </div>
               <button
                 onClick={closeSuspendModal}
-                className="text-neutral-600 hover:text-neutral-300 transition-colors"
+                className="text-neutral-400 hover:text-neutral-300 transition-colors"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
-            <p className="text-[10px] font-mono text-neutral-500">
+            <p className="text-[10px] font-mono text-neutral-400">
               Suspending <span className="text-neutral-300">{suspendTarget.display_name || suspendTarget.email || 'this user'}</span>.
               Their listings will be deactivated.
             </p>
 
             {/* Reason */}
             <div className="space-y-1.5">
-              <label className="text-[9px] font-mono uppercase tracking-widest text-neutral-600">
+              <label className="text-[9px] font-mono uppercase tracking-widest text-neutral-400">
                 Reason (required)
               </label>
               <textarea
@@ -510,7 +510,7 @@ export default function AdminUsersPage(): React.ReactElement {
 
             {/* Duration */}
             <div className="space-y-1.5">
-              <label className="text-[9px] font-mono uppercase tracking-widest text-neutral-600">
+              <label className="text-[9px] font-mono uppercase tracking-widest text-neutral-400">
                 Duration
               </label>
               <div className="flex gap-1 flex-wrap">
@@ -521,7 +521,7 @@ export default function AdminUsersPage(): React.ReactElement {
                     className={`px-3 py-1 text-[9px] font-mono uppercase tracking-widest transition-colors ${
                       suspendDuration === opt.value
                         ? 'bg-white/10 text-white'
-                        : 'text-neutral-600 hover:text-neutral-400 bg-neutral-800'
+                        : 'text-neutral-400 hover:text-neutral-400 bg-neutral-800'
                     }`}
                   >
                     {opt.label}
@@ -550,7 +550,7 @@ export default function AdminUsersPage(): React.ReactElement {
               </button>
               <button
                 onClick={closeSuspendModal}
-                className="px-4 py-2 text-[10px] font-mono uppercase tracking-widest text-neutral-500 hover:text-neutral-300 transition-colors"
+                className="px-4 py-2 text-[10px] font-mono uppercase tracking-widest text-neutral-400 hover:text-neutral-300 transition-colors"
               >
                 Cancel
               </button>
@@ -572,13 +572,13 @@ export default function AdminUsersPage(): React.ReactElement {
               </div>
               <button
                 onClick={closeReinstateModal}
-                className="text-neutral-600 hover:text-neutral-300 transition-colors"
+                className="text-neutral-400 hover:text-neutral-300 transition-colors"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
-            <p className="text-[10px] font-mono text-neutral-500">
+            <p className="text-[10px] font-mono text-neutral-400">
               Reinstating <span className="text-neutral-300">{reinstateTarget.display_name || reinstateTarget.email || 'this user'}</span>.
               {reinstateTarget.suspension_reason && (
                 <span className="block mt-1 text-red-400/60">
@@ -589,7 +589,7 @@ export default function AdminUsersPage(): React.ReactElement {
 
             {/* Reason */}
             <div className="space-y-1.5">
-              <label className="text-[9px] font-mono uppercase tracking-widest text-neutral-600">
+              <label className="text-[9px] font-mono uppercase tracking-widest text-neutral-400">
                 Reason (required)
               </label>
               <textarea
@@ -613,7 +613,7 @@ export default function AdminUsersPage(): React.ReactElement {
               </button>
               <button
                 onClick={closeReinstateModal}
-                className="px-4 py-2 text-[10px] font-mono uppercase tracking-widest text-neutral-500 hover:text-neutral-300 transition-colors"
+                className="px-4 py-2 text-[10px] font-mono uppercase tracking-widest text-neutral-400 hover:text-neutral-300 transition-colors"
               >
                 Cancel
               </button>
@@ -628,31 +628,31 @@ export default function AdminUsersPage(): React.ReactElement {
           <div className="bg-neutral-900 border border-white/10 w-full max-w-lg mx-4 p-6 space-y-5 max-h-[80vh] overflow-y-auto">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <Clock className="w-4 h-4 text-neutral-500" />
+                <Clock className="w-4 h-4 text-neutral-400" />
                 <h2 className="text-sm font-mono uppercase tracking-widest text-white">
                   Moderation History
                 </h2>
               </div>
               <button
                 onClick={() => setHistoryTarget(null)}
-                className="text-neutral-600 hover:text-neutral-300 transition-colors"
+                className="text-neutral-400 hover:text-neutral-300 transition-colors"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
-            <p className="text-[10px] font-mono text-neutral-500">
+            <p className="text-[10px] font-mono text-neutral-400">
               {historyTarget.display_name || historyTarget.email || 'User'} — {historyTarget.id}
             </p>
 
             {historyLoading ? (
               <div className="flex items-center justify-center py-8 gap-2">
-                <Loader2 className="w-3 h-3 animate-spin text-neutral-500" />
-                <span className="text-[10px] font-mono text-neutral-600">Loading...</span>
+                <Loader2 className="w-3 h-3 animate-spin text-neutral-400" />
+                <span className="text-[10px] font-mono text-neutral-400">Loading...</span>
               </div>
             ) : historyEntries.length === 0 ? (
               <div className="py-8 text-center">
-                <p className="text-[10px] font-mono text-neutral-700 uppercase tracking-widest">
+                <p className="text-[10px] font-mono text-neutral-400 uppercase tracking-widest">
                   No moderation history.
                 </p>
               </div>
@@ -675,7 +675,7 @@ export default function AdminUsersPage(): React.ReactElement {
                       >
                         {entry.action.replace('_', ' ')}
                       </span>
-                      <span className="text-[9px] font-mono text-neutral-700">
+                      <span className="text-[9px] font-mono text-neutral-400">
                         {new Date(entry.created_at).toLocaleDateString('en-ZA', {
                           day: '2-digit',
                           month: 'short',
@@ -688,7 +688,7 @@ export default function AdminUsersPage(): React.ReactElement {
                     <p className="text-[10px] font-mono text-neutral-400">
                       {entry.reason}
                     </p>
-                    <p className="text-[9px] font-mono text-neutral-700">
+                    <p className="text-[9px] font-mono text-neutral-400">
                       Admin: {entry.admin_id}
                     </p>
                   </div>
@@ -699,7 +699,7 @@ export default function AdminUsersPage(): React.ReactElement {
             <div className="pt-2">
               <button
                 onClick={() => setHistoryTarget(null)}
-                className="w-full px-4 py-2 text-[10px] font-mono uppercase tracking-widest text-neutral-500 hover:text-neutral-300 hover:bg-white/[0.03] transition-colors"
+                className="w-full px-4 py-2 text-[10px] font-mono uppercase tracking-widest text-neutral-400 hover:text-neutral-300 hover:bg-white/[0.03] transition-colors"
               >
                 Close
               </button>

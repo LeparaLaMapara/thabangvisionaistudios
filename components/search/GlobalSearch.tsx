@@ -180,7 +180,7 @@ export function GlobalSearch({ isOpen, onClose }: Props) {
           >
             {/* Search Input */}
             <div className="flex items-center gap-3 px-5 py-4 border-b border-white/10">
-              <Search className="w-5 h-5 text-neutral-500 shrink-0" />
+              <Search className="w-5 h-5 text-neutral-400 shrink-0" />
               <input
                 ref={inputRef}
                 type="text"
@@ -188,14 +188,14 @@ export function GlobalSearch({ isOpen, onClose }: Props) {
                 onChange={e => handleInputChange(e.target.value)}
                 onKeyDown={handleKeyDown}
                 placeholder="Search productions, equipment, press, creators..."
-                className="flex-1 bg-transparent text-white text-sm font-mono placeholder:text-neutral-600 outline-none"
+                className="flex-1 bg-transparent text-white text-sm font-mono placeholder:text-neutral-400 outline-none"
               />
               {query && (
-                <button onClick={() => handleInputChange('')} className="text-neutral-500 hover:text-white transition-colors">
+                <button onClick={() => handleInputChange('')} className="text-neutral-400 hover:text-white transition-colors">
                   <X className="w-4 h-4" />
                 </button>
               )}
-              <kbd className="hidden md:block text-[10px] font-mono text-neutral-600 border border-neutral-800 px-1.5 py-0.5 rounded">
+              <kbd className="hidden md:block text-[10px] font-mono text-neutral-400 border border-neutral-800 px-1.5 py-0.5 rounded">
                 ESC
               </kbd>
             </div>
@@ -231,11 +231,11 @@ export function GlobalSearch({ isOpen, onClose }: Props) {
                         <div className="flex items-center justify-between px-5 pt-4 pb-2">
                           <div className="flex items-center gap-2">
                             <Icon className={`w-3.5 h-3.5 ${meta.color}`} />
-                            <span className="text-[10px] font-mono uppercase tracking-widest text-neutral-500">
+                            <span className="text-[10px] font-mono uppercase tracking-widest text-neutral-400">
                               {meta.label}
                             </span>
                           </div>
-                          <span className="text-[10px] font-mono text-neutral-600">
+                          <span className="text-[10px] font-mono text-neutral-400">
                             {counts[cat]}
                           </span>
                         </div>
@@ -283,7 +283,7 @@ export function GlobalSearch({ isOpen, onClose }: Props) {
                                   </span>
                                 </div>
                                 {result.excerpt && (
-                                  <p className="text-xs text-neutral-500 truncate mt-0.5">
+                                  <p className="text-xs text-neutral-400 truncate mt-0.5">
                                     {result.excerpt}
                                   </p>
                                 )}
@@ -303,9 +303,9 @@ export function GlobalSearch({ isOpen, onClose }: Props) {
               {/* Empty State */}
               {showEmpty && (
                 <div className="px-5 py-16 text-center">
-                  <Search className="w-10 h-10 text-neutral-700 mx-auto mb-4" />
+                  <Search className="w-10 h-10 text-neutral-400 mx-auto mb-4" />
                   <p className="text-neutral-400 text-sm font-mono mb-2">No results found</p>
-                  <p className="text-neutral-600 text-xs font-mono">
+                  <p className="text-neutral-400 text-xs font-mono">
                     Try searching for a production name, equipment brand, creator, or article title
                   </p>
                 </div>
@@ -314,7 +314,7 @@ export function GlobalSearch({ isOpen, onClose }: Props) {
               {/* Initial State */}
               {!hasQuery && !loading && (
                 <div className="px-5 py-12 text-center">
-                  <p className="text-neutral-600 text-xs font-mono">
+                  <p className="text-neutral-400 text-xs font-mono">
                     Type at least 2 characters to search across productions, equipment, press, careers, creators, and community gear
                   </p>
                   <div className="flex items-center justify-center gap-4 mt-6">
@@ -324,7 +324,7 @@ export function GlobalSearch({ isOpen, onClose }: Props) {
                       return (
                         <div key={cat} className="flex flex-col items-center gap-1">
                           <Icon className={`w-4 h-4 ${meta.color} opacity-40`} />
-                          <span className="text-[9px] font-mono text-neutral-700 hidden md:block">{meta.label}</span>
+                          <span className="text-[9px] font-mono text-neutral-400 hidden md:block">{meta.label}</span>
                         </div>
                       );
                     })}
@@ -336,14 +336,14 @@ export function GlobalSearch({ isOpen, onClose }: Props) {
             {/* Footer */}
             <div className="border-t border-white/10 px-5 py-2.5 flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <span className="text-[10px] font-mono text-neutral-600 flex items-center gap-1">
+                <span className="text-[10px] font-mono text-neutral-400 flex items-center gap-1">
                   <kbd className="border border-neutral-800 px-1 rounded text-[9px]">↑↓</kbd> navigate
                 </span>
-                <span className="text-[10px] font-mono text-neutral-600 flex items-center gap-1">
+                <span className="text-[10px] font-mono text-neutral-400 flex items-center gap-1">
                   <kbd className="border border-neutral-800 px-1 rounded text-[9px]">↵</kbd> open
                 </span>
               </div>
-              <span className="text-[10px] font-mono text-neutral-700 hidden md:flex items-center gap-1">
+              <span className="text-[10px] font-mono text-neutral-400 hidden md:flex items-center gap-1">
                 <kbd className="border border-neutral-800 px-1 rounded text-[9px]">⌘</kbd>
                 <kbd className="border border-neutral-800 px-1 rounded text-[9px]">K</kbd>
               </span>

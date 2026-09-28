@@ -88,13 +88,31 @@ export default function RentalDetailView({
   // Currency formatter
   const fmt = (n: number) => `${rental.currency} ${n.toLocaleString()}`;
 
+  // On a phone the booking box sits far below the photos and specs, so the
+  // price and the one action stay pinned to the bottom of the screen.
+  const pinnedBar = rental.is_available && rental.price_per_day != null && (
+    <div className="lg:hidden fixed inset-x-0 bottom-0 z-40 border-t border-white/10 bg-[#050505]/95 backdrop-blur px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] flex items-center justify-between gap-3">
+      <p className="font-mono text-sm text-white">
+        {fmt(rental.price_per_day)}
+        <span className="text-neutral-400"> / day</span>
+      </p>
+      <a
+        href="#book"
+        className="min-h-[44px] inline-flex items-center px-5 bg-[#D4A843] text-black text-[10px] font-mono font-bold uppercase tracking-widest"
+      >
+        Book This Equipment
+      </a>
+    </div>
+  );
+
   return (
-    <div className="min-h-screen bg-white dark:bg-[#050505] text-black dark:text-white pt-20 transition-colors duration-500">
+    <div className="min-h-screen bg-white dark:bg-[#050505] text-black dark:text-white pt-20 pb-20 lg:pb-0 transition-colors duration-500">
+      {pinnedBar}
 
       {/* ── Breadcrumb ── */}
       <div className="bg-neutral-50 dark:bg-[#080808] border-b border-black/5 dark:border-white/5 py-6">
         <div className="container mx-auto px-6">
-          <div className="flex flex-wrap items-center gap-2 text-[10px] font-mono uppercase tracking-widest text-neutral-500">
+          <div className="flex flex-wrap items-center gap-2 text-[10px] font-mono uppercase tracking-widest text-neutral-400">
             <Link href="/" className="hover:text-black dark:hover:text-white transition-colors">
               Home
             </Link>
@@ -131,6 +149,7 @@ export default function RentalDetailView({
               src={heroImage}
               alt={rental.title}
               fill
+              sizes="100vw"
               className="object-cover"
               priority
             />
@@ -159,7 +178,7 @@ export default function RentalDetailView({
                 initial={{ y: 20, opacity: 0 }}
                 animate={{ y: 0, opacity: 1 }}
                 transition={{ delay: 0.5 }}
-                className="inline-block border border-black/10 dark:border-white/20 bg-white/50 dark:bg-black/50 backdrop-blur-sm px-3 py-1 text-[10px] font-bold tracking-widest uppercase mb-4 text-neutral-600 dark:text-neutral-300"
+                className="inline-block border border-black/10 dark:border-white/20 bg-white/50 dark:bg-black/50 backdrop-blur-sm px-3 py-1 text-[10px] font-bold tracking-widest uppercase mb-4 text-neutral-400 dark:text-neutral-300"
               >
                 {categoryLabel}
                 {rental.sub_category ? ` / ${rental.sub_category}` : ''}
@@ -177,7 +196,7 @@ export default function RentalDetailView({
                   initial={{ y: 20, opacity: 0 }}
                   animate={{ y: 0, opacity: 1 }}
                   transition={{ delay: 0.9 }}
-                  className="text-sm md:text-base text-neutral-600 dark:text-neutral-400 font-mono uppercase tracking-widest"
+                  className="text-sm md:text-base text-neutral-400 dark:text-neutral-400 font-mono uppercase tracking-widest"
                 >
                   {[rental.brand, rental.model].filter(Boolean).join(' ')}
                 </motion.p>
@@ -187,7 +206,7 @@ export default function RentalDetailView({
                   initial={{ y: 20, opacity: 0 }}
                   animate={{ y: 0, opacity: 1 }}
                   transition={{ delay: 1.1 }}
-                  className="text-base md:text-lg text-neutral-600 dark:text-neutral-400 max-w-2xl font-light leading-relaxed mt-4"
+                  className="text-base md:text-lg text-neutral-400 dark:text-neutral-400 max-w-2xl font-light leading-relaxed mt-4"
                 >
                   {rental.description}
                 </motion.p>
@@ -225,11 +244,12 @@ export default function RentalDetailView({
                     src={activeMedia.src}
                     alt={rental.title}
                     fill
+                    sizes="(min-width: 1024px) 60vw, 100vw"
                     className="object-cover"
                   />
                 ) : (
                   <div className="w-full h-full flex items-center justify-center">
-                    <span className="text-[10px] font-mono text-neutral-500 uppercase tracking-widest">
+                    <span className="text-[10px] font-mono text-neutral-400 uppercase tracking-widest">
                       No image
                     </span>
                   </div>
@@ -259,11 +279,12 @@ export default function RentalDetailView({
                     src={activeMedia.src}
                     alt={rental.title}
                     fill
+                    sizes="(min-width: 1024px) 60vw, 100vw"
                     className="object-cover"
                   />
                 ) : (
                   <div className="w-full h-full flex items-center justify-center">
-                    <span className="text-[10px] font-mono text-neutral-500 uppercase tracking-widest">
+                    <span className="text-[10px] font-mono text-neutral-400 uppercase tracking-widest">
                       No image
                     </span>
                   </div>
@@ -275,10 +296,12 @@ export default function RentalDetailView({
             {(allImages.length > 1 || !!videoEmbedUrl) && (
               <div className="flex gap-2 overflow-x-auto pb-2 -mx-1 px-1">
                 {/* Image thumbnails */}
-                {allImages.map(img => (
+                {allImages.map((img, i) => (
                   <button
                     key={img.id}
                     onClick={() => setActiveMedia({ type: 'image', src: img.url })}
+                    aria-label={`Show photo ${i + 1} of ${allImages.length}`}
+                    aria-pressed={activeMedia.type === 'image' && activeMedia.src === img.url}
                     className={`flex-shrink-0 w-20 h-20 overflow-hidden border-2 transition-all duration-200 relative ${
                       activeMedia.type === 'image' && activeMedia.src === img.url
                         ? 'border-accent-gold'
@@ -339,7 +362,7 @@ export default function RentalDetailView({
             {/* Rental category label (shown when no gallery hero) */}
             {!heroImage && (
               <>
-                <p className="text-[10px] font-mono uppercase tracking-widest text-neutral-500 mb-3">
+                <p className="text-[10px] font-mono uppercase tracking-widest text-neutral-400 mb-3">
                   {categoryLabel}
                 </p>
                 <h1 className="text-3xl md:text-4xl font-display font-medium uppercase tracking-tight leading-tight text-black dark:text-white mb-2">
@@ -348,12 +371,12 @@ export default function RentalDetailView({
                 {(rental.brand || rental.model) && (
                   <div className="mb-6">
                     {rental.brand && (
-                      <p className="text-xs font-mono uppercase tracking-widest text-neutral-500">
+                      <p className="text-xs font-mono uppercase tracking-widest text-neutral-400">
                         {rental.brand}
                       </p>
                     )}
                     {rental.model && (
-                      <p className="text-xs font-mono text-neutral-500">{rental.model}</p>
+                      <p className="text-xs font-mono text-neutral-400">{rental.model}</p>
                     )}
                   </div>
                 )}
@@ -372,7 +395,7 @@ export default function RentalDetailView({
               <div className="border border-black/10 dark:border-white/10 p-5 mb-6 space-y-3 bg-neutral-50 dark:bg-[#0A0A0B]">
                 {rental.price_per_day != null && (
                   <div className="flex items-end justify-between">
-                    <span className="text-[10px] font-mono uppercase tracking-widest text-neutral-500">
+                    <span className="text-[10px] font-mono uppercase tracking-widest text-neutral-400">
                       Daily Rate
                     </span>
                     <span className="text-2xl font-bold text-accent-gold">
@@ -382,7 +405,7 @@ export default function RentalDetailView({
                 )}
                 {rental.price_per_week != null && (
                   <div className="flex items-end justify-between border-t border-black/5 dark:border-white/5 pt-3">
-                    <span className="text-[10px] font-mono uppercase tracking-widest text-neutral-500">
+                    <span className="text-[10px] font-mono uppercase tracking-widest text-neutral-400">
                       Weekly Rate
                     </span>
                     <span className="text-lg font-semibold text-black dark:text-white">
@@ -392,7 +415,7 @@ export default function RentalDetailView({
                 )}
               </div>
             ) : (
-              <p className="text-[10px] font-mono uppercase tracking-widest text-neutral-500 mb-6 border border-dashed border-black/10 dark:border-white/10 p-4">
+              <p className="text-[10px] font-mono uppercase tracking-widest text-neutral-400 mb-6 border border-dashed border-black/10 dark:border-white/10 p-4">
                 Contact us for pricing
               </p>
             )}
@@ -400,7 +423,7 @@ export default function RentalDetailView({
             {/* Description: only when no hero (hero shows description) */}
             {!heroImage && rental.description && (
               <div className="mb-6 pb-6 border-b border-black/5 dark:border-white/5">
-                <p className="text-sm text-neutral-600 dark:text-neutral-400 leading-relaxed whitespace-pre-line">
+                <p className="text-sm text-neutral-400 dark:text-neutral-400 leading-relaxed whitespace-pre-line">
                   {rental.description}
                 </p>
               </div>
@@ -449,7 +472,7 @@ export default function RentalDetailView({
                       {rental.features!.map((feat, i) => (
                         <li key={i} className="flex items-start gap-3">
                           <Check className="w-3.5 h-3.5 text-accent-gold flex-shrink-0 mt-0.5" />
-                          <span className="text-sm text-neutral-700 dark:text-neutral-300 leading-snug">
+                          <span className="text-sm text-neutral-400 dark:text-neutral-300 leading-snug">
                             {feat}
                           </span>
                         </li>
@@ -467,7 +490,7 @@ export default function RentalDetailView({
                       {rental.rental_includes!.map((item, i) => (
                         <li key={i} className="flex items-start gap-3">
                           <Check className="w-3.5 h-3.5 text-black dark:text-white flex-shrink-0 mt-0.5" />
-                          <span className="text-sm text-neutral-700 dark:text-neutral-300 leading-snug">
+                          <span className="text-sm text-neutral-400 dark:text-neutral-300 leading-snug">
                             {item}
                           </span>
                         </li>
@@ -480,13 +503,13 @@ export default function RentalDetailView({
             )}
 
             {/* ── Booking Widget: always visible in sidebar ── */}
-            <div className="mb-8 border border-black/10 dark:border-white/10 p-5 bg-neutral-50 dark:bg-[#0A0A0B]">
-              <h3 className="text-[10px] font-mono font-bold uppercase tracking-widest text-neutral-500 mb-4 border-b border-black/5 dark:border-white/5 pb-3">
+            <div id="book" className="mb-8 border border-black/10 dark:border-white/10 p-5 bg-neutral-50 dark:bg-[#0A0A0B] scroll-mt-24">
+              <h3 className="text-[10px] font-mono font-bold uppercase tracking-widest text-neutral-400 mb-4 border-b border-black/5 dark:border-white/5 pb-3">
                 Book This Equipment
               </h3>
               <BookingWidget rental={rental} />
               {protectionLine(rental) && (
-                <p className="mt-4 flex items-start gap-2 text-[11px] font-mono text-neutral-500">
+                <p className="mt-4 flex items-start gap-2 text-[11px] font-mono text-neutral-400">
                   <ShieldCheck className="w-3.5 h-3.5 mt-0.5 shrink-0 text-[#D4A843]" aria-hidden="true" />
                   {protectionLine(rental)}
                 </p>
@@ -500,7 +523,7 @@ export default function RentalDetailView({
                 "owned by ThabangVision" on a ThabangVision page says nothing. */}
             {owner && (
               <div className="mb-8 border border-black/10 dark:border-white/10 p-5">
-                <h3 className="text-[10px] font-mono font-bold uppercase tracking-widest text-neutral-500 mb-4 border-b border-black/5 dark:border-white/5 pb-3">
+                <h3 className="text-[10px] font-mono font-bold uppercase tracking-widest text-neutral-400 mb-4 border-b border-black/5 dark:border-white/5 pb-3">
                   Owned By
                 </h3>
                 <Link href={`/creators/${owner.id}`} className="group flex items-center gap-3">
@@ -515,7 +538,7 @@ export default function RentalDetailView({
                       />
                     ) : (
                       <div className="w-full h-full flex items-center justify-center">
-                        <User className="w-5 h-5 text-neutral-400 dark:text-neutral-600" />
+                        <User className="w-5 h-5 text-neutral-400 dark:text-neutral-400" />
                       </div>
                     )}
                   </div>
@@ -527,14 +550,14 @@ export default function RentalDetailView({
                       )}
                     </p>
                     {owner.specializations && owner.specializations.length > 0 && (
-                      <p className="text-[10px] font-mono uppercase tracking-widest text-neutral-500 mt-0.5 truncate">
+                      <p className="text-[10px] font-mono uppercase tracking-widest text-neutral-400 mt-0.5 truncate">
                         {owner.specializations.slice(0, 2).join(' · ')}
                       </p>
                     )}
                   </div>
                 </Link>
                 {owner.is_bookable && (
-                  <p className="text-xs text-neutral-500 font-light mt-4 pt-4 border-t border-black/5 dark:border-white/5">
+                  <p className="text-xs text-neutral-400 font-light mt-4 pt-4 border-t border-black/5 dark:border-white/5">
                     Also available for hire.{' '}
                     <Link
                       href={`/creators/${owner.id}`}
@@ -553,7 +576,7 @@ export default function RentalDetailView({
                 {rental.tags.map((tag, i) => (
                   <span
                     key={i}
-                    className="text-[9px] font-mono uppercase tracking-widest text-neutral-500 border border-black/10 dark:border-white/10 px-2 py-1 bg-neutral-50 dark:bg-white/5"
+                    className="text-[9px] font-mono uppercase tracking-widest text-neutral-400 border border-black/10 dark:border-white/10 px-2 py-1 bg-neutral-50 dark:bg-white/5"
                   >
                     {tag}
                   </span>
@@ -575,7 +598,7 @@ export default function RentalDetailView({
                         key={key}
                         className="flex flex-col gap-1 p-4 bg-white dark:bg-[#0A0A0B]"
                       >
-                        <dt className="text-[10px] font-mono uppercase tracking-widest text-neutral-500">
+                        <dt className="text-[10px] font-mono uppercase tracking-widest text-neutral-400">
                           {humanizeKey(key)}
                         </dt>
                         <dd className="text-sm font-medium text-black dark:text-white">
@@ -619,7 +642,7 @@ export default function RentalDetailView({
                         />
                       ) : (
                         <div className="w-full h-full flex items-center justify-center">
-                          <span className="text-[10px] font-mono text-neutral-500 uppercase tracking-widest">
+                          <span className="text-[10px] font-mono text-neutral-400 uppercase tracking-widest">
                             No image
                           </span>
                         </div>
@@ -632,14 +655,14 @@ export default function RentalDetailView({
                         {item.title}
                       </h3>
                       {item.brand && (
-                        <p className="text-[10px] font-mono text-neutral-500 uppercase tracking-widest mt-1">
+                        <p className="text-[10px] font-mono text-neutral-400 uppercase tracking-widest mt-1">
                           {item.brand}
                         </p>
                       )}
                       {item.price_per_day != null && (
                         <p className="text-sm font-mono font-bold text-accent-gold mt-2">
                           {item.currency} {item.price_per_day.toLocaleString()}
-                          <span className="text-[10px] font-normal text-neutral-500"> /day</span>
+                          <span className="text-[10px] font-normal text-neutral-400"> /day</span>
                         </p>
                       )}
                     </div>
@@ -654,7 +677,7 @@ export default function RentalDetailView({
         <div className="mt-16 pt-8 border-t border-black/5 dark:border-white/5">
           <Link
             href={`/rentals/${category}`}
-            className="inline-flex items-center gap-2 text-[10px] font-mono font-bold uppercase tracking-widest text-neutral-500 hover:text-accent-gold transition-colors"
+            className="inline-flex items-center gap-2 text-[10px] font-mono font-bold uppercase tracking-widest text-neutral-400 hover:text-accent-gold transition-colors"
           >
             <ArrowLeft className="w-3 h-3" />
             Back to {categoryLabel}

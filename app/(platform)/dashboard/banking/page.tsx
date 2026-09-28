@@ -13,13 +13,13 @@ export default function BankingPage() {
     >
       <DashboardSubTabs tabs={ACCOUNT_TABS_CREATOR} />
       <div className="mb-8">
-        <p className="text-[10px] font-mono uppercase tracking-widest text-neutral-500 mb-2">
+        <p className="text-[10px] font-mono uppercase tracking-widest text-neutral-400 mb-2">
           Payouts
         </p>
         <h2 className="text-lg font-display font-medium uppercase text-white">
           Banking Details
         </h2>
-        <p className="text-xs font-mono text-neutral-500 mt-2">
+        <p className="text-xs font-mono text-neutral-400 mt-2">
           Add your banking details to receive payouts from gear rentals and gigs.
         </p>
       </div>

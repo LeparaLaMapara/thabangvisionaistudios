@@ -70,7 +70,7 @@ export function ExitIntentModal({
           >
             <button
               onClick={dismiss}
-              className="absolute top-4 right-4 text-neutral-500 hover:text-white transition-colors"
+              className="absolute top-4 right-4 text-neutral-400 hover:text-white transition-colors"
               aria-label="Close"
             >
               <X className="w-4 h-4" />
@@ -98,7 +98,7 @@ export function ExitIntentModal({
               </Link>
               <button
                 onClick={dismiss}
-                className="text-[10px] font-mono uppercase tracking-widest text-neutral-500 hover:text-white transition-colors py-2"
+                className="text-[10px] font-mono uppercase tracking-widest text-neutral-400 hover:text-white transition-colors py-2"
               >
                 No thanks, I&apos;m just browsing
               </button>

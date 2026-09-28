@@ -167,7 +167,7 @@ export default function AddressAutocomplete({
   return (
     <div className="space-y-4" ref={wrapperRef}>
       <div className="relative">
-        <label className="block text-[10px] font-bold uppercase tracking-widest text-neutral-500 mb-2">
+        <label className="block text-[10px] font-bold uppercase tracking-widest text-neutral-400 mb-2">
           Street Address *
         </label>
         <input
@@ -176,7 +176,7 @@ export default function AddressAutocomplete({
           onChange={(e) => handleInputChange(e.target.value)}
           onFocus={() => { if (suggestions.length > 0) setShowSuggestions(true); }}
           placeholder="Start typing your address..."
-          className="w-full bg-neutral-900 border border-white/10 text-white px-4 py-3 min-h-[44px] text-sm font-mono placeholder:text-neutral-700 focus:outline-none focus:border-white transition-colors"
+          className="w-full bg-neutral-900 border border-white/10 text-white px-4 py-3 min-h-[44px] text-sm font-mono placeholder:text-neutral-400 focus:outline-none focus:border-white transition-colors"
         />
 
         {/* Loading indicator */}
@@ -205,7 +205,7 @@ export default function AddressAutocomplete({
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div>
-          <label className="block text-[10px] font-bold uppercase tracking-widest text-neutral-500 mb-2">
+          <label className="block text-[10px] font-bold uppercase tracking-widest text-neutral-400 mb-2">
             City *
           </label>
           <input
@@ -216,11 +216,11 @@ export default function AddressAutocomplete({
               emitChange({ city: e.target.value });
             }}
             placeholder="Johannesburg"
-            className="w-full bg-neutral-900 border border-white/10 text-white px-4 py-3 min-h-[44px] text-sm font-mono placeholder:text-neutral-700 focus:outline-none focus:border-white transition-colors"
+            className="w-full bg-neutral-900 border border-white/10 text-white px-4 py-3 min-h-[44px] text-sm font-mono placeholder:text-neutral-400 focus:outline-none focus:border-white transition-colors"
           />
         </div>
         <div>
-          <label className="block text-[10px] font-bold uppercase tracking-widest text-neutral-500 mb-2">
+          <label className="block text-[10px] font-bold uppercase tracking-widest text-neutral-400 mb-2">
             Province *
           </label>
           <input
@@ -231,11 +231,11 @@ export default function AddressAutocomplete({
               emitChange({ province: e.target.value });
             }}
             placeholder="Gauteng"
-            className="w-full bg-neutral-900 border border-white/10 text-white px-4 py-3 min-h-[44px] text-sm font-mono placeholder:text-neutral-700 focus:outline-none focus:border-white transition-colors"
+            className="w-full bg-neutral-900 border border-white/10 text-white px-4 py-3 min-h-[44px] text-sm font-mono placeholder:text-neutral-400 focus:outline-none focus:border-white transition-colors"
           />
         </div>
         <div>
-          <label className="block text-[10px] font-bold uppercase tracking-widest text-neutral-500 mb-2">
+          <label className="block text-[10px] font-bold uppercase tracking-widest text-neutral-400 mb-2">
             Postal Code
           </label>
           <input
@@ -246,7 +246,7 @@ export default function AddressAutocomplete({
               emitChange({ postalCode: e.target.value });
             }}
             placeholder="2000"
-            className="w-full bg-neutral-900 border border-white/10 text-white px-4 py-3 min-h-[44px] text-sm font-mono placeholder:text-neutral-700 focus:outline-none focus:border-white transition-colors"
+            className="w-full bg-neutral-900 border border-white/10 text-white px-4 py-3 min-h-[44px] text-sm font-mono placeholder:text-neutral-400 focus:outline-none focus:border-white transition-colors"
           />
         </div>
       </div>

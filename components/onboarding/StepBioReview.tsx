@@ -96,7 +96,7 @@ export default function StepBioReview({ analyses, skills, onComplete }: StepBioR
           <h2 className="text-sm font-mono font-bold uppercase tracking-widest text-white mb-1">
             Writing Your Bio
           </h2>
-          <p className="text-[10px] font-mono text-neutral-500 leading-relaxed">
+          <p className="text-[10px] font-mono text-neutral-400 leading-relaxed">
             Drafting a short intro from your portfolio and profile...
           </p>
         </div>
@@ -117,7 +117,7 @@ export default function StepBioReview({ analyses, skills, onComplete }: StepBioR
         <h2 className="text-sm font-mono font-bold uppercase tracking-widest text-white mb-1">
           Bio & Review
         </h2>
-        <p className="text-[10px] font-mono text-neutral-500 leading-relaxed">
+        <p className="text-[10px] font-mono text-neutral-400 leading-relaxed">
           Review your profile summary and edit your bio before continuing.
           {samples > 0 && ` Drafted from ${samples} portfolio scene${samples === 1 ? '' : 's'}.`}
         </p>
@@ -126,7 +126,7 @@ export default function StepBioReview({ analyses, skills, onComplete }: StepBioR
       {/* Profile summary */}
       <div className="space-y-3">
         <div className="bg-neutral-900 border border-white/5 p-4">
-          <p className="text-[9px] font-mono uppercase tracking-widest text-neutral-500 mb-2">Portfolio</p>
+          <p className="text-[9px] font-mono uppercase tracking-widest text-neutral-400 mb-2">Portfolio</p>
           <p className="text-sm font-mono text-white">
             {analyses.length} photo{analyses.length !== 1 ? 's' : ''} analyzed
           </p>
@@ -134,7 +134,7 @@ export default function StepBioReview({ analyses, skills, onComplete }: StepBioR
 
         {skills && (
           <div className="bg-neutral-900 border border-white/5 p-4">
-            <p className="text-[9px] font-mono uppercase tracking-widest text-neutral-500 mb-2">Skills</p>
+            <p className="text-[9px] font-mono uppercase tracking-widest text-neutral-400 mb-2">Skills</p>
             <div className="flex flex-wrap gap-2">
               {skills.skills.map(s => (
                 <span
@@ -151,7 +151,7 @@ export default function StepBioReview({ analyses, skills, onComplete }: StepBioR
 
       {/* Bio editor */}
       <div>
-        <p className="text-[9px] font-mono uppercase tracking-widest text-neutral-500 mb-2">Bio</p>
+        <p className="text-[9px] font-mono uppercase tracking-widest text-neutral-400 mb-2">Bio</p>
         <textarea
           value={bio}
           onChange={(e) => setBio(e.target.value)}
@@ -161,7 +161,7 @@ export default function StepBioReview({ analyses, skills, onComplete }: StepBioR
           disabled={regenerating || saving}
         />
         <div className="flex justify-between items-center mt-2">
-          <p className={`text-[10px] font-mono ${overLimit ? 'text-red-400' : 'text-neutral-500'}`}>
+          <p className={`text-[10px] font-mono ${overLimit ? 'text-red-400' : 'text-neutral-400'}`}>
             {charsLeft} character{charsLeft === 1 ? '' : 's'} {overLimit ? 'over' : 'left'}
           </p>
           <button

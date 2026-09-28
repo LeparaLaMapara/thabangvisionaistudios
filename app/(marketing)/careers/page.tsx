@@ -22,7 +22,7 @@ export default async function CareersPage() {
           </span>
           <h1 className="text-5xl md:text-8xl font-display font-medium text-white tracking-tighter uppercase mb-8 leading-[0.9]">
             Join The <br />
-            <span className="text-neutral-600">Vision</span>
+            <span className="text-neutral-400">Vision</span>
           </h1>
           <p className="text-xl text-neutral-400 font-light leading-relaxed max-w-2xl">
             We are looking for engineers, artists, and problem solvers who want to define
@@ -37,7 +37,7 @@ export default async function CareersPage() {
             <h3 className="text-sm font-bold uppercase tracking-widest text-white mb-4">
               R&amp;D Access
             </h3>
-            <p className="text-sm text-neutral-500 font-mono">
+            <p className="text-sm text-neutral-400 font-mono">
               Full access to our equipment, studio spaces, and tools for personal creative and R&amp;D projects.
             </p>
           </div>
@@ -45,7 +45,7 @@ export default async function CareersPage() {
             <h3 className="text-sm font-bold uppercase tracking-widest text-white mb-4">
               Global Network
             </h3>
-            <p className="text-sm text-neutral-500 font-mono">
+            <p className="text-sm text-neutral-400 font-mono">
               Opportunities to travel and work on sets in Los Angeles, London, and Dubai.
             </p>
           </div>
@@ -53,7 +53,7 @@ export default async function CareersPage() {
             <h3 className="text-sm font-bold uppercase tracking-widest text-white mb-4">
               Radical Innovation
             </h3>
-            <p className="text-sm text-neutral-500 font-mono">
+            <p className="text-sm text-neutral-400 font-mono">
               We don&apos;t just use tools; we build them. Push the boundaries of what&apos;s possible in film.
             </p>
           </div>
@@ -67,8 +67,8 @@ export default async function CareersPage() {
 
           {published.length === 0 ? (
             <div className="py-20 text-center border border-white/5">
-              <p className="text-neutral-500 font-mono text-sm">No open roles at this time.</p>
-              <p className="text-neutral-600 font-mono text-xs mt-2">
+              <p className="text-neutral-400 font-mono text-sm">No open roles at this time.</p>
+              <p className="text-neutral-400 font-mono text-xs mt-2">
                 Check back soon or send a general application below.
               </p>
             </div>
@@ -84,7 +84,7 @@ export default async function CareersPage() {
                       <h3 className="text-xl font-display font-bold uppercase text-white mb-2 group-hover:underline decoration-1 underline-offset-4">
                         {job.title}
                       </h3>
-                      <div className="flex flex-wrap gap-4 text-[10px] font-mono uppercase tracking-widest text-neutral-500 mb-4">
+                      <div className="flex flex-wrap gap-4 text-[10px] font-mono uppercase tracking-widest text-neutral-400 mb-4">
                         {job.department && <span>{job.department}</span>}
                         {job.department && job.location && (
                           <span className="w-px h-3 bg-neutral-700" />
@@ -107,7 +107,7 @@ export default async function CareersPage() {
                           {job.requirements.map((req, i) => (
                             <li
                               key={i}
-                              className="text-xs font-mono text-neutral-500 flex items-start gap-2"
+                              className="text-xs font-mono text-neutral-400 flex items-start gap-2"
                             >
                               <span className="mt-0.5 text-[#D4A843]">—</span>
                               {req}
@@ -136,7 +136,7 @@ export default async function CareersPage() {
           <h3 className="text-lg font-bold uppercase tracking-widest text-white mb-4">
             Don&apos;t see your role?
           </h3>
-          <p className="text-neutral-500 mb-8 max-w-lg mx-auto font-mono text-xs">
+          <p className="text-neutral-400 mb-8 max-w-lg mx-auto font-mono text-xs">
             We are always looking for exceptional talent. If you believe you belong at {STUDIO.shortName},
             send your portfolio and resume to our talent team.
           </p>

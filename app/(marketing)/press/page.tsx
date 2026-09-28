@@ -32,7 +32,7 @@ export default async function PressPage() {
           </span>
           <h1 className="text-5xl md:text-8xl font-display font-medium text-white tracking-tighter uppercase">
             Press &amp; <br />
-            <span className="text-neutral-500">Insights</span>
+            <span className="text-neutral-400">Insights</span>
           </h1>
           <div className="w-8 h-px bg-[#D4A843] mt-6" />
         </div>
@@ -40,7 +40,7 @@ export default async function PressPage() {
         {/* Articles */}
         {published.length === 0 ? (
           <div className="py-20 text-center border border-white/5">
-            <p className="text-neutral-500 font-mono text-sm">No press yet.</p>
+            <p className="text-neutral-400 font-mono text-sm">No press yet.</p>
           </div>
         ) : (
           <>
@@ -69,7 +69,7 @@ export default async function PressPage() {
                         <span className="inline-block text-[10px] font-mono font-bold uppercase tracking-widest text-[#D4A843] mb-4">
                           Featured
                         </span>
-                        <div className="flex flex-wrap items-center gap-4 text-[10px] font-mono uppercase tracking-widest text-neutral-500 mb-6">
+                        <div className="flex flex-wrap items-center gap-4 text-[10px] font-mono uppercase tracking-widest text-neutral-400 mb-6">
                           {featured.published_at && <span>{formatDate(featured.published_at)}</span>}
                           {featured.category && (
                             <>
@@ -122,7 +122,7 @@ export default async function PressPage() {
                             className={`${article.cover_url ? 'md:col-span-8' : 'md:col-span-12'} flex flex-col justify-between py-4`}
                           >
                             <div>
-                              <div className="flex items-center gap-4 text-[10px] font-mono uppercase tracking-widest text-neutral-500 mb-4">
+                              <div className="flex items-center gap-4 text-[10px] font-mono uppercase tracking-widest text-neutral-400 mb-4">
                                 {article.published_at && <span>{formatDate(article.published_at)}</span>}
                                 {article.category && (
                                   <>
@@ -165,12 +165,12 @@ export default async function PressPage() {
           <h3 className="text-sm font-bold uppercase tracking-widest text-white mb-6">
             Media Inquiries
           </h3>
-          <p className="text-neutral-500 text-sm font-mono mb-4">
+          <p className="text-neutral-400 text-sm font-mono mb-4">
             For press kits, high-res assets, and interview requests:
           </p>
           <a
             href={`mailto:${STUDIO.pressEmail}`}
-            className="text-lg font-display underline decoration-1 underline-offset-4 hover:text-neutral-500 transition-colors"
+            className="text-lg font-display underline decoration-1 underline-offset-4 hover:text-neutral-400 transition-colors"
           >
             {STUDIO.pressEmail}
           </a>

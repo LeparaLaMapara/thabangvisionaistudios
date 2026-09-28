@@ -136,17 +136,17 @@ export default function HandoverPage() {
 
   return (
     <div className="max-w-2xl mx-auto p-6 md:p-10 space-y-8">
-      <Link href="/admin/bookings" className="inline-flex items-center gap-2 text-[10px] font-mono uppercase tracking-widest text-neutral-500">
+      <Link href="/admin/bookings" className="inline-flex items-center gap-2 text-[10px] font-mono uppercase tracking-widest text-neutral-400">
         <ArrowLeft className="w-3 h-3" /> Bookings
       </Link>
       <header>
-        <p className="text-[10px] font-mono uppercase tracking-widest text-neutral-600 mb-1">Handover</p>
+        <p className="text-[10px] font-mono uppercase tracking-widest text-neutral-400 mb-1">Handover</p>
         <h1 className="text-2xl font-display text-white tracking-tight">
           {data?.rental?.title ?? 'Loading…'}
           {(data?.booking.quantity ?? 1) > 1 ? ` x${data?.booking.quantity}` : ''}
         </h1>
         {data && (
-          <p className="text-xs font-mono text-neutral-500 mt-2">
+          <p className="text-xs font-mono text-neutral-400 mt-2">
             {data.booking.start_date} to {data.booking.end_date}
             {data.rental?.serial_number ? ` · serial ${data.rental.serial_number}` : ' · no serial recorded'}
             {data.rental?.tracker_fitted ? ' · tracker fitted' : ''}
@@ -170,7 +170,7 @@ export default function HandoverPage() {
               // eslint-disable-next-line @next/next/no-img-element
               <img src={data.renter.selfieUrl} alt="The selfie they sent with their ID" className="w-48 rounded border border-white/10" />
             ) : (
-              <p className="text-xs text-neutral-500">
+              <p className="text-xs text-neutral-400">
                 Their ID photos are no longer kept (deleted 30 days after the check). Ask for the ID card and check the name matches.
               </p>
             )}
@@ -195,7 +195,7 @@ export default function HandoverPage() {
             <PhotoButton label="Add condition photos" multiple disabled={uploading} onFiles={(f) => upload(f, 'condition')} />
             {photos.length > 0 && <p className="text-xs text-neutral-400">{photos.length} photo(s) added</p>}
             <PhotoButton label={renterPhoto ? 'Retake renter photo' : 'Photo of the renter with the gear'} disabled={uploading} onFiles={(f) => upload(f, 'renter')} />
-            {uploading && <p className="text-xs text-neutral-500 flex items-center gap-2"><Loader2 className="w-3 h-3 animate-spin" /> Uploading…</p>}
+            {uploading && <p className="text-xs text-neutral-400 flex items-center gap-2"><Loader2 className="w-3 h-3 animate-spin" /> Uploading…</p>}
           </section>
 
           <section className="space-y-3">

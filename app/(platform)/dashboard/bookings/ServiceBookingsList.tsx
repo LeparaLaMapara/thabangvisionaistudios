@@ -136,7 +136,7 @@ export default function ServiceBookingsList({ bookings }: { bookings: ServiceBoo
 
       {/* List */}
       {filtered.length === 0 ? (
-        <div className="py-12 text-center text-neutral-500">
+        <div className="py-12 text-center text-neutral-400">
           <p>No service bookings yet.</p>
           <p className="mt-2 text-sm">
             <Link href="/studio" className="text-[#D4A843] underline">
@@ -155,7 +155,7 @@ export default function ServiceBookingsList({ bookings }: { bookings: ServiceBoo
               <div className="flex items-start justify-between gap-4">
                 <div>
                   <div className="flex items-center gap-3">
-                    <span className="text-xs font-mono text-neutral-500">{booking.reference}</span>
+                    <span className="text-xs font-mono text-neutral-400">{booking.reference}</span>
                     <span className={`rounded-full border px-2 py-0.5 text-xs ${STATUS_COLORS[booking.status] || 'text-neutral-400 border-neutral-600'}`}>
                       {STATUS_LABELS[booking.status] || booking.status}
                     </span>
@@ -165,11 +165,11 @@ export default function ServiceBookingsList({ bookings }: { bookings: ServiceBoo
                 </div>
                 <div className="text-right">
                   <p className="text-lg font-bold text-white">R{booking.total.toLocaleString()}</p>
-                  <p className="text-xs text-neutral-500">incl. VAT</p>
+                  <p className="text-xs text-neutral-400">incl. VAT</p>
                 </div>
               </div>
 
-              <div className="mt-3 flex flex-wrap gap-4 text-xs text-neutral-500">
+              <div className="mt-3 flex flex-wrap gap-4 text-xs text-neutral-400">
                 {booking.preferred_dates && <span>{booking.preferred_dates}</span>}
                 {booking.location && <span>{booking.location}</span>}
                 <span>{booking.duration_hours}hrs</span>
@@ -200,7 +200,7 @@ export default function ServiceBookingsList({ bookings }: { bookings: ServiceBoo
                     View Deliverables &rarr;
                   </a>
                   {booking.delivered_at && (
-                    <p className="mt-2 text-[10px] text-neutral-500">
+                    <p className="mt-2 text-[10px] text-neutral-400">
                       Delivered {new Date(booking.delivered_at).toLocaleDateString('en-ZA', { day: 'numeric', month: 'short', year: 'numeric' })}
                     </p>
                   )}
@@ -256,7 +256,7 @@ export default function ServiceBookingsList({ bookings }: { bookings: ServiceBoo
                       <button
                         key={star}
                         onClick={() => setRating(star)}
-                        className={`text-2xl ${star <= rating ? 'text-yellow-400' : 'text-neutral-600'}`}
+                        className={`text-2xl ${star <= rating ? 'text-yellow-400' : 'text-neutral-400'}`}
                       >
                         ★
                       </button>

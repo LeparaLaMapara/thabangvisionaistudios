@@ -92,7 +92,7 @@ export default function ResetPasswordPage() {
       >
         {/* Header */}
         <div className="mb-10">
-          <p className="text-[9px] font-mono uppercase tracking-[0.2em] text-neutral-400 dark:text-neutral-600 mb-3">
+          <p className="text-[9px] font-mono uppercase tracking-[0.2em] text-neutral-400 dark:text-neutral-400 mb-3">
             {STUDIO.shortName.toUpperCase()}
           </p>
           <h1 className="text-3xl font-display font-medium uppercase tracking-tight text-black dark:text-white">
@@ -140,7 +140,7 @@ export default function ResetPasswordPage() {
               <div>
                 <label
                   htmlFor="password"
-                  className="block text-[10px] font-bold uppercase tracking-widest text-neutral-500 mb-2"
+                  className="block text-[10px] font-bold uppercase tracking-widest text-neutral-400 mb-2"
                 >
                   New Password
                 </label>
@@ -152,7 +152,7 @@ export default function ResetPasswordPage() {
                   required
                   autoComplete="new-password"
                   placeholder={`Min ${STUDIO.platform.minPasswordLength} characters`}
-                  className="w-full bg-white dark:bg-neutral-900 border border-black/10 dark:border-white/10 text-black dark:text-white px-4 py-3 text-sm font-mono placeholder:text-neutral-300 dark:placeholder:text-neutral-700 focus:outline-none focus:border-black dark:focus:border-white transition-colors"
+                  className="w-full bg-white dark:bg-neutral-900 border border-black/10 dark:border-white/10 text-black dark:text-white px-4 py-3 text-sm font-mono placeholder:text-neutral-300 dark:placeholder:text-neutral-400 focus:outline-none focus:border-black dark:focus:border-white transition-colors"
                 />
               </div>
 
@@ -160,7 +160,7 @@ export default function ResetPasswordPage() {
               <div>
                 <label
                   htmlFor="confirmPassword"
-                  className="block text-[10px] font-bold uppercase tracking-widest text-neutral-500 mb-2"
+                  className="block text-[10px] font-bold uppercase tracking-widest text-neutral-400 mb-2"
                 >
                   Confirm Password
                 </label>
@@ -172,7 +172,7 @@ export default function ResetPasswordPage() {
                   required
                   autoComplete="new-password"
                   placeholder="Repeat password"
-                  className="w-full bg-white dark:bg-neutral-900 border border-black/10 dark:border-white/10 text-black dark:text-white px-4 py-3 text-sm font-mono placeholder:text-neutral-300 dark:placeholder:text-neutral-700 focus:outline-none focus:border-black dark:focus:border-white transition-colors"
+                  className="w-full bg-white dark:bg-neutral-900 border border-black/10 dark:border-white/10 text-black dark:text-white px-4 py-3 text-sm font-mono placeholder:text-neutral-300 dark:placeholder:text-neutral-400 focus:outline-none focus:border-black dark:focus:border-white transition-colors"
                 />
               </div>
 
@@ -211,7 +211,7 @@ export default function ResetPasswordPage() {
         </div>
 
         {/* Footer */}
-        <p className="text-center text-[9px] font-mono uppercase tracking-[0.2em] text-neutral-400 dark:text-neutral-600 mt-6">
+        <p className="text-center text-[9px] font-mono uppercase tracking-[0.2em] text-neutral-400 dark:text-neutral-400 mt-6">
           Remember your password?{' '}
           <Link
             href="/login"

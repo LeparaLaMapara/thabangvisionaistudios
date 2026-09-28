@@ -99,7 +99,7 @@ export function ChatMessageList({
             className="space-y-1"
           >
             <span className={`text-[11px] font-medium tracking-wide ${
-              isAssistant ? 'text-[#D4A843]' : 'text-neutral-600'
+              isAssistant ? 'text-[#D4A843]' : 'text-neutral-400'
             }`}>
               {isAssistant ? 'Ubunye' : 'You'}
             </span>
@@ -204,7 +204,7 @@ export function ChatMessageList({
           <span className="text-[11px] font-medium tracking-wide text-[#D4A843]">
             Ubunye
           </span>
-          <div className="text-[15px] text-neutral-500 leading-relaxed">
+          <div className="text-[15px] text-neutral-400 leading-relaxed">
             I&apos;m experiencing connectivity issues. Please try again.
           </div>
           {/* A dead end here used to be a dead end for the booking too: the

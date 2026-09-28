@@ -109,7 +109,7 @@ export default function CreatorProfileClient({
       <div className="container mx-auto px-6 -mt-4 relative z-10 mb-2">
         <Link
           href="/"
-          className="hover:text-accent-gold transition-colors flex items-center gap-2 text-xs tracking-widest text-neutral-500"
+          className="hover:text-accent-gold transition-colors flex items-center gap-2 text-xs tracking-widest text-neutral-400"
         >
           <ArrowLeft className="w-3 h-3" /> HOME
         </Link>
@@ -137,7 +137,7 @@ export default function CreatorProfileClient({
                 />
               ) : (
                 <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-neutral-200 to-neutral-300 dark:from-neutral-800 dark:to-neutral-700">
-                  <User className="w-12 h-12 text-neutral-400 dark:text-neutral-500" />
+                  <User className="w-12 h-12 text-neutral-400 dark:text-neutral-400" />
                 </div>
               )}
             </div>
@@ -155,7 +155,7 @@ export default function CreatorProfileClient({
 
               <div className="flex flex-wrap items-center gap-4 mb-4">
                 {profile.location && (
-                  <p className="flex items-center gap-1.5 text-sm text-neutral-500 font-mono">
+                  <p className="flex items-center gap-1.5 text-sm text-neutral-400 font-mono">
                     <MapPin className="w-3.5 h-3.5" />
                     {profile.location}
                   </p>
@@ -163,7 +163,7 @@ export default function CreatorProfileClient({
                 {reviews.length > 0 && (
                   <div className="flex items-center gap-2">
                     <Rating value={Math.round(avgRating)} readOnly size="sm" />
-                    <span className="text-xs font-mono text-neutral-500">
+                    <span className="text-xs font-mono text-neutral-400">
                       ({reviews.length} review{reviews.length !== 1 ? 's' : ''})
                     </span>
                   </div>
@@ -171,7 +171,7 @@ export default function CreatorProfileClient({
               </div>
 
               {profile.bio && (
-                <p className="text-neutral-600 dark:text-neutral-400 font-light leading-relaxed max-w-xl mb-6">
+                <p className="text-neutral-400 dark:text-neutral-400 font-light leading-relaxed max-w-xl mb-6">
                   {profile.bio}
                 </p>
               )}
@@ -235,7 +235,7 @@ export default function CreatorProfileClient({
                       />
                     ) : (
                       <div className="w-full h-full flex items-center justify-center">
-                        <Camera className="w-8 h-8 text-neutral-300 dark:text-neutral-700" />
+                        <Camera className="w-8 h-8 text-neutral-300 dark:text-neutral-400" />
                       </div>
                     )}
                     <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-3">
@@ -288,7 +288,7 @@ export default function CreatorProfileClient({
                           />
                         ) : (
                           <div className="w-full h-full flex items-center justify-center">
-                            <Package className="w-6 h-6 text-neutral-300 dark:text-neutral-700" />
+                            <Package className="w-6 h-6 text-neutral-300 dark:text-neutral-400" />
                           </div>
                         )}
                       </div>
@@ -297,14 +297,14 @@ export default function CreatorProfileClient({
                           {rental.title}
                         </p>
                         {rental.brand && (
-                          <p className="text-[10px] font-mono uppercase tracking-widest text-neutral-500 mt-1">
+                          <p className="text-[10px] font-mono uppercase tracking-widest text-neutral-400 mt-1">
                             {rental.brand}
                           </p>
                         )}
                         {rental.price_per_day != null && (
                           <p className="text-sm font-mono font-bold text-accent-gold mt-2">
                             R{Number(rental.price_per_day).toLocaleString('en-ZA')}
-                            <span className="text-neutral-500 font-normal"> / day</span>
+                            <span className="text-neutral-400 font-normal"> / day</span>
                           </p>
                         )}
                       </div>
@@ -345,7 +345,7 @@ export default function CreatorProfileClient({
                           />
                         ) : (
                           <div className="w-full h-full flex items-center justify-center">
-                            <Package className="w-6 h-6 text-neutral-300 dark:text-neutral-700" />
+                            <Package className="w-6 h-6 text-neutral-300 dark:text-neutral-400" />
                           </div>
                         )}
                       </div>
@@ -353,7 +353,7 @@ export default function CreatorProfileClient({
                         <p className="text-sm font-display font-medium uppercase text-black dark:text-white truncate">
                           {listing.title}
                         </p>
-                        <p className="text-[10px] font-mono uppercase tracking-widest text-neutral-500 mt-1">
+                        <p className="text-[10px] font-mono uppercase tracking-widest text-neutral-400 mt-1">
                           {listing.category}
                         </p>
                         {listing.price != null && (
@@ -386,7 +386,7 @@ export default function CreatorProfileClient({
               <Star className="w-4 h-4" />
               Reviews
               {reviews.length > 0 && (
-                <span className="text-neutral-500 font-normal">
+                <span className="text-neutral-400 font-normal">
                   ({avgRating.toFixed(1)} avg)
                 </span>
               )}
@@ -407,7 +407,7 @@ export default function CreatorProfileClient({
                           <p className="text-xs font-mono font-bold text-black dark:text-white">
                             {review.reviewer_name ?? 'Anonymous'}
                           </p>
-                          <p className="text-[9px] font-mono text-neutral-500">
+                          <p className="text-[9px] font-mono text-neutral-400">
                             {new Date(review.created_at).toLocaleDateString('en-ZA', {
                               year: 'numeric',
                               month: 'short',
@@ -419,7 +419,7 @@ export default function CreatorProfileClient({
                       <Rating value={review.rating} readOnly size="sm" />
                     </div>
                     {review.comment && (
-                      <p className="text-sm text-neutral-600 dark:text-neutral-400 leading-relaxed">
+                      <p className="text-sm text-neutral-400 dark:text-neutral-400 leading-relaxed">
                         {review.comment}
                       </p>
                     )}
@@ -459,7 +459,7 @@ export default function CreatorProfileClient({
                     >
                       <Globe className="w-4 h-4 text-neutral-400 flex-shrink-0" />
                       <div>
-                        <p className="text-[10px] font-mono uppercase tracking-widest text-neutral-500 mb-0.5">
+                        <p className="text-[10px] font-mono uppercase tracking-widest text-neutral-400 mb-0.5">
                           {SOCIAL_ICONS[platform] ?? platform}
                         </p>
                         <p className="text-xs font-mono text-black dark:text-white truncate max-w-[200px]">
@@ -480,7 +480,7 @@ export default function CreatorProfileClient({
             transition={{ delay: 0.7, duration: 0.4 }}
             className="text-center border-t border-black/10 dark:border-white/10 pt-8"
           >
-            <p className="text-[9px] font-mono uppercase tracking-[0.2em] text-neutral-400 dark:text-neutral-600">
+            <p className="text-[9px] font-mono uppercase tracking-[0.2em] text-neutral-400 dark:text-neutral-400">
               Member since{' '}
               {new Date(profile.created_at).toLocaleDateString('en-ZA', {
                 year: 'numeric',

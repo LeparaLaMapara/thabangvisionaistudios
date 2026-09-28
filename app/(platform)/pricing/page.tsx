@@ -199,13 +199,13 @@ export default function PricingPage() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5 }}
         >
-          <p className="text-[10px] font-mono uppercase tracking-widest text-neutral-500 mb-3">
+          <p className="text-[10px] font-mono uppercase tracking-widest text-neutral-400 mb-3">
             Pricing
           </p>
           <h1 className="text-4xl md:text-6xl font-display font-medium uppercase tracking-tight mb-4">
             Simple, Transparent Pricing
           </h1>
-          <p className="text-neutral-500 font-light max-w-xl mx-auto mb-10">
+          <p className="text-neutral-400 font-light max-w-xl mx-auto mb-10">
             Start free. Upgrade when you need more. All plans include access to
             equipment rentals and community gear listings.
           </p>
@@ -241,7 +241,7 @@ export default function PricingPage() {
                 'px-5 py-2.5 text-[10px] font-mono uppercase tracking-widest transition-all',
                 billing === 'monthly'
                   ? 'bg-black dark:bg-white text-white dark:text-black'
-                  : 'text-neutral-500 hover:text-black dark:hover:text-white',
+                  : 'text-neutral-400 hover:text-black dark:hover:text-white',
               ].join(' ')}
             >
               Monthly
@@ -252,7 +252,7 @@ export default function PricingPage() {
                 'px-5 py-2.5 text-[10px] font-mono uppercase tracking-widest transition-all',
                 billing === 'annual'
                   ? 'bg-black dark:bg-white text-white dark:text-black'
-                  : 'text-neutral-500 hover:text-black dark:hover:text-white',
+                  : 'text-neutral-400 hover:text-black dark:hover:text-white',
               ].join(' ')}
             >
               Annual
@@ -301,7 +301,7 @@ export default function PricingPage() {
                     <h3 className="text-lg font-display font-medium uppercase text-black dark:text-white mb-1">
                       {plan.name}
                     </h3>
-                    <p className="text-xs text-neutral-500 font-mono leading-relaxed">
+                    <p className="text-xs text-neutral-400 font-mono leading-relaxed">
                       {plan.description}
                     </p>
                   </div>
@@ -313,7 +313,7 @@ export default function PricingPage() {
                         : `${plan.currency} ${price.toLocaleString()}`}
                     </span>
                     {price > 0 && (
-                      <span className="text-sm font-mono text-neutral-500 ml-1">
+                      <span className="text-sm font-mono text-neutral-400 ml-1">
                         {period}
                       </span>
                     )}
@@ -326,7 +326,7 @@ export default function PricingPage() {
                         className="flex items-start gap-3 text-sm"
                       >
                         <Check className="w-3.5 h-3.5 text-emerald-500 mt-0.5 flex-shrink-0" />
-                        <span className="text-neutral-600 dark:text-neutral-400">
+                        <span className="text-neutral-400 dark:text-neutral-400">
                           {feature}
                         </span>
                       </li>
@@ -357,7 +357,7 @@ export default function PricingPage() {
 
         {/* FAQ note */}
         <div className="text-center mt-16">
-          <p className="text-[9px] font-mono uppercase tracking-[0.2em] text-neutral-400 dark:text-neutral-600">
+          <p className="text-[9px] font-mono uppercase tracking-[0.2em] text-neutral-400 dark:text-neutral-400">
             All prices in {STUDIO.currency.code}. {STUDIO.shortName} is the seller of record on
             every order. Where you supply an item or service, we retain a{' '}
             {STUDIO.creators.commissionRate}% commission and pay you the balance. Payments
@@ -410,13 +410,13 @@ function PayAsYouGoPricing() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5 }}
         >
-          <p className="text-[10px] font-mono uppercase tracking-widest text-neutral-500 mb-3">
+          <p className="text-[10px] font-mono uppercase tracking-widest text-neutral-400 mb-3">
             Pricing
           </p>
           <h1 className="text-4xl md:text-6xl font-display font-medium uppercase tracking-tight mb-4">
             Pay For What You Book
           </h1>
-          <p className="text-neutral-500 font-light max-w-xl mx-auto">
+          <p className="text-neutral-400 font-light max-w-xl mx-auto">
             No subscription and no monthly fee. Creating an account, browsing, and
             listing your profile cost nothing. You pay when you book.
           </p>
@@ -436,7 +436,7 @@ function PayAsYouGoPricing() {
                 <h2 className="text-xs font-mono font-bold uppercase tracking-widest mb-4">
                   {row.title}
                 </h2>
-                <p className="text-sm text-neutral-600 dark:text-neutral-400 font-light leading-relaxed flex-1">
+                <p className="text-sm text-neutral-400 dark:text-neutral-400 font-light leading-relaxed flex-1">
                   {row.body}
                 </p>
                 <Link
@@ -450,7 +450,7 @@ function PayAsYouGoPricing() {
           ))}
         </div>
 
-        <p className="text-center text-[9px] font-mono uppercase tracking-[0.2em] text-neutral-400 dark:text-neutral-600 mt-16">
+        <p className="text-center text-[9px] font-mono uppercase tracking-[0.2em] text-neutral-400 dark:text-neutral-400 mt-16">
           All prices in {STUDIO.currency.code}. {STUDIO.shortName} is the seller of record on
           every order. Payments processed securely via our authorised payment gateway.{' '}
           <Link href="/contact" className="text-black dark:text-white underline underline-offset-2">

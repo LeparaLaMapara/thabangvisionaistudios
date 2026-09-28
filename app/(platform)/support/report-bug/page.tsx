@@ -112,7 +112,7 @@ export default function ReportBugPage() {
       {/* Header */}
       <Link
         href="/dashboard"
-        className="inline-flex items-center gap-2 text-[10px] font-mono uppercase tracking-widest text-neutral-500 hover:text-white transition-colors mb-8"
+        className="inline-flex items-center gap-2 text-[10px] font-mono uppercase tracking-widest text-neutral-400 hover:text-white transition-colors mb-8"
       >
         <ArrowLeft className="w-3 h-3" /> Back to Dashboard
       </Link>
@@ -150,7 +150,7 @@ export default function ReportBugPage() {
             placeholder="Brief description of the issue"
             required
             minLength={3}
-            className="w-full bg-[#0A0A0B] border border-white/10 px-4 py-3 text-sm font-mono text-white placeholder:text-neutral-600 focus:border-[#D4A843]/50 focus:outline-none transition-colors"
+            className="w-full bg-[#0A0A0B] border border-white/10 px-4 py-3 text-sm font-mono text-white placeholder:text-neutral-400 focus:border-[#D4A843]/50 focus:outline-none transition-colors"
           />
         </div>
 
@@ -166,21 +166,21 @@ export default function ReportBugPage() {
             required
             minLength={10}
             rows={4}
-            className="w-full bg-[#0A0A0B] border border-white/10 px-4 py-3 text-sm font-mono text-white placeholder:text-neutral-600 focus:border-[#D4A843]/50 focus:outline-none transition-colors resize-y"
+            className="w-full bg-[#0A0A0B] border border-white/10 px-4 py-3 text-sm font-mono text-white placeholder:text-neutral-400 focus:border-[#D4A843]/50 focus:outline-none transition-colors resize-y"
           />
         </div>
 
         {/* Steps to reproduce */}
         <div>
           <label className="block text-[10px] font-mono font-bold uppercase tracking-widest text-neutral-300 mb-2">
-            Steps to Reproduce <span className="text-neutral-600">(optional)</span>
+            Steps to Reproduce <span className="text-neutral-400">(optional)</span>
           </label>
           <textarea
             value={stepsToReproduce}
             onChange={(e) => setStepsToReproduce(e.target.value)}
             placeholder="1. Go to...&#10;2. Click on...&#10;3. See error..."
             rows={3}
-            className="w-full bg-[#0A0A0B] border border-white/10 px-4 py-3 text-sm font-mono text-white placeholder:text-neutral-600 focus:border-[#D4A843]/50 focus:outline-none transition-colors resize-y"
+            className="w-full bg-[#0A0A0B] border border-white/10 px-4 py-3 text-sm font-mono text-white placeholder:text-neutral-400 focus:border-[#D4A843]/50 focus:outline-none transition-colors resize-y"
           />
         </div>
 
@@ -188,26 +188,26 @@ export default function ReportBugPage() {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <label className="block text-[10px] font-mono font-bold uppercase tracking-widest text-neutral-300 mb-2">
-              Expected <span className="text-neutral-600">(optional)</span>
+              Expected <span className="text-neutral-400">(optional)</span>
             </label>
             <textarea
               value={expectedBehaviour}
               onChange={(e) => setExpectedBehaviour(e.target.value)}
               placeholder="What should have happened?"
               rows={2}
-              className="w-full bg-[#0A0A0B] border border-white/10 px-4 py-3 text-sm font-mono text-white placeholder:text-neutral-600 focus:border-[#D4A843]/50 focus:outline-none transition-colors resize-y"
+              className="w-full bg-[#0A0A0B] border border-white/10 px-4 py-3 text-sm font-mono text-white placeholder:text-neutral-400 focus:border-[#D4A843]/50 focus:outline-none transition-colors resize-y"
             />
           </div>
           <div>
             <label className="block text-[10px] font-mono font-bold uppercase tracking-widest text-neutral-300 mb-2">
-              Actual <span className="text-neutral-600">(optional)</span>
+              Actual <span className="text-neutral-400">(optional)</span>
             </label>
             <textarea
               value={actualBehaviour}
               onChange={(e) => setActualBehaviour(e.target.value)}
               placeholder="What actually happened?"
               rows={2}
-              className="w-full bg-[#0A0A0B] border border-white/10 px-4 py-3 text-sm font-mono text-white placeholder:text-neutral-600 focus:border-[#D4A843]/50 focus:outline-none transition-colors resize-y"
+              className="w-full bg-[#0A0A0B] border border-white/10 px-4 py-3 text-sm font-mono text-white placeholder:text-neutral-400 focus:border-[#D4A843]/50 focus:outline-none transition-colors resize-y"
             />
           </div>
         </div>
@@ -215,14 +215,14 @@ export default function ReportBugPage() {
         {/* Page URL */}
         <div>
           <label className="block text-[10px] font-mono font-bold uppercase tracking-widest text-neutral-300 mb-2">
-            Page URL <span className="text-neutral-600">(optional)</span>
+            Page URL <span className="text-neutral-400">(optional)</span>
           </label>
           <input
             type="text"
             value={pageUrl}
             onChange={(e) => setPageUrl(e.target.value)}
             placeholder="https://thabangvision.com/..."
-            className="w-full bg-[#0A0A0B] border border-white/10 px-4 py-3 text-sm font-mono text-white placeholder:text-neutral-600 focus:border-[#D4A843]/50 focus:outline-none transition-colors"
+            className="w-full bg-[#0A0A0B] border border-white/10 px-4 py-3 text-sm font-mono text-white placeholder:text-neutral-400 focus:border-[#D4A843]/50 focus:outline-none transition-colors"
           />
         </div>
 

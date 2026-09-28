@@ -53,12 +53,12 @@ export const Footer = () => {
 
           {FOOTER_SECTIONS.map((section) => (
             <div key={section.title}>
-              <h4 className="text-sm font-bold tracking-widest text-black dark:text-white mb-6 uppercase">{section.title}</h4>
-              <ul className="space-y-3 text-sm text-neutral-600 dark:text-neutral-500">
+              <h2 className="text-sm font-bold tracking-widest text-black dark:text-white mb-6 uppercase">{section.title}</h2>
+              <ul className="space-y-3 text-sm text-neutral-400 dark:text-neutral-400">
                 {section.links.map((link) => (
                   <li key={link.label}>
                      {link.href.startsWith('/') ? (
-                        <Link href={link.href} className="hover:text-black dark:hover:text-white transition-colors cursor-pointer">
+                        <Link href={link.href} className="inline-block py-2 hover:text-black dark:hover:text-white transition-colors cursor-pointer">
                           {link.label}
                         </Link>
                      ) : (
@@ -73,8 +73,8 @@ export const Footer = () => {
           ))}
 
           <div className="col-span-1 md:col-span-2">
-            <h4 className="text-sm font-bold tracking-widest text-black dark:text-white mb-6 uppercase">Newsletter</h4>
-            <p className="text-neutral-600 dark:text-neutral-500 text-sm mb-6 max-w-md">
+            <h2 className="text-sm font-bold tracking-widest text-black dark:text-white mb-6 uppercase">Newsletter</h2>
+            <p className="text-neutral-400 dark:text-neutral-400 text-sm mb-6 max-w-md">
               Subscribe to receive the latest technical updates, product releases, and cinematic stories from the {SITE_NAME} world.
             </p>
             {status === 'success' ? (
@@ -85,8 +85,11 @@ export const Footer = () => {
             ) : (
               <form onSubmit={handleSubscribe} className="max-w-md mb-10">
                 <div className="flex gap-4 border-b border-black/20 dark:border-white/20 pb-2">
+                  <label htmlFor="footer-newsletter-email" className="sr-only">Email address for the newsletter</label>
                   <input
+                    id="footer-newsletter-email"
                     type="email"
+                    autoComplete="email"
                     value={email}
                     onChange={e => { setEmail(e.target.value); if (status === 'error') setStatus('idle'); }}
                     placeholder="EMAIL ADDRESS"
@@ -96,7 +99,7 @@ export const Footer = () => {
                   <button
                     type="submit"
                     disabled={status === 'loading'}
-                    className="text-black dark:text-white text-xs font-bold tracking-widest hover:text-neutral-600 dark:hover:text-neutral-400 disabled:opacity-50 flex items-center gap-1.5"
+                    className="text-black dark:text-white text-xs font-bold tracking-widest hover:text-neutral-400 dark:hover:text-neutral-400 disabled:opacity-50 flex items-center gap-1.5"
                   >
                     {status === 'loading' ? <Loader2 className="w-3 h-3 animate-spin" /> : 'SUBSCRIBE'}
                   </button>
@@ -104,7 +107,7 @@ export const Footer = () => {
                 {status === 'error' && (
                   <p className="text-red-500 text-xs font-mono mt-2">{errorMsg}</p>
                 )}
-                <p className="text-[10px] font-mono text-neutral-500 mt-3 leading-relaxed">
+                <p className="text-[10px] font-mono text-neutral-400 mt-3 leading-relaxed">
                   By subscribing you agree to receive occasional marketing email from us.
                   You can{' '}
                   <Link href="/unsubscribe" className="underline underline-offset-2 hover:text-black dark:hover:text-white transition-colors">
@@ -125,7 +128,7 @@ export const Footer = () => {
                   <a
                     key={social.platform}
                     href={social.href}
-                    className="text-neutral-500 hover:text-black dark:hover:text-white transition-colors transform hover:-translate-y-1 duration-300"
+                    className="text-neutral-400 hover:text-black dark:hover:text-white transition-colors transform hover:-translate-y-1 duration-300"
                     aria-label={social.platform}
                   >
                     {Icon && <Icon className="w-5 h-5" />}
@@ -140,7 +143,7 @@ export const Footer = () => {
           <div className="text-2xl font-black tracking-[0.2em] text-neutral-200 dark:text-white/20 italic mb-4 md:mb-0">
             {SITE_NAME}
           </div>
-          <p className="text-xs text-neutral-500 dark:text-neutral-600 tracking-widest">
+          <p className="text-xs text-neutral-400 dark:text-neutral-400 tracking-widest">
             {SITE_COPYRIGHT}
           </p>
         </div>

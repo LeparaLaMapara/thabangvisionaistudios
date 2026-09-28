@@ -147,6 +147,12 @@ export default async function RootLayout({
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: renderJsonLd(localBusinessJsonLd(priceRange)) }}
         />
+        <a
+          href="#main"
+          className="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-[100] focus:bg-[#D4A843] focus:text-[#050505] focus:px-4 focus:py-3 focus:text-sm focus:font-bold"
+        >
+          Skip to content
+        </a>
         <Providers initialUser={initialUser}>
           {children}
         </Providers>

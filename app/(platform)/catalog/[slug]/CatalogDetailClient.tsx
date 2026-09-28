@@ -30,7 +30,7 @@ export default function CatalogDetailClient({ rental }: Props) {
   return (
     <div className="min-h-screen bg-white dark:bg-[#0A0A0B] text-black dark:text-white pt-20 transition-colors duration-500">
       {/* Breadcrumb */}
-      <div className="container mx-auto px-6 py-6 flex items-center gap-4 text-xs tracking-widest text-neutral-500">
+      <div className="container mx-auto px-6 py-6 flex items-center gap-4 text-xs tracking-widest text-neutral-400">
         <Link
           href="/rentals"
           className="hover:text-black dark:hover:text-white transition-colors flex items-center gap-2"
@@ -71,7 +71,7 @@ export default function CatalogDetailClient({ rental }: Props) {
                 initial={{ y: 20, opacity: 0 }}
                 animate={{ y: 0, opacity: 1 }}
                 transition={{ delay: 0.5 }}
-                className="inline-block border border-black/10 dark:border-white/20 bg-white/50 dark:bg-black/50 backdrop-blur-sm px-3 py-1 text-[10px] font-bold tracking-widest uppercase mb-4 text-neutral-600 dark:text-neutral-300"
+                className="inline-block border border-black/10 dark:border-white/20 bg-white/50 dark:bg-black/50 backdrop-blur-sm px-3 py-1 text-[10px] font-bold tracking-widest uppercase mb-4 text-neutral-400 dark:text-neutral-300"
               >
                 {rental.category}
                 {rental.sub_category ? ` / ${rental.sub_category}` : ''}
@@ -89,7 +89,7 @@ export default function CatalogDetailClient({ rental }: Props) {
                   initial={{ y: 20, opacity: 0 }}
                   animate={{ y: 0, opacity: 1 }}
                   transition={{ delay: 0.9 }}
-                  className="text-lg md:text-xl text-neutral-600 dark:text-neutral-400 max-w-2xl font-light leading-relaxed"
+                  className="text-lg md:text-xl text-neutral-400 dark:text-neutral-400 max-w-2xl font-light leading-relaxed"
                 >
                   {rental.description}
                 </motion.p>
@@ -117,7 +117,7 @@ export default function CatalogDetailClient({ rental }: Props) {
                       className="flex items-start gap-3 bg-neutral-100 dark:bg-neutral-900/50 p-4 border border-black/5 dark:border-white/5"
                     >
                       <Check className="w-4 h-4 text-emerald-500 mt-0.5 flex-shrink-0" />
-                      <span className="text-sm text-neutral-600 dark:text-neutral-400">
+                      <span className="text-sm text-neutral-400 dark:text-neutral-400">
                         {feature}
                       </span>
                     </li>
@@ -136,7 +136,7 @@ export default function CatalogDetailClient({ rental }: Props) {
                   {includes.map((item) => (
                     <li
                       key={item}
-                      className="flex items-center gap-3 text-sm text-neutral-600 dark:text-neutral-400"
+                      className="flex items-center gap-3 text-sm text-neutral-400 dark:text-neutral-400"
                     >
                       <Package className="w-4 h-4 text-neutral-400 flex-shrink-0" />
                       {item}
@@ -183,7 +183,7 @@ export default function CatalogDetailClient({ rental }: Props) {
                       key={key}
                       className="flex justify-between border-b border-black/10 dark:border-white/10 pb-2"
                     >
-                      <dt className="text-neutral-500 text-sm capitalize">
+                      <dt className="text-neutral-400 text-sm capitalize">
                         {key.replace(/_/g, ' ')}
                       </dt>
                       <dd className="text-black dark:text-white text-sm font-mono">
@@ -206,7 +206,7 @@ export default function CatalogDetailClient({ rental }: Props) {
               <dl className="space-y-4 mb-8">
                 {rental.brand && (
                   <div className="flex justify-between border-b border-black/10 dark:border-white/10 pb-2">
-                    <dt className="text-neutral-500 text-sm">Brand</dt>
+                    <dt className="text-neutral-400 text-sm">Brand</dt>
                     <dd className="text-black dark:text-white text-sm font-mono">
                       {rental.brand}
                     </dd>
@@ -214,7 +214,7 @@ export default function CatalogDetailClient({ rental }: Props) {
                 )}
                 {rental.model && (
                   <div className="flex justify-between border-b border-black/10 dark:border-white/10 pb-2">
-                    <dt className="text-neutral-500 text-sm">Model</dt>
+                    <dt className="text-neutral-400 text-sm">Model</dt>
                     <dd className="text-black dark:text-white text-sm font-mono">
                       {rental.model}
                     </dd>
@@ -222,7 +222,7 @@ export default function CatalogDetailClient({ rental }: Props) {
                 )}
                 {displayPrice && (
                   <div className="flex justify-between border-b border-black/10 dark:border-white/10 pb-2">
-                    <dt className="text-neutral-500 text-sm">Daily Rate</dt>
+                    <dt className="text-neutral-400 text-sm">Daily Rate</dt>
                     <dd className="text-black dark:text-white text-sm font-mono font-bold">
                       {displayPrice}
                     </dd>
@@ -230,7 +230,7 @@ export default function CatalogDetailClient({ rental }: Props) {
                 )}
                 {weeklyPrice && (
                   <div className="flex justify-between border-b border-black/10 dark:border-white/10 pb-2">
-                    <dt className="text-neutral-500 text-sm">Weekly Rate</dt>
+                    <dt className="text-neutral-400 text-sm">Weekly Rate</dt>
                     <dd className="text-black dark:text-white text-sm font-mono font-bold">
                       {weeklyPrice}
                     </dd>
@@ -238,14 +238,14 @@ export default function CatalogDetailClient({ rental }: Props) {
                 )}
                 {rental.deposit_amount != null && (
                   <div className="flex justify-between border-b border-black/10 dark:border-white/10 pb-2">
-                    <dt className="text-neutral-500 text-sm">Deposit</dt>
+                    <dt className="text-neutral-400 text-sm">Deposit</dt>
                     <dd className="text-black dark:text-white text-sm font-mono">
                       {rental.currency} {rental.deposit_amount}
                     </dd>
                   </div>
                 )}
                 <div className="flex justify-between border-b border-black/10 dark:border-white/10 pb-2">
-                  <dt className="text-neutral-500 text-sm">Availability</dt>
+                  <dt className="text-neutral-400 text-sm">Availability</dt>
                   <dd>
                     <Badge variant={rental.is_available ? 'success' : 'error'}>
                       {rental.is_available ? 'In Stock' : 'Unavailable'}
@@ -256,14 +256,14 @@ export default function CatalogDetailClient({ rental }: Props) {
 
               {tags.length > 0 && (
                 <div className="mb-8">
-                  <span className="text-[9px] font-mono uppercase tracking-widest text-neutral-500 block mb-3">
+                  <span className="text-[9px] font-mono uppercase tracking-widest text-neutral-400 block mb-3">
                     Tags
                   </span>
                   <div className="flex flex-wrap gap-2">
                     {tags.map((tag) => (
                       <span
                         key={tag}
-                        className="inline-flex items-center gap-1 text-[9px] font-mono uppercase tracking-widest border border-black/10 dark:border-white/10 px-2 py-0.5 text-neutral-500"
+                        className="inline-flex items-center gap-1 text-[9px] font-mono uppercase tracking-widest border border-black/10 dark:border-white/10 px-2 py-0.5 text-neutral-400"
                       >
                         <Tag className="w-2.5 h-2.5" />
                         {tag}

@@ -34,7 +34,7 @@ export function EmptyState({
         .join(' ')}
     >
       {icon && (
-        <div className="text-neutral-700 mb-6">{icon}</div>
+        <div className="text-neutral-400 mb-6">{icon}</div>
       )}
 
       <h3 className="text-sm font-display font-medium uppercase tracking-tight text-white mb-2">

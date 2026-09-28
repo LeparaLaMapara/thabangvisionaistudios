@@ -58,7 +58,7 @@ export function Pagination({
               'min-w-[32px] h-8',
               page === currentPage
                 ? 'bg-black dark:bg-white text-white dark:text-black'
-                : 'text-neutral-500 hover:text-black dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/5',
+                : 'text-neutral-400 hover:text-black dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/5',
             ].join(' ')}
           >
             {page}
@@ -83,7 +83,7 @@ const BTN_BASE =
   'inline-flex items-center justify-center text-[10px] font-mono uppercase tracking-widest transition-colors duration-200 disabled:opacity-40 disabled:cursor-not-allowed';
 
 const NAV_BTN =
-  'w-8 h-8 text-neutral-500 hover:text-black dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/5';
+  'w-8 h-8 text-neutral-400 hover:text-black dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/5';
 
 function buildPageNumbers(
   current: number,

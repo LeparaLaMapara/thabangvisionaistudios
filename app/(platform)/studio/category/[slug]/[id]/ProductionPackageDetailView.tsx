@@ -93,7 +93,7 @@ export default function ProductionPackageDetailView({
       {/* ── Breadcrumb ── */}
       <div className="bg-[#080808] border-b border-white/5 py-6">
         <div className="container mx-auto px-6">
-          <div className="flex flex-wrap items-center gap-2 text-[10px] font-mono uppercase tracking-widest text-neutral-500">
+          <div className="flex flex-wrap items-center gap-2 text-[10px] font-mono uppercase tracking-widest text-neutral-400">
             <Link href="/" className="hover:text-white transition-colors">Home</Link>
             <ChevronRight className="w-3 h-3 flex-shrink-0" />
             <Link href="/studio" className="hover:text-white transition-colors">
@@ -226,7 +226,7 @@ export default function ProductionPackageDetailView({
                     />
                   ) : (
                     <div className="w-full h-full flex items-center justify-center">
-                      <span className="text-[10px] font-mono text-neutral-500 uppercase tracking-widest">
+                      <span className="text-[10px] font-mono text-neutral-400 uppercase tracking-widest">
                         No preview
                       </span>
                     </div>
@@ -298,14 +298,14 @@ export default function ProductionPackageDetailView({
                   >
                     <div className="flex items-center gap-2">
                       <Clock className="w-3.5 h-3.5 text-[#D4A843]" />
-                      <span className="text-[10px] font-mono uppercase tracking-widest text-neutral-500">
+                      <span className="text-[10px] font-mono uppercase tracking-widest text-neutral-400">
                         {service.type === 'postProduction' ? 'Post Production' : service.type}
                       </span>
                     </div>
                     <p className="text-sm font-medium text-white capitalize">
                       {service.subType.replace(/([A-Z])/g, ' $1').trim()}
                     </p>
-                    <p className="text-xs font-mono text-neutral-500">
+                    <p className="text-xs font-mono text-neutral-400">
                       {service.hours} hour{service.hours !== 1 ? 's' : ''}
                     </p>
                   </div>
@@ -370,7 +370,7 @@ export default function ProductionPackageDetailView({
                       >
                         <div>
                           <p className="text-sm text-white">{item.service}</p>
-                          <p className="text-[10px] font-mono text-neutral-500">
+                          <p className="text-[10px] font-mono text-neutral-400">
                             {item.hours}hr × {formatZAR(item.rate)}/hr
                           </p>
                         </div>
@@ -381,13 +381,13 @@ export default function ProductionPackageDetailView({
                     ))}
 
                     <div className="border-t border-white/10 p-4 flex items-center justify-between">
-                      <span className="text-[10px] font-mono uppercase tracking-widest text-neutral-500">
+                      <span className="text-[10px] font-mono uppercase tracking-widest text-neutral-400">
                         Subtotal
                       </span>
                       <span className="text-sm font-mono text-white">{formatZAR(pricing.subtotal)}</span>
                     </div>
                     <div className="border-t border-white/5 p-4 flex items-center justify-between">
-                      <span className="text-[10px] font-mono uppercase tracking-widest text-neutral-500">
+                      <span className="text-[10px] font-mono uppercase tracking-widest text-neutral-400">
                         VAT (15%)
                       </span>
                       <span className="text-sm font-mono text-neutral-400">{formatZAR(pricing.vat)}</span>
@@ -412,7 +412,7 @@ export default function ProductionPackageDetailView({
             {/* Pricing box */}
             <div className="border border-white/10 p-5 mb-6 space-y-3 bg-[#0A0A0B]">
               <div className="flex items-end justify-between">
-                <span className="text-[10px] font-mono uppercase tracking-widest text-neutral-500">
+                <span className="text-[10px] font-mono uppercase tracking-widest text-neutral-400">
                   Package Price
                 </span>
                 <span className="text-2xl font-bold text-[#D4A843]">
@@ -420,7 +420,7 @@ export default function ProductionPackageDetailView({
                 </span>
               </div>
               <div className="flex items-end justify-between border-t border-white/5 pt-3">
-                <span className="text-[10px] font-mono uppercase tracking-widest text-neutral-500">
+                <span className="text-[10px] font-mono uppercase tracking-widest text-neutral-400">
                   Duration
                 </span>
                 <span className="text-sm font-mono text-white">
@@ -428,7 +428,7 @@ export default function ProductionPackageDetailView({
                 </span>
               </div>
               <div className="flex items-end justify-between border-t border-white/5 pt-3">
-                <span className="text-[10px] font-mono uppercase tracking-widest text-neutral-500">
+                <span className="text-[10px] font-mono uppercase tracking-widest text-neutral-400">
                   Effective Rate
                 </span>
                 <span className="text-sm font-mono text-neutral-400">
@@ -439,7 +439,7 @@ export default function ProductionPackageDetailView({
 
             {/* Book CTA */}
             <div className="border border-white/10 p-5 bg-[#0A0A0B] mb-6">
-              <h3 className="text-[10px] font-mono font-bold uppercase tracking-widest text-neutral-500 mb-4 border-b border-white/5 pb-3">
+              <h3 className="text-[10px] font-mono font-bold uppercase tracking-widest text-neutral-400 mb-4 border-b border-white/5 pb-3">
                 Book This Package
               </h3>
               <p className="text-xs text-neutral-400 mb-4 leading-relaxed">
@@ -455,7 +455,7 @@ export default function ProductionPackageDetailView({
             </div>
 
             {/* Info */}
-            <div className="flex items-start gap-2 text-[9px] font-mono text-neutral-600">
+            <div className="flex items-start gap-2 text-[9px] font-mono text-neutral-400">
               <Info className="w-3 h-3 mt-0.5 flex-shrink-0" />
               <span>
                 Minimum booking is 4 hours. Travel fees may apply for on-location shoots.
@@ -502,7 +502,7 @@ export default function ProductionPackageDetailView({
                         <h3 className="text-sm font-display font-medium text-white uppercase mb-1 group-hover:text-[#D4A843] transition-colors">
                           {related.name}
                         </h3>
-                        <p className="text-[10px] font-mono text-neutral-500 mb-4">
+                        <p className="text-[10px] font-mono text-neutral-400 mb-4">
                           {related.description}
                         </p>
                         <div className="flex items-end justify-between border-t border-white/5 pt-3">
@@ -510,11 +510,11 @@ export default function ProductionPackageDetailView({
                             <p className="text-lg font-display font-bold text-[#D4A843]">
                               {formatZAR(relPricing.total)}
                             </p>
-                            <p className="text-[9px] font-mono text-neutral-500">
+                            <p className="text-[9px] font-mono text-neutral-400">
                               {relHours}hrs · ~{formatZAR(Math.round(relPricing.subtotal / relHours))}/hr
                             </p>
                           </div>
-                          <ArrowRight className="w-4 h-4 text-neutral-500 group-hover:text-[#D4A843] group-hover:translate-x-1 transition-all" />
+                          <ArrowRight className="w-4 h-4 text-neutral-400 group-hover:text-[#D4A843] group-hover:translate-x-1 transition-all" />
                         </div>
                       </div>
                     </Link>
@@ -529,7 +529,7 @@ export default function ProductionPackageDetailView({
         <div className="mt-16 pt-8 border-t border-white/5">
           <Link
             href={`/studio/category/${category.slug}`}
-            className="inline-flex items-center gap-2 text-[10px] font-mono font-bold uppercase tracking-widest text-neutral-500 hover:text-[#D4A843] transition-colors"
+            className="inline-flex items-center gap-2 text-[10px] font-mono font-bold uppercase tracking-widest text-neutral-400 hover:text-[#D4A843] transition-colors"
           >
             <ArrowLeft className="w-3 h-3" />
             Back to {category.name}

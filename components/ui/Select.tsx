@@ -28,7 +28,7 @@ export function Select({
       {label && (
         <label
           htmlFor={inputId}
-          className="block text-[10px] font-mono uppercase tracking-widest text-neutral-500 mb-2"
+          className="block text-[10px] font-mono uppercase tracking-widest text-neutral-400 mb-2"
         >
           {label}
         </label>

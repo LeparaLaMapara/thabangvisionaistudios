@@ -182,7 +182,7 @@ export default function BriefForm() {
           {/* Phone */}
           <div>
             <label htmlFor="brief-phone" className={labelClasses}>
-              Phone <span className="text-neutral-600">(optional)</span>
+              Phone <span className="text-neutral-400">(optional)</span>
             </label>
             <input
               id="brief-phone"
@@ -287,7 +287,7 @@ export default function BriefForm() {
 
         {/* AI help link */}
         <div className="mt-8 text-center">
-          <p className="text-neutral-500 text-sm">
+          <p className="text-neutral-400 text-sm">
             Need help right now?{' '}
             <a
               href="/ubunye-ai-studio"

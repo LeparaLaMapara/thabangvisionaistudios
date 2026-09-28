@@ -205,14 +205,14 @@ export function FaqsAdmin({ faqs }: { faqs: Faq[] }) {
               </h2>
               <button
                 onClick={closeEdit}
-                className="p-2 border border-white/10 text-neutral-500 hover:border-white/30 hover:text-white transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center"
+                className="p-2 border border-white/10 text-neutral-400 hover:border-white/30 hover:text-white transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
             <div className="p-6 space-y-4">
               <div>
-                <label className="block text-[10px] font-mono uppercase tracking-widest text-neutral-500 mb-2">
+                <label className="block text-[10px] font-mono uppercase tracking-widest text-neutral-400 mb-2">
                   Question
                 </label>
                 <textarea
@@ -223,7 +223,7 @@ export function FaqsAdmin({ faqs }: { faqs: Faq[] }) {
                 />
               </div>
               <div>
-                <label className="block text-[10px] font-mono uppercase tracking-widest text-neutral-500 mb-2">
+                <label className="block text-[10px] font-mono uppercase tracking-widest text-neutral-400 mb-2">
                   Answer
                 </label>
                 <textarea
@@ -234,7 +234,7 @@ export function FaqsAdmin({ faqs }: { faqs: Faq[] }) {
                 />
               </div>
               <div>
-                <label className="block text-[10px] font-mono uppercase tracking-widest text-neutral-500 mb-2">
+                <label className="block text-[10px] font-mono uppercase tracking-widest text-neutral-400 mb-2">
                   Category
                 </label>
                 <select
@@ -273,12 +273,12 @@ export function FaqsAdmin({ faqs }: { faqs: Faq[] }) {
       <div className="border border-white/10 divide-y divide-white/10">
         {/* Header row */}
         <div className="hidden md:grid md:grid-cols-[1fr_1fr_auto_auto_auto_auto] gap-4 px-4 py-3 bg-white/[0.02]">
-          <span className="text-[10px] font-mono uppercase tracking-widest text-neutral-500">Question</span>
-          <span className="text-[10px] font-mono uppercase tracking-widest text-neutral-500">Answer</span>
-          <span className="text-[10px] font-mono uppercase tracking-widest text-neutral-500">Category</span>
-          <span className="text-[10px] font-mono uppercase tracking-widest text-neutral-500">Views</span>
-          <span className="text-[10px] font-mono uppercase tracking-widest text-neutral-500">Created</span>
-          <span className="text-[10px] font-mono uppercase tracking-widest text-neutral-500">Actions</span>
+          <span className="text-[10px] font-mono uppercase tracking-widest text-neutral-400">Question</span>
+          <span className="text-[10px] font-mono uppercase tracking-widest text-neutral-400">Answer</span>
+          <span className="text-[10px] font-mono uppercase tracking-widest text-neutral-400">Category</span>
+          <span className="text-[10px] font-mono uppercase tracking-widest text-neutral-400">Views</span>
+          <span className="text-[10px] font-mono uppercase tracking-widest text-neutral-400">Created</span>
+          <span className="text-[10px] font-mono uppercase tracking-widest text-neutral-400">Actions</span>
         </div>
 
         {filtered.map((faq) => (
@@ -299,7 +299,7 @@ export function FaqsAdmin({ faqs }: { faqs: Faq[] }) {
                 </p>
               </div>
               {faq.source_conversation_id && (
-                <p className="mt-1 ml-3.5 text-[10px] font-mono text-neutral-600">
+                <p className="mt-1 ml-3.5 text-[10px] font-mono text-neutral-400">
                   from chat
                 </p>
               )}
@@ -325,14 +325,14 @@ export function FaqsAdmin({ faqs }: { faqs: Faq[] }) {
 
             {/* View count */}
             <div className="flex items-center">
-              <span className="text-xs font-mono text-neutral-500">
+              <span className="text-xs font-mono text-neutral-400">
                 {faq.view_count}
               </span>
             </div>
 
             {/* Created date */}
             <div className="flex items-center">
-              <span className="text-[10px] font-mono text-neutral-500 whitespace-nowrap">
+              <span className="text-[10px] font-mono text-neutral-400 whitespace-nowrap">
                 {formatDate(faq.created_at)}
               </span>
             </div>
@@ -347,7 +347,7 @@ export function FaqsAdmin({ faqs }: { faqs: Faq[] }) {
                 className={`p-2 border transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center disabled:opacity-50 ${
                   faq.is_published
                     ? 'border-[#D4A843]/40 text-[#D4A843] hover:border-[#D4A843] hover:text-[#D4A843]'
-                    : 'border-white/10 text-neutral-500 hover:border-white/30 hover:text-white'
+                    : 'border-white/10 text-neutral-400 hover:border-white/30 hover:text-white'
                 }`}
               >
                 {faq.is_published ? (
@@ -361,7 +361,7 @@ export function FaqsAdmin({ faqs }: { faqs: Faq[] }) {
                 onClick={() => openEdit(faq)}
                 disabled={pending}
                 title="Edit"
-                className="p-2 border border-white/10 text-neutral-500 hover:border-white/30 hover:text-white transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center disabled:opacity-50"
+                className="p-2 border border-white/10 text-neutral-400 hover:border-white/30 hover:text-white transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center disabled:opacity-50"
               >
                 <Pencil className="w-3.5 h-3.5" />
               </button>

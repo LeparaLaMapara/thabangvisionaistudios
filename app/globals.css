@@ -57,3 +57,28 @@ body {
   0%   { transform: translateX(-100%); }
   100% { transform: translateX(100%); }
 }
+
+
+/* ── Accessibility (Apple standard, 2026-09-28) ─────────────────────────────
+   A visible gold focus ring for keyboard users. Many components set
+   outline-none, so this wins with !important, and only for keyboard focus. */
+:focus-visible {
+  outline: 2px solid #D4A843 !important;
+  outline-offset: 2px !important;
+}
+main:focus-visible {
+  outline: none !important;
+}
+
+/* Honour the phone's "reduce motion" setting for CSS animations (the header
+   orb, the home marquee). framer-motion follows it through MotionConfig. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

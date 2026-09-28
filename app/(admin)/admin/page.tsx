@@ -236,14 +236,14 @@ export default async function AdminDashboardPage() {
       {/* ── Header ── */}
       <div className="border-b border-white/5 pb-8 flex items-end justify-between">
         <div>
-          <p className="text-[10px] font-mono uppercase tracking-[0.3em] text-neutral-600 mb-2">
+          <p className="text-[10px] font-mono uppercase tracking-[0.3em] text-neutral-400 mb-2">
             {STUDIO.shortName}
           </p>
           <h1 className="text-2xl font-display font-medium uppercase text-white tracking-wide">
             Studio Control Center
           </h1>
         </div>
-        <p className="text-[10px] font-mono text-neutral-700 uppercase tracking-widest hidden md:block">
+        <p className="text-[10px] font-mono text-neutral-400 uppercase tracking-widest hidden md:block">
           {today}
         </p>
       </div>
@@ -337,13 +337,13 @@ export default async function AdminDashboardPage() {
                   >
                     <TypeBadge type={item.type} />
                     <p className="text-sm font-mono text-neutral-300 truncate">{item.title}</p>
-                    <span className="text-[10px] font-mono text-neutral-700 flex items-center gap-1.5 flex-shrink-0">
+                    <span className="text-[10px] font-mono text-neutral-400 flex items-center gap-1.5 flex-shrink-0">
                       <Clock className="w-2.5 h-2.5" />
                       {relativeTime(item.updated_at)}
                     </span>
                     <Link
                       href={item.editHref}
-                      className="text-[10px] font-mono text-neutral-700 hover:text-white transition-colors flex-shrink-0 flex items-center gap-0.5"
+                      className="text-[10px] font-mono text-neutral-400 hover:text-white transition-colors flex-shrink-0 flex items-center gap-0.5"
                     >
                       Edit <ChevronRight className="w-2.5 h-2.5" />
                     </Link>
@@ -368,7 +368,7 @@ export default async function AdminDashboardPage() {
             {kpi.totalDrafts === 0 ? (
               <div className="bg-neutral-900 border border-white/5 flex items-center gap-3 px-4 py-4">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 flex-shrink-0" />
-                <p className="text-[10px] font-mono text-neutral-600 uppercase tracking-widest">
+                <p className="text-[10px] font-mono text-neutral-400 uppercase tracking-widest">
                   All content is published.
                 </p>
               </div>
@@ -389,7 +389,7 @@ export default async function AdminDashboardPage() {
         <CollapsibleSection
           label="Featured Content"
           id="featured"
-          badge={<span className="text-neutral-700">· {featuredItems.length}</span>}
+          badge={<span className="text-neutral-400">· {featuredItems.length}</span>}
         >
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
             {featuredItems.map(item => (
@@ -407,7 +407,7 @@ export default async function AdminDashboardPage() {
                     />
                   ) : (
                     <div className="w-full h-full flex items-center justify-center">
-                      <Star className="w-4 h-4 text-neutral-700" />
+                      <Star className="w-4 h-4 text-neutral-400" />
                     </div>
                   )}
                 </div>
@@ -466,7 +466,7 @@ export default async function AdminDashboardPage() {
 function EmptyRow({ label }: { label: string }) {
   return (
     <div className="px-4 py-10 text-center">
-      <p className="text-[10px] font-mono text-neutral-700 uppercase tracking-widest">{label}</p>
+      <p className="text-[10px] font-mono text-neutral-400 uppercase tracking-widest">{label}</p>
     </div>
   );
 }
@@ -500,31 +500,31 @@ function KpiCard({
   const iconColor =
     accent === 'amber' ? 'text-amber-500/60' :
     accent === 'red' && total > 0 ? 'text-red-500/60' :
-    'text-neutral-700';
+    'text-neutral-400';
 
   return (
     <Link href={href} className="block">
       <div className={`bg-neutral-900 px-5 py-5 h-full hover:bg-neutral-800/80 transition-colors group ${topBorder}`}>
         <div className="flex items-start justify-between mb-4">
-          <span className={`${iconColor} group-hover:text-neutral-500 transition-colors`}>
+          <span className={`${iconColor} group-hover:text-neutral-400 transition-colors`}>
             {icon}
           </span>
           <span className="text-3xl font-display font-medium text-white tabular-nums leading-none">
             {total}
           </span>
         </div>
-        <p className="text-[9px] font-mono uppercase tracking-[0.2em] text-neutral-600 mb-3">
+        <p className="text-[9px] font-mono uppercase tracking-[0.2em] text-neutral-400 mb-3">
           {label}
         </p>
         {lines.map(line => (
           <div key={line.label} className="flex items-center justify-between mt-1.5">
-            <span className="text-[9px] font-mono text-neutral-700 uppercase tracking-widest">
+            <span className="text-[9px] font-mono text-neutral-400 uppercase tracking-widest">
               {line.label}
             </span>
             <span className={`text-[10px] font-mono tabular-nums ${
               line.color === 'green'  ? 'text-emerald-500' :
               line.color === 'amber'  ? 'text-amber-500/80' :
-              'text-neutral-600'
+              'text-neutral-400'
             }`}>
               {line.value}
             </span>
@@ -548,17 +548,17 @@ function QuickCreateBtn({
     <Link href={href} className="block">
       <div className="bg-neutral-900 border border-white/5 hover:border-white/15 hover:bg-neutral-800/80 transition-all p-4 flex items-center gap-3 group">
         <div className="w-8 h-8 bg-white/5 group-hover:bg-white/10 transition-colors flex items-center justify-center flex-shrink-0">
-          <span className="text-neutral-500 group-hover:text-white transition-colors">
+          <span className="text-neutral-400 group-hover:text-white transition-colors">
             {icon}
           </span>
         </div>
         <div className="min-w-0">
-          <p className="text-[8px] font-mono uppercase tracking-[0.2em] text-neutral-700">Create</p>
+          <p className="text-[8px] font-mono uppercase tracking-[0.2em] text-neutral-400">Create</p>
           <p className="text-xs font-mono text-neutral-400 group-hover:text-white transition-colors truncate">
             {label}
           </p>
         </div>
-        <ChevronRight className="w-3 h-3 text-neutral-700 group-hover:text-neutral-500 transition-colors ml-auto flex-shrink-0" />
+        <ChevronRight className="w-3 h-3 text-neutral-400 group-hover:text-neutral-400 transition-colors ml-auto flex-shrink-0" />
       </div>
     </Link>
   );
@@ -605,8 +605,8 @@ function DraftGroup({
   return (
     <div className="bg-neutral-900 border border-white/5">
       <div className="px-4 py-2 border-b border-white/[0.04]">
-        <p className="text-[9px] font-mono uppercase tracking-widest text-neutral-600">
-          {label} <span className="text-neutral-700">· {items.length}</span>
+        <p className="text-[9px] font-mono uppercase tracking-widest text-neutral-400">
+          {label} <span className="text-neutral-400">· {items.length}</span>
         </p>
       </div>
 
@@ -626,13 +626,13 @@ function DraftGroup({
           <p className="flex-1 text-[11px] font-mono text-neutral-400 truncate min-w-0">
             {item.title}
           </p>
-          <span className="text-[9px] font-mono text-neutral-700 flex-shrink-0">
+          <span className="text-[9px] font-mono text-neutral-400 flex-shrink-0">
             {relativeTime(item.updated_at)}
           </span>
           <Link
             href={editHref}
             title={`Edit in ${label}`}
-            className="flex-shrink-0 p-1 text-neutral-700 hover:text-white transition-colors"
+            className="flex-shrink-0 p-1 text-neutral-400 hover:text-white transition-colors"
           >
             <Pencil className="w-3 h-3" />
           </Link>
@@ -643,7 +643,7 @@ function DraftGroup({
         <div className="px-4 py-2 border-t border-white/[0.04]">
           <Link
             href={editHref}
-            className="text-[9px] font-mono text-neutral-700 hover:text-white transition-colors uppercase tracking-widest"
+            className="text-[9px] font-mono text-neutral-400 hover:text-white transition-colors uppercase tracking-widest"
           >
             +{overflow} more →
           </Link>
@@ -669,17 +669,17 @@ function OverviewCard({
   return (
     <Link href={href} className="block">
       <div className="bg-neutral-900 px-5 py-5 flex items-center gap-4 hover:bg-neutral-800/80 transition-colors group">
-        <span className="text-neutral-700 group-hover:text-neutral-500 transition-colors flex-shrink-0">
+        <span className="text-neutral-400 group-hover:text-neutral-400 transition-colors flex-shrink-0">
           {icon}
         </span>
         <div className="min-w-0">
           <p className="text-2xl font-display font-medium text-white tabular-nums leading-none mb-1">
             {count}
           </p>
-          <p className="text-[9px] font-mono uppercase tracking-[0.2em] text-neutral-600 truncate">
+          <p className="text-[9px] font-mono uppercase tracking-[0.2em] text-neutral-400 truncate">
             {label}
           </p>
-          <p className="text-[9px] font-mono text-neutral-700 mt-0.5 truncate">
+          <p className="text-[9px] font-mono text-neutral-400 mt-0.5 truncate">
             {sub}
           </p>
         </div>

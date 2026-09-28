@@ -67,7 +67,7 @@ export const FilterBar = ({
                 className={`px-4 py-1.5 text-[10px] uppercase tracking-widest rounded-full border transition-all ${
                   activeSubFilter === null
                     ? 'bg-black text-white dark:bg-white dark:text-black border-transparent'
-                    : 'bg-transparent border-black/10 dark:border-white/10 text-neutral-500 hover:border-black dark:hover:border-white'
+                    : 'bg-transparent border-black/10 dark:border-white/10 text-neutral-400 hover:border-black dark:hover:border-white'
                 }`}
               >
                 All {activeType === 'FILM' ? 'Film' : 'Photos'}
@@ -79,7 +79,7 @@ export const FilterBar = ({
                   className={`px-4 py-1.5 text-[10px] uppercase tracking-widest rounded-full border transition-all ${
                     activeSubFilter === sub
                       ? 'bg-black text-white dark:bg-white dark:text-black border-transparent'
-                      : 'bg-transparent border-black/10 dark:border-white/10 text-neutral-500 hover:border-black dark:hover:border-white'
+                      : 'bg-transparent border-black/10 dark:border-white/10 text-neutral-400 hover:border-black dark:hover:border-white'
                   }`}
                 >
                   {sub}
@@ -125,7 +125,7 @@ export const ProjectCard = ({ project, index }: { project: Project; index: numbe
             />
           ) : (
             <div className="w-full h-full bg-neutral-200 dark:bg-neutral-800 flex items-center justify-center">
-              <span className="text-neutral-400 dark:text-neutral-600 text-xs font-mono uppercase">No image</span>
+              <span className="text-neutral-400 dark:text-neutral-400 text-xs font-mono uppercase">No image</span>
             </div>
           )}
         </div>
@@ -135,7 +135,7 @@ export const ProjectCard = ({ project, index }: { project: Project; index: numbe
             <h3 className="text-lg font-display text-black dark:text-white uppercase mb-1 group-hover:underline decoration-1 underline-offset-4">
               {project.title}
             </h3>
-            <span className="text-[10px] font-mono text-neutral-500 dark:text-neutral-400 uppercase tracking-widest">
+            <span className="text-[10px] font-mono text-neutral-400 dark:text-neutral-400 uppercase tracking-widest">
               {project.subCategory}
             </span>
           </div>

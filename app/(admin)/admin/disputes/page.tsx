@@ -108,7 +108,7 @@ export default function AdminDisputesPage() {
         <LoadingSpinner label="Loading disputes..." className="py-20" />
       ) : disputes.length === 0 ? (
         <EmptyState
-          icon={<Clock className="w-10 h-10 text-neutral-600" />}
+          icon={<Clock className="w-10 h-10 text-neutral-400" />}
           title="No disputes"
           description="No disputes found in this category."
         />
@@ -138,12 +138,12 @@ export default function AdminDisputesPage() {
                       )}
                     </div>
                     <p className="text-xs text-neutral-400 truncate">{dispute.reason}</p>
-                    <p className="text-[10px] text-neutral-500 mt-1">
+                    <p className="text-[10px] text-neutral-400 mt-1">
                       Filed {formatDate(dispute.filed_at)}
                       {dispute.resolved_at && ` — Resolved ${formatDate(dispute.resolved_at)}`}
                     </p>
                   </div>
-                  <Search className="w-4 h-4 text-neutral-600 flex-shrink-0 mt-1" />
+                  <Search className="w-4 h-4 text-neutral-400 flex-shrink-0 mt-1" />
                 </div>
               </Link>
             ))}

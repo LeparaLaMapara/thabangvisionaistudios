@@ -23,7 +23,7 @@ export default async function PlatformLayout({
   return (
     <div className="flex flex-col min-h-screen bg-neutral-50 dark:bg-[#0A0A0B] text-neutral-900 dark:text-white selection:bg-black selection:text-white dark:selection:bg-white dark:selection:text-black transition-colors duration-500">
       <Header navigation={navigation} />
-      <main className="flex-grow">
+      <main id="main" tabIndex={-1} className="flex-grow outline-none">
         {children}
       </main>
       <Footer />

@@ -58,7 +58,7 @@ export function Rating({
               'transition-colors duration-150 disabled:cursor-default',
               filled
                 ? 'text-accent-gold'
-                : 'text-neutral-300 dark:text-neutral-600',
+                : 'text-neutral-300 dark:text-neutral-400',
             ].join(' ')}
           >
             <Star className={[SIZE_CLASSES[size], filled ? 'fill-current' : ''].filter(Boolean).join(' ')} />

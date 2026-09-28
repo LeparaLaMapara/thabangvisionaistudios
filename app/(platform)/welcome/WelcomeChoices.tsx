@@ -55,7 +55,7 @@ export default function WelcomeChoices({ firstName }: { firstName: string | null
                 <span className="block text-lg font-display font-medium uppercase text-white">{c.title}</span>
                 <span className="block text-xs font-mono text-neutral-400 mt-1 leading-relaxed">{c.detail}</span>
               </span>
-              <ArrowRight className="w-5 h-5 text-neutral-500" aria-hidden="true" />
+              <ArrowRight className="w-5 h-5 text-neutral-400" aria-hidden="true" />
             </button>
           );
         })}
@@ -65,7 +65,7 @@ export default function WelcomeChoices({ firstName }: { firstName: string | null
         type="button"
         onClick={() => choose('browse', '/')}
         disabled={busy !== null}
-        className="inline-block min-h-[44px] mt-8 text-xs font-mono text-neutral-500 underline underline-offset-2 hover:text-white"
+        className="inline-block min-h-[44px] mt-8 text-xs font-mono text-neutral-400 underline underline-offset-2 hover:text-white"
       >
         I&apos;m just looking around
       </button>

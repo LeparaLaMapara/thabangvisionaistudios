@@ -149,10 +149,10 @@ export default function BookConfirmation({
         </button>
 
         {/* Policy */}
-        <p className="mt-4 text-center text-xs text-neutral-500">
+        <p className="mt-4 text-center text-xs text-neutral-400">
           {cancellationPolicy}
         </p>
-        <p className="mt-2 text-center text-xs text-neutral-600">
+        <p className="mt-2 text-center text-xs text-neutral-400">
           By paying, you agree to our{' '}
           <a href="/legal" className="text-[#D4A843] underline">Terms of Service</a>.
         </p>
@@ -164,7 +164,7 @@ export default function BookConfirmation({
 function Row({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex justify-between gap-4">
-      <span className="text-neutral-500">{label}</span>
+      <span className="text-neutral-400">{label}</span>
       <span className="text-right text-neutral-200">{value}</span>
     </div>
   );

@@ -104,7 +104,7 @@ export default function AdminServiceBookingsPage() {
   }
 
   if (loading) {
-    return <div className="py-20 text-center text-neutral-500">Loading bookings...</div>;
+    return <div className="py-20 text-center text-neutral-400">Loading bookings...</div>;
   }
 
   return (
@@ -131,7 +131,7 @@ export default function AdminServiceBookingsPage() {
 
       {/* List */}
       {filtered.length === 0 ? (
-        <p className="py-12 text-center text-neutral-500">No bookings found.</p>
+        <p className="py-12 text-center text-neutral-400">No bookings found.</p>
       ) : (
         <div className="space-y-4">
           {filtered.map((b) => (
@@ -139,7 +139,7 @@ export default function AdminServiceBookingsPage() {
               <div className="flex items-start justify-between gap-4">
                 <div>
                   <div className="flex items-center gap-3">
-                    <span className="font-mono text-xs text-neutral-500">{b.reference}</span>
+                    <span className="font-mono text-xs text-neutral-400">{b.reference}</span>
                     <span className={`rounded-full px-2 py-0.5 text-xs ${STATUS_COLORS[b.status] || 'text-neutral-400'}`}>
                       {b.status}
                     </span>
@@ -149,12 +149,12 @@ export default function AdminServiceBookingsPage() {
                 </div>
                 <div className="text-right text-sm">
                   <p className="font-bold text-white">R{b.total.toLocaleString()}</p>
-                  <p className="text-neutral-500">Platform: R{b.platform_amount.toLocaleString()}</p>
+                  <p className="text-neutral-400">Platform: R{b.platform_amount.toLocaleString()}</p>
                   <p className="text-[#D4A843]">Creator: R{b.creator_amount.toLocaleString()}</p>
                 </div>
               </div>
 
-              <div className="mt-3 flex flex-wrap gap-4 text-xs text-neutral-500">
+              <div className="mt-3 flex flex-wrap gap-4 text-xs text-neutral-400">
                 {b.preferred_dates && <span>Date: {b.preferred_dates}</span>}
                 {b.location && <span>Location: {b.location}</span>}
                 <span>{b.duration_hours}hrs</span>
@@ -163,7 +163,7 @@ export default function AdminServiceBookingsPage() {
                 {b.creator && <span>Creator: {b.creator.display_name}</span>}
               </div>
 
-              <p className="mt-2 text-xs text-neutral-500">{b.project_description}</p>
+              <p className="mt-2 text-xs text-neutral-400">{b.project_description}</p>
 
               {/* Admin actions */}
               <div className="mt-4 flex flex-wrap gap-2">

@@ -139,7 +139,7 @@ export default function AdminBugReportsPage() {
         <h1 className="text-2xl font-display font-medium uppercase text-white">
           Bug Reports
         </h1>
-        <p className="text-xs font-mono text-neutral-500 mt-1">
+        <p className="text-xs font-mono text-neutral-400 mt-1">
           Review and manage user-submitted bug reports.
         </p>
       </div>
@@ -153,7 +153,7 @@ export default function AdminBugReportsPage() {
           <EmptyState
             title="No reports"
             description={activeTab === 'all' ? 'No bug reports yet.' : `No ${activeTab.replace('_', ' ')} reports.`}
-            icon={<Bug className="w-10 h-10 text-neutral-600" />}
+            icon={<Bug className="w-10 h-10 text-neutral-400" />}
           />
         ) : (
           filtered.map((report) => (
@@ -178,19 +178,19 @@ export default function AdminBugReportsPage() {
                   <h3 className="text-sm font-mono font-bold text-white truncate">
                     {report.title}
                   </h3>
-                  <p className="text-xs font-mono text-neutral-500 mt-1 line-clamp-2">
+                  <p className="text-xs font-mono text-neutral-400 mt-1 line-clamp-2">
                     {report.description}
                   </p>
                 </div>
                 <div className="text-right flex-shrink-0">
-                  <p className="text-[10px] font-mono text-neutral-600">
+                  <p className="text-[10px] font-mono text-neutral-400">
                     {new Date(report.created_at).toLocaleDateString()}
                   </p>
-                  <p className="text-[10px] font-mono text-neutral-600 mt-0.5">
+                  <p className="text-[10px] font-mono text-neutral-400 mt-0.5">
                     {report.user_email}
                   </p>
                   {report.device_info && (
-                    <p className="text-[10px] font-mono text-neutral-700 mt-0.5">
+                    <p className="text-[10px] font-mono text-neutral-400 mt-0.5">
                       {report.device_info}
                     </p>
                   )}
@@ -221,7 +221,7 @@ export default function AdminBugReportsPage() {
               <Badge variant={STATUS_BADGE[selectedReport.status] || 'default'}>
                 {STATUS_LABELS[selectedReport.status] || selectedReport.status}
               </Badge>
-              <span className="text-[10px] font-mono text-neutral-500">
+              <span className="text-[10px] font-mono text-neutral-400">
                 {selectedReport.user_email} · {new Date(selectedReport.created_at).toLocaleString()}
               </span>
             </div>
@@ -262,7 +262,7 @@ export default function AdminBugReportsPage() {
             )}
 
             {/* Device info */}
-            <div className="flex items-center gap-4 text-[10px] font-mono text-neutral-600">
+            <div className="flex items-center gap-4 text-[10px] font-mono text-neutral-400">
               {selectedReport.device_info && <span>Device: {selectedReport.device_info}</span>}
             </div>
 
@@ -274,7 +274,7 @@ export default function AdminBugReportsPage() {
                 onChange={(e) => setAdminNotes(e.target.value)}
                 placeholder="Internal notes about this report..."
                 rows={3}
-                className="w-full bg-[#0A0A0B] border border-white/10 px-4 py-3 text-sm font-mono text-white placeholder:text-neutral-600 focus:border-[#D4A843]/50 focus:outline-none transition-colors resize-y"
+                className="w-full bg-[#0A0A0B] border border-white/10 px-4 py-3 text-sm font-mono text-white placeholder:text-neutral-400 focus:border-[#D4A843]/50 focus:outline-none transition-colors resize-y"
               />
               <button
                 onClick={() => saveNotes(selectedReport.id)}

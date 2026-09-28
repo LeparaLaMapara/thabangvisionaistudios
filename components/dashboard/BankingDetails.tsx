@@ -95,7 +95,7 @@ export default function BankingDetails({ onSaved }: { onSaved?: () => void } = {
 
   if (loading) {
     return (
-      <div className="flex items-center gap-2 py-4 text-neutral-500 text-xs font-mono">
+      <div className="flex items-center gap-2 py-4 text-neutral-400 text-xs font-mono">
         <Loader2 className="w-3 h-3 animate-spin" /> Loading...
       </div>
     );
@@ -107,8 +107,8 @@ export default function BankingDetails({ onSaved }: { onSaved?: () => void } = {
       <div className="bg-[#0A0A0B] border border-white/5 p-5">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
-            <Building2 className="w-4 h-4 text-neutral-500" />
-            <span className="text-[10px] font-mono uppercase tracking-widest text-neutral-500">
+            <Building2 className="w-4 h-4 text-neutral-400" />
+            <span className="text-[10px] font-mono uppercase tracking-widest text-neutral-400">
               Banking Details
             </span>
           </div>
@@ -121,19 +121,19 @@ export default function BankingDetails({ onSaved }: { onSaved?: () => void } = {
         </div>
         <div className="space-y-2 text-xs font-mono">
           <div className="flex justify-between">
-            <span className="text-neutral-500">Bank</span>
+            <span className="text-neutral-400">Bank</span>
             <span className="text-white">{banking.bank_name}</span>
           </div>
           <div className="flex justify-between">
-            <span className="text-neutral-500">Account</span>
+            <span className="text-neutral-400">Account</span>
             <span className="text-white">{banking.account_number_masked ?? '••••'}</span>
           </div>
           <div className="flex justify-between">
-            <span className="text-neutral-500">Type</span>
+            <span className="text-neutral-400">Type</span>
             <span className="text-white capitalize">{banking.account_type}</span>
           </div>
           <div className="flex justify-between">
-            <span className="text-neutral-500">Holder</span>
+            <span className="text-neutral-400">Holder</span>
             <span className="text-white">{banking.account_holder}</span>
           </div>
         </div>
@@ -150,19 +150,19 @@ export default function BankingDetails({ onSaved }: { onSaved?: () => void } = {
   return (
     <div className="bg-[#0A0A0B] border border-white/5 p-5">
       <div className="flex items-center gap-2 mb-4">
-        <Building2 className="w-4 h-4 text-neutral-500" />
-        <span className="text-[10px] font-mono uppercase tracking-widest text-neutral-500">
+        <Building2 className="w-4 h-4 text-neutral-400" />
+        <span className="text-[10px] font-mono uppercase tracking-widest text-neutral-400">
           Banking Details
         </span>
       </div>
 
-      <p className="text-[10px] font-mono text-neutral-600 mb-4">
+      <p className="text-[10px] font-mono text-neutral-400 mb-4">
         Required for receiving payouts from gig bookings.
       </p>
 
       <div className="space-y-4">
         <div>
-          <label className="block text-[10px] font-mono uppercase tracking-widest text-neutral-500 mb-2">
+          <label className="block text-[10px] font-mono uppercase tracking-widest text-neutral-400 mb-2">
             Bank <span className="text-red-400">*</span>
           </label>
           <select
@@ -186,7 +186,7 @@ export default function BankingDetails({ onSaved }: { onSaved?: () => void } = {
         />
 
         <div>
-          <label className="block text-[10px] font-mono uppercase tracking-widest text-neutral-500 mb-2">
+          <label className="block text-[10px] font-mono uppercase tracking-widest text-neutral-400 mb-2">
             Account Type <span className="text-red-400">*</span>
           </label>
           <div className="flex gap-3">
@@ -198,7 +198,7 @@ export default function BankingDetails({ onSaved }: { onSaved?: () => void } = {
                 className={`text-[10px] font-mono uppercase tracking-widest px-4 py-2 border transition-all min-h-[36px] ${
                   accountType === type
                     ? 'bg-white text-black border-white'
-                    : 'bg-transparent text-neutral-500 border-white/10 hover:border-white/30'
+                    : 'bg-transparent text-neutral-400 border-white/10 hover:border-white/30'
                 }`}
               >
                 {type}
