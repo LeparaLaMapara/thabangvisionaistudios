@@ -23,7 +23,7 @@ const hoursToText = (h: number): string => (h % 24 === 0 ? `${h / 24} day${h ===
 /**
  * `paymentsOpen` is onlinePaymentsOpen() from the server. While online
  * payment is closed the answers say how payment really happens (EFT, cash or
- * a card link); they switch back by themselves when it opens. Without the
+ * cash at collection); they switch back by themselves when it opens. Without the
  * argument the answers take the cautious (closed) wording.
  */
 export function coreFaqs(opts: { paymentsOpen?: boolean } = {}): CoreFaq[] {
@@ -52,7 +52,7 @@ export function coreFaqs(opts: { paymentsOpen?: boolean } = {}): CoreFaq[] {
       question: 'How do I rent a camera?',
       answer: paymentsOpen
         ? `Open the item, pick your dates and you will see whether it is available and the full price. Press to book, sign in (or create a free account), do a one-time ID check before your first rental, and pay online.`
-        : `Open the item, pick your dates and you will see whether it is available and the full price. Press to book, sign in (or create a free account) and do a one-time ID check before your first rental. We then contact you to arrange payment by EFT, cash or a card link. Online card payment is not open yet.`,
+        : `Open the item, pick your dates and you will see whether it is available and the full price. Press to book, sign in (or create a free account) and do a one-time ID check before your first rental. Then pay by EFT to our business account within 48 hours (your booking shows the amount, the reference and our bank details), or pay in cash when you collect.`,
     },
     {
       id: 'core-limits',

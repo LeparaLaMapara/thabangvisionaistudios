@@ -22,7 +22,7 @@ export function effectiveHoldMinutes(): number {
 export async function loadHolds(rentalId: string, startDate: string, endDate: string): Promise<BookingHold[]> {
   const { data, error } = await createAdminClient()
     .from('equipment_bookings')
-    .select('id, quantity, status, created_at, payfast_payment_id')
+    .select('id, quantity, status, created_at, payfast_payment_id, payment_method')
     .eq('rental_id', rentalId)
     .in('status', ['pending', 'confirmed', 'active', 'overdue'])
     .lt('start_date', endDate)
@@ -35,6 +35,7 @@ export async function loadHolds(rentalId: string, startDate: string, endDate: st
     status: row.status,
     createdAt: row.created_at,
     paymentReference: row.payfast_payment_id,
+    method: row.payment_method,
   }));
 }
 

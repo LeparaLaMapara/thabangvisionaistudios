@@ -446,9 +446,19 @@ export default function AdminBookingsPage() {
 
             {/* Waiting for payment: record it when it arrives by EFT, cash or a card link */}
             {detailBooking.status === 'pending' && (
+              <p className="text-xs font-mono text-neutral-400">
+                Reference <span className="text-[#D4A843]">{(detailBooking as { payment_reference?: string }).payment_reference}</span>
+                {' · '}
+                {(detailBooking as { payment_method?: string | null }).payment_method === 'cash' ? 'Paying cash at collection' : 'Paying by EFT'}
+              </p>
+            )}
+            {detailBooking.status === 'pending' && (
               <MarkPaid
                 bookingId={detailBooking.id}
-                suggestedAmount={Number(detailBooking.total_price ?? 0) + Number(detailBooking.deposit_amount ?? 0)}
+                suggestedAmount={
+                  (detailBooking as { order_amount_due?: number | null }).order_amount_due ??
+                  Number(detailBooking.total_price ?? 0) + Number(detailBooking.deposit_amount ?? 0)
+                }
                 onDone={() => {
                   setDetailBooking(null);
                   fetchBookings();

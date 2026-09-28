@@ -36,7 +36,7 @@ export function reportUnpaidRequest(params: {
         `Reference: ${params.reference}`,
         `Customer: ${params.userEmail ?? '(no email)'}`,
         '',
-        'They were told we will contact them to arrange payment. Please reply to them today.',
+        'They were given the bank details and their reference. When the payment shows, mark it paid in admin (Bookings).',
       ].join('\n'),
     })
     .catch((err) => console.error('[payments] unpaid request email failed:', err));

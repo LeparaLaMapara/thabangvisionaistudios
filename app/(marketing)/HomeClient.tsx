@@ -135,7 +135,7 @@ const HowItWorks = ({ paymentsOpen }: { paymentsOpen: boolean }) => {
       title: 'Book',
       description: paymentsOpen
         ? 'Book online and pay by card.'
-        : 'Book online. We contact you to confirm and arrange payment.',
+        : 'Book online, then pay by EFT within 48 hours, or in cash when you collect.',
     },
     { icon: MapPin, title: 'Collect', description: `Collect at ${COLLECTION_POINT}. Bring your ID the first time.` },
     { icon: RotateCcw, title: 'Return', description: 'Return it on time and get your deposit back.' },

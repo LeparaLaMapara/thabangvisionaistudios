@@ -5,6 +5,7 @@ import { requireAdmin, rateLimitAdmin } from '@/lib/auth';
 import { createAdminClient } from '@/lib/supabase/server';
 import { sendAccountSuspended } from '@/lib/email';
 import { STUDIO } from '@/lib/constants';
+import { profileWithEmail } from '@/lib/supabase/profile-email';
 
 // ─── POST — Suspend a user (admin only) ─────────────────────────────────────
 
@@ -123,11 +124,7 @@ export async function POST(
 
     // Send suspension email to the user
     try {
-      const { data: userProfile } = await supabase
-        .from('profiles')
-        .select('email, display_name')
-        .eq('id', targetUserId)
-        .single();
+      const userProfile = await profileWithEmail(targetUserId);
 
       if (userProfile?.email) {
         await sendAccountSuspended({

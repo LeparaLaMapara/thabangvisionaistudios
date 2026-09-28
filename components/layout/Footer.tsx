@@ -3,6 +3,7 @@
 import React, { useState, useCallback } from 'react';
 import Link from 'next/link';
 import { Youtube, Instagram, Facebook, Twitter, Linkedin, Mail, Loader2, CheckCircle2 } from 'lucide-react';
+import { ContactButtons } from '@/components/payments/ContactButtons';
 import { FOOTER_SECTIONS, SOCIAL_LINKS, SITE_COPYRIGHT, SITE_NAME } from '@/lib/constants';
 
 const IconMap: Record<string, React.ElementType> = {
@@ -120,6 +121,8 @@ export const Footer = () => {
                 </p>
               </form>
             )}
+
+            <ContactButtons message="Hi, I have a question about ThabangVision" className="mb-8" />
 
             <div className="flex gap-6">
               {SOCIAL_LINKS.map((social) => {

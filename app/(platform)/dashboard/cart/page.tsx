@@ -40,6 +40,8 @@ export default function CartPage() {
   const [notes, setNotes] = useState('');
   const [fulfilment, setFulfilment] = useState<'collection' | 'delivery'>('collection');
   const [payNow, setPayNow] = useState<'full' | 'deposit_only'>('full');
+  // While card payment is off: EFT to the business account, or cash when collecting.
+  const [payBy, setPayBy] = useState<'eft' | 'cash'>('eft');
   const [address, setAddress] = useState<AddressResult | null>(null);
   const [itemDates, setItemDates] = useState<Map<string, DateRange>>(new Map());
 
@@ -155,13 +157,15 @@ export default function CartPage() {
   const totals = useMemo(() => {
     if (!pricing) return null;
     const hireCharge = pricing.subtotal - pricing.bulkDiscountAmount;
-    const balanceOnCollection = payNow === 'deposit_only' ? hireCharge : 0;
+    // Paying by EFT or cash covers the whole order; the deposit-first plan is
+    // for card payment only.
+    const balanceOnCollection = paymentsOpen !== false && payNow === 'deposit_only' ? hireCharge : 0;
     return {
       balanceOnCollection,
       dueNow:
         Math.round((pricing.grandTotal + deliveryFee - balanceOnCollection) * 100) / 100,
     };
-  }, [pricing, deliveryFee, payNow]);
+  }, [pricing, deliveryFee, payNow, paymentsOpen]);
 
   // A delivery cannot proceed until we have a locatable address.
   const fulfilmentReady =
@@ -225,6 +229,7 @@ export default function CartPage() {
           notes: notes.trim() || undefined,
           fulfilment_method: fulfilment,
           payment_plan: fulfilment === 'collection' ? payNow : 'full',
+          payment_method: fulfilment === 'collection' ? payBy : 'eft',
           ...(fulfilment === 'delivery' && address
             ? {
                 delivery_address: [
@@ -265,7 +270,12 @@ export default function CartPage() {
       }
 
       await refresh();
-      router.push(`/dashboard/bookings?checkout=${data.checkout_group_id}${data.payments_offline ? '&payment=offline' : ''}`);
+      // Paying by EFT or cash: straight to the booking, which shows how to pay.
+      router.push(
+        data.payments_offline && data.booking_id
+          ? `/dashboard/bookings/${data.booking_id}`
+          : `/dashboard/bookings?checkout=${data.checkout_group_id}`,
+      );
     } catch {
       setError('Something went wrong. Please try again.');
       setSubmitting(false);
@@ -552,15 +562,43 @@ export default function CartPage() {
                     {STUDIO.hours.weekend}. Bring the ID you verified with.
                   </p>
 
-                  {STUDIO.fulfilment.collection.allowBalanceOnCollection && (
+                  {paymentsOpen === false && (
+                    <div className="space-y-2">
+                      <p className="text-xs font-mono uppercase tracking-widest text-neutral-400">
+                        How you pay
+                      </p>
+                      {(
+                        [
+                          ['eft', `Pay by EFT within ${STUDIO.bank.payWithinHours} hours`],
+                          ['cash', 'Pay cash when I collect'],
+                        ] as const
+                      ).map(([method, label]) => (
+                        <label
+                          key={method}
+                          className="flex items-start gap-3 text-xs font-mono text-neutral-400 cursor-pointer min-h-[44px] items-center"
+                        >
+                          <input
+                            type="radio"
+                            name="payment-method"
+                            checked={payBy === method}
+                            onChange={() => setPayBy(method)}
+                            className="accent-[#D4A843]"
+                          />
+                          <span>{label}</span>
+                        </label>
+                      ))}
+                    </div>
+                  )}
+
+                  {paymentsOpen !== false && STUDIO.fulfilment.collection.allowBalanceOnCollection && (
                     <div className="space-y-2">
                       <p className="text-xs font-mono uppercase tracking-widest text-neutral-400">
                         Payment
                       </p>
                       {(
                         [
-                          ['full', paymentsOpen === false ? 'Pay everything before collection' : 'Pay everything now'],
-                          ['deposit_only', paymentsOpen === false ? 'Pay the deposit first, the rest on collection' : 'Pay the deposit now, the rest on collection'],
+                          ['full', 'Pay everything now'],
+                          ['deposit_only', 'Pay the deposit now, the rest on collection'],
                         ] as const
                       ).map(([plan, label]) => (
                         <label
@@ -635,7 +673,9 @@ export default function CartPage() {
               : !fulfilmentReady
                 ? 'Enter a delivery address'
                 : paymentsOpen === false
-                  ? `Send booking request, ${formatRand(totals?.dueNow ?? pricing.grandTotal)}`
+                  ? fulfilment === 'collection' && payBy === 'cash'
+                    ? `Reserve, pay ${formatRand(totals?.dueNow ?? pricing.grandTotal)} cash on collection`
+                    : `Book and pay by EFT, ${formatRand(totals?.dueNow ?? pricing.grandTotal)}`
                   : `Checkout, ${formatRand(totals?.dueNow ?? pricing.grandTotal)}`}
           </Button>
 

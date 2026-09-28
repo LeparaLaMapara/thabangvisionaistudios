@@ -454,7 +454,7 @@ function PayAsYouGoPricing() {
         <p className="text-center text-xs font-mono uppercase tracking-[0.2em] text-neutral-400 dark:text-neutral-400 mt-8">
           All prices are in Rand and include VAT. You book and pay {STUDIO.shortName} directly.{' '}
           {paymentsOpen === false
-            ? 'Pay by EFT, cash or a card link we send you.'
+            ? 'Pay by EFT to our business account, or in cash when you collect. See How to Pay.'
             : paymentsOpen
               ? 'Payments processed securely via our authorised payment gateway.'
               : ''}{' '}

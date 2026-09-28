@@ -270,6 +270,7 @@ ${PRODUCTION_SERVICES.edge.map(e => `- ${e}`).join('\n')}
 ${PRODUCTION_PACKAGES.map((pk) => { const pr = calculatePackagePrice(pk); return `- ${pk.name}: R${pr.subtotal} excl. VAT (R${pr.total} incl.) — ${pk.description} — Book: /book?production=${pk.id}`; }).join('\n')}
 
 ===== RENTAL TERMS =====
+Payment: by EFT to ${STUDIO.bank.accountName}, ${STUDIO.bank.bankName}, account ${STUDIO.bank.accountNumber}, branch code ${STUDIO.bank.branchCode}, within ${STUDIO.bank.payWithinHours} hours, using the reference on the customer's booking page; or in cash at collection. Proof of payment on WhatsApp ${STUDIO.whatsapp.display} or to ${STUDIO.bookingEmail}. Never give any other bank details, and tell anyone who received different details that ours never change (check thabangvision.com/pay).
 Deposit: a fixed, refundable amount per item, shown on each item before booking (paid at checkout with the order, refunded after the gear comes back undamaged; late fees and damage are taken from it)
 Notice: book at least ${STUDIO.rental.minLeadTimeHours} hours ahead
 ID check: a photo of the ID and a selfie, once, before the first rental (no certified copy); a person checks it, ${STUDIO.verification.reviewTime}

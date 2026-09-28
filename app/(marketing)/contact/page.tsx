@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { ArrowRight, Mail, Phone, MapPin, Send, Loader2 } from 'lucide-react';
 import { STUDIO } from '@/lib/constants';
+import { ContactButtons } from '@/components/payments/ContactButtons';
 
 export default function ContactPage() {
   const [formState, setFormState] = useState({ name: '', email: '', subject: 'Project Inquiry', message: '', _hp_company: '' });
@@ -207,6 +208,7 @@ export default function ContactPage() {
                        <Mail className="w-4 h-4 flex-shrink-0 text-[#D4A843]" />
                        <a href={`mailto:${STUDIO.email}`} className="hover:text-white transition-colors">{STUDIO.email}</a>
                      </div>
+                     <ContactButtons message="Hi, I have a question" className="pt-2" />
                    </div>
                 </address>
              </div>
