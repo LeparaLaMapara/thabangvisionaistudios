@@ -100,13 +100,13 @@ function ProductionCard({ production }: { production: SmartProduction }) {
       {/* Badges */}
       <div className="absolute top-3 left-3 z-20 flex flex-wrap gap-1.5">
         {production.is_featured && (
-          <span className="flex items-center gap-1 bg-[#D4A843] text-black text-[9px] font-mono font-bold px-2 py-0.5 uppercase tracking-widest">
+          <span className="flex items-center gap-1 bg-[#D4A843] text-black text-xs font-mono font-bold px-2 py-0.5 uppercase tracking-widest">
             <Star className="w-2.5 h-2.5" />
             Featured
           </span>
         )}
         {hasVideo && (
-          <span className="flex items-center gap-1 bg-white/10 backdrop-blur-md text-white text-[9px] font-mono font-bold px-2 py-0.5 uppercase tracking-widest">
+          <span className="flex items-center gap-1 bg-white/10 backdrop-blur-md text-white text-xs font-mono font-bold px-2 py-0.5 uppercase tracking-widest">
             <Play className="w-2.5 h-2.5" />
             Video
           </span>
@@ -116,7 +116,7 @@ function ProductionCard({ production }: { production: SmartProduction }) {
       {/* Image count badge */}
       {imageCount > 1 && (
         <div className="absolute top-3 right-3 z-20">
-          <span className="bg-black/60 backdrop-blur-md text-white text-[9px] font-mono font-bold px-2 py-0.5 uppercase tracking-widest">
+          <span className="bg-black/60 backdrop-blur-md text-white text-xs font-mono font-bold px-2 py-0.5 uppercase tracking-widest">
             {imageCount} photos
           </span>
         </div>
@@ -140,7 +140,7 @@ function ProductionCard({ production }: { production: SmartProduction }) {
           </>
         ) : (
           <div className="w-full h-full flex items-center justify-center">
-            <span className="text-[10px] font-mono text-neutral-400 uppercase tracking-widest">
+            <span className="text-xs font-mono text-neutral-400 uppercase tracking-widest">
               No image
             </span>
           </div>
@@ -151,7 +151,7 @@ function ProductionCard({ production }: { production: SmartProduction }) {
       <div className="p-5 flex-grow flex flex-col justify-between">
         <div>
           {production.sub_category && (
-            <div className="text-[10px] font-mono uppercase tracking-widest text-neutral-400 mb-1">
+            <div className="text-xs font-mono uppercase tracking-widest text-neutral-400 mb-1">
               {production.sub_category}
             </div>
           )}
@@ -159,7 +159,7 @@ function ProductionCard({ production }: { production: SmartProduction }) {
             {production.title}
           </h3>
           {production.client && (
-            <p className="text-[10px] font-mono text-neutral-400 mb-2 -mt-1">
+            <p className="text-xs font-mono text-neutral-400 mb-2 -mt-1">
               Client: {production.client}
             </p>
           )}
@@ -173,7 +173,7 @@ function ProductionCard({ production }: { production: SmartProduction }) {
               {production.tags.slice(0, 4).map((tag) => (
                 <span
                   key={tag}
-                  className="text-[9px] font-mono text-neutral-400 border border-white/10 px-1.5 py-0.5 bg-white/5 uppercase"
+                  className="text-xs font-mono text-neutral-400 border border-white/10 px-1.5 py-0.5 bg-white/5 uppercase"
                 >
                   {tag}
                 </span>
@@ -184,7 +184,7 @@ function ProductionCard({ production }: { production: SmartProduction }) {
 
         <Link
           href={`/studio/${production.slug}`}
-          className="w-full py-3 text-[10px] font-mono font-bold uppercase tracking-widest transition-all bg-[#D4A843] text-black border border-[#D4A843] hover:opacity-80 flex items-center justify-center gap-2"
+          className="w-full py-3 text-xs font-mono font-bold uppercase tracking-widest transition-all bg-[#D4A843] text-black border border-[#D4A843] hover:opacity-80 flex items-center justify-center gap-2"
         >
           View Photos &amp; Video
           <ArrowRight className="w-3 h-3 group-hover:translate-x-1 transition-transform" />
@@ -220,7 +220,7 @@ function PackageCard({
       }`}
     >
       {isFeatured && (
-        <span className="absolute top-3 left-3 z-20 bg-[#D4A843] text-black text-[9px] font-mono font-bold px-2 py-0.5 uppercase tracking-widest">
+        <span className="absolute top-3 left-3 z-20 bg-[#D4A843] text-black text-xs font-mono font-bold px-2 py-0.5 uppercase tracking-widest">
           Most Popular
         </span>
       )}
@@ -244,7 +244,7 @@ function PackageCard({
           </>
         ) : (
           <div className="w-full h-full flex items-center justify-center bg-neutral-900">
-            <span className="text-[10px] font-mono text-neutral-400 uppercase tracking-widest">
+            <span className="text-xs font-mono text-neutral-400 uppercase tracking-widest">
               Example work coming soon
             </span>
           </div>
@@ -255,7 +255,7 @@ function PackageCard({
           <span className="text-2xl font-bold text-white font-mono">
             {formatZAR(price.total)}
           </span>
-          <span className="block text-white/60 text-[10px] mt-0.5">
+          <span className="block text-white/60 text-xs mt-0.5">
             incl. {vatRate}% VAT
           </span>
         </div>
@@ -277,7 +277,7 @@ function PackageCard({
 
         <a
           href={`/book?production=${encodeURIComponent(pkg.id)}`}
-          className={`block w-full text-center py-3 text-[10px] font-mono font-bold uppercase tracking-widest transition-colors ${
+          className={`block w-full text-center py-3 text-xs font-mono font-bold uppercase tracking-widest transition-colors ${
             isFeatured
               ? 'bg-[#D4A843] text-black hover:bg-[#c49a3a]'
               : 'bg-neutral-800 text-white hover:bg-neutral-700'
@@ -325,12 +325,12 @@ function CreatorCard({ creator, categorySlug }: { creator: CrewMember; categoryS
           {creator.display_name ?? 'Creator'}
         </h4>
         {creator.specializations.length > 0 && (
-          <p className="text-[10px] font-mono text-neutral-400 truncate">
+          <p className="text-xs font-mono text-neutral-400 truncate">
             {creator.specializations.slice(0, 3).join(' / ')}
           </p>
         )}
         {creator.hourly_rate != null && (
-          <p className="text-[10px] font-mono text-[#D4A843] mt-0.5">
+          <p className="text-xs font-mono text-[#D4A843] mt-0.5">
             From {formatZAR(creator.hourly_rate)}/hr
           </p>
         )}
@@ -453,7 +453,7 @@ export default function CategoryPageClient({ category, packages, productions, cr
       <div className="pt-8">
         <button
           onClick={clearFilters}
-          className="text-[10px] font-mono uppercase tracking-widest text-neutral-400 hover:text-white transition-colors border-b border-transparent hover:border-white pb-0.5"
+          className="text-xs font-mono uppercase tracking-widest text-neutral-400 hover:text-white transition-colors border-b border-transparent hover:border-white pb-0.5"
         >
           Clear All Filters
         </button>
@@ -467,7 +467,7 @@ export default function CategoryPageClient({ category, packages, productions, cr
       {/* ── Breadcrumbs + header ── */}
       <div className="bg-[#080808] border-b border-white/5 py-12">
         <div className="container mx-auto px-6">
-          <div className="flex items-center gap-2 text-[10px] font-mono uppercase tracking-widest text-neutral-400 mb-6">
+          <div className="flex items-center gap-2 text-xs font-mono uppercase tracking-widest text-neutral-400 mb-6">
             <Link href="/" className="hover:text-white">Home</Link>
             <span>/</span>
             <Link href="/studio" className="hover:text-white">Studio</Link>
@@ -507,7 +507,7 @@ export default function CategoryPageClient({ category, packages, productions, cr
             {category.subTypes.map((sub) => (
               <span
                 key={sub}
-                className="px-3 py-1 text-[10px] font-mono uppercase tracking-wider bg-neutral-900 text-neutral-400 border border-white/5"
+                className="px-3 py-1 text-xs font-mono uppercase tracking-wider bg-neutral-900 text-neutral-400 border border-white/5"
               >
                 {sub}
               </span>
@@ -612,7 +612,7 @@ export default function CategoryPageClient({ category, packages, productions, cr
                         <span className="text-3xl font-bold text-[#D4A843] font-mono block mb-2">
                           Custom
                         </span>
-                        <span className="text-[10px] font-mono text-neutral-400 uppercase tracking-widest">
+                        <span className="text-xs font-mono text-neutral-400 uppercase tracking-widest">
                           Tailored to your vision
                         </span>
                       </div>
@@ -632,7 +632,7 @@ export default function CategoryPageClient({ category, packages, productions, cr
                       </ul>
                       <Link
                         href={`/ubunye-ai-studio?prompt=I need a custom ${category.name.toLowerCase()} quote`}
-                        className="block w-full text-center py-3 text-[10px] font-mono font-bold uppercase tracking-widest border border-[#D4A843] text-[#D4A843] hover:bg-[#D4A843]/10 transition-colors"
+                        className="block w-full text-center py-3 text-xs font-mono font-bold uppercase tracking-widest border border-[#D4A843] text-[#D4A843] hover:bg-[#D4A843]/10 transition-colors"
                       >
                         Ask Ubunye for a Quote
                       </Link>
@@ -698,7 +698,7 @@ export default function CategoryPageClient({ category, packages, productions, cr
                 <div className="mt-4">
                   <Link
                     href="/studio"
-                    className="inline-flex items-center gap-2 text-[10px] font-mono uppercase tracking-widest text-neutral-400 hover:text-white transition-colors border-b border-transparent hover:border-white pb-0.5"
+                    className="inline-flex items-center gap-2 text-xs font-mono uppercase tracking-widest text-neutral-400 hover:text-white transition-colors border-b border-transparent hover:border-white pb-0.5"
                   >
                     Browse all creators <ArrowRight className="w-3 h-3" />
                   </Link>

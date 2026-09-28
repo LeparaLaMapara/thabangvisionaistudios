@@ -64,7 +64,7 @@ export default async function CreatorRequestDetailPage({
       {/* Back link */}
       <Link
         href="/dashboard/creator-requests"
-        className="inline-flex items-center gap-2 text-[10px] font-mono uppercase tracking-widest text-neutral-400 hover:text-white mb-8 transition-colors"
+        className="inline-flex items-center gap-2 text-xs font-mono uppercase tracking-widest text-neutral-400 hover:text-white mb-8 transition-colors"
       >
         <ArrowLeft className="w-3 h-3" /> Back to requests
       </Link>
@@ -75,11 +75,11 @@ export default async function CreatorRequestDetailPage({
           <h2 className="text-lg font-display font-medium uppercase text-white">
             {request.project_type}
           </h2>
-          <p className="text-[10px] font-mono text-neutral-400 mt-1">
+          <p className="text-xs font-mono text-neutral-400 mt-1">
             Ref: {request.id.slice(0, 8).toUpperCase()}
           </p>
         </div>
-        <span className={`inline-block text-[9px] font-mono uppercase tracking-widest border px-3 py-1 ${statusColors[request.status] || 'text-neutral-400 border-white/10'}`}>
+        <span className={`inline-block text-xs font-mono uppercase tracking-widest border px-3 py-1 ${statusColors[request.status] || 'text-neutral-400 border-white/10'}`}>
           {request.status}
         </span>
       </div>
@@ -87,7 +87,7 @@ export default async function CreatorRequestDetailPage({
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* Creator info card */}
         <div className="bg-[#0A0A0B] border border-white/5 p-5">
-          <h3 className="text-[10px] font-mono uppercase tracking-widest text-neutral-400 mb-4">Creator</h3>
+          <h3 className="text-xs font-mono uppercase tracking-widest text-neutral-400 mb-4">Creator</h3>
           <div className="flex items-center gap-3 mb-3">
             {creator?.avatar_url ? (
               <img src={creator.avatar_url} alt="" className="w-10 h-10 rounded-full object-cover" />
@@ -103,7 +103,7 @@ export default async function CreatorRequestDetailPage({
               >
                 {creator?.display_name || 'Unknown'}
               </Link>
-              <p className="text-[10px] font-mono text-neutral-400">
+              <p className="text-xs font-mono text-neutral-400">
                 {creator?.specializations?.join(', ') || 'General'}
               </p>
             </div>
@@ -120,7 +120,7 @@ export default async function CreatorRequestDetailPage({
 
         {/* Request details card */}
         <div className="bg-[#0A0A0B] border border-white/5 p-5">
-          <h3 className="text-[10px] font-mono uppercase tracking-widest text-neutral-400 mb-4">Details</h3>
+          <h3 className="text-xs font-mono uppercase tracking-widest text-neutral-400 mb-4">Details</h3>
           <div className="space-y-3 text-xs font-mono">
             {request.preferred_dates && (
               <div className="flex items-center gap-2 text-neutral-300">
@@ -148,7 +148,7 @@ export default async function CreatorRequestDetailPage({
 
       {/* Description */}
       <div className="bg-[#0A0A0B] border border-white/5 p-5 mt-6">
-        <h3 className="text-[10px] font-mono uppercase tracking-widest text-neutral-400 mb-3">Description</h3>
+        <h3 className="text-xs font-mono uppercase tracking-widest text-neutral-400 mb-3">Description</h3>
         <p className="text-xs font-mono text-neutral-300 leading-relaxed whitespace-pre-wrap">
           {request.description}
         </p>
@@ -162,15 +162,15 @@ export default async function CreatorRequestDetailPage({
       {/* Amount info if paid */}
       {(request.status === 'paid' || request.status === 'in_progress' || request.status === 'completed') && request.total_amount && (
         <div className="bg-[#0A0A0B] border border-white/5 p-5 mt-6">
-          <h3 className="text-[10px] font-mono uppercase tracking-widest text-neutral-400 mb-3">Payment</h3>
+          <h3 className="text-xs font-mono uppercase tracking-widest text-neutral-400 mb-3">Payment</h3>
           <p className="text-sm font-mono text-emerald-400">R{request.total_amount.toLocaleString()} -- Paid</p>
         </div>
       )}
 
       {/* Timeline */}
       <div className="bg-[#0A0A0B] border border-white/5 p-5 mt-6">
-        <h3 className="text-[10px] font-mono uppercase tracking-widest text-neutral-400 mb-3">Timeline</h3>
-        <div className="space-y-2 text-[10px] font-mono text-neutral-400">
+        <h3 className="text-xs font-mono uppercase tracking-widest text-neutral-400 mb-3">Timeline</h3>
+        <div className="space-y-2 text-xs font-mono text-neutral-400">
           <p>Submitted: {new Date(request.created_at).toLocaleDateString('en-ZA', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</p>
           {request.updated_at !== request.created_at && (
             <p>Last updated: {new Date(request.updated_at).toLocaleDateString('en-ZA', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</p>

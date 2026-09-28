@@ -194,7 +194,7 @@ export default function BookingDetailPage() {
       {/* Back link */}
       <Link
         href="/dashboard/bookings"
-        className="inline-flex items-center gap-2 text-[10px] font-mono uppercase tracking-widest text-neutral-400 hover:text-black dark:hover:text-white transition-colors mb-8"
+        className="inline-flex items-center gap-2 text-xs font-mono uppercase tracking-widest text-neutral-400 hover:text-black dark:hover:text-white transition-colors mb-8"
       >
         <ArrowLeft className="w-3 h-3" />
         Back to Bookings
@@ -207,7 +207,7 @@ export default function BookingDetailPage() {
           <CheckCircle2 className="w-5 h-5 flex-shrink-0" />
           <div>
             <p className="text-sm font-mono font-bold">Payment received</p>
-            <p className="text-[10px] font-mono text-emerald-400/70">Your booking is being confirmed. This page will update shortly.</p>
+            <p className="text-xs font-mono text-emerald-400/70">Your booking is being confirmed. This page will update shortly.</p>
           </div>
         </div>
       )}
@@ -216,7 +216,7 @@ export default function BookingDetailPage() {
           <XCircle className="w-5 h-5 flex-shrink-0" />
           <div>
             <p className="text-sm font-mono font-bold">Payment cancelled</p>
-            <p className="text-[10px] font-mono text-red-400/70">Your booking is still pending. You can retry payment or cancel the booking.</p>
+            <p className="text-xs font-mono text-red-400/70">Your booking is still pending. You can retry payment or cancel the booking.</p>
           </div>
         </div>
       )}
@@ -232,7 +232,7 @@ export default function BookingDetailPage() {
               {booking.status}
             </Badge>
           </div>
-          <p className="text-[9px] font-mono uppercase tracking-widest text-neutral-400">
+          <p className="text-xs font-mono uppercase tracking-widest text-neutral-400">
             Booking #{booking.id.slice(0, 8)} &middot;{' '}
             {booking.rental_category ?? 'Equipment'}
           </p>
@@ -267,7 +267,7 @@ export default function BookingDetailPage() {
         <Card className="p-6">
           <div className="flex items-center gap-2 mb-4">
             <Calendar className="w-4 h-4 text-neutral-400" />
-            <h3 className="text-[10px] font-mono uppercase tracking-widest text-neutral-400">
+            <h3 className="text-xs font-mono uppercase tracking-widest text-neutral-400">
               Rental Period
             </h3>
           </div>
@@ -307,7 +307,7 @@ export default function BookingDetailPage() {
         <Card className="p-6">
           <div className="flex items-center gap-2 mb-4">
             <CreditCard className="w-4 h-4 text-neutral-400" />
-            <h3 className="text-[10px] font-mono uppercase tracking-widest text-neutral-400">
+            <h3 className="text-xs font-mono uppercase tracking-widest text-neutral-400">
               Payment Summary
             </h3>
           </div>
@@ -350,7 +350,7 @@ export default function BookingDetailPage() {
           <CheckCircle2 className="w-5 h-5 flex-shrink-0" />
           <div>
             <p className="text-sm font-mono font-bold">Issue reported</p>
-            <p className="text-[10px] font-mono text-emerald-400/70">
+            <p className="text-xs font-mono text-emerald-400/70">
               Your dispute has been filed. Our team will review it and get back to you.
             </p>
           </div>
@@ -360,7 +360,7 @@ export default function BookingDetailPage() {
       {/* Notes */}
       {booking.notes && (
         <Card className="p-6 mb-10">
-          <h3 className="text-[10px] font-mono uppercase tracking-widest text-neutral-400 mb-3">
+          <h3 className="text-xs font-mono uppercase tracking-widest text-neutral-400 mb-3">
             Notes
           </h3>
           <p className="text-sm text-neutral-400 dark:text-neutral-400 leading-relaxed whitespace-pre-line">
@@ -397,7 +397,7 @@ export default function BookingDetailPage() {
                     >
                       {payment.status}
                     </Badge>
-                    <p className="text-[9px] font-mono text-neutral-400 mt-1">
+                    <p className="text-xs font-mono text-neutral-400 mt-1">
                       {new Date(payment.created_at).toLocaleDateString(
                         'en-ZA',
                       )}
@@ -487,7 +487,7 @@ export default function BookingDetailPage() {
 
             <form onSubmit={handleDisputeSubmit} className="space-y-4">
               <div>
-                <label className="block text-[10px] font-mono uppercase tracking-widest text-neutral-400 mb-2">
+                <label className="block text-xs font-mono uppercase tracking-widest text-neutral-400 mb-2">
                   Issue Type *
                 </label>
                 <select
@@ -506,7 +506,7 @@ export default function BookingDetailPage() {
               </div>
 
               <div>
-                <label className="block text-[10px] font-mono uppercase tracking-widest text-neutral-400 mb-2">
+                <label className="block text-xs font-mono uppercase tracking-widest text-neutral-400 mb-2">
                   Description *
                 </label>
                 <textarea
@@ -519,7 +519,7 @@ export default function BookingDetailPage() {
               </div>
 
               {disputeError && (
-                <p className="text-[11px] font-mono text-red-400">{disputeError}</p>
+                <p className="text-xs font-mono text-red-400">{disputeError}</p>
               )}
 
               <div className="flex items-center gap-3 pt-2">

@@ -407,7 +407,7 @@ export default function PortfolioPage() {
             <div className="flex items-start justify-between gap-4 mb-6">
               <div className="flex-grow space-y-3">
                 <div className="flex items-center gap-3">
-                  <span className="text-[10px] font-mono text-neutral-400 uppercase tracking-widest">
+                  <span className="text-xs font-mono text-neutral-400 uppercase tracking-widest">
                     Project {idx + 1}
                   </span>
                 </div>
@@ -443,7 +443,7 @@ export default function PortfolioPage() {
             {/* Photos section */}
             <div className="mb-6">
               <div className="flex items-center justify-between mb-3">
-                <span className="text-[10px] font-mono text-neutral-400 uppercase tracking-widest flex items-center gap-2">
+                <span className="text-xs font-mono text-neutral-400 uppercase tracking-widest flex items-center gap-2">
                   <Camera className="w-3 h-3" />
                   Photos ({project.photos.length}/{maxPhotosPerProject})
                 </span>
@@ -475,17 +475,17 @@ export default function PortfolioPage() {
                     {uploadingPhotos[project.id] ? (
                       <div className="text-center">
                         <Loader2 className="w-5 h-5 text-[#D4A843] animate-spin mx-auto mb-1" />
-                        <span className="text-[9px] font-mono text-neutral-400">
+                        <span className="text-xs font-mono text-neutral-400">
                           {uploadProgress[`${project.id}-photo`] ?? 0}%
                         </span>
                       </div>
                     ) : (
                       <>
                         <Upload className="w-5 h-5 text-neutral-400 mb-1" />
-                        <span className="text-[9px] font-mono text-neutral-400 uppercase">
+                        <span className="text-xs font-mono text-neutral-400 uppercase">
                           Add Photo
                         </span>
-                        <span className="text-[8px] font-mono text-neutral-400 mt-0.5">
+                        <span className="text-xs font-mono text-neutral-400 mt-0.5">
                           JPG/PNG, {maxPhotoSizeMB}MB max
                         </span>
                       </>
@@ -511,7 +511,7 @@ export default function PortfolioPage() {
             {/* Video section */}
             <div>
               <div className="flex items-center justify-between mb-3">
-                <span className="text-[10px] font-mono text-neutral-400 uppercase tracking-widest flex items-center gap-2">
+                <span className="text-xs font-mono text-neutral-400 uppercase tracking-widest flex items-center gap-2">
                   <Film className="w-3 h-3" />
                   Showreel ({project.video ? '1' : '0'}/1)
                 </span>
@@ -549,7 +549,7 @@ export default function PortfolioPage() {
                       <span className="text-xs font-mono text-neutral-400 uppercase block">
                         Upload Showreel
                       </span>
-                      <span className="text-[9px] font-mono text-neutral-400 mt-1 block">
+                      <span className="text-xs font-mono text-neutral-400 mt-1 block">
                         MP4 only, {maxVideoSizeMB}MB max, {maxVideoDurationSeconds}s max
                       </span>
                     </div>

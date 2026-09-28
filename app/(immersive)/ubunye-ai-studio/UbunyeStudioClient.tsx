@@ -405,7 +405,7 @@ export default function UbunyeStudioClient({ context }: UbunyeStudioClientProps)
                     <span className="text-sm font-medium text-neutral-200 group-hover:text-[#D4A843] transition-colors block mb-0.5">
                       {action.label}
                     </span>
-                    <span className="text-[11px] text-neutral-400 leading-snug line-clamp-2">
+                    <span className="text-xs text-neutral-400 leading-snug line-clamp-2">
                       {action.description}
                     </span>
                   </button>
@@ -424,7 +424,7 @@ export default function UbunyeStudioClient({ context }: UbunyeStudioClientProps)
                   {/* Featured gear */}
                   {context.featuredGear.length > 0 && (
                     <div className="mb-4">
-                      <p className="text-[10px] font-mono text-neutral-400 uppercase tracking-widest mb-2">Active Gear</p>
+                      <p className="text-xs font-mono text-neutral-400 uppercase tracking-widest mb-2">Active Gear</p>
                       <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-none snap-x snap-mandatory -mx-4 px-4 md:mx-0 md:px-0">
                         {context.featuredGear.map(gear => (
                           <button
@@ -439,7 +439,7 @@ export default function UbunyeStudioClient({ context }: UbunyeStudioClientProps)
                             )}
                             <span className="text-xs text-neutral-300 block truncate">{gear.title}</span>
                             {gear.price_per_day && (
-                              <span className="text-[10px] text-neutral-400 font-mono">From {STUDIO.currency.symbol}{gear.price_per_day}/day</span>
+                              <span className="text-xs text-neutral-400 font-mono">From {STUDIO.currency.symbol}{gear.price_per_day}/day</span>
                             )}
                           </button>
                         ))}
@@ -450,7 +450,7 @@ export default function UbunyeStudioClient({ context }: UbunyeStudioClientProps)
                   {/* Recommended creators */}
                   {context.featuredCreators.length > 0 && (
                     <div className="mb-4">
-                      <p className="text-[10px] font-mono text-neutral-400 uppercase tracking-widest mb-2">Recommended Creators</p>
+                      <p className="text-xs font-mono text-neutral-400 uppercase tracking-widest mb-2">Recommended Creators</p>
                       <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-none snap-x snap-mandatory -mx-4 px-4 md:mx-0 md:px-0">
                         {context.featuredCreators.map(creator => (
                           <button
@@ -462,13 +462,13 @@ export default function UbunyeStudioClient({ context }: UbunyeStudioClientProps)
                               {creator.avatar_url ? (
                                 <img src={creator.avatar_url} alt="" className="w-7 h-7 rounded-full object-cover" />
                               ) : (
-                                <div className="w-7 h-7 rounded-full bg-neutral-800 flex items-center justify-center text-[10px] text-neutral-400 font-mono">
+                                <div className="w-7 h-7 rounded-full bg-neutral-800 flex items-center justify-center text-xs text-neutral-400 font-mono">
                                   {(creator.display_name ?? '?')[0]}
                                 </div>
                               )}
                               <span className="text-xs text-neutral-300 truncate">{creator.display_name}</span>
                             </div>
-                            <div className="flex items-center gap-1.5 text-[10px] text-neutral-400 font-mono">
+                            <div className="flex items-center gap-1.5 text-xs text-neutral-400 font-mono">
                               {creator.hourly_rate && <span>{STUDIO.currency.symbol}{creator.hourly_rate}/hr</span>}
                               {creator.hourly_rate && creator.specializations?.[0] && <span>·</span>}
                               {creator.specializations?.[0] && <span className="truncate">{creator.specializations[0]}</span>}
@@ -500,7 +500,7 @@ export default function UbunyeStudioClient({ context }: UbunyeStudioClientProps)
                       <button
                         key={prompt}
                         onClick={() => sendQuickAction(prompt)}
-                        className="px-2.5 py-1 text-[11px] text-neutral-400 border border-neutral-800/50 hover:text-[#D4A843]/80 hover:border-[#D4A843]/20 transition-all duration-200 truncate max-w-[220px]"
+                        className="px-2.5 py-1 text-xs text-neutral-400 border border-neutral-800/50 hover:text-[#D4A843]/80 hover:border-[#D4A843]/20 transition-all duration-200 truncate max-w-[220px]"
                       >
                         &ldquo;{prompt}&rdquo;
                       </button>
@@ -515,7 +515,7 @@ export default function UbunyeStudioClient({ context }: UbunyeStudioClientProps)
                 initial="hidden"
                 animate="visible"
                 variants={fadeUp}
-                className="text-[10px] text-neutral-400 text-center mb-4"
+                className="text-xs text-neutral-400 text-center mb-4"
               >
                 {context.featuredCreators.length > 0 && (
                   <>{context.featuredCreators.length} creators available</>

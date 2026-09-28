@@ -36,7 +36,7 @@ export default async function AdminLayout({
 
           {/* Left: brand + nav */}
           <div className="flex items-center gap-4 md:gap-6 min-w-0 flex-1">
-            <span className="text-[10px] font-mono font-bold uppercase tracking-widest text-white select-none flex-shrink-0">
+            <span className="text-xs font-mono font-bold uppercase tracking-widest text-white select-none flex-shrink-0">
               {STUDIO.shortName.toUpperCase()}
             </span>
             <span className="text-white/20 text-xs flex-shrink-0 hidden md:block">|</span>
@@ -45,7 +45,7 @@ export default async function AdminLayout({
 
           {/* Right: user email + logout */}
           <div className="flex items-center gap-4">
-            <span className="hidden sm:block text-[10px] font-mono text-neutral-400 truncate max-w-[200px]">
+            <span className="hidden sm:block text-xs font-mono text-neutral-400 truncate max-w-[200px]">
               {user.email}
             </span>
             <LogoutButton />

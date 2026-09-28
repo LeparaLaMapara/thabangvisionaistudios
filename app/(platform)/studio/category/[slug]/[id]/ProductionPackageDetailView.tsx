@@ -93,7 +93,7 @@ export default function ProductionPackageDetailView({
       {/* ── Breadcrumb ── */}
       <div className="bg-[#080808] border-b border-white/5 py-6">
         <div className="container mx-auto px-6">
-          <div className="flex flex-wrap items-center gap-2 text-[10px] font-mono uppercase tracking-widest text-neutral-400">
+          <div className="flex flex-wrap items-center gap-2 text-xs font-mono uppercase tracking-widest text-neutral-400">
             <Link href="/" className="hover:text-white transition-colors">Home</Link>
             <ChevronRight className="w-3 h-3 flex-shrink-0" />
             <Link href="/studio" className="hover:text-white transition-colors">
@@ -135,7 +135,7 @@ export default function ProductionPackageDetailView({
           <div className="absolute top-6 left-6 z-20">
             <div className="flex items-center gap-1.5 bg-[#D4A843]/10 backdrop-blur-md px-3 py-1.5 rounded-full border border-[#D4A843]/20">
               <Building2 className="w-3 h-3 text-[#D4A843]" />
-              <span className="text-[9px] font-mono font-bold text-[#D4A843] uppercase tracking-widest">
+              <span className="text-xs font-mono font-bold text-[#D4A843] uppercase tracking-widest">
                 Studio Package
               </span>
             </div>
@@ -148,7 +148,7 @@ export default function ProductionPackageDetailView({
                 initial={{ y: 20, opacity: 0 }}
                 animate={{ y: 0, opacity: 1 }}
                 transition={{ delay: 0.5 }}
-                className="inline-block border border-white/20 bg-black/50 backdrop-blur-sm px-3 py-1 text-[10px] font-bold tracking-widest uppercase mb-4 text-neutral-300"
+                className="inline-block border border-white/20 bg-black/50 backdrop-blur-sm px-3 py-1 text-xs font-bold tracking-widest uppercase mb-4 text-neutral-300"
               >
                 {category.name}
               </motion.span>
@@ -184,7 +184,7 @@ export default function ProductionPackageDetailView({
             {!heroImage && (
               <div className="mb-12">
                 <div className="flex items-center gap-3 mb-6">
-                  <span className="flex items-center gap-1.5 text-[9px] font-mono uppercase tracking-wider text-[#D4A843] bg-[#D4A843]/10 px-3 py-1 rounded-full border border-[#D4A843]/20">
+                  <span className="flex items-center gap-1.5 text-xs font-mono uppercase tracking-wider text-[#D4A843] bg-[#D4A843]/10 px-3 py-1 rounded-full border border-[#D4A843]/20">
                     <Building2 className="w-3 h-3" />
                     Studio Package
                   </span>
@@ -226,7 +226,7 @@ export default function ProductionPackageDetailView({
                     />
                   ) : (
                     <div className="w-full h-full flex items-center justify-center">
-                      <span className="text-[10px] font-mono text-neutral-400 uppercase tracking-widest">
+                      <span className="text-xs font-mono text-neutral-400 uppercase tracking-widest">
                         No preview
                       </span>
                     </div>
@@ -298,7 +298,7 @@ export default function ProductionPackageDetailView({
                   >
                     <div className="flex items-center gap-2">
                       <Clock className="w-3.5 h-3.5 text-[#D4A843]" />
-                      <span className="text-[10px] font-mono uppercase tracking-widest text-neutral-400">
+                      <span className="text-xs font-mono uppercase tracking-widest text-neutral-400">
                         {service.type === 'postProduction' ? 'Post Production' : service.type}
                       </span>
                     </div>
@@ -318,7 +318,7 @@ export default function ProductionPackageDetailView({
               <div className="flex border-b border-white/10 mb-6">
                 <button
                   onClick={() => setActiveTab('deliverables')}
-                  className={`text-[10px] font-mono font-bold uppercase tracking-widest px-4 py-3 border-b-2 -mb-px transition-colors ${
+                  className={`text-xs font-mono font-bold uppercase tracking-widest px-4 py-3 border-b-2 -mb-px transition-colors ${
                     activeTab === 'deliverables'
                       ? 'border-[#D4A843] text-white'
                       : 'border-transparent text-neutral-400 hover:text-white'
@@ -328,7 +328,7 @@ export default function ProductionPackageDetailView({
                 </button>
                 <button
                   onClick={() => setActiveTab('breakdown')}
-                  className={`text-[10px] font-mono font-bold uppercase tracking-widest px-4 py-3 border-b-2 -mb-px transition-colors ${
+                  className={`text-xs font-mono font-bold uppercase tracking-widest px-4 py-3 border-b-2 -mb-px transition-colors ${
                     activeTab === 'breakdown'
                       ? 'border-[#D4A843] text-white'
                       : 'border-transparent text-neutral-400 hover:text-white'
@@ -370,7 +370,7 @@ export default function ProductionPackageDetailView({
                       >
                         <div>
                           <p className="text-sm text-white">{item.service}</p>
-                          <p className="text-[10px] font-mono text-neutral-400">
+                          <p className="text-xs font-mono text-neutral-400">
                             {item.hours}hr × {formatZAR(item.rate)}/hr
                           </p>
                         </div>
@@ -381,19 +381,19 @@ export default function ProductionPackageDetailView({
                     ))}
 
                     <div className="border-t border-white/10 p-4 flex items-center justify-between">
-                      <span className="text-[10px] font-mono uppercase tracking-widest text-neutral-400">
+                      <span className="text-xs font-mono uppercase tracking-widest text-neutral-400">
                         Subtotal
                       </span>
                       <span className="text-sm font-mono text-white">{formatZAR(pricing.subtotal)}</span>
                     </div>
                     <div className="border-t border-white/5 p-4 flex items-center justify-between">
-                      <span className="text-[10px] font-mono uppercase tracking-widest text-neutral-400">
+                      <span className="text-xs font-mono uppercase tracking-widest text-neutral-400">
                         VAT (15%)
                       </span>
                       <span className="text-sm font-mono text-neutral-400">{formatZAR(pricing.vat)}</span>
                     </div>
                     <div className="border-t border-white/10 p-4 flex items-center justify-between bg-[#D4A843]/5">
-                      <span className="text-[10px] font-mono uppercase tracking-widest font-bold text-[#D4A843]">
+                      <span className="text-xs font-mono uppercase tracking-widest font-bold text-[#D4A843]">
                         Total
                       </span>
                       <span className="text-xl font-display font-bold text-[#D4A843]">
@@ -412,7 +412,7 @@ export default function ProductionPackageDetailView({
             {/* Pricing box */}
             <div className="border border-white/10 p-5 mb-6 space-y-3 bg-[#0A0A0B]">
               <div className="flex items-end justify-between">
-                <span className="text-[10px] font-mono uppercase tracking-widest text-neutral-400">
+                <span className="text-xs font-mono uppercase tracking-widest text-neutral-400">
                   Package Price
                 </span>
                 <span className="text-2xl font-bold text-[#D4A843]">
@@ -420,7 +420,7 @@ export default function ProductionPackageDetailView({
                 </span>
               </div>
               <div className="flex items-end justify-between border-t border-white/5 pt-3">
-                <span className="text-[10px] font-mono uppercase tracking-widest text-neutral-400">
+                <span className="text-xs font-mono uppercase tracking-widest text-neutral-400">
                   Duration
                 </span>
                 <span className="text-sm font-mono text-white">
@@ -428,7 +428,7 @@ export default function ProductionPackageDetailView({
                 </span>
               </div>
               <div className="flex items-end justify-between border-t border-white/5 pt-3">
-                <span className="text-[10px] font-mono uppercase tracking-widest text-neutral-400">
+                <span className="text-xs font-mono uppercase tracking-widest text-neutral-400">
                   Effective Rate
                 </span>
                 <span className="text-sm font-mono text-neutral-400">
@@ -439,7 +439,7 @@ export default function ProductionPackageDetailView({
 
             {/* Book CTA */}
             <div className="border border-white/10 p-5 bg-[#0A0A0B] mb-6">
-              <h3 className="text-[10px] font-mono font-bold uppercase tracking-widest text-neutral-400 mb-4 border-b border-white/5 pb-3">
+              <h3 className="text-xs font-mono font-bold uppercase tracking-widest text-neutral-400 mb-4 border-b border-white/5 pb-3">
                 Book This Package
               </h3>
               <p className="text-xs text-neutral-400 mb-4 leading-relaxed">
@@ -448,14 +448,14 @@ export default function ProductionPackageDetailView({
               </p>
               <Link
                 href={`/book?production=${encodeURIComponent(pkg.id)}`}
-                className="w-full py-3 text-[10px] font-mono font-bold uppercase tracking-widest bg-[#D4A843] text-black hover:opacity-80 transition-opacity flex items-center justify-center gap-2"
+                className="w-full py-3 text-xs font-mono font-bold uppercase tracking-widest bg-[#D4A843] text-black hover:opacity-80 transition-opacity flex items-center justify-center gap-2"
               >
                 Book Now
               </Link>
             </div>
 
             {/* Info */}
-            <div className="flex items-start gap-2 text-[9px] font-mono text-neutral-400">
+            <div className="flex items-start gap-2 text-xs font-mono text-neutral-400">
               <Info className="w-3 h-3 mt-0.5 flex-shrink-0" />
               <span>
                 Minimum booking is 4 hours. Travel fees may apply for on-location shoots.
@@ -489,12 +489,12 @@ export default function ProductionPackageDetailView({
                       <div className="h-1 bg-[#D4A843]" />
                       <div className="p-5">
                         <div className="flex items-center gap-2 mb-3">
-                          <span className="flex items-center gap-1 text-[9px] font-mono uppercase tracking-wider text-[#D4A843] bg-[#D4A843]/10 px-2 py-0.5 rounded-full">
+                          <span className="flex items-center gap-1 text-xs font-mono uppercase tracking-wider text-[#D4A843] bg-[#D4A843]/10 px-2 py-0.5 rounded-full">
                             <Building2 className="w-3 h-3" />
                             Studio
                           </span>
                           {related.popular && (
-                            <span className="text-[9px] font-mono uppercase tracking-wider text-emerald-400 bg-emerald-400/10 px-2 py-0.5 rounded-full">
+                            <span className="text-xs font-mono uppercase tracking-wider text-emerald-400 bg-emerald-400/10 px-2 py-0.5 rounded-full">
                               Popular
                             </span>
                           )}
@@ -502,7 +502,7 @@ export default function ProductionPackageDetailView({
                         <h3 className="text-sm font-display font-medium text-white uppercase mb-1 group-hover:text-[#D4A843] transition-colors">
                           {related.name}
                         </h3>
-                        <p className="text-[10px] font-mono text-neutral-400 mb-4">
+                        <p className="text-xs font-mono text-neutral-400 mb-4">
                           {related.description}
                         </p>
                         <div className="flex items-end justify-between border-t border-white/5 pt-3">
@@ -510,7 +510,7 @@ export default function ProductionPackageDetailView({
                             <p className="text-lg font-display font-bold text-[#D4A843]">
                               {formatZAR(relPricing.total)}
                             </p>
-                            <p className="text-[9px] font-mono text-neutral-400">
+                            <p className="text-xs font-mono text-neutral-400">
                               {relHours}hrs · ~{formatZAR(Math.round(relPricing.subtotal / relHours))}/hr
                             </p>
                           </div>
@@ -529,7 +529,7 @@ export default function ProductionPackageDetailView({
         <div className="mt-16 pt-8 border-t border-white/5">
           <Link
             href={`/studio/category/${category.slug}`}
-            className="inline-flex items-center gap-2 text-[10px] font-mono font-bold uppercase tracking-widest text-neutral-400 hover:text-[#D4A843] transition-colors"
+            className="inline-flex items-center gap-2 text-xs font-mono font-bold uppercase tracking-widest text-neutral-400 hover:text-[#D4A843] transition-colors"
           >
             <ArrowLeft className="w-3 h-3" />
             Back to {category.name}

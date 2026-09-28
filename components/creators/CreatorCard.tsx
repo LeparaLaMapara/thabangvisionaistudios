@@ -47,7 +47,7 @@ export default function CreatorCard({ member, avgRating, totalReviews = 0 }: Cre
             </div>
           )}
           {member.crew_featured && (
-            <span className="absolute top-3 left-3 text-[8px] font-mono uppercase tracking-widest bg-[#D4A843] text-black px-2 py-1">
+            <span className="absolute top-3 left-3 text-xs font-mono uppercase tracking-widest bg-[#D4A843] text-black px-2 py-1">
               Featured
             </span>
           )}
@@ -58,12 +58,12 @@ export default function CreatorCard({ member, avgRating, totalReviews = 0 }: Cre
           <h3 className="text-sm font-display font-medium uppercase text-white truncate">
             {member.display_name}
           </h3>
-          <p className="text-[10px] font-mono text-neutral-400 uppercase tracking-widest mt-0.5">
+          <p className="text-xs font-mono text-neutral-400 uppercase tracking-widest mt-0.5">
             {primarySpec}
           </p>
 
           {member.location && (
-            <p className="text-[10px] font-mono text-neutral-400 flex items-center gap-1 mt-2">
+            <p className="text-xs font-mono text-neutral-400 flex items-center gap-1 mt-2">
               <MapPin className="w-3 h-3" />
               {member.location}
             </p>
@@ -77,12 +77,12 @@ export default function CreatorCard({ member, avgRating, totalReviews = 0 }: Cre
             </span>
 
             {avgRating ? (
-              <span className="text-[10px] font-mono text-neutral-400 flex items-center gap-1">
+              <span className="text-xs font-mono text-neutral-400 flex items-center gap-1">
                 <Star className="w-3 h-3 text-[#D4A843] fill-[#D4A843]" />
                 {avgRating} ({totalReviews})
               </span>
             ) : (
-              <span className="text-[10px] font-mono text-neutral-400">New</span>
+              <span className="text-xs font-mono text-neutral-400">New</span>
             )}
           </div>
 
@@ -92,7 +92,7 @@ export default function CreatorCard({ member, avgRating, totalReviews = 0 }: Cre
               {member.specializations.slice(0, 3).map((spec) => (
                 <span
                   key={spec}
-                  className="text-[8px] font-mono uppercase tracking-widest text-neutral-400 border border-white/5 px-2 py-0.5"
+                  className="text-xs font-mono uppercase tracking-widest text-neutral-400 border border-white/5 px-2 py-0.5"
                 >
                   {spec}
                 </span>

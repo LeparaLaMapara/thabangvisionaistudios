@@ -56,7 +56,7 @@ export default async function GigsPage() {
             </p>
             <Link
               href="/dashboard/banking"
-              className="inline-flex items-center gap-1 mt-3 text-[10px] font-mono font-bold uppercase tracking-widest text-[#D4A843] hover:text-[#E5B954] transition-colors"
+              className="inline-flex items-center gap-1 mt-3 text-xs font-mono font-bold uppercase tracking-widest text-[#D4A843] hover:text-[#E5B954] transition-colors"
             >
               Add Banking Details &rarr;
             </Link>

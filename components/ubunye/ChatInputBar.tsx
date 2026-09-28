@@ -96,7 +96,7 @@ export function ChatInputBar({
             initial={{ opacity: 0, y: 4 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0 }}
-            className="text-[10px] text-neutral-400 text-center mb-2 font-mono"
+            className="text-xs text-neutral-400 text-center mb-2 font-mono"
           >
             {comingSoon} coming soon
           </motion.div>
@@ -165,11 +165,11 @@ export function ChatInputBar({
 
       {/* Footer */}
       <div className="flex items-center justify-between mt-2 px-1">
-        <p className="text-[10px] text-neutral-400">
+        <p className="text-xs text-neutral-400">
           Powered by Ubunye AI
         </p>
         {!limitReached && remaining !== -1 && (
-          <p className="text-[10px] text-neutral-400">
+          <p className="text-xs text-neutral-400">
             {remaining} left{isAuthenticated ? ' today' : ''}
           </p>
         )}

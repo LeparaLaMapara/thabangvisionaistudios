@@ -92,26 +92,26 @@ const Hero = () => {
               Find photographers, videographers, production crews, and professional gear. All in one trusted platform.
             </p>
             <div className="flex flex-wrap gap-4">
-              <Link href="/studio/category/photography" className="group inline-flex items-center gap-2 min-h-[44px] bg-white text-black px-8 py-4 text-[10px] font-mono font-bold uppercase tracking-widest hover:opacity-80 transition-opacity">
+              <Link href="/studio/category/photography" className="group inline-flex items-center gap-2 min-h-[44px] bg-white text-black px-8 py-4 text-xs font-mono font-bold uppercase tracking-widest hover:opacity-80 transition-opacity">
                 Hire a Photographer <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
               </Link>
-              <Link href="/rentals" className="group inline-flex items-center gap-2 min-h-[44px] border border-white/20 text-white px-8 py-4 text-[10px] font-mono font-bold uppercase tracking-widest hover:bg-white/5 transition-colors">
+              <Link href="/rentals" className="group inline-flex items-center gap-2 min-h-[44px] border border-white/20 text-white px-8 py-4 text-xs font-mono font-bold uppercase tracking-widest hover:bg-white/5 transition-colors">
                 Rent Equipment <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
               </Link>
             </div>
             <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-6">
-              <span className="text-[10px] font-mono text-neutral-400 uppercase tracking-widest">Verified Creators</span>
-              <span className="text-neutral-400 text-[10px]">•</span>
-              <span className="text-[10px] font-mono text-neutral-400 uppercase tracking-widest">Secure Payments</span>
-              <span className="text-neutral-400 text-[10px]">•</span>
-              <span className="text-[10px] font-mono text-neutral-400 uppercase tracking-widest">Refundable Deposits</span>
+              <span className="text-xs font-mono text-neutral-400 uppercase tracking-widest">Verified Creators</span>
+              <span className="text-neutral-400 text-xs">•</span>
+              <span className="text-xs font-mono text-neutral-400 uppercase tracking-widest">Secure Payments</span>
+              <span className="text-neutral-400 text-xs">•</span>
+              <span className="text-xs font-mono text-neutral-400 uppercase tracking-widest">Refundable Deposits</span>
             </div>
           </motion.div>
         </div>
       </motion.div>
 
       <motion.div style={{ opacity }} className="absolute bottom-10 right-10 text-right z-20 hidden md:block">
-        <div className="text-[10px] font-mono text-[#D4A843]">{STUDIO.location.city}, {STUDIO.location.country}</div>
+        <div className="text-xs font-mono text-[#D4A843]">{STUDIO.location.city}, {STUDIO.location.country}</div>
       </motion.div>
     </div>
   );
@@ -136,7 +136,7 @@ const HowItWorks = () => {
           viewport={{ once: true }}
           className="text-center mb-16"
         >
-          <span className="text-[10px] font-mono text-accent uppercase tracking-widest mb-4 block">03 // Process</span>
+          <span className="text-xs font-mono text-accent uppercase tracking-widest mb-4 block">03 // Process</span>
           <h2 className="text-4xl md:text-5xl font-display font-medium text-white uppercase">
             How It <span className="text-neutral-400">Works</span>
           </h2>
@@ -155,7 +155,7 @@ const HowItWorks = () => {
               transition={{ delay: index * 0.1 }}
               className="relative bg-[#0A0A0B] border border-white/5 p-8 text-center hover:border-white/20 transition-colors"
             >
-              <div className="text-[10px] font-mono text-neutral-400 mb-4">0{index + 1}</div>
+              <div className="text-xs font-mono text-neutral-400 mb-4">0{index + 1}</div>
               <step.icon className="w-8 h-8 text-accent mx-auto mb-4" />
               <h3 className="text-lg font-display font-medium text-white uppercase mb-2">{step.title}</h3>
               <p className="text-sm font-mono text-neutral-400 leading-relaxed">{step.description}</p>
@@ -178,7 +178,7 @@ const CommunitySection = () => (
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
         >
-          <span className="text-[10px] font-mono text-accent uppercase tracking-widest mb-4 block">06 // Community</span>
+          <span className="text-xs font-mono text-accent uppercase tracking-widest mb-4 block">06 // Community</span>
           <h2 className="text-4xl md:text-5xl font-display font-medium text-white uppercase">
             For <span className="text-neutral-400">Creators</span>
           </h2>
@@ -257,7 +257,7 @@ const BookingCTA = ({ minDayRate }: { minDayRate: number | null }) => (
           whileInView={{ opacity: 1, x: 0 }}
           viewport={{ once: true }}
         >
-          <span className="text-[10px] font-mono text-accent uppercase tracking-widest mb-4 block">05 // Rentals</span>
+          <span className="text-xs font-mono text-accent uppercase tracking-widest mb-4 block">05 // Rentals</span>
           <h2 className="text-4xl md:text-5xl font-display font-medium text-white tracking-tighter uppercase mb-6 leading-[0.95]">
             Book <br />
             <span className="text-neutral-400">Professional Gear</span>
@@ -266,10 +266,10 @@ const BookingCTA = ({ minDayRate }: { minDayRate: number | null }) => (
             From cinema cameras to lighting kits. See live availability and the full price before you pay, then book online.
           </p>
           <div className="flex flex-wrap gap-4">
-            <Link href="/rentals" className="inline-flex items-center gap-2 min-h-[44px] bg-white text-black px-8 py-4 text-[10px] font-mono font-bold uppercase tracking-widest hover:opacity-80 transition-opacity">
+            <Link href="/rentals" className="inline-flex items-center gap-2 min-h-[44px] bg-white text-black px-8 py-4 text-xs font-mono font-bold uppercase tracking-widest hover:opacity-80 transition-opacity">
               Browse Equipment <ArrowRight className="w-3 h-3" />
             </Link>
-            <Link href="/register" className="inline-flex items-center gap-2 min-h-[44px] border border-white/20 text-white px-8 py-4 text-[10px] font-mono font-bold uppercase tracking-widest hover:bg-white/5 transition-colors">
+            <Link href="/register" className="inline-flex items-center gap-2 min-h-[44px] border border-white/20 text-white px-8 py-4 text-xs font-mono font-bold uppercase tracking-widest hover:bg-white/5 transition-colors">
               Create Account
             </Link>
           </div>
@@ -290,7 +290,7 @@ const BookingCTA = ({ minDayRate }: { minDayRate: number | null }) => (
             { label: 'Deposit Protection', value: 'Secured' },
           ].map(stat => (
             <div key={stat.label} className="bg-[#0A0A0B] border border-white/5 p-6">
-              <p className="text-[10px] font-mono uppercase tracking-widest text-neutral-400 mb-2">
+              <p className="text-xs font-mono uppercase tracking-widest text-neutral-400 mb-2">
                 {stat.label}
               </p>
               <p className="text-2xl font-display font-medium text-white">
@@ -310,7 +310,7 @@ const TrustSignals = () => (
   <section className="py-16 bg-[#050505] border-t border-white/5">
     <div className="container mx-auto px-6">
       <div className="text-center mb-8">
-        <span className="text-[10px] font-mono text-accent uppercase tracking-widest">02 // Trust &amp; Security</span>
+        <span className="text-xs font-mono text-accent uppercase tracking-widest">02 // Trust &amp; Security</span>
       </div>
       <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
         {[
@@ -322,7 +322,7 @@ const TrustSignals = () => (
           <div key={item.label} className="text-center p-4">
             <item.icon className="w-6 h-6 text-accent mx-auto mb-3" />
             <p className="text-sm font-display font-medium text-white uppercase mb-1">{item.label}</p>
-            <p className="text-[11px] font-mono text-neutral-400">{item.detail}</p>
+            <p className="text-xs font-mono text-neutral-400">{item.detail}</p>
           </div>
         ))}
       </div>
@@ -341,7 +341,7 @@ const UbunyeSection = () => (
         viewport={{ once: true }}
         className="max-w-2xl mx-auto text-center"
       >
-        <span className="text-[10px] font-mono text-accent uppercase tracking-widest mb-4 block">07 // AI Assistant</span>
+        <span className="text-xs font-mono text-accent uppercase tracking-widest mb-4 block">07 // AI Assistant</span>
         <MessageCircle className="w-10 h-10 text-accent mx-auto mb-6" />
         <h2 className="text-3xl md:text-4xl font-display font-medium text-white uppercase mb-4">
           Need Help <span className="text-neutral-400">Deciding?</span>
@@ -351,7 +351,7 @@ const UbunyeSection = () => (
         </p>
         <Link
           href="/ubunye-ai-studio"
-          className="group inline-flex items-center gap-2 min-h-[44px] border border-accent/30 text-accent px-8 py-4 text-[10px] font-mono font-bold uppercase tracking-widest hover:bg-accent/10 transition-colors"
+          className="group inline-flex items-center gap-2 min-h-[44px] border border-accent/30 text-accent px-8 py-4 text-xs font-mono font-bold uppercase tracking-widest hover:bg-accent/10 transition-colors"
         >
           Ask Ubunye <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
         </Link>
@@ -396,7 +396,7 @@ export default function HomeClient({
       {/* 9. Final CTA */}
       <section className="py-40 relative bg-gradient-to-b from-neutral-950 via-neutral-900 to-neutral-950 overflow-hidden border-t border-white/5 transition-colors duration-500">
         <div className="container mx-auto px-6 relative z-10 text-center">
-          <span className="text-[10px] font-mono text-neutral-400 uppercase tracking-widest mb-6 block">08 // Get Started</span>
+          <span className="text-xs font-mono text-neutral-400 uppercase tracking-widest mb-6 block">08 // Get Started</span>
           <h2 className="text-5xl md:text-8xl font-display font-medium text-white tracking-tighter mb-12 uppercase">
             Ready To <br /> Create?
           </h2>

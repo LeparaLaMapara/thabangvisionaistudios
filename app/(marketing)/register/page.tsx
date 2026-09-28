@@ -163,7 +163,7 @@ function RegisterForm() {
       >
         {/* Header */}
         <div className="mb-10">
-          <p className="text-[9px] font-mono uppercase tracking-[0.2em] text-neutral-400 mb-3">
+          <p className="text-xs font-mono uppercase tracking-[0.2em] text-neutral-400 mb-3">
             {STUDIO.shortName.toUpperCase()}
           </p>
           <h1 className="text-3xl font-display font-medium uppercase tracking-tight text-white">
@@ -189,7 +189,7 @@ function RegisterForm() {
             {/* Divider */}
             <div className="flex items-center gap-3 py-1">
               <div className="flex-1 h-px bg-white/10" />
-              <span className="text-[9px] font-mono uppercase tracking-widest text-neutral-400">
+              <span className="text-xs font-mono uppercase tracking-widest text-neutral-400">
                 or
               </span>
               <div className="flex-1 h-px bg-white/10" />
@@ -198,7 +198,7 @@ function RegisterForm() {
             {/* Email + Password form */}
             <form onSubmit={handleSubmit} noValidate className="space-y-4">
               <div>
-                <label htmlFor="email" className="block text-[10px] font-bold uppercase tracking-widest text-neutral-400 mb-2">
+                <label htmlFor="email" className="block text-xs font-bold uppercase tracking-widest text-neutral-400 mb-2">
                   Email
                 </label>
                 <input
@@ -213,7 +213,7 @@ function RegisterForm() {
                 />
               </div>
               <div>
-                <label htmlFor="password" className="block text-[10px] font-bold uppercase tracking-widest text-neutral-400 mb-2">
+                <label htmlFor="password" className="block text-xs font-bold uppercase tracking-widest text-neutral-400 mb-2">
                   Password
                 </label>
                 <input
@@ -228,7 +228,7 @@ function RegisterForm() {
                 />
               </div>
               <div>
-                <label htmlFor="confirmPassword" className="block text-[10px] font-bold uppercase tracking-widest text-neutral-400 mb-2">
+                <label htmlFor="confirmPassword" className="block text-xs font-bold uppercase tracking-widest text-neutral-400 mb-2">
                   Confirm Password
                 </label>
                 <input
@@ -265,7 +265,7 @@ function RegisterForm() {
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full bg-[#D4A843] text-black py-3.5 text-[10px] font-mono font-bold uppercase tracking-widest hover:opacity-80 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                className="w-full bg-[#D4A843] text-black py-3.5 text-xs font-mono font-bold uppercase tracking-widest hover:opacity-80 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
               >
                 {loading ? (
                   <>
@@ -305,7 +305,7 @@ function RegisterForm() {
         </div>
 
         {/* Footer */}
-        <p className="text-center text-[9px] font-mono uppercase tracking-[0.2em] text-neutral-400 mt-6">
+        <p className="text-center text-xs font-mono uppercase tracking-[0.2em] text-neutral-400 mt-6">
           Already have an account?{' '}
           <Link
             href={withRedirect('/login', next)}

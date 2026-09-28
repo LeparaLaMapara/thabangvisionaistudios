@@ -186,7 +186,7 @@ export function OutreachAdmin() {
 
           {/* Industry dropdown */}
           <div>
-            <label className="block text-[10px] font-mono uppercase tracking-widest text-neutral-400 mb-2">
+            <label className="block text-xs font-mono uppercase tracking-widest text-neutral-400 mb-2">
               Industry <span className="text-red-400">*</span>
             </label>
             <select
@@ -208,7 +208,7 @@ export function OutreachAdmin() {
 
         {/* Services checkboxes */}
         <div className="mb-4">
-          <label className="block text-[10px] font-mono uppercase tracking-widest text-neutral-400 mb-3">
+          <label className="block text-xs font-mono uppercase tracking-widest text-neutral-400 mb-3">
             Services Fit
           </label>
           <div className="flex flex-wrap gap-3">
@@ -223,20 +223,20 @@ export function OutreachAdmin() {
                   onChange={() => toggleService(service)}
                   className="accent-[#D4A843] w-4 h-4"
                 />
-                <span className="text-[10px] font-mono uppercase tracking-widest text-neutral-400">
+                <span className="text-xs font-mono uppercase tracking-widest text-neutral-400">
                   {service}
                 </span>
               </label>
             ))}
           </div>
-          <p className="text-[10px] font-mono text-neutral-400 mt-1">
+          <p className="text-xs font-mono text-neutral-400 mt-1">
             Leave empty to default to Photography and Video Production.
           </p>
         </div>
 
         {/* Custom context */}
         <div className="mb-6">
-          <label className="block text-[10px] font-mono uppercase tracking-widest text-neutral-400 mb-2">
+          <label className="block text-xs font-mono uppercase tracking-widest text-neutral-400 mb-2">
             Custom Context
           </label>
           <textarea
@@ -253,7 +253,7 @@ export function OutreachAdmin() {
           <button
             onClick={generate}
             disabled={!canSubmit || loading}
-            className="flex items-center gap-2 px-5 py-2 min-h-[44px] bg-[#D4A843] text-black text-[10px] font-mono font-bold uppercase tracking-widest hover:opacity-80 transition-opacity disabled:opacity-50"
+            className="flex items-center gap-2 px-5 py-2 min-h-[44px] bg-[#D4A843] text-black text-xs font-mono font-bold uppercase tracking-widest hover:opacity-80 transition-opacity disabled:opacity-50"
           >
             {loading ? (
               <Loader2 className="w-3 h-3 animate-spin" />
@@ -264,7 +264,7 @@ export function OutreachAdmin() {
           </button>
           <button
             onClick={reset}
-            className="flex items-center gap-2 px-5 py-2 min-h-[44px] border border-white/20 text-[10px] font-mono uppercase tracking-widest text-neutral-400 hover:text-white hover:border-white/40 transition-colors"
+            className="flex items-center gap-2 px-5 py-2 min-h-[44px] border border-white/20 text-xs font-mono uppercase tracking-widest text-neutral-400 hover:text-white hover:border-white/40 transition-colors"
           >
             <RotateCcw className="w-3 h-3" />
             Clear
@@ -289,7 +289,7 @@ export function OutreachAdmin() {
             </h2>
             <button
               onClick={() => copyToClipboard(result.emails)}
-              className="flex items-center gap-2 px-4 py-2 min-h-[44px] border border-white/20 text-[10px] font-mono uppercase tracking-widest text-neutral-400 hover:text-white hover:border-white/40 transition-colors"
+              className="flex items-center gap-2 px-4 py-2 min-h-[44px] border border-white/20 text-xs font-mono uppercase tracking-widest text-neutral-400 hover:text-white hover:border-white/40 transition-colors"
             >
               {copied ? (
                 <>
@@ -333,7 +333,7 @@ function Field({
 }) {
   return (
     <div>
-      <label className="block text-[10px] font-mono uppercase tracking-widest text-neutral-400 mb-2">
+      <label className="block text-xs font-mono uppercase tracking-widest text-neutral-400 mb-2">
         {label} {required && <span className="text-red-400">*</span>}
       </label>
       <input

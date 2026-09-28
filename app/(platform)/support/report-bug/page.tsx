@@ -82,7 +82,7 @@ export default function ReportBugPage() {
           <div className="flex items-center justify-center gap-4">
             <Link
               href="/dashboard"
-              className="text-[10px] font-mono font-bold uppercase tracking-widest px-6 py-3 bg-[#D4A843] text-black hover:bg-[#E5B954] transition-colors"
+              className="text-xs font-mono font-bold uppercase tracking-widest px-6 py-3 bg-[#D4A843] text-black hover:bg-[#E5B954] transition-colors"
             >
               Go to Dashboard
             </Link>
@@ -97,7 +97,7 @@ export default function ReportBugPage() {
                 setPageUrl('');
                 setSeverity('medium');
               }}
-              className="text-[10px] font-mono font-bold uppercase tracking-widest px-6 py-3 border border-white/10 text-white hover:border-white/30 transition-colors"
+              className="text-xs font-mono font-bold uppercase tracking-widest px-6 py-3 border border-white/10 text-white hover:border-white/30 transition-colors"
             >
               Report Another
             </button>
@@ -112,14 +112,14 @@ export default function ReportBugPage() {
       {/* Header */}
       <Link
         href="/dashboard"
-        className="inline-flex items-center gap-2 text-[10px] font-mono uppercase tracking-widest text-neutral-400 hover:text-white transition-colors mb-8"
+        className="inline-flex items-center gap-2 text-xs font-mono uppercase tracking-widest text-neutral-400 hover:text-white transition-colors mb-8"
       >
         <ArrowLeft className="w-3 h-3" /> Back to Dashboard
       </Link>
 
       <div className="flex items-center gap-3 mb-2">
         <Bug className="w-5 h-5 text-[#D4A843]" />
-        <span className="text-[10px] font-mono text-[#D4A843] uppercase tracking-[0.3em]">
+        <span className="text-xs font-mono text-[#D4A843] uppercase tracking-[0.3em]">
           Support
         </span>
       </div>
@@ -140,7 +140,7 @@ export default function ReportBugPage() {
       <form onSubmit={handleSubmit} className="space-y-6">
         {/* Title */}
         <div>
-          <label className="block text-[10px] font-mono font-bold uppercase tracking-widest text-neutral-300 mb-2">
+          <label className="block text-xs font-mono font-bold uppercase tracking-widest text-neutral-300 mb-2">
             Title <span className="text-red-400">*</span>
           </label>
           <input
@@ -156,7 +156,7 @@ export default function ReportBugPage() {
 
         {/* Description */}
         <div>
-          <label className="block text-[10px] font-mono font-bold uppercase tracking-widest text-neutral-300 mb-2">
+          <label className="block text-xs font-mono font-bold uppercase tracking-widest text-neutral-300 mb-2">
             Description <span className="text-red-400">*</span>
           </label>
           <textarea
@@ -172,7 +172,7 @@ export default function ReportBugPage() {
 
         {/* Steps to reproduce */}
         <div>
-          <label className="block text-[10px] font-mono font-bold uppercase tracking-widest text-neutral-300 mb-2">
+          <label className="block text-xs font-mono font-bold uppercase tracking-widest text-neutral-300 mb-2">
             Steps to Reproduce <span className="text-neutral-400">(optional)</span>
           </label>
           <textarea
@@ -187,7 +187,7 @@ export default function ReportBugPage() {
         {/* Expected vs Actual */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
-            <label className="block text-[10px] font-mono font-bold uppercase tracking-widest text-neutral-300 mb-2">
+            <label className="block text-xs font-mono font-bold uppercase tracking-widest text-neutral-300 mb-2">
               Expected <span className="text-neutral-400">(optional)</span>
             </label>
             <textarea
@@ -199,7 +199,7 @@ export default function ReportBugPage() {
             />
           </div>
           <div>
-            <label className="block text-[10px] font-mono font-bold uppercase tracking-widest text-neutral-300 mb-2">
+            <label className="block text-xs font-mono font-bold uppercase tracking-widest text-neutral-300 mb-2">
               Actual <span className="text-neutral-400">(optional)</span>
             </label>
             <textarea
@@ -214,7 +214,7 @@ export default function ReportBugPage() {
 
         {/* Page URL */}
         <div>
-          <label className="block text-[10px] font-mono font-bold uppercase tracking-widest text-neutral-300 mb-2">
+          <label className="block text-xs font-mono font-bold uppercase tracking-widest text-neutral-300 mb-2">
             Page URL <span className="text-neutral-400">(optional)</span>
           </label>
           <input
@@ -228,7 +228,7 @@ export default function ReportBugPage() {
 
         {/* Severity */}
         <div>
-          <label className="block text-[10px] font-mono font-bold uppercase tracking-widest text-neutral-300 mb-2">
+          <label className="block text-xs font-mono font-bold uppercase tracking-widest text-neutral-300 mb-2">
             Severity
           </label>
           <div className="space-y-2">
@@ -266,7 +266,7 @@ export default function ReportBugPage() {
         <button
           type="submit"
           disabled={submitting || title.trim().length < 3 || description.trim().length < 10}
-          className="w-full flex items-center justify-center gap-2 text-[10px] font-mono font-bold uppercase tracking-widest px-6 py-4 bg-[#D4A843] text-black hover:bg-[#E5B954] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          className="w-full flex items-center justify-center gap-2 text-xs font-mono font-bold uppercase tracking-widest px-6 py-4 bg-[#D4A843] text-black hover:bg-[#E5B954] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
         >
           {submitting ? (
             'Submitting...'

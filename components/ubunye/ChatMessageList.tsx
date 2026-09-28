@@ -98,7 +98,7 @@ export function ChatMessageList({
             transition={{ duration: 0.3, ease: 'easeOut' }}
             className="space-y-1"
           >
-            <span className={`text-[11px] font-medium tracking-wide ${
+            <span className={`text-xs font-medium tracking-wide ${
               isAssistant ? 'text-[#D4A843]' : 'text-neutral-400'
             }`}>
               {isAssistant ? 'Ubunye' : 'You'}
@@ -138,7 +138,7 @@ export function ChatMessageList({
           animate={{ opacity: 1, y: 0 }}
           className="space-y-1"
         >
-          <span className="text-[11px] font-medium tracking-wide text-[#D4A843]">
+          <span className="text-xs font-medium tracking-wide text-[#D4A843]">
             Ubunye
           </span>
           <div className="text-[15px] text-[#D4A843]/80 leading-relaxed border-l-2 border-[#D4A843]/20 pl-4">
@@ -183,7 +183,7 @@ export function ChatMessageList({
             exit={{ opacity: 0 }}
             className="space-y-1"
           >
-            <span className="text-[11px] font-medium tracking-wide text-[#D4A843]">
+            <span className="text-xs font-medium tracking-wide text-[#D4A843]">
               Ubunye
             </span>
             <div className="flex items-center gap-1 pt-1">
@@ -201,7 +201,7 @@ export function ChatMessageList({
           animate={{ opacity: 1 }}
           className="space-y-1"
         >
-          <span className="text-[11px] font-medium tracking-wide text-[#D4A843]">
+          <span className="text-xs font-medium tracking-wide text-[#D4A843]">
             Ubunye
           </span>
           <div className="text-[15px] text-neutral-400 leading-relaxed">

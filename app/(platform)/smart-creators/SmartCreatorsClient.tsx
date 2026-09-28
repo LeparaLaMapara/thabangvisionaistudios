@@ -71,7 +71,7 @@ function CreatorCard({
 
           {/* Featured badge */}
           {creator.crew_featured && (
-            <div className="absolute top-3 left-3 px-2 py-1 bg-[#D4A843] text-black text-[10px] font-bold uppercase tracking-wider">
+            <div className="absolute top-3 left-3 px-2 py-1 bg-[#D4A843] text-black text-xs font-bold uppercase tracking-wider">
               Featured
             </div>
           )}
@@ -110,7 +110,7 @@ function CreatorCard({
                 {specializations.map((s) => (
                   <span
                     key={s}
-                    className="px-2 py-0.5 text-[10px] uppercase tracking-wider bg-white/10 text-white/70"
+                    className="px-2 py-0.5 text-xs uppercase tracking-wider bg-white/10 text-white/70"
                   >
                     {s}
                   </span>
@@ -202,7 +202,7 @@ export default function SmartCreatorsClient({
           >
             <Search className="w-4 h-4" />
             <span className="flex-1 text-left">Search creators...</span>
-            <kbd className="hidden sm:flex items-center gap-0.5 text-[10px] font-mono text-white/20 border border-white/10 px-1.5 py-0.5">
+            <kbd className="hidden sm:flex items-center gap-0.5 text-xs font-mono text-white/20 border border-white/10 px-1.5 py-0.5">
               <Command className="w-2.5 h-2.5" />K
             </kbd>
           </button>

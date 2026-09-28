@@ -64,7 +64,7 @@ export const FilterBar = ({
             >
               <button
                 onClick={() => onSubFilterChange(null)}
-                className={`px-4 py-1.5 text-[10px] uppercase tracking-widest rounded-full border transition-all ${
+                className={`px-4 py-1.5 text-xs uppercase tracking-widest rounded-full border transition-all ${
                   activeSubFilter === null
                     ? 'bg-black text-white dark:bg-white dark:text-black border-transparent'
                     : 'bg-transparent border-black/10 dark:border-white/10 text-neutral-400 hover:border-black dark:hover:border-white'
@@ -76,7 +76,7 @@ export const FilterBar = ({
                 <button
                   key={sub}
                   onClick={() => onSubFilterChange(sub)}
-                  className={`px-4 py-1.5 text-[10px] uppercase tracking-widest rounded-full border transition-all ${
+                  className={`px-4 py-1.5 text-xs uppercase tracking-widest rounded-full border transition-all ${
                     activeSubFilter === sub
                       ? 'bg-black text-white dark:bg-white dark:text-black border-transparent'
                       : 'bg-transparent border-black/10 dark:border-white/10 text-neutral-400 hover:border-black dark:hover:border-white'
@@ -135,12 +135,12 @@ export const ProjectCard = ({ project, index }: { project: Project; index: numbe
             <h3 className="text-lg font-display text-black dark:text-white uppercase mb-1 group-hover:underline decoration-1 underline-offset-4">
               {project.title}
             </h3>
-            <span className="text-[10px] font-mono text-neutral-400 dark:text-neutral-400 uppercase tracking-widest">
+            <span className="text-xs font-mono text-neutral-400 dark:text-neutral-400 uppercase tracking-widest">
               {project.subCategory}
             </span>
           </div>
           {project.type === 'film' && (
-             <span className="text-[10px] font-mono text-neutral-400 border border-neutral-200 dark:border-white/10 px-1.5 py-0.5">FILM</span>
+             <span className="text-xs font-mono text-neutral-400 border border-neutral-200 dark:border-white/10 px-1.5 py-0.5">FILM</span>
           )}
         </div>
       </Link>

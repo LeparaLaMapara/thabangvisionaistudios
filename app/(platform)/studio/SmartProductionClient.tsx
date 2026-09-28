@@ -113,14 +113,14 @@ function ProductionCard({
       <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent z-10" />
 
       <div className="absolute bottom-0 left-0 right-0 p-5 z-20">
-        <p className="text-[9px] font-mono text-[#D4A843] uppercase tracking-[0.2em] mb-2">
+        <p className="text-xs font-mono text-[#D4A843] uppercase tracking-[0.2em] mb-2">
           {String(index + 1).padStart(2, '0')} {metaLabel(production) && `· ${metaLabel(production)}`}
         </p>
         <h3 className="text-lg md:text-xl font-display font-medium text-white uppercase leading-tight group-hover:text-[#D4A843] transition-colors">
           {production.title}
         </h3>
         {production.client && (
-          <p className="text-[10px] font-mono text-neutral-400 mt-1">{production.client}</p>
+          <p className="text-xs font-mono text-neutral-400 mt-1">{production.client}</p>
         )}
         {price && (
           <p className="text-xs font-mono text-white/70 mt-3 pt-3 border-t border-white/15">
@@ -153,7 +153,7 @@ export default function SmartProductionClient({ productions }: Props) {
           transition={{ duration: 0.8 }}
         >
           <div className="border-l border-white/20 pl-8 md:pl-16 py-4">
-            <span className="text-[10px] font-mono text-[#D4A843] uppercase tracking-[0.3em] mb-4 block">
+            <span className="text-xs font-mono text-[#D4A843] uppercase tracking-[0.3em] mb-4 block">
               01 // Production Services
             </span>
             <h1 className="text-5xl md:text-8xl font-display font-medium text-white tracking-tight leading-[0.9] mb-8 uppercase">
@@ -177,13 +177,13 @@ export default function SmartProductionClient({ productions }: Props) {
             <div className="flex flex-wrap gap-4 mt-10">
               <Link
                 href="/book"
-                className="inline-flex items-center gap-2 min-h-[44px] bg-white text-black px-8 py-4 text-[10px] font-mono font-bold uppercase tracking-widest hover:opacity-80 transition-opacity"
+                className="inline-flex items-center gap-2 min-h-[44px] bg-white text-black px-8 py-4 text-xs font-mono font-bold uppercase tracking-widest hover:opacity-80 transition-opacity"
               >
                 Book A Shoot <ArrowRight className="w-3 h-3" />
               </Link>
               <Link
                 href="/ubunye-ai-studio?prompt=I%20need%20a%20quote%20for%20a%20production"
-                className="inline-flex items-center gap-2 min-h-[44px] border border-white/20 text-white px-8 py-4 text-[10px] font-mono font-bold uppercase tracking-widest hover:bg-white/5 transition-colors"
+                className="inline-flex items-center gap-2 min-h-[44px] border border-white/20 text-white px-8 py-4 text-xs font-mono font-bold uppercase tracking-widest hover:bg-white/5 transition-colors"
               >
                 <span className="w-1.5 h-1.5 rounded-full bg-[#D4A843]" />
                 Get An Instant AI Quote
@@ -209,7 +209,7 @@ export default function SmartProductionClient({ productions }: Props) {
               </p>
               <Link
                 href="/contact"
-                className="inline-flex items-center gap-2 min-h-[44px] mt-8 border border-white/20 text-white px-8 py-4 text-[10px] font-mono font-bold uppercase tracking-widest hover:bg-white/5 transition-colors"
+                className="inline-flex items-center gap-2 min-h-[44px] mt-8 border border-white/20 text-white px-8 py-4 text-xs font-mono font-bold uppercase tracking-widest hover:bg-white/5 transition-colors"
               >
                 Get in touch
               </Link>
@@ -220,7 +220,7 @@ export default function SmartProductionClient({ productions }: Props) {
                 <h2 className="text-2xl md:text-3xl font-display font-medium text-white uppercase tracking-tight">
                   The Work
                 </h2>
-                <span className="text-[10px] font-mono text-neutral-400 uppercase tracking-[0.2em]">
+                <span className="text-xs font-mono text-neutral-400 uppercase tracking-[0.2em]">
                   {count} project{count !== 1 ? 's' : ''}
                 </span>
               </div>

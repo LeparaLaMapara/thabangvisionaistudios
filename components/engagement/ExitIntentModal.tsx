@@ -98,7 +98,7 @@ export function ExitIntentModal({
               </Link>
               <button
                 onClick={dismiss}
-                className="text-[10px] font-mono uppercase tracking-widest text-neutral-400 hover:text-white transition-colors py-2"
+                className="text-xs font-mono uppercase tracking-widest text-neutral-400 hover:text-white transition-colors py-2"
               >
                 No thanks, I&apos;m just browsing
               </button>

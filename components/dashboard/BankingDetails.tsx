@@ -108,13 +108,13 @@ export default function BankingDetails({ onSaved }: { onSaved?: () => void } = {
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
             <Building2 className="w-4 h-4 text-neutral-400" />
-            <span className="text-[10px] font-mono uppercase tracking-widest text-neutral-400">
+            <span className="text-xs font-mono uppercase tracking-widest text-neutral-400">
               Banking Details
             </span>
           </div>
           <button
             onClick={() => setEditing(true)}
-            className="text-[10px] font-mono uppercase tracking-widest text-[#D4A843] hover:text-[#E5B954] transition-colors"
+            className="text-xs font-mono uppercase tracking-widest text-[#D4A843] hover:text-[#E5B954] transition-colors"
           >
             Edit
           </button>
@@ -138,7 +138,7 @@ export default function BankingDetails({ onSaved }: { onSaved?: () => void } = {
           </div>
         </div>
         {banking.paystack_recipient_code && (
-          <div className="flex items-center gap-1.5 mt-3 text-[9px] font-mono text-emerald-400">
+          <div className="flex items-center gap-1.5 mt-3 text-xs font-mono text-emerald-400">
             <CheckCircle className="w-3 h-3" /> Linked for payouts
           </div>
         )}
@@ -151,18 +151,18 @@ export default function BankingDetails({ onSaved }: { onSaved?: () => void } = {
     <div className="bg-[#0A0A0B] border border-white/5 p-5">
       <div className="flex items-center gap-2 mb-4">
         <Building2 className="w-4 h-4 text-neutral-400" />
-        <span className="text-[10px] font-mono uppercase tracking-widest text-neutral-400">
+        <span className="text-xs font-mono uppercase tracking-widest text-neutral-400">
           Banking Details
         </span>
       </div>
 
-      <p className="text-[10px] font-mono text-neutral-400 mb-4">
+      <p className="text-xs font-mono text-neutral-400 mb-4">
         Required for receiving payouts from gig bookings.
       </p>
 
       <div className="space-y-4">
         <div>
-          <label className="block text-[10px] font-mono uppercase tracking-widest text-neutral-400 mb-2">
+          <label className="block text-xs font-mono uppercase tracking-widest text-neutral-400 mb-2">
             Bank <span className="text-red-400">*</span>
           </label>
           <select
@@ -186,7 +186,7 @@ export default function BankingDetails({ onSaved }: { onSaved?: () => void } = {
         />
 
         <div>
-          <label className="block text-[10px] font-mono uppercase tracking-widest text-neutral-400 mb-2">
+          <label className="block text-xs font-mono uppercase tracking-widest text-neutral-400 mb-2">
             Account Type <span className="text-red-400">*</span>
           </label>
           <div className="flex gap-3">
@@ -195,7 +195,7 @@ export default function BankingDetails({ onSaved }: { onSaved?: () => void } = {
                 key={type}
                 type="button"
                 onClick={() => setAccountType(type)}
-                className={`text-[10px] font-mono uppercase tracking-widest px-4 py-2 border transition-all min-h-[36px] ${
+                className={`text-xs font-mono uppercase tracking-widest px-4 py-2 border transition-all min-h-[36px] ${
                   accountType === type
                     ? 'bg-white text-black border-white'
                     : 'bg-transparent text-neutral-400 border-white/10 hover:border-white/30'

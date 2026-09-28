@@ -35,7 +35,7 @@ const formatIndex = (idx: number) => String(idx + 1).padStart(2, '0');
 const NavItem = ({ label, to, items }: { label: string; to?: string; items?: any[]; key?: any }) => {
   const [isOpen, setIsOpen] = useState(false);
 
-  const baseClasses = `px-4 py-2 text-[10px] ${NAV_TEXT} flex items-center gap-1 group-hover:bg-black/5 dark:group-hover:bg-white/5 cursor-pointer`;
+  const baseClasses = `px-4 py-2 text-xs ${NAV_TEXT} flex items-center gap-1 group-hover:bg-black/5 dark:group-hover:bg-white/5 cursor-pointer`;
 
   return (
     <div
@@ -238,7 +238,7 @@ export const Header = ({ navigation = MAIN_NAVIGATION }: { navigation?: readonly
             >
               <ShoppingCart className="w-4 h-4" />
               {cartCount > 0 && (
-                <span className="absolute -top-1.5 -right-1.5 bg-[#D4A843] text-black text-[8px] font-mono font-bold w-4 h-4 rounded-full flex items-center justify-center">
+                <span className="absolute -top-1.5 -right-1.5 bg-[#D4A843] text-black text-xs leading-none font-mono font-bold min-w-5 h-5 px-1 rounded-full flex items-center justify-center">
                   {cartCount > 9 ? '9+' : cartCount}
                 </span>
               )}
@@ -251,14 +251,14 @@ export const Header = ({ navigation = MAIN_NAVIGATION }: { navigation?: readonly
             <>
               <Link
                 href="/dashboard"
-                className="text-[10px] font-mono font-medium tracking-widest text-neutral-400 dark:text-neutral-400 hover:text-black dark:hover:text-white border border-neutral-300 dark:border-white/30 px-5 py-2 hover:opacity-80 transition-all duration-300 uppercase"
+                className="text-xs font-mono font-medium tracking-widest text-neutral-400 dark:text-neutral-400 hover:text-black dark:hover:text-white border border-neutral-300 dark:border-white/30 px-5 py-2 hover:opacity-80 transition-all duration-300 uppercase"
               >
                 Dashboard
               </Link>
               <button
                 onClick={handleSignOut}
                 disabled={signingOut}
-                className="text-[10px] font-mono font-medium tracking-widest text-neutral-400 dark:text-neutral-400 hover:text-red-500 dark:hover:text-red-400 px-5 py-2 hover:opacity-80 transition-all duration-300 uppercase disabled:opacity-50"
+                className="text-xs font-mono font-medium tracking-widest text-neutral-400 dark:text-neutral-400 hover:text-red-500 dark:hover:text-red-400 px-5 py-2 hover:opacity-80 transition-all duration-300 uppercase disabled:opacity-50"
               >
                 {signingOut ? 'Signing Out...' : 'Sign Out'}
               </button>
@@ -266,7 +266,7 @@ export const Header = ({ navigation = MAIN_NAVIGATION }: { navigation?: readonly
           ) : (
             <Link
               href="/login"
-              className="text-[10px] font-mono font-medium tracking-widest text-neutral-400 dark:text-neutral-400 hover:text-black dark:hover:text-white border border-neutral-300 dark:border-white/30 px-5 py-2 hover:opacity-80 transition-all duration-300 uppercase"
+              className="text-xs font-mono font-medium tracking-widest text-neutral-400 dark:text-neutral-400 hover:text-black dark:hover:text-white border border-neutral-300 dark:border-white/30 px-5 py-2 hover:opacity-80 transition-all duration-300 uppercase"
             >
               Sign In
             </Link>
@@ -284,7 +284,7 @@ export const Header = ({ navigation = MAIN_NAVIGATION }: { navigation?: readonly
             >
               <ShoppingCart className="w-5 h-5" />
               {cartCount > 0 && (
-                <span className="absolute -top-1.5 -right-1.5 bg-[#D4A843] text-black text-[8px] font-mono font-bold w-4 h-4 rounded-full flex items-center justify-center">
+                <span className="absolute -top-1.5 -right-1.5 bg-[#D4A843] text-black text-xs leading-none font-mono font-bold min-w-5 h-5 px-1 rounded-full flex items-center justify-center">
                   {cartCount > 9 ? '9+' : cartCount}
                 </span>
               )}

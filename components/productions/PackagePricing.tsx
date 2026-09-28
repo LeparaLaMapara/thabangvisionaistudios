@@ -83,7 +83,7 @@ export default function PackagePricing() {
                 )}
 
                 {category && (
-                  <span className="text-[10px] font-mono text-[#D4A843]/70 uppercase tracking-widest mb-1">
+                  <span className="text-xs font-mono text-[#D4A843]/70 uppercase tracking-widest mb-1">
                     {category.name}
                   </span>
                 )}

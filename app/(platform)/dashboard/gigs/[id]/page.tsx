@@ -51,7 +51,7 @@ export default async function GigDetailPage({
     <div>
       <Link
         href="/dashboard/gigs"
-        className="inline-flex items-center gap-2 text-[10px] font-mono uppercase tracking-widest text-neutral-400 hover:text-white mb-8 transition-colors"
+        className="inline-flex items-center gap-2 text-xs font-mono uppercase tracking-widest text-neutral-400 hover:text-white mb-8 transition-colors"
       >
         <ArrowLeft className="w-3 h-3" /> Back to gigs
       </Link>
@@ -61,11 +61,11 @@ export default async function GigDetailPage({
           <h2 className="text-lg font-display font-medium uppercase text-white">
             {gig.project_type}
           </h2>
-          <p className="text-[10px] font-mono text-neutral-400 mt-1">
+          <p className="text-xs font-mono text-neutral-400 mt-1">
             Ref: {gig.id.slice(0, 8).toUpperCase()} -- via {gig.booked_via}
           </p>
         </div>
-        <span className={`inline-block text-[9px] font-mono uppercase tracking-widest border px-3 py-1 ${statusColors[gig.status] || 'text-neutral-400 border-white/10'}`}>
+        <span className={`inline-block text-xs font-mono uppercase tracking-widest border px-3 py-1 ${statusColors[gig.status] || 'text-neutral-400 border-white/10'}`}>
           {gig.status}
         </span>
       </div>
@@ -73,16 +73,16 @@ export default async function GigDetailPage({
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* Client info (name only, no email/phone) */}
         <div className="bg-[#0A0A0B] border border-white/5 p-5">
-          <h3 className="text-[10px] font-mono uppercase tracking-widest text-neutral-400 mb-4">Client</h3>
+          <h3 className="text-xs font-mono uppercase tracking-widest text-neutral-400 mb-4">Client</h3>
           <p className="text-sm font-mono text-white">{gig.client_name}</p>
-          <p className="text-[10px] font-mono text-neutral-400 mt-2">
+          <p className="text-xs font-mono text-neutral-400 mt-2">
             Contact details are managed by ThabangVision for privacy.
           </p>
         </div>
 
         {/* Project details */}
         <div className="bg-[#0A0A0B] border border-white/5 p-5">
-          <h3 className="text-[10px] font-mono uppercase tracking-widest text-neutral-400 mb-4">Details</h3>
+          <h3 className="text-xs font-mono uppercase tracking-widest text-neutral-400 mb-4">Details</h3>
           <div className="space-y-3 text-xs font-mono">
             {gig.preferred_dates && (
               <div className="flex items-center gap-2 text-neutral-300">
@@ -110,7 +110,7 @@ export default async function GigDetailPage({
 
       {/* Description */}
       <div className="bg-[#0A0A0B] border border-white/5 p-5 mt-6">
-        <h3 className="text-[10px] font-mono uppercase tracking-widest text-neutral-400 mb-3">Description</h3>
+        <h3 className="text-xs font-mono uppercase tracking-widest text-neutral-400 mb-3">Description</h3>
         <p className="text-xs font-mono text-neutral-300 leading-relaxed whitespace-pre-wrap">
           {gig.description}
         </p>
@@ -119,7 +119,7 @@ export default async function GigDetailPage({
       {/* Earnings breakdown (only if total_amount exists) */}
       {gig.total_amount && (
         <div className="bg-[#0A0A0B] border border-white/5 p-5 mt-6">
-          <h3 className="text-[10px] font-mono uppercase tracking-widest text-neutral-400 mb-3">Earnings</h3>
+          <h3 className="text-xs font-mono uppercase tracking-widest text-neutral-400 mb-3">Earnings</h3>
           <div className="space-y-2 text-xs font-mono">
             <div className="flex justify-between">
               <span className="text-neutral-400">Total</span>
@@ -146,8 +146,8 @@ export default async function GigDetailPage({
 
       {/* Timeline */}
       <div className="bg-[#0A0A0B] border border-white/5 p-5 mt-6">
-        <h3 className="text-[10px] font-mono uppercase tracking-widest text-neutral-400 mb-3">Timeline</h3>
-        <div className="space-y-2 text-[10px] font-mono text-neutral-400">
+        <h3 className="text-xs font-mono uppercase tracking-widest text-neutral-400 mb-3">Timeline</h3>
+        <div className="space-y-2 text-xs font-mono text-neutral-400">
           <p>Submitted: {new Date(gig.created_at).toLocaleDateString('en-ZA', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</p>
           {gig.updated_at !== gig.created_at && (
             <p>Last updated: {new Date(gig.updated_at).toLocaleDateString('en-ZA', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</p>

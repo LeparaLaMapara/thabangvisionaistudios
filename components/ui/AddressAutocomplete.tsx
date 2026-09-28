@@ -167,7 +167,7 @@ export default function AddressAutocomplete({
   return (
     <div className="space-y-4" ref={wrapperRef}>
       <div className="relative">
-        <label className="block text-[10px] font-bold uppercase tracking-widest text-neutral-400 mb-2">
+        <label className="block text-xs font-bold uppercase tracking-widest text-neutral-400 mb-2">
           Street Address *
         </label>
         <input
@@ -205,7 +205,7 @@ export default function AddressAutocomplete({
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div>
-          <label className="block text-[10px] font-bold uppercase tracking-widest text-neutral-400 mb-2">
+          <label className="block text-xs font-bold uppercase tracking-widest text-neutral-400 mb-2">
             City *
           </label>
           <input
@@ -220,7 +220,7 @@ export default function AddressAutocomplete({
           />
         </div>
         <div>
-          <label className="block text-[10px] font-bold uppercase tracking-widest text-neutral-400 mb-2">
+          <label className="block text-xs font-bold uppercase tracking-widest text-neutral-400 mb-2">
             Province *
           </label>
           <input
@@ -235,7 +235,7 @@ export default function AddressAutocomplete({
           />
         </div>
         <div>
-          <label className="block text-[10px] font-bold uppercase tracking-widest text-neutral-400 mb-2">
+          <label className="block text-xs font-bold uppercase tracking-widest text-neutral-400 mb-2">
             Postal Code
           </label>
           <input

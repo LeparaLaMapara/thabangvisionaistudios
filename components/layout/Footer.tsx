@@ -107,7 +107,7 @@ export const Footer = () => {
                 {status === 'error' && (
                   <p className="text-red-500 text-xs font-mono mt-2">{errorMsg}</p>
                 )}
-                <p className="text-[10px] font-mono text-neutral-400 mt-3 leading-relaxed">
+                <p className="text-xs font-mono text-neutral-400 mt-3 leading-relaxed">
                   By subscribing you agree to receive occasional marketing email from us.
                   You can{' '}
                   <Link href="/unsubscribe" className="underline underline-offset-2 hover:text-black dark:hover:text-white transition-colors">

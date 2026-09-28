@@ -11,8 +11,8 @@ interface LoadingSpinnerProps {
 }
 
 const SIZE_CLASSES: Record<SpinnerSize, { ring: string; text: string }> = {
-  sm: { ring: 'w-4 h-4 border-[1.5px]', text: 'text-[9px]' },
-  md: { ring: 'w-6 h-6 border-2', text: 'text-[10px]' },
+  sm: { ring: 'w-4 h-4 border-[1.5px]', text: 'text-xs' },
+  md: { ring: 'w-6 h-6 border-2', text: 'text-xs' },
   lg: { ring: 'w-10 h-10 border-2', text: 'text-xs' },
 };
 

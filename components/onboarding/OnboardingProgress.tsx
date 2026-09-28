@@ -43,7 +43,7 @@ export default function OnboardingProgress({
 
               {/* Label */}
               <p
-                className={`text-[8px] font-mono uppercase tracking-widest mt-2 text-center truncate w-full transition-colors duration-300 ${
+                className={`text-xs font-mono uppercase tracking-widest mt-2 text-center truncate w-full transition-colors duration-300 ${
                   isCurrent
                     ? 'text-[#D4A843]'
                     : isComplete

@@ -54,7 +54,7 @@ export function FlagsTable({ flags }: { flags: FeatureFlag[] }) {
               {flag.description && (
                 <p className="mt-1 text-xs text-neutral-400">{flag.description}</p>
               )}
-              <p className="mt-2 text-[10px] font-mono text-neutral-400 uppercase tracking-widest">
+              <p className="mt-2 text-xs font-mono text-neutral-400 uppercase tracking-widest">
                 Updated {formatDate(flag.updated_at)}
               </p>
             </div>

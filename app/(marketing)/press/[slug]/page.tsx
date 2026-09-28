@@ -65,7 +65,7 @@ export default async function PressArticlePage({ params }: Props) {
 
         {/* Article header */}
         <article className="max-w-3xl">
-          <div className="flex flex-wrap items-center gap-4 text-[10px] font-mono uppercase tracking-widest text-neutral-400 mb-6">
+          <div className="flex flex-wrap items-center gap-4 text-xs font-mono uppercase tracking-widest text-neutral-400 mb-6">
             {article.published_at && <span>{formatDate(article.published_at)}</span>}
             {article.category && (
               <>

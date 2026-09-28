@@ -67,7 +67,7 @@ export default function PlatformSupportPage() {
         {/* Header */}
         <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-16 gap-4">
           <div>
-            <span className="text-[10px] font-mono text-neutral-400 uppercase tracking-widest mb-4 block">
+            <span className="text-xs font-mono text-neutral-400 uppercase tracking-widest mb-4 block">
               00 // Platform Support
             </span>
             <h1 className="text-4xl md:text-6xl font-display font-medium text-white tracking-tighter uppercase">
@@ -81,7 +81,7 @@ export default function PlatformSupportPage() {
           </div>
           <div className="bg-[#D4A843]/10 border border-[#D4A843]/20 px-4 py-2 flex items-center gap-2 shrink-0">
             <div className="w-2 h-2 rounded-full bg-[#D4A843] animate-pulse" />
-            <span className="text-[10px] font-mono font-bold text-[#D4A843] uppercase tracking-widest">
+            <span className="text-xs font-mono font-bold text-[#D4A843] uppercase tracking-widest">
               Listening
             </span>
           </div>
@@ -109,7 +109,7 @@ export default function PlatformSupportPage() {
                 }`}>
                   {type.label}
                 </h3>
-                <p className="text-[10px] font-mono text-neutral-400 leading-relaxed">
+                <p className="text-xs font-mono text-neutral-400 leading-relaxed">
                   {type.desc}
                 </p>
               </button>
@@ -139,7 +139,7 @@ export default function PlatformSupportPage() {
               <form onSubmit={handleSubmit} className="space-y-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div>
-                    <label className="block text-[10px] font-bold uppercase tracking-widest text-neutral-400 mb-2">
+                    <label className="block text-xs font-bold uppercase tracking-widest text-neutral-400 mb-2">
                       Page / Feature
                     </label>
                     <input
@@ -150,7 +150,7 @@ export default function PlatformSupportPage() {
                     />
                   </div>
                   <div>
-                    <label className="block text-[10px] font-bold uppercase tracking-widest text-neutral-400 mb-2">
+                    <label className="block text-xs font-bold uppercase tracking-widest text-neutral-400 mb-2">
                       Device
                     </label>
                     <div className="flex gap-2">
@@ -172,7 +172,7 @@ export default function PlatformSupportPage() {
 
                 {reportType === 'bug' && (
                   <div>
-                    <label className="block text-[10px] font-bold uppercase tracking-widest text-neutral-400 mb-2">
+                    <label className="block text-xs font-bold uppercase tracking-widest text-neutral-400 mb-2">
                       Steps to Reproduce
                     </label>
                     <textarea
@@ -185,7 +185,7 @@ export default function PlatformSupportPage() {
                 )}
 
                 <div>
-                  <label className="block text-[10px] font-bold uppercase tracking-widest text-neutral-400 mb-2">
+                  <label className="block text-xs font-bold uppercase tracking-widest text-neutral-400 mb-2">
                     {reportType === 'feedback' ? 'Your Suggestion' : 'Describe the Issue'}
                   </label>
                   <textarea
@@ -202,7 +202,7 @@ export default function PlatformSupportPage() {
                 </div>
 
                 <div>
-                  <label className="block text-[10px] font-bold uppercase tracking-widest text-neutral-400 mb-2">
+                  <label className="block text-xs font-bold uppercase tracking-widest text-neutral-400 mb-2">
                     Your Email
                   </label>
                   <input

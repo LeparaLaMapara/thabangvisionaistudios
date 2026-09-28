@@ -801,7 +801,7 @@ export default function AdminProjectsPage() {
       {/* ── Header ── */}
       <div className="flex items-center justify-between mb-10">
         <div>
-          <p className="text-[10px] font-mono uppercase tracking-widest text-neutral-400 mb-1">Admin</p>
+          <p className="text-xs font-mono uppercase tracking-widest text-neutral-400 mb-1">Admin</p>
           <h1 className="text-2xl font-display font-medium uppercase text-white">Smart Productions</h1>
         </div>
         <div className="flex items-center gap-3">
@@ -814,7 +814,7 @@ export default function AdminProjectsPage() {
           </button>
           <button
             onClick={openCreate}
-            className="flex items-center gap-2 px-4 py-2 bg-[#D4A843] text-black text-[10px] font-mono font-bold uppercase tracking-widest hover:opacity-80 transition-opacity"
+            className="flex items-center gap-2 px-4 py-2 bg-[#D4A843] text-black text-xs font-mono font-bold uppercase tracking-widest hover:opacity-80 transition-opacity"
           >
             <Plus className="w-3 h-3" /> New Project
           </button>
@@ -934,7 +934,7 @@ export default function AdminProjectsPage() {
                     if (selectedCat) {
                       return (
                         <div className="flex items-end pb-2">
-                          <p className="text-[10px] font-mono text-neutral-400">
+                          <p className="text-xs font-mono text-neutral-400">
                             Category starting rate: <span className="text-[#D4A843]">R{selectedCat.starting_rate.toLocaleString('en-ZA')}/{selectedCat.starting_unit}</span>
                           </p>
                         </div>
@@ -980,17 +980,17 @@ export default function AdminProjectsPage() {
                         {/* Confirm delete */}
                         {!deletingMedia.has('thumbnail') && confirmMedia === 'thumbnail' && (
                           <div className="absolute inset-0 flex flex-col items-center justify-center gap-1.5 bg-black/80">
-                            <p className="text-[9px] font-mono text-white/80 uppercase tracking-widest">Delete?</p>
+                            <p className="text-xs font-mono text-white/80 uppercase tracking-widest">Delete?</p>
                             <div className="flex gap-1.5">
                               <button
                                 onClick={deleteThumbnail}
-                                className="px-2 py-1 text-[9px] font-mono uppercase tracking-widest text-red-400 border border-red-500/40 hover:border-red-400 transition-colors"
+                                className="px-2 py-1 text-xs font-mono uppercase tracking-widest text-red-400 border border-red-500/40 hover:border-red-400 transition-colors"
                               >
                                 Yes
                               </button>
                               <button
                                 onClick={() => setConfirmMedia(null)}
-                                className="px-2 py-1 text-[9px] font-mono text-neutral-400 border border-white/10 hover:border-white/30 transition-colors"
+                                className="px-2 py-1 text-xs font-mono text-neutral-400 border border-white/10 hover:border-white/30 transition-colors"
                               >
                                 No
                               </button>
@@ -1014,7 +1014,7 @@ export default function AdminProjectsPage() {
                       <button
                         onClick={openReCrop}
                         title="Open crop editor"
-                        className="flex items-center gap-1 text-[9px] font-mono uppercase tracking-widest text-neutral-400 hover:text-white transition-colors self-start"
+                        className="flex items-center gap-1 text-xs font-mono uppercase tracking-widest text-neutral-400 hover:text-white transition-colors self-start"
                       >
                         <Crop className="w-2.5 h-2.5" />
                         Crop
@@ -1039,17 +1039,17 @@ export default function AdminProjectsPage() {
                       {thumbUploading ? (
                         <>
                           <Loader2 className="w-4 h-4 animate-spin text-neutral-400" />
-                          <span className="text-[9px] font-mono text-neutral-400">{thumbPct}%</span>
+                          <span className="text-xs font-mono text-neutral-400">{thumbPct}%</span>
                           <div className="w-32 h-0.5 bg-white/10 overflow-hidden">
                             <div className="h-full bg-white transition-all duration-150" style={{ width: `${thumbPct}%` }} />
                           </div>
                         </>
                       ) : thumbDropzone.isDragActive ? (
-                        <span className="text-[9px] font-mono text-white/60 uppercase tracking-widest">Drop here</span>
+                        <span className="text-xs font-mono text-white/60 uppercase tracking-widest">Drop here</span>
                       ) : (
                         <>
                           <ImagePlus className="w-4 h-4 text-neutral-400" />
-                          <span className="text-[9px] font-mono text-neutral-400 uppercase tracking-widest text-center leading-tight px-2">
+                          <span className="text-xs font-mono text-neutral-400 uppercase tracking-widest text-center leading-tight px-2">
                             Drop or click to upload
                           </span>
                         </>
@@ -1058,7 +1058,7 @@ export default function AdminProjectsPage() {
 
                     {/* Fallback button */}
                     <label
-                      className={`flex items-center gap-2 px-4 py-2 bg-neutral-950 border border-white/10 text-[10px] font-mono uppercase tracking-widest transition-colors w-fit ${
+                      className={`flex items-center gap-2 px-4 py-2 bg-neutral-950 border border-white/10 text-xs font-mono uppercase tracking-widest transition-colors w-fit ${
                         thumbUploading
                           ? 'text-neutral-400 cursor-not-allowed'
                           : 'text-neutral-400 hover:text-white hover:border-white/30 cursor-pointer'
@@ -1080,7 +1080,7 @@ export default function AdminProjectsPage() {
                     </label>
 
                     {form.cover_public_id && (
-                      <p className="text-[9px] font-mono text-neutral-400 max-w-[200px] truncate">
+                      <p className="text-xs font-mono text-neutral-400 max-w-[200px] truncate">
                         {form.cover_public_id}
                       </p>
                     )}
@@ -1088,7 +1088,7 @@ export default function AdminProjectsPage() {
                 </div>
 
                 {form.sub_category && (
-                  <p className="text-[9px] font-mono text-neutral-400 mt-3">
+                  <p className="text-xs font-mono text-neutral-400 mt-3">
                     Folder → thabangvision_usecase/media/smartproductions/
                     <span className="text-neutral-400">
                       {form.sub_category.trim().toLowerCase().replace(/\s+/g, '-') || 'general'}
@@ -1127,17 +1127,17 @@ export default function AdminProjectsPage() {
                           {/* Confirm */}
                           {!isDeleting && isConfirming && (
                             <div className="absolute inset-0 flex flex-col items-center justify-center gap-1.5 bg-black/80">
-                              <p className="text-[9px] font-mono text-white/80 uppercase tracking-widest">Delete?</p>
+                              <p className="text-xs font-mono text-white/80 uppercase tracking-widest">Delete?</p>
                               <div className="flex gap-1.5">
                                 <button
                                   onClick={() => deleteGalleryItem(item)}
-                                  className="px-2 py-1 text-[9px] font-mono uppercase tracking-widest text-red-400 border border-red-500/40 hover:border-red-400 transition-colors"
+                                  className="px-2 py-1 text-xs font-mono uppercase tracking-widest text-red-400 border border-red-500/40 hover:border-red-400 transition-colors"
                                 >
                                   Yes
                                 </button>
                                 <button
                                   onClick={() => setConfirmMedia(null)}
-                                  className="px-2 py-1 text-[9px] font-mono text-neutral-400 border border-white/10 hover:border-white/30 transition-colors"
+                                  className="px-2 py-1 text-xs font-mono text-neutral-400 border border-white/10 hover:border-white/30 transition-colors"
                                 >
                                   No
                                 </button>
@@ -1178,7 +1178,7 @@ export default function AdminProjectsPage() {
                     {galUploading ? (
                       <>
                         <Loader2 className="w-5 h-5 animate-spin text-neutral-400" />
-                        <span className="text-[9px] font-mono text-neutral-400 uppercase tracking-widest">
+                        <span className="text-xs font-mono text-neutral-400 uppercase tracking-widest">
                           {galUploaded} / {galTotal} uploaded
                         </span>
                         <div className="w-32 h-0.5 bg-white/10 overflow-hidden">
@@ -1186,14 +1186,14 @@ export default function AdminProjectsPage() {
                         </div>
                       </>
                     ) : galDropzone.isDragActive ? (
-                      <span className="text-[9px] font-mono text-white/60 uppercase tracking-widest">Drop files here</span>
+                      <span className="text-xs font-mono text-white/60 uppercase tracking-widest">Drop files here</span>
                     ) : (
                       <>
                         <Images className="w-5 h-5 text-neutral-400" />
-                        <span className="text-[9px] font-mono text-neutral-400 uppercase tracking-widest text-center">
+                        <span className="text-xs font-mono text-neutral-400 uppercase tracking-widest text-center">
                           Drop images / videos here
                         </span>
-                        <span className="text-[9px] font-mono text-neutral-400 uppercase tracking-widest">
+                        <span className="text-xs font-mono text-neutral-400 uppercase tracking-widest">
                           or click to browse
                         </span>
                       </>
@@ -1202,7 +1202,7 @@ export default function AdminProjectsPage() {
 
                   {/* Fallback button */}
                   <label
-                    className={`flex items-center gap-2 px-4 py-2 bg-neutral-950 border border-white/10 text-[10px] font-mono uppercase tracking-widest transition-colors w-fit ${
+                    className={`flex items-center gap-2 px-4 py-2 bg-neutral-950 border border-white/10 text-xs font-mono uppercase tracking-widest transition-colors w-fit ${
                       galUploading
                         ? 'text-neutral-400 cursor-not-allowed'
                         : 'text-neutral-400 hover:text-white hover:border-white/30 cursor-pointer'
@@ -1230,7 +1230,7 @@ export default function AdminProjectsPage() {
                       type="button"
                       onClick={doExtractMetadata}
                       disabled={extracting || galUploading}
-                      className={`flex items-center gap-2 px-4 py-2 bg-neutral-950 border border-white/10 text-[10px] font-mono uppercase tracking-widest transition-colors w-fit ${
+                      className={`flex items-center gap-2 px-4 py-2 bg-neutral-950 border border-white/10 text-xs font-mono uppercase tracking-widest transition-colors w-fit ${
                         extracting
                           ? 'text-neutral-400 cursor-not-allowed'
                           : 'text-amber-400 hover:text-amber-300 hover:border-amber-500/30 cursor-pointer'
@@ -1249,19 +1249,19 @@ export default function AdminProjectsPage() {
                 {form.image_metadata.length > 0 && (
                   <div className="mt-4 border border-white/5 bg-neutral-950 p-4 space-y-2">
                     <div className="flex items-center justify-between mb-2">
-                      <p className="text-[9px] font-mono uppercase tracking-widest text-amber-400">
+                      <p className="text-xs font-mono uppercase tracking-widest text-amber-400">
                         EXIF Data ({form.image_metadata.length} image{form.image_metadata.length !== 1 ? 's' : ''})
                       </p>
                       <button
                         type="button"
                         onClick={() => setForm(f => ({ ...f, image_metadata: [] }))}
-                        className="text-[9px] font-mono text-neutral-400 hover:text-red-400 transition-colors uppercase tracking-widest"
+                        className="text-xs font-mono text-neutral-400 hover:text-red-400 transition-colors uppercase tracking-widest"
                       >
                         Clear
                       </button>
                     </div>
                     {form.image_metadata.slice(0, 5).map((meta, i) => (
-                      <div key={i} className="text-[10px] font-mono text-neutral-400 flex flex-wrap gap-x-4 gap-y-0.5">
+                      <div key={i} className="text-xs font-mono text-neutral-400 flex flex-wrap gap-x-4 gap-y-0.5">
                         {meta.camera && <span className="text-white">{meta.camera}</span>}
                         {meta.lens && <span>{meta.lens}</span>}
                         {meta.focalLength && <span>{meta.focalLength}mm</span>}
@@ -1272,7 +1272,7 @@ export default function AdminProjectsPage() {
                       </div>
                     ))}
                     {form.image_metadata.length > 5 && (
-                      <p className="text-[9px] font-mono text-neutral-400">
+                      <p className="text-xs font-mono text-neutral-400">
                         +{form.image_metadata.length - 5} more...
                       </p>
                     )}
@@ -1342,7 +1342,7 @@ export default function AdminProjectsPage() {
 
               {/* Upload-in-progress notice */}
               {isUploading && (
-                <p className="text-[10px] font-mono text-amber-400/80 uppercase tracking-widest">
+                <p className="text-xs font-mono text-amber-400/80 uppercase tracking-widest">
                   Upload in progress — save will be available when complete.
                 </p>
               )}
@@ -1352,7 +1352,7 @@ export default function AdminProjectsPage() {
                 <button
                   onClick={save}
                   disabled={saving || isUploading}
-                  className="flex items-center gap-2 px-5 py-2.5 bg-[#D4A843] text-black text-[10px] font-mono font-bold uppercase tracking-widest hover:opacity-80 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed"
+                  className="flex items-center gap-2 px-5 py-2.5 bg-[#D4A843] text-black text-xs font-mono font-bold uppercase tracking-widest hover:opacity-80 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   {saving && <Loader2 className="w-3 h-3 animate-spin" />}
                   {saving ? 'Saving…' : 'Save'}
@@ -1360,7 +1360,7 @@ export default function AdminProjectsPage() {
                 <button
                   onClick={closeForm}
                   disabled={saving}
-                  className="px-5 py-2.5 border border-white/20 text-[10px] font-mono uppercase tracking-widest text-neutral-400 hover:text-white hover:border-white/40 transition-colors disabled:opacity-40"
+                  className="px-5 py-2.5 border border-white/20 text-xs font-mono uppercase tracking-widest text-neutral-400 hover:text-white hover:border-white/40 transition-colors disabled:opacity-40"
                 >
                   Cancel
                 </button>
@@ -1393,7 +1393,7 @@ export default function AdminProjectsPage() {
           <p className="text-red-400 font-mono text-sm mb-4">{fetchError}</p>
           <button
             onClick={load}
-            className="text-[10px] font-mono uppercase tracking-widest text-neutral-400 hover:text-white transition-colors"
+            className="text-xs font-mono uppercase tracking-widest text-neutral-400 hover:text-white transition-colors"
           >
             Retry
           </button>
@@ -1403,7 +1403,7 @@ export default function AdminProjectsPage() {
           <p className="text-neutral-400 font-mono text-sm mb-4">No projects yet.</p>
           <button
             onClick={openCreate}
-            className="text-[10px] font-mono uppercase tracking-widest text-neutral-400 hover:text-white transition-colors"
+            className="text-xs font-mono uppercase tracking-widest text-neutral-400 hover:text-white transition-colors"
           >
             Create the first one →
           </button>
@@ -1411,7 +1411,7 @@ export default function AdminProjectsPage() {
       ) : (
         <>
           {/* Column header */}
-          <div className="hidden md:grid grid-cols-[40px_1fr_100px_80px_64px_90px_40px_160px] gap-4 px-4 py-3 text-[9px] font-mono uppercase tracking-widest text-neutral-400 border-b border-white/5">
+          <div className="hidden md:grid grid-cols-[40px_1fr_100px_80px_64px_90px_40px_160px] gap-4 px-4 py-3 text-xs font-mono uppercase tracking-widest text-neutral-400 border-b border-white/5">
             <span></span>
             <span>Title</span>
             <span>Category</span>
@@ -1455,22 +1455,22 @@ export default function AdminProjectsPage() {
                     <div className="min-w-0">
                       <p className="text-sm font-mono text-white truncate leading-tight">{item.title}</p>
                       {item.client && (
-                        <p className="text-[10px] font-mono text-neutral-400 mt-0.5 truncate">{item.client}</p>
+                        <p className="text-xs font-mono text-neutral-400 mt-0.5 truncate">{item.client}</p>
                       )}
                     </div>
 
                     {/* Category */}
-                    <span className="hidden md:block text-[10px] font-mono uppercase tracking-widest text-neutral-400 truncate">
+                    <span className="hidden md:block text-xs font-mono uppercase tracking-widest text-neutral-400 truncate">
                       {categories.find(c => c.id === item.production_category_id)?.name ?? item.project_type}
                     </span>
 
                     {/* Price */}
-                    <span className="hidden md:block text-[10px] font-mono text-[#D4A843]">
+                    <span className="hidden md:block text-xs font-mono text-[#D4A843]">
                       {item.price != null ? `R${item.price.toLocaleString('en-ZA')}` : '—'}
                     </span>
 
                     {/* Year */}
-                    <span className="hidden md:block text-[10px] font-mono text-neutral-400">
+                    <span className="hidden md:block text-xs font-mono text-neutral-400">
                       {item.year ?? '—'}
                     </span>
 
@@ -1481,7 +1481,7 @@ export default function AdminProjectsPage() {
                           item.is_published ? 'bg-emerald-400' : 'bg-neutral-600'
                         }`}
                       />
-                      <span className="text-[9px] font-mono uppercase tracking-wider text-neutral-400">
+                      <span className="text-xs font-mono uppercase tracking-wider text-neutral-400">
                         {item.is_published ? 'Live' : 'Draft'}
                       </span>
                     </div>
@@ -1515,7 +1515,7 @@ export default function AdminProjectsPage() {
                           <button
                             onClick={() => remove(item.id)}
                             disabled={deletingId === item.id}
-                            className="px-2 py-1 text-[9px] font-mono uppercase tracking-widest text-red-400 border border-red-500/40 hover:border-red-400 transition-colors disabled:opacity-40"
+                            className="px-2 py-1 text-xs font-mono uppercase tracking-widest text-red-400 border border-red-500/40 hover:border-red-400 transition-colors disabled:opacity-40"
                           >
                             {deletingId === item.id
                               ? <Loader2 className="w-3 h-3 animate-spin" />
@@ -1523,7 +1523,7 @@ export default function AdminProjectsPage() {
                           </button>
                           <button
                             onClick={() => setConfirmId(null)}
-                            className="px-2 py-1 text-[9px] font-mono text-neutral-400 border border-white/10 hover:border-white/30 transition-colors"
+                            className="px-2 py-1 text-xs font-mono text-neutral-400 border border-white/10 hover:border-white/30 transition-colors"
                           >
                             ✕
                           </button>
@@ -1545,7 +1545,7 @@ export default function AdminProjectsPage() {
             </AnimatePresence>
           </motion.div>
 
-          <p className="text-[9px] font-mono text-neutral-400 uppercase tracking-widest mt-6 text-right">
+          <p className="text-xs font-mono text-neutral-400 uppercase tracking-widest mt-6 text-right">
             {items.length} project{items.length !== 1 ? 's' : ''}
           </p>
         </>
@@ -1560,7 +1560,7 @@ export default function AdminProjectsPage() {
           <div className="flex items-center gap-3">
             <Crop className="w-4 h-4 text-neutral-400" />
             <h3 className="text-xs font-mono uppercase tracking-widest text-white">Crop Thumbnail</h3>
-            <span className="text-[10px] font-mono text-neutral-400 uppercase tracking-widest">3 : 2</span>
+            <span className="text-xs font-mono text-neutral-400 uppercase tracking-widest">3 : 2</span>
           </div>
           <button
             onClick={skipCrop}
@@ -1586,7 +1586,7 @@ export default function AdminProjectsPage() {
 
         {/* Zoom + actions */}
         <div className="flex-shrink-0 flex items-center gap-4 px-6 py-4 border-t border-white/10 bg-black">
-          <span className="text-[10px] font-mono text-neutral-400 uppercase tracking-widest w-10 flex-shrink-0">
+          <span className="text-xs font-mono text-neutral-400 uppercase tracking-widest w-10 flex-shrink-0">
             Zoom
           </span>
           <input
@@ -1601,13 +1601,13 @@ export default function AdminProjectsPage() {
           <div className="flex gap-2 ml-4 flex-shrink-0">
             <button
               onClick={skipCrop}
-              className="px-4 py-2 border border-white/20 text-[10px] font-mono uppercase tracking-widest text-neutral-400 hover:text-white hover:border-white/40 transition-colors"
+              className="px-4 py-2 border border-white/20 text-xs font-mono uppercase tracking-widest text-neutral-400 hover:text-white hover:border-white/40 transition-colors"
             >
               Skip
             </button>
             <button
               onClick={() => void applyCropFromModal()}
-              className="px-4 py-2 bg-[#D4A843] text-black text-[10px] font-mono font-bold uppercase tracking-widest hover:opacity-80 transition-opacity"
+              className="px-4 py-2 bg-[#D4A843] text-black text-xs font-mono font-bold uppercase tracking-widest hover:opacity-80 transition-opacity"
             >
               Apply Crop
             </button>
@@ -1625,7 +1625,7 @@ export default function AdminProjectsPage() {
 function Section({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
-      <p className="text-[9px] font-mono uppercase tracking-widest text-neutral-400 mb-3 pb-2 border-b border-white/5">
+      <p className="text-xs font-mono uppercase tracking-widest text-neutral-400 mb-3 pb-2 border-b border-white/5">
         {label}
       </p>
       {children}
@@ -1653,7 +1653,7 @@ function Field({
   return (
     <div>
       {label && (
-        <label className="block text-[10px] font-mono uppercase tracking-widest text-neutral-400 mb-2">
+        <label className="block text-xs font-mono uppercase tracking-widest text-neutral-400 mb-2">
           {label}
         </label>
       )}
@@ -1706,7 +1706,7 @@ function SelectField({
 }) {
   return (
     <div>
-      <label className="block text-[10px] font-mono uppercase tracking-widest text-neutral-400 mb-2">
+      <label className="block text-xs font-mono uppercase tracking-widest text-neutral-400 mb-2">
         {label}
       </label>
       <select
@@ -1734,7 +1734,7 @@ function CheckboxField({
   onChange: (v: boolean) => void;
 }) {
   return (
-    <label className="flex items-center gap-2 text-[10px] font-mono uppercase tracking-widest text-neutral-400 cursor-pointer select-none">
+    <label className="flex items-center gap-2 text-xs font-mono uppercase tracking-widest text-neutral-400 cursor-pointer select-none">
       <input
         type="checkbox"
         checked={checked}

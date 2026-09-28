@@ -70,7 +70,7 @@ export default function NotificationBell() {
       >
         <Bell className="w-4 h-4" />
         {unreadCount > 0 && (
-          <span className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-red-500 text-white text-[8px] font-mono rounded-full flex items-center justify-center">
+          <span className="absolute -top-0.5 -right-0.5 min-w-5 h-5 px-1 bg-red-500 text-white text-xs leading-none font-mono rounded-full flex items-center justify-center">
             {unreadCount > 9 ? '9+' : unreadCount}
           </span>
         )}
@@ -79,13 +79,13 @@ export default function NotificationBell() {
       {isOpen && (
         <div className="absolute right-0 top-full mt-2 w-80 bg-[#0A0A0B] border border-white/10 shadow-xl z-50 max-h-96 overflow-y-auto">
           <div className="flex items-center justify-between px-4 py-3 border-b border-white/5">
-            <span className="text-[10px] font-mono uppercase tracking-widest text-neutral-400">
+            <span className="text-xs font-mono uppercase tracking-widest text-neutral-400">
               Notifications
             </span>
             {unreadCount > 0 && (
               <button
                 onClick={markAllRead}
-                className="text-[9px] font-mono uppercase tracking-widest text-[#D4A843] hover:text-[#E5B954]"
+                className="text-xs font-mono uppercase tracking-widest text-[#D4A843] hover:text-[#E5B954]"
               >
                 Mark all read
               </button>
@@ -115,8 +115,8 @@ export default function NotificationBell() {
                   )}
                   <div className={!n.is_read ? '' : 'ml-3.5'}>
                     <p className="text-xs font-mono text-white">{n.title}</p>
-                    <p className="text-[10px] font-mono text-neutral-400 mt-0.5 line-clamp-2">{n.body}</p>
-                    <p className="text-[9px] font-mono text-neutral-400 mt-1">
+                    <p className="text-xs font-mono text-neutral-400 mt-0.5 line-clamp-2">{n.body}</p>
+                    <p className="text-xs font-mono text-neutral-400 mt-1">
                       {new Date(n.created_at).toLocaleDateString('en-ZA', {
                         day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit',
                       })}
@@ -130,7 +130,7 @@ export default function NotificationBell() {
           {notifications.length > 0 && (
             <Link
               href="/dashboard/notifications"
-              className="block px-4 py-3 text-center text-[10px] font-mono uppercase tracking-widest text-neutral-400 hover:text-white transition-colors"
+              className="block px-4 py-3 text-center text-xs font-mono uppercase tracking-widest text-neutral-400 hover:text-white transition-colors"
               onClick={() => setIsOpen(false)}
             >
               View All

@@ -38,7 +38,7 @@ export default function ContactPage() {
 
         {/* Header */}
         <div className="max-w-4xl mb-20">
-          <span className="text-[10px] font-mono text-[#D4A843] uppercase tracking-[0.3em] mb-4 block">Get In Touch</span>
+          <span className="text-xs font-mono text-[#D4A843] uppercase tracking-[0.3em] mb-4 block">Get In Touch</span>
           <h1 className="text-5xl md:text-8xl font-display font-medium text-white tracking-tighter uppercase mb-8 leading-[0.9]">
             Contact <span className="text-neutral-400">Us</span>
           </h1>
@@ -89,7 +89,7 @@ export default function ContactPage() {
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                   <div className="space-y-2">
-                    <label className="text-[10px] font-mono font-bold uppercase tracking-widest text-neutral-400">Name</label>
+                    <label className="text-xs font-mono font-bold uppercase tracking-widest text-neutral-400">Name</label>
                     <input
                       type="text"
                       required
@@ -100,7 +100,7 @@ export default function ContactPage() {
                     />
                   </div>
                   <div className="space-y-2">
-                    <label className="text-[10px] font-mono font-bold uppercase tracking-widest text-neutral-400">Email</label>
+                    <label className="text-xs font-mono font-bold uppercase tracking-widest text-neutral-400">Email</label>
                     <input
                       type="email"
                       required
@@ -113,7 +113,7 @@ export default function ContactPage() {
                 </div>
 
                 <div className="space-y-2">
-                  <label className="text-[10px] font-mono font-bold uppercase tracking-widest text-neutral-400">Subject</label>
+                  <label className="text-xs font-mono font-bold uppercase tracking-widest text-neutral-400">Subject</label>
                   <select
                     className="w-full bg-transparent border-b border-white/20 py-4 text-white focus:border-[#D4A843] outline-none transition-colors font-mono text-sm uppercase appearance-none"
                     value={formState.subject}
@@ -128,7 +128,7 @@ export default function ContactPage() {
                 </div>
 
                 <div className="space-y-2">
-                  <label className="text-[10px] font-mono font-bold uppercase tracking-widest text-neutral-400">Message</label>
+                  <label className="text-xs font-mono font-bold uppercase tracking-widest text-neutral-400">Message</label>
                   <textarea
                     required
                     rows={6}

@@ -142,7 +142,7 @@ export default function BookingsPage() {
                       year: 'numeric',
                     })}
                   </p>
-                  <span className="text-[10px] font-mono uppercase tracking-widest text-neutral-400 flex items-center gap-1">
+                  <span className="text-xs font-mono uppercase tracking-widest text-neutral-400 flex items-center gap-1">
                     <Eye className="w-3 h-3" />
                     Details
                   </span>

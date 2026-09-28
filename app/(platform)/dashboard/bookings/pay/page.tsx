@@ -132,7 +132,7 @@ export default function InlinePayPage() {
       <div className="w-full max-w-md">
         <Link
           href="/dashboard/bookings"
-          className="inline-flex items-center gap-2 text-[10px] font-mono uppercase tracking-widest text-neutral-400 hover:text-white transition-colors mb-8"
+          className="inline-flex items-center gap-2 text-xs font-mono uppercase tracking-widest text-neutral-400 hover:text-white transition-colors mb-8"
         >
           <ArrowLeft className="w-3 h-3" />
           Back to Bookings
@@ -156,11 +156,11 @@ export default function InlinePayPage() {
                 <p className="text-2xl font-display font-bold text-[#D4A843]">
                   R{booking.total.toLocaleString('en-ZA')}
                 </p>
-                <p className="text-[10px] font-mono text-neutral-400 mt-2">
+                <p className="text-xs font-mono text-neutral-400 mt-2">
                   Ref: {booking.reference}
                 </p>
               </div>
-              <p className="text-[10px] font-mono text-neutral-400 mt-2">
+              <p className="text-xs font-mono text-neutral-400 mt-2">
                 {state === 'paying' ? 'Complete payment in the popup...' : 'Opening payment...'}
               </p>
             </div>
@@ -177,7 +177,7 @@ export default function InlinePayPage() {
               </div>
               <button
                 onClick={() => router.push('/dashboard/bookings')}
-                className="mt-4 w-full py-3 text-[10px] font-mono font-bold uppercase tracking-widest bg-[#D4A843] text-black border border-[#D4A843] hover:opacity-80 transition-all"
+                className="mt-4 w-full py-3 text-xs font-mono font-bold uppercase tracking-widest bg-[#D4A843] text-black border border-[#D4A843] hover:opacity-80 transition-all"
               >
                 View My Bookings
               </button>
@@ -198,7 +198,7 @@ export default function InlinePayPage() {
                   popupOpened.current = false;
                   openPaystack();
                 }}
-                className="mt-4 w-full py-3 text-[10px] font-mono font-bold uppercase tracking-widest bg-[#D4A843] text-black border border-[#D4A843] hover:opacity-80 transition-all"
+                className="mt-4 w-full py-3 text-xs font-mono font-bold uppercase tracking-widest bg-[#D4A843] text-black border border-[#D4A843] hover:opacity-80 transition-all"
               >
                 Retry Payment
               </button>
@@ -214,7 +214,7 @@ export default function InlinePayPage() {
               </div>
               <button
                 onClick={() => router.push('/dashboard/bookings')}
-                className="mt-4 w-full py-3 text-[10px] font-mono font-bold uppercase tracking-widest bg-white/5 text-white border border-white/10 hover:border-white/20 transition-all"
+                className="mt-4 w-full py-3 text-xs font-mono font-bold uppercase tracking-widest bg-white/5 text-white border border-white/10 hover:border-white/20 transition-all"
               >
                 Back to Bookings
               </button>

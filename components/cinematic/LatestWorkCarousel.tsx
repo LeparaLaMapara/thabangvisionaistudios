@@ -125,7 +125,7 @@ export function LatestWorkCarousel({ items }: { items: CarouselItem[] }) {
       {/* Header */}
       <div className="container mx-auto px-6 mb-16 flex justify-between items-end">
         <div>
-          <span className="text-[10px] font-mono text-neutral-400 dark:text-accent uppercase tracking-widest mb-4 block">
+          <span className="text-xs font-mono text-neutral-400 dark:text-accent uppercase tracking-widest mb-4 block">
             01 // Showcase
           </span>
           <h2 className="text-4xl md:text-5xl font-display font-medium text-black dark:text-white uppercase">
@@ -240,14 +240,14 @@ const CarouselCard = memo(function CarouselCard({
     >
       <div className="relative overflow-hidden mb-6 bg-neutral-200 dark:bg-neutral-900 border border-black/5 dark:border-white/10 w-full h-[200px] md:h-[260px]">
         <div className="absolute top-4 left-4 z-30 flex gap-2">
-          <span className="flex items-center gap-1.5 text-[9px] font-mono bg-white/90 dark:bg-black/80 text-black dark:text-white border border-black/10 dark:border-white/20 px-2 py-1 uppercase tracking-wider backdrop-blur-md">
+          <span className="flex items-center gap-1.5 text-xs font-mono bg-white/90 dark:bg-black/80 text-black dark:text-white border border-black/10 dark:border-white/20 px-2 py-1 uppercase tracking-wider backdrop-blur-md">
             <Icon className="w-2.5 h-2.5" />
             {config.label}
           </span>
           {item.tags.slice(0, 2).map(tag => (
             <span
               key={tag}
-              className="text-[9px] font-mono bg-white/90 dark:bg-black/80 text-black dark:text-white border border-black/10 dark:border-white/20 px-2 py-1 uppercase tracking-wider backdrop-blur-md"
+              className="text-xs font-mono bg-white/90 dark:bg-black/80 text-black dark:text-white border border-black/10 dark:border-white/20 px-2 py-1 uppercase tracking-wider backdrop-blur-md"
             >
               {tag}
             </span>

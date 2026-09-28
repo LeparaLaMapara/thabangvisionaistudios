@@ -20,7 +20,7 @@ export function Badge({ children, variant = 'default', className = '' }: BadgePr
     <span
       className={[
         'inline-block',
-        'text-[9px] font-mono uppercase tracking-widest',
+        'text-xs font-mono uppercase tracking-widest',
         'px-2 py-0.5',
         VARIANT_CLASSES[variant],
         className,
