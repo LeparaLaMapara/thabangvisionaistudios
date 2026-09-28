@@ -5,7 +5,14 @@ import { payments } from '@/lib/payments';
 import { email as emailProvider } from '@/lib/email';
 import { escapeIlike } from '@/lib/search/types';
 import { getHourlyRate } from '@/lib/supabase/queries/service-bookings';
-import { splitServiceBooking } from '@/lib/bookings/pricing';
+import { quoteHourly, quotePackage, splitServiceBooking } from '@/lib/bookings/pricing';
+import { getBookablePackage } from '@/lib/bookings/packages';
+import { reportUnpaidRequest, PAYMENTS_OFF_MESSAGE } from '@/lib/payments/offline';
+import { addToCart } from '@/lib/supabase/queries/cart';
+import { shootTimeline } from '@/lib/bookings/timeline';
+import { checkProtection, itemValue } from '@/lib/rental/protection';
+import { loadRenterRecord } from '@/lib/rental/protection-server';
+import { meetsLeadTime, leadTimeMessage } from '@/lib/rental/leadTime';
 import { logEvent } from '@/lib/data/events';
 import { markConversion } from '@/lib/data/chat-history';
 import { createAdminClient } from '@/lib/supabase/server';
@@ -230,6 +237,7 @@ export function createBookingTools(
           project_category: { type: 'string', description: 'The project category used in the quote (e.g. Wedding Photography, Music Video)' },
           project_description: { type: 'string', description: 'What the client needs — min 20 characters' },
           deliverables: { type: 'string', description: 'What the client will receive (e.g. edited photos, highlight video)' },
+          package_id: { type: 'string', description: 'A studio package id (from the PACKAGES list) when the client chose a package; its fixed price is used instead of the hourly rate' },
           duration_hours: { type: 'number', description: 'Number of hours (must match the quote)' },
           location: { type: 'string', description: 'Where the shoot will happen' },
           preferred_dates: { type: 'string', description: 'When the client needs the work done' },
@@ -239,7 +247,18 @@ export function createBookingTools(
       execute: async (params: {
         creator_id?: string; project_category: string; project_description: string;
         deliverables: string; duration_hours: number; location?: string; preferred_dates?: string;
+        package_id?: string;
       }) => {
+        // A studio package is booked at its own fixed price, exactly as the /book form does.
+        const pkg = params.package_id ? await getBookablePackage(supabase, params.package_id) : null;
+        if (params.package_id && !pkg) {
+          return { error: 'That package is not available to book. Show the client the current packages.' };
+        }
+        if (pkg) {
+          params.project_category = pkg.title;
+          params.creator_id = pkg.creatorId ?? params.creator_id;
+          if (pkg.priceUnit !== 'hour') params.duration_hours = pkg.hours ?? STUDIO.booking.minBookingHours;
+        }
         if (!isAuthenticated) {
           return { error: 'You must be signed in to book. Please sign in at /login or register at /register first.' };
         }
@@ -263,11 +282,11 @@ export function createBookingTools(
           return { error: 'You cannot book yourself as a creator.' };
         }
 
-        // Calculate pricing
-        const hourlyRate = getHourlyRate(params.project_category);
-        const subtotal = Math.round(hourlyRate * params.duration_hours);
-        const vat = Math.round(subtotal * (STUDIO.booking.vatRate / 100));
-        const total = subtotal + vat;
+        // Calculate pricing: the package's own price, or the hourly rate.
+        const quote = pkg
+          ? quotePackage(pkg.price, pkg.priceUnit, params.duration_hours, STUDIO.booking.vatRate)
+          : quoteHourly(getHourlyRate(params.project_category), params.duration_hours, STUDIO.booking.vatRate);
+        const { subtotal, vat, total } = quote;
         const { platformAmount, creatorAmount } = splitServiceBooking({ subtotal }, STUDIO.booking.platformCommission);
 
         const reference = `BK-${nanoid(10)}`;
@@ -305,12 +324,21 @@ export function createBookingTools(
 
           // Create Paystack payment
           if (!payments.isConfigured()) {
+            reportUnpaidRequest({
+              kind: 'service',
+              reference,
+              userId: user.id,
+              userEmail: user.email,
+              amount: total,
+              summary: `${params.project_category} (via Ubunye)`,
+            });
             return {
               success: true,
               booking_reference: reference,
               total_zar: total,
-              message: `Booking ${reference} created (R${total}). Payment provider not configured — contact admin at ${STUDIO.email}.`,
-              dashboard_url: '/dashboard/bookings',
+              payments_offline: true,
+              message: `Request ${reference} saved (R${total}). ${PAYMENTS_OFF_MESSAGE}`,
+              dashboard_url: '/dashboard/bookings?payment=offline',
             };
           }
 
@@ -447,6 +475,129 @@ export function createBookingTools(
           ...(isAvailable
             ? { message: `Available for the requested dates. Total: R${totalPrice} + R${rental.deposit_amount} deposit.` }
             : { message: 'Not available for the requested dates. All units are booked during this period.' }),
+        };
+      },
+    },
+
+    add_gear_to_cart: {
+      description:
+        'Reserve camera gear for the client by putting it in their cart with their dates, after checking it is free. Use when the client says they want to rent an item for specific dates. Returns the cart link where they pay in one step.',
+      inputSchema: jsonSchema({
+        type: 'object' as const,
+        properties: {
+          rental_id: { type: 'string', description: 'The smart_rental UUID' },
+          start_date: { type: 'string', description: 'First hire day, YYYY-MM-DD' },
+          end_date: { type: 'string', description: 'Return day, YYYY-MM-DD' },
+          quantity: { type: 'number', description: 'How many units, default 1' },
+        },
+        required: ['rental_id', 'start_date', 'end_date'],
+      }),
+      execute: async ({ rental_id, start_date, end_date, quantity }: {
+        rental_id: string; start_date: string; end_date: string; quantity?: number;
+      }) => {
+        if (!isAuthenticated) {
+          return { error: 'The client must sign in first (/login or /register), then I can reserve it.' };
+        }
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return { error: 'Session expired. Please sign in again at /login.' };
+
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(start_date) || !/^\d{4}-\d{2}-\d{2}$/.test(end_date) || end_date <= start_date) {
+          return { error: 'Use two dates, YYYY-MM-DD, with the return day after the first hire day.' };
+        }
+        if (!meetsLeadTime(start_date, new Date())) {
+          return { error: leadTimeMessage(new Date()) };
+        }
+
+        const { data: rental } = await supabase
+          .from('smart_rentals')
+          .select('id, title, slug, category, quantity, is_available, deposit_amount, replacement_value')
+          .eq('id', rental_id)
+          .eq('is_published', true)
+          .is('deleted_at', null)
+          .maybeSingle();
+        if (!rental || !rental.is_available) return { error: 'That item is not available to rent.' };
+
+        const qty = Math.max(1, Math.min(Math.floor(quantity ?? 1), rental.quantity ?? 1));
+        const { data: overlapping } = await admin()
+          .from('equipment_bookings')
+          .select('quantity')
+          .eq('rental_id', rental_id)
+          .in('status', ['confirmed', 'active', 'overdue'])
+          .lt('start_date', end_date)
+          .gt('end_date', start_date);
+        const taken = (overlapping ?? []).reduce((n: number, b: { quantity: number | null }) => n + (b.quantity ?? 1), 0);
+        if (taken + qty > (rental.quantity ?? 1)) {
+          return { available: false, message: `${rental.title} is already booked for those dates. Suggest other dates or a similar item.` };
+        }
+
+        // Tell them now if the renter limit would stop them at checkout.
+        const record = await loadRenterRecord(admin(), user.id);
+        const protection = checkProtection({ ...record, orderValue: itemValue(rental) * qty, delivery: false });
+        if (!protection.ok) return { error: protection.message };
+
+        const item = await addToCart(user.id, rental_id, qty, start_date, end_date);
+        if (!item) return { error: 'Could not add it to the cart. Try again.' };
+
+        logEvent({ eventType: 'cart_added', eventCategory: 'booking', userId: user.id, metadata: { rental_id, start_date, end_date, qty, source: 'ubunye' } });
+        const { data: profile } = await supabase.from('profiles').select('verification_status').eq('id', user.id).maybeSingle();
+        const idNeeded = profile?.verification_status !== 'verified';
+        return {
+          success: true,
+          item: rental.title,
+          dates: { start: start_date, end: end_date },
+          quantity: qty,
+          cart_url: '/dashboard/cart',
+          id_check_needed: idNeeded,
+          message: idNeeded
+            ? `${rental.title} is in your cart for ${start_date} to ${end_date}. Before paying, do the one-time ID check at /dashboard/verification (${STUDIO.verification.reviewTime}).`
+            : `${rental.title} is in your cart for ${start_date} to ${end_date}. Pay at /dashboard/cart to lock it in.`,
+        };
+      },
+    },
+
+    my_bookings: {
+      description:
+        "Show the signed-in client's bookings (gear and creators) with where each one stands and the next step. Use when they ask about their booking, payment, delivery or refund.",
+      inputSchema: jsonSchema({ type: 'object' as const, properties: {} }),
+      execute: async () => {
+        if (!isAuthenticated) return { error: 'Please sign in to see your bookings.' };
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return { error: 'Session expired. Please sign in again at /login.' };
+
+        const [{ data: services }, { data: gear }] = await Promise.all([
+          supabase
+            .from('bookings')
+            .select('reference, project_category, status, payment_status, total, created_at, paid_at, accepted_at, arrived_at, delivered_at, completed_at, payout_status, client_rating, shoot_date')
+            .eq('client_id', user.id)
+            .order('created_at', { ascending: false })
+            .limit(5),
+          supabase
+            .from('equipment_bookings')
+            .select('id, status, start_date, end_date, total_price, created_at, smart_rentals(title)')
+            .eq('user_id', user.id)
+            .order('created_at', { ascending: false })
+            .limit(5),
+        ]);
+
+        return {
+          creator_bookings: (services ?? []).map((b: Parameters<typeof shootTimeline>[0] & { reference: string; project_category: string; total: number; shoot_date: string | null }) => {
+            const next = shootTimeline(b, 'client').find((s) => s.state === 'current');
+            return {
+              reference: b.reference,
+              what: b.project_category,
+              shoot_date: b.shoot_date,
+              total_zar: b.total,
+              status: b.status,
+              next_step: next ? `${next.label}: ${next.detail}` : b.status === 'cancelled' ? 'Cancelled' : 'All done',
+            };
+          }),
+          gear_bookings: (gear ?? []).map((g: { id: string; status: string; start_date: string; end_date: string; total_price: number; smart_rentals: { title: string } | { title: string }[] | null }) => ({
+            item: (Array.isArray(g.smart_rentals) ? g.smart_rentals[0]?.title : g.smart_rentals?.title) ?? 'Equipment',
+            dates: `${g.start_date} to ${g.end_date}`,
+            status: g.status,
+            link: `/dashboard/bookings/${g.id}`,
+          })),
+          dashboard_url: '/dashboard/bookings',
         };
       },
     },
