@@ -3,7 +3,7 @@ export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin, rateLimitAdmin } from '@/lib/auth';
 import { createAdminClient } from '@/lib/supabase/server';
-import { refundPayment } from '@/lib/payments/paystack';
+import { refundPayment } from '@/lib/payments/routing';
 
 type DepositAction = 'full_release' | 'partial_release' | 'no_release' | 'dispute';
 

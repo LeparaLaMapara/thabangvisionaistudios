@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/server';
-import { payments, type WebhookResult } from '@/lib/payments';
+import type { WebhookResult } from '@/lib/payments';
+import { payfast } from '@/lib/payments/payfast';
 import { STUDIO } from '@/lib/constants';
 
 export const dynamic = 'force-dynamic';
@@ -331,7 +332,7 @@ async function handlePaymentPending(webhook: WebhookResult) {
 // ─── POST handler (receives webhook from payment provider) ───────────────────
 
 export async function POST(request: NextRequest) {
-  if (!payments.isConfigured()) {
+  if (!payfast.isConfigured()) {
     return NextResponse.json(
       { error: 'Payment provider is not configured' },
       { status: 503 },
@@ -343,7 +344,7 @@ export async function POST(request: NextRequest) {
   const ip = forwardedFor?.split(',')[0]?.trim() ?? '';
   const body = await request.text();
 
-  const webhook = await payments.validateWebhook({
+  const webhook = await payfast.validateWebhook({
     ip,
     body,
     headers: Object.fromEntries(request.headers.entries()),

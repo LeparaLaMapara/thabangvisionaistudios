@@ -5,7 +5,7 @@ import { requireAdmin, rateLimitAdmin } from '@/lib/auth';
 import { createAdminClient } from '@/lib/supabase/server';
 import { email as emailProvider } from '@/lib/email';
 import { STUDIO } from '@/lib/constants';
-import { refundPayment } from '@/lib/payments/paystack';
+import { refundPayment } from '@/lib/payments/routing';
 
 // ─── PATCH — Admin update booking (assign creator, cancel, add notes) ───────
 

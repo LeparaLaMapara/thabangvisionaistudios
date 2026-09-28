@@ -22,6 +22,10 @@ export const payfast: PaymentProvider = {
 
   allowedHosts: ['sandbox.payfast.co.za', 'www.payfast.co.za'],
 
+  async refund(): Promise<{ success: boolean; error?: string }> {
+    return { success: false, error: 'PayFast refunds are made in the PayFast dashboard' };
+  },
+
   isConfigured() {
     return isPayFastConfigured();
   },

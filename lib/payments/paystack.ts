@@ -128,6 +128,8 @@ export const paystack: PaymentProvider = {
 
   allowedHosts: ['checkout.paystack.com'],
 
+  refund: (reference: string, amount?: number) => refundPayment(reference, amount),
+
   isConfigured(): boolean {
     return !!(
       process.env.PAYSTACK_SECRET_KEY &&

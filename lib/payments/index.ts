@@ -1,6 +1,7 @@
 import type { PaymentProvider } from './types';
 import { payfast } from './payfast';
 import { paystack } from './paystack';
+import { yoco } from './yoco';
 
 // Re-export types for convenience
 export type {
@@ -17,6 +18,7 @@ export type {
 const providers: Record<string, PaymentProvider> = {
   payfast,
   paystack,
+  yoco,
 };
 
 // ─── Active Provider ─────────────────────────────────────────────────────────

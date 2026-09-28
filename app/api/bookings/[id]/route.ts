@@ -2,7 +2,7 @@ export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient, createAdminClient } from '@/lib/supabase/server';
-import { refundPayment } from '@/lib/payments/paystack';
+import { refundPayment } from '@/lib/payments/routing';
 import {
   bulkDiscountPercentFor,
   calculateCancellationRefund,

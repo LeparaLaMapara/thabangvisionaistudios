@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import type { BookingPackage } from './BookingForm';
+import { isPaymentUrl } from '@/lib/payments/hosts';
 
 interface BookConfirmationProps {
   category: string;
@@ -76,7 +77,7 @@ export default function BookConfirmation({
         return;
       }
 
-      if (data.paymentUrl) {
+      if (data.paymentUrl && isPaymentUrl(data.paymentUrl)) {
         window.location.href = data.paymentUrl;
       } else {
         router.push(`/dashboard/bookings?ref=${data.booking?.reference}`);

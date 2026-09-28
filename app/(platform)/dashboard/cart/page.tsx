@@ -15,6 +15,7 @@ import AddressAutocomplete, { type AddressResult } from '@/components/ui/Address
 import { STUDIO } from '@/lib/constants';
 import { DashboardSubTabs, ACTIVITY_TABS } from '@/components/dashboard/DashboardSubTabs';
 import type { CartItemWithRental } from '@/types/cart';
+import { isPaymentUrl } from '@/lib/payments/hosts';
 
 function daysBetween(start: Date, end: Date): number {
   return Math.max(1, Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)));
@@ -244,12 +245,7 @@ export default function CartPage() {
 
       if (data.payment_url) {
         try {
-          const payUrl = new URL(data.payment_url);
-          const allowedHosts = [
-            'sandbox.payfast.co.za', 'www.payfast.co.za',
-            'checkout.paystack.com',
-          ];
-          if (!allowedHosts.includes(payUrl.hostname)) {
+          if (!isPaymentUrl(data.payment_url)) {
             throw new Error('Invalid payment URL');
           }
           await refresh();

@@ -1,5 +1,6 @@
 import { createAdminClient } from '@/lib/supabase/server';
-import { initiateTransfer, verifyPayment } from '@/lib/payments/paystack';
+import { initiateTransfer } from '@/lib/payments/paystack';
+import { verifyPayment } from '@/lib/payments/routing';
 import { email as emailProvider } from '@/lib/email';
 import { STUDIO } from '@/lib/constants';
 
