@@ -8,6 +8,7 @@ import { extractPhotoMetadata, type VerificationMetadata } from '@/lib/metadata/
 import { detectFraudFlags } from '@/lib/metadata/fraud-detection';
 import { matchFaces } from '@/lib/agents/tools';
 import { STUDIO } from '@/lib/constants';
+import { logEvent } from '@/lib/data/events';
 
 const FILE_NAMES = {
   id_copy: 'id-copy',
@@ -291,6 +292,8 @@ export async function POST(req: NextRequest) {
         { status: 500 },
       );
     }
+
+    logEvent({ eventType: 'verification_submitted', eventCategory: 'verification', userId: user.id, metadata: { flags: rpcResult.flags_detected ?? 0 } });
 
     return NextResponse.json({
       success: true,

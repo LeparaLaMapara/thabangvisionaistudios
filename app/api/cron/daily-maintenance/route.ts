@@ -8,6 +8,7 @@ import { triggerCreatorPayout } from '@/lib/payments/payout';
 import { email as emailProvider } from '@/lib/email';
 import { STUDIO } from '@/lib/constants';
 import { autoPublishCreatorProductions } from '@/lib/supabase/queries/smartProductions';
+import { draftMissingWelcomes } from '@/lib/greetings/process';
 
 /**
  * Daily Maintenance — runs at 2am SAST (00:00 UTC)
@@ -636,6 +637,14 @@ Please contact the client and the creator. They are not paid out or refunded aut
   } catch (err) {
     console.error('[daily-maintenance] POPIA retention failed:', err);
     results.popiaRetention = { error: String(err) };
+  }
+
+  // ─── 14. Welcome anyone the signup trigger missed (last 3 days) ──────────
+  try {
+    results.welcomes = await draftMissingWelcomes({ sinceDays: 3, notifyOwner: true });
+  } catch (err) {
+    console.error('[daily-maintenance] welcome sweep failed:', err);
+    results.welcomes = { error: String(err) };
   }
 
   console.log('[daily-maintenance] Results:', JSON.stringify(results));
