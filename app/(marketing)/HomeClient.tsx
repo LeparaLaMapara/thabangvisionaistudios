@@ -13,22 +13,17 @@ type Capability = (typeof CAPABILITIES)[number];
 
 // ─── Hero ────────────────────────────────────────────────────────────────────
 
-/** A Cloudinary image at the size and format asked for (w_900,q_auto,f_auto...). */
-function cld(url: string, transform: string): string {
-  return url.includes('/image/upload/') ? url.replace('/image/upload/', `/image/upload/${transform}/`) : url;
-}
-
 const Hero = () => {
   const { scrollY } = useScroll();
   const y1 = useTransform(scrollY, [0, 500], [0, 200]);
   const opacity = useTransform(scrollY, [0, 300], [1, 0]);
   const { hero } = STUDIO;
   const useVideo = hero.type === 'video' && !!hero.videoSrc;
-  const posterSrc = hero.poster || hero.imageSrc;
-  // The video plays on every screen, phones included, but it starts only once
-  // the page has loaded, so the headline and picture are never kept waiting.
-  // Phones get the 720px version. Only people who asked their phone to save
-  // data or reduce motion keep the still picture.
+  // The hero is the video, on every screen. The headline is plain text and
+  // shows at once; the video starts once the page is interactive. Phones get
+  // the 720px version. People who asked their phone to save data or reduce
+  // motion see the logo instead. (The still picture was removed at the
+  // owner's request, 2026-09-28.)
   const [videoSrc, setVideoSrc] = useState<string | null>(null);
   const [videoPlaying, setVideoPlaying] = useState(false);
   useEffect(() => {
@@ -38,13 +33,10 @@ const Hero = () => {
     if (calm || saveData) return;
     const phone = window.matchMedia('(max-width: 767px)').matches;
     const src = phone && hero.mobileVideoSrc ? hero.mobileVideoSrc : hero.videoSrc;
-    const start = () => setVideoSrc(src);
-    if (document.readyState === 'complete') {
-      const id = window.setTimeout(start, 0);
-      return () => window.clearTimeout(id);
-    }
-    window.addEventListener('load', start, { once: true });
-    return () => window.removeEventListener('load', start);
+    // Start as soon as the page is interactive: with no picture to show first,
+    // the video is what the hero is for.
+    const id = window.setTimeout(() => setVideoSrc(src), 0);
+    return () => window.clearTimeout(id);
   }, [useVideo, hero.mobileVideoSrc, hero.videoSrc]);
   const filterClass = hero.colorMode === 'bw' ? 'grayscale contrast-125' : 'contrast-110 saturate-[0.85]';
 
@@ -53,17 +45,15 @@ const Hero = () => {
       <motion.div style={{ y: y1 }} className="absolute inset-0 z-0">
         <div className="absolute inset-0 bg-gradient-to-t from-[#050505] via-transparent to-[#050505]/50 z-10" />
 
-        {/* A right-sized picture first, shown at once; the video fades in over
-            it after the page has loaded (see the effect above). */}
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src={cld(posterSrc, 'w_900,q_auto,f_auto')}
-          srcSet={`${cld(posterSrc, 'w_900,q_auto,f_auto')} 900w, ${cld(posterSrc, 'w_1920,q_auto,f_auto')} 1920w`}
-          sizes="100vw"
-          alt=""
-          fetchPriority="high"
-          className={`absolute inset-0 w-full h-full object-cover opacity-40 ${filterClass}`}
-        />
+        {/* The logo holds the space until the video plays, then fades out.
+            It stays for people whose phone asks to save data or reduce motion. */}
+        <div
+          aria-hidden="true"
+          className={`absolute inset-0 flex items-center justify-center transition-opacity duration-1000 ${videoPlaying ? 'opacity-0' : 'opacity-100'}`}
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/logo-hero-480.webp" alt="" width={428} height={480} className="w-40 md:w-64 h-auto opacity-15" />
+        </div>
         {videoSrc && (
           <video
             src={videoSrc}
