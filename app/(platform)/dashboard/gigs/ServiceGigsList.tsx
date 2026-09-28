@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { ShootTimeline } from '@/components/booking/ShootTimeline';
 
 interface ServiceGig {
   id: string;
@@ -19,8 +20,12 @@ interface ServiceGig {
   client_rating: number | null;
   client_review: string | null;
   created_at: string;
+  paid_at?: string | null;
   accepted_at: string | null;
+  arrived_at?: string | null;
+  delivered_at?: string | null;
   completed_at: string | null;
+  shoot_date?: string | null;
 }
 
 const STATUS_COLORS: Record<string, string> = {
@@ -205,6 +210,19 @@ function GigCard({
   onSubmitDelivery?: () => void;
 }) {
   const isDelivering = deliveringId === gig.id;
+  const [arrived, setArrived] = useState(Boolean(gig.arrived_at));
+  const [checkingIn, setCheckingIn] = useState(false);
+  const [checkInError, setCheckInError] = useState<string | null>(null);
+
+  async function checkIn() {
+    setCheckingIn(true);
+    setCheckInError(null);
+    const res = await fetch(`/api/service-bookings/${gig.id}/arrived`, { method: 'POST' });
+    const json = await res.json().catch(() => ({}));
+    setCheckingIn(false);
+    if (res.ok) setArrived(true);
+    else setCheckInError(json.error ?? 'Could not check in.');
+  }
 
   return (
     <div className="rounded-xl border border-neutral-800 bg-neutral-900/50 p-5">
@@ -232,6 +250,19 @@ function GigCard({
         {gig.location && <span>{gig.location}</span>}
         {gig.preferred_dates && <span>{gig.preferred_dates}</span>}
       </div>
+
+      <ShootTimeline booking={gig} viewer="creator" />
+
+      {gig.status === 'accepted' && !arrived && (
+        <button
+          onClick={checkIn}
+          disabled={checkingIn}
+          className="mt-3 min-h-[44px] rounded-lg border border-[#D4A843] px-4 text-sm font-medium text-[#D4A843] disabled:opacity-50"
+        >
+          {checkingIn ? 'Checking in…' : 'I’m here'}
+        </button>
+      )}
+      {checkInError && <p className="mt-2 text-xs text-red-400">{checkInError}</p>}
 
       {/* Payout status for completed gigs */}
       {['completed', 'paid_out'].includes(gig.status) && (
