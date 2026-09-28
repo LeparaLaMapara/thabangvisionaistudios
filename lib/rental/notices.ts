@@ -131,7 +131,7 @@ export async function sendGearNotice(kind: GearNotice, items: NoticeBooking[], e
       await emailProvider.sendEmail({
         to: data.user.email,
         subject: `${title} — ${STUDIO.name}`,
-        text: `${body}\n\nYour booking: ${STUDIO.meta.url}${link}\nQuestions? Reply to this email or call ${STUDIO.phone}.\n\n${STUDIO.name}`,
+        text: `${body}\n\nYour booking: ${STUDIO.meta.url}${link}\nQuestions? Reply to this email or WhatsApp ${STUDIO.whatsapp.display}.\n\n${STUDIO.name}`,
       });
     }
   } catch (err) {

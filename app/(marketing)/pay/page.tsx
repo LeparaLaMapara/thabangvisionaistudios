@@ -54,7 +54,7 @@ export default function PayPage() {
 
         <section className="space-y-3">
           <h2 className="text-xs font-mono font-bold uppercase tracking-widest text-white">Questions</h2>
-          <p className="text-neutral-300 leading-relaxed">WhatsApp or call us. A person answers during business hours ({STUDIO.hours.weekday}, {STUDIO.hours.weekend}).</p>
+          <p className="text-neutral-300 leading-relaxed">WhatsApp us. A person answers during business hours ({STUDIO.hours.weekday}, {STUDIO.hours.weekend}).</p>
           <ContactButtons message="Hi, I have a question about paying for a booking" />
         </section>
       </div>

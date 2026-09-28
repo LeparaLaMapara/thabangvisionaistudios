@@ -230,7 +230,7 @@ export function generateQuotePDF(data: QuoteData): Buffer {
   doc.setTextColor(GREY);
   doc.setFontSize(7);
   doc.text(
-    `${STUDIO.legal.companyName} | ${STUDIO.phone} | ${STUDIO.email} | ${STUDIO.meta.url}`,
+    `${STUDIO.legal.companyName} | WhatsApp ${STUDIO.whatsapp.display} | ${STUDIO.email} | ${STUDIO.meta.url}`,
     pageWidth / 2,
     footerY,
     { align: 'center' },

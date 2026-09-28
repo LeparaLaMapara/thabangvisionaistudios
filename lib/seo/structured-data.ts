@@ -11,7 +11,6 @@ export function organizationJsonLd(): JsonLd {
     logo: `${STUDIO.meta.url}/logo-black-bg.png`,
     description: STUDIO.meta.description,
     email: STUDIO.supportEmail,
-    telephone: STUDIO.phone,
     address: {
       '@type': 'PostalAddress',
       addressLocality: STUDIO.location.city,
@@ -59,7 +58,6 @@ export function localBusinessJsonLd(priceRange?: { min: number; max: number } | 
     image: `${STUDIO.meta.url}/logo-black-bg.png`,
     description: STUDIO.meta.description,
     email: STUDIO.supportEmail,
-    telephone: STUDIO.phone,
     address: {
       '@type': 'PostalAddress',
       addressLocality: STUDIO.location.city,

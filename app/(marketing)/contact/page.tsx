@@ -2,9 +2,10 @@
 
 import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-import { ArrowRight, Mail, Phone, MapPin, Send, Loader2 } from 'lucide-react';
+import { ArrowRight, Mail, MapPin, Send, Loader2, MessageCircle } from 'lucide-react';
 import { STUDIO } from '@/lib/constants';
 import { ContactButtons } from '@/components/payments/ContactButtons';
+import { whatsappLink } from '@/lib/payments/eft';
 
 export default function ContactPage() {
   const [formState, setFormState] = useState({ name: '', email: '', subject: 'Project Inquiry', message: '', _hp_company: '' });
@@ -200,8 +201,8 @@ export default function ContactPage() {
                    <div className="border-t border-white/5 pt-4 space-y-3">
                      {STUDIO.phone && (
                        <div className="flex items-center gap-4">
-                         <Phone className="w-4 h-4 flex-shrink-0 text-[#D4A843]" />
-                         <a href={`tel:${STUDIO.phone}`} className="hover:text-white transition-colors">{STUDIO.phone}</a>
+                         <MessageCircle className="w-4 h-4 flex-shrink-0 text-[#D4A843]" />
+                         <a href={whatsappLink()} target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors">WhatsApp {STUDIO.whatsapp.display}</a>
                        </div>
                      )}
                      <div className="flex items-center gap-4">

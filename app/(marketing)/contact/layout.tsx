@@ -5,7 +5,7 @@ export const revalidate = 60;
 
 export const metadata = buildPageMetadata({
   title: 'Contact Us',
-  description: `Ask about gear, a booking or a shoot. Call ${STUDIO.phone} or email ${STUDIO.email}.`,
+  description: `Ask about gear, a booking or a shoot. WhatsApp ${STUDIO.whatsapp.display} or email ${STUDIO.email}.`,
   path: '/contact',
 });
 

@@ -132,7 +132,7 @@ export default function RefundsPage() {
           <Section title="11. Complaints and Escalation">
             <p>If you are unhappy with a refund decision, tell us. Email{' '}
               <a href={`mailto:${STUDIO.supportEmail}`} className={link}>{STUDIO.supportEmail}</a>{' '}
-              with your booking reference, or call {STUDIO.phone} during business hours.
+              with your booking reference, or WhatsApp us on {STUDIO.whatsapp.display} during business hours.
             </p>
             <p>We acknowledge every complaint within 2 business days and aim to resolve it within 10 business days. If we need longer, we tell you why and give you a revised date.</p>
             <p>If you are still not satisfied, escalate in writing to{' '}
@@ -154,7 +154,7 @@ export default function RefundsPage() {
               Refunds and returns{' '}
               <a href={`mailto:${STUDIO.supportEmail}`} className={link}>{STUDIO.supportEmail}</a>
               <br />
-              Telephone {STUDIO.phone}<br />
+              WhatsApp {STUDIO.whatsapp.display}<br />
               {STUDIO.hours.weekday} | {STUDIO.hours.weekend} | {STUDIO.hours.sunday}
             </p>
           </Section>
