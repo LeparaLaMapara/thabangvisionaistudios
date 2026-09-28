@@ -74,11 +74,11 @@ export default function LegalPage() {
           <Section title="6. Pricing and Payment">
             <p>All prices are quoted in South African Rand ({STUDIO.currency.code}).</p>
             {STUDIO.legal.vatRegistered ? (
-              <p>{STUDIO.legal.companyName} is a registered VAT vendor{STUDIO.legal.vatNumber ? ` under VAT registration number ${STUDIO.legal.vatNumber}` : ''}. Equipment hire prices shown on this site include VAT at {STUDIO.booking.vatRate}%, and the VAT portion is itemised in your cart and on your invoice. Production and creative service rates are shown excluding VAT; VAT at {STUDIO.booking.vatRate}% is added at checkout and shown as a separate line on your quote and invoice. Refundable security deposits are not subject to VAT. Our VAT registration number appears on every tax invoice we issue.</p>
+              <p>{STUDIO.legal.companyName} is a registered VAT vendor{STUDIO.legal.vatNumber ? ` under VAT registration number ${STUDIO.legal.vatNumber}` : ''}. Equipment hire prices shown on this site include VAT at {STUDIO.booking.vatRate}%, and the VAT portion is itemised in your cart and on your invoice. Production and creative service prices are also shown including VAT at {STUDIO.booking.vatRate}%; your quote and invoice show the price before VAT and the VAT as separate lines. Refundable security deposits are not subject to VAT. Our VAT registration number appears on every tax invoice we issue.</p>
             ) : (
               <p>Where VAT becomes applicable it is shown separately at checkout and on your invoice.</p>
             )}
-            <p>Card payments are processed by our authorised payment gateway, a registered South African payment service provider, over secure encrypted connections. We accept South African debit and credit cards together with the other payment methods presented at checkout. {STUDIO.shortName} does not store your full card details on our servers.</p>
+            <p>When online payment opens, card payments are processed by our authorised payment gateway, a registered South African payment service provider, over secure encrypted connections, and we accept South African debit and credit cards together with the other payment methods presented at checkout. Until then, payment is by EFT, cash or a card link, as set out in section 11. {STUDIO.shortName} does not store your full card details on our servers.</p>
             <p>Payment is collected by {STUDIO.legal.companyName} as principal. Funds are not held in escrow or in trust for any third party, and no part of your payment is disbursed to a third party on your behalf.</p>
             <p>A booking is confirmed only once payment or the required deposit has been received and we have sent you a written confirmation.</p>
           </Section>
@@ -164,8 +164,8 @@ export default function LegalPage() {
           <Part title="Part C — Production and Creative Services" />
 
           <Section title="16. Booking, Delivery and Approval">
-            <p>Production and creative service bookings are either charged by the hour, for {STUDIO.booking.minBookingHours} to {STUDIO.booking.maxBookingHours} hours at the rate confirmed in your booking, or as a studio package at its fixed price. All service prices are shown excluding VAT, and VAT is added at checkout.</p>
-            <p>A booking moves through a fixed sequence: you pay, the assigned creator accepts the booking, the work is carried out, and the deliverables are submitted to you.</p>
+            <p>Production and creative service bookings are either charged by the hour, for {STUDIO.booking.minBookingHours} to {STUDIO.booking.maxBookingHours} hours at the rate confirmed in your booking, or as a studio package at its fixed price. All service prices are shown including VAT, and your quote shows the VAT separately.</p>
+            <p>Shoots are booked by request. A booking moves through a fixed sequence: you send your request, we confirm who will carry out the work, the date and the price, you pay, the work is carried out, and the deliverables are submitted to you.</p>
             <p><span className="text-white">Approval and the 7 day window.</span> Once deliverables are submitted you have 7 days to review them and either approve them or raise an issue with us. If you do not respond within 7 days, the delivery is approved automatically and the booking is treated as complete. We remind you of this when the deliverables are sent. If something is wrong, tell us inside that window.</p>
             <p>If a booking has been accepted but nothing is delivered within 30 days, we review it and contact you and the creator. Cancellation and refunds for service bookings are dealt with in our{' '}
               <Link href="/refunds" className={link}>Refunds, Returns and Cancellations Policy</Link>.

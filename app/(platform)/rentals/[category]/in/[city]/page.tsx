@@ -2,13 +2,12 @@ export const revalidate = 60;
 
 import { notFound, redirect, permanentRedirect } from 'next/navigation';
 import { getPublishedRentalsByCategory } from '@/lib/supabase/queries/smartRentals';
-import { getCrewByLocation } from '@/lib/supabase/queries/crew';
-import { getCityBySlug, COUNTRY_SLUG, COUNTRY_NAME, RENTAL_CITIES, deliversRentals } from '@/lib/seo/cities';
+import { getCityBySlug, COUNTRY_SLUG, deliversRentals } from '@/lib/seo/cities';
+import { collectionPointWithCity } from '@/lib/rental/collection-point';
 import { RENTAL_CATEGORIES, STUDIO } from '@/lib/constants';
 import { buildPageMetadata } from '@/lib/seo/metadata';
 import { serviceJsonLd, breadcrumbJsonLd, renderJsonLd } from '@/lib/seo/structured-data';
 import RentalCategoryClient from '../../RentalCategoryClient';
-import { AlsoAvailableIn } from '@/components/seo/AlsoAvailableIn';
 import { RelatedCategories } from '@/components/seo/RelatedCategories';
 
 interface Props {
@@ -22,11 +21,11 @@ export async function generateMetadata({ params }: Props) {
   if (!cat) return { title: 'Not Found' };
 
   const city = getCityBySlug(citySlug);
-  const locationName = city?.name ?? (citySlug === COUNTRY_SLUG ? COUNTRY_NAME : null);
-  if (!locationName) return { title: 'Not Found' };
+  if (!city) return { title: 'Not Found' };
+  const locationName = city.name;
 
   const title = `${cat.label} Rentals in ${locationName}`;
-  const description = `Browse ${cat.label.toLowerCase()} for hire. ${cat.description} Collect in Johannesburg or have it delivered within ${STUDIO.fulfilment.delivery.maxRadiusKm} km. Book online with ThabangVision.`;
+  const description = `Browse ${cat.label.toLowerCase()} for hire. ${cat.description} Collected at ${collectionPointWithCity()}; delivery within ${STUDIO.fulfilment.delivery.maxRadiusKm} km after your first hire. Book online with ${STUDIO.name}.`;
 
   return buildPageMetadata({
     title,
@@ -44,23 +43,24 @@ export default async function RentalLocationPage({ params }: Props) {
   const cat = RENTAL_CATEGORIES.find((c) => c.value === category);
   if (!cat) notFound();
 
+  // There is no "All South Africa": delivery reaches about 100 km.
+  if (citySlug === COUNTRY_SLUG) permanentRedirect(`/rentals/${category}`);
   const city = getCityBySlug(citySlug);
-  const isCountry = citySlug === COUNTRY_SLUG;
-  if (!city && !isCountry) notFound();
+  if (!city) notFound();
   // Gear does not reach this city: send people to the category, not a page
   // that lists Johannesburg stock under another city's name.
-  if (city && !deliversRentals(city)) permanentRedirect(`/rentals/${category}`);
+  if (!deliversRentals(city)) permanentRedirect(`/rentals/${category}`);
 
-  const locationName = city?.name ?? COUNTRY_NAME;
+  const locationName = city.name;
 
   const rentals = await getPublishedRentalsByCategory(category);
 
   const jsonLd = [
     serviceJsonLd({
       name: `${cat.label} Rentals in ${locationName}`,
-      description: `${cat.description} Available for hire in ${locationName}.`,
+      description: `${cat.description} Collected at ${collectionPointWithCity()}.`,
       url: `${STUDIO.meta.url}/rentals/${category}/in/${citySlug}`,
-      city: city?.name,
+      city: city.name,
     }),
     breadcrumbJsonLd([
       { name: 'Home', url: STUDIO.meta.url },
@@ -84,7 +84,6 @@ export default async function RentalLocationPage({ params }: Props) {
         category={category}
         locationName={locationName}
       />
-      <AlsoAvailableIn basePath={`/rentals/${category}`} currentCitySlug={citySlug} cities={RENTAL_CITIES} />
       <RelatedCategories currentSlug={category} type="rentals" locationSlug={citySlug} />
     </>
   );

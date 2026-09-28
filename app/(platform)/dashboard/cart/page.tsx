@@ -16,6 +16,10 @@ import { STUDIO } from '@/lib/constants';
 import { DashboardSubTabs, ACTIVITY_TABS } from '@/components/dashboard/DashboardSubTabs';
 import type { CartItemWithRental } from '@/types/cart';
 import { isPaymentUrl } from '@/lib/payments/hosts';
+import { formatRand } from '@/lib/format/money';
+import { usePaymentsOpen } from '@/lib/payments/usePaymentsOpen';
+import { PaymentsNotOpenNote } from '@/components/booking/PaymentsNotOpenNote';
+import { collectionPoint } from '@/lib/rental/collection-point';
 
 function daysBetween(start: Date, end: Date): number {
   return Math.max(1, Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)));
@@ -25,6 +29,9 @@ export default function CartPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { refresh } = useCart();
+  // Whether card payment is open (onlinePaymentsOpen on the server). While it
+  // is closed the button sends a request and says so; nothing else changes.
+  const paymentsOpen = usePaymentsOpen();
 
   const [items, setItems] = useState<CartItemWithRental[]>([]);
   const [loading, setLoading] = useState(true);
@@ -363,8 +370,8 @@ export default function CartPage() {
                       {item.rental.category}{item.rental.brand ? ` / ${item.rental.brand}` : ''}
                     </p>
                     <p className="text-xs font-mono text-neutral-400 mt-1">
-                      {item.rental.currency} {item.rental.price_per_day}/day
-                      {item.rental.price_per_week ? ` · ${item.rental.currency} ${item.rental.price_per_week}/week` : ''}
+                      {formatRand(item.rental.price_per_day)} a day
+                      {item.rental.price_per_week ? ` · ${formatRand(item.rental.price_per_week)} a week` : ''}
                     </p>
 
                     {/* Quantity controls */}
@@ -397,7 +404,7 @@ export default function CartPage() {
                     </button>
                     {hasDates && (
                       <p className="text-xs font-mono font-bold text-white">
-                        R {itemTotal.toLocaleString()}
+                        {formatRand(itemTotal)}
                       </p>
                     )}
                   </div>
@@ -438,14 +445,14 @@ export default function CartPage() {
                     {pi.title} {pi.quantity > 1 ? `x${pi.quantity}` : ''} · {pi.days}d
                   </span>
                   <span className="text-white flex-shrink-0">
-                    R {pi.subtotal.toLocaleString()}
+                    {formatRand(pi.subtotal)}
                   </span>
                 </div>
               ))}
 
               <div className="border-t border-white/5 pt-3 flex justify-between text-xs font-mono">
                 <span className="text-neutral-400">Subtotal</span>
-                <span className="text-white">R {pricing.subtotal.toLocaleString()}</span>
+                <span className="text-white">{formatRand(pricing.subtotal)}</span>
               </div>
 
               {pricing.bulkDiscountPercent > 0 && (
@@ -454,14 +461,14 @@ export default function CartPage() {
                     Bulk discount ({pricing.bulkDiscountPercent}%)
                   </span>
                   <span className="text-emerald-400">
-                    -R {pricing.bulkDiscountAmount.toLocaleString()}
+                    -{formatRand(pricing.bulkDiscountAmount)}
                   </span>
                 </div>
               )}
 
               <div className="flex justify-between text-xs font-mono">
                 <span className="text-neutral-400">Deposits</span>
-                <span className="text-neutral-400">R {pricing.totalDeposit.toLocaleString()}</span>
+                <span className="text-neutral-400">{formatRand(pricing.totalDeposit)}</span>
               </div>
 
               {STUDIO.legal.vatRegistered && (
@@ -469,23 +476,23 @@ export default function CartPage() {
                   <span className="text-neutral-400">
                     Incl. VAT ({pricing.vatRate}%)
                   </span>
-                  <span className="text-neutral-400">R {pricing.vatAmount.toLocaleString()}</span>
+                  <span className="text-neutral-400">{formatRand(pricing.vatAmount)}</span>
                 </div>
               )}
 
               {deliveryFee > 0 && (
                 <div className="flex justify-between text-xs font-mono">
                   <span className="text-neutral-400">Delivery</span>
-                  <span className="text-neutral-400">R {deliveryFee.toLocaleString()}</span>
+                  <span className="text-neutral-400">{formatRand(deliveryFee)}</span>
                 </div>
               )}
 
               <div className="border-t border-white/10 pt-3 flex justify-between text-sm font-mono font-bold">
                 <span className="text-white">
-                  {totals && totals.balanceOnCollection > 0 ? 'Pay now' : 'Total'}
+                  {totals && totals.balanceOnCollection > 0 ? (paymentsOpen === false ? 'To pay first' : 'Pay now') : 'Total'}
                 </span>
                 <span className="text-[#D4A843]">
-                  R {(totals?.dueNow ?? pricing.grandTotal).toLocaleString()}
+                  {formatRand(totals?.dueNow ?? pricing.grandTotal)}
                 </span>
               </div>
 
@@ -493,14 +500,14 @@ export default function CartPage() {
                 <div className="flex justify-between text-xs font-mono">
                   <span className="text-neutral-400">Due on collection</span>
                   <span className="text-neutral-400">
-                    R {totals.balanceOnCollection.toLocaleString()}
+                    {formatRand(totals.balanceOnCollection)}
                   </span>
                 </div>
               )}
 
               {pricing.bulkDiscountPercent > 0 && (
                 <p className="text-xs font-mono text-emerald-400/70">
-                  You save R {pricing.bulkDiscountAmount.toLocaleString()} with bulk discount
+                  You save {formatRand(pricing.bulkDiscountAmount)} with bulk discount
                 </p>
               )}
             </div>
@@ -541,7 +548,7 @@ export default function CartPage() {
               {fulfilment === 'collection' ? (
                 <div className="space-y-3">
                   <p className="text-xs font-mono text-neutral-400 leading-relaxed">
-                    Collect from our {STUDIO.location.city} studio. {STUDIO.hours.weekday},{' '}
+                    Collect at {collectionPoint()}, {STUDIO.location.city}. {STUDIO.hours.weekday},{' '}
                     {STUDIO.hours.weekend}. Bring the ID you verified with.
                   </p>
 
@@ -552,8 +559,8 @@ export default function CartPage() {
                       </p>
                       {(
                         [
-                          ['full', 'Pay everything now'],
-                          ['deposit_only', 'Pay the deposit now, the rest on collection'],
+                          ['full', paymentsOpen === false ? 'Pay everything before collection' : 'Pay everything now'],
+                          ['deposit_only', paymentsOpen === false ? 'Pay the deposit first, the rest on collection' : 'Pay the deposit now, the rest on collection'],
                         ] as const
                       ).map(([plan, label]) => (
                         <label
@@ -577,7 +584,8 @@ export default function CartPage() {
                 <div className="space-y-3">
                   <p className="text-xs font-mono text-neutral-400 leading-relaxed">
                     We deliver in our own vehicle. The fee is worked out from the distance
-                    and the size of your order, and shown below before you pay.
+                    and the size of your order, and shown below before you book. Your first
+                    hire is collected in person.
                   </p>
 
                   <AddressAutocomplete onSelect={setAddress} />
@@ -592,7 +600,7 @@ export default function CartPage() {
 
                   {delivery && isDeliveryQuote(delivery) && (
                     <p className="text-xs font-mono text-neutral-400">
-                      About {delivery.distanceKm}km from our {delivery.fromLocation} studio.
+                      About {delivery.distanceKm}km from our {delivery.fromLocation} collection point.
                       {delivery.minimumApplied && ' Minimum delivery fee applied.'}
                     </p>
                   )}
@@ -611,6 +619,9 @@ export default function CartPage() {
             className="w-full bg-transparent border border-white/10 p-3 text-xs font-mono text-white placeholder:text-neutral-400 focus:border-[#D4A843]/50 focus:outline-none resize-none"
           />
 
+          {/* Payment truth, above the button that commits */}
+          <PaymentsNotOpenNote open={paymentsOpen} />
+
           {/* Checkout button */}
           <Button
             onClick={handleCheckout}
@@ -623,7 +634,9 @@ export default function CartPage() {
               ? 'Select Dates to Checkout'
               : !fulfilmentReady
                 ? 'Enter a delivery address'
-                : `Checkout — R ${(totals?.dueNow ?? pricing.grandTotal).toLocaleString()}`}
+                : paymentsOpen === false
+                  ? `Send booking request, ${formatRand(totals?.dueNow ?? pricing.grandTotal)}`
+                  : `Checkout, ${formatRand(totals?.dueNow ?? pricing.grandTotal)}`}
           </Button>
 
           <p className="text-xs font-mono text-neutral-400 text-center">

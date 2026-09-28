@@ -908,7 +908,7 @@ function ToolsInner() {
                    <ArrowLeft className="w-3 h-3" /> Back to Dashboard
                 </button>
              ) : (
-                '04 // Resources'
+                'Resources'
              )}
           </div>
           <h1 className="text-4xl md:text-6xl font-display font-medium tracking-tight uppercase">

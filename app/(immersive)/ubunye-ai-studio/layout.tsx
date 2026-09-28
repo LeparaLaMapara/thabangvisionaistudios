@@ -5,7 +5,7 @@ export const revalidate = 60;
 export const metadata: Metadata = {
   title: 'Ubunye AI Studio',
   description:
-    'Ubunye AI Studio — Your AI production assistant. Plan shoots, find gear, hire crew, and get instant quotes for photography and film production across South Africa.',
+    'Ubunye, the ThabangVision AI assistant. Ask about gear, dates and prices, or get help planning a shoot in Johannesburg.',
 };
 
 export default function UbunyeAILayout({

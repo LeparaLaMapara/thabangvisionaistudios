@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { ArrowRight, Mail, Phone, MapPin, Send, Loader2 } from 'lucide-react';
 import { STUDIO } from '@/lib/constants';
@@ -11,6 +11,15 @@ export default function ContactPage() {
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // "/contact?type=production_brief" (the "Need a photographer? Send us a
+  // brief" link) opens the form as a shoot request. Read once in the browser,
+  // so the page needs no Suspense boundary.
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get('type') === 'production_brief') {
+      setFormState((s) => ({ ...s, subject: 'Shoot Request' }));
+    }
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -121,7 +130,7 @@ export default function ContactPage() {
                   >
                     <option className="bg-[#050505]">Project Inquiry</option>
                     <option className="bg-[#050505]">Equipment Rental</option>
-                    <option className="bg-[#050505]">Hire a Creator</option>
+                    <option className="bg-[#050505]">Shoot Request</option>
                     <option className="bg-[#050505]">Press / Media</option>
                     <option className="bg-[#050505]">Other</option>
                   </select>

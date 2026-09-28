@@ -68,7 +68,7 @@ export default function PlatformSupportPage() {
         <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-16 gap-4">
           <div>
             <span className="text-xs font-mono text-neutral-400 uppercase tracking-widest mb-4 block">
-              00 // Platform Support
+              Platform Support
             </span>
             <h1 className="text-4xl md:text-6xl font-display font-medium text-white tracking-tighter uppercase">
               Report an Issue

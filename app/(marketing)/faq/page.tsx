@@ -6,10 +6,11 @@ import { buildPageMetadata } from '@/lib/seo/metadata';
 import { faqPageJsonLd, breadcrumbJsonLd, renderJsonLd } from '@/lib/seo/structured-data';
 import { STUDIO } from '@/lib/constants';
 import { coreFaqs } from '@/lib/content/faqs';
+import { onlinePaymentsOpen } from '@/lib/payments/status';
 
 export const metadata = buildPageMetadata({
   title: 'Frequently Asked Questions',
-  description: `Answers about ${STUDIO.shortName}: renting gear, booking photographers, prices and VAT, deposits, delivery, the ID check and cancelling.`,
+  description: `Answers about ${STUDIO.shortName}: renting gear, paying, prices and VAT, deposits, collection and delivery, the ID check, shoots by request and cancelling.`,
   path: '/faq',
 });
 
@@ -27,7 +28,7 @@ export default async function FaqPage() {
   // FAQs from /admin/faqs follow them.
   const published = await getPublishedFaqs(100);
   const faqs: { id: string; category: string | null; question: string; answer: string }[] = [
-    ...coreFaqs(),
+    ...coreFaqs({ paymentsOpen: onlinePaymentsOpen() }),
     ...published.map((f) => ({ id: f.id, category: f.category, question: f.question, answer: f.answer })),
   ];
 

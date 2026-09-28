@@ -86,6 +86,7 @@ export const yoco: PaymentProvider = {
   allowedHosts: ['c.yoco.com', 'pay.yoco.com', 'payments.yoco.com'],
 
   isConfigured(): boolean {
+    if (process.env.PAYMENTS_OFF === 'true') return false;
     return Boolean(process.env.YOCO_SECRET_KEY);
   },
 

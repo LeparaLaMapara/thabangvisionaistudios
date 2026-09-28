@@ -10,7 +10,7 @@ import {
 import type { CrewMember, CrewPortfolioItem, CrewReview } from '@/lib/supabase/queries/crew';
 import type { ProductionCategory } from '@/types/production';
 import type { PortfolioProject } from '@/types/portfolio';
-import { formatZAR } from '@/lib/productions/pricing';
+import { formatRand, withServiceVat } from '@/lib/format/money';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -491,10 +491,10 @@ export default function ProductionCreatorDetailView({
               <div className="border border-white/10 p-5 mb-6 space-y-3 bg-[#0A0A0B]">
                 <div className="flex items-end justify-between">
                   <span className="text-xs font-mono uppercase tracking-widest text-neutral-400">
-                    Hourly Rate
+                    Hourly Rate, incl. VAT
                   </span>
                   <span className="text-2xl font-bold text-[#D4A843]">
-                    {formatZAR(crew.hourly_rate)}
+                    {formatRand(withServiceVat(crew.hourly_rate))}
                   </span>
                 </div>
                 <div className="flex items-end justify-between border-t border-white/5 pt-3">
@@ -502,7 +502,7 @@ export default function ProductionCreatorDetailView({
                     Min. Booking
                   </span>
                   <span className="text-sm font-mono text-neutral-400">
-                    4 hours ({formatZAR(crew.hourly_rate * 4)})
+                    4 hours ({formatRand(withServiceVat(crew.hourly_rate * 4))})
                   </span>
                 </div>
               </div>

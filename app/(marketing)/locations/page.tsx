@@ -48,6 +48,9 @@ const LocationCard = ({ name, address, city, province, phone, email, isPrimary, 
              <Mail className="w-4 h-4 flex-shrink-0 text-[#D4A843]" />
              <a href={`mailto:${email}`} className="hover:text-white transition-colors">{email}</a>
           </div>
+          {/* Hours only where there are set hours: the by-appointment
+              location listed Mon to Sat hours under "by appointment". */}
+          {isPrimary && (
           <div className="flex gap-4">
              <Clock className="w-4 h-4 flex-shrink-0 mt-1 text-[#D4A843]" />
              <div>
@@ -56,6 +59,7 @@ const LocationCard = ({ name, address, city, province, phone, email, isPrimary, 
                <p>{STUDIO.hours.sunday}</p>
              </div>
           </div>
+          )}
        </div>
     </div>
   </motion.div>
@@ -66,9 +70,8 @@ export default function LocationsPage() {
     <div className="min-h-screen bg-[#050505] pt-32 pb-20">
        <div className="container mx-auto px-6">
           <div className="max-w-4xl mb-20">
-            <span className="text-xs font-mono text-[#D4A843] uppercase tracking-[0.3em] mb-4 block">Our Studios</span>
             <h1 className="text-5xl md:text-7xl font-display font-medium text-white tracking-tighter uppercase mb-8">
-              Where to <span className="text-neutral-400">Find Us</span>
+              Where to <span className="text-neutral-400">Collect</span>
             </h1>
             <div className="w-8 h-px bg-[#D4A843] mt-6" />
           </div>

@@ -4,6 +4,8 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import type { BookingPackage } from './BookingForm';
 import { isPaymentUrl } from '@/lib/payments/hosts';
+import { formatRand } from '@/lib/format/money';
+import { PaymentsNotOpenNote } from '@/components/booking/PaymentsNotOpenNote';
 
 interface BookConfirmationProps {
   category: string;
@@ -24,6 +26,8 @@ interface BookConfirmationProps {
   pkg?: BookingPackage | null;
   /** What is being charged, e.g. "R1 500 per project". */
   rateLine?: string;
+  /** onlinePaymentsOpen() from the server: the wording follows it. */
+  paymentsOpen: boolean;
 }
 
 export default function BookConfirmation({
@@ -43,6 +47,7 @@ export default function BookConfirmation({
   cancellationPolicy,
   pkg = null,
   rateLine,
+  paymentsOpen,
 }: BookConfirmationProps) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
@@ -91,8 +96,12 @@ export default function BookConfirmation({
   return (
     <div className="min-h-screen bg-[#050505] px-4 py-20">
       <div className="mx-auto max-w-lg">
-        <h1 className="mb-2 text-2xl font-bold text-white">Confirm Your Booking</h1>
-        <p className="mb-8 text-neutral-400">Review the details below and pay to confirm.</p>
+        <h1 className="mb-2 text-2xl font-bold text-white">{paymentsOpen ? 'Confirm Your Booking' : 'Send Your Request'}</h1>
+        <p className="mb-8 text-neutral-400">
+          {paymentsOpen
+            ? 'Review the details below and pay to confirm.'
+            : 'Review the details below and send your request. We reply to confirm who will shoot it and the date.'}
+        </p>
 
         {/* Booking details card */}
         <div className="rounded-xl border border-neutral-800 bg-neutral-900/50 p-6">
@@ -108,7 +117,7 @@ export default function BookConfirmation({
             {description && <Row label="Description" value={description} />}
             <Row
               label="Creator"
-              value={creatorName || "We'll match you with the best available creator"}
+              value={creatorName || 'We confirm who will shoot it with you'}
             />
           </div>
 
@@ -117,19 +126,19 @@ export default function BookConfirmation({
             <div className="space-y-2 text-sm">
               <div className="flex justify-between text-neutral-400">
                 <span>{pkg ? 'Package' : 'Rate'}</span>
-                <span>{rateLine ?? `R${hourlyRate.toLocaleString()}/hr × ${hours}hrs`}</span>
+                <span>{rateLine ?? `${formatRand(hourlyRate)}/hr × ${hours}hrs`}</span>
               </div>
               <div className="flex justify-between text-neutral-400">
-                <span>Subtotal</span>
-                <span>R{subtotal.toLocaleString()}</span>
+                <span>Subtotal, excl. VAT</span>
+                <span>{formatRand(subtotal)}</span>
               </div>
               <div className="flex justify-between text-neutral-400">
                 <span>VAT ({vatRate}%)</span>
-                <span>R{vat.toLocaleString()}</span>
+                <span>{formatRand(vat)}</span>
               </div>
               <div className="flex justify-between border-t border-neutral-700 pt-2 text-lg font-bold text-white">
-                <span>Total</span>
-                <span>R{total.toLocaleString()}</span>
+                <span>Total, incl. VAT</span>
+                <span>{formatRand(total)}</span>
               </div>
             </div>
           </div>
@@ -140,12 +149,18 @@ export default function BookConfirmation({
           <p className="mt-4 text-sm text-red-400">{error}</p>
         )}
 
+        <PaymentsNotOpenNote open={paymentsOpen} className="mt-6" />
+
         <button
           onClick={handlePay}
           disabled={loading}
           className="mt-6 w-full rounded-lg bg-[#D4A843] px-6 py-4 text-lg font-bold text-black transition-colors hover:bg-[#c49a3a] disabled:cursor-not-allowed disabled:opacity-50"
         >
-          {loading ? 'Processing...' : `Pay R${total.toLocaleString()} securely`}
+          {loading
+            ? 'Processing...'
+            : paymentsOpen
+              ? `Pay ${formatRand(total)} securely`
+              : `Send booking request, ${formatRand(total)}`}
         </button>
 
         {/* Policy */}
@@ -153,7 +168,7 @@ export default function BookConfirmation({
           {cancellationPolicy}
         </p>
         <p className="mt-2 text-center text-xs text-neutral-400">
-          By paying, you agree to our{' '}
+          {paymentsOpen ? 'By paying' : 'By sending this request'}, you agree to our{' '}
           <a href="/legal" className="text-[#D4A843] underline">Terms of Service</a>.
         </p>
       </div>

@@ -5,7 +5,8 @@ import { AskUbunyeButton } from '@/components/ubunye/AskUbunyeButton';
 import { getPublishedProductions } from '@/lib/supabase/queries/smartProductions';
 
 export const metadata = {
-  title: 'Studio — Photography & Video Production Services',
+  title: 'Photo and Video Shoots by Request',
+  description: 'Photo and video shoots in Johannesburg, by request. Choose a package and send a request; we confirm who will shoot it, the date and the price before you pay.',
 };
 
 /**
@@ -25,7 +26,7 @@ export default async function SmartProductionPage() {
   return (
     <>
       <SmartProductionClient productions={productions} />
-      <AskUbunyeButton prompt="I need a quote for a production" label="Get an instant AI quote" />
+      <AskUbunyeButton prompt="I need a quote for a production" label="Questions? Ask Ubunye" />
     </>
   );
 }

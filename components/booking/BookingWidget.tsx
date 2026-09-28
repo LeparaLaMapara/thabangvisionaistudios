@@ -23,9 +23,14 @@ import { STUDIO } from '@/lib/constants';
 import { earliestBookableDate, leadTimeMessage } from '@/lib/rental/leadTime';
 import { toLocalYmd, fromLocalYmd } from '@/lib/rental/dates';
 import type { SmartRental } from '@/lib/supabase/queries/smartRentals';
+import { formatRand } from '@/lib/format/money';
+import { usePaymentsOpen } from '@/lib/payments/usePaymentsOpen';
+import { PaymentsNotOpenNote } from '@/components/booking/PaymentsNotOpenNote';
 
 interface Props {
   rental: SmartRental;
+  /** onlinePaymentsOpen() from the server; when absent it is fetched. */
+  paymentsOpen?: boolean;
 }
 
 type Verification = 'unverified' | 'pending' | 'verified' | 'rejected' | null;
@@ -46,7 +51,8 @@ export function BookingWidget(props: Props) {
   );
 }
 
-function BookingWidgetInner({ rental }: Props) {
+function BookingWidgetInner({ rental, paymentsOpen: paymentsOpenProp }: Props) {
+  const paymentsOpen = usePaymentsOpen(paymentsOpenProp);
   const pathname = usePathname();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -213,14 +219,14 @@ function BookingWidgetInner({ rental }: Props) {
         <div className="flex justify-between text-sm">
           <span className="text-neutral-400 font-mono">Daily rate</span>
           <span className="font-mono font-bold text-white">
-            {rental.currency} {(rental.price_per_day ?? 0).toLocaleString()}/day
+            {formatRand(rental.price_per_day ?? 0)} a day
           </span>
         </div>
         {rental.price_per_week && (
           <div className="flex justify-between text-sm">
             <span className="text-neutral-400 font-mono">Weekly rate</span>
             <span className="font-mono font-bold text-white">
-              {rental.currency} {rental.price_per_week.toLocaleString()}/week
+              {formatRand(rental.price_per_week)} a week
             </span>
           </div>
         )}
@@ -228,7 +234,7 @@ function BookingWidgetInner({ rental }: Props) {
           <div className="flex justify-between text-sm">
             <span className="text-neutral-400 font-mono">Refundable deposit</span>
             <span className="font-mono text-neutral-400">
-              {rental.currency} {depositAmount.toLocaleString()}
+              {formatRand(depositAmount)}
             </span>
           </div>
         )}
@@ -284,25 +290,27 @@ function BookingWidgetInner({ rental }: Props) {
                 {days} day{days !== 1 ? 's' : ''} rental, incl. VAT
               </span>
               <span className="font-mono text-white">
-                {rental.currency} {rentalPrice.toLocaleString()}
+                {formatRand(rentalPrice)}
               </span>
             </div>
             {depositAmount > 0 && (
               <div className="flex justify-between text-sm">
                 <span className="text-neutral-400 font-mono">Refundable deposit</span>
                 <span className="font-mono text-neutral-400">
-                  {rental.currency} {depositAmount.toLocaleString()}
+                  {formatRand(depositAmount)}
                 </span>
               </div>
             )}
             <div className="flex justify-between text-sm border-t border-white/5 pt-2">
               <span className="text-neutral-400 font-mono font-bold">Total with deposit</span>
               <span className="font-mono font-bold text-[#D4A843]">
-                {rental.currency} {(rentalPrice + depositAmount).toLocaleString()}
+                {formatRand(rentalPrice + depositAmount)}
               </span>
             </div>
             <p className="text-xs font-mono text-neutral-400">
-              At checkout: collect or have it delivered, and pay everything now or only the deposit now and the rest when you collect.
+              {paymentsOpen === false
+                ? 'At checkout: collect it, or after your first hire have it delivered. We then contact you to arrange payment.'
+                : 'At checkout: collect it, or after your first hire have it delivered, and pay everything now or only the deposit now and the rest when you collect.'}
             </p>
           </div>
         )}
@@ -318,10 +326,13 @@ function BookingWidgetInner({ rental }: Props) {
             className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-[#D4A843] text-black text-xs font-mono font-bold uppercase tracking-widest hover:opacity-80 transition-all min-h-[44px]"
           >
             <LogIn className="w-4 h-4" />
-            {datesReady ? `Sign in to book: ${rental.currency} ${rentalPrice.toLocaleString()}` : 'Sign in to book'}
+            {datesReady ? `Book these dates: ${formatRand(rentalPrice)}` : 'Book these dates'}
           </Link>
           <p className="text-xs font-mono text-neutral-400 text-center">
-            {datesReady ? 'Your dates are kept.' : 'Choose your dates above to see the price.'}
+            {datesReady ? 'You sign in next. Your dates are kept.' : 'Choose your dates above to see the price.'}
+          </p>
+          <p className="text-xs font-mono text-neutral-400 text-center">
+            First time? We check your ID once, and you collect the gear in person.
           </p>
         </div>
       ) : verification === 'pending' ? (
@@ -362,7 +373,7 @@ function BookingWidgetInner({ rental }: Props) {
                 Processing...
               </>
             ) : datesReady ? (
-              `Book for ${rental.currency} ${rentalPrice.toLocaleString()}`
+              `Book for ${formatRand(rentalPrice)}`
             ) : (
               'Choose your dates'
             )}
@@ -388,6 +399,10 @@ function BookingWidgetInner({ rental }: Props) {
           )}
         </div>
       )}
+
+      {/* Say how payment works before anyone presses to book. Disappears by
+          itself once online payment opens (onlinePaymentsOpen). */}
+      <PaymentsNotOpenNote open={paymentsOpen} />
 
       {/* Info line */}
       <div className="flex items-start gap-2 text-xs font-mono text-neutral-400">

@@ -4,9 +4,11 @@ import { useState, useMemo, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ChevronDown, SlidersHorizontal, X, Check, ArrowRight, Users, Star, ShieldCheck, Building2 } from 'lucide-react';
+import { ChevronDown, SlidersHorizontal, X, Check, ArrowRight, Users, Star, ShieldCheck } from 'lucide-react';
+import { formatRand } from '@/lib/format/money';
+import { collectionPointWithCity } from '@/lib/rental/collection-point';
 import type { SmartRental } from '@/lib/supabase/queries/smartRentals';
-import { RENTAL_CATEGORIES } from '@/lib/constants';
+import { RENTAL_CATEGORIES, STUDIO } from '@/lib/constants';
 
 // ─── Cloudinary thumbnail helper ──────────────────────────────────────────────
 // Rewrites a Cloudinary URL to request a smaller, optimised thumbnail.
@@ -110,12 +112,9 @@ function RentalCard({ rental, category }: { rental: SmartRental; category: strin
             Unavailable
           </span>
         )}
-        {(rental as Record<string, unknown>).owner_type === 'studio' || !(rental as Record<string, unknown>).owner_type ? (
-          <span className="flex items-center gap-1 bg-[#D4A843] text-black text-xs font-mono font-bold px-2 py-0.5 uppercase tracking-widest">
-            <Building2 className="w-2.5 h-2.5" />
-            Studio
-          </span>
-        ) : (
+        {/* No "Studio" badge: all gear is ours, so it told the visitor nothing.
+            A community listing, when one exists, still says so. */}
+        {(rental as Record<string, unknown>).owner_type === 'community' && (
           <span className="flex items-center gap-1 bg-violet-500/90 backdrop-blur-md text-white text-xs font-mono font-bold px-2 py-0.5 uppercase tracking-widest">
             <Users className="w-2.5 h-2.5" />
             Community
@@ -135,16 +134,8 @@ function RentalCard({ rental, category }: { rental: SmartRental; category: strin
         )}
       </div>
 
-      {rental.is_available && (
-        <div className="absolute top-3 right-3 z-20">
-          <div className="flex items-center gap-1.5 bg-green-500/10 backdrop-blur-md px-2 py-1 rounded-full border border-green-500/20">
-            <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
-            <span className="text-xs font-mono font-bold text-green-600 dark:text-green-400 uppercase tracking-widest">
-              Available
-            </span>
-          </div>
-        </div>
-      )}
+      {/* No "Available" badge here: availability depends on dates, which are
+          chosen on the item page. */}
 
       {/* Preview image: first gallery image */}
       <div className="relative aspect-square overflow-hidden bg-neutral-900">
@@ -213,9 +204,9 @@ function RentalCard({ rental, category }: { rental: SmartRental; category: strin
           {rental.price_per_day != null ? (
             <div className="flex items-end gap-1 mb-4">
               <span className="text-sm font-bold text-black dark:text-white">
-                {rental.currency} {rental.price_per_day.toLocaleString()}
+                {formatRand(rental.price_per_day)}
               </span>
-              <span className="text-xs text-neutral-400 mb-0.5">/ day</span>
+              <span className="text-xs text-neutral-400 mb-0.5">a day</span>
             </div>
           ) : (
             <p className="text-xs font-mono text-neutral-400 mb-4 uppercase tracking-widest">
@@ -414,7 +405,7 @@ export default function RentalCategoryClient({
             <div className="flex justify-between mt-4 font-mono text-xs text-neutral-400">
               <span>0</span>
               <span className="text-[#D4A843] font-bold">
-                Max: {rentals[0]?.currency ?? 'ZAR'} {maxPrice.toLocaleString()}
+                Max: {formatRand(maxPrice)}
               </span>
             </div>
           </div>
@@ -509,6 +500,11 @@ export default function RentalCategoryClient({
           <h1 className="text-4xl md:text-5xl font-display font-medium uppercase tracking-tight">
             {categoryLabel}{locationName ? ` in ${locationName}` : ''}
           </h1>
+          {locationName && (
+            <p className="mt-3 text-sm text-neutral-400 font-light">
+              Collected at {collectionPointWithCity()}. After your first hire we can also deliver within {STUDIO.fulfilment.delivery.maxRadiusKm} km.
+            </p>
+          )}
         </div>
       </div>
 
@@ -522,7 +518,7 @@ export default function RentalCategoryClient({
           >
             <SlidersHorizontal className="w-3 h-3" /> Filters
           </button>
-          <span className="text-xs font-mono text-neutral-400">{filtered.length} results</span>
+          <span className="text-xs font-mono text-neutral-400">{filtered.length} {filtered.length === 1 ? 'item' : 'items'}</span>
         </div>
 
         <div className="flex gap-12">

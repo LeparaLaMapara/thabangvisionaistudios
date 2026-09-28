@@ -83,8 +83,9 @@ export const STUDIO = {
     // canonical link and sitemap entry used to point at a redirect.
     url: 'https://www.thabangvision.com',
     title: 'ThabangVision',
+    // Leads with gear rental, the offering that is live (2026-09-28).
     description:
-      'Book photographers and videographers, and hire cameras, lenses, lighting and sound in Johannesburg. See the full price before you pay.',
+      'Rent cameras, lenses, lighting and sound in Johannesburg. Collect at 99 Smith Street, Braamfontein, and see the full price before you book. Photo and video shoots by request.',
     ogImage: '/og-image.jpg',
   },
 
@@ -451,7 +452,7 @@ export const ADMIN_EMAILS: readonly string[] = [
 
 export const SITE_NAME = STUDIO.shortName.toUpperCase();
 export const SITE_SUFFIX = '.LAB';
-export const SITE_TAGLINE = 'Book creators and hire camera gear';
+export const SITE_TAGLINE = 'Rent camera gear in Johannesburg';
 export const SITE_COPYRIGHT = `© ${new Date().getFullYear()} ${STUDIO.legal.companyName} (reg. ${STUDIO.legal.registrationNumber}), trading as ${STUDIO.shortName}. All rights reserved.`;
 
 // CONFIGURATION FLAGS
@@ -462,8 +463,8 @@ export const MAIN_NAVIGATION: {
   href: string;
   children?: { label: string; href: string; children?: { label: string; href: string }[] }[];
 }[] = [
-    { label: 'Rentals', href: '/rentals' },
-    { label: 'Studio', href: '/studio' },
+    { label: 'Rent Gear', href: '/rentals' },
+    { label: 'Shoots', href: '/studio' },
     // What things cost and how to reach a person, one tap from every page.
     { label: 'Pricing', href: '/pricing' },
     { label: 'Help', href: '/faq' },
@@ -473,7 +474,8 @@ export const FOOTER_SECTIONS = [
   {
     title: STUDIO.shortName,
     links: [
-      { label: 'Locations', href: '/locations' },
+      { label: 'Rent Gear', href: '/rentals' },
+      { label: 'Where to Collect', href: '/locations' },
       { label: 'About', href: '/about' },
       ...(SHOW_CAREERS ? [{ label: 'Careers', href: '/careers' }] : []),
       { label: 'Press & News', href: '/press' },
@@ -807,7 +809,7 @@ export const PRODUCTION_PACKAGES: ProductionPackage[] = [
       { type: 'postProduction', subType: 'videoEdit', hours: 6 },
     ],
     deliverables: ['200+ edited photos', '5-min highlight film', 'Full ceremony edit', 'Online gallery'],
-    popular: true,
+    // No "popular" flag: no service booking has been completed yet (2026-09-28).
   },
   {
     id: 'music-video',
@@ -863,13 +865,8 @@ export const UBUNYE_QUICK_ACTIONS: readonly QuickAction[] = [
     icon: 'Camera',
     prompt: `What camera and lens packages do you recommend for a cinematic corporate video in ${STUDIO.location.country}?`,
   },
-  {
-    id: 'hire-crew',
-    label: 'Hire Crew',
-    description: `Verified creators and rates in ${STUDIO.currency.code}`,
-    icon: 'Users',
-    prompt: `I need to hire a film crew for a 2-day shoot in ${STUDIO.location.city}. What roles do I need and what are typical rates in ${STUDIO.currency.code}?`,
-  },
+  // "Hire Crew" ("Verified creators and rates") was removed on 2026-09-28:
+  // no creators are listed yet.
   {
     id: 'build-package',
     label: 'Build Package',
@@ -888,7 +885,7 @@ export const UBUNYE_QUICK_ACTIONS: readonly QuickAction[] = [
 
 export const UBUNYE_EXAMPLE_PROMPTS: readonly string[] = [
   'Build a podcast setup for 3 people.',
-  `Find a photographer in ${STUDIO.location.city}.`,
+  'Which lens should I rent for portraits?',
   'Compare Sony cameras for documentary filmmaking.',
   'Create a wedding production package.',
   `What gear do I need for a rooftop shoot in ${STUDIO.location.city}?`,

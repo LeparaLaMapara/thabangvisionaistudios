@@ -8,6 +8,7 @@ import { STUDIO } from '@/lib/constants';
 import { buildPageMetadata } from '@/lib/seo/metadata';
 import { breadcrumbJsonLd, renderJsonLd } from '@/lib/seo/structured-data';
 import { ShareButtons } from '@/components/social/ShareButtons';
+import ReactMarkdown from 'react-markdown';
 
 type Props = {
   params: Promise<{ slug: string }>;
@@ -105,8 +106,10 @@ export default async function PressArticlePage({ params }: Props) {
 
           {/* Article content */}
           {article.content ? (
-            <div className="prose prose-neutral dark:prose-invert max-w-none font-light leading-relaxed text-neutral-400 dark:text-neutral-300 whitespace-pre-line">
-              {article.content}
+            <div className="prose prose-neutral dark:prose-invert max-w-none font-light leading-relaxed text-neutral-400 dark:text-neutral-300 space-y-4">
+              {/* Articles are written in Markdown: render it rather than
+                  showing the asterisks. Raw HTML is not rendered. */}
+              <ReactMarkdown>{article.content}</ReactMarkdown>
             </div>
           ) : (
             <div className="py-12 text-center border border-black/5 dark:border-white/5">

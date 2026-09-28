@@ -249,15 +249,15 @@ export default async function DashboardPage() {
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <QuickAction
           icon={Camera}
-          title="Book a Shoot"
-          description="Hire a creator for your next production."
-          href="/studio"
-        />
-        <QuickAction
-          icon={Search}
           title="Rent Equipment"
           description="Browse and reserve professional gear."
           href="/rentals"
+        />
+        <QuickAction
+          icon={Search}
+          title="Request a Shoot"
+          description="Photo and video shoots, by request."
+          href="/studio"
         />
         {isVerified ? (
           <QuickAction
@@ -269,9 +269,9 @@ export default async function DashboardPage() {
         ) : (
           <QuickAction
             icon={Users}
-            title="Hire a Creator"
-            description="Find verified creators for your project."
-            href="/studio"
+            title="Your Cart"
+            description="Check your dates and send your booking."
+            href="/dashboard/cart"
           />
         )}
       </div>

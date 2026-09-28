@@ -6,7 +6,9 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { PhotographyGallery } from '@/components/projects/ProjectsComponents';
 import { STUDIO } from '@/lib/constants';
-import { formatZAR } from '@/lib/productions/pricing';
+import { formatRand, withServiceVat } from '@/lib/format/money';
+import { displayTag } from '@/lib/content/tags';
+import { usePaymentsOpen } from '@/lib/payments/usePaymentsOpen';
 import type { SmartProduction, ImageExifMetadata } from '@/lib/supabase/queries/smartProductions';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -64,7 +66,7 @@ export default function ProductionDetailView({
           </Link>
           <h1 className="text-sm font-display font-bold text-black dark:text-white uppercase tracking-widest">
             {project.title}{' '}
-            <span className="text-neutral-400 font-normal">// {project.sub_category}</span>
+            {project.sub_category && <span className="text-neutral-400 font-normal">· {project.sub_category}</span>}
           </h1>
           <div className="w-20" />
         </div>
@@ -116,7 +118,7 @@ export default function ProductionDetailView({
                           key={tag}
                           className="px-2 py-0.5 border border-white/10 text-xs font-mono uppercase tracking-widest text-neutral-400"
                         >
-                          {tag}
+                          {displayTag(tag)}
                         </span>
                       ))}
                     </div>
@@ -190,7 +192,7 @@ export default function ProductionDetailView({
                   key={tag}
                   className="px-3 py-1 border border-black/10 dark:border-white/10 text-xs font-mono uppercase tracking-widest text-neutral-400 dark:text-neutral-400"
                 >
-                  {tag}
+                  {displayTag(tag)}
                 </span>
               ))}
             </div>
@@ -272,21 +274,22 @@ function priceUnitLabel(unit: string): string {
 function BookingWidget({ project }: { project: SmartProduction }) {
   const router = useRouter();
   const hasPrice = project.price != null && project.price > 0;
+  const paymentsOpen = usePaymentsOpen();
 
   return (
     <div className="border border-black/10 dark:border-white/10 bg-neutral-50 dark:bg-[#0A0A0B] p-5">
       <span className="block text-xs font-mono font-bold text-neutral-400 uppercase tracking-widest border-b border-black/5 dark:border-white/5 pb-3 mb-4">
-        Book This Production
+        Request This Shoot
       </span>
 
       {hasPrice ? (
         <div className="mb-4">
           <div className="flex items-end gap-1">
             <span className="text-2xl font-display font-bold text-[#D4A843]">
-              {formatZAR(project.price!)}
+              {formatRand(withServiceVat(project.price!))}
             </span>
             <span className="text-sm font-mono text-neutral-400 mb-0.5">
-              {priceUnitLabel(project.price_unit)} excl. VAT
+              {priceUnitLabel(project.price_unit)} incl. VAT
             </span>
           </div>
         </div>
@@ -305,12 +308,14 @@ function BookingWidget({ project }: { project: SmartProduction }) {
         className="w-full py-3 text-xs font-mono font-bold uppercase tracking-widest bg-[#D4A843] text-black border border-[#D4A843] hover:opacity-80 transition-all flex items-center justify-center gap-2"
       >
         <span className="w-1.5 h-1.5 rounded-full bg-black animate-pulse" />
-        Book Now
+        Request This Shoot
       </button>
 
       <p className="text-xs font-mono text-neutral-400 mt-3 text-center">
         {hasPrice ? (
-          <>Pick a date and pay. Questions?{' '}
+          <>{paymentsOpen === false
+              ? 'Pick a date and send a request. We contact you to confirm and arrange payment.'
+              : paymentsOpen ? 'Pick a date and pay.' : 'Pick a date and send a request.'} Questions?{' '}
             <a
               href={`/ubunye-ai-studio?${new URLSearchParams({ prompt: `I have a question about the "${project.title}" production` })}`}
               className="underline underline-offset-2 hover:text-white"
@@ -398,9 +403,9 @@ function ShotWithSection({ gear }: { gear: MatchedGear[] }) {
               <div className="flex items-end justify-between mt-4 pt-3 border-t border-white/5">
                 <div>
                   <span className="text-base font-display font-medium text-white">
-                    {STUDIO.currency.symbol}{item.pricePerDay.toLocaleString()}
+                    {formatRand(item.pricePerDay)}
                   </span>
-                  <span className="text-xs font-mono text-neutral-400 ml-1">/ day</span>
+                  <span className="text-xs font-mono text-neutral-400 ml-1">a day</span>
                 </div>
                 <span className="text-xs font-mono uppercase tracking-widest text-[#D4A843] group-hover:translate-x-1 transition-transform duration-300">
                   View Details &rarr;

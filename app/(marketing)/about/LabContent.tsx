@@ -1,20 +1,20 @@
 'use client';
 
 import { motion } from 'framer-motion';
-import { Sparkles, Camera, Bot, Store, Workflow, Code, ArrowRight } from 'lucide-react';
+import { Sparkles, Camera, Bot, Workflow, Code, ArrowRight } from 'lucide-react';
 import Link from 'next/link';
 import { STUDIO } from '@/lib/constants';
+import { collectionPoint } from '@/lib/rental/collection-point';
 
 const HERO_CAPABILITY = {
   title: 'Ubunye AI Studio',
   icon: Bot,
-  desc: `The intelligence layer behind ${STUDIO.shortName}. Chat with Ubunye to discover creators, find the right gear, plan productions, get pricing estimates, and manage your projects — all through natural conversation. It connects every part of the platform.`,
+  desc: `Ubunye is our AI assistant. Ask it about gear, dates and prices, or to help plan a shoot, in plain words.`,
 };
 
 const CAPABILITIES = [
-  { title: 'Production Services', icon: Sparkles, desc: 'Photography, video and post-production (retouching, colour grading, editing), booked as a package or by the hour.', poweredByAI: false },
+  { title: 'Shoots by Request', icon: Sparkles, desc: 'Photography, video and post-production (retouching, colour grading, editing). Choose a package and send a request; we confirm who will shoot it, the date and the price.', poweredByAI: false },
   { title: 'Equipment Rentals', icon: Camera, desc: 'Browse cameras, lenses, lighting and sound, see live availability and the full price, and book online. Ubunye can suggest gear for your shoot.', poweredByAI: true },
-  { title: 'Creator Network', icon: Store, desc: 'A vetted supplier network of South African creators and gear owners. Productions book through ThabangVision, and we match the right crew and equipment to the job.', poweredByAI: true },
   { title: 'AI Help for Creators', icon: Workflow, desc: 'Ubunye drafts your profile bio and gear listings from your photos, and suggests rates in line with similar work.', poweredByAI: true },
   { title: 'Coming: Ubunye Studio', icon: Code, desc: 'An AI video and photo editor for creators is in development under the ThabangVision name. It is not part of this site yet.', poweredByAI: false },
 ];
@@ -24,13 +24,12 @@ export default function LabContent() {
     <>
       {/* Header */}
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="max-w-5xl mb-24">
-        <span className="text-xs font-mono text-[#D4A843] uppercase tracking-[0.3em] mb-4 block">Our Platform</span>
         <h1 className="text-5xl md:text-8xl font-display font-medium text-white tracking-tighter uppercase mb-8 leading-[0.9]">
-          The <span className="text-neutral-400">Lab</span>
+          About <span className="text-neutral-400">{STUDIO.name}</span>
         </h1>
         <div className="w-8 h-px bg-[#D4A843] mt-6 mb-8" />
         <p className="text-xl md:text-3xl text-neutral-300 font-light leading-relaxed max-w-4xl">
-          {STUDIO.name} is a Johannesburg platform to book photographers and videographers and hire camera gear. You see the full price before you pay, and Ubunye, our AI assistant, helps you choose. You get hired for the work you make, not who you know.
+          {STUDIO.name} rents its own camera, lighting and sound gear in {STUDIO.location.city}, collected at {collectionPoint()}. Photo and video shoots are by request. You see the full price before you book, and Ubunye, our AI assistant, helps you choose.
         </p>
       </motion.div>
 
@@ -43,7 +42,7 @@ export default function LabContent() {
       >
         <div className="absolute top-6 right-6">
           <span className="text-xs font-mono uppercase tracking-widest text-[#D4A843] border border-[#D4A843]/40 px-3 py-1">
-            Core Platform
+            Assistant
           </span>
         </div>
         <HERO_CAPABILITY.icon className="w-10 h-10 text-[#D4A843] mb-6" />
@@ -89,7 +88,7 @@ export default function LabContent() {
       <div className="bg-[#080808] border border-white/5 p-12 md:p-24 text-center">
         <h2 className="text-3xl md:text-5xl font-display font-bold uppercase mb-8 text-white">Ready to build something?</h2>
         <p className="text-neutral-400 mb-12 max-w-xl mx-auto font-mono text-sm">
-          Whether you&apos;re a creator, production house, or studio — we&apos;d love to hear about your next project.
+          Renting gear for a shoot, or planning one? We&apos;d love to hear about it.
         </p>
         <Link href="/contact" className="inline-flex items-center gap-3 bg-[#D4A843] text-black px-8 py-4 text-xs font-mono font-bold uppercase tracking-widest hover:opacity-80 transition-opacity">
           Get In Touch <ArrowRight className="w-4 h-4" />

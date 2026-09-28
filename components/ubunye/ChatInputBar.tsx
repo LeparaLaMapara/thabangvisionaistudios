@@ -170,7 +170,7 @@ export function ChatInputBar({
         </p>
         {!limitReached && remaining !== -1 && (
           <p className="text-xs text-neutral-400">
-            {remaining} left{isAuthenticated ? ' today' : ''}
+            {remaining} free message{remaining === 1 ? '' : 's'} left{isAuthenticated ? ' today' : ''}
           </p>
         )}
       </div>

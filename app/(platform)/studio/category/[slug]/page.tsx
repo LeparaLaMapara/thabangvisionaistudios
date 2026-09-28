@@ -9,7 +9,8 @@ import { buildPageMetadata } from '@/lib/seo/metadata';
 import { serviceJsonLd, breadcrumbJsonLd, renderJsonLd } from '@/lib/seo/structured-data';
 import CategoryPageClient from './CategoryPageClient';
 import { AskUbunyeButton } from '@/components/ubunye/AskUbunyeButton';
-import { AlsoAvailableIn } from '@/components/seo/AlsoAvailableIn';
+import { categoryFromPrice } from '@/lib/productions/from-price';
+import { formatRand } from '@/lib/format/money';
 import { RelatedCategories } from '@/components/seo/RelatedCategories';
 
 interface Props {
@@ -25,7 +26,10 @@ export async function generateMetadata({ params }: Props) {
   if (!category) return { title: 'Category Not Found' };
   return buildPageMetadata({
     title: `${category.name} — Production Services`,
-    description: `${category.description} Book ${category.name.toLowerCase()} professionals across South Africa starting from R${category.startingRate}.`,
+    description: (() => {
+      const from = categoryFromPrice(PRODUCTION_PACKAGES.filter((p) => p.category === slug));
+      return `${category.description} By request in ${STUDIO.location.city}${from !== null ? `, from ${formatRand(from)} incl. VAT` : ''}.`;
+    })(),
     path: `/studio/category/${slug}`,
     imageUrl: category.coverImageUrl ?? undefined,
   });
@@ -51,7 +55,7 @@ export default async function CategoryPage({ params }: Props) {
       name: `${category.name} Production Services`,
       description: category.description,
       url: `${STUDIO.meta.url}/studio/category/${slug}`,
-      startingRate: category.startingRate,
+      startingRate: categoryFromPrice(packages) ?? undefined,
       imageUrl: category.coverImageUrl ?? undefined,
     }),
     breadcrumbJsonLd([
@@ -76,11 +80,10 @@ export default async function CategoryPage({ params }: Props) {
         productions={[...productions, ...creatorProductions]}
         creators={creators}
       />
-      <AlsoAvailableIn basePath={`/studio/category/${slug}`} />
       <RelatedCategories currentSlug={slug} type="studio" />
       <AskUbunyeButton
         prompt={`I need a quote for ${category.name.toLowerCase()} production services`}
-        label="Get an instant AI quote"
+        label="Ask Ubunye about this"
       />
     </>
   );

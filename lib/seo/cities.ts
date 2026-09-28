@@ -28,10 +28,14 @@ export const SA_CITIES: SACity[] = [
 
 /**
  * Where gear can actually be collected or delivered: collection is in
- * Johannesburg and delivery reaches about 100 km (STUDIO.fulfilment), which is
- * the Gauteng cities. Rental pages for other cities listed Johannesburg stock
- * under "Rentals in Cape Town"; they now point to the category page instead.
- * Studio services travel, so their city pages stay for every city.
+ * Braamfontein, Johannesburg and delivery reaches about 100 km
+ * (STUDIO.fulfilment), which is the Gauteng cities. Rental pages for other
+ * cities listed Johannesburg stock under "Rentals in Cape Town"; they now
+ * point to the category page instead. Studio city pages follow the same rule
+ * since 2026-09-28: no creators are listed anywhere, so a "Photography in
+ * Cape Town" page promised what does not exist. The city pages are kept for
+ * search only; no visible page links to them, and there is no
+ * "All South Africa" page.
  */
 export function deliversRentals(city: SACity): boolean {
   return city.province === 'Gauteng';
