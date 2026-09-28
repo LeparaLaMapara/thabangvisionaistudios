@@ -23,7 +23,6 @@ import { STUDIO } from '@/lib/constants';
 import { earliestBookableDate, leadTimeMessage } from '@/lib/rental/leadTime';
 import { toLocalYmd, fromLocalYmd } from '@/lib/rental/dates';
 import type { SmartRental } from '@/lib/supabase/queries/smartRentals';
-import { isPaymentUrl } from '@/lib/payments/hosts';
 
 interface Props {
   rental: SmartRental;
@@ -162,36 +161,19 @@ function BookingWidgetInner({ rental }: Props) {
     router.replace(next, { scroll: false });
   };
 
+  // One way to book gear: the item goes into the cart with its dates, and the
+  // cart is the checkout (collection or delivery, pay in full or deposit now).
+  // There used to be a second path from this page with different payment
+  // rules, which the Terms had to explain twice.
   const handleBookNow = async () => {
     if (!startStr || !endStr) return;
     setError(null);
     setBooking(true);
-
-    try {
-      const res = await fetch('/api/bookings', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({
-          rental_id: rental.id,
-          start_date: startStr,
-          end_date: endStr,
-        }),
-      });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        throw new Error(data.error || 'Booking failed.');
-      }
-
-      if (data.payment_url && isPaymentUrl(data.payment_url)) {
-        window.location.assign(data.payment_url);
-      } else {
-        router.push(`/dashboard/bookings/${data.id}${data.payments_offline ? '?payment=offline' : ''}`);
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Booking failed.');
+    const ok = await addToCart(rental.id, 1, startStr, endStr);
+    if (ok) {
+      router.push('/dashboard/cart');
+    } else {
+      setError('Could not reserve it. It may be fully booked, or your cart is full.');
       setBooking(false);
     }
   };
@@ -307,18 +289,21 @@ function BookingWidgetInner({ rental }: Props) {
             </div>
             {depositAmount > 0 && (
               <div className="flex justify-between text-sm">
-                <span className="text-neutral-500 font-mono">Deposit, paid at collection, refunded after return</span>
+                <span className="text-neutral-500 font-mono">Refundable deposit</span>
                 <span className="font-mono text-neutral-400">
                   {rental.currency} {depositAmount.toLocaleString()}
                 </span>
               </div>
             )}
             <div className="flex justify-between text-sm border-t border-white/5 pt-2">
-              <span className="text-neutral-500 font-mono font-bold">Pay now</span>
+              <span className="text-neutral-500 font-mono font-bold">Total with deposit</span>
               <span className="font-mono font-bold text-[#D4A843]">
-                {rental.currency} {rentalPrice.toLocaleString()}
+                {rental.currency} {(rentalPrice + depositAmount).toLocaleString()}
               </span>
             </div>
+            <p className="text-[9px] font-mono text-neutral-500">
+              At checkout: collect or have it delivered, and pay everything now or only the deposit now and the rest when you collect.
+            </p>
           </div>
         )}
       </div>
@@ -398,7 +383,7 @@ function BookingWidgetInner({ rental }: Props) {
               className="w-full flex items-center justify-center gap-2 py-2.5 border border-white/10 text-neutral-400 text-[10px] font-mono uppercase tracking-widest hover:text-white hover:border-white/20 disabled:opacity-50 transition-all"
             >
               <ShoppingCart className="w-3.5 h-3.5" />
-              {cartLoading ? 'Adding...' : 'Or Add to Cart'}
+              {cartLoading ? 'Adding...' : 'Add to cart and keep browsing'}
             </button>
           )}
         </div>

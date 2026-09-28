@@ -46,7 +46,7 @@ export default function RefundsPage() {
 
           <Section title="2. Security Deposits on Equipment Hire">
             <p>Every equipment hire carries a refundable security deposit, shown on the listing and in your cart before you pay. It is a fixed amount per item, not a percentage of the hire, and it is held against late return, damage, and loss.</p>
-            <p>When you pay it depends on how you book. Booking one item straight from its page, you pay the hire charge online and the deposit when you collect. Checking out from your cart, the deposit is paid online with your order. The page shows which applies before you pay.</p>
+            <p>At checkout you choose how to pay: everything online, or, when you collect, the deposit online to hold the equipment and the hire charge when you collect. Checkout shows the amounts before you pay. While online payment is not yet open, we confirm your booking once we receive your payment by EFT, cash or a card link we send you.</p>
             <p>When the equipment comes back we inspect each item and photograph its condition, then compare it against the record made when it left us. The deposit is then settled in one of four ways:</p>
             <ul className="list-disc pl-5 space-y-1">
               <li><span className="text-white">Released in full</span> — everything came back on time and in the condition it went out in.</li>
@@ -55,7 +55,7 @@ export default function RefundsPage() {
               <li><span className="text-white">Held pending a dispute</span> — where the position is not clear, or the equipment has not come back, the deposit is held while we investigate.</li>
             </ul>
             <p>Where any part of your deposit is withheld, we send you a written breakdown showing what was deducted and why. If you disagree with it, raise it with us using section 8 below.</p>
-            <p>A deposit paid online is refunded to the card you paid with. A deposit paid at collection is refunded the same way it was paid. We do not refund to a third party.</p>
+            <p>A deposit paid online is refunded to the card you paid with. A deposit paid by EFT or cash is paid back the same way. We do not refund to a third party.</p>
           </Section>
 
           <Section title="3. Late Returns">

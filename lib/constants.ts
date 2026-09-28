@@ -244,6 +244,9 @@ export const STUDIO = {
       name: 'Braamfontein',
       lat: -26.1929,
       lng: 28.0305,
+      // The exact meeting place, sent in every confirmation. Empty until the
+      // owner sets it; messages then say the spot follows the day before.
+      meetingPoint: '',
     },
     collection: {
       enabled: true,

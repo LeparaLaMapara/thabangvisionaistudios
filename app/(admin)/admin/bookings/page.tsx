@@ -13,6 +13,7 @@ import { Button } from '@/components/ui/Button';
 import { Pagination } from '@/components/ui/Pagination';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Modal } from '@/components/ui/Modal';
+import { MarkPaid } from '@/components/admin/MarkPaid';
 import type { BookingStatus, EquipmentBooking } from '@/types/booking';
 
 // ─── Extended booking type with joined rental + user info ────────────────────
@@ -280,20 +281,6 @@ export default function AdminBookingsPage() {
                         <Button
                           variant="ghost"
                           size="sm"
-                          title="Confirm"
-                          onClick={() =>
-                            setConfirmAction({
-                              id: booking.id,
-                              action: 'confirm',
-                              title: booking.rental_title,
-                            })
-                          }
-                        >
-                          <CheckCircle className="w-3 h-3 text-emerald-500" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
                           title="Cancel"
                           onClick={() =>
                             setConfirmAction({
@@ -450,30 +437,28 @@ export default function AdminBookingsPage() {
             )}
             {['active', 'overdue'].includes(detailBooking.status as string) && (
               <Link
-                href={`/admin/rentals/${detailBooking.id}/review-return`}
+                href={`/admin/rentals/${detailBooking.id}/return`}
                 className="flex items-center justify-center gap-2 border border-white/20 text-white py-2.5 text-[10px] font-mono font-bold uppercase tracking-widest"
               >
-                Review return
+                Take back gear
               </Link>
+            )}
+
+            {/* Waiting for payment: record it when it arrives by EFT, cash or a card link */}
+            {detailBooking.status === 'pending' && (
+              <MarkPaid
+                bookingId={detailBooking.id}
+                suggestedAmount={Number(detailBooking.total_price ?? 0) + Number(detailBooking.deposit_amount ?? 0)}
+                onDone={() => {
+                  setDetailBooking(null);
+                  fetchBookings();
+                }}
+              />
             )}
 
             {/* Actions */}
             {detailBooking.status === 'pending' && (
               <div className="flex gap-3 pt-4 border-t border-white/10">
-                <button
-                  onClick={() => {
-                    setDetailBooking(null);
-                    setConfirmAction({
-                      id: detailBooking.id,
-                      action: 'confirm',
-                      title: detailBooking.rental_title,
-                    });
-                  }}
-                  className="flex-1 bg-emerald-600 text-white py-2.5 text-[10px] font-mono font-bold uppercase tracking-widest hover:bg-emerald-700 transition-colors flex items-center justify-center gap-2"
-                >
-                  <CheckCircle className="w-3.5 h-3.5" />
-                  Confirm Booking
-                </button>
                 <button
                   onClick={() => {
                     setDetailBooking(null);
