@@ -147,6 +147,9 @@ export const paystack: PaymentProvider = {
   refund: (reference: string, amount?: number) => refundPayment(reference, amount),
 
   isConfigured(): boolean {
+    // PAYMENTS_OFF=true switches online payment off on purpose (the nonprod
+    // site uses it to show exactly what production customers see).
+    if (process.env.PAYMENTS_OFF === 'true') return false;
     return paystackReady(process.env.PAYSTACK_SECRET_KEY, process.env.VERCEL_ENV);
   },
 
