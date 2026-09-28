@@ -120,7 +120,7 @@ export function coreFaqs(opts: { paymentsOpen?: boolean } = {}): CoreFaq[] {
       id: 'core-human',
       category: 'general',
       question: 'Can I talk to a person?',
-      answer: `Yes. Call ${STUDIO.phone} or email ${STUDIO.email}. You can also ask Ubunye, our assistant, at any time.`,
+      answer: `Yes. WhatsApp ${STUDIO.whatsapp.display} or email ${STUDIO.email}. You can also ask Ubunye, our assistant, at any time.`,
     },
   ];
 }

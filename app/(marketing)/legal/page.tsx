@@ -199,7 +199,7 @@ export default function LegalPage() {
           <Section title="19. Disputes and Complaints">
             <p>If you are unhappy with an order, a charge, or the condition of equipment, contact us first so that we can put it right. Email{' '}
               <a href={`mailto:${STUDIO.supportEmail}`} className={link}>{STUDIO.supportEmail}</a>{' '}
-              with your booking reference and a description of the issue, or call {STUDIO.phone} during business hours.
+              with your booking reference and a description of the issue, or WhatsApp us on {STUDIO.whatsapp.display} during business hours.
             </p>
             <p>We acknowledge every complaint within 2 business days and aim to resolve it within 10 business days. If we need longer, we tell you why and give you a revised date. Our written resolution sets out the outcome and any refund or credit due to you.</p>
             <p>If you are not satisfied with the outcome, you may escalate the matter in writing to{' '}
@@ -255,7 +255,7 @@ export default function LegalPage() {
               {STUDIO.legal.registeredAddress && (<>{STUDIO.legal.registeredAddress}<br /></>)}
               Registration number {STUDIO.legal.registrationNumber}<br />
               {STUDIO.legal.vatNumber && (<>VAT number {STUDIO.legal.vatNumber}<br /></>)}
-              Telephone {STUDIO.phone}<br />
+              WhatsApp {STUDIO.whatsapp.display}<br />
               General{' '}
               <a href={`mailto:${STUDIO.email}`} className={link}>{STUDIO.email}</a>
               {' '}| Support{' '}

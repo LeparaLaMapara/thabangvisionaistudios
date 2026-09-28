@@ -28,7 +28,6 @@ export function whatsappLink(message?: string): string {
   return message ? `${base}?text=${encodeURIComponent(message)}` : base;
 }
 
-export const telLink = `tel:${STUDIO.phone.replace(/\s/g, '')}`;
 
 /** The scam warning shown next to bank details. */
 export const BANK_DETAILS_NEVER_CHANGE =

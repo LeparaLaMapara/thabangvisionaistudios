@@ -16,7 +16,8 @@ export const STUDIO = {
   pressEmail: 'press@thabangvision.com',  //'thabangvisionstudios+press@gmail.com',
   privacyEmail: 'privacy@thabangvision.com',  //'thabangvisionstudios+privacy@gmail.com',
   phone: '+27 63 990 5802',
-  // WhatsApp: the same number, in the international form wa.me links need.
+  // WhatsApp only (owner, 2026-09-28): this number takes WhatsApp messages, not
+  // calls. Everything customer-facing says WhatsApp, never "call".
   whatsapp: {
     number: '27639905802',
     display: '063 990 5802',
@@ -483,8 +484,8 @@ export const MAIN_NAVIGATION: {
   href: string;
   children?: { label: string; href: string; children?: { label: string; href: string }[] }[];
 }[] = [
-    { label: 'Rent Gear', href: '/rentals' },
-    { label: 'Shoots', href: '/studio' },
+    { label: 'Rentals', href: '/rentals' },
+    { label: 'Studio', href: '/studio' },
     // What things cost and how to reach a person, one tap from every page.
     { label: 'Pricing', href: '/pricing' },
     { label: 'Help', href: '/faq' },
@@ -494,7 +495,7 @@ export const FOOTER_SECTIONS = [
   {
     title: STUDIO.shortName,
     links: [
-      { label: 'Rent Gear', href: '/rentals' },
+      { label: 'Rentals', href: '/rentals' },
       { label: 'Where to Collect', href: '/locations' },
       { label: 'About', href: '/about' },
       ...(SHOW_CAREERS ? [{ label: 'Careers', href: '/careers' }] : []),

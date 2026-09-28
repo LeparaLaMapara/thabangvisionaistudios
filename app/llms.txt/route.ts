@@ -20,7 +20,7 @@ ${STUDIO.name} is a technology creative studio based in ${STUDIO.location.city},
 
 ## Contact
 - Email: ${STUDIO.email}
-- Phone: ${STUDIO.phone}
+- WhatsApp (messages only): ${STUDIO.whatsapp.display}
 - Bookings: ${STUDIO.bookingEmail}
 - Website: ${baseUrl}
 

@@ -247,7 +247,7 @@ export function buildSystemPrompt(
 ${STUDIO.name} (${STUDIO.legal.tradingAs}) is a Johannesburg marketplace to book photographers and videographers and to hire camera gear. It is the seller of record: clients pay ThabangVision, and creators supply their work and gear through it.
 
 ===== CONTACT =====
-Phone: ${STUDIO.phone}
+WhatsApp (messages only, no calls): ${STUDIO.whatsapp.display}
 Email: ${STUDIO.email}
 Instagram: ${STUDIO.social.instagram || 'Not set'}
 Location: ${STUDIO.location.city}, ${STUDIO.location.province}

@@ -20,9 +20,12 @@ describe('core FAQ answers come from the settings checkout uses', () => {
 
   it('never promises what the site does not do', () => {
     const all = faqs.map((f) => f.answer).join(' ').toLowerCase();
-    for (const claim of ['insured', 'instant', 'certified copy is required', 'whatsapp']) {
+    // WhatsApp became a real channel on 2026-09-28 (owner): it is now checked
+    // to be the number in the settings, and calls are never promised.
+    for (const claim of ['insured', 'instant', 'certified copy is required', 'call ']) {
       expect(all).not.toContain(claim);
     }
+    expect(all).toContain(`whatsapp ${STUDIO.whatsapp.display}`);
   });
 });
 
