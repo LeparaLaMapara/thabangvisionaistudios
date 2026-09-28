@@ -12,6 +12,7 @@ import { logEvent } from '@/lib/data/events';
 import { validateBookingRequest } from '@/lib/bookings/validate';
 import { quoteHourly, quotePackage, splitServiceBooking } from '@/lib/bookings/pricing';
 import { getBookablePackage } from '@/lib/bookings/packages';
+import { reportUnpaidRequest, PAYMENTS_OFF_MESSAGE } from '@/lib/payments/offline';
 
 // Writes that touch money or status go through the service role, after the
 // route has checked who the user is and that the record is theirs. The users'
@@ -138,10 +139,19 @@ export async function POST(request: NextRequest) {
 
     // Initialize Paystack payment
     if (!payments.isConfigured()) {
+      reportUnpaidRequest({
+        kind: 'service',
+        reference,
+        userId: user.id,
+        userEmail: user.email,
+        amount: total,
+        summary: pkg ? `${project_category}: ${quote.line}` : `${project_category}, ${duration_hours} hours`,
+      });
       return NextResponse.json({
         success: true,
         booking: { id: booking.id, reference, total },
-        message: 'Booking created. Payment provider not configured — contact admin.',
+        payments_offline: true,
+        message: PAYMENTS_OFF_MESSAGE,
       });
     }
 

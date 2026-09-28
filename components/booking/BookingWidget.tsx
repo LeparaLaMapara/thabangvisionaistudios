@@ -188,7 +188,7 @@ function BookingWidgetInner({ rental }: Props) {
       if (data.payment_url && isPaymentUrl(data.payment_url)) {
         window.location.assign(data.payment_url);
       } else {
-        router.push(`/dashboard/bookings/${data.id}`);
+        router.push(`/dashboard/bookings/${data.id}${data.payments_offline ? '?payment=offline' : ''}`);
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Booking failed.');
