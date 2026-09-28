@@ -30,7 +30,8 @@ export interface BookingHold {
 }
 
 /** Statuses that occupy stock. Anything else has released it. */
-const OCCUPYING = new Set(['pending', 'confirmed', 'active']);
+// 'overdue' gear has not come back, so it still occupies stock.
+const OCCUPYING = new Set(['pending', 'confirmed', 'active', 'overdue']);
 
 /**
  * An unpaid `pending` row is a checkout someone started. It holds stock only

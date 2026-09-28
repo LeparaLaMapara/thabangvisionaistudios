@@ -8,6 +8,8 @@ import { triggerCreatorPayout } from '@/lib/payments/payout';
 import { email as emailProvider } from '@/lib/email';
 import { STUDIO } from '@/lib/constants';
 import { autoPublishCreatorProductions } from '@/lib/supabase/queries/smartProductions';
+import { effectiveHoldMinutes } from '@/lib/rental/availability-server';
+import { notifyClient } from '@/lib/bookings/notify-client';
 import { autoSendWelcomes, draftMissingWelcomes } from '@/lib/greetings/process';
 
 /**
@@ -52,8 +54,10 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   // sitting in 'pending' because a webhook has not landed must never be
   // released, or the gear gets sold twice.
   try {
+    // While online payment is off, requests hold their dates for 48 hours so
+    // the team can arrange payment; otherwise the usual short checkout hold.
     const holdCutoff = new Date(
-      now.getTime() - STUDIO.rental.pendingHoldMinutes * 60_000,
+      now.getTime() - effectiveHoldMinutes() * 60_000,
     ).toISOString();
 
     const { data: released, error } = await supabase
@@ -92,6 +96,15 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       .select('id, reference');
 
     results.cancelledUnpaid = unpaid?.length ?? 0;
+    // Nobody should find out by accident that their request is gone.
+    for (const b of unpaid ?? []) {
+      await notifyClient({
+        bookingId: b.id,
+        type: 'booking_expired',
+        title: 'Your booking request has expired',
+        body: `Your request ${b.reference} was not paid within 72 hours, so it has been closed and nothing was charged. If you still need this, book again or reply to this email and we will help.`,
+      });
+    }
   } catch (err) {
     results.cancelledUnpaidError = String(err);
   }
