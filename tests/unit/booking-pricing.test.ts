@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { quoteHourly, quotePackage, packageUnitWords } from '@/lib/bookings/pricing';
+import { quoteHourly, quotePackage, packageUnitWords, splitServiceBooking } from '@/lib/bookings/pricing';
 
 describe('service booking prices', () => {
   it('charges a studio package its own price plus VAT, whatever the hours', () => {
@@ -39,5 +39,15 @@ describe('category packages are charged what their card shows', () => {
   it('refuses an unknown package id without touching the database', async () => {
     const { getBookablePackage } = await import('@/lib/bookings/packages');
     expect(await getBookablePackage({} as never, 'not-a-package')).toBeNull();
+  });
+});
+
+describe('splitServiceBooking: commission before VAT', () => {
+  it('R1,000 shoot: creator R850, we keep R150 commission, R150 VAT is separate', () => {
+    const q = quoteHourly(1000, 1, 15);
+    const split = splitServiceBooking(q, 15);
+    expect(q.total).toBe(1150);
+    expect(split).toEqual({ platformAmount: 150, creatorAmount: 850 });
+    expect(split.platformAmount + split.creatorAmount + q.vat).toBe(q.total);
   });
 });

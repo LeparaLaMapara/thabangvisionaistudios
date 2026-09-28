@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/server';
 import { payments, type WebhookResult } from '@/lib/payments';
+import { STUDIO } from '@/lib/constants';
 
 export const dynamic = 'force-dynamic';
 
@@ -139,7 +140,7 @@ async function handlePaymentComplete(webhook: WebhookResult) {
       console.log(`[webhook] Subscription activated: ref=${paymentId}`);
     }
   } else if (paymentType === 'crew_request' || paymentType === 'crew_request_deposit') {
-    const commissionRate = 15; // STUDIO.creators.commissionRate
+    const commissionRate = STUDIO.creators.commissionRate;
     const commissionAmount = amountGross * (commissionRate / 100);
 
     // For deposits, just mark as paid but don't overwrite total_amount (it's already set at booking time)

@@ -50,3 +50,23 @@ export function quotePackage(price: number, unit: string, hours: number, vatRate
   const line = perHour ? `${rand(price)}/hr × ${hours}hrs` : `${rand(price)} ${packageUnitWords(unit)}`;
   return { basis: 'package', line, ...withVat(subtotal, vatRate) };
 }
+
+/**
+ * Splits a service booking between the creator and us.
+ *
+ * Commission is taken from the price before VAT. We are the seller, so all of
+ * the VAT is ours to pay to SARS; it is never part of the creator's share.
+ * Until 2026-09-28 commission was taken from the VAT-inclusive total, so the
+ * creator received 85% of the VAT as well and we kept about 2% of a booking
+ * instead of 15%.
+ *
+ * platformAmount is the commission only; subtotal + vat = total, and
+ * creatorAmount + platformAmount = subtotal.
+ */
+export function splitServiceBooking(
+  quote: { subtotal: number },
+  commissionPercent: number,
+): { platformAmount: number; creatorAmount: number } {
+  const platformAmount = Math.round(quote.subtotal * (commissionPercent / 100));
+  return { platformAmount, creatorAmount: quote.subtotal - platformAmount };
+}
