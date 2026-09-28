@@ -10,6 +10,8 @@ import { logEvent } from '@/lib/data/events';
 import { reportUnpaidRequest, PAYMENTS_OFF_MESSAGE } from '@/lib/payments/offline';
 import { checkProtection, itemValue } from '@/lib/rental/protection';
 import { loadRenterRecord } from '@/lib/rental/protection-server';
+import { availabilityFor } from '@/lib/rental/availability-server';
+import { availabilityMessage } from '@/lib/rental/availability';
 
 // Writes that touch money or status go through the service role, after the
 // route has checked who the user is and that the record is theirs. The users'
@@ -178,20 +180,17 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  // Double-booking prevention: check for conflicting bookings
-  const { data: conflicts } = await supabase
-    .from('equipment_bookings')
-    .select('id')
-    .eq('rental_id', rental_id)
-    .in('status', ['pending', 'confirmed', 'active'])
-    .lt('start_date', end_date)
-    .gt('end_date', start_date);
-
-  if (conflicts && conflicts.length > 0) {
-    return NextResponse.json(
-      { error: 'This item is already booked for the selected dates.' },
-      { status: 409 },
-    );
+  // Double-booking prevention. Reads every customer's bookings (not only
+  // this visitor's) and counts units, so a listing with two cameras rents two.
+  let availability;
+  try {
+    availability = await availabilityFor({ rentalId: rental_id, stock: rental.quantity, startDate: start_date, endDate: end_date });
+  } catch (err) {
+    console.error('[bookings] availability check failed:', err);
+    return NextResponse.json({ error: 'Could not confirm availability just now. Please try again.' }, { status: 503 });
+  }
+  if (!availability.available) {
+    return NextResponse.json({ error: availabilityMessage(rental.title ?? 'This item', availability) }, { status: 409 });
   }
 
   // Calculate total price

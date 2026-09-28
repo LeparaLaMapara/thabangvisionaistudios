@@ -16,6 +16,7 @@ import { meetsLeadTime, leadTimeMessage } from '@/lib/rental/leadTime';
 import { logEvent } from '@/lib/data/events';
 import { markConversion } from '@/lib/data/chat-history';
 import { createAdminClient } from '@/lib/supabase/server';
+import { availabilityFor } from '@/lib/rental/availability-server';
 
 // Writes that touch money or status go through the service role, after the
 // route has checked who the user is and that the record is theirs. The users'
@@ -438,17 +439,13 @@ export function createBookingTools(
           };
         }
 
-        // Check for overlapping bookings
-        const { data: overlapping } = await supabase
-          .from('equipment_bookings')
-          .select('id, start_date, end_date, status')
-          .eq('rental_id', rental_id)
-          .in('status', ['confirmed', 'paid', 'active'])
-          .or(`and(start_date.lte.${end_date},end_date.gte.${start_date})`);
-
-        const totalQuantity = rental.quantity ?? 1;
-        const bookedCount = overlapping?.length ?? 0;
-        const isAvailable = bookedCount < totalQuantity;
+        // Every customer's bookings count, not only this client's.
+        let isAvailable: boolean;
+        try {
+          isAvailable = (await availabilityFor({ rentalId: rental_id, stock: rental.quantity, startDate: start_date, endDate: end_date })).available;
+        } catch {
+          return { error: 'Could not check availability just now. Try again in a moment.' };
+        }
 
         // Calculate pricing
         const startD = new Date(start_date);
@@ -518,15 +515,13 @@ export function createBookingTools(
         if (!rental || !rental.is_available) return { error: 'That item is not available to rent.' };
 
         const qty = Math.max(1, Math.min(Math.floor(quantity ?? 1), rental.quantity ?? 1));
-        const { data: overlapping } = await admin()
-          .from('equipment_bookings')
-          .select('quantity')
-          .eq('rental_id', rental_id)
-          .in('status', ['confirmed', 'active', 'overdue'])
-          .lt('start_date', end_date)
-          .gt('end_date', start_date);
-        const taken = (overlapping ?? []).reduce((n: number, b: { quantity: number | null }) => n + (b.quantity ?? 1), 0);
-        if (taken + qty > (rental.quantity ?? 1)) {
+        let free: boolean;
+        try {
+          free = (await availabilityFor({ rentalId: rental_id, stock: rental.quantity, startDate: start_date, endDate: end_date, requested: qty })).available;
+        } catch {
+          return { error: 'Could not check availability just now. Try again in a moment.' };
+        }
+        if (!free) {
           return { available: false, message: `${rental.title} is already booked for those dates. Suggest other dates or a similar item.` };
         }
 

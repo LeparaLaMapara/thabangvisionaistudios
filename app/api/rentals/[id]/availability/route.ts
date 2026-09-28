@@ -2,6 +2,7 @@ export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { availabilityFor } from '@/lib/rental/availability-server';
 
 export async function GET(
   request: NextRequest,
@@ -40,18 +41,17 @@ export async function GET(
     return NextResponse.json({ available: false, reason: 'Item is marked unavailable.' });
   }
 
-  // Find conflicting bookings
-  const { data: conflicts } = await supabase
-    .from('equipment_bookings')
-    .select('id, start_date, end_date, status')
-    .eq('rental_id', id)
-    .in('status', ['pending', 'confirmed', 'active'])
-    .lt('start_date', endDate)
-    .gt('end_date', startDate);
-
-  const bookedCount = conflicts?.length ?? 0;
-  const totalQuantity = rental.quantity ?? 1;
-  const available = bookedCount < totalQuantity;
+  // Every customer's bookings count, not only the visitor's own.
+  let result;
+  try {
+    result = await availabilityFor({ rentalId: id, stock: rental.quantity, startDate, endDate });
+  } catch (err) {
+    console.error('[rentals/availability]', err);
+    return NextResponse.json({ error: 'Could not check availability just now.' }, { status: 503 });
+  }
+  const bookedCount = result.booked;
+  const totalQuantity = result.stock;
+  const available = result.available;
 
   // M3: Only return availability status, not booking details
   return NextResponse.json({

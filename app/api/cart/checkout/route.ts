@@ -16,6 +16,7 @@ import { logEvent } from '@/lib/data/events';
 import { reportUnpaidRequest, PAYMENTS_OFF_MESSAGE } from '@/lib/payments/offline';
 import { checkProtection, itemValue } from '@/lib/rental/protection';
 import { loadRenterRecord } from '@/lib/rental/protection-server';
+import { effectiveHoldMinutes } from '@/lib/rental/availability-server';
 
 function daysBetween(start: string, end: string): number {
   return Math.ceil(
@@ -199,11 +200,13 @@ export async function POST(request: NextRequest) {
     // Count UNITS, not bookings. The old check took the first overlapping row
     // as a refusal and never read smart_rentals.quantity, so a listing with
     // two cameras only ever rented one at a time.
-    const { data: overlapping, error: overlapErr } = await supabase
+    // Server key: customers can only read their own bookings, so a check under
+    // their login would not see anyone else's and would sell the gear twice.
+    const { data: overlapping, error: overlapErr } = await createAdminClient()
       .from('equipment_bookings')
       .select('id, quantity, status, created_at, payfast_payment_id')
       .eq('rental_id', item.rental_id)
-      .in('status', ['pending', 'confirmed', 'active'])
+      .in('status', ['pending', 'confirmed', 'active', 'overdue'])
       .lt('start_date', itemEnd)
       .gt('end_date', itemStart);
 
@@ -235,6 +238,7 @@ export async function POST(request: NextRequest) {
       stock: (item.rental as { quantity?: number }).quantity ?? 1,
       holds,
       requested: item.quantity,
+      holdMinutes: effectiveHoldMinutes(),
     });
 
     if (!availability.available) {
