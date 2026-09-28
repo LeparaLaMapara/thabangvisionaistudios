@@ -55,7 +55,7 @@ export async function PATCH(
   // Fetch booking
   const { data: booking, error: fetchError } = await supabase
     .from('bookings')
-    .select('id, client_id, client_email, creator_id, project_category, status, total, creator_amount, reference, payment_status, shoot_date, paystack_reference')
+    .select('id, client_id, client_email, creator_id, project_category, status, total, creator_amount, reference, payment_status, shoot_date, paystack_reference, created_at')
     .eq('id', id)
     .single();
 
@@ -117,6 +117,7 @@ export async function PATCH(
     cancellationQuote = calculateServiceCancellationRefund({
       shootDate: (booking as { shoot_date?: string | null }).shoot_date,
       total: Number(booking.total ?? 0),
+      bookedAt: (booking as { created_at?: string | null }).created_at,
     });
 
     if (!isPaid) {

@@ -8,7 +8,7 @@ export const metadata: Metadata = {
     `How ${STUDIO.shortName} handles security deposits, returns and inspection, cancellations, refund timeframes, faulty equipment, and your rights under South African consumer law.`,
 };
 
-const LAST_UPDATED = 'August 2026';
+const LAST_UPDATED = '28 September 2026';
 
 /** Formats a rand amount without decimals, e.g. 150 -> "R150". */
 function zar(amount: number): string {
@@ -46,6 +46,7 @@ export default function RefundsPage() {
 
           <Section title="2. Security Deposits on Equipment Hire">
             <p>Every equipment hire carries a refundable security deposit, shown on the listing and in your cart before you pay. It is a fixed amount per item, not a percentage of the hire, and it is held against late return, damage, and loss.</p>
+            <p>When you pay it depends on how you book. Booking one item straight from its page, you pay the hire charge online and the deposit when you collect. Checking out from your cart, the deposit is paid online with your order. The page shows which applies before you pay.</p>
             <p>When the equipment comes back we inspect each item and photograph its condition, then compare it against the record made when it left us. The deposit is then settled in one of four ways:</p>
             <ul className="list-disc pl-5 space-y-1">
               <li><span className="text-white">Released in full</span> — everything came back on time and in the condition it went out in.</li>
@@ -54,11 +55,11 @@ export default function RefundsPage() {
               <li><span className="text-white">Held pending a dispute</span> — where the position is not clear, or the equipment has not come back, the deposit is held while we investigate.</li>
             </ul>
             <p>Where any part of your deposit is withheld, we send you a written breakdown showing what was deducted and why. If you disagree with it, raise it with us using section 8 below.</p>
-            <p>Deposits are refunded to the original payment method used for the order. We do not refund to a different card, to a third party, or in cash.</p>
+            <p>A deposit paid online is refunded to the card you paid with. A deposit paid at collection is refunded the same way it was paid. We do not refund to a third party.</p>
           </Section>
 
           <Section title="3. Late Returns">
-            <p>Late returns are charged at {zar(RENTAL_POLICIES.lateFeePerDayZar)} per day or part of a day, for a maximum of {RENTAL_POLICIES.maxLateDays} days. The late fee is recovered from your security deposit and can never exceed it.</p>
+            <p>Equipment is due back by the end of its return date. After that, late returns are charged at {zar(RENTAL_POLICIES.lateFeePerDayZar)} per item for each day or part of a day, for a maximum of {RENTAL_POLICIES.maxLateDays} days. The late fee for an item is recovered from that item&rsquo;s security deposit and can never exceed it.</p>
             <p>Equipment still outstanding {RENTAL_POLICIES.maxLateDays} days after the return date becomes a formal dispute. Separately from the deposit, you remain liable for the replacement cost of equipment that is never returned, and for the cost of covering another client&rsquo;s booking that your late return caused us to fail. Those amounts are invoiced to you, not taken from your card.</p>
           </Section>
 
@@ -71,21 +72,22 @@ export default function RefundsPage() {
 
           <Section title="5. Cancelling an Equipment Hire">
             <p>You can cancel an equipment booking yourself from your dashboard while it is still pending payment or confirmed. Once the equipment has been released to you, the return process applies instead and you should contact us.</p>
-            <p>The refund is worked out automatically from how much notice you give, and processed to the card you paid with. You are shown the exact amount before you confirm the cancellation.</p>
+            <p>If you booked less than {STUDIO.legal.coolingOffDays} days ago, everything you paid online comes back: see section 10. Otherwise the refund is worked out automatically from how much notice you give, measured to the start of your first hire day, and processed to the card you paid with. You are shown the exact amount before you confirm the cancellation.</p>
             <ul className="list-disc pl-5 space-y-1">
               <li><span className="text-white">More than 48 hours before the hire starts</span> — the hire charge is refunded in full.</li>
               <li><span className="text-white">Between 24 and 48 hours before</span> — 50% of the hire charge is refunded.</li>
               <li><span className="text-white">Less than 24 hours before, or after the hire has started</span> — the hire charge is not refunded, because the equipment has been held for you and turned away from other bookings.</li>
             </ul>
-            <p><span className="text-white">Your security deposit is always refunded in full when you cancel</span>, whatever notice you give. It secures equipment against damage and late return, and on a cancellation no equipment ever left us.</p>
-            <p>Where you chose delivery, the delivery fee is refunded in full if you cancel before the vehicle is dispatched. Once it has left, the fee has been incurred and is not refundable, even where the hire charge is.</p>
+            <p><span className="text-white">A deposit you paid online is always refunded in full when you cancel</span>, whatever notice you give. It secures equipment against damage and late return, and on a cancellation no equipment ever left us. A deposit due at collection is simply never taken.</p>
+            <p>Where you had a bulk discount, the refund is worked out on the discounted price you actually paid.</p>
+            <p>Where you chose delivery, the delivery fee is refunded in full when you cancel the whole order before the equipment is sent out. If you cancel only some items, the delivery still goes ahead for the rest, so the fee stays.</p>
             <p>Where you chose to pay the deposit online and settle the hire charge on collection, cancelling before collection means there is no hire charge to refund. Your deposit comes back in full.</p>
             <p>If the automatic refund fails for any reason, your booking is still cancelled and we complete the refund by hand. We will tell you if that happens.</p>
           </Section>
 
           <Section title="6. Cancelling a Production or Creative Service Booking">
             <p>You can cancel a service booking up to the point where the work is delivered. After delivery, the approval process in section 7 applies instead.</p>
-            <p>The refund is worked out from how much notice you give against your agreed shoot date, and processed automatically to the card you paid with:</p>
+            <p>If you booked less than {STUDIO.legal.coolingOffDays} days ago and the shoot has not started, you get everything back: see section 10. Otherwise the refund is worked out from how much notice you give, measured to the start of your shoot day, and processed automatically to the card you paid with:</p>
             <ul className="list-disc pl-5 space-y-1">
               <li><span className="text-white">More than 48 hours before the shoot</span> — refunded in full.</li>
               <li><span className="text-white">Between 24 and 48 hours before</span> — 50% refunded.</li>
@@ -120,10 +122,11 @@ export default function RefundsPage() {
             </p>
           </Section>
 
-          <Section title="10. Cooling Off Rights">
-            <p>Under section 44 of the Electronic Communications and Transactions Act, you may cancel a transaction concluded electronically within 7 days, without reason or penalty, and receive a refund of what you paid.</p>
-            <p>This right works differently once a hire has begun. Where you have asked us to start supplying, and the hire period has started with your agreement, the cooling off right no longer applies to the part already supplied. For that reason, cancel before your hire starts if you want to rely on it.</p>
-            <p>The direct cost of returning equipment to us is for your account when you cancel under this section. It is not charged when the cancellation is because something was faulty or misdescribed.</p>
+          <Section title="10. Your 7 Day Cooling Off Right">
+            <p>You may cancel any booking made on this website within {STUDIO.legal.coolingOffDays} days of making it, for any reason, and receive a full refund of everything you paid online: the hire or service charge, any delivery fee, and any deposit. This applies as long as the hire or shoot has not started.</p>
+            <p>A hire starts on its first hire day, when the equipment is collected by you or delivered to you. A shoot starts on the agreed shoot day. Once that happens, you have asked us to begin supplying before the {STUDIO.legal.coolingOffDays} days ended, so the cooling off right no longer applies (section 42(2)(d) of the Electronic Communications and Transactions Act 25 of 2002), and the normal cancellation terms in sections 5 and 6 apply instead.</p>
+            <p>If your hire or shoot date falls inside the {STUDIO.legal.coolingOffDays} days, you keep the full refund right until it starts. Cancel from your dashboard: you see the amount before you confirm. The Act gives us 30 days to refund you; in practice we refund within 5 business days.</p>
+            <p>Outside the cooling off period, the cancellation charges in sections 5 and 6 are the reasonable charges the Consumer Protection Act (section 17) allows when a reservation is cancelled, because the gear or the creator was held for you and turned away from others.</p>
           </Section>
 
           <Section title="11. Complaints and Escalation">

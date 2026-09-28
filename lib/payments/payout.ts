@@ -29,8 +29,11 @@ export function payoutBlocker(
     total: number | null;
   },
   verified: { success: boolean; amount: number } | null,
+  /** The creator's ID check has passed. triggerCreatorPayout always passes it. */
+  creatorVerified?: boolean,
 ): string | null {
   if (!booking.creator_id) return 'No creator on the booking';
+  if (creatorVerified === false) return 'The creator has not passed the ID check';
   if (booking.status !== 'completed') return `Booking is ${booking.status ?? 'unknown'}, not completed`;
   if (booking.payment_status !== 'paid') return 'Booking is not marked paid';
   if (booking.payout_status === 'processing' || booking.payout_status === 'paid') return 'Payout already started';
@@ -49,6 +52,7 @@ export function payoutBlocker(
  * payment_status 'paid' written by anyone was enough to move real money. Now:
  * - the booking, creator and amount are read from the database, never taken
  *   from the caller;
+ * - the creator must have passed the ID check (the dashboard and Terms say so);
  * - the booking must be completed and paid, and Paystack must confirm the
  *   payment for at least the booking total;
  * - the payout is claimed atomically (pending/failed -> processing), so two
@@ -75,7 +79,10 @@ export async function triggerCreatorPayout(params: PayoutParams): Promise<Payout
   } catch (err) {
     console.error('[payout] verify failed:', err);
   }
-  const blocker = payoutBlocker(booking, verified);
+  const { data: creator } = booking.creator_id
+    ? await supabase.from('profiles').select('verification_status').eq('id', booking.creator_id).single()
+    : { data: null };
+  const blocker = payoutBlocker(booking, verified, creator?.verification_status === 'verified');
   if (blocker) {
     console.error(`[payout] refused for ${booking.reference}: ${blocker}`);
     return { success: false, error: blocker };

@@ -58,7 +58,7 @@ export function coreFaqs(): CoreFaq[] {
       id: 'core-deposit',
       category: 'pricing',
       question: 'What is the deposit and when do I get it back?',
-      answer: `Each item has a refundable security deposit, a fixed amount shown on the item before you book. We check the gear when it comes back and refund the deposit, less any damage or late-return charges. The details are on our Refunds page.`,
+      answer: `Each item has a refundable security deposit, a fixed amount shown on the item before you book. Booking one item from its page, you pay the deposit when you collect; checking out from the cart, it is paid online with your order. We check the gear when it comes back and refund the deposit, less any damage or late-return charges. The details are on our Refunds page.`,
     },
     {
       id: 'core-id',
@@ -76,7 +76,7 @@ export function coreFaqs(): CoreFaq[] {
       id: 'core-cancel',
       category: 'booking',
       question: 'Can I cancel a gear booking?',
-      answer: `Yes. The hire charge is refunded by how much notice you give (${cancellation}). The deposit is always refunded in full when you cancel.`,
+      answer: `Yes, from your dashboard. Cancel within ${STUDIO.legal.coolingOffDays} days of booking, before the hire starts, and everything you paid online comes back. After that the hire charge is refunded by how much notice you give (${cancellation}), and a deposit you paid online is refunded in full. You see the amount before you confirm.`,
     },
     {
       id: 'core-bulk',

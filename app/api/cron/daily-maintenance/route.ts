@@ -218,23 +218,34 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     results.stuckPayoutsError = String(err);
   }
 
-  // ─── 4. Auto-complete stale accepted bookings (30+ days) ──────────────────
+  // ─── 4. Flag stale accepted bookings (30+ days) for a person ──────────────
+  // These used to be marked 'completed' automatically, which made them
+  // eligible for a creator payout although nothing was ever delivered. Now
+  // they are left as they are and the team is asked to contact both sides.
   try {
     const staleCutoff = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString();
     const { data: stale } = await supabase
       .from('bookings')
-      .update({
-        status: 'completed',
-        completed_at: now.toISOString(),
-        updated_at: now.toISOString(),
-      })
+      .select('id, reference, accepted_at')
       .eq('status', 'accepted')
-      .lt('accepted_at', staleCutoff)
-      .select('id, reference');
+      .lt('accepted_at', staleCutoff);
 
-    results.autoCompletedStale = stale?.length ?? 0;
+    results.staleAcceptedForReview = stale?.length ?? 0;
+
+    if (stale && stale.length > 0) {
+      const list = stale.map((s) => `${s.reference} (accepted ${String(s.accepted_at).slice(0, 10)})`).join('\n');
+      await emailProvider.sendEmail({
+        to: STUDIO.bookingEmail,
+        subject: `[Review] ${stale.length} booking(s) accepted 30+ days ago, not delivered — ${STUDIO.name}`,
+        text: `These service bookings were accepted more than 30 days ago and nothing has been delivered:
+
+${list}
+
+Please contact the client and the creator. They are not paid out or refunded automatically.`,
+      });
+    }
   } catch (err) {
-    results.autoCompletedStaleError = String(err);
+    results.staleAcceptedError = String(err);
   }
 
   // ─── 5. Expire stale crew requests ────────────────────────────────────────

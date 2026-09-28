@@ -275,7 +275,7 @@ Notice: book at least ${STUDIO.rental.minLeadTimeHours} hours ahead
 ID check: a photo of the ID and a selfie, once, before the first rental (no certified copy); a person checks it, ${STUDIO.verification.reviewTime}
 Delivery: collect in ${STUDIO.fulfilment.dispatchFrom.name}, Johannesburg, or delivery within ${STUDIO.fulfilment.delivery.maxRadiusKm} km at R${STUDIO.fulfilment.delivery.ratePerKm}/km (minimum R${STUDIO.fulfilment.delivery.minimumFee})
 Multi-day discount: 7+ days = weekly rate applies
-Cancellation (equipment): full refund of the hire over 48h notice, 50% between 24-48h, none inside 24h. Security deposit always refunded in full. Processed automatically.
+Cancellation: within ${STUDIO.legal.coolingOffDays} days of booking and before the hire or shoot starts, everything paid online is refunded. Otherwise equipment: full refund of the hire over 48h notice, 50% between 24-48h, none inside 24h; a deposit paid online is refunded in full. Processed automatically; the customer sees the amount before confirming.
 Max booking: ${STUDIO.rental.maxBookingDays} days
 
 ${STUDIO.subscriptions.enabled ? `===== PRICING PLANS =====

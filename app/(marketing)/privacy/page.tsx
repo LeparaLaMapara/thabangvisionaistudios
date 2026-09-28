@@ -7,7 +7,7 @@ export const metadata: Metadata = {
   description: `${STUDIO.shortName} Privacy Policy — what personal information we collect, who processes it, how long we keep it, and your rights under POPIA.`,
 };
 
-const LAST_UPDATED = '27 September 2026';
+const LAST_UPDATED = '28 September 2026';
 
 export default function PrivacyPage() {
   const link = 'text-[#D4A843] hover:text-[#D4A843]/80 transition-colors';
@@ -52,7 +52,7 @@ export default function PrivacyPage() {
           </Section>
 
           <Section title="2. What We Collect">
-            <p><span className="text-white">Account and profile.</span> Name, email address, phone number, display name, bio, skills, and avatar photo.</p>
+            <p><span className="text-white">Account and profile.</span> Name, email address, phone number, display name, bio, skills, and avatar photo. If you sign in with Google, Google shares your name, email address and profile photo with us.</p>
             <p><span className="text-white">Address and location.</span> Street address, city, province, postal code, and the geographic coordinates of the address you give us. Coordinates are used to match you with nearby crew and equipment.</p>
             <p><span className="text-white">Identity verification.</span> Photographs of your identity document and a selfie holding it. We also record technical detail extracted from those images, including the date they were taken, device make and model, and any GPS coordinates embedded in them, together with your IP address and browser at the time of submission. We do not ask for or store your ID number as a separate field, but the document image itself contains it.</p>
             <p><span className="text-white">Banking details</span>, if you receive payouts as a creator: bank name, branch code, account type, account holder name, and the last four digits of your account number. Your full account number is passed straight to our payment provider to set up your payouts and is not kept on our systems.</p>
@@ -66,15 +66,15 @@ export default function PrivacyPage() {
             <p>To perform our contract with you: creating and managing your account, taking payment, fulfilling bookings, arranging collection and return, settling deposits, and paying creators.</p>
             <p>To meet legal obligations: keeping tax and transaction records, and complying with lawful requests.</p>
             <p>For our legitimate interests: preventing fraud and identity theft, securing the platform, resolving disputes, and improving the product.</p>
-            <p>With your consent: identity verification processing, and marketing. Consent for verification is captured explicitly before you upload anything, and recorded with a version and timestamp. You can withdraw consent at any time, though we cannot verify your identity, and therefore cannot let you hire equipment, without it.</p>
+            <p>With your consent: identity verification processing, and marketing. Consent for verification is captured explicitly before you upload anything, and recorded with a version and timestamp. You can withdraw consent at any time, though we cannot verify your identity, and therefore cannot let you hire equipment, publish gear, or receive a first payout, without it.</p>
           </Section>
 
           <Section title="4. Identity Verification in Detail">
             <p>This is the most sensitive information we hold, so we set it out separately.</p>
-            <p><span className="text-white">Where it is stored.</span> Your identity document and selfie are stored in a private, access-controlled storage bucket on our Supabase infrastructure. They are not public, and staff access is through short-lived signed links that expire after five minutes.</p>
-            <p><span className="text-white">Automated checks.</span> To confirm that the person in the selfie is the person on the document, and that the document appears genuine, both images are sent to Google&rsquo;s AI services for an automated comparison. This means copies of your identity document and selfie are processed by Google, outside South Africa. We do this only for verification, and the result we keep is a match outcome and a confidence score.</p>
+            <p><span className="text-white">Where it is stored.</span> Your identity document and selfie are stored in a private, access-controlled storage bucket on our Supabase infrastructure. They are not public, and staff view them through signed links that expire after one hour.</p>
+            <p><span className="text-white">Automated checks.</span> To check that the face in your selfie matches the face on your ID, both images are sent to Google&rsquo;s AI service (the Gemma model) for an automated comparison. This means copies of your identity document and selfie are processed by Google, outside South Africa. We do this only for verification, and we keep the match result, a confidence score and a one-sentence reason. A person then reviews every submission, {STUDIO.verification.reviewTime}, and we email you the outcome. The automated check never approves or rejects you on its own.</p>
             <p><span className="text-white">Duplicate detection.</span> We store a one-way cryptographic fingerprint of the document file so that the same document cannot be used to verify several accounts. The fingerprint cannot be reversed to recreate the document.</p>
-            <p><span className="text-white">How long we keep it.</span> The document and selfie images are deleted automatically {STUDIO.legal.popia.retentionDays} days after your verification has been reviewed. The technical detail described in section 2, the document fingerprint, and the outcome of the review are kept for longer, for fraud prevention and to show that we verified you properly. Your verification status and consent record are kept for the life of your account plus five years for tax and legal audit purposes.</p>
+            <p><span className="text-white">How long we keep it.</span> The document and selfie images are deleted automatically {STUDIO.legal.popia.retentionDays} days after your verification has been reviewed. If you submit again after a rejection, your earlier images are deleted straight away. The technical detail described in section 2, the document fingerprint, and the outcome of the review are kept for longer, for fraud prevention and to show that we verified you properly. Your verification status and consent record are kept for the life of your account plus five years for tax and legal audit purposes.</p>
           </Section>
 
           <Section title="5. Who Else Processes Your Information">
@@ -84,13 +84,13 @@ export default function PrivacyPage() {
               <li><span className="text-white">Paystack</span> — payments and creator payouts. Receives your email address and transaction detail, and for payouts, the account holder name, bank account number, and branch code.</li>
               <li><span className="text-white">PayFast</span> — an alternative payment provider we keep available. Not currently active.</li>
               <li><span className="text-white">Cloudinary</span> — image hosting for avatars, portfolios, and listing photographs. Verification documents are <span className="text-white">not</span> stored here.</li>
-              <li><span className="text-white">Google</span> — AI services used for the verification checks in section 4, for Ubunye&rsquo;s answers (Gemini), and for search indexing of platform content.</li>
-              <li><span className="text-white">Anthropic</span> — an AI model (Claude) that can also answer Ubunye&rsquo;s messages.</li>
+              <li><span className="text-white">Google</span> — AI services used for the verification checks in section 4, for Ubunye&rsquo;s answers (Gemini), for text processing behind site search, and for sign-in with Google.</li>
+              <li><span className="text-white">Anthropic</span> — its Claude model takes over Ubunye&rsquo;s answers automatically when Google is unavailable.</li>
               <li>Ubunye&rsquo;s messages, and when you are signed in, relevant context from your profile and bookings, go to whichever of these AI providers is answering at the time (if one is unavailable, another takes over). They process them outside South Africa. We list any AI provider here before we use it.</li>
-              <li><span className="text-white">Vercel</span> — hosting, plus page-view and performance analytics.</li>
+              <li><span className="text-white">Vercel</span> — hosting, and cookie-free page-view analytics (Web Analytics), which count visits without identifying you.</li>
               <li><span className="text-white">Google Workspace (Gmail)</span> — outbound email. Receives recipient addresses and message contents.</li>
-              <li><span className="text-white">Twilio</span> — WhatsApp messaging, where you contact us on that channel.</li>
-              <li><span className="text-white">OpenStreetMap</span> — address lookup. When you type an address into our address field, that text is sent from your browser to OpenStreetMap&rsquo;s servers to suggest matches.</li>
+              <li><span className="text-white">Twilio</span> — WhatsApp messaging. Not currently active.</li>
+              <li><span className="text-white">OpenStreetMap (Nominatim)</span> — address suggestions. When you type an address into our address field, that text is sent from your browser to OpenStreetMap&rsquo;s servers to suggest matches.</li>
             </ul>
             <p>We do not sell your personal information, and we do not share it for anyone else&rsquo;s marketing.</p>
           </Section>
@@ -125,7 +125,7 @@ export default function PrivacyPage() {
 
           <Section title="10. Cookies and Analytics">
             <p>We use essential cookies for sign-in and session management. Without them the platform cannot keep you logged in.</p>
-            <p>We also use analytics that record page views, performance, and how the platform is used. We do not currently show a cookie consent banner, and we do not use advertising or cross-site tracking cookies. You can block or remove cookies in your browser settings, though sign-in will stop working if you block the essential ones.</p>
+            <p>Our page-view analytics (Vercel Web Analytics) do not use cookies. We also keep our own record of actions taken on the platform, as described in section 2. We do not use advertising or cross-site tracking cookies, which is why there is no cookie banner. You can block or remove cookies in your browser settings, though sign-in will stop working if you block the essential ones.</p>
           </Section>
 
           <Section title="11. Marketing">

@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/auth';
 import { createAdminClient } from '@/lib/supabase/server';
 import { RENTAL_POLICIES } from '@/lib/constants';
+import { startOfBookedDay } from '@/lib/rental/cancellation';
 
 const VALID_CONDITIONS = ['new', 'like_new', 'good', 'fair', 'for_parts'] as const;
 
@@ -82,10 +83,13 @@ export async function POST(
     // Calculate late fee if overdue
     let lateFee = 0;
     const now = new Date();
-    const endDate = new Date(booking.end_date);
-    if (now > endDate) {
-      const msPerDay = 24 * 60 * 60 * 1000;
-      const daysLate = Math.ceil((now.getTime() - endDate.getTime()) / msPerDay);
+    // Late only once the return day is over (midnight South African time).
+    // Counting from the start of the return day charged gear handed back on
+    // the due date a full day's late fee.
+    const msPerDay = 24 * 60 * 60 * 1000;
+    const lateFrom = new Date(startOfBookedDay(booking.end_date).getTime() + msPerDay);
+    if (now > lateFrom) {
+      const daysLate = Math.ceil((now.getTime() - lateFrom.getTime()) / msPerDay);
       const cappedDays = Math.min(daysLate, RENTAL_POLICIES.maxLateDays);
       lateFee = Math.min(
         cappedDays * RENTAL_POLICIES.lateFeePerDayZar,
