@@ -1,12 +1,12 @@
 import { createAdminClient } from '@/lib/supabase/server';
 import { RENTAL_POLICY } from '@/lib/constants';
 import { systemClock, type Clock, type PaymentPort, type PayoutPort } from '@/lib/core/ports';
-import { submitPayout, submitRefund } from '@/lib/core/rental/use-cases';
+import { processChargeEvent, submitPayout, submitRefund } from '@/lib/core/rental/use-cases';
 import { checkPayoutEligibility } from '@/lib/core/rental/payouts';
 import { ESCALATION_LADDER, dueEscalations, returnDueAt, type EscalationStage } from '@/lib/core/rental/overdue';
 import { buildNotices, sastDate, type OutboxMessage } from '@/lib/core/rental/notifications';
 import { paymentPort, payoutPort } from '@/lib/payments/ports';
-import { SupabasePayouts, SupabaseRefunds, isMissingPipeline, transitionBookings } from './repos';
+import { SupabasePayouts, SupabaseRefunds, SupabaseRentalPayments, isMissingPipeline, transitionBookings } from './repos';
 
 type Admin = ReturnType<typeof createAdminClient>;
 
@@ -242,4 +242,59 @@ export async function runReminders(db: Admin = createAdminClient(), clock: Clock
   }
   await enqueue(db, notices);
   return { collection: (collecting ?? []).length, returns: (returning ?? []).length };
+}
+
+/**
+ * Missed-webhook recovery (spec §7.6, T29). For recent orders still waiting
+ * for payment, ask the provider directly. A charge the provider reports as
+ * successful goes through exactly the same use case as a webhook, so a webhook
+ * arriving later is just a duplicate. Never trusts the browser.
+ */
+export async function recoverMissedPayments(
+  db: Admin = createAdminClient(),
+  payments: PaymentPort = paymentPort,
+  clock: Clock = systemClock,
+  limit = 25,
+): Promise<Record<string, number>> {
+  const now = clock.now();
+  const { data, error } = await db
+    .from('rental_payment_intents')
+    .select('reference')
+    .in('state', ['initiated', 'failed', 'expired'])
+    .eq('provider', payments.provider)
+    .lt('created_at', new Date(now.getTime() - 10 * 60_000).toISOString())
+    .gt('created_at', new Date(now.getTime() - 72 * 3_600_000).toISOString())
+    .order('created_at')
+    .limit(limit);
+  if (error) {
+    if (isMissingPipeline(error)) return {};
+    throw new Error(`intent recovery queue: ${error.message}`);
+  }
+  const repo = new SupabaseRentalPayments(db);
+  const out: Record<string, number> = {};
+  for (const row of (data ?? []) as { reference: string }[]) {
+    const v = await payments.verifyCharge(row.reference);
+    if (!v.ok) {
+      const k = v.kind === 'rejected' ? 'not_paid' : 'provider_unreachable';
+      out[k] = (out[k] ?? 0) + 1;
+      continue;
+    }
+    if (v.value.status !== 'success') {
+      out[`status_${v.value.status || 'unknown'}`] = (out[`status_${v.value.status || 'unknown'}`] ?? 0) + 1;
+      continue;
+    }
+    const outcome = await processChargeEvent(
+      {
+        kind: 'charge.success',
+        reference: row.reference,
+        providerTransactionId: v.value.providerTransactionId,
+        amountCents: v.value.amountCents,
+        currency: v.value.currency,
+        metadataUserId: null,
+      },
+      { repo, clock },
+    );
+    out[outcome] = (out[outcome] ?? 0) + 1;
+  }
+  return out;
 }

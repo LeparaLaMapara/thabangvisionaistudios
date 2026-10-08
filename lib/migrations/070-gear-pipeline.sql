@@ -43,9 +43,12 @@
 --   executed by service_role only. Clients can read only their own intents,
 --   refunds and payouts. Every write goes through the server.
 --
--- APPLY: DEV first, then run 070-gear-pipeline.test.sql. PROD only after founder
---        approval, and BEFORE deploying the Phase 1 code (the code falls back to
---        the legacy path while these functions are missing).
+-- APPLY: DEV first, then run 070-gear-pipeline.test.sql and
+--        scripts/db/070-concurrency.sh. PROD only after founder approval.
+--        Recommended order: 070 first, then the Phase 1 code. Not required:
+--        the code falls back to the earlier (unlocked) paths while these
+--        functions are missing, so either order is safe, but the locking and
+--        ledger only take effect once 070 is applied.
 
 begin;
 

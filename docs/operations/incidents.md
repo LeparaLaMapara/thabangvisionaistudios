@@ -27,7 +27,7 @@ Write down every action taken in the incident record (who, when, what, why). Nev
 ## Refund failures
 
 1. Source: the Rental ops refunds list, or finding `rental-refund-failed`/`rental-refund-stuck`. Open the `refund_obligations` row and read `state`, `last_error`, `provider_refund_id` and `attempts`.
-2. **If `provider_refund_id` is set, the refund exists at Paystack. Do not press Retry.** Retry reopens the obligation and sends a new refund request. Resolve it in the Paystack dashboard instead (for example, supply the customer's bank details for a `needs-attention` refund). The webhook will then move the obligation.
+2. **If `provider_refund_id` is set, the refund exists at Paystack.** Retry checks Paystack first and refuses to resend a refund Paystack already holds (`ALREADY_AT_PROVIDER`). Resolve it in the Paystack dashboard instead (for example, supply the customer's bank details for a `needs-attention` refund). The webhook will then move the obligation.
 3. If `provider_refund_id` is empty and the state is `failed` (Paystack refused it): fix the cause from `last_error`, check the Paystack dashboard shows no refund on that transaction, then press **Retry**.
 4. Stuck in `pending`/`processing` for over 72h: look it up in Paystack and wait for the bank. Tell the customer the honest status ("initiated, not complete").
 5. Never refund from the Paystack dashboard without an obligation. A refund made outside the app matches nothing (`unknown_refund`) and breaks reconciliation.
@@ -39,7 +39,7 @@ Write down every action taken in the incident record (who, when, what, why). Nev
 2. Cases:
    - **Same transaction delivered twice.** Expected and harmless: the second event's outcome is `duplicate`. Nothing to do.
    - **Two different successful transactions on one order.** The second is held as `mismatch` (finding `rental-unallocated-money`). Once you have checked it, use Rental ops → **Refund in full** (unallocated money) with a note. That refunds the second charge in full. Never refund the transaction that confirmed the booking.
-   - **Paid online after staff marked the order paid by EFT/cash.** **Not detected automatically.** The webhook treats the order as already confirmed (`duplicate`): no intent update, no journal, no alert. Find these with `payment_events.outcome = 'duplicate'` where the matching intent is not `paid` (still `initiated`, or `expired` after the hold). One of the two payments must be returned by hand. Risk register R-22.
+   - **Paid online after staff marked the order paid by EFT/cash.** Held automatically: the intent becomes `mismatch`, the money is booked as an unallocated receipt and staff get an alert. Check which payment to keep, then use **Refund in full** under "Money needing a person" in Rental ops (or return the EFT/cash by hand). Risk register R-22.
 3. Tell the customer what happened and when the money will be back.
 
 ## Lost or unreturned equipment

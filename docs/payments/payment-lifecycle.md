@@ -65,7 +65,7 @@ If 070 is missing, every adapter detects it (`isMissingPipeline`) and the code f
 
 ## 6. Not done
 
-- `PaymentPort.verifyCharge` exists, but no job calls it. A webhook that never arrives is recovered only by Paystack's own redelivery, or by staff checking the Paystack dashboard and acting in Rental ops.
+- A webhook that never arrives is recovered by `recoverMissedPayments` (lib/rental/workers.ts): the daily pipeline, or "Run pipeline" in Rental ops, calls `PaymentPort.verifyCharge` for unpaid intents between 10 minutes and 72 hours old and confirms through the same use case as a webhook.
 - The full Paystack test-mode journey and the Playwright payment E2E have **not been run**.
 
 ## Needs test-mode verification

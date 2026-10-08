@@ -2,7 +2,7 @@ import { createAdminClient } from '@/lib/supabase/server';
 import { payments } from '@/lib/payments';
 import { drainInbox } from './inbox';
 import { dispatchOutbox } from './notify';
-import { expireHolds, reviewScheduledPayouts, runOverdueLadder, runPayouts, runRefunds, runReminders } from './workers';
+import { expireHolds, recoverMissedPayments, reviewScheduledPayouts, runOverdueLadder, runPayouts, runRefunds, runReminders } from './workers';
 
 /**
  * One pass of the rental pipeline's background work, in a safe order:
@@ -29,6 +29,8 @@ export async function runRentalPipeline(): Promise<{ ok: boolean; steps: Record<
   };
 
   await step('inbox', () => drainInbox(50));
+  // Before releasing holds: a payment whose webhook never arrived confirms now.
+  if (providerReady) await step('missed_payments', () => recoverMissedPayments(db));
   await step('holds', () => expireHolds(db));
   // Refunds and transfers call the payment provider; skip them while payments are off.
   if (providerReady) await step('refunds', () => runRefunds(db));

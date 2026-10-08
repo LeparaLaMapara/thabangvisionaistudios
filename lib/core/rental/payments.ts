@@ -109,9 +109,12 @@ export function decideCharge(intent: PaymentIntent | null, event: ChargeEvent, l
     return cancelled === lines.cancelledByExpiry ? { action: 'confirm_late' } : { action: 'refund_paid_cancelled', refundCents: event.amountCents };
   }
   if (pending === 0 && cancelled === 0) {
-    // Already confirmed by another path (e.g. a server-side verify). Record
-    // the transaction, but nothing changes state twice.
-    return { action: 'duplicate' };
+    // The order was already confirmed without this transaction, e.g. staff
+    // recorded an EFT or cash payment ("Mark paid"), and now a card payment
+    // arrived too. That is a second payment for one order: hold it for a
+    // person (who refunds it from Rental ops); never book it as revenue and
+    // never treat it as a harmless duplicate.
+    return { action: 'hold_mismatch', why: 'amount', refundCents: event.amountCents };
   }
   if (cancelled > 0 && cancelled !== lines.cancelledByExpiry) {
     // Part of the order was cancelled by a person while payment was in flight.

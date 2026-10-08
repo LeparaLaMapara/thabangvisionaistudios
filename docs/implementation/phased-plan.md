@@ -67,11 +67,11 @@ Source: the founder's master engineering specification (2026-10-08). Each phase 
 - Migration 070 applied to DEV: **NOT RUN** (attempt cancelled). Not applied to production. Verified only on local PostgreSQL 16 with a Supabase stub.
 - Live Paystack **test-mode** journey: **NOT RUN** (no test keys; Paystack docs unreachable from the sandbox). Refund webhook fields, the Transfer Approval request and response codes, and `/bank/validate` document types are NEEDS TEST-MODE VERIFICATION.
 - Playwright payment E2E (desktop and mobile): **NOT RUN**.
-- `PaymentPort.verifyCharge` is not called by any job. A webhook that never arrives depends on Paystack redelivery or on staff.
+- Missed webhooks are recovered by `recoverMissedPayments` in the daily pipeline (not live-verified).
 - Manual EFT/cash payments and refunds sit outside the ledger.
 - Resolving a dispute does not post `hire_earned`/`deposit_settled` journals or schedule an owner payout.
-- A card payment that arrives after staff marked the order paid by hand is not flagged (R-22).
-- Rental ops **Retry** on a refund that already exists at Paystack submits again instead of reconciling (R-20).
+- A card payment after a manual Mark paid is held for a person (R-22, fixed).
+- Rental ops Retry checks the provider before resending (R-20, fixed).
 - No `provider_fee` journal is posted. No automatic comparison with Paystack settlements.
 - `IdentityPort` covers bank validation only. Didit/Smile ID evaluation is Phase 2.
 - Open decisions: D-13, D-18, D-19, D-21 to D-25.

@@ -87,6 +87,19 @@ export async function POST(request: NextRequest) {
       const r = await refunds.get(body.id);
       if (!r) return NextResponse.json({ error: 'Refund not found.' }, { status: 404 });
       if (r.state === 'failed' || r.state === 'needs_attention') {
+        // Ask the provider first (T13). A refund the provider already holds
+        // (e.g. needs-attention, or a failure later retried on their side) is
+        // followed, never sent a second time.
+        const known = await paymentPort.listRefunds(r.transactionReference);
+        if (!known.ok) return NextResponse.json({ error: 'Could not check with the payment provider. Nothing was sent; try again later.' }, { status: 503 });
+        const existing = known.value.find((x) => (r.providerRefundId && x.providerRefundId === r.providerRefundId) || (!r.providerRefundId && x.amountCents === r.amountCents));
+        if (existing && existing.status !== 'failed') {
+          audit({ refundId: r.id, outcome: 'already_at_provider', providerStatus: existing.status });
+          return NextResponse.json(
+            { error: `The provider already has this refund (status: ${existing.status}). Resolve it in the provider dashboard; it was not sent again.`, code: 'ALREADY_AT_PROVIDER' },
+            { status: 409 },
+          );
+        }
         const reopened = await refunds.transition(r.id, [r.state], 'eligible', { lastError: `reopened by ${auth.user.id}` }, null, []);
         if (!reopened) return NextResponse.json({ error: 'The refund changed; reload.' }, { status: 409 });
       }

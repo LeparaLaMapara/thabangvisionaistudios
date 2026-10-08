@@ -261,6 +261,9 @@ describe('charge decisions', () => {
     expect(decideCharge(intent, ok, pending, new Date('2026-10-08T11:00:00Z'))).toEqual({ action: 'confirm_late' });
     expect(decideCharge(intent, ok, { statuses: { cancelled: 2 }, cancelledByExpiry: 2 }, NOW)).toEqual({ action: 'confirm_late' });
   });
+  it('a card payment for an order already confirmed another way (e.g. Mark paid) is held for a person', () => {
+    expect(decideCharge(intent, ok, { statuses: { confirmed: 2 }, cancelledByExpiry: 0 }, NOW)).toMatchObject({ action: 'hold_mismatch' });
+  });
   it('#11 paid for a booking a person cancelled → refund', () => expect(decideCharge(intent, ok, { statuses: { cancelled: 2 }, cancelledByExpiry: 0 }, NOW)).toMatchObject({ action: 'refund_paid_cancelled', refundCents: 700_000 }));
   it('dedupe keys separate redelivery from a real status change', () => {
     expect(eventDedupeKey('paystack', 'refund.processed', 55, 'processed')).toBe(eventDedupeKey('paystack', 'refund.processed', 55, 'processed'));
@@ -376,6 +379,13 @@ describe('payment, refund and payout use cases (in-memory adapters, not live)', 
     expect(repo.lines.get('grp1')![0].status).toBe('pending');
     expect(refunds.rows.size).toBe(0);
     expect([...books.outbox.values()].some((n) => n.kind === 'staff_alert')).toBe(true);
+  });
+
+  it('a second payment after a manual confirmation is held, not booked as revenue', async () => {
+    repo.lines.get('grp1')![0].status = 'confirmed';
+    expect(await processChargeEvent(event, { repo, clock })).toBe('mismatch_held');
+    expect([...books.journals.values()].map((j) => j.kind)).toEqual(['unallocated_receipt']);
+    expect(refunds.rows.size).toBe(0);
   });
 
   it('#6/T29: a database failure leaves a retryable state; the retry confirms once', async () => {
