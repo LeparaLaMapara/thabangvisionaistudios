@@ -21,7 +21,7 @@ At a **clean completion**: a take-back that ends with the booking `completed`. O
 
 `owner_not_verified`, `payout_account_not_validated`, `booking_not_completed`, `payment_not_confirmed`, `inspection_not_completed`, `open_dispute`, `deposit_not_settled`, `payout_already_started`, `delay_not_elapsed`.
 
-**Auto-approval is OFF** (`RENTAL_POLICY.payoutAutoApprove = false`, decisions D-19 and D-24). An eligible payout waits in Rental ops with no hold reasons. A member of staff presses **Approve**, which re-runs every check on the server before moving the payout to `approved`. **Hold** needs a written reason.
+**Auto-approval is OFF** (`RENTAL_POLICY.payoutAutoApprove = false`, decisions D-19 and D-24). An eligible payout waits in Rental ops with no hold reasons. A member of staff presses **Approve & send**, which re-runs every check on the server before moving the payout to `approved`. **Hold** needs a written reason.
 
 ## 3. Sending (`submitPayout`)
 
@@ -48,6 +48,6 @@ At a **clean completion**: a take-back that ends with the booking `completed`. O
 
 ## 6. Known gaps (not done)
 
-- **No code path sets `banking_details.is_verified = true`.** `POST /api/banking` creates a Paystack recipient but does not validate the account (`/bank/validate` is not wired; see D-23). As a result, every payout will be held with `payout_account_not_validated` until that is built, or until staff set the flag through a reviewed process.
+- **Bank validation covers SA ID holders with personal accounts only.** `POST /api/banking` sets `banking_details.is_verified` only when four things hold: the profile is identity-verified, the account holder matches the verified name, a 13-digit SA ID number is supplied (used for the check, not stored), and Paystack `/bank/validate` confirms the account. Changing bank details clears it. Owners with a passport or a business account cannot be validated yet. Their payouts stay held (`payout_account_not_validated`) until a reviewed manual process exists (D-23).
 - **A resolved dispute does not create a payout.** `PATCH /api/admin/disputes/[id]` moves `disputed → completed` without the `hire_earned`/`deposit_settled` journals or an `owner_payouts` row. Payouts for disputed community bookings must be handled by hand. For orders paid online, reconciliation flags them (`hire_not_recognised`, `deposit_still_held`).
 - Who bears the transfer fee (D-18) is not decided. `owner_payouts.provider_fee_cents` exists but nothing fills it yet. Nothing is deducted from the owner amount.

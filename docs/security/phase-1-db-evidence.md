@@ -117,7 +117,7 @@ Order on each environment:
 1. 067 → 068 → 069 (Phase 0, still pending).
 2. 070, then its test scripts (DEV only).
 3. Deploy the Phase 1 code.
-4. Run Rental ops → **Run pipeline** once, and check the invariant sweep the next morning.
+4. Run Rental ops → **Run pipeline now** once, and check the invariant sweep the next morning.
 
 After 070, `PostgREST` may need its schema cache reloaded before the new functions are callable (`notify pgrst, 'reload schema';`). Until then the code keeps using the fallback.
 

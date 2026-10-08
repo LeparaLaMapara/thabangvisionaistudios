@@ -18,7 +18,7 @@ Write down every action taken in the incident record (who, when, what, why). Nev
 1. Confirm the outage on Paystack's status page or dashboard. Rental ops will show `payment-inbox-backlog` or refunds/payouts stuck in `claimed`.
 2. Do nothing destructive. Refunds and payouts with an unknown outcome stay `claimed` and are **reconciled with Paystack before any retry**. Do not resend them by hand, and do not create new references.
 3. If checkouts are failing for customers, set `PAYMENTS_OFF=true` until Paystack recovers. Holds made during the outage expire on their own.
-4. After recovery: in Rental ops, press **Run pipeline**. Then check:
+4. After recovery: in Rental ops, press **Run pipeline now**. Then check:
    - every `refund_obligations` row in `claimed`/`requested` has moved on;
    - no `owner_payouts` row is left in `claimed`;
    - `payment_events` has no `dead` rows.
@@ -28,7 +28,7 @@ Write down every action taken in the incident record (who, when, what, why). Nev
 
 1. Source: the Rental ops refunds list, or finding `rental-refund-failed`/`rental-refund-stuck`. Open the `refund_obligations` row and read `state`, `last_error`, `provider_refund_id` and `attempts`.
 2. **If `provider_refund_id` is set, the refund exists at Paystack. Do not press Retry.** Retry reopens the obligation and sends a new refund request. Resolve it in the Paystack dashboard instead (for example, supply the customer's bank details for a `needs-attention` refund). The webhook will then move the obligation.
-3. If `provider_refund_id` is empty and the state is `failed` (Paystack refused it): fix the cause from `last_error`, check the Paystack dashboard shows no refund on that transaction, then press **Retry refund**.
+3. If `provider_refund_id` is empty and the state is `failed` (Paystack refused it): fix the cause from `last_error`, check the Paystack dashboard shows no refund on that transaction, then press **Retry**.
 4. Stuck in `pending`/`processing` for over 72h: look it up in Paystack and wait for the bank. Tell the customer the honest status ("initiated, not complete").
 5. Never refund from the Paystack dashboard without an obligation. A refund made outside the app matches nothing (`unknown_refund`) and breaks reconciliation.
 6. Deposits paid by EFT/cash are refunded by hand. Record the method and date on the booking (take-back screen).
@@ -38,13 +38,13 @@ Write down every action taken in the incident record (who, when, what, why). Nev
 1. Gather the evidence for the order: `rental_payment_intents` (by `reference` = order id), `payment_events` (by `provider_reference`), `ledger_journals` with keys `payment:<txn>` and `unallocated:<txn>`, and the Paystack dashboard for the customer and amount.
 2. Cases:
    - **Same transaction delivered twice.** Expected and harmless: the second event's outcome is `duplicate`. Nothing to do.
-   - **Two different successful transactions on one order.** The second is held as `mismatch` (finding `rental-unallocated-money`). Once you have checked it, use Rental ops → **refund unallocated** with a note. That refunds the second charge in full. Never refund the transaction that confirmed the booking.
-   - **Paid online after staff marked the order paid by EFT/cash.** **Not detected automatically.** The webhook treats the order as already confirmed (`duplicate`): no intent update, no journal, no alert. Find these with `payment_events.outcome = 'duplicate'` where the matching intent is still `initiated`. One of the two payments must be returned by hand. Risk register R-22.
+   - **Two different successful transactions on one order.** The second is held as `mismatch` (finding `rental-unallocated-money`). Once you have checked it, use Rental ops → **Refund in full** (unallocated money) with a note. That refunds the second charge in full. Never refund the transaction that confirmed the booking.
+   - **Paid online after staff marked the order paid by EFT/cash.** **Not detected automatically.** The webhook treats the order as already confirmed (`duplicate`): no intent update, no journal, no alert. Find these with `payment_events.outcome = 'duplicate'` where the matching intent is not `paid` (still `initiated`, or `expired` after the hold). One of the two payments must be returned by hand. Risk register R-22.
 3. Tell the customer what happened and when the money will be back.
 
 ## Lost or unreturned equipment
 
-1. The overdue ladder runs daily and creates tasks in Rental ops (+2h, +24h, +48h, +96h). **Acknowledge** each one with what was done.
+1. The overdue ladder runs daily and creates tasks in Rental ops (+2h, +24h, +48h, +96h). **Record** what was done for each one.
 2. +48h, formal escalation: new bookings for that renter are paused automatically while the gear is out. Decide whether to send a letter of demand. That is a human decision.
 3. +96h, senior review: preserve the evidence. That means the handover record (`equipment_bookings.handover`: ID check, signature, serials, location, staff), `checkout_photos`, the booking history and all contact attempts. Do not delete the renter's account or verification data while recovery is open.
 4. Any SAPS report, insurer notice (insurance position: D-15, REQUIRES_FOUNDER_APPROVAL) or claim against the deposit is decided by a person and recorded with reasons. Nothing is confiscated automatically. A claim above the deposit is invoiced.
@@ -57,7 +57,7 @@ Write down every action taken in the incident record (who, when, what, why). Nev
 2. Restore through the Supabase dashboard. Which backup or point-in-time options the current plan includes is NEEDS_VERIFICATION. Restore **DEV** first if you are rehearsing. Never test restores on production.
 3. After the restore, list everything Paystack recorded after the restore point: charges, refunds and transfers. Each must exist in `payment_events`, `refund_obligations` and `owner_payouts`. Money tables may have lost rows written after the restore point.
 4. Check which migrations are present (067, 068, 069 and 070). Re-run the test scripts on DEV only.
-5. Turn payments and the site back on. In Rental ops, press **Run pipeline**. Then run the invariant sweep and work through every finding.
+5. Turn payments and the site back on. In Rental ops, press **Run pipeline now**. Then run the invariant sweep and work through every finding.
 6. Missing webhook events: ask Paystack to resend them, or requeue from the dashboard if available (NEEDS_VERIFICATION). Anything that cannot be replayed is recorded by a person, with a reversing or correcting journal, never an edit.
 
 ## Identity-verification failure

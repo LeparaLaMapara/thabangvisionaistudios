@@ -58,4 +58,4 @@ The daily job marks `active` bookings `overdue` once the return time has passed.
 | +48h | formal escalation | yes | Decide on a letter of demand. New bookings for this renter are paused while the gear is out |
 | +96h | senior review | no | Preserve evidence, decide on lawful recovery. Any SAPS report is a human decision |
 
-Because the job is daily, a stage can be recorded up to about 24 hours after it becomes due. Record what was done with **Acknowledge** (an outcome is required). Nothing in the ladder accuses anyone, suspends an account or keeps a deposit automatically. See [incidents.md](incidents.md#lostunreturned-equipment) for lost or unreturned gear.
+Because the job is daily, a stage can be recorded up to about 24 hours after it becomes due. Record what was done with **Record** (an outcome is required). Nothing in the ladder accuses anyone, suspends an account or keeps a deposit automatically. See [incidents.md](incidents.md#lostunreturned-equipment) for lost or unreturned gear.

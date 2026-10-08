@@ -14,7 +14,7 @@ Every refund starts as one row in `refund_obligations`, keyed by `obligation_key
 | `cancellation` | Customer cancellation (`PUT /api/bookings/[id]`) | booking id |
 | `manual` | Staff cancellation of a paid booking (`PATCH /api/admin/equipment-bookings/[id]`). Dispute resolution `full_refund` / `partial_refund` (`PATCH /api/admin/disputes/[id]`) | `staff-cancel:<id>` / `dispute:<id>` |
 | `late_payment` | Webhook: paid after the hold ran out and stock was gone, or paid for an order a person cancelled | provider transaction id |
-| `overpayment` | Rental ops → "refund unallocated" after a person checked a `mismatch` intent | provider transaction id |
+| `overpayment` | Rental ops → **Refund in full** (unallocated money) after a person checked a `mismatch` intent | provider transaction id |
 
 **Cap (T14).** The trigger `refund_obligations_cap` takes an advisory lock per charge. It refuses any obligation that would make the non-failed refunds on that charge exceed `charged_cents`. The app also caps each new refund at the remainder (`chargeOfBooking`, `refundableRemainder`).
 
@@ -42,7 +42,7 @@ eligible ─► claimed ─► pending ─► processing ─► processed
 3. **Reconcile before any retry (T13).** A `claimed` row older than 10 minutes, or a `requested` row with no provider id, is looked up first with `GET /refund?transaction=…`. Found → adopt the provider's state. Not found → release to `eligible` so it can be sent. It is never re-sent blind.
 4. After 3 attempts an `eligible` row goes to `needs_attention` and alerts staff.
 
-Callers: the take-back and dispute routes submit immediately. The daily job (`runRefunds`) and Rental ops "retry refund" handle the rest. Retry reopens a `failed`/`needs_attention` row to `eligible` and then reconciles or submits as above.
+Callers: the take-back and dispute routes submit immediately. The daily job (`runRefunds`) and Rental ops **Retry** handle the rest. Retry reopens a `failed`/`needs_attention` row to `eligible`, and an `eligible` row is **submitted, not reconciled**. So if `provider_refund_id` is already set (the refund exists at Paystack, for example a provider `needs-attention`), Retry would send a second request. Resolve those in the Paystack dashboard instead ([incidents.md](../operations/incidents.md#refund-failures)). The Rental ops hint, which says Retry always reconciles first, overstates this.
 
 ## 4. Provider updates (`processRefundEvent`)
 

@@ -80,4 +80,4 @@ None of these could be confirmed from the sandbox: no test keys, and Paystack's 
 | `GET /refund?transaction=` filtering | `paystackPayments.listRefunds` | Reconcile-before-retry finds an earlier refund |
 | Transfer webhook names and `GET /transfer/verify/:reference` "not found" message | `processTransferEvent`, `paystackPayouts.verifyTransfer` | "Not found" is reported as a definite answer |
 | Transfer Approval URL: request shape, and which status codes mean approve or reject | `app/api/webhooks/paystack/transfer-approval/route.ts` | Do not enable the approval URL on the live account before this |
-| `POST /bank/validate`: accepted `document_type` values and the `verified` field | `paystackIdentity.validateBankAccount` | See decision D-23. The adapter is not yet wired into any flow |
+| `POST /bank/validate`: accepted `document_type` values, `account_type`, and the `verified` field | `paystackIdentity.validateBankAccount`, called from `POST /api/banking` | See decision D-23. The code sends `document_type = identityNumber` and `account_type = personal` only |

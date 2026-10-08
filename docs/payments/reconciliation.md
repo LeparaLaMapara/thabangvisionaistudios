@@ -8,7 +8,7 @@
 |---|---|---|
 | `/api/cron/rental-pipeline` | daily 05:45 (07:45 SAST) | Retries the inbox, expires holds, moves refunds, reviews and sends payouts, runs the overdue ladder and reminders, delivers the outbox (`lib/rental/pipeline.ts`) |
 | `/api/cron/invariants` | daily 03:00 | Runs the detectors below (`lib/rental/reconcile-server.ts` → `lib/core/rental/reconcile.ts`). Findings are de-duplicated in `ops_findings`. Any newly opened finding is emailed once to `STUDIO.email` |
-| Rental ops → "Run pipeline" | on demand | The same pass as the daily job |
+| Rental ops → "Run pipeline now" | on demand | The same pass as the daily job |
 
 Both jobs are daily because the current Vercel plan rejects sub-daily crons (see CLAUDE.md). Webhooks, checkout and admin actions do their work immediately. The jobs retry and sweep up. Worst-case latency for a retry is about 24 hours (risk register R-16).
 
@@ -17,9 +17,9 @@ Both jobs are daily because the current Vercel plan rejects sub-daily crons (see
 | Check id | Severity | Meaning | First action |
 |---|---|---|---|
 | `rental-paid-not-confirmed` | critical | Intent `paid` for over 15 minutes, but no line confirmed or later | Check `payment_events` for the reference. Requeue it in Rental ops. If the stock is gone, the money is owed back |
-| `rental-unallocated-money` | critical | Intent `mismatch`/`refund_due` for over an hour | Compare the amount with the Paystack dashboard. If the money belongs to the customer, use Rental ops → "refund unallocated" with a note |
+| `rental-unallocated-money` | critical | Intent `mismatch`/`refund_due` for over an hour | Compare the amount with the Paystack dashboard. If the money belongs to the customer, use Rental ops → **Refund in full** (unallocated money) with a note |
 | `rental-confirmed-unpaid` | critical | Line confirmed, `payment_method = 'online'`, no payment reference | Find the payment in Paystack. If there is none, cancel with a reason |
-| `rental-refund-failed` | critical | Obligation `failed`/`needs_attention` | Read `last_error`. Fix the cause, then "Retry refund" (it reconciles first) |
+| `rental-refund-failed` | critical | Obligation `failed`/`needs_attention` | Read `last_error`. Fix the cause, then **Retry** (see incidents.md: check Paystack first) |
 | `rental-refund-stuck` | warn | In flight with the provider for over 72h | Look the refund up in Paystack. Do not resubmit by hand |
 | `rental-payout-failed` | critical | Payout failed, reversed, blocked, rejected, abandoned, `otp`, `needs_attention` | Check the owner's recipient and the Paystack transfer settings |
 | `rental-payout-stuck` | warn | Payout in flight for over 48h | Verify the transfer by its `tvpo_…` reference |

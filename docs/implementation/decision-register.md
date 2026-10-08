@@ -38,3 +38,18 @@ Statuses: CONFIRMED · NEEDS_VERIFICATION · BLOCKED · REQUIRES_LEGAL_REVIEW ·
 | D-18 | Refund and payout fees: does the platform or the owner bear them? | REQUIRES_FOUNDER_APPROVAL | Phase 1 payouts |
 | D-19 | What triggers an owner payout hold or a dispute escalation | REQUIRES_FOUNDER_APPROVAL | Phase 1 |
 | D-20 | Procedure for separating the production database; where the Observatory goes | BLOCKED | `docs/operations/database-isolation.md` |
+
+## Phase 1 decisions (2026-10-08)
+
+| # | Question | Status | What the code does now | Where encoded |
+|---|---|---|---|---|
+| D-21 | Same-day turnaround: may gear returned on a day be hired out again that day? | REQUIRES_FOUNDER_APPROVAL | Dates are inclusive. Gear is due back by the end of its end date (SAST), and that day is not resold | `rental_units_blocked` (070), `lib/core/rental/overdue.ts` `returnDueAt` |
+| D-22 | What counts as "qualifying history" for the Proven and Trusted tiers | REQUIRES_FOUNDER_APPROVAL | Days are counted from the renter's **first clean return**: completed, on time, no damage, no dispute. Nothing may currently count against them (open dispute, escalated overdue gear, fraud flag, suspension). Proven = 1 clean return + 14 days. Trusted = 5 clean returns + R50,000 returned clean + 90 days | `lib/core/rental/trust.ts`, `RENTAL_POLICY.trustThresholds` |
+| D-23 | Is a validated bank account required for the renter Verified tier, and which `/bank/validate` document types are accepted? | NEEDS_VERIFICATION (document types); REQUIRES_FOUNDER_APPROVAL (the requirement) | Verified (R10,000) needs an approved ID+selfie review **and** `banking_details.is_verified`. `POST /api/banking` validates only personal accounts with a 13-digit SA ID number (`document_type = identityNumber`), when the holder name matches the verified profile. Passport and business-registration types are in the port but not offered. There is no manual-review path yet | `lib/core/rental/trust.ts`, `app/api/banking/route.ts`, `lib/payments/paystack-ports.ts` |
+| D-24 | Should owner payouts that pass every automatic check be approved automatically? (see D-19) | REQUIRES_FOUNDER_APPROVAL | OFF. Staff approve each payout in `/admin/rental-ops`, and approval re-runs every check | `RENTAL_POLICY.payoutAutoApprove = false` |
+| D-25 | Late fee | REQUIRES_FOUNDER_APPROVAL (pending D-13) | Unchanged from before Phase 1: R150 per item per started day after the return day, at most 14 days, never more than the deposit | `RENTAL_POLICIES.lateFeePerDayZar`, `RENTAL_POLICIES.maxLateDays`, `lib/rental/late-fee.ts` |
+
+Superseded by Phase 1 (no longer enforced at checkout):
+
+- `STUDIO.rental.protection.trustTiers` (the R5k/R20k/R60k ladder by clean returns) is replaced by `RENTAL_POLICY.trustTierLimitsCents` (R2k/R10k/R25k/R80k).
+- `STUDIO.rental.protection.collectionOnlyAboveValue` (an order-level R20k) is replaced by `RENTAL_POLICY.highValueCollectionThresholdCents` (any single item over R50k) plus `firstHireCollectionOnly`.
