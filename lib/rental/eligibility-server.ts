@@ -27,6 +27,7 @@ interface BookingFactRow {
   hold_expires_at: string | null;
   start_date: string | null;
   end_date: string | null;
+  checkout_group_id: string | null;
   unit_replacement_value_cents: number | null;
   smart_rentals: unknown;
 }
@@ -55,8 +56,9 @@ export async function loadRenterFacts(
   admin: Admin,
   user: { id: string; email_confirmed_at?: string | null },
   now: Date = new Date(),
+  opts: { excludeGroupId?: string } = {},
 ): Promise<{ facts: RenterFacts; exposureCents: number; holdings: HoldingForTrust[] }> {
-  const BASE = 'id, status, quantity, late_fee, dispute_reason, completed_at, returned_at, updated_at, start_date, end_date, smart_rentals(replacement_value, deposit_amount)';
+  const BASE = 'id, status, quantity, late_fee, dispute_reason, completed_at, returned_at, updated_at, start_date, end_date, checkout_group_id, smart_rentals(replacement_value, deposit_amount)';
   const PIPELINE = ', inspection_outcome, hold_expires_at, unit_replacement_value_cents';
   const bookingsQuery = (cols: string) => admin.from('equipment_bookings').select(cols).eq('user_id', user.id);
   const [profileRes, bankRes, first] = await Promise.all([
@@ -107,7 +109,8 @@ export async function loadRenterFacts(
     const holding =
       (EXPOSURE_STATUSES as readonly string[]).includes(r.status) ||
       (r.status === 'pending' && r.hold_expires_at != null && new Date(r.hold_expires_at).getTime() > now.getTime());
-    if (holding) {
+    // The order being checked is the "new" one: its own lines are not already-held gear.
+    if (holding && !(opts.excludeGroupId && r.checkout_group_id === opts.excludeGroupId)) {
       const value = unitValueCents(r) * qty;
       exposureCents += value;
       holdings.push(holdingOf(r, value, now));
@@ -173,8 +176,9 @@ export async function checkRenterEligibility(
   lines: OrderLineForTrust[],
   delivery: boolean,
   now: Date = new Date(),
+  opts: { excludeGroupId?: string } = {},
 ): Promise<EligibilityResult> {
-  const { facts, exposureCents, holdings } = await loadRenterFacts(admin, user, now);
+  const { facts, exposureCents, holdings } = await loadRenterFacts(admin, user, now, opts);
   return checkEligibility({
     facts,
     currentExposureCents: exposureCents,
@@ -188,4 +192,39 @@ export async function checkRenterEligibility(
     },
     now,
   });
+}
+
+/**
+ * Before an order paid after its hold lapsed is reinstated: would the renter
+ * be within their limit (and free of account holds) with it back? Read with
+ * the service role. Throws if it cannot tell, so the payment is retried.
+ */
+export async function lateConfirmationAllowed(
+  admin: Admin,
+  intent: { userId: string; checkoutGroupId: string },
+  now: Date = new Date(),
+): Promise<boolean> {
+  const [{ data: lines, error: linesErr }, { data: userRes, error: userErr }] = await Promise.all([
+    admin
+      .from('equipment_bookings')
+      .select('quantity, start_date, end_date, unit_replacement_value_cents, smart_rentals(replacement_value, deposit_amount)')
+      .eq('checkout_group_id', intent.checkoutGroupId),
+    admin.auth.admin.getUserById(intent.userId),
+  ]);
+  if (linesErr || userErr || !userRes?.user) throw new Error('late payment: could not load the order or renter');
+  const order: OrderLineForTrust[] = ((lines ?? []) as unknown as BookingFactRow[]).map((r) => ({
+    unitReplacementValueCents: unitValueCents(r),
+    quantity: Math.max(1, r.quantity ?? 1),
+    startDate: r.start_date ?? undefined,
+    endDate: r.end_date ?? undefined,
+  }));
+  const result = await checkRenterEligibility(
+    admin,
+    { id: intent.userId, email_confirmed_at: userRes.user.email_confirmed_at ?? null },
+    order,
+    false,
+    now,
+    { excludeGroupId: intent.checkoutGroupId },
+  );
+  return result.ok;
 }

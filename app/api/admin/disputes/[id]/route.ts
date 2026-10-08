@@ -188,6 +188,15 @@ export async function PATCH(
     // settled here in one transaction: refund obligation, ledger, owner payout
     // and closing the booking (default money rules: disputeMoney, D-19).
     let settledEquipment = false;
+    const moneyResolution = resolution === 'full_refund' || resolution === 'partial_refund';
+    // With migration 070 a gear refund only happens through the settlement
+    // below: line-scoped, with its journal, and with the owner's share
+    // adjusted. Anything else would refund the whole order with no ledger
+    // entry while the owner is still paid, so it is refused.
+    let pipelineApplied = true;
+    if (dispute.equipment_booking_id && moneyResolution && status !== 'resolved' && status !== 'dismissed') {
+      return NextResponse.json({ error: 'A refund is settled when the dispute is resolved. Choose "resolved" with the refund, or keep it open without one.' }, { status: 400 });
+    }
     if (dispute.equipment_booking_id && (status === 'resolved' || status === 'dismissed')) {
       const settled = await settleDisputedReturn(supabase, {
         disputeId: id,
@@ -197,8 +206,22 @@ export async function PATCH(
         adminId: auth.user.id,
         reason: `dispute ${status}: ${resolution ?? 'no resolution'}${resolution_notes ? ` (${String(resolution_notes).slice(0, 200)})` : ''}`,
       });
-      if (settled && 'error' in settled) return NextResponse.json({ error: settled.error }, { status: settled.status });
-      settledEquipment = settled !== null;
+      if ('error' in settled) return NextResponse.json({ error: settled.error }, { status: settled.status });
+      if ('skipped' in settled) {
+        pipelineApplied = settled.skipped !== 'missing_pipeline';
+        if (settled.skipped === 'not_disputed_return' && moneyResolution) {
+          return NextResponse.json(
+            {
+              error:
+                'This booking is not a disputed return waiting to be settled, so the system cannot refund it safely (its hire may already be earned and the owner paid). Resolve the dispute without a refund and record any refund by hand in Rental ops.',
+              code: 'REFUND_NEEDS_A_PERSON',
+            },
+            { status: 409 },
+          );
+        }
+      } else {
+        settledEquipment = true;
+      }
     }
 
     // Process refund if applicable
@@ -225,7 +248,8 @@ export async function PATCH(
         }
       }
 
-      if (dispute.equipment_booking_id && !settledEquipment) {
+      // Only before migration 070 (no ledger yet): the earlier refund path.
+      if (dispute.equipment_booking_id && !settledEquipment && !pipelineApplied) {
         const { data: eb } = await supabase
           .from('equipment_bookings')
           .select('id, user_id, checkout_group_id, payfast_payment_id, deposit_amount')
@@ -425,13 +449,13 @@ type Admin = ReturnType<typeof createAdminClient>;
 async function settleDisputedReturn(
   db: Admin,
   p: { disputeId: string; bookingId: string; resolution: DisputeResolution; partialRefundCents: number; adminId: string; reason: string },
-): Promise<{ ok: true; refundCents: number } | { error: string; status: number } | null> {
+): Promise<{ ok: true; refundCents: number } | { error: string; status: number } | { skipped: 'missing_pipeline' | 'not_disputed_return' }> {
   const { data, error } = await db
     .from('equipment_bookings')
     .select('id, user_id, status, checkout_group_id, payfast_payment_id, deposit_amount, delivery_fee, payment_plan, balance_due, hire_cents, deposit_cents, ownership, owner_id')
     .eq('id', p.bookingId)
     .maybeSingle();
-  if (error && isMissingPipeline(error)) return null;
+  if (error && isMissingPipeline(error)) return { skipped: 'missing_pipeline' };
   // Any other failure is not "nothing to settle": stop before the dispute is resolved without its money.
   if (error) return { error: 'Could not load the booking just now. Nothing was changed; try again.', status: 503 };
   const b = data as {
@@ -439,7 +463,7 @@ async function settleDisputedReturn(
     deposit_amount: number | null; delivery_fee: number | null; payment_plan: string | null; balance_due: number | null;
     hire_cents: number | null; deposit_cents: number | null; ownership: string | null; owner_id: string | null;
   } | null;
-  if (!b || b.status !== 'disputed') return null;
+  if (!b || b.status !== 'disputed') return { skipped: 'not_disputed_return' };
 
   const reference = b.payfast_payment_id;
   const onProvider = Boolean(reference) && !isManualReference(reference as string);
@@ -493,6 +517,8 @@ async function settleDisputedReturn(
         bookingGroupId: b.checkout_group_id,
         bookingIds: [b.id],
         evidence: { dispute_id: p.disputeId, resolution: p.resolution, delivery_refund_cents: deliveryRefundCents, by: p.adminId },
+        // The settlement journal below is posted only for orders in the ledger.
+        ledgered: intentPaid && b.hire_cents != null,
       });
     } else {
       notices.push(...buildNotices({ kind: 'staff_alert', userId: 'staff', bookingIds: [b.id], discriminator: `manual-refund:dispute:${p.disputeId}`, data: { what: 'manual_dispute_refund_due', reference: b.id } }));
@@ -561,7 +587,7 @@ async function settleDisputedReturn(
     payouts,
     notices,
   });
-  if (moved.result === 'missing_pipeline') return null;
+  if (moved.result === 'missing_pipeline') return { skipped: 'missing_pipeline' };
   if (moved.result === 'conflict') return { error: 'The booking changed; reload and try again.', status: 409 };
 
   if (refunds.length) {

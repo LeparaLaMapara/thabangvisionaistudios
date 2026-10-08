@@ -11,6 +11,7 @@ import { buildNotices } from '@/lib/core/rental/notifications';
 import { isManualReference } from '@/lib/payments/routing';
 import { isMissingPipeline, transitionBookings } from '@/lib/rental/repos';
 import { dispatchOutbox } from '@/lib/rental/notify';
+import { chargeOfBooking } from '@/lib/rental/charges';
 import { logEvent } from '@/lib/data/events';
 
 /**
@@ -60,7 +61,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   const db = createAdminClient();
   const { data: booking } = await db
     .from('equipment_bookings')
-    .select('id, user_id, status, checkout_group_id, payfast_payment_id')
+    .select('id, user_id, status, checkout_group_id, payfast_payment_id, deposit_amount')
     .eq('id', id)
     .maybeSingle();
   if (!booking) return NextResponse.json({ error: 'Booking not found' }, { status: 404 });
@@ -131,12 +132,19 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         }));
       }
       if (refundCents > 0) {
-        let chargedCents = refundCents;
-        if (booking.checkout_group_id) {
-          const { data: intent, error: intentErr } = await db.from('rental_payment_intents').select('expected_amount_cents, state').eq('checkout_group_id', booking.checkout_group_id).maybeSingle();
-          if (intentErr) return NextResponse.json({ error: 'Could not check the payment just now. Nothing was changed; try again.' }, { status: 503 });
-          if (intent && (intent as { state: string }).state === 'paid') chargedCents = (intent as { expected_amount_cents: number }).expected_amount_cents;
+        // The cap is the real charge for the order (the paid intent, or for an
+        // order from before 070 its recorded payments) less what is already
+        // owed back, never the refund amount itself.
+        let charge: { totalCents: number; remainderCents: number };
+        try {
+          charge = await chargeOfBooking(db, booking);
+        } catch {
+          return NextResponse.json({ error: 'Could not check the payment just now. Nothing was changed; try again.' }, { status: 503 });
         }
+        if (refundCents > charge.remainderCents) {
+          return NextResponse.json({ error: `The refund is more than is left of the charge (R${(charge.remainderCents / 100).toFixed(2)}).`, code: 'REFUND_TOO_LARGE' }, { status: 400 });
+        }
+        const chargedCents = charge.totalCents;
         refunds.push({
           obligationKey: refundObligationKey('manual', `staff-cancel:${id}`),
           reason: 'manual',
@@ -147,6 +155,8 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
           bookingGroupId: booking.checkout_group_id,
           bookingIds: [id],
           evidence: { reason, by: auth.user.id },
+          // No journal on completion for an order the ledger never held.
+          ledgered: Boolean(held),
         });
       }
     } else if (refundCents > 0) {

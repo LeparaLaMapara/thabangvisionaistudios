@@ -1,4 +1,5 @@
 import { createAdminClient } from '@/lib/supabase/server';
+import { lateConfirmationAllowed } from '@/lib/rental/eligibility-server';
 import type { WebhookResult } from '@/lib/payments/types';
 import { handlePaymentComplete, handlePaymentFailed } from '@/lib/payments/fulfil';
 import { recordConfirmation } from '@/lib/payments/routing';
@@ -156,7 +157,7 @@ export async function processPaystackEvent(p: ParsedPaystackEvent): Promise<stri
           currency: p.currency ?? '',
           metadataUserId: p.metadataUserId,
         },
-        { repo, clock: systemClock },
+        { repo, clock: systemClock, lateAllowed: (i) => lateConfirmationAllowed(createAdminClient(), i) },
       );
     }
     // Everything without a rental intent keeps its existing (now guarded) path.

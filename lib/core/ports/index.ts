@@ -145,6 +145,8 @@ export interface RefundRecord {
   bookingGroupId: string | null;
   bookingIds: string[];
   fromUnallocated: boolean;
+  /** False for orders outside the ledger: no journal when it completes. Defaults to true. */
+  ledgered?: boolean;
 }
 
 export interface RefundRepository {

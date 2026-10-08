@@ -300,6 +300,51 @@ begin
   raise notice 'PASS: one open dispute per disputed return';
 end $$;
 
+-- 12c. "Mark paid" never confirms a lapsed hold whose unit was resold, and a
+-- refund that completes is always recorded (the cap is not re-checked on a
+-- state change).
+do $$
+declare
+  ua uuid := gen_random_uuid();
+  ub uuid := gen_random_uuid();
+  kit uuid := gen_random_uuid();
+  ga uuid := gen_random_uuid();
+  gb uuid := gen_random_uuid();
+  ba uuid;
+  r jsonb;
+begin
+  insert into auth.users (id, email) values (ua, 'p1-test-ua@example.invalid'), (ub, 'p1-test-ub@example.invalid');
+  insert into public.profiles (id) values (ua), (ub) on conflict (id) do nothing;
+  insert into public.smart_rentals (id, slug, title, quantity, is_published, price_per_day, replacement_value)
+  values (kit, 'p1-test-kit-' || kit, 'Test kit', 1, true, 100, 1000);
+  r := public.reserve_rental_order(jsonb_build_array(jsonb_build_object('user_id', ua, 'rental_id', kit, 'checkout_group_id', ga,
+    'start_date', '2031-10-20', 'end_date', '2031-10-22', 'total_price', 300, 'quantity', 1, 'payment_method', 'eft')), null, 30);
+  ba := (r -> 'booking_ids' ->> 0)::uuid;
+  update public.equipment_bookings set hold_expires_at = now() - interval '1 minute' where id = ba;  -- A's hold lapses
+  perform public.reserve_rental_order(jsonb_build_array(jsonb_build_object('user_id', ub, 'rental_id', kit, 'checkout_group_id', gb,
+    'start_date', '2031-10-21', 'end_date', '2031-10-21', 'total_price', 100, 'quantity', 1)), null, 30);  -- B takes the unit
+  r := public.confirm_manual_payment(ba, 'manual:eft:test', ua);
+  if r ->> 'result' <> 'unavailable' then raise exception 'FAIL: mark paid confirmed a resold unit (%)', r; end if;
+  if (select status from public.equipment_bookings where id = ba) <> 'pending' then raise exception 'FAIL: lapsed hold changed state'; end if;
+  raise notice 'PASS: mark paid never confirms a lapsed hold whose unit was resold';
+  r := public.confirm_manual_payment((select id from public.equipment_bookings where checkout_group_id = gb), 'manual:eft:test-b', ub);
+  if r ->> 'result' <> 'confirmed' or (select status from public.equipment_bookings where checkout_group_id = gb) <> 'confirmed' then
+    raise exception 'FAIL: mark paid did not confirm a live hold (%)', r;
+  end if;
+  if not exists (select 1 from public.booking_status_history h join public.equipment_bookings b on b.id = h.booking_id
+                  where b.checkout_group_id = gb and h.to_status = 'confirmed' and h.actor = 'staff') then
+    raise exception 'FAIL: mark paid left no history';
+  end if;
+  raise notice 'PASS: mark paid confirms a live hold and records it';
+
+  insert into public.refund_obligations (obligation_key, reason, amount_cents, charged_cents, transaction_reference, state)
+  values ('refund:manual:c1', 'manual', 80000, 80000, 'tx-cap', 'pending');
+  insert into public.refund_obligations (obligation_key, reason, amount_cents, charged_cents, transaction_reference)
+  values ('refund:manual:c2', 'manual', 50000, 200000, 'tx-cap');
+  update public.refund_obligations set state = 'processed' where obligation_key = 'refund:manual:c1';
+  raise notice 'PASS: a completed refund is recorded even when a later obligation shares the charge';
+end $$;
+
 -- 13. Clients cannot call the money functions or write the money tables.
 set local role authenticated;
 select set_config('request.jwt.claims', json_build_object('sub', gen_random_uuid(), 'role', 'authenticated')::text, true);

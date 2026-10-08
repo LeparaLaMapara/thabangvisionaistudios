@@ -20,6 +20,7 @@ import { systemClock } from '@/lib/core/ports';
 import { paymentPort } from '@/lib/payments/ports';
 import { SupabaseRefunds, isMissingPipeline, transitionBookings } from '@/lib/rental/repos';
 import { dispatchOutbox } from '@/lib/rental/notify';
+import { chargeOfBooking } from '@/lib/rental/charges';
 import { paymentReference } from '@/lib/payments/eft';
 
 type BookingForQuote = {
@@ -309,7 +310,7 @@ export async function PUT(
  * back to the earlier path.
  */
 async function cancelThroughPipeline(
-  booking: { id: string; status: string; checkout_group_id: string | null; payfast_payment_id: string | null },
+  booking: { id: string; status: string; checkout_group_id: string | null; payfast_payment_id: string | null; deposit_amount?: number | null },
   userId: string,
   quote: ReturnType<typeof calculateCancellationRefund>,
   update: Record<string, unknown>,
@@ -339,6 +340,20 @@ async function cancelThroughPipeline(
       chargedCents = (intent as { expected_amount_cents: number }).expected_amount_cents;
     }
   }
+  // Outside the ledger (paid before 070): cap the refund at the real charge
+  // for the order (its recorded payments), never at the refund itself.
+  if (onProvider && refundCents > 0 && !intentPaid) {
+    let charge: { totalCents: number; remainderCents: number };
+    try {
+      charge = await chargeOfBooking(db, booking);
+    } catch {
+      return NextResponse.json({ error: 'Could not cancel just now. Nothing was changed; please try again.' }, { status: 503 });
+    }
+    if (refundCents > charge.remainderCents) {
+      return NextResponse.json({ error: 'This booking cannot be cancelled online. Please contact support so we can refund you correctly.' }, { status: 409 });
+    }
+    chargedCents = charge.totalCents;
+  }
 
   const refunds = onProvider && refundCents > 0
     ? [{
@@ -347,6 +362,8 @@ async function cancelThroughPipeline(
         amountCents: refundCents,
         chargedCents: Math.max(chargedCents, refundCents),
         transactionReference: reference,
+        // No journal on completion for an order the ledger never held.
+        ledgered: intentPaid,
         userId,
         bookingGroupId: booking.checkout_group_id,
         bookingIds: [booking.id],

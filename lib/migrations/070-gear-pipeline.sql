@@ -533,6 +533,9 @@ create table if not exists public.refund_obligations (
   booking_group_id uuid,
   booking_ids uuid[] not null default '{}',
   from_unallocated boolean not null default false,
+  -- False for orders outside the ledger (paid before 070, or by hand): no
+  -- journal is posted when such a refund completes, as nothing was booked.
+  ledgered boolean not null default true,
   attempts integer not null default 0,
   claimed_at timestamptz,
   last_error text,
@@ -543,6 +546,7 @@ create table if not exists public.refund_obligations (
   processed_at timestamptz,
   check (amount_cents <= charged_cents)
 );
+alter table public.refund_obligations add column if not exists ledgered boolean not null default true;
 create index if not exists idx_refund_obligations_open on public.refund_obligations (state)
   where state not in ('processed');
 create index if not exists idx_refund_obligations_tx on public.refund_obligations (transaction_reference);
@@ -576,7 +580,10 @@ begin
 end;
 $$;
 drop trigger if exists refund_obligations_cap on public.refund_obligations;
-create trigger refund_obligations_cap before insert or update of amount_cents, state on public.refund_obligations
+-- Checked when an obligation is created or its amount changes. A state change
+-- never changes the total (failed ones still count), so it is not re-checked:
+-- otherwise a refund the customer already has could fail to be recorded.
+create trigger refund_obligations_cap before insert or update of amount_cents on public.refund_obligations
   for each row execute function public.refund_obligations_cap();
 
 -- ── 10. Owner payouts ────────────────────────────────────────────────────────
@@ -884,12 +891,12 @@ begin
   if p_refunds is not null and jsonb_typeof(p_refunds) = 'array' then
     insert into public.refund_obligations (
       obligation_key, reason, amount_cents, charged_cents, transaction_reference, provider, user_id,
-      booking_group_id, booking_ids, evidence, created_by)
+      booking_group_id, booking_ids, evidence, created_by, ledgered)
     select r ->> 'obligationKey', r ->> 'reason', (r ->> 'amountCents')::int, (r ->> 'chargedCents')::int,
            r ->> 'transactionReference', coalesce(r ->> 'provider', 'paystack'), (r ->> 'userId')::uuid,
            nullif(r ->> 'bookingGroupId', '')::uuid,
            coalesce(array(select jsonb_array_elements_text(r -> 'bookingIds'))::uuid[], '{}'),
-           r -> 'evidence', p_actor_id
+           r -> 'evidence', p_actor_id, coalesce((r ->> 'ledgered')::boolean, true)
       from jsonb_array_elements(p_refunds) r
     on conflict (obligation_key) do nothing;
   end if;
@@ -1028,6 +1035,74 @@ begin
 end;
 $$;
 
+-- A payment taken by hand (EFT, cash, card link): confirm the order under the
+-- same locks as a provider payment. Lines whose hold has lapsed are confirmed
+-- only if their units are still free, so the gear is never sold twice.
+create or replace function public.confirm_manual_payment(
+  p_booking uuid,
+  p_reference text,
+  p_actor uuid
+) returns jsonb
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $$
+declare
+  v_group uuid;
+  v_line record;
+  v_stock integer;
+  v_ids uuid[];
+begin
+  select checkout_group_id into v_group from public.equipment_bookings where id = p_booking;
+  if not found then
+    return jsonb_build_object('result', 'not_found');
+  end if;
+
+  perform 1 from public.smart_rentals r
+   where r.id in (select rental_id from public.equipment_bookings
+                   where (v_group is not null and checkout_group_id = v_group) or id = p_booking)
+   order by r.id for update;
+  perform 1 from public.equipment_bookings
+   where (v_group is not null and checkout_group_id = v_group) or id = p_booking
+   order by id for update;
+
+  -- The lines still waiting for payment are confirmed (a line the customer
+  -- cancelled stays cancelled).
+  if (select status from public.equipment_bookings where id = p_booking) <> 'pending' then
+    return jsonb_build_object('result', 'not_pending');
+  end if;
+
+  for v_line in
+    select * from public.equipment_bookings
+     where ((v_group is not null and checkout_group_id = v_group) or id = p_booking)
+       and status = 'pending'
+       and coalesce(hold_expires_at, created_at + interval '48 hours') <= now()
+  loop
+    select coalesce(quantity, 1) into v_stock from public.smart_rentals where id = v_line.rental_id;
+    -- This line's own lapsed hold no longer counts as blocking; any other line
+    -- of the order still on hold does, as it is confirmed with it.
+    if public.rental_units_blocked(v_line.rental_id, v_line.start_date, v_line.end_date, null)
+       + v_line.quantity > coalesce(v_stock, 0) then
+      return jsonb_build_object('result', 'unavailable', 'booking_id', v_line.id);
+    end if;
+  end loop;
+
+  insert into public.booking_status_history (booking_id, from_status, to_status, actor, actor_id, reason)
+  select id, status, 'confirmed', 'staff', p_actor, 'payment taken by hand ' || p_reference
+    from public.equipment_bookings
+   where ((v_group is not null and checkout_group_id = v_group) or id = p_booking) and status = 'pending';
+
+  with moved as (
+    update public.equipment_bookings
+       set status = 'confirmed', payfast_payment_id = p_reference, hold_expires_at = null, updated_at = now()
+     where ((v_group is not null and checkout_group_id = v_group) or id = p_booking) and status = 'pending'
+     returning id
+  )
+  select array_agg(id) into v_ids from moved;
+  return jsonb_build_object('result', 'confirmed', 'booking_ids', to_jsonb(coalesce(v_ids, '{}'::uuid[])));
+end;
+$$;
+
 -- One open dispute per disputed return, however many staff press "dispute" at
 -- once: the booking row lock serialises callers, so the second finds the
 -- first one's record and reuses it. (The disputes table predates the
@@ -1148,7 +1223,8 @@ begin
     'public.refund_transition(uuid, text[], text, jsonb, jsonb, jsonb)',
     'public.payout_transition(uuid, text[], text, jsonb, jsonb, jsonb)',
     'public.expire_rental_holds()',
-    'public.open_return_dispute(uuid, uuid, text, jsonb, text)'
+    'public.open_return_dispute(uuid, uuid, text, jsonb, text)',
+    'public.confirm_manual_payment(uuid, text, uuid)'
   ] loop
     execute format('revoke all on function %s from public, anon, authenticated', f);
     execute format('grant execute on function %s to service_role', f);
@@ -1159,7 +1235,7 @@ commit;
 
 -- ── ROLLBACK (manual; only before any Phase 1 code has written to these tables) ──
 --   begin;
---   drop function if exists public.open_return_dispute(uuid, uuid, text, jsonb, text);
+--   drop function if exists public.open_return_dispute(uuid, uuid, text, jsonb, text), public.confirm_manual_payment(uuid, text, uuid);
 --   drop function if exists public.expire_rental_holds(), public.payout_transition(uuid, text[], text, jsonb, jsonb, jsonb),
 --     public.refund_transition(uuid, text[], text, jsonb, jsonb, jsonb),
 --     public.transition_rental_booking(uuid[], text[], text, text, uuid, text, jsonb, jsonb, jsonb, jsonb, jsonb),

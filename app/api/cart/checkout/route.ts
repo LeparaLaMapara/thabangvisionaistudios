@@ -479,6 +479,20 @@ export async function POST(request: NextRequest) {
   let bookings: { id: string }[];
   if (reservation.ok) {
     bookings = reservation.bookingIds.map((id) => ({ id }));
+    // Check the limit again now that this order is held: two checkouts placed
+    // at the same moment each passed the first check on the same exposure.
+    // Each now sees the other's hold; one over the limit is released (fail closed).
+    let recheck;
+    try {
+      recheck = await checkRenterEligibility(createAdminClient(), user, trustLines, fulfilment === 'delivery', new Date(), { excludeGroupId: checkoutGroupId });
+    } catch {
+      recheck = null;
+    }
+    if (!recheck || !recheck.ok) {
+      await releaseUnpaidReservation(adminClient, checkoutGroupId);
+      if (!recheck) return NextResponse.json({ error: 'Could not check your rental limit just now. Please try again.' }, { status: 503 });
+      return NextResponse.json({ error: recheck.message, code: recheck.code, tier: recheck.assessment.tier.id }, { status: 403 });
+    }
   } else if (reservation.code === 'insufficient_stock' || reservation.code === 'listing_unavailable') {
     const title = items.find((i) => i.rental_id === reservation.rentalId)?.rental.title ?? 'An item in your cart';
     return NextResponse.json({ error: `${title} was just booked by someone else for those dates.`, code: 'UNAVAILABLE' }, { status: 409 });

@@ -144,10 +144,11 @@ interface RefundRow {
   booking_group_id: string | null;
   booking_ids: string[] | null;
   from_unallocated: boolean;
+  ledgered: boolean | null;
 }
 
 const REFUND_COLUMNS =
-  'id, obligation_key, reason, state, amount_cents, transaction_reference, provider_refund_id, claimed_at, attempts, updated_at, user_id, booking_group_id, booking_ids, from_unallocated';
+  'id, obligation_key, reason, state, amount_cents, transaction_reference, provider_refund_id, claimed_at, attempts, updated_at, user_id, booking_group_id, booking_ids, from_unallocated, ledgered';
 
 function toRefund(r: RefundRow): RefundRecord {
   return {
@@ -165,6 +166,7 @@ function toRefund(r: RefundRow): RefundRecord {
     bookingGroupId: r.booking_group_id,
     bookingIds: r.booking_ids ?? [],
     fromUnallocated: r.from_unallocated,
+    ledgered: r.ledgered !== false,
   };
 }
 

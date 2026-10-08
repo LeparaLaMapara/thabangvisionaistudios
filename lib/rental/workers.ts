@@ -1,4 +1,5 @@
 import { createAdminClient } from '@/lib/supabase/server';
+import { lateConfirmationAllowed } from '@/lib/rental/eligibility-server';
 import { RENTAL_POLICY } from '@/lib/constants';
 import { systemClock, type Clock, type PaymentPort, type PayoutPort } from '@/lib/core/ports';
 import { processChargeEvent, submitPayout, submitRefund } from '@/lib/core/rental/use-cases';
@@ -116,7 +117,7 @@ export async function evaluatePayout(
   now: Date,
 ): Promise<{ eligible: true; recipientCode: string | null } | { eligible: false; reasons: string[] }> {
   const [{ data: booking, error: bookingErr }, { data: owner }, { data: bank }, { count: disputes, error: disputesErr }, { data: refunds, error: refundsErr }, { data: payoutRow }] = await Promise.all([
-    db.from('equipment_bookings').select('status, completed_at, inspection_outcome, checkout_group_id, payfast_payment_id, payment_plan, balance_due').eq('id', p.booking_id).maybeSingle(),
+    db.from('equipment_bookings').select('status, completed_at, inspection_outcome, return_reviewed_at, checkout_group_id, payfast_payment_id, payment_plan, balance_due').eq('id', p.booking_id).maybeSingle(),
     db.from('profiles').select('verification_status').eq('id', p.owner_id).maybeSingle(),
     db.from('banking_details').select('is_verified, paystack_recipient_code').eq('user_id', p.owner_id).maybeSingle(),
     db.from('disputes').select('id', { count: 'exact', head: true }).eq('equipment_booking_id', p.booking_id).in('status', ['open', 'investigating', 'escalated']),
@@ -129,7 +130,7 @@ export async function evaluatePayout(
     return { eligible: false, reasons: ['could_not_check_blockers'] };
   }
   const b = booking as {
-    status: string; completed_at: string | null; inspection_outcome: string | null; checkout_group_id: string | null;
+    status: string; completed_at: string | null; inspection_outcome: string | null; return_reviewed_at: string | null; checkout_group_id: string | null;
     payfast_payment_id: string | null; payment_plan: string | null; balance_due: number | null;
   } | null;
   const bank_ = bank as { is_verified?: boolean; paystack_recipient_code?: string | null } | null;
@@ -153,7 +154,8 @@ export async function evaluatePayout(
       payoutRecipientValidated: Boolean(bank_?.is_verified && bank_?.paystack_recipient_code),
       bookingStatus: b?.status ?? 'missing',
       rentalPaymentConfirmed: paymentConfirmed,
-      inspectionCompleted: Boolean(b?.inspection_outcome),
+      // A return a person reviewed through a dispute counts as inspected.
+      inspectionCompleted: Boolean(b?.inspection_outcome || b?.return_reviewed_at),
       openPayoutBlockingDisputes: disputes ?? 0,
       depositSettled,
       payoutAlreadyStarted: !['scheduled', 'held'].includes((payoutRow as { state?: string } | null)?.state ?? 'scheduled'),
@@ -320,7 +322,7 @@ export async function recoverMissedPayments(
         currency: v.value.currency,
         metadataUserId: null,
       },
-      { repo, clock },
+      { repo, clock, lateAllowed: (i) => lateConfirmationAllowed(db, i) },
     );
     out[outcome] = (out[outcome] ?? 0) + 1;
   }

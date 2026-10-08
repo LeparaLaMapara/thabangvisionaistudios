@@ -65,19 +65,28 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       now.getTime() - effectiveHoldMinutes() * 60_000,
     ).toISOString();
 
-    const { data: released, error } = await supabase
-      .from('equipment_bookings')
-      .update({
-        status: 'cancelled',
-        cancelled_at: now.toISOString(),
-        updated_at: now.toISOString(),
-        cancellation_refund_status: 'not_required',
-      })
-      .eq('status', 'pending')
-      .is('payfast_payment_id', null)
-      .or('payment_method.is.null,payment_method.neq.cash')
-      .lt('created_at', holdCutoff)
-      .select('id, checkout_group_id, amount_due, payment_method');
+    // Orders reserved through the Phase 1 pipeline (with a hold_expires_at)
+    // are released by /api/cron/rental-pipeline, which first asks the provider
+    // about missed payments and marks them 'hold_expired' so a late payment
+    // can still be confirmed. This step only handles older rows.
+    const release = (pipelineAware: boolean) => {
+      let q = supabase
+        .from('equipment_bookings')
+        .update({
+          status: 'cancelled',
+          cancelled_at: now.toISOString(),
+          updated_at: now.toISOString(),
+          cancellation_refund_status: 'not_required',
+        })
+        .eq('status', 'pending')
+        .is('payfast_payment_id', null)
+        .or('payment_method.is.null,payment_method.neq.cash')
+        .lt('created_at', holdCutoff);
+      if (pipelineAware) q = q.is('hold_expires_at', null);
+      return q.select('id, checkout_group_id, amount_due, payment_method');
+    };
+    let { data: released, error } = await release(true);
+    if (error && /hold_expires_at/.test(error.message)) ({ data: released, error } = await release(false));
 
     if (error) throw new Error(error.message);
     results.expiredHoldsReleased = released?.length ?? 0;

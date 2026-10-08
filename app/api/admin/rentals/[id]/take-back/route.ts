@@ -268,6 +268,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     if (intentErr) return NextResponse.json({ error: 'Could not check the payment just now. The return is recorded; finish the inspection again in a moment.' }, { status: 503 });
     inLedger = (intent as { state?: string } | null)?.state === 'paid';
   }
+  // A deposit refund on an order the ledger never held posts no journal when it completes.
+  for (const r of refunds) (r as Record<string, unknown>).ledgered = inLedger;
   const journals: unknown[] = [];
   const groupId = b.checkout_group_id ?? id;
   if (inLedger && snap.hire_cents != null && !hireUnrecorded) {

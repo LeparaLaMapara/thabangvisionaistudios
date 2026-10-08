@@ -447,6 +447,27 @@ describe('payment, refund and payout use cases (in-memory adapters, not live)', 
     expect(refunds.rows.size).toBe(1);
   });
 
+  it('T11: a late payment that would put the renter over their limit is refunded, not reinstated', async () => {
+    repo.lines.set('grp1', [{ id: 'b1', status: 'cancelled', cancelReason: 'hold_expired', units: 1, rentalId: 'cam' }]);
+    clock.advanceMinutes(120);
+    const seen: string[] = [];
+    const lateAllowed = async (i: { checkoutGroupId: string }) => { seen.push(i.checkoutGroupId); return false; };
+    expect(await processChargeEvent(event, { repo, clock, lateAllowed })).toBe('late_unavailable_refund_due');
+    expect(seen).toEqual(['grp1']);
+    expect(repo.lines.get('grp1')![0].status).toBe('cancelled');
+    expect([...refunds.rows.values()]).toHaveLength(1);
+  });
+
+  it('a refund on an order the ledger never held completes without a journal', async () => {
+    const provider = new FakePaymentProvider();
+    provider.initialStatus = 'processed';
+    const r = refunds.create({ obligationKey: 'k-pre070', reason: 'cancellation', amountCents: 100, transactionReference: 'tx-old', userId: 'u1', bookingGroupId: null, bookingIds: ['b1'], fromUnallocated: false })!;
+    refunds.rows.set(r.id, { ...refunds.rows.get(r.id)!, ledgered: false });
+    expect(await submitRefund(r.id, { refunds, payments: provider, clock })).toBe('submitted');
+    expect((await refunds.get(r.id))!.state).toBe('processed');
+    expect(books.journals.has(`refund:${r.id}`)).toBe(false);
+  });
+
   it('#9 wrong amount is held for a person, not confirmed and not auto-refunded', async () => {
     expect(await processChargeEvent({ ...event, amountCents: 1000 }, { repo, clock })).toBe('mismatch_held');
     expect(repo.lines.get('grp1')![0].status).toBe('pending');

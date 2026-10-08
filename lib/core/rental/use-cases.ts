@@ -6,9 +6,11 @@
 
 import type {
   Clock,
+  IntentRecord,
   PaymentPort,
   PayoutPort,
   PayoutRepository,
+  RefundRecord,
   RefundRepository,
   RentalPaymentRepository,
 } from '@/lib/core/ports';
@@ -29,12 +31,30 @@ export type ChargeOutcome =
   | 'late_unavailable_refund_due'
   | 'cancelled_refund_due';
 
+/** The journal for a completed refund; none for an order the ledger never held. */
+function processedJournal(refund: RefundRecord): ReturnType<typeof L.refundProcessed> | null {
+  if (refund.ledgered === false) return null;
+  return L.refundProcessed({ refundId: refund.id, bookingGroupId: refund.bookingGroupId, amountCents: refund.amountCents, fromUnallocated: refund.fromUnallocated });
+}
+
 function staffAlert(reference: string, what: string): OutboxMessage[] {
   // Staff alerts go to the ops queue (user id 'staff' is resolved to admins by the adapter).
   return buildNotices({ kind: 'staff_alert', userId: 'staff', bookingIds: [], discriminator: `${what}:${reference}`, data: { reference, what } });
 }
 
-export async function processChargeEvent(event: ChargeEvent, deps: { repo: RentalPaymentRepository; clock: Clock }): Promise<ChargeOutcome> {
+export async function processChargeEvent(
+  event: ChargeEvent,
+  deps: {
+    repo: RentalPaymentRepository;
+    clock: Clock;
+    /**
+     * Whether an order paid after its hold lapsed may still be confirmed for
+     * this renter (trust limit, account holds). The lapsed order stopped
+     * counting against the limit, so it is checked again before it comes back.
+     */
+    lateAllowed?: (intent: IntentRecord) => Promise<boolean>;
+  },
+): Promise<ChargeOutcome> {
   const intent = await deps.repo.getIntent(event.reference);
   const lines = intent ? await deps.repo.getOrderLines(intent.checkoutGroupId) : { statuses: {}, cancelledByExpiry: 0 };
   const decision = decideCharge(
@@ -95,6 +115,11 @@ export async function processChargeEvent(event: ChargeEvent, deps: { repo: Renta
     case 'confirm_late': {
       if (!intent) return 'unknown_reference';
       const late = decision.action === 'confirm_late';
+      if (late && deps.lateAllowed && !(await deps.lateAllowed(intent))) {
+        // Over the renter's limit now: never reinstate, give the money back.
+        const r = await unallocated('late_payment_over_limit', 'refund_due', 'late_payment');
+        return r === 'duplicate' ? 'duplicate' : 'late_unavailable_refund_due';
+      }
       const outcome = await deps.repo.confirmPayment({
         reference: event.reference,
         providerTransactionId: event.providerTransactionId,
@@ -140,7 +165,7 @@ export async function processRefundEvent(
 
   const journal =
     update.to === 'processed'
-      ? L.refundProcessed({ refundId: refund.id, bookingGroupId: refund.bookingGroupId, amountCents: refund.amountCents, fromUnallocated: refund.fromUnallocated })
+      ? processedJournal(refund)
       : null;
   const notices: OutboxMessage[] = [];
   if (update.notifyCustomer && refund.userId) {
@@ -210,7 +235,7 @@ export async function submitRefund(id: string, deps: { refunds: RefundRepository
         [refund.state],
         to,
         { providerRefundId: m.refund.providerRefundId },
-        to === 'processed' ? L.refundProcessed({ refundId: refund.id, bookingGroupId: refund.bookingGroupId, amountCents: refund.amountCents, fromUnallocated: refund.fromUnallocated }) : null,
+        to === 'processed' ? processedJournal(refund) : null,
         notices,
       );
       return moved ? 'reconciled' : 'lost_race';
@@ -248,7 +273,7 @@ export async function submitRefund(id: string, deps: { refunds: RefundRepository
       ['claimed'],
       to,
       { providerRefundId: res.value.providerRefundId },
-      to === 'processed' ? L.refundProcessed({ refundId: refund.id, bookingGroupId: refund.bookingGroupId, amountCents: refund.amountCents, fromUnallocated: refund.fromUnallocated }) : null,
+      to === 'processed' ? processedJournal(refund) : null,
       notices,
     );
     return to === 'failed' || to === 'needs_attention' ? 'escalated' : 'submitted';
