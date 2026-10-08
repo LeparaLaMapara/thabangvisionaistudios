@@ -581,3 +581,25 @@ describe('payment, refund and payout use cases (in-memory adapters, not live)', 
     expect(provider.calls).toHaveLength(1);
   });
 });
+
+// ── Cancellation from checkout snapshots (Codex #59 round 5) ────────────────
+
+describe('cancelling lines priced from their checkout snapshot', () => {
+  it('never refunds more than the order was charged, line by line', async () => {
+    const { calculateCancellationRefund } = await import('@/lib/rental/cancellation');
+    const { fromCents, toCents } = await import('@/lib/core/pricing/money');
+    // Three R99.95 lines at 10% off: charged 26,986 cents, snapshotted 8,996 / 8,995 / 8,995.
+    const snapshots = [8996, 8995, 8995];
+    expect(snapshots.reduce((a, b) => a + b, 0)).toBe(26986);
+    let refunded = 0;
+    let held = 0;
+    for (const cents of snapshots) {
+      const q = calculateCancellationRefund({ startDate: '2026-12-01', totalPrice: fromCents(cents), depositAmount: 0, bookedAt: NOW, now: NOW });
+      expect(q.refundPercent).toBe(100);
+      refunded += toCents(q.hireRefund);
+      held += toCents(q.hireRefund + q.cancellationFee);
+    }
+    expect(refunded).toBe(26986);
+    expect(held).toBe(26986);
+  });
+});

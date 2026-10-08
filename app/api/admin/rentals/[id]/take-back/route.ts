@@ -231,9 +231,16 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   // no recorded payment: the hire is outside the ledger, and the owner's share
   // is not scheduled automatically. A person settles it.
   const hireUnrecorded = b.payment_plan === 'deposit_only' && Number(b.balance_due ?? 0) > 0;
+  // The order is in the ledger when its payment intent was paid through the
+  // provider, whatever the deposit was (a zero-deposit hire still captured hire).
+  let inLedger = false;
+  if (b.checkout_group_id && b.payfast_payment_id && !isManualReference(b.payfast_payment_id)) {
+    const { data: intent } = await db.from('rental_payment_intents').select('state').eq('checkout_group_id', b.checkout_group_id).maybeSingle();
+    inLedger = (intent as { state?: string } | null)?.state === 'paid';
+  }
   const journals: unknown[] = [];
   const groupId = b.checkout_group_id ?? id;
-  if (onCard && snap.hire_cents != null && !hireUnrecorded) {
+  if (inLedger && snap.hire_cents != null && !hireUnrecorded) {
     const community = snap.ownership === 'community' && snap.owner_id && snap.owner_share_cents != null && snap.platform_share_cents != null;
     // A journal needs money in it: a zero hire has nothing to recognise.
     if (snap.hire_cents > 0) {
@@ -252,7 +259,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const deliveryCents = await groupDeliveryCents(db, b);
     if (deliveryCents > 0) journals.push(deliveryEarned({ bookingGroupId: groupId, deliveryCents }));
   }
-  if (onCard && depositCents > 0) {
+  if (inLedger && depositCents > 0) {
     journals.push(depositSettled({ bookingId: id, bookingGroupId: groupId, depositCents, damageCents: plan.damageCents, lateFeeCents: plan.lateFeeCents }));
   }
 
