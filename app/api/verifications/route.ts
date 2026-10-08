@@ -3,12 +3,20 @@ export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'node:crypto';
 import { checkRateLimit } from '@/lib/auth';
-import { createClient } from '@/lib/supabase/server';
+import { createClient, createAdminClient } from '@/lib/supabase/server';
 import { extractPhotoMetadata, type VerificationMetadata } from '@/lib/metadata/verification';
 import { detectFraudFlags } from '@/lib/metadata/fraud-detection';
 import { matchFaces } from '@/lib/agents/tools';
 import { STUDIO } from '@/lib/constants';
 import { logEvent } from '@/lib/data/events';
+import { checkConsents, requiredConsents } from '@/lib/consent';
+import { isWriteDenied, writeDeniedEvent } from '@/lib/supabase/write-denied';
+
+// Verification documents live in a private bucket. Since migration 067 they are
+// written ONLY by the service role, each to a fresh unique path with no upsert,
+// so a document cannot be replaced after it was checked (the storage UPDATE
+// policy is gone) and a client cannot plant files the face match never saw.
+const BUCKET = 'verifications';
 
 const FILE_NAMES = {
   id_copy: 'id-copy',
@@ -85,6 +93,24 @@ export async function POST(req: NextRequest) {
           error: 'You must accept the privacy notice before uploading ID documents.',
           code: 'POPIA_CONSENT_REQUIRED',
         },
+        { status: 400 },
+      );
+    }
+
+    // ── Guard: identity-check (biometric) consent, separate from POPIA ──
+    // Refuse before anything is uploaded. If the consent store cannot be read
+    // we do not proceed: no record, no face comparison.
+    const consent = await checkConsents(supabase, user.id, requiredConsents('verification'));
+    if (consent.status === 'unavailable') {
+      console.error('[verifications] consent store unavailable:', consent.error);
+      return NextResponse.json(
+        { error: 'Identity checks are temporarily unavailable. Please try again later.', code: 'CONSENT_UNAVAILABLE' },
+        { status: 503 },
+      );
+    }
+    if (consent.status !== 'ok') {
+      return NextResponse.json(
+        { error: 'Please accept the identity check notice first.', code: 'CONSENT_REQUIRED' },
         { status: 400 },
       );
     }
@@ -197,33 +223,26 @@ export async function POST(req: NextRequest) {
       .update(Buffer.from(idCopyBuffer))
       .digest('hex');
 
-    // ── If resubmitting (rejected), delete old files first ──────────────
-    if (current?.verification_status === 'rejected') {
-      const oldPaths = [
-        current.id_front_path,
-        current.id_back_path,
-        current.selfie_with_id_path,
-      ].filter(Boolean) as string[];
-
-      if (oldPaths.length > 0) {
-        await supabase.storage.from('verifications').remove(oldPaths);
-      }
-    }
-
-    // ── Upload files to Supabase Storage ────────────────────────────────
+    // ── Upload files to Supabase Storage (service role, unique paths) ──
+    // The user is authenticated above; every path is inside their own folder.
+    // A random component means a resubmission never overwrites the previous
+    // files, and an old path recorded on the profile keeps resolving until the
+    // new submission has been recorded.
+    const admin = createAdminClient();
     const storagePaths = {
-      id_copy: `${user.id}/${FILE_NAMES.id_copy}`,
-      selfie: `${user.id}/${FILE_NAMES.selfie}`,
+      id_copy: `${user.id}/${crypto.randomUUID()}-${FILE_NAMES.id_copy}`,
+      selfie: `${user.id}/${crypto.randomUUID()}-${FILE_NAMES.selfie}`,
     };
 
     const uploads = await Promise.all([
-      uploadToStorage(supabase, Buffer.from(idCopyBuffer), storagePaths.id_copy, idCopy.type),
-      uploadToStorage(supabase, Buffer.from(selfieBuffer), storagePaths.selfie, selfie.type),
+      uploadToStorage(admin, Buffer.from(idCopyBuffer), storagePaths.id_copy, idCopy.type),
+      uploadToStorage(admin, Buffer.from(selfieBuffer), storagePaths.selfie, selfie.type),
     ]);
 
     const failedUpload = uploads.find((u) => u.error);
     if (failedUpload) {
       console.error('[verifications] Storage upload error:', failedUpload.error);
+      await removeQuietly(admin, uploads.filter((u) => u.path).map((u) => u.path as string));
       return NextResponse.json(
         { error: 'Failed to upload documents. Please try again.' },
         { status: 500 },
@@ -233,8 +252,8 @@ export async function POST(req: NextRequest) {
     // ── Face match: selfie vs. ID front (via short-lived signed URLs) ──
     try {
       const [selfieUrlRes, idFrontUrlRes] = await Promise.all([
-        supabase.storage.from('verifications').createSignedUrl(storagePaths.selfie, 300),
-        supabase.storage.from('verifications').createSignedUrl(storagePaths.id_copy, 300),
+        admin.storage.from(BUCKET).createSignedUrl(storagePaths.selfie, 300),
+        admin.storage.from(BUCKET).createSignedUrl(storagePaths.id_copy, 300),
       ]);
 
       const selfieUrl = selfieUrlRes.data?.signedUrl;
@@ -265,33 +284,65 @@ export async function POST(req: NextRequest) {
     const ip = req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip') || 'unknown';
     const userAgent = req.headers.get('user-agent') || 'unknown';
 
-    // ── Submit via RPC (SECURITY DEFINER — bypasses RLS for status change) ──
-    const { data: rpcResult, error: rpcError } = await supabase
-      .rpc('submit_verification_request', {
-        p_id_front_path: storagePaths.id_copy,
-        p_id_back_path: null,
-        p_selfie_with_id_path: storagePaths.selfie,
-        p_verification_metadata: metadata,
-        p_verification_fraud_flags: fraudFlags,
-        p_id_document_hash: idHash,
-        p_verification_ip: ip,
-        p_verification_user_agent: userAgent,
-      });
+    // ── Record the submission ───────────────────────────────────────────
+    // submit_verification_for_user (067) is service-role only: the paths,
+    // fraud flags and ID hash come from this route, never from the browser.
+    // Before 067 is applied that function does not exist yet (PGRST202), so
+    // fall back to the original user-session RPC.
+    const rpcArgs = {
+      p_id_front_path: storagePaths.id_copy,
+      p_id_back_path: null,
+      p_selfie_with_id_path: storagePaths.selfie,
+      p_verification_metadata: metadata,
+      p_verification_fraud_flags: fraudFlags,
+      p_id_document_hash: idHash,
+      p_verification_ip: ip,
+      p_verification_user_agent: userAgent,
+    };
 
-    if (rpcError) {
-      console.error('[verifications] RPC error:', rpcError.message, rpcError.code);
-      return NextResponse.json(
-        { error: 'Failed to submit verification.' },
-        { status: 500 },
-      );
+    let { data: rpcResult, error: rpcError } = await admin.rpc('submit_verification_for_user', {
+      p_user_id: user.id,
+      ...rpcArgs,
+    });
+
+    if (rpcError?.code === 'PGRST202') {
+      ({ data: rpcResult, error: rpcError } = await supabase.rpc('submit_verification_request', rpcArgs));
     }
 
-    if (!rpcResult?.success) {
+    if (rpcError || !rpcResult?.success) {
+      await removeQuietly(admin, [storagePaths.id_copy, storagePaths.selfie]);
+
+      if (rpcError) {
+        console.error('[verifications] RPC error:', rpcError.message, rpcError.code);
+        if (isWriteDenied(rpcError)) {
+          logEvent(writeDeniedEvent({
+            userId: user.id,
+            route: 'POST /api/verifications',
+            table: 'profiles',
+            error: rpcError,
+          }));
+        }
+        return NextResponse.json(
+          { error: 'Failed to submit verification.' },
+          { status: 500 },
+        );
+      }
+
       return NextResponse.json(
         { error: rpcResult?.error || 'Failed to submit verification.' },
         { status: 500 },
       );
     }
+
+    // ── The new submission is recorded: remove the previous files ───────
+    // (a rejected attempt's documents are no longer needed — POPIA minimality).
+    const newPaths = new Set([storagePaths.id_copy, storagePaths.selfie]);
+    const oldPaths = [
+      current?.id_front_path,
+      current?.id_back_path,
+      current?.selfie_with_id_path,
+    ].filter((p): p is string => Boolean(p) && !newPaths.has(p as string));
+    await removeQuietly(admin, oldPaths);
 
     logEvent({ eventType: 'verification_submitted', eventCategory: 'verification', userId: user.id, metadata: { flags: rpcResult.flags_detected ?? 0 } });
 
@@ -312,16 +363,16 @@ export async function POST(req: NextRequest) {
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
 async function uploadToStorage(
-  supabase: Awaited<ReturnType<typeof createClient>>,
+  admin: ReturnType<typeof createAdminClient>,
   buffer: Buffer,
   path: string,
   contentType: string,
 ): Promise<{ path: string | null; error: string | null }> {
-  const { error } = await supabase.storage
-    .from('verifications')
+  const { error } = await admin.storage
+    .from(BUCKET)
     .upload(path, buffer, {
       contentType,
-      upsert: true,
+      upsert: false,
     });
 
   if (error) {
@@ -329,4 +380,19 @@ async function uploadToStorage(
   }
 
   return { path, error: null };
+}
+
+/**
+ * Best-effort clean-up. The POPIA retention sweep only deletes paths recorded on
+ * a profile, so an unrecorded leftover is logged here rather than retried.
+ */
+async function removeQuietly(
+  admin: ReturnType<typeof createAdminClient>,
+  paths: string[],
+): Promise<void> {
+  if (paths.length === 0) return;
+  const { error } = await admin.storage.from(BUCKET).remove(paths);
+  if (error) {
+    console.error('[verifications] Storage clean-up failed:', error.message);
+  }
 }
