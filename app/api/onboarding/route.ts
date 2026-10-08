@@ -1,6 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { checkRateLimit } from '@/lib/auth';
 import { createClient } from '@/lib/supabase/server';
+import { logEvent } from '@/lib/data/events';
+import {
+  NAME_LOCKED_MESSAGE,
+  PLATFORM_ONLY_MESSAGE,
+  isNameLocked,
+  isVerifiedProfile,
+  isWriteDenied,
+  nameChanged,
+  writeDeniedEvent,
+} from '@/lib/supabase/write-denied';
 
 // ─── Name validation ────────────────────────────────────────────────────────
 
@@ -85,14 +95,37 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     const displayName = `${firstName.trim()} ${lastName.trim()}`;
     const locationLegacy = `${city.trim()}, ${province.trim()}`;
 
+    // ── Verified names are locked (migration 067) ─────────────────────────
+    // Refuse a change with a clear message; an unchanged name is simply not
+    // re-sent, so the rest of the profile still saves.
+    const { data: current } = await supabase
+      .from('profiles')
+      .select('first_name, last_name, verification_status, is_verified')
+      .eq('id', user.id)
+      .maybeSingle();
+
+    const nameLocked = isVerifiedProfile(current);
+    if (
+      nameLocked &&
+      (nameChanged(current?.first_name, firstName) || nameChanged(current?.last_name, lastName))
+    ) {
+      return NextResponse.json({ error: NAME_LOCKED_MESSAGE }, { status: 409 });
+    }
+
+    const namePayload = nameLocked
+      ? {}
+      : {
+          first_name: firstName.trim(),
+          last_name: lastName.trim(),
+          display_name: displayName,
+        };
+
     // ── Update profile ────────────────────────────────────────────────────
 
     const { error } = await supabase
       .from('profiles')
       .update({
-        first_name: firstName.trim(),
-        last_name: lastName.trim(),
-        display_name: displayName,
+        ...namePayload,
         phone: phone.trim(),
         street_address: streetAddress.trim(),
         city: city.trim(),
@@ -112,6 +145,18 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
     if (error) {
       console.error('[POST /api/onboarding]', error.message);
+      if (isWriteDenied(error)) {
+        logEvent(writeDeniedEvent({
+          userId: user.id,
+          route: 'POST /api/onboarding',
+          table: 'profiles',
+          error,
+        }));
+        return NextResponse.json(
+          { error: isNameLocked(error) ? NAME_LOCKED_MESSAGE : PLATFORM_ONLY_MESSAGE },
+          { status: 403 },
+        );
+      }
       return NextResponse.json({ error: 'Failed to save profile.' }, { status: 500 });
     }
 

@@ -14,7 +14,7 @@ export default async function LabPage() {
         {/* Section 1: The Lab — R&D + Capabilities */}
         <LabContent />
 
-        {/* Section 2: Our Team — Disciplines + Featured Crew */}
+        {/* Section 2: Featured creators (only real published profiles) */}
         <div className="mt-32">
           <TeamSection featuredCrew={featuredCrew} />
         </div>

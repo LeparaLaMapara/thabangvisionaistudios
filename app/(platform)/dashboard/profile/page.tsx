@@ -17,6 +17,13 @@ import AddressAutocomplete from '@/components/ui/AddressAutocomplete';
 import type { AddressResult } from '@/components/ui/AddressAutocomplete';
 import BankingDetails from '@/components/dashboard/BankingDetails';
 import { PhoneCheck } from '@/components/profile/PhoneCheck';
+import {
+  NAME_LOCKED_MESSAGE,
+  PLATFORM_ONLY_MESSAGE,
+  isNameLocked,
+  isVerifiedProfile,
+  isWriteDenied,
+} from '@/lib/supabase/write-denied';
 
 function RequiredLabel({ children }: { children: React.ReactNode }) {
   return (
@@ -46,6 +53,8 @@ export default function ProfileEditPage() {
   const [yearsExperience, setYearsExperience] = useState('');
   const [specializations, setSpecializations] = useState<string[]>([]);
   const [isVerified, setIsVerified] = useState(false);
+  // After ID verification the legal name is locked in the database (067).
+  const [nameLocked, setNameLocked] = useState(false);
 
   const [hasBanking, setHasBanking] = useState(false);
   const [hasPortfolio, setHasPortfolio] = useState(false);
@@ -112,6 +121,7 @@ export default function ProfileEditPage() {
       setYearsExperience(String((data as Record<string, unknown>).years_experience ?? ''));
       setSpecializations((data as Record<string, unknown>).specializations as string[] ?? []);
       setIsVerified((data as Record<string, unknown>).verification_status === 'verified');
+      setNameLocked(isVerifiedProfile(data as { verification_status?: string | null; is_verified?: boolean | null }));
       setHasPortfolio(hasCompletePortfolio((data as Record<string, unknown>).portfolio_projects as PortfolioProject[] | null));
 
       if (profile.street_address || profile.city || profile.province) {
@@ -303,10 +313,18 @@ export default function ProfileEditPage() {
       ? `${address.city}, ${address.province}`
       : null;
 
+    // A verified person's name is locked (migration 067), so it is not sent at
+    // all — the stored name stays, and the rest of the profile still saves.
+    const namePayload = nameLocked
+      ? {}
+      : {
+          first_name: firstName.trim() || null,
+          last_name: lastName.trim() || null,
+          display_name: displayName,
+        };
+
     const payload = {
-      first_name: firstName.trim() || null,
-      last_name: lastName.trim() || null,
-      display_name: displayName,
+      ...namePayload,
       bio: bio.trim() || null,
       location: locationLegacy,
       phone: phone.trim() || null,
@@ -336,7 +354,12 @@ export default function ProfileEditPage() {
       .eq('id', user.id);
 
     if (error) {
-      setMessage({ type: 'error', text: error.message });
+      const text = isNameLocked(error)
+        ? NAME_LOCKED_MESSAGE
+        : isWriteDenied(error)
+          ? PLATFORM_ONLY_MESSAGE
+          : error.message;
+      setMessage({ type: 'error', text });
     } else {
       setMessage({ type: 'success', text: 'Profile saved successfully.' });
       setTimeout(() => setMessage(null), 3000);
@@ -425,6 +448,7 @@ export default function ProfileEditPage() {
                 onChange={(e) => setFirstName(e.target.value)}
                 placeholder="First name"
                 required
+                disabled={nameLocked}
               />
               <Input
                 label="Last Name"
@@ -432,10 +456,13 @@ export default function ProfileEditPage() {
                 onChange={(e) => setLastName(e.target.value)}
                 placeholder="Last name"
                 required
+                disabled={nameLocked}
               />
             </div>
             <p className="text-xs font-mono text-neutral-400 mt-2">
-              Must match the name on your SA ID for verification.
+              {nameLocked
+                ? NAME_LOCKED_MESSAGE
+                : 'Must match the name on your SA ID for verification.'}
             </p>
           </div>
 

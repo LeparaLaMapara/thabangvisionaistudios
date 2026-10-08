@@ -417,12 +417,12 @@ export default function BookingDetailPage() {
       {/* Invoices */}
       <div>
         <h3 className="text-sm font-bold uppercase tracking-tight mb-4 border-l-2 border-black dark:border-white pl-4">
-          Invoices
+          Receipts
         </h3>
         {invoices.length === 0 ? (
           <EmptyState
-            title="No Invoices"
-            description="Invoices will be generated after payment is confirmed."
+            title="Your Receipt"
+            description="Your payment confirmation email is your receipt."
             icon={<FileText className="w-6 h-6" />}
           />
         ) : (

@@ -6,7 +6,7 @@ import { payments } from '@/lib/payments';
 import { checkRateLimit, checkNotSuspended } from '@/lib/auth';
 import { STUDIO } from '@/lib/constants';
 import { getCartItems, clearCart } from '@/lib/supabase/queries/cart';
-import { calculateCartPricing, calculateCartPricingPerItem } from '@/lib/cart/pricing';
+import { calculateCartPricing, calculateCartPricingPerItem, splitAcrossLines } from '@/lib/cart/pricing';
 import { quoteDelivery, isDeliveryQuote } from '@/lib/delivery/quote';
 import { checkAvailability, availabilityMessage, type BookingHold } from '@/lib/rental/availability';
 import { recordUnmetDemandAsync } from '@/lib/demand/record';
@@ -19,6 +19,8 @@ import { loadRenterRecord } from '@/lib/rental/protection-server';
 import { effectiveHoldMinutes } from '@/lib/rental/availability-server';
 import { paymentReference } from '@/lib/payments/eft';
 import { loadNoticeBookings, sendGearNotice } from '@/lib/rental/notices';
+import { recordConsent, requiredConsents } from '@/lib/consent';
+import { clientIp } from '@/lib/http/clientIp';
 
 function daysBetween(start: string, end: string): number {
   return Math.ceil(
@@ -107,7 +109,33 @@ export async function POST(request: NextRequest) {
     delivery_address,
     delivery_lat,
     delivery_lng,
+    acceptTerms,
   } = body;
+
+  // The Terms, Privacy Policy and rental agreement must be accepted for every
+  // order, and the acceptance is recorded server-side against the current
+  // document versions (public.consent_records, migration 068). A ticked box in
+  // the browser alone is not evidence, so the order stops if the record fails.
+  if (acceptTerms !== true) {
+    return NextResponse.json(
+      { error: 'Please accept the Terms, Privacy Policy and rental agreement.', code: 'CONSENT_REQUIRED' },
+      { status: 400 },
+    );
+  }
+  const consent = await recordConsent(supabase, {
+    userId: user.id,
+    purposes: requiredConsents('checkout'),
+    source: 'checkout',
+    ip: clientIp(request.headers),
+    userAgent: request.headers.get('user-agent'),
+  });
+  if (!consent.ok) {
+    console.error('[checkout] consent not recorded');
+    return NextResponse.json(
+      { error: 'Could not record your acceptance. Please try again.' },
+      { status: 503 },
+    );
+  }
 
   // ── Fulfilment ────────────────────────────────────────────────────────────
   // Never trust a fee sent by the client. We take the address and recalculate
@@ -451,9 +479,13 @@ export async function POST(request: NextRequest) {
   // Create payment records. These are the reconciliation record: their sum is
   // exactly what we asked the gateway to charge, which is what the webhook
   // checks the receipt against.
-  const paymentRecords = bookings.map((b) => ({
+  // Split in integer cents with a deterministic remainder, so the lines sum to
+  // exactly what the gateway charges (a per-line round() could drift by a few
+  // cents and trip the webhook's amount check).
+  const lineAmounts = splitAcrossLines(amountDueNow, bookings.length);
+  const paymentRecords = bookings.map((b, i) => ({
     booking_id: b.id,
-    amount: Math.round((amountDueNow / bookings.length) * 100) / 100,
+    amount: lineAmounts[i],
     currency,
     status: 'pending' as const,
   }));

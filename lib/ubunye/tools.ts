@@ -3,6 +3,7 @@ import { STUDIO, PRODUCTION_SERVICES } from '@/lib/constants';
 import { email as emailProvider } from '@/lib/email';
 import { escapeIlike } from '@/lib/search/types';
 import { getHourlyRate } from '@/lib/supabase/queries/service-bookings';
+import { quoteHourly } from '@/lib/bookings/pricing';
 
 // ─── Brief Analysis Helpers ────────────────────────────────────────────────
 
@@ -37,7 +38,7 @@ export function createCrewTools(
         type: 'object' as const,
         properties: {
           specialization: { type: 'string', description: 'Type of work: photography, cinematography, editing, sound, directing' },
-          location: { type: 'string', description: 'City or area, e.g. johannesburg, cape town' },
+          location: { type: 'string', description: 'City or area in Gauteng, e.g. johannesburg, pretoria, soweto' },
           budget_max: { type: 'number', description: 'Maximum hourly rate in ZAR' },
         },
       }),
@@ -193,17 +194,16 @@ export function createCrewTools(
           return { error: `Duration must be between ${STUDIO.booking.minBookingHours} and ${STUDIO.booking.maxBookingHours} hours.` };
         }
 
+        // The same quote the booking API charges by (lib/bookings/pricing):
+        // VAT comes from the tax core and is 0 while not VAT-registered.
         const hourlyRate = getHourlyRate(project_category);
-        const subtotal = Math.round(hourlyRate * duration_hours);
-        const vat = Math.round(subtotal * (STUDIO.booking.vatRate / 100));
-        const total = subtotal + vat;
+        const { subtotal, vat, total } = quoteHourly(hourlyRate, duration_hours);
 
         return {
           hourly_rate: hourlyRate,
           duration_hours,
           subtotal,
           vat,
-          vat_rate: STUDIO.booking.vatRate,
           total,
           currency: 'ZAR',
           cancellation_policy: STUDIO.booking.cancellationPolicy,
@@ -352,13 +352,13 @@ export function createCrewTools(
           await emailProvider.sendEmail({
             to: params.client_email,
             subject: `Booking Confirmation — ${STUDIO.name}`,
-            text: `Hi ${params.client_name},\n\nYour creator booking request has been submitted successfully!\n\nBooking Reference: ${data.id.slice(0, 8).toUpperCase()}\nProject Type: ${params.project_type}\nPreferred Dates: ${params.preferred_dates || 'To be confirmed'}\nLocation: ${params.location || 'To be confirmed'}\n\nDescription:\n${params.description}\n\nOur team will review your request and reach out within 24 hours to confirm details and next steps.\n\nIf you have any questions, contact us at ${STUDIO.email} or ${STUDIO.phone}.\n\nThank you for choosing ${STUDIO.name}!\n\n—\n${STUDIO.name}\n${STUDIO.meta.url}`,
+            text: `Hi ${params.client_name},\n\nYour creator booking request has been submitted successfully!\n\nBooking Reference: ${data.id.slice(0, 8).toUpperCase()}\nProject Type: ${params.project_type}\nPreferred Dates: ${params.preferred_dates || 'To be confirmed'}\nLocation: ${params.location || 'To be confirmed'}\n\nDescription:\n${params.description}\n\nWe will review your request and reply ${STUDIO.responseTime} to confirm details and next steps. Your booking is confirmed only once payment is received.\n\nIf you have any questions, email ${STUDIO.email} or WhatsApp ${STUDIO.whatsapp.display} (messages only).\n\nThank you for choosing ${STUDIO.name}!\n\n—\n${STUDIO.name}\n${STUDIO.meta.url}`,
           });
         } catch { /* Email failure shouldn't block */ }
 
         return {
           success: true, request_id: data.id,
-          message: `Booking submitted! Confirmation sent to ${params.client_email}. Reference: ${data.id.slice(0, 8).toUpperCase()}. ${STUDIO.name} will reach out within 24 hours.`,
+          message: `Booking submitted! Confirmation sent to ${params.client_email}. Reference: ${data.id.slice(0, 8).toUpperCase()}. ${STUDIO.name} will reply ${STUDIO.responseTime}.`,
         };
       },
     },

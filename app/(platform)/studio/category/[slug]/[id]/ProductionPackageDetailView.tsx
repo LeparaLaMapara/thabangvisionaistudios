@@ -9,7 +9,7 @@ import type { ProductionCategory, ProductionPackage } from '@/types/production';
 import type { SmartProduction } from '@/lib/supabase/queries/smartProductions';
 import { calculatePackagePrice } from '@/lib/productions/pricing';
 import { formatRand } from '@/lib/format/money';
-import { PRODUCTION_SERVICES } from '@/lib/constants';
+import { PRODUCTION_SERVICES, STUDIO } from '@/lib/constants';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -371,7 +371,7 @@ export default function ProductionPackageDetailView({
                         <div>
                           <p className="text-sm text-white">{item.service}</p>
                           <p className="text-xs font-mono text-neutral-400">
-                            {item.hours}hr × {formatRand(item.rate)}/hr, excl. VAT
+                            {item.hours}hr × {formatRand(item.rate)}/hr
                           </p>
                         </div>
                         <span className="text-sm font-mono font-bold text-white">
@@ -380,21 +380,27 @@ export default function ProductionPackageDetailView({
                       </div>
                     ))}
 
-                    <div className="border-t border-white/10 p-4 flex items-center justify-between">
-                      <span className="text-xs font-mono uppercase tracking-widest text-neutral-400">
-                        Subtotal, excl. VAT
-                      </span>
-                      <span className="text-sm font-mono text-white">{formatRand(pricing.subtotal)}</span>
-                    </div>
-                    <div className="border-t border-white/5 p-4 flex items-center justify-between">
-                      <span className="text-xs font-mono uppercase tracking-widest text-neutral-400">
-                        VAT ({PRODUCTION_SERVICES.billing.vatRate}%)
-                      </span>
-                      <span className="text-sm font-mono text-neutral-400">{formatRand(pricing.vat)}</span>
-                    </div>
+                    {/* Subtotal and VAT rows only when VAT is actually charged
+                        (we are not VAT-registered: STUDIO.legal.vatRegistered). */}
+                    {pricing.vat > 0 && (
+                      <>
+                        <div className="border-t border-white/10 p-4 flex items-center justify-between">
+                          <span className="text-xs font-mono uppercase tracking-widest text-neutral-400">
+                            Subtotal
+                          </span>
+                          <span className="text-sm font-mono text-white">{formatRand(pricing.subtotal)}</span>
+                        </div>
+                        <div className="border-t border-white/5 p-4 flex items-center justify-between">
+                          <span className="text-xs font-mono uppercase tracking-widest text-neutral-400">
+                            VAT ({PRODUCTION_SERVICES.billing.vatRate}%)
+                          </span>
+                          <span className="text-sm font-mono text-neutral-400">{formatRand(pricing.vat)}</span>
+                        </div>
+                      </>
+                    )}
                     <div className="border-t border-white/10 p-4 flex items-center justify-between bg-[#D4A843]/5">
                       <span className="text-xs font-mono uppercase tracking-widest font-bold text-[#D4A843]">
-                        Total, incl. VAT
+                        Total
                       </span>
                       <span className="text-xl font-display font-bold text-[#D4A843]">
                         {formatRand(pricing.total)}
@@ -417,7 +423,6 @@ export default function ProductionPackageDetailView({
                 </span>
                 <span className="text-2xl font-bold text-[#D4A843]">
                   {formatRand(pricing.total)}
-                  <span className="block text-xs font-mono font-normal text-neutral-400 text-right">incl. VAT</span>
                 </span>
               </div>
               <div className="flex items-end justify-between border-t border-white/5 pt-3">
@@ -433,7 +438,7 @@ export default function ProductionPackageDetailView({
                   Effective Rate
                 </span>
                 <span className="text-sm font-mono text-neutral-400">
-                  ~{formatRand(Math.round(pricing.total / totalHours))}/hr, incl. VAT
+                  ~{formatRand(Math.round(pricing.total / totalHours))}/hr
                 </span>
               </div>
             </div>
@@ -459,8 +464,7 @@ export default function ProductionPackageDetailView({
             <div className="flex items-start gap-2 text-xs font-mono text-neutral-400">
               <Info className="w-3 h-3 mt-0.5 flex-shrink-0" />
               <span>
-                Travel fees may apply for on-location shoots.
-                VAT included in the package price.
+                We work in {STUDIO.serviceArea.province}. {STUDIO.serviceArea.outsideProvinceNote}
               </span>
             </div>
           </div>
@@ -504,7 +508,7 @@ export default function ProductionPackageDetailView({
                         <div className="flex items-end justify-between border-t border-white/5 pt-3">
                           <div>
                             <p className="text-lg font-display font-bold text-[#D4A843]">
-                              {formatRand(relPricing.total)} <span className="text-xs font-mono font-normal text-neutral-400">incl. VAT</span>
+                              {formatRand(relPricing.total)}
                             </p>
                             <p className="text-xs font-mono text-neutral-400">
                               {relHours}hrs · ~{formatRand(Math.round(relPricing.total / relHours))}/hr

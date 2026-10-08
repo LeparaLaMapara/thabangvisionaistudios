@@ -102,7 +102,9 @@ export default function UbunyeStudioClient({ context }: UbunyeStudioClientProps)
           const data = JSON.parse(msg);
           const limitMsg = data.plan === 'guest'
             ? `You've used your ${GUEST_LIMIT} free messages. Sign in to continue chatting with Ubunye.`
-            : `You've reached your daily limit of ${data.limit} messages on the ${data.plan} plan. Upgrade for more messages.`;
+            : STUDIO.subscriptions.enabled
+              ? `You've reached your daily limit of ${data.limit} messages on the ${data.plan} plan. Upgrade for more messages.`
+              : 'Daily limit reached. It resets tomorrow.';
           setLimitMessage(limitMsg);
           setLimitReached(true);
         } catch {

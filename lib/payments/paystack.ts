@@ -10,7 +10,9 @@ import type {
 
 // ─── Config ──────────────────────────────────────────────────────────────────
 
-const PAYSTACK_API = 'https://api.paystack.com';
+// Paystack's API host is api.paystack.co (https://paystack.com/docs/api/).
+// Hosted checkout pages are on checkout.paystack.com — a different host.
+export const PAYSTACK_API = 'https://api.paystack.co';
 
 function getSecretKey(): string {
   const key = process.env.PAYSTACK_SECRET_KEY;
@@ -375,6 +377,61 @@ export async function initiateTransfer(params: {
   } catch (err) {
     return { success: false, error: err instanceof Error ? err.message : 'Transfer failed' };
   }
+}
+
+// ─── Transfer recipients ─────────────────────────────────────────────────────
+
+export type TransferRecipientResult =
+  | { success: true; recipientCode: string }
+  | { success: false; error: string; unreachable?: boolean };
+
+/**
+ * Register a South African bank account as a Paystack transfer recipient.
+ * Docs: https://paystack.com/docs/transfers/creating-transfer-recipients/
+ *
+ * South African accounts use type 'basa' (Banking Association South Africa)
+ * and currency 'ZAR'; 'nuban' is for Nigerian accounts and is refused for
+ * ZAR. Paystack checks the account number against the bank, so this doubles
+ * as validation. The account number is sent to Paystack only: it is never
+ * logged or returned.
+ */
+export async function createTransferRecipient(params: {
+  name: string;
+  accountNumber: string;
+  bankCode: string;
+}): Promise<TransferRecipientResult> {
+  let res: Response;
+  try {
+    res = await fetch(`${PAYSTACK_API}/transferrecipient`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${getSecretKey()}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        type: 'basa',
+        name: params.name,
+        account_number: params.accountNumber,
+        bank_code: params.bankCode,
+        currency: 'ZAR',
+      }),
+    });
+  } catch (err) {
+    console.error('[Paystack] transferrecipient request failed:', err instanceof Error ? err.message : 'unknown error');
+    return { success: false, error: 'Payment provider unreachable', unreachable: true };
+  }
+
+  const data = (await res.json().catch(() => null)) as
+    | { status?: boolean; message?: unknown; data?: { recipient_code?: unknown } }
+    | null;
+
+  if (res.ok && data?.status && typeof data.data?.recipient_code === 'string') {
+    return { success: true, recipientCode: data.data.recipient_code };
+  }
+  return {
+    success: false,
+    error: typeof data?.message === 'string' ? data.message : 'Your bank could not verify these details.',
+  };
 }
 
 // ─── Utilities ───────────────────────────────────────────────────────────────

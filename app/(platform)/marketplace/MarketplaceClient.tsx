@@ -201,7 +201,7 @@ export default function MarketplaceClient({
               animate={{ opacity: 1, y: 0 }}
               className="text-xs font-mono text-neutral-400 uppercase tracking-[0.3em] mb-4 block"
             >
-              Supplied by verified SA creators
+              Supplied by ID-checked creators
             </motion.span>
             <motion.h1
               initial={{ opacity: 0, y: 20 }}
@@ -221,9 +221,9 @@ export default function MarketplaceClient({
               transition={{ delay: 0.2 }}
               className="text-sm md:text-base text-neutral-400 dark:text-neutral-400 max-w-md font-light leading-relaxed mb-8"
             >
-              Creative gear and services sourced from verified South African
-              creators and supplied to you by {STUDIO.shortName}. You book and
-              pay {STUDIO.shortName} directly, and we stand behind every order.
+              Creative gear and services from ID-checked creators, supplied to
+              you by {STUDIO.shortName}. Enquire about an item and we confirm
+              availability and the price with you; you pay {STUDIO.shortName} directly.
             </motion.p>
             <Link
               href="/dashboard/listings"
@@ -256,7 +256,7 @@ export default function MarketplaceClient({
               {
                 icon: SlidersHorizontal,
                 title: 'Verified',
-                desc: 'All Creators Verified',
+                desc: 'Creators Pass An ID Check',
                 count: null,
               },
             ].map((item, idx) => (

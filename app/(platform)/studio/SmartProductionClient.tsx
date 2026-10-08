@@ -53,12 +53,13 @@ function useSequentialReveal(total: number) {
 // ─── Formatting ───────────────────────────────────────────────────────────────
 
 /**
- * "R2 070 incl. VAT, per project", or null when the project carries no price.
- * Stored prices exclude VAT; customers are shown the VAT-inclusive figure.
+ * "R2 070, per project", or null when the project carries no price. The
+ * amount goes through withServiceVat, which adds VAT only when it is charged
+ * (we are not VAT-registered: STUDIO.legal.vatRegistered).
  */
 function priceLabel(production: SmartProduction): string | null {
   if (production.price === null || production.price <= 0) return null;
-  return `${formatRand(withServiceVat(production.price))} incl. VAT, per ${production.price_unit}`;
+  return `${formatRand(withServiceVat(production.price))}, per ${production.price_unit}`;
 }
 
 /** "Photography · 2026" from whichever of the two exists. */

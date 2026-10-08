@@ -1,7 +1,7 @@
 export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { createClient, createAdminClient } from '@/lib/supabase/server';
 import { sendVerificationApproved, sendVerificationRejected } from '@/lib/email';
 import { requireAdmin, rateLimitAdmin } from '@/lib/auth';
 
@@ -33,22 +33,27 @@ export async function GET(_req: NextRequest, context: RouteContext) {
       selfieWithId: null,
     };
 
+    // The verifications bucket only lets a user read their OWN folder, so an
+    // admin's session cannot sign another person's documents. requireAdmin()
+    // has passed above; sign with the service role.
+    const storage = createAdminClient().storage;
+
     if (profile.id_front_path) {
-      const { data } = await supabase.storage
+      const { data } = await storage
         .from('verifications')
         .createSignedUrl(profile.id_front_path, 3600);
       documents.idFront = data?.signedUrl ?? null;
     }
 
     if (profile.id_back_path) {
-      const { data } = await supabase.storage
+      const { data } = await storage
         .from('verifications')
         .createSignedUrl(profile.id_back_path, 3600);
       documents.idBack = data?.signedUrl ?? null;
     }
 
     if (profile.selfie_with_id_path) {
-      const { data } = await supabase.storage
+      const { data } = await storage
         .from('verifications')
         .createSignedUrl(profile.selfie_with_id_path, 3600);
       documents.selfieWithId = data?.signedUrl ?? null;

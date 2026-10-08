@@ -1,4 +1,6 @@
-import { STUDIO, PRODUCTION_SERVICES } from '@/lib/constants';
+import { STUDIO } from '@/lib/constants';
+import { priceWithVat, vatRateAt } from '@/lib/core/pricing/tax';
+import { fromCents, toCents } from '@/lib/core/pricing/money';
 
 /**
  * One way to write a customer price: "R1 300". The rand symbol, no "ZAR", and
@@ -17,15 +19,21 @@ export function formatRand(amount: number, opts?: { decimals?: boolean }): strin
   return `${negative ? '-' : ''}${STUDIO.currency.symbol}${grouped}${cents ? `.${cents}` : ''}`;
 }
 
-/** The VAT rate on services, from constants (never typed in). */
-export const SERVICE_VAT_RATE = PRODUCTION_SERVICES.billing.vatRate;
+/**
+ * The VAT rate (percent) on services right now, from the tax core: 0 while
+ * the company is not VAT-registered. Evaluated at module load; use
+ * vatRateAt() from lib/core/pricing/tax for a rate at a specific date.
+ */
+export const SERVICE_VAT_RATE = vatRateAt();
 
 /**
- * A service amount stored or quoted excluding VAT, shown to the customer
- * including VAT. Rounded the same way calculatePackagePrice rounds VAT, so a
- * package shows the same total everywhere. Display only: what is charged is
- * worked out in lib/bookings/pricing.ts and the API routes.
+ * The customer price of a service amount. The name is historical: VAT used
+ * to be added on top. Now the advertised amount IS the customer price: while
+ * not VAT-registered nothing is added, and after a registration prices are
+ * treated as VAT-inclusive, so this returns the amount unchanged unless the
+ * tax config explicitly says prices exclude VAT. Display only: what is
+ * charged is worked out in lib/bookings/pricing.ts and the API routes.
  */
 export function withServiceVat(amountExclVat: number): number {
-  return amountExclVat + Math.round(amountExclVat * (SERVICE_VAT_RATE / 100));
+  return fromCents(priceWithVat(toCents(amountExclVat)).grossCents);
 }

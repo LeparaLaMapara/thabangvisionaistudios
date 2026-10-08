@@ -32,7 +32,7 @@ export function coreFaqs(opts: { paymentsOpen?: boolean } = {}): CoreFaq[] {
   const delivery = STUDIO.fulfilment.delivery;
   const tiers = STUDIO.rental.cancellationTiers;
   const discounts = STUDIO.rental.bulkDiscount.filter((d) => d.discountPercent > 0);
-  const vat = STUDIO.booking.vatRate;
+  const vat = STUDIO.legal.tax.vatRate;
 
   const cancellation = tiers
     .map((t, i) => {
@@ -52,7 +52,7 @@ export function coreFaqs(opts: { paymentsOpen?: boolean } = {}): CoreFaq[] {
       question: 'How do I rent a camera?',
       answer: paymentsOpen
         ? `Open the item, pick your dates and you will see whether it is available and the full price. Press to book, sign in (or create a free account), do a one-time ID check before your first rental, and pay online.`
-        : `Open the item, pick your dates and you will see whether it is available and the full price. Press to book, sign in (or create a free account) and do a one-time ID check before your first rental. Then pay by EFT to our business account within 48 hours (your booking shows the amount, the reference and our bank details), or pay in cash when you collect.`,
+        : `Open the item, pick your dates and you will see whether it is available and the full price. Press to book, sign in (or create a free account) and do a one-time ID check before your first rental. Then pay by EFT to our business account within ${STUDIO.bank.payWithinHours} hours (your booking shows the amount, the reference and our bank details), or pay in cash when you collect.`,
     },
     {
       id: 'core-limits',
@@ -73,6 +73,12 @@ export function coreFaqs(opts: { paymentsOpen?: boolean } = {}): CoreFaq[] {
       answer: `Your first hire is collected in person at ${collectionPointWithCity()}, so we can hand it over with you. After that, collect it there or we deliver within ${delivery.maxRadiusKm} km at R${delivery.ratePerKm} per km (minimum R${delivery.minimumFee}), plus R${delivery.surchargePerExtraItem} for each item after the first ${delivery.itemsIncluded}. Orders over ${formatRand(STUDIO.rental.protection.collectionOnlyAboveValue)} are always collected. The delivery fee is shown before you book.`,
     },
     {
+      id: 'core-area',
+      category: 'general',
+      question: 'Where do you work?',
+      answer: `In ${STUDIO.serviceArea.province}. Gear is collected at ${collectionPointWithCity()} or delivered as described above. ${STUDIO.serviceArea.outsideProvinceNote} Ask us before you book.`,
+    },
+    {
       id: 'core-deposit',
       category: 'pricing',
       question: 'What is the deposit and when do I get it back?',
@@ -87,8 +93,12 @@ export function coreFaqs(opts: { paymentsOpen?: boolean } = {}): CoreFaq[] {
     {
       id: 'core-vat',
       category: 'pricing',
-      question: 'Are prices including VAT?',
-      answer: `Yes. Every price is shown including VAT (${vat}%): gear, shoots and packages. Your quote shows the VAT part separately, and you always see the total before you book.`,
+      // Founder decision 2026-10-08: not VAT-registered, so no VAT is added.
+      // The registered wording comes back by itself when the setting changes.
+      question: STUDIO.legal.vatRegistered ? 'Are prices including VAT?' : 'Is VAT added to the price?',
+      answer: STUDIO.legal.vatRegistered
+        ? `Yes. Every price is shown including VAT (${vat}%): gear, shoots and packages. Your quote shows the VAT part separately, and you always see the total before you book.`
+        : `No. The price shown for gear, shoots and packages is the price you pay; no VAT is added. If you choose delivery, its fee is shown with the total before you book.`,
     },
     {
       id: 'core-cancel',
@@ -106,7 +116,7 @@ export function coreFaqs(opts: { paymentsOpen?: boolean } = {}): CoreFaq[] {
       id: 'core-photographer',
       category: 'creators',
       question: 'How do I book a photographer or videographer?',
-      answer: `Shoots are by request for now. Choose a package on the Studio page and send a request, and we contact you to confirm who will shoot it, the date and the price. You see the price, including VAT, before you send it.`,
+      answer: `Shoots are by request for now. Choose a package on the Studio page and send a request, and we contact you to confirm who will shoot it, the date and the price. You see the full price before you send it.`,
     },
     ...(paymentsOpen
       ? []
@@ -120,7 +130,7 @@ export function coreFaqs(opts: { paymentsOpen?: boolean } = {}): CoreFaq[] {
       id: 'core-human',
       category: 'general',
       question: 'Can I talk to a person?',
-      answer: `Yes. WhatsApp ${STUDIO.whatsapp.display} or email ${STUDIO.email}. You can also ask Ubunye, our assistant, at any time.`,
+      answer: `Yes. WhatsApp ${STUDIO.whatsapp.display} or email ${STUDIO.email}; we reply ${STUDIO.responseTime}. You can also ask Ubunye, our AI assistant, at any time.`,
     },
   ];
 }

@@ -287,7 +287,7 @@ function BookingWidgetInner({ rental, paymentsOpen: paymentsOpenProp }: Props) {
           <div className="border border-white/10 p-4 space-y-2 bg-[#0A0A0B]">
             <div className="flex justify-between text-sm">
               <span className="text-neutral-400 font-mono">
-                {days} day{days !== 1 ? 's' : ''} rental, incl. VAT
+                {days} day{days !== 1 ? 's' : ''} rental
               </span>
               <span className="font-mono text-white">
                 {formatRand(rentalPrice)}

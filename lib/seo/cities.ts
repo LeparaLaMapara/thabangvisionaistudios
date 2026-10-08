@@ -1,3 +1,5 @@
+import { STUDIO } from '@/lib/constants';
+
 export interface SACity {
   slug: string;
   name: string;
@@ -5,6 +7,11 @@ export interface SACity {
   aliases: string[];
 }
 
+/**
+ * Every city slug the site has ever published. Only the Gauteng ones still
+ * have pages (LISTED_CITIES below); the rest are kept so their old URLs can be
+ * recognised and redirected (308) to the category page.
+ */
 export const SA_CITIES: SACity[] = [
   { slug: 'johannesburg', name: 'Johannesburg', province: 'Gauteng', aliases: ['joburg', 'jhb', 'jozi'] },
   { slug: 'cape-town', name: 'Cape Town', province: 'Western Cape', aliases: ['cpt'] },
@@ -27,21 +34,40 @@ export const SA_CITIES: SACity[] = [
 ];
 
 /**
- * Where gear can actually be collected or delivered: collection is in
- * Braamfontein, Johannesburg and delivery reaches about 100 km
- * (STUDIO.fulfilment), which is the Gauteng cities. Rental pages for other
- * cities listed Johannesburg stock under "Rentals in Cape Town"; they now
- * point to the category page instead. Studio city pages follow the same rule
- * since 2026-09-28: no creators are listed anywhere, so a "Photography in
- * Cape Town" page promised what does not exist. The city pages are kept for
- * search only; no visible page links to them, and there is no
- * "All South Africa" page.
+ * We work in Gauteng (STUDIO.serviceArea); outside the province travel is
+ * quoted separately. Collection is in Braamfontein, Johannesburg and delivery
+ * reaches about 100 km (STUDIO.fulfilment). Rental and studio city pages exist
+ * only for the Gauteng cities below. They are examples of places we serve, not
+ * the whole of Gauteng. Every other city slug, and the old "south-africa"
+ * country slug, is permanently redirected to the category page: those pages
+ * listed Johannesburg stock under another city's name.
  */
-export function deliversRentals(city: SACity): boolean {
-  return city.province === 'Gauteng';
+export function isInServiceArea(city: SACity): boolean {
+  return city.province === STUDIO.serviceArea.province;
 }
 
-export const RENTAL_CITIES: SACity[] = SA_CITIES.filter(deliversRentals);
+/** @deprecated Use isInServiceArea; kept for existing callers and tests. */
+export const deliversRentals = isInServiceArea;
+
+/** The cities that have rental and studio city pages (Gauteng only). */
+export const LISTED_CITIES: SACity[] = SA_CITIES.filter(isInServiceArea);
+
+/** Same list; the original name used by rentals. */
+export const RENTAL_CITIES: SACity[] = LISTED_CITIES;
+
+/**
+ * The listed (Gauteng) city for a URL slug, or undefined when the slug must
+ * not have a page: a city outside Gauteng, the old country slug, or an
+ * unknown slug. Callers redirect (308) to the category page in that case.
+ */
+export function getListedCityBySlug(slug: string): SACity | undefined {
+  return LISTED_CITIES.find((c) => c.slug === slug);
+}
+
+/** Slugs that have city pages, for generateStaticParams and the sitemap. */
+export function getListedCitySlugs(): string[] {
+  return LISTED_CITIES.map((c) => c.slug);
+}
 
 export const COUNTRY_SLUG = 'south-africa';
 export const COUNTRY_NAME = 'South Africa';

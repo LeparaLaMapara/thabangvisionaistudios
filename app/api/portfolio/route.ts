@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { logEvent } from '@/lib/data/events';
+import { isWriteDenied, writeDeniedEvent } from '@/lib/supabase/write-denied';
 import { STUDIO } from '@/lib/constants';
 import type { PortfolioProject } from '@/types/portfolio';
 
@@ -115,6 +117,9 @@ export async function PUT(request: NextRequest): Promise<NextResponse> {
 
   if (error) {
     console.error('[portfolio:PUT]', error.message);
+    if (isWriteDenied(error)) {
+      logEvent(writeDeniedEvent({ userId: user.id, route: 'PUT /api/portfolio', table: 'profiles', error }));
+    }
     return NextResponse.json({ error: 'Failed to save portfolio' }, { status: 500 });
   }
 

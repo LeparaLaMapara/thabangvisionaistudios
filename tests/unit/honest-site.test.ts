@@ -5,7 +5,7 @@ import { calculatePackagePrice } from '@/lib/productions/pricing';
 import { cleanRequirements } from '@/lib/content/requirements';
 import { displayTag } from '@/lib/content/tags';
 import { coreFaqs } from '@/lib/content/faqs';
-import { PRODUCTION_PACKAGES, PRODUCTION_SERVICES } from '@/lib/constants';
+import { PRODUCTION_PACKAGES, STUDIO } from '@/lib/constants';
 import { PAYMENTS_NOT_OPEN_NOTICE } from '@/lib/payments/offline-message';
 
 const NBSP = '\u00A0';
@@ -21,13 +21,12 @@ describe('formatRand', () => {
   });
 });
 
-describe('service prices are shown including VAT', () => {
-  it('adds VAT from the constant, rounded like package pricing', () => {
-    const rate = PRODUCTION_SERVICES.billing.vatRate;
-    expect(withServiceVat(1800)).toBe(1800 + Math.round(1800 * rate / 100));
+describe('service prices are shown as the customer price', () => {
+  it('adds no VAT while the company is not VAT-registered', () => {
+    expect(withServiceVat(1800)).toBe(1800);
   });
 
-  it('a category From price is its cheapest package, incl. VAT', () => {
+  it('a category From price is its cheapest package total', () => {
     const weddings = PRODUCTION_PACKAGES.filter((p) => p.category === 'weddings-ceremonies');
     expect(categoryFromPrice(weddings)).toBe(calculatePackagePrice(weddings[0]).total);
     expect(categoryFromPrice([])).toBeNull();
@@ -50,10 +49,17 @@ describe('payment wording follows the payment switch', () => {
     expect(answers(true)).not.toContain(PAYMENTS_NOT_OPEN_NOTICE);
   });
 
-  it('says service prices include VAT', () => {
+  // Founder decision 2026-10-08: not VAT-registered. The VAT answer follows
+  // STUDIO.legal.vatRegistered instead of always promising VAT-inclusive prices.
+  it('the VAT answer follows the VAT registration setting', () => {
     const vat = coreFaqs().find((f) => f.id === 'core-vat')!.answer;
-    expect(vat).toContain('including VAT');
     expect(vat).not.toContain('excluding VAT');
+    if (STUDIO.legal.vatRegistered) {
+      expect(vat).toContain('including VAT');
+    } else {
+      expect(vat).toContain('no VAT is added');
+      expect(vat).not.toContain('including VAT');
+    }
   });
 });
 

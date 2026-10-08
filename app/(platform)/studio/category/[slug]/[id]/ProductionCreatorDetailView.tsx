@@ -491,7 +491,7 @@ export default function ProductionCreatorDetailView({
               <div className="border border-white/10 p-5 mb-6 space-y-3 bg-[#0A0A0B]">
                 <div className="flex items-end justify-between">
                   <span className="text-xs font-mono uppercase tracking-widest text-neutral-400">
-                    Hourly Rate, incl. VAT
+                    Hourly Rate
                   </span>
                   <span className="text-2xl font-bold text-[#D4A843]">
                     {formatRand(withServiceVat(crew.hourly_rate))}

@@ -1,8 +1,11 @@
 export const revalidate = 60;
+// No generateStaticParams (repo rule) and dynamicParams stays true, so any
+// city slug reaches the page and a retired one gets its 308 instead of a 404.
+export const dynamicParams = true;
 
 import { notFound, redirect, permanentRedirect } from 'next/navigation';
 import { getPublishedRentalsByCategory } from '@/lib/supabase/queries/smartRentals';
-import { getCityBySlug, COUNTRY_SLUG, deliversRentals } from '@/lib/seo/cities';
+import { getListedCityBySlug } from '@/lib/seo/cities';
 import { collectionPointWithCity } from '@/lib/rental/collection-point';
 import { RENTAL_CATEGORIES, STUDIO } from '@/lib/constants';
 import { buildPageMetadata } from '@/lib/seo/metadata';
@@ -20,8 +23,9 @@ export async function generateMetadata({ params }: Props) {
   const cat = RENTAL_CATEGORIES.find((c) => c.value === category);
   if (!cat) return { title: 'Not Found' };
 
-  const city = getCityBySlug(citySlug);
-  if (!city) return { title: 'Not Found' };
+  // Pages exist only for listed Gauteng cities; see the page below.
+  const city = getListedCityBySlug(citySlug);
+  if (!city) permanentRedirect(`/rentals/${category}`);
   const locationName = city.name;
 
   const title = `${cat.label} Rentals in ${locationName}`;
@@ -43,13 +47,11 @@ export default async function RentalLocationPage({ params }: Props) {
   const cat = RENTAL_CATEGORIES.find((c) => c.value === category);
   if (!cat) notFound();
 
-  // There is no "All South Africa": delivery reaches about 100 km.
-  if (citySlug === COUNTRY_SLUG) permanentRedirect(`/rentals/${category}`);
-  const city = getCityBySlug(citySlug);
-  if (!city) notFound();
-  // Gear does not reach this city: send people to the category, not a page
-  // that lists Johannesburg stock under another city's name.
-  if (!deliversRentals(city)) permanentRedirect(`/rentals/${category}`);
+  // We work in Gauteng. A city outside it, the old "south-africa" slug or an
+  // unknown slug gets a 308 to the category page, not a page that lists
+  // Johannesburg stock under another city's name.
+  const city = getListedCityBySlug(citySlug);
+  if (!city) permanentRedirect(`/rentals/${category}`);
 
   const locationName = city.name;
 

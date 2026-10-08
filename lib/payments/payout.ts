@@ -1,8 +1,29 @@
 import { createAdminClient } from '@/lib/supabase/server';
-import { initiateTransfer } from '@/lib/payments/paystack';
+import { initiateTransfer, createTransferRecipient, type TransferRecipientResult } from '@/lib/payments/paystack';
 import { verifyPayment } from '@/lib/payments/routing';
 import { email as emailProvider } from '@/lib/email';
 import { STUDIO } from '@/lib/constants';
+
+// ─── Payout recipients ───────────────────────────────────────────────────────
+
+/** Whether payout recipients can be registered here (Paystack secret key set). */
+export function payoutRecipientsConfigured(): boolean {
+  return Boolean(process.env.PAYSTACK_SECRET_KEY);
+}
+
+/**
+ * Register a creator's South African bank account with the payout provider
+ * (Paystack Transfers) and return the recipient code that triggerCreatorPayout
+ * pays. Routes call this, never the provider directly. The account number is
+ * passed through to the provider only; callers store the last four digits.
+ */
+export async function createPayoutRecipient(params: {
+  name: string;
+  accountNumber: string;
+  bankCode: string;
+}): Promise<TransferRecipientResult> {
+  return createTransferRecipient(params);
+}
 
 interface PayoutParams {
   bookingId: string;

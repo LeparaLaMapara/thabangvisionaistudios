@@ -139,10 +139,17 @@ function VerificationPageInner() {
 
   async function fetchConsent() {
     try {
-      const res = await fetch('/api/popia-consent');
-      if (res.ok) {
-        const data = await res.json();
-        setConsented(!!data.consented);
+      // Both are needed: the POPIA notice (existing) and the separate,
+      // versioned identity-check (biometric) consent. If either is missing the
+      // notice is shown again; the upload route refuses without both.
+      const [popiaRes, consentRes] = await Promise.all([
+        fetch('/api/popia-consent'),
+        fetch('/api/consent?context=verification'),
+      ]);
+      if (popiaRes.ok && consentRes.ok) {
+        const popia = await popiaRes.json();
+        const current = (await consentRes.json()) as { missing?: string[] };
+        setConsented(!!popia.consented && (current.missing ?? []).length === 0);
       } else {
         setConsented(false);
       }
@@ -280,7 +287,7 @@ function VerificationPageInner() {
         Identity Verification
       </h2>
       <p className="text-xs font-mono text-neutral-400 mb-8">
-        Get verified to list equipment and join our crew.
+        Get verified to list equipment and take bookings as a creator.
       </p>
 
       {error && (

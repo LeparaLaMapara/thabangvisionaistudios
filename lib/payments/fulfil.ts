@@ -1,6 +1,12 @@
 import { createAdminClient } from '@/lib/supabase/server';
 import type { WebhookResult } from '@/lib/payments';
 import { loadNoticeBookings, sendGearNotice } from '@/lib/rental/notices';
+import {
+  decideSubscriptionConfirmation,
+  periodEnd,
+  type BillingInterval,
+  type PendingSubscriptionRow,
+} from '@/lib/payments/subscriptions';
 
 /**
  * What happens once a payment provider tells us, with a verified signature,
@@ -204,24 +210,87 @@ export async function handlePaymentComplete(webhook: WebhookResult) {
       }
     }
   } else if (paymentType === 'subscription') {
-    const userId = raw.custom_str2 ?? raw.customStr2 ?? '';
-
-    const { error: subErr } = await supabase
-      .from('subscriptions')
-      .update({
-        status: 'active',
-        payfast_token: providerPaymentId,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', paymentId)
-      .eq('user_id', userId);
-
-    if (subErr) {
-      console.error('[payment-webhook] Failed to activate subscription:', subErr.message);
-    } else {
-      console.log(`[payment-webhook] Subscription activated: ref=${paymentId}`);
-    }
+    await confirmSubscriptionPayment(webhook);
   }
+}
+
+// ─── Subscriptions ───────────────────────────────────────────────────────────
+
+/**
+ * Confirmation + fulfilment for a subscription payment. The pending row is
+ * found by the provider reference written at initiation, and activated only
+ * when the webhook's amount (in cents), currency, reference, plan and user all
+ * match what was recorded there. Activation is a guarded pending → active
+ * update, so a duplicate webhook is a no-op. A mismatch is logged and leaves
+ * the row pending for review. Active rows are never re-priced.
+ *
+ * Exported so every provider's webhook route can share it.
+ */
+export async function confirmSubscriptionPayment(
+  webhook: WebhookResult,
+): Promise<'activated' | 'already_active' | 'rejected'> {
+  const { paymentId, providerPaymentId, amountGross, raw } = webhook;
+  const supabase = createAdminClient();
+
+  const { data: sub, error: readErr } = await supabase
+    .from('subscriptions')
+    .select('id, user_id, plan_id, status, expected_amount_cents, currency, provider_reference, billing_interval')
+    .eq('provider_reference', paymentId)
+    .maybeSingle();
+
+  if (readErr) {
+    console.error('[payment-webhook] Subscription lookup failed:', readErr.message);
+    return 'rejected';
+  }
+
+  const decision = decideSubscriptionConfirmation(
+    (sub as PendingSubscriptionRow | null) ?? null,
+    {
+      reference: paymentId,
+      amountGross,
+      currency: raw.currency,
+      planId: raw.custom_str3 ?? raw.customStr3,
+      userId: raw.custom_str2 ?? raw.customStr2,
+    },
+  );
+
+  if (decision.action === 'already_active') {
+    console.log(`[payment-webhook] Subscription already active, ignoring duplicate: ref=${paymentId}`);
+    return 'already_active';
+  }
+  if (decision.action === 'reject' || !sub) {
+    console.error('[payment-webhook] Subscription NOT activated:', {
+      reference: paymentId,
+      reason: decision.action === 'reject' ? decision.reason : 'no row',
+    });
+    return 'rejected';
+  }
+
+  const now = new Date();
+  const interval: BillingInterval = sub.billing_interval === 'annual' ? 'annual' : 'monthly';
+  const { data: activated, error: subErr } = await supabase
+    .from('subscriptions')
+    .update({
+      status: 'active',
+      payfast_token: providerPaymentId,
+      current_period_start: now.toISOString(),
+      current_period_end: periodEnd(now, interval).toISOString(),
+      updated_at: now.toISOString(),
+    })
+    .eq('id', sub.id)
+    .eq('status', 'pending')
+    .select('id');
+
+  if (subErr) {
+    console.error('[payment-webhook] Failed to activate subscription:', subErr.message);
+    return 'rejected';
+  }
+  if (!activated || activated.length === 0) {
+    console.log(`[payment-webhook] Subscription no longer pending, nothing changed: ref=${paymentId}`);
+    return 'already_active';
+  }
+  console.log(`[payment-webhook] Subscription activated: ref=${paymentId}`);
+  return 'activated';
 }
 
 export async function handlePaymentFailed(webhook: WebhookResult) {
@@ -248,10 +317,13 @@ export async function handlePaymentFailed(webhook: WebhookResult) {
       .update({ status: 'cancelled', payment_status: 'failed', updated_at: new Date().toISOString() })
       .eq('reference', paymentId);
   } else if (paymentType === 'subscription') {
+    // Only a still-pending attempt is cancelled; a failed charge event can
+    // never cancel an active subscription.
     await supabase
       .from('subscriptions')
       .update({ status: 'cancelled', updated_at: new Date().toISOString() })
-      .eq('id', paymentId);
+      .eq('provider_reference', paymentId)
+      .eq('status', 'pending');
   }
 }
 

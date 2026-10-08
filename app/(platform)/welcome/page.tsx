@@ -2,6 +2,8 @@ export const dynamic = 'force-dynamic';
 
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
+import { checkConsents, requiredConsents } from '@/lib/consent';
+import { OnboardingAcceptance } from '@/components/consent/OnboardingAcceptance';
 import WelcomeChoices from './WelcomeChoices';
 
 export const metadata = {
@@ -27,6 +29,19 @@ export default async function WelcomePage() {
 
   const meta = (user.user_metadata ?? {}) as { full_name?: string; name?: string };
   const firstName = (meta.full_name || meta.name || '').split(' ')[0] || null;
+
+  // Accept the current Terms and Privacy Policy once (Google sign-ups never
+  // saw the register form's checkbox). If the consent store cannot be read
+  // (e.g. migration 068 not applied yet), let the person through rather than
+  // trap them on a screen whose save would fail; checkout checks again.
+  const consent = await checkConsents(supabase, user.id, requiredConsents('onboarding'));
+  if (consent.status === 'missing') {
+    const source = user.app_metadata?.provider === 'email' ? 'signup' : 'oauth_onboarding';
+    return <OnboardingAcceptance firstName={firstName} source={source} />;
+  }
+  if (consent.status === 'unavailable') {
+    console.error('[welcome] consent store unavailable:', consent.error);
+  }
 
   return <WelcomeChoices firstName={firstName} />;
 }

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, type FormEvent } from 'react';
+import { STUDIO } from '@/lib/constants';
 
 const PRODUCTION_TYPES = [
   'Portrait',
@@ -115,7 +116,7 @@ export default function BriefForm() {
           </h2>
           <p className="text-neutral-400">
             Tell us about your project and we&apos;ll get back to you with a
-            tailored quote within 24 hours.
+            tailored quote {STUDIO.responseTime}.
           </p>
         </div>
 
@@ -126,7 +127,7 @@ export default function BriefForm() {
               Brief Submitted Successfully
             </p>
             <p className="text-neutral-400 text-sm">
-              We&apos;ll review your brief and respond within 24 hours.
+              We&apos;ll review your brief and respond {STUDIO.responseTime}.
             </p>
           </div>
         )}
@@ -293,7 +294,7 @@ export default function BriefForm() {
               href="/ubunye-ai-studio"
               className="text-[#D4A843] underline underline-offset-2 hover:text-[#e5be5f] transition-colors"
             >
-              Chat with Ubunye AI for an instant quote
+              Ask Ubunye for a quote
             </a>
           </p>
         </div>

@@ -36,10 +36,10 @@ export default async function CareersPage() {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-12 mb-32 border-y border-white/10 py-12">
           <div>
             <h3 className="text-sm font-bold uppercase tracking-widest text-white mb-4">
-              R&amp;D Access
+              What We Do
             </h3>
             <p className="text-sm text-neutral-400 font-mono">
-              Full access to our equipment, studio spaces, and tools for personal creative and R&amp;D projects.
+              We run camera gear rental and photo and video bookings in {STUDIO.serviceArea.province}, and build the software behind them.
             </p>
           </div>
           <div>
@@ -131,7 +131,7 @@ export default async function CareersPage() {
           </h3>
           <p className="text-neutral-400 mb-8 max-w-lg mx-auto font-mono text-xs">
             We are always looking for exceptional talent. If you believe you belong at {STUDIO.shortName},
-            send your portfolio and resume to our talent team.
+            send your portfolio and CV to the address below. We reply {STUDIO.responseTime}.
           </p>
           <a
             href={`mailto:${STUDIO.careersEmail}`}

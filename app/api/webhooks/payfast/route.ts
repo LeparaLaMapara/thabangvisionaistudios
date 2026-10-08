@@ -3,6 +3,7 @@ import { createAdminClient } from '@/lib/supabase/server';
 import type { WebhookResult } from '@/lib/payments';
 import { payfast } from '@/lib/payments/payfast';
 import { STUDIO } from '@/lib/constants';
+import { confirmSubscriptionPayment } from '@/lib/payments/fulfil';
 
 export const dynamic = 'force-dynamic';
 
@@ -123,23 +124,9 @@ async function handlePaymentComplete(webhook: WebhookResult) {
       console.log(`[webhook] Booking confirmed: ref=${paymentId}`);
     }
   } else if (paymentType === 'subscription') {
-    const userId = raw.custom_str2 ?? '';
-
-    const { error: subErr } = await supabase
-      .from('subscriptions')
-      .update({
-        status: 'active',
-        payfast_token: providerPaymentId,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', paymentId)
-      .eq('user_id', userId);
-
-    if (subErr) {
-      console.error('[webhook] Failed to activate subscription:', subErr.message);
-    } else {
-      console.log(`[webhook] Subscription activated: ref=${paymentId}`);
-    }
+    // Shared, guarded confirmation: activates only when amount, currency,
+    // reference, plan and user match the pending row, and only once.
+    await confirmSubscriptionPayment(webhook);
   } else if (paymentType === 'crew_request' || paymentType === 'crew_request_deposit') {
     const commissionRate = STUDIO.creators.commissionRate;
     const commissionAmount = amountGross * (commissionRate / 100);

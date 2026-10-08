@@ -1,7 +1,7 @@
 import type { MetadataRoute } from 'next';
 import { STUDIO, RENTAL_CATEGORIES, PRODUCTION_CATEGORIES } from '@/lib/constants';
 import { createAdminClient } from '@/lib/supabase/server';
-import { RENTAL_CITIES } from '@/lib/seo/cities';
+import { getListedCitySlugs } from '@/lib/seo/cities';
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const baseUrl = STUDIO.meta.url;
@@ -27,6 +27,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: `${baseUrl}/legal`, changeFrequency: 'yearly', priority: 0.2 },
     { url: `${baseUrl}/privacy`, changeFrequency: 'yearly', priority: 0.2 },
     { url: `${baseUrl}/refunds`, changeFrequency: 'yearly', priority: 0.2 },
+    { url: `${baseUrl}/paia`, changeFrequency: 'yearly', priority: 0.2 },
     { url: `${baseUrl}/unsubscribe`, changeFrequency: 'yearly', priority: 0.1 },
   ];
 
@@ -107,9 +108,10 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   }));
 
   // ── Location Pages: Rentals × Cities ──────────────────────────────────────
-  // Only the Johannesburg-area cities gear reaches (lib/seo/cities.ts
-  // deliversRentals), for rentals and studio alike. No "All South Africa".
-  const locationSlugs = RENTAL_CITIES.map((c) => c.slug);
+  // Only the listed Gauteng cities (STUDIO.serviceArea, lib/seo/cities.ts),
+  // for rentals and studio alike. Other city slugs and the old country slug
+  // redirect to the category page, so they are never listed here.
+  const locationSlugs = getListedCitySlugs();
   const rentalLocationPages: MetadataRoute.Sitemap = [];
   const rentalLocationSlugs = locationSlugs;
   for (const cat of RENTAL_CATEGORIES) {

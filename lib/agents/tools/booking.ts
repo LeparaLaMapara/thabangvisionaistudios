@@ -58,7 +58,7 @@ export function createBookingTools(
         type: 'object' as const,
         properties: {
           specialization: { type: 'string', description: 'Type of work: photography, cinematography, editing, sound, directing' },
-          location: { type: 'string', description: 'City or area, e.g. johannesburg, cape town' },
+          location: { type: 'string', description: 'City or area in Gauteng, e.g. johannesburg, pretoria, soweto' },
           budget_max: { type: 'number', description: 'Maximum hourly rate in ZAR' },
         },
       }),
@@ -210,17 +210,16 @@ export function createBookingTools(
           return { error: `Duration must be between ${STUDIO.booking.minBookingHours} and ${STUDIO.booking.maxBookingHours} hours.` };
         }
 
+        // The same quote the booking API charges by (lib/bookings/pricing):
+        // VAT comes from the tax core and is 0 while not VAT-registered.
         const hourlyRate = getHourlyRate(project_category);
-        const subtotal = Math.round(hourlyRate * duration_hours);
-        const vat = Math.round(subtotal * (STUDIO.booking.vatRate / 100));
-        const total = subtotal + vat;
+        const { subtotal, vat, total } = quoteHourly(hourlyRate, duration_hours);
 
         return {
           hourly_rate: hourlyRate,
           duration_hours,
           subtotal,
           vat,
-          vat_rate: STUDIO.booking.vatRate,
           total,
           currency: 'ZAR',
           cancellation_policy: STUDIO.booking.cancellationPolicy,
@@ -240,7 +239,7 @@ export function createBookingTools(
           deliverables: { type: 'string', description: 'What the client will receive (e.g. edited photos, highlight video)' },
           package_id: { type: 'string', description: 'A studio package id (from the PACKAGES list) when the client chose a package; its fixed price is used instead of the hourly rate' },
           duration_hours: { type: 'number', description: 'Number of hours (must match the quote)' },
-          location: { type: 'string', description: 'Where the shoot will happen' },
+          location: { type: 'string', description: `Where the shoot will happen. Must be in ${STUDIO.serviceArea.province}; outside it, do not book (travel is quoted separately by our team).` },
           preferred_dates: { type: 'string', description: 'When the client needs the work done' },
         },
         required: ['project_category', 'project_description', 'deliverables', 'duration_hours'],
@@ -394,7 +393,7 @@ export function createBookingTools(
             total_zar: total,
             payment_url: payUrl,
             paystack_redirect: paymentUrl,
-            message: `Booking created! Reference: ${reference}. Total: R${total}. Complete payment to confirm your booking.`,
+            message: `Booking reserved. Reference: ${reference}. Total: R${total}. It is confirmed once payment is received.`,
             dashboard_url: '/dashboard/bookings',
           };
         } catch {

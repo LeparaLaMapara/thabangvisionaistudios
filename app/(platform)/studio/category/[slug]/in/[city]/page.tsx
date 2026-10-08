@@ -1,11 +1,14 @@
 export const revalidate = 60;
+// No generateStaticParams (repo rule) and dynamicParams stays true, so any
+// city slug reaches the page and a retired one gets its 308 instead of a 404.
+export const dynamicParams = true;
 
 import { notFound, permanentRedirect } from 'next/navigation';
 import { PRODUCTION_CATEGORIES, PRODUCTION_PACKAGES, STUDIO } from '@/lib/constants';
 import { getCategoryBySlug } from '@/lib/supabase/queries/productionCategories';
 import { getStudioProductionsByType, getCreatorProductionsByType } from '@/lib/supabase/queries/smartProductions';
 import { getCrewBySpecializationsAndLocation } from '@/lib/supabase/queries/crew';
-import { getCityBySlug, COUNTRY_SLUG, deliversRentals } from '@/lib/seo/cities';
+import { getListedCityBySlug } from '@/lib/seo/cities';
 import { buildPageMetadata } from '@/lib/seo/metadata';
 import { serviceJsonLd, breadcrumbJsonLd, renderJsonLd } from '@/lib/seo/structured-data';
 import CategoryPageClient from '../../CategoryPageClient';
@@ -24,8 +27,9 @@ export async function generateMetadata({ params }: Props) {
   const category = dbCategory ?? PRODUCTION_CATEGORIES.find((c) => c.slug === slug);
   if (!category) return { title: 'Not Found' };
 
-  const city = getCityBySlug(citySlug);
-  if (!city) return { title: 'Not Found' };
+  // Pages exist only for listed Gauteng cities; see the page below.
+  const city = getListedCityBySlug(citySlug);
+  if (!city) permanentRedirect(`/studio/category/${slug}`);
   const locationName = city.name;
 
   const title = `${category.name} in ${locationName}`;
@@ -47,13 +51,11 @@ export default async function StudioLocationPage({ params }: Props) {
   const category = dbCategory ?? PRODUCTION_CATEGORIES.find((c) => c.slug === slug);
   if (!category) notFound();
 
-  // City pages are kept for search in the Johannesburg area only (the same
-  // Gauteng cities gear reaches). Everywhere else, and "All South Africa",
-  // goes to the category page: no creators are listed in other cities.
-  if (citySlug === COUNTRY_SLUG) permanentRedirect(`/studio/category/${slug}`);
-  const city = getCityBySlug(citySlug);
-  if (!city) notFound();
-  if (!deliversRentals(city)) permanentRedirect(`/studio/category/${slug}`);
+  // We work in Gauteng; city pages exist only for the listed Gauteng cities.
+  // A city outside Gauteng, the old "south-africa" slug or an unknown slug
+  // gets a 308 to the category page.
+  const city = getListedCityBySlug(citySlug);
+  if (!city) permanentRedirect(`/studio/category/${slug}`);
 
   const locationName = city.name;
   const packages = PRODUCTION_PACKAGES.filter((p) => p.category === slug);

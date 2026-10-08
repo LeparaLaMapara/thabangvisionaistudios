@@ -26,6 +26,9 @@ type Plan = {
   features: string[];
   highlighted: boolean;
   cta: string;
+  /** The billing interval of a plan row from subscription_plans. A row has
+   *  one interval; annual billing needs its own annual row. */
+  interval?: BillingPeriod;
 };
 
 const PLANS: Plan[] = [
@@ -108,24 +111,35 @@ export default function PricingPage() {
       .then((res) => (res.ok ? res.json() : []))
       .then((data) => {
         if (Array.isArray(data) && data.length > 0) {
-          const mapped = data.map((p: Record<string, unknown>) => ({
+          // Each row is priced for its own interval by the server. No annual
+          // price is derived on the client (it used to show monthly × 10).
+          const mapped = data.map((p: Record<string, unknown>) => {
+            const interval: BillingPeriod = p.interval === 'annual' ? 'annual' : 'monthly';
+            const price = (p.price as number) ?? 0;
+            return {
             id: p.id as string,
             name: (p.name as string) ?? 'Plan',
             description: (p.description as string) ?? '',
-            monthlyPrice: (p.price as number) ?? 0,
-            annualPrice: Math.round(((p.price as number) ?? 0) * 10),
+            interval,
+            monthlyPrice: interval === 'monthly' ? price : 0,
+            annualPrice: interval === 'annual' ? price : 0,
             currency: (p.currency as string) ?? STUDIO.currency.code,
             features: Array.isArray(p.features) ? p.features as string[] : [],
             highlighted: (p.name as string)?.toLowerCase().includes('pro') ?? false,
-            cta: (p.price as number) === 0 ? 'Get Started' : `Upgrade to ${p.name}`,
-          }));
+            cta: price === 0 ? 'Get Started' : `Upgrade to ${p.name}`,
+            };
+          });
           setDbPlans(mapped);
         }
       })
       .catch(() => {});
   }, []);
 
-  const activePlans = dbPlans.length > 0 ? dbPlans : PLANS;
+  // Annual billing is offered only when annual plan rows exist.
+  const hasAnnual = dbPlans.some((p) => p.interval === 'annual');
+  const activePlans = dbPlans.length > 0
+    ? dbPlans.filter((p) => (p.interval ?? 'monthly') === (hasAnnual ? billing : 'monthly'))
+    : PLANS;
 
   const handleCheckout = async (plan: Plan) => {
     setError(null);
@@ -143,12 +157,9 @@ export default function PricingPage() {
       const res = await fetch('/api/payfast/checkout', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          plan_id: plan.id,
-          plan_name: plan.name,
-          amount: price,
-          billing,
-        }),
+        // Exactly { plan_id, billing }: the server prices the plan and
+        // rejects any other field (lib/payments/subscriptions.ts).
+        body: JSON.stringify({ plan_id: plan.id, billing }),
       });
 
       const data = await res.json();
@@ -205,10 +216,10 @@ export default function PricingPage() {
             Pricing
           </p>
           <h1 className="text-4xl md:text-6xl font-display font-medium uppercase tracking-tight mb-4">
-            Simple, Transparent Pricing
+            Plans
           </h1>
           <p className="text-neutral-400 font-light max-w-xl mx-auto mb-10">
-            Start free. Upgrade when you need more. All plans include access to
+            Start free. All plans include access to
             equipment rentals and community gear listings.
           </p>
 
@@ -235,7 +246,8 @@ export default function PricingPage() {
             </motion.div>
           )}
 
-          {/* Billing toggle */}
+          {/* Billing toggle: only when annual plan rows exist */}
+          {hasAnnual && (
           <div className="inline-flex border border-black/10 dark:border-white/10">
             <button
               onClick={() => setBilling('monthly')}
@@ -258,11 +270,9 @@ export default function PricingPage() {
               ].join(' ')}
             >
               Annual
-              <Badge variant="success" className="ml-2">
-                Save 17%
-              </Badge>
             </button>
           </div>
+          )}
         </motion.div>
       </section>
 
@@ -395,7 +405,7 @@ function PayAsYouGoPricing() {
     },
     {
       title: 'Photo and video shoots',
-      body: `By request. Each package shows its price including VAT. Send a request and we confirm who will shoot it, the date and the price with you.`,
+      body: `By request. Each package shows its full price. Send a request and we confirm who will shoot it, the date and the price with you.`,
       href: '/studio',
       cta: 'See shoots',
     },
@@ -452,7 +462,7 @@ function PayAsYouGoPricing() {
         <PaymentsNotOpenNote open={paymentsOpen} className="justify-center text-center mt-12 max-w-2xl mx-auto" />
 
         <p className="text-center text-xs font-mono uppercase tracking-[0.2em] text-neutral-400 dark:text-neutral-400 mt-8">
-          All prices are in Rand and include VAT. You book and pay {STUDIO.shortName} directly.{' '}
+          All prices are in Rand, and the price shown is the price you pay. You book and pay {STUDIO.shortName} directly.{' '}
           {paymentsOpen === false
             ? 'Pay by EFT to our business account, or in cash when you collect. See How to Pay.'
             : paymentsOpen
