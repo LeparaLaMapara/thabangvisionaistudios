@@ -61,6 +61,17 @@ end $$;
 do $$
 begin
   begin
+    insert into public.consent_records (user_id, consent_purpose, document_version, source)
+    values ('00000000-0000-4000-8000-0000000c0a01', 'biometric', '2026-10-08', 'signup');
+    raise exception 'FAIL 2b: a biometric consent was recorded as coming from signup';
+  exception when check_violation then
+    raise notice 'PASS 2b: purpose/source mismatch rejected (%)', sqlerrm;
+  end;
+end $$;
+
+do $$
+begin
+  begin
     update public.consent_records
        set document_version = '2099-01-01'
      where user_id = '00000000-0000-4000-8000-0000000c0a01';
