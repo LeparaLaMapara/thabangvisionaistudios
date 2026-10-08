@@ -170,7 +170,7 @@ export async function PATCH(
         disputeId: id,
         bookingId: dispute.equipment_booking_id,
         resolution: (resolution ?? null) as DisputeResolution,
-        partialRefundCents: resolution_amount !== undefined ? toCents(Number(resolution_amount)) : 0,
+        partialRefundCents: resolution_amount === undefined ? 0 : Number.isFinite(Number(resolution_amount)) ? toCents(Number(resolution_amount)) : Number.NaN,
         adminId: auth.user.id,
         reason: `dispute ${status}: ${resolution ?? 'no resolution'}${resolution_notes ? ` (${String(resolution_notes).slice(0, 200)})` : ''}`,
       });
@@ -443,8 +443,26 @@ async function settleDisputedReturn(
   const hireUnrecorded = b.payment_plan === 'deposit_only' && Number(b.balance_due ?? 0) > 0;
   const hire = hireUnrecorded ? 0 : b.hire_cents ?? 0;
   const deposit = b.deposit_cents ?? toCents(Number(b.deposit_amount ?? 0));
+
+  // The order's delivery fee (stored on one of its lines). When this is the
+  // only line the order still has, a full refund gives the delivery back too;
+  // otherwise the delivery was used by the other lines and stays earned.
+  let delivery = toCents(Number(b.delivery_fee ?? 0));
+  let soleLine = true;
+  if (b.checkout_group_id) {
+    const { data: lines } = await db.from('equipment_bookings').select('id, status, delivery_fee').eq('checkout_group_id', b.checkout_group_id);
+    const rows = (lines ?? []) as { id: string; status: string; delivery_fee: number | null }[];
+    delivery = rows.reduce((sum, r) => sum + toCents(Number(r.delivery_fee ?? 0)), 0);
+    soleLine = !rows.some((r) => r.id !== b.id && r.status !== 'cancelled');
+  }
+  const refundDelivery = p.resolution === 'full_refund' && soleLine && delivery > 0;
+
+  if (p.resolution === 'partial_refund' && (!Number.isSafeInteger(p.partialRefundCents) || p.partialRefundCents <= 0 || p.partialRefundCents > hire + deposit)) {
+    return { error: `A partial refund must be more than R0 and at most R${((hire + deposit) / 100).toFixed(2)} (this booking's hire and deposit).`, status: 400 };
+  }
   const money = disputeMoney({ resolution: p.resolution, hireCents: hire, depositCents: deposit, partialRefundCents: p.partialRefundCents });
-  const refundCents = money.hireRefundCents + money.depositRefundCents;
+  const deliveryRefundCents = refundDelivery ? delivery : 0;
+  const refundCents = money.hireRefundCents + money.depositRefundCents + deliveryRefundCents;
 
   const refunds: unknown[] = [];
   const notices = buildNotices({ kind: 'dispute_resolved', userId: b.user_id, bookingIds: [b.id], discriminator: p.disputeId });
@@ -463,7 +481,7 @@ async function settleDisputedReturn(
         userId: b.user_id,
         bookingGroupId: b.checkout_group_id,
         bookingIds: [b.id],
-        evidence: { dispute_id: p.disputeId, resolution: p.resolution, by: p.adminId },
+        evidence: { dispute_id: p.disputeId, resolution: p.resolution, delivery_refund_cents: deliveryRefundCents, by: p.adminId },
       });
     } else {
       notices.push(...buildNotices({ kind: 'staff_alert', userId: 'staff', bookingIds: [b.id], discriminator: `manual-refund:dispute:${p.disputeId}`, data: { what: 'manual_dispute_refund_due', reference: b.id } }));
@@ -475,24 +493,22 @@ async function settleDisputedReturn(
   const split = community ? splitHire(keptHire) : { ownerShareCents: 0, platformShareCents: 0 };
   const journals: unknown[] = [];
   const groupId = b.checkout_group_id ?? b.id;
-  if (onProvider && intentPaid && b.hire_cents != null && hire + deposit > 0) {
+  if (onProvider && intentPaid && b.hire_cents != null && hire + deposit + deliveryRefundCents > 0) {
+    // A refunded delivery fee leaves unearned_hire with the hire (both held there).
     journals.push(personSettlement({
       key: `dispute-settled:${b.id}`,
       bookingGroupId: groupId,
-      hireCents: hire,
+      hireCents: hire + deliveryRefundCents,
       depositCents: deposit,
-      hireRefundCents: money.hireRefundCents,
+      hireRefundCents: money.hireRefundCents + deliveryRefundCents,
       depositRefundCents: money.depositRefundCents,
       keptHireAs: 'earned',
       ownership: community ? 'community' : 'studio',
       ownerShareCents: split.ownerShareCents,
       platformShareCents: split.platformShareCents,
     }));
-    if (b.checkout_group_id) {
-      const { data: lines } = await db.from('equipment_bookings').select('delivery_fee').eq('checkout_group_id', b.checkout_group_id);
-      const delivery = ((lines ?? []) as { delivery_fee: number | null }[]).reduce((sum, r) => sum + toCents(Number(r.delivery_fee ?? 0)), 0);
-      if (delivery > 0) journals.push(deliveryEarned({ bookingGroupId: groupId, deliveryCents: delivery }));
-    }
+    // Otherwise the delivery is earned once per order (the journal key makes a repeat a no-op).
+    if (b.checkout_group_id && !refundDelivery && delivery > 0) journals.push(deliveryEarned({ bookingGroupId: groupId, deliveryCents: delivery }));
   }
 
   const payouts: unknown[] = [];

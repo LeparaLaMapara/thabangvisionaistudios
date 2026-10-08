@@ -78,14 +78,9 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     if (!Number.isSafeInteger(refundCents) || refundCents < 0) {
       return NextResponse.json({ error: 'This booking is paid. Enter the refund amount in cents (0 if nothing is refunded).', code: 'REFUND_AMOUNT_REQUIRED' }, { status: 400 });
     }
-    if (refundCents > 0 && paidOnProvider) {
-      let chargedCents = refundCents;
-      if (booking.checkout_group_id) {
-        const { data: intent } = await db.from('rental_payment_intents').select('expected_amount_cents, state').eq('checkout_group_id', booking.checkout_group_id).maybeSingle();
-        if (intent && (intent as { state: string }).state === 'paid') chargedCents = (intent as { expected_amount_cents: number }).expected_amount_cents;
-      }
-      // Release what this line held in the ledger: the refund becomes
-      // refunds_payable, the rest a cancellation fee (deposit refunded first).
+    if (paidOnProvider) {
+      // Release what this line held in the ledger, refund or not: the refund
+      // becomes refunds_payable (deposit first), the rest a cancellation fee.
       const held = await heldForLine(db, booking);
       if (held && refundCents > held.hireCents + held.depositCents) {
         return NextResponse.json({ error: 'The refund is more than this booking holds.', code: 'REFUND_TOO_LARGE' }, { status: 400 });
@@ -105,17 +100,24 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
           platformShareCents: 0,
         }));
       }
-      refunds.push({
-        obligationKey: refundObligationKey('manual', `staff-cancel:${id}`),
-        reason: 'manual',
-        amountCents: refundCents,
-        chargedCents: Math.max(chargedCents, refundCents),
-        transactionReference: booking.payfast_payment_id,
-        userId: booking.user_id,
-        bookingGroupId: booking.checkout_group_id,
-        bookingIds: [id],
-        evidence: { reason, by: auth.user.id },
-      });
+      if (refundCents > 0) {
+        let chargedCents = refundCents;
+        if (booking.checkout_group_id) {
+          const { data: intent } = await db.from('rental_payment_intents').select('expected_amount_cents, state').eq('checkout_group_id', booking.checkout_group_id).maybeSingle();
+          if (intent && (intent as { state: string }).state === 'paid') chargedCents = (intent as { expected_amount_cents: number }).expected_amount_cents;
+        }
+        refunds.push({
+          obligationKey: refundObligationKey('manual', `staff-cancel:${id}`),
+          reason: 'manual',
+          amountCents: refundCents,
+          chargedCents: Math.max(chargedCents, refundCents),
+          transactionReference: booking.payfast_payment_id,
+          userId: booking.user_id,
+          bookingGroupId: booking.checkout_group_id,
+          bookingIds: [id],
+          evidence: { reason, by: auth.user.id },
+        });
+      }
     } else if (refundCents > 0) {
       notices.push(...buildNotices({ kind: 'staff_alert', userId: 'staff', bookingIds: [id], discriminator: `manual-refund:${id}`, data: { what: 'manual_refund_due', reference: id } }));
     }
