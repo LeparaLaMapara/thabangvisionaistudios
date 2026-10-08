@@ -180,7 +180,7 @@ export interface PayoutRepository {
     id: string,
     from: readonly PayoutState[],
     to: PayoutState,
-    patch: { providerTransferCode?: string | null; lastError?: string | null; claim?: boolean; recipientCode?: string | null },
+    patch: { providerTransferCode?: string | null; lastError?: string | null; claim?: boolean; recipientCode?: string | null; holdReasons?: string[]; approvedBy?: string | null },
     journal: Journal | null,
     notices: OutboxMessage[],
   ): Promise<boolean>;

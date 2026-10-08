@@ -687,8 +687,10 @@ export const RENTAL_POLICY = {
     proven: { cleanReturns: 1, historyDays: 14 },
     trusted: { cleanReturns: 5, cleanReturnValueCents: 5_000_000, historyDays: 90 },
   },
-  // How long an unpaid online checkout holds stock.
-  onlineHoldMinutes: 30,
+  // Owner payouts that pass every automatic check still wait for a person to
+  // approve them in /admin/rental-ops until the founder decides otherwise
+  // (decision register D-19). Set true to let the daily job approve them.
+  payoutAutoApprove: false,
 } as const;
 
 export const RENTAL_CATEGORY_VALUES = RENTAL_CATEGORIES.map(c => c.value);

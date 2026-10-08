@@ -1,0 +1,171 @@
+import { createAdminClient } from '@/lib/supabase/server';
+import { email as emailProvider } from '@/lib/email';
+import { sms } from '@/lib/sms';
+import { STUDIO } from '@/lib/constants';
+import { formatRand } from '@/lib/format/money';
+import type { NotifyPort } from '@/lib/core/ports';
+import type { OutboxMessage, RentalNoticeKind } from '@/lib/core/rental/notifications';
+import { isMissingPipeline } from './repos';
+
+/**
+ * NotifyPort adapter and outbox dispatcher (spec §7.14).
+ *
+ * Outbox rows are written by the database in the same transaction as the
+ * change they report. This module delivers them: in-app notification, email,
+ * or SMS. Messages carry amounts and dates only, never bank or identity
+ * details. A refund notice says "initiated", "processed" or "failed", never
+ * "refunded" before the provider confirms it.
+ */
+
+const money = (cents: unknown): string => (typeof cents === 'number' && Number.isFinite(cents) ? formatRand(cents / 100, { decimals: cents % 100 !== 0 }) : '');
+
+/** Wording for each notice. Pure, so it is tested. */
+export function rentalNoticeText(kind: RentalNoticeKind, data: OutboxMessage['data']): { title: string; body: string } {
+  const amount = money(data.amountCents);
+  switch (kind) {
+    case 'payment_received':
+      return { title: 'Payment received', body: `We received your payment of ${amount}. Your booking is confirmed.` };
+    case 'booking_confirmed':
+      return { title: 'Booking confirmed', body: `Your gear hire is confirmed. Bring your ID when you collect; we check it at handover.` };
+    case 'collection_reminder':
+      return { title: 'Collection today', body: `Your gear is ready for collection today. Please bring the ID you verified with.` };
+    case 'handover_completed':
+      return { title: 'Gear handed over', body: `Your hire has started. The condition photos and agreement are saved on your booking.` };
+    case 'return_reminder':
+      return { title: 'Return due tomorrow', body: `Your gear is due back by the end of tomorrow.` };
+    case 'overdue_reminder':
+      return {
+        title: 'Your gear is overdue',
+        body: `Your hire ended and the gear has not been returned yet. Please return it as soon as possible or contact us${STUDIO.whatsapp?.display ? ` on ${STUDIO.whatsapp.display}` : ''}. Any late fee follows the published rule.`,
+      };
+    case 'return_recorded':
+      return { title: 'Return recorded', body: `We have recorded your return. We will inspect the gear and settle your deposit.` };
+    case 'inspection_completed':
+      return { title: 'Inspection complete', body: `Your returned gear has been inspected. Your deposit settlement is on your booking.` };
+    case 'refund_initiated':
+      return { title: 'Refund initiated', body: `We have asked the payment provider to refund ${amount}. It is not complete yet; banks usually take a few working days.` };
+    case 'refund_processed':
+      return { title: 'Refund processed', body: `The payment provider has processed your refund of ${amount}.` };
+    case 'refund_failed':
+      return { title: 'Refund problem', body: `Your refund of ${amount} could not be completed automatically. We are looking into it and will contact you.` };
+    case 'late_payment_refund':
+      return {
+        title: 'Payment received after your hold expired',
+        body: `Your payment of ${amount} arrived after the reservation expired and the gear was no longer available. We will refund it in full.`,
+      };
+    case 'payout_scheduled':
+      return { title: 'Earnings scheduled', body: `Your earnings of ${amount} are scheduled for payout after the hire is closed.` };
+    case 'payout_completed':
+      return { title: 'Earnings paid', body: `Your earnings of ${amount} have been sent to your bank account.` };
+    case 'payout_failed':
+      return { title: 'Payout problem', body: `Your payout of ${amount} could not be completed. We are looking into it.` };
+    case 'dispute_opened':
+      return { title: 'Dispute opened', body: `A dispute was opened on your booking. A member of our team will review it.` };
+    case 'dispute_resolved':
+      return { title: 'Dispute resolved', body: `The dispute on your booking has been resolved. The outcome is on your booking.` };
+    case 'staff_alert':
+      return { title: 'Rental needs attention', body: `${String(data.what ?? 'alert').replace(/_/g, ' ')}: ${String(data.reference ?? '')}` };
+  }
+}
+
+function linkFor(m: OutboxMessage): string {
+  if (m.kind === 'staff_alert') return '/admin/rental-ops';
+  return m.bookingIds[0] ? `/dashboard/bookings/${m.bookingIds[0]}` : '/dashboard/bookings';
+}
+
+export const supabaseNotify: NotifyPort = {
+  async deliver(m) {
+    const db = createAdminClient();
+    const { title, body } = rentalNoticeText(m.kind, m.data);
+    const link = linkFor(m);
+
+    if (m.channel === 'in_app') {
+      let userIds = [m.userId];
+      if (m.userId === 'staff') {
+        const { data } = await db.from('profiles').select('id').eq('role', 'admin');
+        userIds = (data ?? []).map((r) => (r as { id: string }).id);
+        if (userIds.length === 0) return { ok: true };
+      }
+      const { error } = await db.from('notifications').insert(userIds.map((user_id) => ({ user_id, type: `rental_${m.kind}`, title, body, link })));
+      return error ? { ok: false, retryable: true, message: error.message } : { ok: true };
+    }
+
+    if (m.userId === 'staff') return { ok: true };
+
+    if (m.channel === 'email') {
+      const { data } = await db.auth.admin.getUserById(m.userId);
+      const to = data?.user?.email;
+      if (!to) return { ok: false, retryable: false, message: 'no email address' };
+      try {
+        await emailProvider.sendEmail({
+          to,
+          subject: `${title} — ${STUDIO.name}`,
+          text: `${body}\n\nYour booking: ${STUDIO.meta.url}${link}\n\n${STUDIO.name}`,
+        });
+        return { ok: true };
+      } catch (err) {
+        return { ok: false, retryable: true, message: err instanceof Error ? err.message : 'email failed' };
+      }
+    }
+
+    // SMS: only to a verified number, and only when an SMS provider is configured.
+    if (!sms.isConfigured()) return { ok: false, retryable: false, message: 'sms not configured' };
+    const { data: profile } = await db.from('profiles').select('phone, phone_verified_at').eq('id', m.userId).maybeSingle();
+    const p = profile as { phone?: string | null; phone_verified_at?: string | null } | null;
+    if (!p?.phone || !p.phone_verified_at) return { ok: false, retryable: false, message: 'no verified phone' };
+    const r = await sms.send(p.phone, `${STUDIO.name}: ${body}`);
+    return r.ok ? { ok: true } : { ok: false, retryable: true, message: r.error ?? 'sms failed' };
+  },
+};
+
+interface OutboxRow {
+  id: string;
+  dedupe_key: string;
+  kind: RentalNoticeKind;
+  channel: OutboxMessage['channel'];
+  user_id: string;
+  booking_ids: string[] | null;
+  data: OutboxMessage['data'] | null;
+  send_after: string | null;
+}
+
+/** Deliver due outbox messages. Safe to run concurrently (rows are claimed with SKIP LOCKED). */
+export async function dispatchOutbox(limit = 100, port: NotifyPort = supabaseNotify): Promise<{ sent: number; skipped: number; failed: number }> {
+  const db = createAdminClient();
+  const { data, error } = await db.rpc('claim_outbox', { p_limit: limit, p_max_attempts: 5 });
+  if (error) {
+    if (isMissingPipeline(error)) return { sent: 0, skipped: 0, failed: 0 };
+    throw new Error(`claim_outbox failed: ${error.message}`);
+  }
+  let sent = 0;
+  let skipped = 0;
+  let failed = 0;
+  for (const row of (data ?? []) as OutboxRow[]) {
+    const message: OutboxMessage = {
+      dedupeKey: row.dedupe_key,
+      kind: row.kind,
+      channel: row.channel,
+      userId: row.user_id,
+      bookingIds: row.booking_ids ?? [],
+      data: row.data ?? {},
+      sendAfter: row.send_after,
+    };
+    let result: Awaited<ReturnType<NotifyPort['deliver']>>;
+    try {
+      result = await port.deliver(message);
+    } catch (err) {
+      result = { ok: false, retryable: true, message: err instanceof Error ? err.message : 'deliver threw' };
+    }
+    if (result.ok) {
+      sent += 1;
+      await db.from('notification_outbox').update({ status: 'sent', sent_at: new Date().toISOString(), last_error: null }).eq('id', row.id);
+    } else if (!result.retryable) {
+      skipped += 1;
+      await db.from('notification_outbox').update({ status: 'skipped', last_error: result.message.slice(0, 300) }).eq('id', row.id);
+    } else {
+      failed += 1;
+      await db.from('notification_outbox').update({ status: 'failed', last_error: result.message.slice(0, 300) }).eq('id', row.id);
+    }
+  }
+  return { sent, skipped, failed };
+}

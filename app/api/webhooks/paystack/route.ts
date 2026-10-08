@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { paystack } from '@/lib/payments/paystack';
 import { logEvent } from '@/lib/data/events';
 import { parsePaystackEvent, processPaystackEvent, processStoredEvent, storeEvent } from '@/lib/rental/inbox';
+import { dispatchOutbox } from '@/lib/rental/notify';
 
 export const dynamic = 'force-dynamic';
 
@@ -68,6 +69,15 @@ export async function POST(request: NextRequest) {
     return new NextResponse('OK', { status: 200 });
   }
 
-  if (stored.stored) await processStoredEvent(stored.id, parsed);
+  if (stored.stored) {
+    await processStoredEvent(stored.id, parsed);
+    // Send what this event queued now rather than at the next daily pass.
+    // Failures stay in the outbox for the pipeline job.
+    try {
+      await dispatchOutbox(20);
+    } catch (err) {
+      console.error('[paystack-webhook] outbox dispatch deferred:', err instanceof Error ? err.message : 'unknown error');
+    }
+  }
   return new NextResponse('OK', { status: 200 });
 }
