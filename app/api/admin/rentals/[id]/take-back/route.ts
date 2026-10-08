@@ -268,7 +268,12 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const notices = buildNotices({ kind: 'inspection_completed', userId: b.user_id, bookingIds: [id], discriminator: id, data: { amountCents: plan.refundCents } });
   if (hireUnrecorded && snap.ownership === 'community' && snap.owner_id) {
     notices.push(...buildNotices({ kind: 'staff_alert', userId: 'staff', bookingIds: [id], discriminator: `deposit-only-payout:${id}`, data: { what: 'owner_payout_needs_manual_check_balance_paid_at_counter', reference: id } }));
-  } else if (snap.ownership === 'community' && snap.owner_id && (snap.owner_share_cents ?? 0) > 0 && snap.hire_cents != null) {
+  } else if (!inLedger && snap.ownership === 'community' && snap.owner_id && (snap.owner_share_cents ?? 0) > 0) {
+    // Paid by EFT or cash: the money is not at the payment provider and not in
+    // the ledger, so no automatic transfer (it would book an owner_payable that
+    // was never credited). A person pays the owner.
+    notices.push(...buildNotices({ kind: 'staff_alert', userId: 'staff', bookingIds: [id], discriminator: `manual-payout:${id}`, data: { what: 'owner_payout_manual_payment_order', reference: id } }));
+  } else if (inLedger && snap.ownership === 'community' && snap.owner_id && (snap.owner_share_cents ?? 0) > 0 && snap.hire_cents != null) {
     payouts.push({
       bookingId: id,
       ownerId: snap.owner_id,

@@ -149,6 +149,29 @@ export async function PATCH(
       return NextResponse.json({ error: 'Dispute not found.' }, { status: 404 });
     }
 
+    // A suspension names its target, and the target must be a party to this
+    // dispute. Checked before anything is settled, so a bad request moves no money.
+    // (It used to suspend whoever FILED the dispute, i.e. the complainant.)
+    let suspendTarget: string | null = null;
+    if (resolution === 'user_suspended') {
+      const parties = new Set<string>([dispute.filed_by]);
+      if (dispute.equipment_booking_id) {
+        const { data: eb } = await supabase.from('equipment_bookings').select('user_id, smart_rentals(owner_id)').eq('id', dispute.equipment_booking_id).maybeSingle();
+        if (eb?.user_id) parties.add(eb.user_id);
+        const r = (Array.isArray(eb?.smart_rentals) ? eb?.smart_rentals[0] : eb?.smart_rentals) as { owner_id?: string | null } | null;
+        if (r?.owner_id) parties.add(r.owner_id);
+      }
+      if (dispute.booking_id) {
+        const { data: sb } = await supabase.from('bookings').select('client_id, creator_id').eq('id', dispute.booking_id).maybeSingle();
+        if (sb?.client_id) parties.add(sb.client_id);
+        if (sb?.creator_id) parties.add(sb.creator_id);
+      }
+      if (!suspend_user_id || !parties.has(suspend_user_id)) {
+        return NextResponse.json({ error: 'Choose which party to suspend; it must be someone in this dispute.' }, { status: 400 });
+      }
+      suspendTarget = suspend_user_id;
+    }
+
     const now = new Date().toISOString();
     const update: Record<string, unknown> = { updated_at: now };
 
@@ -265,26 +288,9 @@ export async function PATCH(
       }).catch(() => undefined);
     }
 
-    // Suspend user if resolution requires it
-    if (resolution === 'user_suspended') {
-      // The admin names who is suspended. It used to be the person who FILED
-      // the dispute, which suspended complainants. It must be a party to it.
-      const parties = new Set<string>([dispute.filed_by]);
-      if (dispute.equipment_booking_id) {
-        const { data: eb } = await supabase.from('equipment_bookings').select('user_id, smart_rentals(owner_id)').eq('id', dispute.equipment_booking_id).maybeSingle();
-        if (eb?.user_id) parties.add(eb.user_id);
-        const r = (Array.isArray(eb?.smart_rentals) ? eb?.smart_rentals[0] : eb?.smart_rentals) as { owner_id?: string | null } | null;
-        if (r?.owner_id) parties.add(r.owner_id);
-      }
-      if (dispute.booking_id) {
-        const { data: sb } = await supabase.from('bookings').select('client_id, creator_id').eq('id', dispute.booking_id).maybeSingle();
-        if (sb?.client_id) parties.add(sb.client_id);
-        if (sb?.creator_id) parties.add(sb.creator_id);
-      }
-      if (!suspend_user_id || !parties.has(suspend_user_id)) {
-        return NextResponse.json({ error: 'Choose which party to suspend; it must be someone in this dispute.' }, { status: 400 });
-      }
-      const targetUserId = suspend_user_id;
+    // Suspend user if resolution requires it (target validated above, before any money moved)
+    if (resolution === 'user_suspended' && suspendTarget) {
+      const targetUserId = suspendTarget;
       await supabase
         .from('profiles')
         .update({
@@ -512,7 +518,11 @@ async function settleDisputedReturn(
   }
 
   const payouts: unknown[] = [];
-  if (community && split.ownerShareCents > 0) {
+  const inLedger = onProvider && intentPaid && b.hire_cents != null;
+  if (community && split.ownerShareCents > 0 && !inLedger) {
+    // Paid by EFT or cash: outside the ledger and not at the provider. A person pays the owner.
+    notices.push(...buildNotices({ kind: 'staff_alert', userId: 'staff', bookingIds: [b.id], discriminator: `manual-payout:${b.id}`, data: { what: 'owner_payout_manual_payment_order', reference: b.id, amountCents: split.ownerShareCents } }));
+  } else if (community && split.ownerShareCents > 0) {
     payouts.push({
       bookingId: b.id,
       ownerId: b.owner_id,

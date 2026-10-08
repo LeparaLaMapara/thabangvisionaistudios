@@ -1,7 +1,7 @@
 import { createAdminClient } from '@/lib/supabase/server';
 import { RENTAL_POLICY } from '@/lib/constants';
 import { toCents } from '@/lib/core/pricing/money';
-import { checkEligibility, type EligibilityResult, type OrderLineForTrust, type RenterFacts } from '@/lib/core/rental/trust';
+import { checkEligibility, type EligibilityResult, type HoldingForTrust, type OrderLineForTrust, type RenterFacts } from '@/lib/core/rental/trust';
 import { EXPOSURE_STATUSES } from '@/lib/core/rental/state';
 import { itemValue } from '@/lib/rental/protection';
 import { sastDate } from '@/lib/core/rental/notifications';
@@ -39,31 +39,23 @@ function unitValueCents(row: BookingFactRow): number {
   return rental ? toCents(itemValue(rental)) : 0;
 }
 
-/** Dates a renter is asking for: inclusive, YYYY-MM-DD. */
-export interface HireWindow {
-  start: string;
-  end: string;
-}
-
 /**
- * Whether a booking the renter already holds is out during the window. Gear
- * that is overdue, being inspected, disputed, or still out past its end date
- * is treated as held until it is settled, as availability does.
+ * A booking the renter holds, with the dates it keeps gear out. Gear that is
+ * overdue, being inspected, disputed, or still out past its end date is held
+ * until it is settled (open end), as availability treats it.
  */
-function overlapsWindow(r: BookingFactRow, window: HireWindow | undefined, now: Date): boolean {
-  if (!window || !r.start_date || !r.end_date) return true; // no dates → count it (fail closed)
+function holdingOf(r: BookingFactRow, valueCents: number, now: Date): HoldingForTrust {
   const openEnded =
     ['overdue', 'return_pending', 'return_reviewed', 'disputed'].includes(r.status) ||
-    (r.status === 'active' && r.end_date < sastDate(now));
-  return r.start_date <= window.end && (openEnded || r.end_date >= window.start);
+    (r.status === 'active' && r.end_date != null && r.end_date < sastDate(now));
+  return { startDate: r.start_date, endDate: openEnded ? null : r.end_date, valueCents };
 }
 
 export async function loadRenterFacts(
   admin: Admin,
   user: { id: string; email_confirmed_at?: string | null },
   now: Date = new Date(),
-  window?: HireWindow,
-): Promise<{ facts: RenterFacts; exposureCents: number }> {
+): Promise<{ facts: RenterFacts; exposureCents: number; holdings: HoldingForTrust[] }> {
   const BASE = 'id, status, quantity, late_fee, dispute_reason, completed_at, returned_at, updated_at, start_date, end_date, smart_rentals(replacement_value, deposit_amount)';
   const PIPELINE = ', inspection_outcome, hold_expires_at, unit_replacement_value_cents';
   const bookingsQuery = (cols: string) => admin.from('equipment_bookings').select(cols).eq('user_id', user.id);
@@ -94,6 +86,7 @@ export async function loadRenterFacts(
   let overdueNow = 0;
   let recentLateReturns = 0;
   let exposureCents = 0;
+  const holdings: HoldingForTrust[] = [];
 
   for (const r of rows) {
     const qty = Math.max(1, r.quantity ?? 1);
@@ -114,9 +107,11 @@ export async function loadRenterFacts(
     const holding =
       (EXPOSURE_STATUSES as readonly string[]).includes(r.status) ||
       (r.status === 'pending' && r.hold_expires_at != null && new Date(r.hold_expires_at).getTime() > now.getTime());
-    // Exposure is what the renter holds at the same time as the new hire,
-    // so a booking on other dates does not count against the limit.
-    if (holding && overlapsWindow(r, window, now)) exposureCents += unitValueCents(r) * qty;
+    if (holding) {
+      const value = unitValueCents(r) * qty;
+      exposureCents += value;
+      holdings.push(holdingOf(r, value, now));
+    }
   }
 
   // Open dispute records count too. A dispute on a hire that is still out, or
@@ -167,6 +162,7 @@ export async function loadRenterFacts(
       manualReview: false,
     },
     exposureCents,
+    holdings,
   };
 }
 
@@ -177,12 +173,13 @@ export async function checkRenterEligibility(
   lines: OrderLineForTrust[],
   delivery: boolean,
   now: Date = new Date(),
-  window?: HireWindow,
 ): Promise<EligibilityResult> {
-  const { facts, exposureCents } = await loadRenterFacts(admin, user, now, window);
+  const { facts, exposureCents, holdings } = await loadRenterFacts(admin, user, now);
   return checkEligibility({
     facts,
     currentExposureCents: exposureCents,
+    // Peak held at once: each new line against the bookings on its own dates.
+    holdings,
     lines,
     delivery,
     policy: {

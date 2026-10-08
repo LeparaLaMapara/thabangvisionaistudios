@@ -156,6 +156,50 @@ export interface OrderLineForTrust {
   /** Replacement value of one unit, in cents. */
   unitReplacementValueCents: number;
   quantity: number;
+  /** Hire dates, inclusive YYYY-MM-DD. Without them the line counts as overlapping everything. */
+  startDate?: string;
+  endDate?: string;
+}
+
+/** Gear the renter already holds or has booked. A null start or end is open (always counts). */
+export interface HoldingForTrust {
+  startDate: string | null;
+  endDate: string | null;
+  valueCents: number;
+}
+
+/**
+ * The most gear the renter would hold at once with this order (spec §7.9:
+ * exposure is replacement value held at the same time). Each line keeps its
+ * own dates, so hires on different days are not added together. The total
+ * of a set of date ranges peaks on the first day of one of them, so only
+ * those days need checking. Lines without dates fall back to counting
+ * everything (fail closed).
+ */
+export function peakExposure(
+  holdings: readonly HoldingForTrust[],
+  lines: readonly OrderLineForTrust[],
+): { currentCents: number; orderCents: number } {
+  const lineValue = (l: OrderLineForTrust): number => l.unitReplacementValueCents * Math.max(1, l.quantity);
+  const allHeld = holdings.reduce((s, h) => s + h.valueCents, 0);
+  const allOrdered = lines.reduce((s, l) => s + lineValue(l), 0);
+  if (lines.length === 0 || lines.some((l) => !l.startDate || !l.endDate)) return { currentCents: allHeld, orderCents: allOrdered };
+
+  const on = (d: string, start: string | null | undefined, end: string | null | undefined): boolean =>
+    (start == null || start <= d) && (end == null || end >= d);
+  const days = new Set<string>();
+  for (const l of lines) days.add(l.startDate as string);
+  for (const h of holdings) {
+    if (h.startDate && lines.some((l) => on(h.startDate as string, l.startDate, l.endDate))) days.add(h.startDate);
+  }
+  let best = { currentCents: 0, orderCents: 0 };
+  for (const d of days) {
+    const orderCents = lines.filter((l) => on(d, l.startDate, l.endDate)).reduce((s, l) => s + lineValue(l), 0);
+    if (orderCents === 0) continue;
+    const currentCents = holdings.filter((h) => on(d, h.startDate, h.endDate)).reduce((s, h) => s + h.valueCents, 0);
+    if (currentCents + orderCents > best.currentCents + best.orderCents) best = { currentCents, orderCents };
+  }
+  return best;
 }
 
 export type EligibilityResult =
@@ -194,19 +238,24 @@ const zar = (cents: number): string => `R${Math.round(cents / 100).toLocaleStrin
 /**
  * Whether a renter may place this order. `currentExposureCents` is the
  * replacement value of everything they already hold or have booked
- * (EXPOSURE_STATUSES), worked out on the server.
+ * (EXPOSURE_STATUSES), worked out on the server. When `holdings` (with
+ * dates) is given instead, exposure is the peak held at once (peakExposure).
  */
 export function checkEligibility(params: {
   facts: RenterFacts;
   currentExposureCents: number;
+  holdings?: readonly HoldingForTrust[];
   lines: readonly OrderLineForTrust[];
   delivery: boolean;
   policy: CollectionPolicy;
   now: Date;
 }): EligibilityResult {
   const assessment = assessTrust(params.facts, params.now);
-  const orderValue = params.lines.reduce((s, l) => s + l.unitReplacementValueCents * Math.max(1, l.quantity), 0);
-  const exposureCents = params.currentExposureCents + orderValue;
+  const peak = params.holdings
+    ? peakExposure(params.holdings, params.lines)
+    : { currentCents: params.currentExposureCents, orderCents: params.lines.reduce((s, l) => s + l.unitReplacementValueCents * Math.max(1, l.quantity), 0) };
+  const currentExposureCents = peak.currentCents;
+  const exposureCents = peak.currentCents + peak.orderCents;
 
   if (assessment.holds.includes('suspended') || assessment.holds.includes('overdue_gear')) {
     return {
@@ -226,7 +275,7 @@ export function checkEligibility(params: {
   }
 
   if (exposureCents > assessment.tier.maxExposureCents) {
-    const held = params.currentExposureCents > 0 ? ` including ${zar(params.currentExposureCents)} you already have booked or out` : '';
+    const held = currentExposureCents > 0 ? ` including ${zar(currentExposureCents)} you already have booked or out on those dates` : '';
     const how = assessment.next ? ` To raise it: ${assessment.next.missing.join('; ')}.` : '';
     return {
       ok: false,

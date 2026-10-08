@@ -319,14 +319,13 @@ export async function POST(request: NextRequest) {
   const trustLines = items.map((item) => ({
     unitReplacementValueCents: toCents(itemValue(item.rental as { replacement_value?: number | null; deposit_amount?: number | null })),
     quantity: item.quantity,
+    // Each line keeps its own dates: the limit is on gear held at the same time.
+    startDate: usePerItemDates ? item.start_date! : start_date,
+    endDate: usePerItemDates ? item.end_date! : end_date,
   }));
   let eligibility;
   try {
-    // Existing hires count only when they overlap the dates of this order.
-    const starts = items.map((item) => (usePerItemDates ? item.start_date! : start_date));
-    const ends = items.map((item) => (usePerItemDates ? item.end_date! : end_date));
-    const window = { start: starts.reduce((a, b) => (b < a ? b : a)), end: ends.reduce((a, b) => (b > a ? b : a)) };
-    eligibility = await checkRenterEligibility(createAdminClient(), user, trustLines, fulfilment === 'delivery', new Date(), window);
+    eligibility = await checkRenterEligibility(createAdminClient(), user, trustLines, fulfilment === 'delivery');
   } catch (err) {
     console.error('[cart/checkout] eligibility check failed:', err instanceof Error ? err.message : 'unknown error');
     return NextResponse.json({ error: 'Could not check your rental limit just now. Please try again.' }, { status: 503 });

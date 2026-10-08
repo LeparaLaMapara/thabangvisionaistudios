@@ -292,6 +292,16 @@ export async function processTransferEvent(
       : update.ledger === 'reversed'
         ? L.payoutReversed({ payoutId: payout.id, bookingGroupId: payout.bookingGroupId, amountCents: payout.amountCents })
         : null;
+  const notices = transferNotices(payout, update);
+  const moved = await deps.payouts.transition(payout.id, [payout.state], update.to, { providerTransferCode: ev.transferCode ?? payout.providerTransferCode }, journal, notices);
+  return moved ? 'applied' : 'duplicate';
+}
+
+/** The owner's notice and any staff alert for a transfer state change (webhook or immediate answer alike). */
+function transferNotices(
+  payout: { id: string; ownerId: string; bookingId: string; amountCents: number; transferReference: string },
+  update: { to: string; notifyOwner?: 'completed' | 'failed' | null | false; alertStaff?: boolean },
+): OutboxMessage[] {
   const notices: OutboxMessage[] = [];
   if (update.notifyOwner) {
     notices.push(
@@ -305,8 +315,7 @@ export async function processTransferEvent(
     );
   }
   if (update.alertStaff) notices.push(...staffAlert(payout.transferReference, `payout_${update.to}`));
-  const moved = await deps.payouts.transition(payout.id, [payout.state], update.to, { providerTransferCode: ev.transferCode ?? payout.providerTransferCode }, journal, notices);
-  return moved ? 'applied' : 'duplicate';
+  return notices;
 }
 
 export type SubmitPayoutOutcome = 'submitted' | 'reconciled' | 'waiting' | 'escalated' | 'nothing_to_do' | 'lost_race' | 'unknown_outcome' | 'no_recipient';
@@ -354,7 +363,9 @@ export async function submitPayout(id: string, deps: { payouts: PayoutRepository
       update.apply ? update.to : 'pending',
       { providerTransferCode: res.value.transferCode },
       update.apply && update.ledger === 'completed' ? L.payoutCompleted({ payoutId: payout.id, bookingGroupId: payout.bookingGroupId, amountCents: payout.amountCents }) : null,
-      update.apply && update.alertStaff ? staffAlert(payout.transferReference, `payout_${update.to}`) : [],
+      // A transfer that succeeds or fails on the spot gets no later webhook that
+      // is not a duplicate, so the owner is told now.
+      update.apply ? transferNotices(payout, update) : [],
     );
     return 'submitted';
   }

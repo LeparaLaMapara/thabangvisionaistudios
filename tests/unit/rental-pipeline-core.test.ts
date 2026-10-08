@@ -101,6 +101,32 @@ describe('trust tiers (server-calculated)', () => {
     expect(over).toMatchObject({ ok: false, code: 'trust_limit', exposureCents: 1_100_000 });
   });
 
+  it('counts only gear held on the same days: sequential hires do not add up (Codex #59)', () => {
+    const verified = { ...base, identityApproved: true, bankValidated: true };
+    // R10,000 tier. An existing R6,000 hire on 1–3 March; a new R6,000 hire on 10–12 March.
+    const existing = [{ startDate: '2027-03-01', endDate: '2027-03-03', valueCents: 600_000 }];
+    const later = checkEligibility({ facts: verified, currentExposureCents: 600_000, holdings: existing, lines: [{ unitReplacementValueCents: 600_000, quantity: 1, startDate: '2027-03-10', endDate: '2027-03-12' }], delivery: false, policy, now: NOW });
+    expect(later).toMatchObject({ ok: true, exposureCents: 600_000 });
+    const same = checkEligibility({ facts: verified, currentExposureCents: 600_000, holdings: existing, lines: [{ unitReplacementValueCents: 600_000, quantity: 1, startDate: '2027-03-02', endDate: '2027-03-04' }], delivery: false, policy, now: NOW });
+    expect(same).toMatchObject({ ok: false, code: 'trust_limit', exposureCents: 1_200_000 });
+    // Cart lines on 1 Jan and 10 Jan with an existing hire on 5 Jan: never more than one at once.
+    const cart = checkEligibility({
+      facts: verified, currentExposureCents: 600_000, delivery: false, policy, now: NOW,
+      holdings: [{ startDate: '2027-01-05', endDate: '2027-01-05', valueCents: 600_000 }],
+      lines: [
+        { unitReplacementValueCents: 600_000, quantity: 1, startDate: '2027-01-01', endDate: '2027-01-01' },
+        { unitReplacementValueCents: 600_000, quantity: 1, startDate: '2027-01-10', endDate: '2027-01-10' },
+      ],
+    });
+    expect(cart).toMatchObject({ ok: true, exposureCents: 600_000 });
+    // Gear still out (open end) overlaps every later date.
+    const stillOut = checkEligibility({ facts: verified, currentExposureCents: 600_000, holdings: [{ startDate: '2027-01-01', endDate: null, valueCents: 600_000 }], lines: [{ unitReplacementValueCents: 600_000, quantity: 1, startDate: '2027-06-01', endDate: '2027-06-02' }], delivery: false, policy, now: NOW });
+    expect(stillOut).toMatchObject({ ok: false, code: 'trust_limit' });
+    // A line without dates counts against everything (fail closed).
+    const undated = checkEligibility({ facts: verified, currentExposureCents: 600_000, holdings: existing, lines: [{ unitReplacementValueCents: 600_000, quantity: 1 }], delivery: false, policy, now: NOW });
+    expect(undated).toMatchObject({ ok: false, code: 'trust_limit' });
+  });
+
   it('gear overdue past formal escalation, or a suspension, stops new bookings; lesser risks route to a person', () => {
     const verified = { ...base, identityApproved: true, bankValidated: true };
     expect(checkEligibility({ facts: { ...verified, overdueNow: 1, overdueEscalated: 1 }, currentExposureCents: 0, lines: [], delivery: false, policy, now: NOW })).toMatchObject({ ok: false, code: 'account_hold' });
@@ -567,6 +593,20 @@ describe('payment, refund and payout use cases (in-memory adapters, not live)', 
     expect((await refunds.get(bad.id))!.state).toBe('failed');
     expect(kindsFor(bad.id)).toEqual(expect.arrayContaining(['refund_failed', 'staff_alert']));
     expect(kindsFor(bad.id)).not.toContain('refund_initiated');
+  });
+
+  it('a transfer that succeeds on the spot tells the owner once', async () => {
+    const payouts = new FakePayouts(books, clock);
+    const transfers = new FakeTransferProvider();
+    transfers.initialStatus = 'success';
+    const ref = payoutReference('9b2f1c3e-0000-4000-8000-000000000009');
+    payouts.rows.set('po9', { id: 'po9', bookingId: 'b9', ownerId: 'o9', state: 'approved', amountCents: 360_000, transferReference: ref, recipientCode: 'RCP_9', providerTransferCode: null, claimedAt: null, bookingGroupId: 'grp9' });
+    expect(await submitPayout('po9', { payouts, transfers, clock })).toBe('submitted');
+    expect((await payouts.get('po9'))!.state).toBe('success');
+    expect([...books.outbox.values()].filter((n) => n.kind === 'payout_completed' && n.userId === 'o9' && n.channel === 'in_app')).toHaveLength(1);
+    // The webhook that follows is a duplicate and sends nothing more.
+    expect(await processTransferEvent({ reference: ref, status: 'success', transferCode: `TRF_${ref}` }, { payouts })).toBe('duplicate');
+    expect([...books.outbox.values()].filter((n) => n.kind === 'payout_completed' && n.userId === 'o9' && n.channel === 'in_app')).toHaveLength(1);
   });
 
   it('a payout stuck pending (lost webhook) is looked up by its reference and booked once', async () => {
