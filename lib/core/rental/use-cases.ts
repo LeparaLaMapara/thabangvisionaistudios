@@ -1,0 +1,327 @@
+/**
+ * Money use cases for gear hire. They depend only on ports, so the same code
+ * runs behind the webhook, the cron worker, the admin queue and, later, the
+ * Ubunye agent. Tests drive them with in-memory fakes.
+ */
+
+import type {
+  Clock,
+  PaymentPort,
+  PayoutPort,
+  PayoutRepository,
+  RefundRepository,
+  RentalPaymentRepository,
+} from '@/lib/core/ports';
+import * as L from './ledger';
+import { buildNotices, type OutboxMessage } from './notifications';
+import { decideCharge, type ChargeEvent } from './payments';
+import { applyProviderTransferStatus, mapProviderTransferStatus, nextPayoutAction } from './payouts';
+import { applyProviderRefundStatus, mapProviderRefundStatus, nextRefundAction, refundObligationKey } from './refunds';
+
+export type ChargeOutcome =
+  | 'confirmed'
+  | 'confirmed_late'
+  | 'duplicate'
+  | 'ignored'
+  | 'failure_recorded'
+  | 'unknown_reference'
+  | 'mismatch_held'
+  | 'late_unavailable_refund_due'
+  | 'cancelled_refund_due';
+
+function staffAlert(reference: string, what: string): OutboxMessage[] {
+  // Staff alerts go to the ops queue (user id 'staff' is resolved to admins by the adapter).
+  return buildNotices({ kind: 'staff_alert', userId: 'staff', bookingIds: [], discriminator: `${what}:${reference}`, data: { reference, what } });
+}
+
+export async function processChargeEvent(event: ChargeEvent, deps: { repo: RentalPaymentRepository; clock: Clock }): Promise<ChargeOutcome> {
+  const intent = await deps.repo.getIntent(event.reference);
+  const lines = intent ? await deps.repo.getOrderLines(intent.checkoutGroupId) : { statuses: {}, cancelledByExpiry: 0 };
+  const decision = decideCharge(
+    intent && {
+      reference: intent.reference,
+      state: intent.state,
+      expectedAmountCents: intent.expectedAmountCents,
+      currency: intent.currency,
+      userId: intent.userId,
+      providerTransactionId: intent.providerTransactionId,
+      holdExpiresAt: intent.holdExpiresAt,
+    },
+    event,
+    lines,
+    deps.clock.now(),
+  );
+
+  const unallocated = async (reason: string, intentState: 'mismatch' | 'refund_due', refundReason: 'late_payment' | 'overpayment'): Promise<'recorded' | 'duplicate'> => {
+    if (!intent) throw new Error('unallocated payment needs an intent');
+    const refundKey = refundObligationKey(refundReason, event.providerTransactionId);
+    return deps.repo.recordUnallocatedPayment({
+      reference: event.reference,
+      providerTransactionId: event.providerTransactionId,
+      amountCents: event.amountCents,
+      intentState,
+      reason,
+      // A mismatch is never refunded automatically: a person checks first.
+      refund: intentState === 'refund_due' ? { key: refundKey, reason: refundReason, amountCents: event.amountCents } : null,
+      journal: L.unallocatedReceipt({ providerReference: event.providerTransactionId, bookingGroupId: intent.checkoutGroupId, amountCents: event.amountCents, reason }),
+      notices: [
+        ...staffAlert(event.reference, reason),
+        ...(intentState === 'refund_due'
+          ? buildNotices({ kind: 'late_payment_refund', userId: intent.userId, bookingIds: intent.bookingIds, discriminator: event.providerTransactionId, data: { amountCents: event.amountCents } })
+          : []),
+      ],
+    });
+  };
+
+  switch (decision.action) {
+    case 'unknown_reference':
+      return 'unknown_reference';
+    case 'duplicate':
+      return 'duplicate';
+    case 'ignore':
+      return 'ignored';
+    case 'record_failure':
+      await deps.repo.recordFailedAttempt(event.reference);
+      return 'failure_recorded';
+    case 'hold_mismatch': {
+      const r = await unallocated(`payment_${decision.why}_mismatch`, 'mismatch', 'overpayment');
+      return r === 'duplicate' ? 'duplicate' : 'mismatch_held';
+    }
+    case 'refund_paid_cancelled': {
+      const r = await unallocated('paid_after_cancellation', 'refund_due', 'late_payment');
+      return r === 'duplicate' ? 'duplicate' : 'cancelled_refund_due';
+    }
+    case 'confirm':
+    case 'confirm_late': {
+      if (!intent) return 'unknown_reference';
+      const late = decision.action === 'confirm_late';
+      const outcome = await deps.repo.confirmPayment({
+        reference: event.reference,
+        providerTransactionId: event.providerTransactionId,
+        amountCents: event.amountCents,
+        late,
+        journal: L.paymentCaptured({
+          bookingGroupId: intent.checkoutGroupId,
+          providerReference: event.providerTransactionId,
+          hireCents: intent.hireCents,
+          depositCents: intent.depositCents,
+          deliveryFeeCents: intent.deliveryCents,
+        }),
+        notices: [
+          ...buildNotices({ kind: 'payment_received', userId: intent.userId, bookingIds: intent.bookingIds, discriminator: event.providerTransactionId, data: { amountCents: event.amountCents } }),
+          ...buildNotices({ kind: 'booking_confirmed', userId: intent.userId, bookingIds: intent.bookingIds, discriminator: intent.checkoutGroupId }),
+        ],
+      });
+      if (outcome === 'confirmed') return late ? 'confirmed_late' : 'confirmed';
+      if (outcome === 'duplicate') return 'duplicate';
+      // The stock went to someone else while this payment was late (or the
+      // order changed): never double-book, give the money back (spec §7.6).
+      const r = await unallocated(outcome === 'unavailable' ? 'late_payment_no_stock' : 'payment_not_confirmable', 'refund_due', 'late_payment');
+      return r === 'duplicate' ? 'duplicate' : 'late_unavailable_refund_due';
+    }
+  }
+}
+
+// ── Refunds ──────────────────────────────────────────────────────────────────
+
+export type RefundEventOutcome = 'applied' | 'duplicate' | 'stale' | 'unknown_refund' | 'unknown_status';
+
+export async function processRefundEvent(
+  ev: { providerRefundId: string | null; transactionReference: string | null; amountCents: number | null; status: string },
+  deps: { refunds: RefundRepository },
+): Promise<RefundEventOutcome> {
+  const incoming = mapProviderRefundStatus(ev.status);
+  if (!incoming) return 'unknown_status';
+  const refund = await deps.refunds.findByProvider(ev);
+  if (!refund) return 'unknown_refund';
+
+  const update = applyProviderRefundStatus(refund.state, incoming);
+  if (!update.apply) return update.reason === 'duplicate' ? 'duplicate' : 'stale';
+
+  const journal =
+    update.to === 'processed'
+      ? L.refundProcessed({ refundId: refund.id, bookingGroupId: refund.bookingGroupId, amountCents: refund.amountCents, fromUnallocated: refund.fromUnallocated })
+      : null;
+  const notices: OutboxMessage[] = [];
+  if (update.notifyCustomer && refund.userId) {
+    const kind = update.notifyCustomer === 'processed' ? 'refund_processed' : update.notifyCustomer === 'failed' ? 'refund_failed' : 'refund_initiated';
+    notices.push(...buildNotices({ kind, userId: refund.userId, bookingIds: refund.bookingIds, discriminator: refund.id, data: { amountCents: refund.amountCents } }));
+  }
+  if (update.alertStaff) notices.push(...staffAlert(refund.id, `refund_${update.to}`));
+
+  const moved = await deps.refunds.transition(refund.id, [refund.state], update.to, { providerRefundId: ev.providerRefundId ?? refund.providerRefundId }, journal, notices);
+  return moved ? 'applied' : 'duplicate';
+}
+
+export type SubmitRefundOutcome = 'submitted' | 'reconciled' | 'waiting' | 'escalated' | 'nothing_to_do' | 'lost_race' | 'unknown_outcome';
+
+/**
+ * Move one refund obligation forward. Safe to call any number of times, from
+ * any number of workers: the claim is a compare-and-set, and an uncertain
+ * earlier call is reconciled with the provider before anything is re-sent
+ * (T13).
+ */
+export async function submitRefund(id: string, deps: { refunds: RefundRepository; payments: PaymentPort; clock: Clock }): Promise<SubmitRefundOutcome> {
+  const refund = await deps.refunds.get(id);
+  if (!refund) return 'nothing_to_do';
+  const next = nextRefundAction(refund, deps.clock.now());
+
+  if (next.action === 'none') return 'nothing_to_do';
+  if (next.action === 'wait') return 'waiting';
+  if (next.action === 'escalate') {
+    if (refund.state === 'eligible') {
+      await deps.refunds.transition(refund.id, ['eligible'], 'needs_attention', { lastError: next.why }, null, staffAlert(refund.id, 'refund_attempts_exhausted'));
+    }
+    return 'escalated';
+  }
+
+  if (next.action === 'reconcile_first') {
+    const found = await deps.payments.listRefunds(refund.transactionReference);
+    if (!found.ok) return 'unknown_outcome';
+    const match = found.value.find((r) => r.providerRefundId === refund.providerRefundId) ?? found.value.find((r) => r.amountCents === refund.amountCents);
+    if (match) {
+      const state = mapProviderRefundStatus(match.status) ?? 'pending';
+      const moved = await deps.refunds.transition(
+        refund.id,
+        [refund.state],
+        state,
+        { providerRefundId: match.providerRefundId },
+        state === 'processed' ? L.refundProcessed({ refundId: refund.id, bookingGroupId: refund.bookingGroupId, amountCents: refund.amountCents, fromUnallocated: refund.fromUnallocated }) : null,
+        [],
+      );
+      return moved ? 'reconciled' : 'lost_race';
+    }
+    // The provider never received it: release the claim so it can be sent.
+    const released = await deps.refunds.transition(refund.id, [refund.state], 'eligible', { lastError: 'reconciled: not found at provider' }, null, []);
+    return released ? 'reconciled' : 'lost_race';
+  }
+
+  // submit: claim first, so only one worker calls the provider.
+  const claimed = await deps.refunds.transition(refund.id, ['eligible'], 'claimed', { claim: true }, null, []);
+  if (!claimed) return 'lost_race';
+
+  const res = await deps.payments.refund({ transactionReference: refund.transactionReference, amountCents: refund.amountCents, idempotencyKey: refund.obligationKey });
+  if (res.ok) {
+    const state = mapProviderRefundStatus(res.value.status) ?? 'requested';
+    await deps.refunds.transition(
+      refund.id,
+      ['claimed'],
+      state === 'processed' ? 'processed' : state === 'failed' ? 'failed' : state === 'needs_attention' ? 'needs_attention' : state === 'processing' ? 'processing' : 'pending',
+      { providerRefundId: res.value.providerRefundId },
+      state === 'processed' ? L.refundProcessed({ refundId: refund.id, bookingGroupId: refund.bookingGroupId, amountCents: refund.amountCents, fromUnallocated: refund.fromUnallocated }) : null,
+      refund.userId ? buildNotices({ kind: 'refund_initiated', userId: refund.userId, bookingIds: refund.bookingIds, discriminator: refund.id, data: { amountCents: refund.amountCents } }) : [],
+    );
+    return 'submitted';
+  }
+  if (res.kind === 'rejected') {
+    await deps.refunds.transition(
+      refund.id,
+      ['claimed'],
+      'failed',
+      { lastError: res.message.slice(0, 500) },
+      null,
+      [
+        ...staffAlert(refund.id, 'refund_rejected'),
+        ...(refund.userId ? buildNotices({ kind: 'refund_failed', userId: refund.userId, bookingIds: refund.bookingIds, discriminator: refund.id }) : []),
+      ],
+    );
+    return 'escalated';
+  }
+  // Unknown: stay `claimed`. The next run reconciles before re-sending.
+  return 'unknown_outcome';
+}
+
+// ── Payouts ──────────────────────────────────────────────────────────────────
+
+export type TransferEventOutcome = 'applied' | 'duplicate' | 'stale' | 'unknown_payout' | 'unknown_status';
+
+export async function processTransferEvent(
+  ev: { reference: string; status: string; transferCode: string | null },
+  deps: { payouts: PayoutRepository },
+): Promise<TransferEventOutcome> {
+  const incoming = mapProviderTransferStatus(ev.status);
+  if (!incoming) return 'unknown_status';
+  const payout = await deps.payouts.getByReference(ev.reference);
+  if (!payout) return 'unknown_payout';
+  const update = applyProviderTransferStatus(payout.state, incoming);
+  if (!update.apply) return update.reason === 'duplicate' ? 'duplicate' : 'stale';
+
+  const journal =
+    update.ledger === 'completed'
+      ? L.payoutCompleted({ payoutId: payout.id, bookingGroupId: payout.bookingGroupId, amountCents: payout.amountCents })
+      : update.ledger === 'reversed'
+        ? L.payoutReversed({ payoutId: payout.id, bookingGroupId: payout.bookingGroupId, amountCents: payout.amountCents })
+        : null;
+  const notices: OutboxMessage[] = [];
+  if (update.notifyOwner) {
+    notices.push(
+      ...buildNotices({
+        kind: update.notifyOwner === 'completed' ? 'payout_completed' : 'payout_failed',
+        userId: payout.ownerId,
+        bookingIds: [payout.bookingId],
+        discriminator: `${payout.id}:${update.to}`,
+        data: { amountCents: payout.amountCents },
+      }),
+    );
+  }
+  if (update.alertStaff) notices.push(...staffAlert(payout.transferReference, `payout_${update.to}`));
+  const moved = await deps.payouts.transition(payout.id, [payout.state], update.to, { providerTransferCode: ev.transferCode ?? payout.providerTransferCode }, journal, notices);
+  return moved ? 'applied' : 'duplicate';
+}
+
+export type SubmitPayoutOutcome = 'submitted' | 'reconciled' | 'waiting' | 'escalated' | 'nothing_to_do' | 'lost_race' | 'unknown_outcome' | 'no_recipient';
+
+/** Send an approved payout. The reference never changes, so a retry cannot pay twice (T16). */
+export async function submitPayout(id: string, deps: { payouts: PayoutRepository; transfers: PayoutPort; clock: Clock }): Promise<SubmitPayoutOutcome> {
+  const payout = await deps.payouts.get(id);
+  if (!payout) return 'nothing_to_do';
+  const next = nextPayoutAction(payout, deps.clock.now());
+  if (next.action === 'none') return 'nothing_to_do';
+  if (next.action === 'wait') return 'waiting';
+  if (next.action === 'escalate') return 'escalated';
+
+  if (next.action === 'reconcile_first') {
+    const found = await deps.transfers.verifyTransfer(payout.transferReference);
+    if (!found.ok) return 'unknown_outcome';
+    if (found.value) {
+      const state = mapProviderTransferStatus(found.value.status) ?? 'pending';
+      const update = applyProviderTransferStatus(payout.state, state);
+      if (!update.apply) return 'waiting';
+      const moved = await deps.payouts.transition(
+        payout.id,
+        [payout.state],
+        update.to,
+        { providerTransferCode: found.value.transferCode },
+        update.ledger === 'completed' ? L.payoutCompleted({ payoutId: payout.id, bookingGroupId: payout.bookingGroupId, amountCents: payout.amountCents }) : null,
+        [],
+      );
+      return moved ? 'reconciled' : 'lost_race';
+    }
+    const released = await deps.payouts.transition(payout.id, [payout.state], 'approved', { lastError: 'reconciled: not found at provider' }, null, []);
+    return released ? 'reconciled' : 'lost_race';
+  }
+
+  if (!payout.recipientCode) return 'no_recipient';
+  const claimed = await deps.payouts.transition(payout.id, ['approved'], 'claimed', { claim: true }, null, []);
+  if (!claimed) return 'lost_race';
+
+  const res = await deps.transfers.transfer({ reference: payout.transferReference, amountCents: payout.amountCents, recipientCode: payout.recipientCode, reason: 'ThabangVision gear hire earnings' });
+  if (res.ok) {
+    const state = mapProviderTransferStatus(res.value.status) ?? 'pending';
+    const update = applyProviderTransferStatus('claimed', state);
+    await deps.payouts.transition(
+      payout.id,
+      ['claimed'],
+      update.apply ? update.to : 'pending',
+      { providerTransferCode: res.value.transferCode },
+      update.apply && update.ledger === 'completed' ? L.payoutCompleted({ payoutId: payout.id, bookingGroupId: payout.bookingGroupId, amountCents: payout.amountCents }) : null,
+      update.apply && update.alertStaff ? staffAlert(payout.transferReference, `payout_${update.to}`) : [],
+    );
+    return 'submitted';
+  }
+  if (res.kind === 'rejected') {
+    await deps.payouts.transition(payout.id, ['claimed'], 'failed', { lastError: res.message.slice(0, 500) }, null, staffAlert(payout.transferReference, 'payout_rejected'));
+    return 'escalated';
+  }
+  return 'unknown_outcome';
+}
