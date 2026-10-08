@@ -443,7 +443,8 @@ async function settleDisputedReturn(
   const onProvider = Boolean(reference) && !isManualReference(reference as string);
   let intentPaid = false;
   if (b.checkout_group_id) {
-    const { data: intent } = await db.from('rental_payment_intents').select('state').eq('checkout_group_id', b.checkout_group_id).maybeSingle();
+    const { data: intent, error: intentErr } = await db.from('rental_payment_intents').select('state').eq('checkout_group_id', b.checkout_group_id).maybeSingle();
+    if (intentErr) return { error: 'Could not check the payment just now. Nothing was changed; try again.', status: 503 };
     intentPaid = (intent as { state?: string } | null)?.state === 'paid';
   }
   // A deposit-only order's hire was paid at the counter with no record: outside the ledger.
@@ -457,7 +458,8 @@ async function settleDisputedReturn(
   let delivery = toCents(Number(b.delivery_fee ?? 0));
   let soleLine = true;
   if (b.checkout_group_id) {
-    const { data: lines } = await db.from('equipment_bookings').select('id, status, delivery_fee').eq('checkout_group_id', b.checkout_group_id);
+    const { data: lines, error: linesErr } = await db.from('equipment_bookings').select('id, status, delivery_fee').eq('checkout_group_id', b.checkout_group_id);
+    if (linesErr) return { error: 'Could not load the order just now. Nothing was changed; try again.', status: 503 };
     const rows = (lines ?? []) as { id: string; status: string; delivery_fee: number | null }[];
     delivery = rows.reduce((sum, r) => sum + toCents(Number(r.delivery_fee ?? 0)), 0);
     soleLine = !rows.some((r) => r.id !== b.id && r.status !== 'cancelled');

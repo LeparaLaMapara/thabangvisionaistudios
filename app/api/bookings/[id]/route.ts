@@ -329,6 +329,11 @@ async function cancelThroughPipeline(
   if (booking.checkout_group_id) {
     const { data: intent, error } = await db.from('rental_payment_intents').select('state, expected_amount_cents').eq('checkout_group_id', booking.checkout_group_id).maybeSingle();
     if (error && isMissingPipeline(error)) return null;
+    // Any other error is not "unpaid": cancelling now could refund without the
+    // ledger entry behind it. Nothing has changed yet, so ask them to retry.
+    if (error) {
+      return NextResponse.json({ error: 'Could not cancel just now. Nothing was changed; please try again.' }, { status: 503 });
+    }
     if (intent && (intent as { state: string }).state === 'paid') {
       intentPaid = true;
       chargedCents = (intent as { expected_amount_cents: number }).expected_amount_cents;

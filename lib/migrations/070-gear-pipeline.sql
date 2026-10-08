@@ -195,10 +195,19 @@ create table if not exists public.rental_payment_intents (
   paid_at timestamptz,
   failed_attempts integer not null default 0,
   mismatch_reason text,
+  -- Missed-payment recovery: when the provider was last asked, and when it was
+  -- conclusively settled as unpaid (old and definitely not charged). An open
+  -- intent is never dropped just for being old.
+  recovery_checked_at timestamptz,
+  recovery_closed_at timestamptz,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   check (hire_cents + deposit_cents + delivery_cents = expected_amount_cents)
 );
+alter table public.rental_payment_intents add column if not exists recovery_checked_at timestamptz;
+alter table public.rental_payment_intents add column if not exists recovery_closed_at timestamptz;
+create index if not exists idx_rental_payment_intents_recovery on public.rental_payment_intents (recovery_checked_at nulls first, created_at)
+  where recovery_closed_at is null and state in ('initiated', 'failed', 'expired');
 comment on table public.rental_payment_intents is
   'What the server expects to be paid for one gear checkout. Only a verified provider event or server-side verification moves it to paid.';
 

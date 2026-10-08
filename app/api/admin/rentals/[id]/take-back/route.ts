@@ -178,20 +178,60 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   // A registered serial that cannot be confirmed means it may not be our unit.
   if (body.dispute || (hasSerial && !evidence.serials_confirmed)) {
     const reason = body.dispute ? note || 'Opened at return' : 'Serial number not confirmed at return';
+    // The dispute record comes first: it is how the case is worked and settled
+    // (/admin/disputes → settleDisputedReturn). A booking must never be
+    // 'disputed' without one. An open record for this booking is reused.
+    const { data: openDispute, error: findErr } = await db
+      .from('disputes')
+      .select('id')
+      .eq('equipment_booking_id', id)
+      .in('status', ['open', 'investigating', 'escalated'])
+      .limit(1)
+      .maybeSingle();
+    if (findErr) return NextResponse.json({ error: 'Could not open the dispute just now. Nothing was changed; try again.' }, { status: 503 });
+    let disputeId = (openDispute as { id: string } | null)?.id ?? null;
+    let created = false;
+    if (!disputeId) {
+      const { data: inserted, error: insErr } = await db
+        .from('disputes')
+        .insert({
+          dispute_type: 'gear_damage',
+          equipment_booking_id: id,
+          filed_by: auth.user.id,
+          reason,
+          evidence_photos: photos,
+          evidence_notes: note || null,
+          status: 'open',
+        })
+        .select('id')
+        .single();
+      if (insErr || !inserted) return NextResponse.json({ error: 'Could not open the dispute just now. Nothing was changed; try again.' }, { status: 503 });
+      disputeId = (inserted as { id: string }).id;
+      created = true;
+    }
     const d = await transitionBookings(db, {
       ids: [id], from: ['return_pending'], to: 'disputed', actor: 'staff', actorId: auth.user.id, reason,
       patch: { ...returnPatch, dispute_reason: reason, disputed_at: iso, inspection_outcome: outcome },
       notices: buildNotices({ kind: 'dispute_opened', userId: b.user_id, bookingIds: [id], discriminator: id }),
     });
-    if (d.result === 'conflict') return NextResponse.json({ error: 'The booking changed while you were working. Reload and try again.' }, { status: 409 });
+    if (d.result === 'conflict') {
+      // The booking moved on without us: close the record we just opened.
+      if (created) await db.from('disputes').update({ status: 'dismissed', resolution_notes: 'Booking changed before the dispute was opened', updated_at: iso }).eq('id', disputeId);
+      return NextResponse.json({ error: 'The booking changed while you were working. Reload and try again.' }, { status: 409 });
+    }
     logEvent({ eventType: 'return_disputed', eventCategory: 'booking', userId: b.user_id, metadata: { bookingId: id } });
     await dispatchOutbox(10).catch(() => undefined);
-    return NextResponse.json({ ok: true, disputed: true, late_fee: late.fee });
+    return NextResponse.json({ ok: true, disputed: true, dispute_id: disputeId, late_fee: late.fee });
   }
 
   // Step 2b: settle the deposit under the documented rules (no evidence, no deduction).
   const onCard = depositOnCard(b);
-  const charge = onCard ? await chargeOfBooking(db, b) : { totalCents: depositCents, remainderCents: depositCents };
+  let charge: { totalCents: number; remainderCents: number };
+  try {
+    charge = onCard ? await chargeOfBooking(db, b) : { totalCents: depositCents, remainderCents: depositCents };
+  } catch {
+    return NextResponse.json({ error: 'Could not check the payment just now. The return is recorded; finish the inspection again in a moment.' }, { status: 503 });
+  }
   const plan = planDepositRefund({
     depositCents,
     inspection: outcome === 'late' ? 'clean' : outcome,
@@ -235,7 +275,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   // provider, whatever the deposit was (a zero-deposit hire still captured hire).
   let inLedger = false;
   if (b.checkout_group_id && b.payfast_payment_id && !isManualReference(b.payfast_payment_id)) {
-    const { data: intent } = await db.from('rental_payment_intents').select('state').eq('checkout_group_id', b.checkout_group_id).maybeSingle();
+    const { data: intent, error: intentErr } = await db.from('rental_payment_intents').select('state').eq('checkout_group_id', b.checkout_group_id).maybeSingle();
+    // Not knowing is not "manual payment": stop before settling (the gear stays recorded as back).
+    if (intentErr) return NextResponse.json({ error: 'Could not check the payment just now. The return is recorded; finish the inspection again in a moment.' }, { status: 503 });
     inLedger = (intent as { state?: string } | null)?.state === 'paid';
   }
   const journals: unknown[] = [];

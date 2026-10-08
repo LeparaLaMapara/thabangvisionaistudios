@@ -32,6 +32,10 @@ const NEEDS_OWN_SCREEN: Record<string, string> = {
   'overdue>return_pending': 'Use the take-back checklist.',
   'return_pending>completed': 'Use the take-back checklist so the deposit is settled.',
   'return_reviewed>completed': 'Use the take-back checklist so the deposit is settled.',
+  // A dispute is opened with its record and closed through it, so the money is settled.
+  'return_pending>disputed': 'Use the take-back checklist to open a dispute.',
+  'return_reviewed>disputed': 'Use the take-back checklist to open a dispute.',
+  'disputed>completed': 'Resolve it in Disputes so the hire, deposit and any owner payout are settled.',
 };
 
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -61,6 +65,32 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     .maybeSingle();
   if (!booking) return NextResponse.json({ error: 'Booking not found' }, { status: 404 });
 
+  if (booking.status === 'disputed' && to === 'completed') {
+    // Closed through its dispute record. A booking disputed before records were
+    // always created gets one now, so it can be settled there.
+    const { data: open, error: findErr } = await db
+      .from('disputes')
+      .select('id')
+      .eq('equipment_booking_id', id)
+      .in('status', ['open', 'investigating', 'escalated'])
+      .limit(1)
+      .maybeSingle();
+    if (findErr) return NextResponse.json({ error: 'Could not load the dispute; try again.' }, { status: 503 });
+    let disputeId = (open as { id: string } | null)?.id ?? null;
+    if (!disputeId) {
+      const { data: inserted } = await db
+        .from('disputes')
+        .insert({ dispute_type: 'gear_damage', equipment_booking_id: id, filed_by: auth.user.id, reason: reason || 'Disputed return to settle', status: 'open' })
+        .select('id')
+        .single();
+      disputeId = (inserted as { id: string } | null)?.id ?? null;
+    }
+    return NextResponse.json(
+      { error: NEEDS_OWN_SCREEN['disputed>completed'], code: 'USE_WORKFLOW', dispute_id: disputeId },
+      { status: 409 },
+    );
+  }
+
   const ownScreen = NEEDS_OWN_SCREEN[`${booking.status}>${to}`];
   if (ownScreen) return NextResponse.json({ error: ownScreen, code: 'USE_WORKFLOW' }, { status: 409 });
 
@@ -81,7 +111,12 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     if (paidOnProvider) {
       // Release what this line held in the ledger, refund or not: the refund
       // becomes refunds_payable (deposit first), the rest a cancellation fee.
-      const held = await heldForLine(db, booking);
+      let held: Awaited<ReturnType<typeof heldForLine>>;
+      try {
+        held = await heldForLine(db, booking);
+      } catch {
+        return NextResponse.json({ error: 'Could not check what this booking holds just now. Nothing was changed; try again.' }, { status: 503 });
+      }
       if (held && refundCents > held.hireCents + held.depositCents) {
         return NextResponse.json({ error: 'The refund is more than this booking holds.', code: 'REFUND_TOO_LARGE' }, { status: 400 });
       }
@@ -103,7 +138,8 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       if (refundCents > 0) {
         let chargedCents = refundCents;
         if (booking.checkout_group_id) {
-          const { data: intent } = await db.from('rental_payment_intents').select('expected_amount_cents, state').eq('checkout_group_id', booking.checkout_group_id).maybeSingle();
+          const { data: intent, error: intentErr } = await db.from('rental_payment_intents').select('expected_amount_cents, state').eq('checkout_group_id', booking.checkout_group_id).maybeSingle();
+          if (intentErr) return NextResponse.json({ error: 'Could not check the payment just now. Nothing was changed; try again.' }, { status: 503 });
           if (intent && (intent as { state: string }).state === 'paid') chargedCents = (intent as { expected_amount_cents: number }).expected_amount_cents;
         }
         refunds.push({
@@ -121,9 +157,6 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     } else if (refundCents > 0) {
       notices.push(...buildNotices({ kind: 'staff_alert', userId: 'staff', bookingIds: [id], discriminator: `manual-refund:${id}`, data: { what: 'manual_refund_due', reference: id } }));
     }
-  }
-  if (to === 'completed' && booking.status === 'disputed') {
-    notices.push(...buildNotices({ kind: 'dispute_resolved', userId: booking.user_id, bookingIds: [id], discriminator: id }));
   }
 
   const moved = await transitionBookings(db, {
@@ -172,12 +205,15 @@ async function heldForLine(
   booking: { id: string; checkout_group_id: string | null },
 ): Promise<{ hireCents: number; depositCents: number } | null> {
   if (!booking.checkout_group_id) return null;
-  const { data: intent } = await db.from('rental_payment_intents').select('state').eq('checkout_group_id', booking.checkout_group_id).maybeSingle();
+  const { data: intent, error: intentErr } = await db.from('rental_payment_intents').select('state').eq('checkout_group_id', booking.checkout_group_id).maybeSingle();
+  // A failed lookup must not read as "outside the ledger" (no journal would be posted).
+  if (intentErr) throw new Error(`heldForLine: intent lookup failed: ${intentErr.message}`);
   if ((intent as { state?: string } | null)?.state !== 'paid') return null;
-  const { data: lines } = await db
+  const { data: lines, error: linesErr } = await db
     .from('equipment_bookings')
     .select('id, status, hire_cents, deposit_cents, delivery_fee')
     .eq('checkout_group_id', booking.checkout_group_id);
+  if (linesErr) throw new Error(`heldForLine: order lookup failed: ${linesErr.message}`);
   const rows = (lines ?? []) as { id: string; status: string; hire_cents: number | null; deposit_cents: number | null; delivery_fee: number | null }[];
   const me = rows.find((r) => r.id === booking.id);
   if (!me || me.hire_cents == null) return null;

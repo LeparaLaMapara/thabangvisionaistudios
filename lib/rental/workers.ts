@@ -263,6 +263,9 @@ export async function runReminders(db: Admin = createAdminClient(), clock: Clock
  * successful goes through exactly the same use case as a webhook, so a webhook
  * arriving later is just a duplicate. Never trusts the browser.
  */
+/** How old an intent must be before a definite "not charged" closes it for good. */
+const RECOVERY_CLOSE_AFTER_MS = 7 * 86_400_000;
+
 export async function recoverMissedPayments(
   db: Admin = createAdminClient(),
   payments: PaymentPort = paymentPort,
@@ -270,13 +273,16 @@ export async function recoverMissedPayments(
   limit = 25,
 ): Promise<Record<string, number>> {
   const now = clock.now();
+  // Every open intent stays in the queue until the provider has settled it:
+  // least recently checked first, so old ones are never starved or dropped.
   const { data, error } = await db
     .from('rental_payment_intents')
-    .select('reference')
+    .select('reference, created_at')
     .in('state', ['initiated', 'failed', 'expired'])
     .eq('provider', payments.provider)
+    .is('recovery_closed_at', null)
     .lt('created_at', new Date(now.getTime() - 10 * 60_000).toISOString())
-    .gt('created_at', new Date(now.getTime() - 72 * 3_600_000).toISOString())
+    .order('recovery_checked_at', { ascending: true, nullsFirst: true })
     .order('created_at')
     .limit(limit);
   if (error) {
@@ -285,8 +291,17 @@ export async function recoverMissedPayments(
   }
   const repo = new SupabaseRentalPayments(db);
   const out: Record<string, number> = {};
-  for (const row of (data ?? []) as { reference: string }[]) {
+  const nowIso = now.toISOString();
+  // Closed as unpaid only when the provider definitely has no charge and the
+  // intent is old enough that the customer can no longer complete it.
+  const settledUnpaid = (createdAt: string): boolean => now.getTime() - new Date(createdAt).getTime() > RECOVERY_CLOSE_AFTER_MS;
+  for (const row of (data ?? []) as { reference: string; created_at: string }[]) {
     const v = await payments.verifyCharge(row.reference);
+    const definitelyUnpaid = (!v.ok && v.kind === 'rejected') || (v.ok && ['failed', 'abandoned', 'reversed'].includes(v.value.status));
+    await db
+      .from('rental_payment_intents')
+      .update({ recovery_checked_at: nowIso, ...(definitelyUnpaid && settledUnpaid(row.created_at) ? { recovery_closed_at: nowIso } : {}) })
+      .eq('reference', row.reference);
     if (!v.ok) {
       const k = v.kind === 'rejected' ? 'not_paid' : 'provider_unreachable';
       out[k] = (out[k] ?? 0) + 1;
