@@ -300,10 +300,12 @@ export const STUDIO = {
     },
     collection: {
       enabled: true,
-      // A collection can be paid in full online, or the security deposit can
-      // be paid online to hold the gear with the hire charge settled at the
-      // counter. We never hold stock with nothing paid.
-      allowBalanceOnCollection: true,
+      // Off since Phase 1 (spec §3.3: the hire fee and deposit are charged
+      // together online). A deposit-only order left the hire to be paid at the
+      // counter with no record of it, so an owner payout could be scheduled for
+      // money that was never collected. Turn on only with a recorded,
+      // reconciled counter payment.
+      allowBalanceOnCollection: false,
     },
     delivery: {
       enabled: true,
@@ -671,6 +673,26 @@ export const RENTAL_POLICY = {
   // Any single item above R50,000 replacement value is collected in person.
   highValueCollectionThresholdCents: 5_000_000,
   firstHireCollectionOnly: true,
+  // Renter trust tiers (spec §7.9): the most replacement value a renter may
+  // hold at once, in cents. Calculated on the server only (lib/core/rental/trust.ts).
+  //   contactable  verified email and phone
+  //   verified     approved ID + selfie review and a validated bank account
+  //   proven       1 clean return and 14 days in good standing since it
+  //   trusted      5 clean returns, R50,000 returned clean, 90 days in good standing
+  trustTierLimitsCents: {
+    contactable: 200_000,
+    verified: 1_000_000,
+    proven: 2_500_000,
+    trusted: 8_000_000,
+  },
+  trustThresholds: {
+    proven: { cleanReturns: 1, historyDays: 14 },
+    trusted: { cleanReturns: 5, cleanReturnValueCents: 5_000_000, historyDays: 90 },
+  },
+  // Owner payouts that pass every automatic check still wait for a person to
+  // approve them in /admin/rental-ops until the founder decides otherwise
+  // (decision register D-19). Set true to let the daily job approve them.
+  payoutAutoApprove: false,
 } as const;
 
 export const RENTAL_CATEGORY_VALUES = RENTAL_CATEGORIES.map(c => c.value);

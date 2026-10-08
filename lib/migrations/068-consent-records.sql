@@ -77,6 +77,21 @@ alter table public.consent_records drop constraint if exists consent_records_sou
 alter table public.consent_records add constraint consent_records_source_check
   check (source in ('signup', 'oauth_onboarding', 'checkout', 'verification', 'listing'));
 
+-- Which purposes may be recorded from which place: the same table as
+-- PURPOSES_BY_SOURCE in lib/consent/documents.ts. Without it a signed-in
+-- client inserting directly could record, say, a biometric consent "from
+-- signup", and hasCurrentConsent (which does not look at the source) would
+-- accept it. Keep the two lists in step.
+alter table public.consent_records drop constraint if exists consent_records_purpose_source_check;
+alter table public.consent_records add constraint consent_records_purpose_source_check
+  check (
+    (source = 'signup'           and consent_purpose in ('terms', 'privacy'))
+    or (source = 'oauth_onboarding' and consent_purpose in ('terms', 'privacy'))
+    or (source = 'checkout'         and consent_purpose in ('terms', 'privacy', 'rental_agreement'))
+    or (source = 'verification'     and consent_purpose in ('biometric', 'privacy'))
+    or (source = 'listing'          and consent_purpose in ('owner_terms', 'terms', 'privacy'))
+  );
+
 -- Versions are dates: "2026-10-08" (STUDIO.legal.documents) or the older
 -- "2026.04.20" style (STUDIO.legal.popia.version).
 alter table public.consent_records drop constraint if exists consent_records_version_check;

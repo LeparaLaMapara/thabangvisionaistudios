@@ -1,4 +1,4 @@
-import { STUDIO } from '@/lib/constants';
+import { STUDIO, RENTAL_POLICY } from '@/lib/constants';
 import { PAYMENTS_NOT_OPEN_NOTICE } from '@/lib/payments/offline-message';
 import { collectionPointWithCity } from '@/lib/rental/collection-point';
 import { formatRand } from '@/lib/format/money';
@@ -30,6 +30,8 @@ export function coreFaqs(opts: { paymentsOpen?: boolean } = {}): CoreFaq[] {
   const paymentsOpen = opts.paymentsOpen === true;
   const notice = STUDIO.rental.minLeadTimeHours;
   const delivery = STUDIO.fulfilment.delivery;
+  const limits = RENTAL_POLICY.trustTierLimitsCents;
+  const steps = RENTAL_POLICY.trustThresholds;
   const tiers = STUDIO.rental.cancellationTiers;
   const discounts = STUDIO.rental.bulkDiscount.filter((d) => d.discountPercent > 0);
   const vat = STUDIO.legal.tax.vatRate;
@@ -58,7 +60,7 @@ export function coreFaqs(opts: { paymentsOpen?: boolean } = {}): CoreFaq[] {
       id: 'core-limits',
       category: 'equipment',
       question: 'Is there a limit on how much gear I can rent?',
-      answer: `Yes, while you are new. Your first hires can add up to R${STUDIO.rental.protection.trustTiers[0].maxValue.toLocaleString(STUDIO.currency.locale)} of gear at a time. After ${STUDIO.rental.protection.trustTiers[1].cleanReturns} returns on time the limit rises to R${STUDIO.rental.protection.trustTiers[1].maxValue.toLocaleString(STUDIO.currency.locale)}. Your first hire is collected in person so we can hand it over with you. Need more? Contact us and we will arrange it.`,
+      answer: `Yes. The limit is the total replacement value of gear you have booked or out at once, and it grows with what we have verified and your hire history: ${formatRand(limits.contactable / 100)} with a verified email and phone number, ${formatRand(limits.verified / 100)} once your ID check is approved and a bank account in your name is validated, ${formatRand(limits.proven / 100)} after ${steps.proven.cleanReturns} on-time, good-condition return and ${steps.proven.historyDays} days since it, and ${formatRand(limits.trusted / 100)} after ${steps.trusted.cleanReturns} such returns covering ${formatRand(steps.trusted.cleanReturnValueCents / 100)} of gear and ${steps.trusted.historyDays} days since your first. Your first hire is collected in person so we can hand it over with you. Need more? Contact us and we will arrange it.`,
     },
     {
       id: 'core-notice',
@@ -70,7 +72,7 @@ export function coreFaqs(opts: { paymentsOpen?: boolean } = {}): CoreFaq[] {
       id: 'core-collect-deliver',
       category: 'equipment',
       question: 'Do I collect the gear or do you deliver?',
-      answer: `Your first hire is collected in person at ${collectionPointWithCity()}, so we can hand it over with you. After that, collect it there or we deliver within ${delivery.maxRadiusKm} km at R${delivery.ratePerKm} per km (minimum R${delivery.minimumFee}), plus R${delivery.surchargePerExtraItem} for each item after the first ${delivery.itemsIncluded}. Orders over ${formatRand(STUDIO.rental.protection.collectionOnlyAboveValue)} are always collected. The delivery fee is shown before you book.`,
+      answer: `Your first hire is collected in person at ${collectionPointWithCity()}, so we can hand it over with you. After that, collect it there or we deliver within ${delivery.maxRadiusKm} km at R${delivery.ratePerKm} per km (minimum R${delivery.minimumFee}), plus R${delivery.surchargePerExtraItem} for each item after the first ${delivery.itemsIncluded}. Any item worth more than ${formatRand(RENTAL_POLICY.highValueCollectionThresholdCents / 100)} is always collected. The delivery fee is shown before you book.`,
     },
     {
       id: 'core-area',

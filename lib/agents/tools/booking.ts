@@ -10,8 +10,9 @@ import { getBookablePackage } from '@/lib/bookings/packages';
 import { reportUnpaidRequest, PAYMENTS_OFF_MESSAGE } from '@/lib/payments/offline';
 import { addToCart } from '@/lib/supabase/queries/cart';
 import { shootTimeline } from '@/lib/bookings/timeline';
-import { checkProtection, itemValue } from '@/lib/rental/protection';
-import { loadRenterRecord } from '@/lib/rental/protection-server';
+import { itemValue } from '@/lib/rental/protection';
+import { checkRenterEligibility } from '@/lib/rental/eligibility-server';
+import { toCents } from '@/lib/core/pricing/money';
 import { meetsLeadTime, leadTimeMessage } from '@/lib/rental/leadTime';
 import { logEvent } from '@/lib/data/events';
 import { markConversion } from '@/lib/data/chat-history';
@@ -525,9 +526,13 @@ export function createBookingTools(
         }
 
         // Tell them now if the renter limit would stop them at checkout.
-        const record = await loadRenterRecord(admin(), user.id);
-        const protection = checkProtection({ ...record, orderValue: itemValue(rental) * qty, delivery: false });
-        if (!protection.ok) return { error: protection.message };
+        // Same server-side trust check the checkout applies (spec §7.9).
+        try {
+          const eligibility = await checkRenterEligibility(admin(), user, [{ unitReplacementValueCents: toCents(itemValue(rental)), quantity: qty, startDate: start_date, endDate: end_date }], false);
+          if (!eligibility.ok) return { error: eligibility.message };
+        } catch {
+          return { error: 'Could not check your rental limit just now. Try again in a moment.' };
+        }
 
         const item = await addToCart(user.id, rental_id, qty, start_date, end_date);
         if (!item) return { error: 'Could not add it to the cart. Try again.' };

@@ -5,6 +5,7 @@ import { checkRateLimit } from '@/lib/auth';
 import { createClient, createAdminClient } from '@/lib/supabase/server';
 import { createPayoutRecipient, payoutRecipientsConfigured } from '@/lib/payments/payout';
 import { logEvent } from '@/lib/data/events';
+import { identityPort } from '@/lib/payments/ports';
 
 export async function GET(): Promise<NextResponse> {
   try {
@@ -50,7 +51,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     }
 
     const body = await req.json();
-    const { bank_name, bank_code, account_number, account_type, account_holder } = body;
+    const { bank_name, bank_code, account_number, account_type, account_holder, id_number } = body;
 
     if (!bank_name || !bank_code || !account_number || !account_type || !account_holder) {
       return NextResponse.json({ error: 'All banking fields are required' }, { status: 400 });
@@ -102,6 +103,47 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     }
     const recipientCode = recipient.recipientCode;
 
+    // Bank account validation (IdentityPort, spec §7.10): does this account
+    // belong to this person? It needs the account holder's SA ID number, which
+    // is sent to the provider for this check only. It is never stored or
+    // logged. Without it, or if the names don't match the verified profile,
+    // the account is saved but not marked validated. That caps the renter's
+    // trust tier and keeps owner payouts on hold until a person reviews it.
+    // Changing bank details always clears an earlier validation.
+    let validated = false;
+    let validationMessage: string | null = null;
+    const admin = createAdminClient();
+    const { data: profile } = await admin
+      .from('profiles')
+      .select('first_name, last_name, verification_status')
+      .eq('id', user.id)
+      .maybeSingle();
+    const norm = (v: string) => v.toLowerCase().replace(/[^a-z]/g, '');
+    const legalName = [profile?.first_name, profile?.last_name].filter(Boolean).join(' ');
+    const nameMatches = Boolean(legalName) && norm(String(account_holder)) === norm(legalName);
+    if (typeof id_number === 'string' && /^\d{13}$/.test(id_number) && profile?.verification_status === 'verified' && nameMatches) {
+      const check = await identityPort.validateBankAccount({
+        bankCode: String(bank_code),
+        accountNumber: String(account_number),
+        accountName: String(account_holder),
+        accountType: 'personal',
+        documentType: 'identityNumber',
+        documentNumber: id_number,
+      });
+      if (check.ok) {
+        validated = check.value.verified;
+        validationMessage = check.value.verified ? null : 'The bank could not confirm this account belongs to you.';
+      } else {
+        validationMessage = 'We could not validate the account just now. It is saved; you can try again later.';
+      }
+    } else if (!nameMatches) {
+      validationMessage = 'The account holder must match the name on your verified ID for the account to be validated.';
+    } else if (profile?.verification_status !== 'verified') {
+      validationMessage = 'Complete identity verification first; then the account can be validated.';
+    } else {
+      validationMessage = 'Add your SA ID number to validate the account.';
+    }
+
     // Store the token and the last four digits. The full account number is
     // deliberately NOT persisted — Paystack holds it against the recipient
     // code, and nothing in this codebase reads it back. See migration 039.
@@ -109,7 +151,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     // Written with the service role, scoped to the signed-in user's own row:
     // paystack_recipient_code and account_holder are server-only columns
     // (migration 067 rejects user-session writes to them).
-    const { error } = await createAdminClient()
+    const { error } = await admin
       .from('banking_details')
       .upsert({
         user_id: user.id,
@@ -119,6 +161,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         account_type,
         account_holder,
         paystack_recipient_code: recipientCode,
+        is_verified: validated,
         updated_at: new Date().toISOString(),
       }, { onConflict: 'user_id' });
 
@@ -137,7 +180,8 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       return NextResponse.json({ error: 'Failed to save banking details' }, { status: 500 });
     }
 
-    return NextResponse.json({ success: true, has_recipient: true });
+    logEvent({ eventType: validated ? 'bank_account_validated' : 'bank_account_saved_unvalidated', eventCategory: 'payout', userId: user.id, metadata: { provider: identityPort.provider } });
+    return NextResponse.json({ success: true, has_recipient: true, validated, message: validationMessage });
   } catch (err) {
     console.error('[banking POST]', err);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

@@ -1,9 +1,9 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
-import { Calendar, Search, Eye, CheckCircle, XCircle } from 'lucide-react';
+import { Calendar, Search, Eye, XCircle, ShieldAlert } from 'lucide-react';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
@@ -14,29 +14,51 @@ import { Pagination } from '@/components/ui/Pagination';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Modal } from '@/components/ui/Modal';
 import { MarkPaid } from '@/components/admin/MarkPaid';
-import type { BookingStatus, EquipmentBooking } from '@/types/booking';
+import { formatRand } from '@/lib/format/money';
+import type { EquipmentBooking } from '@/types/booking';
+import type { BookingStatus as RentalStatus } from '@/lib/core/rental/state';
 
 // ─── Extended booking type with joined rental + user info ────────────────────
 
-type AdminBooking = EquipmentBooking & {
+type AdminBooking = Omit<EquipmentBooking, 'status'> & {
+  status: RentalStatus;
   rental_title: string;
   rental_category: string;
   user_email: string;
   user_name: string | null;
+  /** Set by the risk checks; the handover then needs a manager's sign-off. Absent before the migration. */
+  requires_manual_approval?: boolean | null;
 };
 
-const STATUS_VARIANT: Record<BookingStatus, 'default' | 'warning' | 'success' | 'info' | 'error'> = {
+type BadgeVariant = 'default' | 'warning' | 'success' | 'info' | 'error';
+
+const STATUS_VARIANT: Record<RentalStatus, BadgeVariant> = {
   pending: 'warning',
   confirmed: 'info',
   active: 'success',
+  overdue: 'error',
+  return_pending: 'warning',
+  return_reviewed: 'info',
   completed: 'default',
+  disputed: 'error',
   cancelled: 'error',
 };
 
+const statusVariant = (status: string): BadgeVariant => STATUS_VARIANT[status as RentalStatus] ?? 'default';
+const statusLabel = (status: string): string => status.replace(/_/g, ' ');
+
+/** Staff may cancel only before the gear leaves (state machine: pending/confirmed → cancelled). */
+const CANCELLABLE: readonly string[] = ['pending', 'confirmed'];
+
 const STATUS_OPTIONS = [
   { value: '', label: 'All Statuses' },
+  { value: 'pending', label: 'Pending' },
   { value: 'confirmed', label: 'Confirmed' },
   { value: 'active', label: 'Active' },
+  { value: 'overdue', label: 'Overdue' },
+  { value: 'return_pending', label: 'Return pending' },
+  { value: 'return_reviewed', label: 'Return reviewed' },
+  { value: 'disputed', label: 'Disputed' },
   { value: 'completed', label: 'Completed' },
   { value: 'cancelled', label: 'Cancelled' },
 ];
@@ -61,13 +83,23 @@ export default function AdminBookingsPage() {
   // Detail modal
   const [detailBooking, setDetailBooking] = useState<AdminBooking | null>(null);
 
-  // Confirmation modal
-  const [confirmAction, setConfirmAction] = useState<{
+  // Cancel modal: a reason is always required, and a refund amount when paid.
+  const [cancelTarget, setCancelTarget] = useState<{
     id: string;
-    action: 'confirm' | 'cancel';
     title: string;
+    paid: boolean;
   } | null>(null);
-  const [confirmLoading, setConfirmLoading] = useState(false);
+  const [cancelReason, setCancelReason] = useState('');
+  const [cancelRefund, setCancelRefund] = useState('');
+  const [cancelError, setCancelError] = useState<string | null>(null);
+  const [cancelLoading, setCancelLoading] = useState(false);
+
+  const openCancel = (b: AdminBooking) => {
+    setCancelTarget({ id: b.id, title: b.rental_title, paid: Boolean(b.payfast_payment_id) });
+    setCancelReason('');
+    setCancelRefund('');
+    setCancelError(null);
+  };
 
   const fetchBookings = () => {
     fetch('/api/admin/equipment-bookings')
@@ -105,32 +137,57 @@ export default function AdminBookingsPage() {
     page * ITEMS_PER_PAGE,
   );
 
-  const updateBookingStatus = async (id: string, status: string) => {
+  /** PATCH a status change. Returns the server's error message, or null on success. */
+  const updateBookingStatus = async (
+    id: string,
+    body: { status: string; reason: string; refundCents?: number },
+  ): Promise<string | null> => {
     try {
       const res = await fetch(`/api/admin/equipment-bookings/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status }),
+        body: JSON.stringify(body),
       });
-      if (res.ok) {
-        const updated = await res.json();
-        setBookings((prev) =>
-          prev.map((b) => (b.id === id ? { ...b, ...updated } : b)),
-        );
-      }
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) return typeof json.error === 'string' ? json.error : 'Could not update the booking.';
+      setBookings((prev) => prev.map((b) => (b.id === id ? { ...b, ...json } : b)));
+      return null;
     } catch {
-      // silently fail
+      return 'Could not reach the server. Nothing was changed.';
     }
   };
 
-  const handleConfirmAction = useCallback(async () => {
-    if (!confirmAction) return;
-    setConfirmLoading(true);
-    const status = confirmAction.action === 'confirm' ? 'confirmed' : 'cancelled';
-    await updateBookingStatus(confirmAction.id, status);
-    setConfirmLoading(false);
-    setConfirmAction(null);
-  }, [confirmAction]);
+  const refundRand = cancelRefund.trim() === '' ? NaN : Number(cancelRefund);
+  const refundValid = !cancelTarget?.paid || (Number.isFinite(refundRand) && refundRand >= 0);
+  const cancelReady = cancelReason.trim().length > 0 && refundValid && !cancelLoading;
+
+  const handleCancel = async () => {
+    if (!cancelTarget || !cancelReady) return;
+    const refundCents = cancelTarget.paid ? Math.round(refundRand * 100) : undefined;
+    if (
+      cancelTarget.paid &&
+      !window.confirm(
+        refundCents && refundCents > 0
+          ? `Cancel this paid booking and refund ${formatRand(refundRand, { decimals: true })}? A card refund is initiated with the payment provider; an EFT or cash payment must be paid back by hand.`
+          : 'Cancel this paid booking with NO refund?',
+      )
+    ) {
+      return;
+    }
+    setCancelLoading(true);
+    setCancelError(null);
+    const err = await updateBookingStatus(cancelTarget.id, {
+      status: 'cancelled',
+      reason: cancelReason.trim(),
+      ...(refundCents !== undefined ? { refundCents } : {}),
+    });
+    setCancelLoading(false);
+    if (err) {
+      setCancelError(err);
+      return;
+    }
+    setCancelTarget(null);
+  };
 
   if (loading) {
     return <LoadingSpinner label="Loading bookings..." className="py-20" />;
@@ -260,10 +317,13 @@ export default function AdminBookingsPage() {
                   </span>
 
                   {/* Status */}
-                  <div>
-                    <Badge variant={STATUS_VARIANT[booking.status]}>
-                      {booking.status}
+                  <div className="flex flex-wrap gap-1">
+                    <Badge variant={statusVariant(booking.status)}>
+                      {statusLabel(booking.status)}
                     </Badge>
+                    {booking.requires_manual_approval && (
+                      <Badge variant="featured">Needs risk approval</Badge>
+                    )}
                   </div>
 
                   {/* Actions */}
@@ -276,23 +336,16 @@ export default function AdminBookingsPage() {
                     >
                       <Eye className="w-3 h-3" />
                     </Button>
-                    {booking.status === 'pending' && (
-                      <>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          title="Cancel"
-                          onClick={() =>
-                            setConfirmAction({
-                              id: booking.id,
-                              action: 'cancel',
-                              title: booking.rental_title,
-                            })
-                          }
-                        >
-                          <XCircle className="w-3 h-3 text-red-500" />
-                        </Button>
-                      </>
+                    {CANCELLABLE.includes(booking.status) && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        title="Cancel"
+                        aria-label="Cancel booking"
+                        onClick={() => openCancel(booking)}
+                      >
+                        <XCircle className="w-3 h-3 text-red-500" />
+                      </Button>
                     )}
                   </div>
                 </div>
@@ -397,9 +450,23 @@ export default function AdminBookingsPage() {
               <h4 className="text-xs font-mono font-bold uppercase tracking-widest text-neutral-400 mb-2">
                 Status
               </h4>
-              <Badge variant={STATUS_VARIANT[detailBooking.status]}>
-                {detailBooking.status}
-              </Badge>
+              <div className="flex flex-wrap gap-2">
+                <Badge variant={statusVariant(detailBooking.status)}>
+                  {statusLabel(detailBooking.status)}
+                </Badge>
+                {detailBooking.requires_manual_approval && (
+                  <Badge variant="featured">
+                    <span className="inline-flex items-center gap-1">
+                      <ShieldAlert className="w-3 h-3" aria-hidden="true" /> Needs risk approval
+                    </span>
+                  </Badge>
+                )}
+              </div>
+              {detailBooking.requires_manual_approval && (
+                <p className="text-xs text-neutral-400 mt-2">
+                  A manager must approve the risk, with a note, on the handover screen before the gear leaves.
+                </p>
+              )}
             </div>
 
             {/* Gateway payment reference */}
@@ -435,7 +502,7 @@ export default function AdminBookingsPage() {
                 Hand over gear
               </Link>
             )}
-            {['active', 'overdue'].includes(detailBooking.status as string) && (
+            {['active', 'overdue', 'return_pending'].includes(detailBooking.status) && (
               <Link
                 href={`/admin/rentals/${detailBooking.id}/return`}
                 className="flex items-center justify-center gap-2 border border-white/20 text-white py-2.5 text-xs font-mono font-bold uppercase tracking-widest"
@@ -445,6 +512,12 @@ export default function AdminBookingsPage() {
             )}
 
             {/* Waiting for payment: record it when it arrives by EFT, cash or a card link */}
+            {detailBooking.status === 'pending' && (
+              <p className="text-xs text-neutral-400">
+                A booking is confirmed only by recording its payment with Mark paid below (or automatically when the card payment
+                arrives). There is no plain Confirm, so every confirmed booking has a payment reference.
+              </p>
+            )}
             {detailBooking.status === 'pending' && (
               <p className="text-xs font-mono text-neutral-400">
                 Reference <span className="text-[#D4A843]">{(detailBooking as { payment_reference?: string }).payment_reference}</span>
@@ -467,18 +540,14 @@ export default function AdminBookingsPage() {
             )}
 
             {/* Actions */}
-            {detailBooking.status === 'pending' && (
+            {CANCELLABLE.includes(detailBooking.status) && (
               <div className="flex gap-3 pt-4 border-t border-white/10">
                 <button
                   onClick={() => {
                     setDetailBooking(null);
-                    setConfirmAction({
-                      id: detailBooking.id,
-                      action: 'cancel',
-                      title: detailBooking.rental_title,
-                    });
+                    openCancel(detailBooking);
                   }}
-                  className="flex-1 bg-red-600 text-white py-2.5 text-xs font-mono font-bold uppercase tracking-widest hover:bg-red-700 transition-colors flex items-center justify-center gap-2"
+                  className="flex-1 min-h-[44px] bg-red-600 text-white py-2.5 text-xs font-mono font-bold uppercase tracking-widest hover:bg-red-700 transition-colors flex items-center justify-center gap-2"
                 >
                   <XCircle className="w-3.5 h-3.5" />
                   Cancel Booking
@@ -489,46 +558,75 @@ export default function AdminBookingsPage() {
         )}
       </Modal>
 
-      {/* ── Confirmation Modal ── */}
+      {/* ── Cancel Modal ── */}
       <Modal
-        isOpen={!!confirmAction}
-        onClose={() => setConfirmAction(null)}
-        title={
-          confirmAction?.action === 'confirm'
-            ? 'Confirm Booking'
-            : 'Cancel Booking'
-        }
+        isOpen={!!cancelTarget}
+        onClose={() => {
+          if (!cancelLoading) setCancelTarget(null);
+        }}
+        title="Cancel Booking"
         size="sm"
       >
-        {confirmAction && (
-          <div className="space-y-6">
+        {cancelTarget && (
+          <div className="space-y-5">
             <p className="text-sm text-neutral-400 leading-relaxed">
-              {confirmAction.action === 'confirm'
-                ? `Are you sure you want to confirm the booking for "${confirmAction.title}"?`
-                : `Are you sure you want to cancel the booking for "${confirmAction.title}"? This action cannot be undone.`}
+              Cancel the booking for &ldquo;{cancelTarget.title}&rdquo;? This cannot be undone.
             </p>
+
+            <label className="block space-y-1">
+              <span className="text-xs font-mono uppercase tracking-widest text-neutral-400">
+                Reason (kept in the booking history)
+              </span>
+              <textarea
+                value={cancelReason}
+                onChange={(e) => setCancelReason(e.target.value)}
+                rows={3}
+                maxLength={500}
+                placeholder="e.g. Renter failed the ID check at collection"
+                className="w-full bg-[#050505] border border-white/10 px-3 py-2 text-sm text-white"
+              />
+            </label>
+
+            {cancelTarget.paid && (
+              <label className="block space-y-1">
+                <span className="text-xs font-mono uppercase tracking-widest text-neutral-400">
+                  Refund amount (R) &middot; this booking is paid
+                </span>
+                <input
+                  inputMode="decimal"
+                  value={cancelRefund}
+                  onChange={(e) => setCancelRefund(e.target.value.replace(/[^\d.]/g, ''))}
+                  placeholder="0 if nothing is refunded"
+                  className="w-full min-h-[44px] bg-[#050505] border border-white/10 px-3 text-sm text-white font-mono"
+                />
+                <span className="block text-xs text-neutral-400">
+                  A card payment is refunded through the payment provider (initiated, not instant). A manual EFT or cash
+                  payment is flagged for staff to pay back by hand.
+                </span>
+              </label>
+            )}
+
+            {cancelError && (
+              <p role="alert" className="text-sm text-red-400">
+                {cancelError}
+              </p>
+            )}
 
             <div className="flex gap-3">
               <button
-                onClick={() => setConfirmAction(null)}
-                disabled={confirmLoading}
-                className="flex-1 border border-white/10 text-white py-2.5 text-xs font-mono font-bold uppercase tracking-widest hover:bg-neutral-800 transition-colors disabled:opacity-40"
+                onClick={() => setCancelTarget(null)}
+                disabled={cancelLoading}
+                className="flex-1 min-h-[44px] border border-white/10 text-white py-2.5 text-xs font-mono font-bold uppercase tracking-widest hover:bg-neutral-800 transition-colors disabled:opacity-40"
               >
                 Go Back
               </button>
               <button
-                onClick={handleConfirmAction}
-                disabled={confirmLoading}
-                className={`flex-1 text-white py-2.5 text-xs font-mono font-bold uppercase tracking-widest transition-colors disabled:opacity-40 flex items-center justify-center gap-2 ${
-                  confirmAction.action === 'confirm'
-                    ? 'bg-emerald-600 hover:bg-emerald-700'
-                    : 'bg-red-600 hover:bg-red-700'
-                }`}
+                onClick={handleCancel}
+                disabled={!cancelReady}
+                className="flex-1 min-h-[44px] bg-red-600 hover:bg-red-700 text-white py-2.5 text-xs font-mono font-bold uppercase tracking-widest transition-colors disabled:opacity-40 flex items-center justify-center gap-2"
               >
-                {confirmLoading ? (
+                {cancelLoading ? (
                   <span className="w-3.5 h-3.5 border-2 border-white/40 border-t-white rounded-full animate-spin" />
-                ) : confirmAction.action === 'confirm' ? (
-                  'Confirm'
                 ) : (
                   'Cancel Booking'
                 )}

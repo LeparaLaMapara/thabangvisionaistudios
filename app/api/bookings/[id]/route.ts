@@ -10,6 +10,17 @@ import {
   paidOnlineForLine,
 } from '@/lib/rental/cancellation';
 import { logEvent } from '@/lib/data/events';
+import { isManualReference } from '@/lib/payments/routing';
+import { fromCents, toCents } from '@/lib/core/pricing/money';
+import { refundObligationKey } from '@/lib/core/rental/refunds';
+import { cancellation as cancellationJournal } from '@/lib/core/rental/ledger';
+import { buildNotices } from '@/lib/core/rental/notifications';
+import { submitRefund } from '@/lib/core/rental/use-cases';
+import { systemClock } from '@/lib/core/ports';
+import { paymentPort } from '@/lib/payments/ports';
+import { SupabaseRefunds, isMissingPipeline, transitionBookings } from '@/lib/rental/repos';
+import { dispatchOutbox } from '@/lib/rental/notify';
+import { chargeOfBooking } from '@/lib/rental/charges';
 import { paymentReference } from '@/lib/payments/eft';
 
 type BookingForQuote = {
@@ -59,6 +70,15 @@ async function quoteCancellation(
     discountPercent,
   });
 
+  // A cart line priced at checkout (070) carries its exact share of the charge,
+  // with the discount's cent remainder already allocated across the order.
+  // Re-deriving it per line could add up to more than was charged.
+  const snap = booking.checkout_group_id && booking.payment_plan !== 'deposit_only' ? await lineSnapshot(booking.id) : null;
+  if (snap) {
+    paid.hire = fromCents(snap.hireCents);
+    paid.deposit = fromCents(snap.depositCents);
+  }
+
   return calculateCancellationRefund({
     startDate: booking.start_date,
     totalPrice: paid.hire,
@@ -66,6 +86,15 @@ async function quoteCancellation(
     deliveryFee: paid.delivery,
     bookedAt: booking.created_at,
   });
+}
+
+/** The line's hire and deposit as snapshotted at checkout, or null before 070. */
+async function lineSnapshot(id: string): Promise<{ hireCents: number; depositCents: number } | null> {
+  const { data, error } = await createAdminClient().from('equipment_bookings').select('hire_cents, deposit_cents').eq('id', id).maybeSingle();
+  if (error || !data) return null;
+  const row = data as { hire_cents: number | null; deposit_cents: number | null };
+  if (row.hire_cents == null || row.deposit_cents == null) return null;
+  return { hireCents: row.hire_cents, depositCents: row.deposit_cents };
 }
 
 export async function GET(
@@ -213,6 +242,11 @@ export async function PUT(
       isPaid && quote.totalRefund > 0 ? 'pending' : 'not_required';
   }
 
+  if (quote && status === 'cancelled') {
+    const viaPipeline = await cancelThroughPipeline(booking, user.id, quote, update);
+    if (viaPipeline) return viaPipeline;
+  }
+
   const { data, error } = await updateBooking(createAdminClient(), id, user.id, update);
 
   if (error) {
@@ -265,6 +299,143 @@ export async function PUT(
       ? { ...data, cancellation: quote, refund_status: update.cancellation_refund_status }
       : data,
   );
+}
+
+/**
+ * Cancellation through the Phase 1 pipeline (070): a guarded transition that
+ * records the cancellation, books the ledger and creates ONE refund
+ * obligation, all in one transaction. The refund is then submitted. If the
+ * provider is slow or down, the daily pipeline reconciles it and never sends
+ * it twice (T13). Returns null while 070 is not applied, so the caller falls
+ * back to the earlier path.
+ */
+async function cancelThroughPipeline(
+  booking: { id: string; status: string; checkout_group_id: string | null; payfast_payment_id: string | null; deposit_amount?: number | null },
+  userId: string,
+  quote: ReturnType<typeof calculateCancellationRefund>,
+  update: Record<string, unknown>,
+): Promise<NextResponse | null> {
+  const db = createAdminClient();
+  const reference = booking.payfast_payment_id;
+  const onProvider = Boolean(reference) && !isManualReference(reference as string);
+  // Cents from the quote, which is priced from the line's checkout snapshot.
+  const depositRefundCents = toCents(quote.depositRefund);
+  const deliveryRefundCents = toCents(quote.deliveryRefund);
+  const hireHeldCents = toCents(quote.hireRefund + quote.cancellationFee);
+  const hireRefundCents = Math.min(toCents(quote.hireRefund), hireHeldCents);
+  const refundCents = hireRefundCents + deliveryRefundCents + depositRefundCents;
+
+  let intentPaid = false;
+  let chargedCents = refundCents;
+  if (booking.checkout_group_id) {
+    const { data: intent, error } = await db.from('rental_payment_intents').select('state, expected_amount_cents').eq('checkout_group_id', booking.checkout_group_id).maybeSingle();
+    if (error && isMissingPipeline(error)) return null;
+    // Any other error is not "unpaid": cancelling now could refund without the
+    // ledger entry behind it. Nothing has changed yet, so ask them to retry.
+    if (error) {
+      return NextResponse.json({ error: 'Could not cancel just now. Nothing was changed; please try again.' }, { status: 503 });
+    }
+    if (intent && (intent as { state: string }).state === 'paid') {
+      intentPaid = true;
+      chargedCents = (intent as { expected_amount_cents: number }).expected_amount_cents;
+    }
+  }
+  // Outside the ledger (paid before 070): cap the refund at the real charge
+  // for the order (its recorded payments), never at the refund itself.
+  if (onProvider && refundCents > 0 && !intentPaid) {
+    let charge: { totalCents: number; remainderCents: number };
+    try {
+      charge = await chargeOfBooking(db, booking);
+    } catch {
+      return NextResponse.json({ error: 'Could not cancel just now. Nothing was changed; please try again.' }, { status: 503 });
+    }
+    if (refundCents > charge.remainderCents) {
+      return NextResponse.json({ error: 'This booking cannot be cancelled online. Please contact support so we can refund you correctly.' }, { status: 409 });
+    }
+    chargedCents = charge.totalCents;
+  }
+
+  const refunds = onProvider && refundCents > 0
+    ? [{
+        obligationKey: refundObligationKey('cancellation', booking.id),
+        reason: 'cancellation',
+        amountCents: refundCents,
+        chargedCents: Math.max(chargedCents, refundCents),
+        transactionReference: reference,
+        // No journal on completion for an order the ledger never held.
+        ledgered: intentPaid,
+        userId,
+        bookingGroupId: booking.checkout_group_id,
+        bookingIds: [booking.id],
+      }]
+    : [];
+  const journals = intentPaid && booking.checkout_group_id && hireHeldCents + deliveryRefundCents + depositRefundCents > 0
+    ? [cancellationJournal({
+        bookingId: booking.id,
+        bookingGroupId: booking.checkout_group_id,
+        hireCents: hireHeldCents + deliveryRefundCents,
+        hireRefundCents: hireRefundCents + deliveryRefundCents,
+        depositCents: depositRefundCents,
+      })]
+    : [];
+  // A paid booking settled by hand (EFT/cash) is refunded by a person.
+  const manual = Boolean(reference) && !onProvider && refundCents > 0;
+  const notices = manual
+    ? buildNotices({ kind: 'staff_alert', userId: 'staff', bookingIds: [booking.id], discriminator: `manual-refund:${booking.id}`, data: { what: 'manual_cancellation_refund', reference: booking.id } })
+    : [];
+
+  const patch: Record<string, unknown> = { ...update, cancel_reason: 'customer' };
+  delete patch.status;
+  delete patch.updated_at;
+  delete patch.cancelled_at;
+  delete patch.notes;
+
+  const moved = await transitionBookings(db, {
+    ids: [booking.id],
+    from: ['pending', 'confirmed'],
+    to: 'cancelled',
+    actor: 'customer',
+    actorId: userId,
+    reason: 'cancelled by the customer',
+    patch,
+    journals,
+    refunds,
+    notices,
+  });
+  if (moved.result === 'missing_pipeline') return null;
+  if (moved.result === 'conflict') {
+    return NextResponse.json({ error: 'This booking changed and can no longer be cancelled online. Please contact support.' }, { status: 409 });
+  }
+  if (moved.result === 'already') {
+    return NextResponse.json({ error: 'This booking is already cancelled.' }, { status: 409 });
+  }
+
+  logEvent({ eventType: 'booking_cancelled', eventCategory: 'booking', userId, metadata: { kind: 'gear', bookingId: booking.id, refundCents, refundPercent: quote.refundPercent, coolingOff: quote.coolingOff } });
+
+  let refundStatus: string = refunds.length ? 'pending' : manual ? 'pending' : 'not_required';
+  if (refunds.length) {
+    const { data: ob } = await db.from('refund_obligations').select('id').eq('obligation_key', refundObligationKey('cancellation', booking.id)).maybeSingle();
+    if (ob) {
+      const outcome = await submitRefund((ob as { id: string }).id, { refunds: new SupabaseRefunds(db), payments: paymentPort, clock: systemClock }).catch(() => 'unknown_outcome');
+      refundStatus = outcome === 'submitted' ? 'initiated' : outcome === 'escalated' ? 'failed' : 'pending';
+    }
+  }
+  await dispatchOutbox(10).catch(() => undefined);
+
+  const { data } = await db.from('equipment_bookings').select('*').eq('id', booking.id).maybeSingle();
+  return NextResponse.json({
+    ...(data ?? {}),
+    cancellation: quote,
+    refund_status: refundStatus,
+    message:
+      refundStatus === 'initiated'
+        ? 'Your booking is cancelled and the refund has been sent to the payment provider. Banks usually take a few working days.'
+        : refundStatus === 'failed'
+          ? 'Your booking is cancelled, but the refund could not be sent automatically. Our team has been notified and will complete it.'
+          : refundStatus === 'pending'
+            ? 'Your booking is cancelled. Your refund is being processed.'
+            : 'Your booking is cancelled.',
+  });
 }
 
 /**

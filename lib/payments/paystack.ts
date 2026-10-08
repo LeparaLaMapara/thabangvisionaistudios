@@ -1,4 +1,5 @@
 import crypto from 'crypto';
+import { toCents } from '@/lib/core/pricing/money';
 import type {
   PaymentProvider,
   CheckoutParams,
@@ -76,7 +77,7 @@ async function initializeTransaction(params: {
     },
     body: JSON.stringify({
       email: params.email,
-      amount: Math.round(params.amount * 100), // ZAR → cents
+      amount: toCents(params.amount), // ZAR → cents (same conversion the payment intent uses)
       reference: params.reference,
       callback_url: params.callback_url,
       metadata: params.metadata,
@@ -108,7 +109,7 @@ async function initializeTransaction(params: {
  * The signature is in the `x-paystack-signature` header.
  * Docs: https://paystack.com/docs/payments/webhooks/#verify-event-origin
  */
-function verifySignature(body: string, signature: string): boolean {
+export function verifySignature(body: string, signature: string): boolean {
   const hash = crypto
     .createHmac('sha512', getSecretKey())
     .update(body)
@@ -359,7 +360,7 @@ export async function initiateTransfer(params: {
       },
       body: JSON.stringify({
         source: 'balance',
-        amount: Math.round(params.amount * 100), // ZAR → cents
+        amount: toCents(params.amount), // ZAR → cents (same conversion the payment intent uses)
         recipient: params.recipientCode,
         reason: params.reason,
         reference: params.reference,

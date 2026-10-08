@@ -19,7 +19,11 @@ const STATUS_VARIANT: Record<BookingStatus, 'default' | 'warning' | 'success' | 
   pending: 'warning',
   confirmed: 'info',
   active: 'success',
+  overdue: 'error',
+  return_pending: 'warning',
+  return_reviewed: 'info',
   completed: 'default',
+  disputed: 'error',
   cancelled: 'error',
 };
 

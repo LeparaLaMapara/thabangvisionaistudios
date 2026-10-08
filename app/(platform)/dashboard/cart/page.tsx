@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Image from 'next/image';
 import Link from 'next/link';
@@ -214,6 +214,10 @@ export default function CartPage() {
     refresh();
   };
 
+  // One key per checkout attempt: a double click or a retry after a timeout
+  // reaches the server as the same order, which it places only once.
+  const checkoutKey = useRef<string>(crypto.randomUUID());
+
   const handleCheckout = async () => {
     if (!allDatesSet) {
       setError('Please select rental dates for all items.');
@@ -226,7 +230,7 @@ export default function CartPage() {
     try {
       const res = await fetch('/api/cart/checkout', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'Idempotency-Key': checkoutKey.current },
         body: JSON.stringify({
           notes: notes.trim() || undefined,
           acceptTerms,
@@ -253,10 +257,16 @@ export default function CartPage() {
       const data = await res.json();
 
       if (!res.ok) {
+        if (data.code === 'DUPLICATE_REQUEST' && data.checkout_group_id) {
+          // Already placed by an earlier click: show it instead of a second order.
+          router.push(`/dashboard/bookings?checkout=${data.checkout_group_id}`);
+          return;
+        }
         setError(data.error ?? 'Checkout failed.');
         setSubmitting(false);
         return;
       }
+      checkoutKey.current = crypto.randomUUID();
 
       if (data.payment_url) {
         try {

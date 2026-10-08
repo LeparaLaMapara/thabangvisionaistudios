@@ -130,3 +130,13 @@ What the code does (evidence):
 - The verifications route (WS2) should refuse uploads without a current `biometric` consent: `checkConsents(supabase, user.id, requiredConsents('verification'))`.
 - Wire checkout consent: see `components/consent/TermsAcceptance.tsx` and `recordConsent`.
 - Deploy order: **apply migration 068 before deploying this code.** Otherwise `/api/consent` returns 503 and the identity-check consent cannot be saved. `/welcome` deliberately lets people through when the table is missing.
+
+## K. Phase 1 items (gear pipeline, 2026-10-08)
+
+| # | Item | Status | Notes |
+|---|---|---|---|
+| K1 | SA ID number sent to Paystack for bank-account validation | REQUIRES_LEGAL_REVIEW | `/api/banking` sends the account holder's ID number to Paystack `/bank/validate` once, to confirm the account belongs to them. It is not stored or logged by us. The Privacy page must name this purpose and processor, and the lawful basis must be confirmed (POPIA s11, s72 cross-border). |
+| K2 | Trust tiers and limits shown to customers | REQUIRES_LEGAL_REVIEW | The new limits (R2k/R10k/R25k/R80k, `RENTAL_POLICY.trustTierLimitsCents`) and the rule that they need a verified phone, ID and a validated bank account must appear in the Terms before Phase 1 goes live. Customers must have a way to challenge a decision. |
+| K3 | Late fees and deductions from the deposit | REQUIRES_FOUNDER_APPROVAL + REQUIRES_LEGAL_REVIEW | Deductions now need evidence (`planDepositRefund`). The late fee is still R150/day per item (`RENTAL_POLICIES`, D-13). Confirm both are fair under the CPA. |
+| K4 | Overdue escalation wording | REQUIRES_LEGAL_REVIEW | Reminders never accuse anyone. Letters of demand and SAPS reports are human decisions recorded in `rental_escalations`. Review the template for the letter of demand before first use. |
+| K5 | Payment conditional on identity at collection | REQUIRES_LEGAL_REVIEW | If ID fails at handover, staff cancel and the refund follows the tiered policy. Spec §7.11 requires a disclosed cancellation and refund path for this case. Confirm the Terms say so. |

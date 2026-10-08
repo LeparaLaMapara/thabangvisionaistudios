@@ -18,6 +18,7 @@ import {
   type TableFreshness,
 } from '@/lib/ops/checks';
 import { fingerprint, type Finding } from '@/lib/ops/types';
+import { gatherRentalPipelineFindings } from '@/lib/rental/reconcile-server';
 
 /**
  * Invariant sweep.
@@ -103,7 +104,10 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     const { data: eq, error: eqErr } = await db
       .from('booking_payments')
       .select('booking_id, created_at, amount, payfast_payment_id, status, equipment_bookings(id, status)')
-      .eq('status', 'complete')
+      // The payment paths write 'succeeded' (fulfil.ts, mark-paid, 070). This
+      // filter used to read 'complete', a value nothing writes, so the gear
+      // half of this check could never fire.
+      .eq('status', 'succeeded')
       .limit(500);
     if (eqErr) throw new Error(`booking_payments: ${eqErr.message}`);
 
@@ -198,6 +202,16 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     findings.push(...detectStaleWritePaths(rows, now));
   } catch (err) {
     checkErrors['write-path-stale'] = String(err);
+  }
+
+  // ── Rental pipeline (Phase 1) ─────────────────────────────────────────────
+  // Paid but not confirmed, confirmed without payment, refunds and payouts
+  // stuck or failed, webhook backlog and dead letters, inventory conflicts,
+  // closed orders that do not reconcile in the ledger (spec §12).
+  try {
+    findings.push(...(await gatherRentalPipelineFindings(db, now)));
+  } catch (err) {
+    checkErrors['rental-pipeline'] = String(err);
   }
 
   // ── Growth checkpoints ────────────────────────────────────────────────────

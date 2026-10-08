@@ -18,7 +18,7 @@ import { useAuth } from '@/providers/AuthProvider';
 import { useCart } from '@/providers/CartProvider';
 import { createClient } from '@/lib/supabase/client';
 import { DateRangePicker, type DateRange } from '@/components/ui/DateRangePicker';
-import { calculateItemPrice } from '@/lib/cart/pricing';
+import { calculateItemPrice, depositPerUnit } from '@/lib/cart/pricing';
 import { STUDIO } from '@/lib/constants';
 import { earliestBookableDate, leadTimeMessage } from '@/lib/rental/leadTime';
 import { toLocalYmd, fromLocalYmd } from '@/lib/rental/dates';
@@ -107,7 +107,8 @@ function BookingWidgetInner({ rental, paymentsOpen: paymentsOpenProp }: Props) {
     return calculateItemPrice(rental.price_per_day ?? 0, rental.price_per_week ?? null, days);
   }, [days, rental.price_per_day, rental.price_per_week]);
 
-  const depositAmount = rental.deposit_amount ?? 0;
+  // Same deposit rule the cart and checkout charge (25% of replacement value, RENTAL_POLICY).
+  const depositAmount = depositPerUnit(rental as { deposit_amount?: number | null; replacement_value?: number | null });
   const startStr = dateRange.start ? toLocalYmd(dateRange.start) : null;
   const endStr = dateRange.end ? toLocalYmd(dateRange.end) : null;
 
@@ -310,7 +311,9 @@ function BookingWidgetInner({ rental, paymentsOpen: paymentsOpenProp }: Props) {
             <p className="text-xs font-mono text-neutral-400">
               {paymentsOpen === false
                 ? 'At checkout: collect it, or after your first hire have it delivered. Pay by EFT, or in cash when you collect.'
-                : 'At checkout: collect it, or after your first hire have it delivered, and pay everything now or only the deposit now and the rest when you collect.'}
+                : STUDIO.fulfilment.collection.allowBalanceOnCollection
+                  ? 'At checkout: collect it, or after your first hire have it delivered, and pay everything now or only the deposit now and the rest when you collect.'
+                  : 'At checkout: collect it, or after your first hire have it delivered. The hire and the refundable deposit are paid together.'}
             </p>
           </div>
         )}
