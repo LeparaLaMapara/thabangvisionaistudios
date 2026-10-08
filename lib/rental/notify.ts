@@ -64,7 +64,10 @@ export function rentalNoticeText(kind: RentalNoticeKind, data: OutboxMessage['da
     case 'dispute_resolved':
       return { title: 'Dispute resolved', body: `The dispute on your booking has been resolved. The outcome is on your booking.` };
     case 'staff_alert':
-      return { title: 'Rental needs attention', body: `${String(data.what ?? 'alert').replace(/_/g, ' ')}: ${String(data.reference ?? '')}` };
+      return {
+        title: 'Rental needs attention',
+        body: `${String(data.what ?? 'alert').replace(/_/g, ' ')}${data.reference ? ` (${String(data.reference)})` : ''}. See Rental ops.`,
+      };
   }
 }
 
