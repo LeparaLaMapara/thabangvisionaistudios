@@ -66,7 +66,10 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   const deposit = Number(b.deposit_amount ?? 0);
   const late = lateFeeFor({ endDate: b.end_date, returnedAt: new Date(), quantity: b.quantity, deposit });
   const [notice] = await loadNoticeBookings([id]);
+  const { data: serialRow } = await createAdminClient().from('equipment_bookings').select('smart_rentals(serial_number)').eq('id', id).maybeSingle();
+  const serialRental = serialRow ? ((Array.isArray(serialRow.smart_rentals) ? serialRow.smart_rentals[0] : serialRow.smart_rentals) as { serial_number?: string | null } | null) : null;
   return NextResponse.json({
+    has_serial: Boolean(serialRental?.serial_number?.trim()),
     id: b.id, status: b.status, title: notice?.title ?? 'Equipment', end_date: b.end_date, quantity: b.quantity ?? 1,
     deposit, late_fee: late.fee, days_late: late.daysLate, deposit_on_card: depositOnCard(b),
   });

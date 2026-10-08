@@ -16,6 +16,7 @@ import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Textarea } from '@/components/ui/Textarea';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
+import { formatRand } from '@/lib/format/money';
 
 type DisputeStatus = 'open' | 'investigating' | 'resolved' | 'escalated' | 'dismissed';
 
@@ -46,6 +47,8 @@ interface DisputeDetail {
   booking: {
     id: string;
     reference: string;
+    client_id: string | null;
+    creator_id: string | null;
     client_email: string;
     project_category: string;
     status: string;
@@ -64,6 +67,7 @@ interface DisputeDetail {
     condition_at_checkout: string | null;
     condition_at_return: string | null;
     payment_reference: string | null;
+    owner_id?: string | null;
   } | null;
 }
 
@@ -84,6 +88,36 @@ const RESOLUTION_OPTIONS = [
   { value: 'no_action', label: 'No Action' },
   { value: 'custom', label: 'Custom Resolution' },
 ];
+
+interface Party {
+  id: string;
+  label: string;
+}
+
+/**
+ * Everyone who is a party to the dispute, as far as the detail payload shows:
+ * the filer, the gear renter, and the service client and creator. The server
+ * re-checks that the chosen person is a party (the gear owner is also allowed
+ * there but is not in this payload).
+ */
+function partiesOf(d: DisputeDetail): Party[] {
+  const roles = new Map<string, string[]>();
+  const add = (id: string | null | undefined, role: string) => {
+    if (!id) return;
+    roles.set(id, [...(roles.get(id) ?? []), role]);
+  };
+  add(d.filed_by, 'filed the dispute');
+  add(d.equipment_booking?.user_id, 'gear renter');
+  add(d.equipment_booking?.owner_id, 'gear owner');
+  add(d.booking?.client_id, 'client');
+  add(d.booking?.creator_id, 'creator');
+  const name = (id: string): string => {
+    if (id === d.filed_by && (d.filer?.display_name || d.filer?.email)) return (d.filer?.display_name || d.filer?.email) as string;
+    if (id === d.booking?.client_id && d.booking?.client_email) return d.booking.client_email;
+    return `User ${id.slice(0, 8)}`;
+  };
+  return [...roles.entries()].map(([id, r]) => ({ id, label: `${name(id)} (${r.join(', ')})` }));
+}
 
 const STATUS_OPTIONS: { value: DisputeStatus; label: string }[] = [
   { value: 'investigating', label: 'Investigating' },
@@ -118,6 +152,8 @@ export default function AdminDisputeDetailPage() {
   const [resolutionAmount, setResolutionAmount] = useState('');
   const [resolutionNotes, setResolutionNotes] = useState('');
   const [internalNotes, setInternalNotes] = useState('');
+  const [suspendUserId, setSuspendUserId] = useState('');
+  const [resolveError, setResolveError] = useState<string | null>(null);
   const [resolving, setResolving] = useState(false);
 
   // Comment form
@@ -141,6 +177,24 @@ export default function AdminDisputeDetailPage() {
 
   const handleResolve = async () => {
     if (resolving) return;
+    setResolveError(null);
+    if (selectedResolution === 'user_suspended' && !suspendUserId) {
+      setResolveError('Choose which party to suspend.');
+      return;
+    }
+    const amount = parseFloat(resolutionAmount);
+    if (selectedResolution === 'partial_refund' && !(Number.isFinite(amount) && amount > 0)) {
+      setResolveError('Enter the partial refund amount in rand.');
+      return;
+    }
+    if (selectedResolution === 'full_refund' || selectedResolution === 'partial_refund') {
+      const what = selectedResolution === 'partial_refund' ? formatRand(amount, { decimals: true }) : 'what is left of the charge';
+      if (!window.confirm(`Initiate a refund of ${what} with the payment provider? It cannot be taken back once sent.`)) return;
+    }
+    if (selectedResolution === 'user_suspended') {
+      const who = dispute ? partiesOf(dispute).find((p) => p.id === suspendUserId)?.label : undefined;
+      if (!window.confirm(`Suspend ${who ?? 'this user'}? Their listings are also taken offline.`)) return;
+    }
     setResolving(true);
     try {
       const payload: Record<string, unknown> = {
@@ -149,8 +203,12 @@ export default function AdminDisputeDetailPage() {
         resolution_notes: resolutionNotes || undefined,
         internal_notes: internalNotes || undefined,
       };
-      if (selectedResolution === 'partial_refund' && resolutionAmount) {
-        payload.resolution_amount = parseFloat(resolutionAmount);
+      if (selectedResolution === 'partial_refund') {
+        // Rand, not cents: the server converts.
+        payload.resolution_amount = amount;
+      }
+      if (selectedResolution === 'user_suspended') {
+        payload.suspend_user_id = suspendUserId;
       }
       const res = await fetch(`/api/admin/disputes/${id}`, {
         method: 'PATCH',
@@ -160,11 +218,11 @@ export default function AdminDisputeDetailPage() {
       if (res.ok) {
         fetchDispute();
       } else {
-        const data = await res.json();
-        alert(data.error || 'Failed to resolve dispute.');
+        const data = await res.json().catch(() => ({}));
+        setResolveError(data.error || 'Failed to resolve dispute.');
       }
     } catch {
-      alert('Failed to resolve dispute.');
+      setResolveError('Failed to resolve dispute.');
     } finally {
       setResolving(false);
     }
@@ -204,6 +262,7 @@ export default function AdminDisputeDetailPage() {
   }
 
   const isResolved = ['resolved', 'dismissed'].includes(dispute.status);
+  const parties = partiesOf(dispute);
 
   return (
     <motion.div
@@ -465,11 +524,41 @@ export default function AdminDisputeDetailPage() {
                 </div>
               </div>
 
+              {(selectedResolution === 'full_refund' || selectedResolution === 'partial_refund') && (
+                <p className="text-xs text-neutral-400 mb-3">
+                  A card payment is refunded through the payment provider: the refund is initiated now and confirmed
+                  later (track it in Rental ops). A manual EFT or cash payment is noted for staff to pay back by hand.
+                </p>
+              )}
+
+              {/* Who to suspend: always a person's decision, never inferred */}
+              {selectedResolution === 'user_suspended' && (
+                <div className="mb-3">
+                  <label htmlFor="suspend-party" className="text-xs font-mono uppercase text-neutral-400 block mb-1">
+                    Party to suspend
+                  </label>
+                  <select
+                    id="suspend-party"
+                    value={suspendUserId}
+                    onChange={(e) => setSuspendUserId(e.target.value)}
+                    className="w-full min-h-[44px] rounded-lg bg-neutral-900 border border-neutral-700 text-sm text-white px-3 py-2"
+                  >
+                    <option value="">Choose who is suspended…</option>
+                    {parties.map((p) => (
+                      <option key={p.id} value={p.id}>{p.label}</option>
+                    ))}
+                  </select>
+                  <p className="text-xs text-neutral-400 mt-1">
+                    The person who filed is not suspended by default. Pick the party whose conduct warrants it.
+                  </p>
+                </div>
+              )}
+
               {/* Partial refund amount */}
               {selectedResolution === 'partial_refund' && (
                 <div className="mb-3">
                   <label className="text-xs font-mono uppercase text-neutral-400 block mb-1">
-                    Refund Amount (ZAR)
+                    Refund Amount (R)
                   </label>
                   <input
                     type="number"
@@ -509,10 +598,15 @@ export default function AdminDisputeDetailPage() {
                 />
               </div>
 
+              {resolveError && (
+                <p role="alert" className="text-sm text-red-400 mb-3">{resolveError}</p>
+              )}
+
               <Button
                 onClick={handleResolve}
-                disabled={resolving}
-                className="w-full"
+                disabled={resolving || (selectedResolution === 'user_suspended' && !suspendUserId)}
+                variant="accent"
+                className="w-full min-h-[44px]"
               >
                 {resolving ? 'Processing...' : 'Resolve Dispute'}
               </Button>
@@ -530,7 +624,8 @@ export default function AdminDisputeDetailPage() {
               </p>
               {dispute.resolution_amount !== null && dispute.resolution_amount > 0 && (
                 <p className="text-sm text-neutral-400 mt-1">
-                  Amount: R{dispute.resolution_amount.toLocaleString('en-ZA')}
+                  Amount: {formatRand(dispute.resolution_amount, { decimals: true })}
+                  {(dispute.resolution === 'full_refund' || dispute.resolution === 'partial_refund') && ' (refund initiated; see Rental ops for its state)'}
                 </p>
               )}
               {dispute.resolution_notes && (

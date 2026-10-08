@@ -11,7 +11,6 @@ import { quoteDelivery, isDeliveryQuote } from '@/lib/delivery/quote';
 import { checkAvailability, availabilityMessage } from '@/lib/rental/availability';
 import { recordUnmetDemandAsync } from '@/lib/demand/record';
 import { meetsLeadTime, leadTimeMessage } from '@/lib/rental/leadTime';
-import type { CartItemWithRental } from '@/types/cart';
 import { logEvent } from '@/lib/data/events';
 import { reportUnpaidRequest, PAYMENTS_OFF_MESSAGE } from '@/lib/payments/offline';
 import { itemValue } from '@/lib/rental/protection';

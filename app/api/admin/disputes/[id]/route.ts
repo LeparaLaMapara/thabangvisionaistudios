@@ -69,10 +69,13 @@ export async function GET(
         // payment_reference does not exist on equipment_bookings; asking for it
         // failed the whole select, so the page never saw the booking. The
         // gateway reference lives in payfast_payment_id (legacy name).
-        .select('id, user_id, rental_id, status, total_price, start_date, end_date, checkout_photos, return_photos, condition_at_checkout, condition_at_return, payfast_payment_id')
+        .select('id, user_id, rental_id, status, total_price, start_date, end_date, checkout_photos, return_photos, condition_at_checkout, condition_at_return, payfast_payment_id, smart_rentals(owner_id)')
         .eq('id', dispute.equipment_booking_id)
         .single();
-      equipmentBookingDetails = data ? { ...data, payment_reference: (data as { payfast_payment_id?: string | null }).payfast_payment_id ?? null } : null;
+      const owner = data ? ((Array.isArray(data.smart_rentals) ? data.smart_rentals[0] : data.smart_rentals) as { owner_id?: string | null } | null) : null;
+      equipmentBookingDetails = data
+        ? { ...data, payment_reference: (data as { payfast_payment_id?: string | null }).payfast_payment_id ?? null, owner_id: owner?.owner_id ?? null }
+        : null;
     }
 
     // Fetch filer profile
