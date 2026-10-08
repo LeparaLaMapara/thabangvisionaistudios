@@ -8,15 +8,17 @@ import { STUDIO } from '@/lib/constants';
 import { getCartItems, clearCart } from '@/lib/supabase/queries/cart';
 import { calculateCartPricing, calculateCartPricingPerItem, splitAcrossLines } from '@/lib/cart/pricing';
 import { quoteDelivery, isDeliveryQuote } from '@/lib/delivery/quote';
-import { checkAvailability, availabilityMessage, type BookingHold } from '@/lib/rental/availability';
+import { checkAvailability, availabilityMessage } from '@/lib/rental/availability';
 import { recordUnmetDemandAsync } from '@/lib/demand/record';
 import { meetsLeadTime, leadTimeMessage } from '@/lib/rental/leadTime';
 import type { CartItemWithRental } from '@/types/cart';
 import { logEvent } from '@/lib/data/events';
 import { reportUnpaidRequest, PAYMENTS_OFF_MESSAGE } from '@/lib/payments/offline';
-import { checkProtection, itemValue } from '@/lib/rental/protection';
-import { loadRenterRecord } from '@/lib/rental/protection-server';
-import { effectiveHoldMinutes } from '@/lib/rental/availability-server';
+import { itemValue } from '@/lib/rental/protection';
+import { checkRenterEligibility } from '@/lib/rental/eligibility-server';
+import { blockedUnits, effectiveHoldMinutes, loadHolds } from '@/lib/rental/availability-server';
+import { checkoutGroupIdFor, releaseUnpaidReservation, reserveOrder, snapshotLines } from '@/lib/rental/reserve';
+import { toCents } from '@/lib/core/pricing/money';
 import { paymentReference } from '@/lib/payments/eft';
 import { loadNoticeBookings, sendGearNotice } from '@/lib/rental/notices';
 import { recordConsent, requiredConsents } from '@/lib/consent';
@@ -98,7 +100,19 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const body = await request.json();
+  let body: Record<string, unknown>;
+  try {
+    body = (await request.json()) as Record<string, unknown>;
+  } catch {
+    return NextResponse.json({ error: 'Invalid request body.' }, { status: 400 });
+  }
+  // The browser never states a price (T05). Anything that looks like one is
+  // refused outright rather than silently ignored, so tampering is visible.
+  const MONEY_FIELDS = ['amount', 'total', 'total_price', 'price', 'grand_total', 'deposit', 'deposit_amount', 'discount', 'delivery_fee', 'amount_due', 'currency'];
+  if (MONEY_FIELDS.some((k) => k in body)) {
+    logEvent({ eventType: 'checkout_tamper_rejected', eventCategory: 'security', userId: user.id, metadata: { fields: MONEY_FIELDS.filter((k) => k in body) } });
+    return NextResponse.json({ error: 'Prices are calculated by the server.', code: 'CLIENT_PRICE_REJECTED' }, { status: 400 });
+  }
   const {
     start_date,
     end_date,
@@ -110,7 +124,18 @@ export async function POST(request: NextRequest) {
     delivery_lat,
     delivery_lng,
     acceptTerms,
-  } = body;
+  } = body as {
+    start_date: string;
+    end_date: string;
+    notes?: string;
+    fulfilment_method?: string;
+    payment_plan?: string;
+    payment_method?: string;
+    delivery_address?: string;
+    delivery_lat?: number;
+    delivery_lng?: number;
+    acceptTerms?: boolean;
+  };
 
   // The Terms, Privacy Policy and rental agreement must be accepted for every
   // order, and the acceptance is recorded server-side against the current
@@ -239,43 +264,22 @@ export async function POST(request: NextRequest) {
     const itemStart = usePerItemDates ? item.start_date! : start_date;
     const itemEnd = usePerItemDates ? item.end_date! : end_date;
 
-    // Count UNITS, not bookings. The old check took the first overlapping row
-    // as a refusal and never read smart_rentals.quantity, so a listing with
-    // two cameras only ever rented one at a time.
-    // Server key: customers can only read their own bookings, so a check under
-    // their login would not see anyone else's and would sell the gear twice.
-    const { data: overlapping, error: overlapErr } = await createAdminClient()
-      .from('equipment_bookings')
-      .select('id, quantity, status, created_at, payfast_payment_id, payment_method')
-      .eq('rental_id', item.rental_id)
-      .in('status', ['pending', 'confirmed', 'active', 'overdue'])
-      .lt('start_date', itemEnd)
-      .gt('end_date', itemStart);
-
-    // Never treat an unreadable availability check as "available" -- that
-    // would sell the same gear twice.
-    if (overlapErr) {
-      console.error('[cart/checkout] availability check failed:', overlapErr.message);
+    // Count UNITS, not bookings, with the same rules as the database:
+    // inclusive dates, every blocking status, open-ended blocks for gear not
+    // yet back, maintenance blocks. This read is only for a friendly message;
+    // reserve_rental_order re-checks under a lock (T07).
+    let holds;
+    let blocked = 0;
+    try {
+      [holds, blocked] = await Promise.all([loadHolds(item.rental_id, itemStart, itemEnd), blockedUnits(item.rental_id, itemStart, itemEnd)]);
+    } catch (err) {
+      console.error('[cart/checkout] availability check failed:', err instanceof Error ? err.message : 'unknown error');
       return NextResponse.json(
         { error: 'Could not confirm availability just now. Please try again.' },
         { status: 503 },
       );
     }
-
-    const holds: BookingHold[] = (overlapping ?? []).map((b) => {
-      const row = b as {
-        id: string; quantity: number | null; status: string;
-        created_at: string; payfast_payment_id: string | null; payment_method?: string | null;
-      };
-      return {
-        id: row.id,
-        quantity: row.quantity ?? 1,
-        status: row.status,
-        createdAt: row.created_at,
-        paymentReference: row.payfast_payment_id,
-        method: row.payment_method ?? null,
-      };
-    });
+    if (blocked > 0) holds.push({ id: 'rental_blocks', quantity: blocked, status: 'confirmed', createdAt: new Date(0).toISOString(), paymentReference: null });
 
     const availability = checkAvailability({
       stock: (item.rental as { quantity?: number }).quantity ?? 1,
@@ -311,16 +315,22 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  // Trust ladder and collection-only rules (TASK-067), before anything is charged.
-  const orderValue = items.reduce(
-    (sum, item) => sum + itemValue(item.rental as { replacement_value?: number | null; deposit_amount?: number | null }) * item.quantity,
-    0,
-  );
-  const record = await loadRenterRecord(createAdminClient(), user.id);
-  const protection = checkProtection({ ...record, orderValue, delivery: fulfilment === 'delivery' });
-  if (!protection.ok) {
-    logEvent({ eventType: 'booking_blocked', eventCategory: 'booking', userId: user.id, metadata: { reason: protection.code, kind: 'gear', source: 'cart', orderValue } });
-    return NextResponse.json({ error: protection.message, code: protection.code }, { status: 403 });
+  // Trust tiers and collection rules (spec §7.9, §3.5), worked out on the
+  // server from the renter's record, before anything is reserved or charged.
+  const trustLines = items.map((item) => ({
+    unitReplacementValueCents: toCents(itemValue(item.rental as { replacement_value?: number | null; deposit_amount?: number | null })),
+    quantity: item.quantity,
+  }));
+  let eligibility;
+  try {
+    eligibility = await checkRenterEligibility(createAdminClient(), user, trustLines, fulfilment === 'delivery');
+  } catch (err) {
+    console.error('[cart/checkout] eligibility check failed:', err instanceof Error ? err.message : 'unknown error');
+    return NextResponse.json({ error: 'Could not check your rental limit just now. Please try again.' }, { status: 503 });
+  }
+  if (!eligibility.ok) {
+    logEvent({ eventType: 'booking_blocked', eventCategory: 'booking', userId: user.id, metadata: { reason: eligibility.code, kind: 'gear', source: 'cart', tier: eligibility.assessment.tier.id, exposureCents: eligibility.exposureCents } });
+    return NextResponse.json({ error: eligibility.message, code: eligibility.code, tier: eligibility.assessment.tier.id }, { status: 403 });
   }
 
   // Calculate pricing
@@ -373,10 +383,27 @@ export async function POST(request: NextRequest) {
 
   // Create bookings with shared checkout_group_id
   const adminClient = createAdminClient();
-  const checkoutGroupId = crypto.randomUUID();
+  // Same idempotency key → same order id → the database refuses a second copy (T06).
+  const checkoutGroupId = checkoutGroupIdFor(user.id, request.headers.get('idempotency-key'));
   const currency = items[0]?.rental.currency ?? STUDIO.currency.code;
+  const snapshots = snapshotLines(
+    items.map((item) => {
+      const pi = pricing.items.find((x) => x.rental_id === item.rental_id);
+      const rental = item.rental as { owner_type?: string | null; owner_id?: string | null; replacement_value?: number | null; deposit_amount?: number | null };
+      return {
+        rentalId: item.rental_id,
+        quantity: item.quantity,
+        subtotalRands: pi?.subtotal ?? 0,
+        depositRands: pi?.deposit ?? 0,
+        unitReplacementValueRands: itemValue(rental),
+        ownerType: rental.owner_type ?? null,
+        ownerId: rental.owner_id ?? null,
+      };
+    }),
+    pricing.bulkDiscountAmount,
+  );
 
-  const bookingInserts = items.map((item) => {
+  const bookingInserts = items.map((item, index) => {
     const pricingItem = pricing.items.find((pi) => pi.rental_id === item.rental_id);
     const itemStart = usePerItemDates ? item.start_date! : start_date;
     const itemEnd = usePerItemDates ? item.end_date! : end_date;
@@ -396,6 +423,8 @@ export async function POST(request: NextRequest) {
       fulfilment_method: fulfilment,
       payment_plan: plan,
       payment_method: method,
+      ...snapshots[index],
+      requires_manual_approval: eligibility.requiresManualApproval,
       // The delivery charge and outstanding balance belong to the order, not
       // to each line, so they are recorded once against the first booking in
       // the group to avoid multiplying them by the number of items.
@@ -413,13 +442,47 @@ export async function POST(request: NextRequest) {
     };
   });
 
-  const { data: bookings, error: insertError } = await adminClient
-    .from('equipment_bookings')
-    .insert(bookingInserts)
-    .select('id');
+  // Reserve every line and record the expected payment in one transaction.
+  const reservation = await reserveOrder(
+    adminClient,
+    bookingInserts.map((row) => ({ ...row, id: crypto.randomUUID() })),
+    payments.isConfigured()
+      ? {
+          reference: checkoutGroupId,
+          provider: process.env.PAYMENT_PROVIDER ?? 'paystack',
+          expectedAmountCents: toCents(amountDueNow),
+          depositCents: toCents(pricing.totalDeposit),
+          deliveryCents: toCents(deliveryFee),
+        }
+      : null,
+    effectiveHoldMinutes(),
+  );
 
-  if (insertError || !bookings?.length) {
-    console.error('[cart/checkout] Insert error:', insertError?.message);
+  let bookings: { id: string }[];
+  if (reservation.ok) {
+    bookings = reservation.bookingIds.map((id) => ({ id }));
+  } else if (reservation.code === 'insufficient_stock' || reservation.code === 'listing_unavailable') {
+    const title = items.find((i) => i.rental_id === reservation.rentalId)?.rental.title ?? 'An item in your cart';
+    return NextResponse.json({ error: `${title} was just booked by someone else for those dates.`, code: 'UNAVAILABLE' }, { status: 409 });
+  } else if (reservation.code === 'duplicate_order') {
+    return NextResponse.json({ error: 'This order was already placed.', code: 'DUPLICATE_REQUEST', checkout_group_id: checkoutGroupId }, { status: 409 });
+  } else if (reservation.code === 'missing_pipeline') {
+    // Migration 070 not applied yet: the earlier insert path (no lock).
+    const { data, error: insertError } = await adminClient
+      .from('equipment_bookings')
+      .insert(bookingInserts.map((row) => {
+        const legacy: Record<string, unknown> = { ...row };
+        for (const k of ['hire_cents', 'deposit_cents', 'owner_share_cents', 'platform_share_cents', 'unit_replacement_value_cents', 'ownership', 'owner_id', 'requires_manual_approval']) delete legacy[k];
+        return legacy;
+      }))
+      .select('id');
+    if (insertError || !data?.length) {
+      console.error('[cart/checkout] Insert error:', insertError?.message);
+      return NextResponse.json({ error: 'Failed to create bookings.' }, { status: 500 });
+    }
+    bookings = data as { id: string }[];
+  } else {
+    console.error('[cart/checkout] reservation failed:', 'message' in reservation ? reservation.message : reservation.code);
     return NextResponse.json({ error: 'Failed to create bookings.' }, { status: 500 });
   }
 
@@ -466,10 +529,7 @@ export async function POST(request: NextRequest) {
 
   // If payment provider is configured but checkout failed, roll back
   if (payments.isConfigured() && !paymentUrl) {
-    await adminClient
-      .from('equipment_bookings')
-      .delete()
-      .eq('checkout_group_id', checkoutGroupId);
+    await releaseUnpaidReservation(adminClient, checkoutGroupId);
     return NextResponse.json(
       { error: 'Payment service unavailable. Please try again.' },
       { status: 503 },

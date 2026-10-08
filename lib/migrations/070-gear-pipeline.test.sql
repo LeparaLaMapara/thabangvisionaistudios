@@ -51,6 +51,16 @@ begin
     raise notice 'PASS: overlapping reservation refused (insufficient_stock)';
   end;
 
+  -- 1b. The same order cannot be reserved twice (idempotent checkout, T06).
+  begin
+    perform public.reserve_rental_order(
+      jsonb_build_array(jsonb_build_object('user_id', u1, 'rental_id', lens, 'checkout_group_id', g1,
+        'start_date', '2030-05-10', 'end_date', '2030-05-11', 'total_price', 500, 'quantity', 1)), null, 30);
+    raise exception 'FAIL: a repeated order id was reserved twice';
+  exception when unique_violation then
+    raise notice 'PASS: repeated checkout request is refused (T06)';
+  end;
+
   -- 2. The return day is not resold (inclusive dates).
   begin
     perform public.reserve_rental_order(

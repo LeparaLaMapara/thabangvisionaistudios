@@ -238,6 +238,13 @@ begin
     order by r.id
       for update;
 
+  -- A repeated request for the same order (same idempotency key → same order
+  -- id) is refused, not reserved twice (T06). Checked after the lock, so two
+  -- simultaneous copies of the same request cannot both pass.
+  if exists (select 1 from public.equipment_bookings where checkout_group_id = v_group) then
+    raise exception 'duplicate_order:%', v_group using errcode = '23505';
+  end if;
+
   for v_row in select * from jsonb_array_elements(p_rows)
   loop
     v_rec := jsonb_populate_record(null::public.equipment_bookings, v_row);

@@ -71,6 +71,7 @@ const base: RenterFacts = {
   firstCleanReturnAt: null,
   openDisputes: 0,
   overdueNow: 0,
+  overdueEscalated: 0,
   recentLateReturns: 0,
   fraudFlags: 0,
   suspended: false,
@@ -100,9 +101,12 @@ describe('trust tiers (server-calculated)', () => {
     expect(over).toMatchObject({ ok: false, code: 'trust_limit', exposureCents: 1_100_000 });
   });
 
-  it('unreturned gear or a suspension stops new bookings; open disputes route to a person', () => {
+  it('gear overdue past formal escalation, or a suspension, stops new bookings; lesser risks route to a person', () => {
     const verified = { ...base, identityApproved: true, bankValidated: true };
-    expect(checkEligibility({ facts: { ...verified, overdueNow: 1 }, currentExposureCents: 0, lines: [], delivery: false, policy, now: NOW })).toMatchObject({ ok: false, code: 'account_hold' });
+    expect(checkEligibility({ facts: { ...verified, overdueNow: 1, overdueEscalated: 1 }, currentExposureCents: 0, lines: [], delivery: false, policy, now: NOW })).toMatchObject({ ok: false, code: 'account_hold' });
+    expect(checkEligibility({ facts: { ...verified, suspended: true }, currentExposureCents: 0, lines: [], delivery: false, policy, now: NOW })).toMatchObject({ ok: false, code: 'account_hold' });
+    const late = checkEligibility({ facts: { ...verified, overdueNow: 1 }, currentExposureCents: 0, lines: [{ unitReplacementValueCents: 100_000, quantity: 1 }], delivery: false, policy, now: NOW });
+    expect(late).toMatchObject({ ok: true, requiresManualApproval: true });
     const disputed = checkEligibility({ facts: { ...verified, openDisputes: 1 }, currentExposureCents: 0, lines: [{ unitReplacementValueCents: 100_000, quantity: 1 }], delivery: false, policy, now: NOW });
     expect(disputed).toMatchObject({ ok: true, requiresManualApproval: true });
   });

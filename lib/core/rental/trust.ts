@@ -1,3 +1,5 @@
+import { RENTAL_POLICY } from '@/lib/constants';
+
 /**
  * Renter trust tiers and collection rules (spec §3.5, §7.9). Pure.
  *
@@ -25,18 +27,17 @@ export interface TrustTierRule {
   maxExposureCents: number;
 }
 
+const LIMITS = RENTAL_POLICY.trustTierLimitsCents;
+
 export const TRUST_TIERS: readonly TrustTierRule[] = [
   { id: 'none', label: 'Not yet eligible', maxExposureCents: 0 },
-  { id: 'contactable', label: 'Contactable', maxExposureCents: 200_000 },
-  { id: 'verified', label: 'Verified', maxExposureCents: 1_000_000 },
-  { id: 'proven', label: 'Proven', maxExposureCents: 2_500_000 },
-  { id: 'trusted', label: 'Trusted', maxExposureCents: 8_000_000 },
+  { id: 'contactable', label: 'Contactable', maxExposureCents: LIMITS.contactable },
+  { id: 'verified', label: 'Verified', maxExposureCents: LIMITS.verified },
+  { id: 'proven', label: 'Proven', maxExposureCents: LIMITS.proven },
+  { id: 'trusted', label: 'Trusted', maxExposureCents: LIMITS.trusted },
 ];
 
-export const TRUST_THRESHOLDS = {
-  proven: { cleanReturns: 1, historyDays: 14 },
-  trusted: { cleanReturns: 5, cleanReturnValueCents: 5_000_000, historyDays: 90 },
-} as const;
+export const TRUST_THRESHOLDS = RENTAL_POLICY.trustThresholds;
 
 export interface RenterFacts {
   emailVerified: boolean;
@@ -51,8 +52,13 @@ export interface RenterFacts {
   /** ISO timestamp of the first clean return, if any. */
   firstCleanReturnAt: string | null;
   openDisputes: number;
-  /** Bookings currently overdue (gear not back). */
+  /** Bookings currently overdue (gear not back). Routes new bookings to a person. */
   overdueNow: number;
+  /**
+   * Overdue bookings that reached formal escalation (+48h, spec §7.13).
+   * These pause new bookings until the gear is back.
+   */
+  overdueEscalated: number;
   /** Late returns in the last 180 days. */
   recentLateReturns: number;
   fraudFlags: number;
@@ -134,14 +140,14 @@ export function assessTrust(facts: RenterFacts, now: Date): TrustAssessment {
   const holds: TrustHold[] = [];
   if (facts.suspended) holds.push('suspended');
   if (facts.openDisputes > 0) holds.push('open_dispute');
-  if (facts.overdueNow > 0) holds.push('overdue_gear');
+  if (facts.overdueEscalated > 0) holds.push('overdue_gear');
   if (facts.fraudFlags > 0) holds.push('fraud_flag');
   if (facts.manualReview) holds.push('manual_review');
 
   const blocking = holds.some((h) => h === 'suspended' || h === 'overdue_gear');
   const effective = blocking ? tier('none') : earned;
   const requiresManualApproval =
-    !blocking && (holds.length > 0 || facts.recentLateReturns >= 2);
+    !blocking && (holds.length > 0 || facts.overdueNow > 0 || facts.recentLateReturns >= 2);
 
   return { tier: effective, earned, holds, requiresManualApproval, next };
 }

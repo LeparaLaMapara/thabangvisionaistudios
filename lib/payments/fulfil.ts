@@ -75,21 +75,31 @@ export async function handlePaymentComplete(webhook: WebhookResult) {
           notes: `AMOUNT MISMATCH: expected ${expectedTotal}, received ${amountGross}. Requires manual review.`,
           updated_at: new Date().toISOString(),
         })
-        .eq('checkout_group_id', checkoutGroupId);
+        .eq('checkout_group_id', checkoutGroupId)
+        // A booking already confirmed by another payment is never pushed back.
+        .eq('status', 'pending');
       return;
     }
 
-    const { error: updateErr } = await supabase
+    // Guarded: only lines still pending are confirmed. A line already
+    // released (hold expired, cancelled) is never revived here, and a
+    // duplicate webhook confirms nothing twice. Late payments for released
+    // stock are handled by the Phase 1 pipeline (rental_payment_intents).
+    const { data: confirmed, error: updateErr } = await supabase
       .from('equipment_bookings')
       .update({
         status: 'confirmed',
         payfast_payment_id: providerPaymentId,
         updated_at: new Date().toISOString(),
       })
-      .eq('checkout_group_id', checkoutGroupId);
+      .eq('checkout_group_id', checkoutGroupId)
+      .eq('status', 'pending')
+      .select('id');
 
     if (updateErr) {
       console.error('[payment-webhook] Failed to confirm cart bookings:', updateErr.message);
+    } else if (!confirmed || confirmed.length === 0) {
+      console.error('[payment-webhook] Cart payment matched no pending bookings; needs manual review:', checkoutGroupId);
     } else {
       for (const booking of groupBookings) {
         await supabase
@@ -122,22 +132,27 @@ export async function handlePaymentComplete(webhook: WebhookResult) {
           notes: `AMOUNT MISMATCH: expected ${booking.total_price}, received ${amountGross}. Requires manual review.`,
           updated_at: new Date().toISOString(),
         })
-        .eq('id', paymentId);
+        .eq('id', paymentId)
+        .eq('status', 'pending');
       return;
     }
 
     // Update booking status to confirmed
-    const { error: bookingErr } = await supabase
+    const { data: confirmedRow, error: bookingErr } = await supabase
       .from('equipment_bookings')
       .update({
         status: 'confirmed',
         payfast_payment_id: providerPaymentId,
         updated_at: new Date().toISOString(),
       })
-      .eq('id', paymentId);
+      .eq('id', paymentId)
+      .eq('status', 'pending')
+      .select('id');
 
     if (bookingErr) {
       console.error('[payment-webhook] Failed to confirm booking:', bookingErr.message);
+    } else if (!confirmedRow || confirmedRow.length === 0) {
+      console.error('[payment-webhook] Payment matched no pending booking; needs manual review:', paymentId);
     } else {
       await sendGearNotice('confirmed', await loadNoticeBookings([paymentId]));
       const { data: existingPayment } = await supabase
@@ -301,16 +316,11 @@ export async function handlePaymentFailed(webhook: WebhookResult) {
 
   const supabase = createAdminClient();
 
-  if (paymentType === 'cart_checkout') {
-    await supabase
-      .from('equipment_bookings')
-      .update({ status: 'cancelled', updated_at: new Date().toISOString() })
-      .eq('checkout_group_id', paymentId);
-  } else if (paymentType === 'equipment_booking') {
-    await supabase
-      .from('equipment_bookings')
-      .update({ status: 'cancelled', updated_at: new Date().toISOString() })
-      .eq('id', paymentId);
+  // A failed attempt never cancels a booking that was paid (T12), and it does
+  // not release a pending hold early either: the customer may retry with
+  // another card before the hold runs out. Expiry releases the stock.
+  if (paymentType === 'cart_checkout' || paymentType === 'equipment_booking') {
+    return;
   } else if (paymentType === 'service_booking') {
     await supabase
       .from('bookings')

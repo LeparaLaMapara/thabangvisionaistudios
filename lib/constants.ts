@@ -671,6 +671,24 @@ export const RENTAL_POLICY = {
   // Any single item above R50,000 replacement value is collected in person.
   highValueCollectionThresholdCents: 5_000_000,
   firstHireCollectionOnly: true,
+  // Renter trust tiers (spec §7.9): the most replacement value a renter may
+  // hold at once, in cents. Calculated on the server only (lib/core/rental/trust.ts).
+  //   contactable  verified email and phone
+  //   verified     approved ID + selfie review and a validated bank account
+  //   proven       1 clean return and 14 days in good standing since it
+  //   trusted      5 clean returns, R50,000 returned clean, 90 days in good standing
+  trustTierLimitsCents: {
+    contactable: 200_000,
+    verified: 1_000_000,
+    proven: 2_500_000,
+    trusted: 8_000_000,
+  },
+  trustThresholds: {
+    proven: { cleanReturns: 1, historyDays: 14 },
+    trusted: { cleanReturns: 5, cleanReturnValueCents: 5_000_000, historyDays: 90 },
+  },
+  // How long an unpaid online checkout holds stock.
+  onlineHoldMinutes: 30,
 } as const;
 
 export const RENTAL_CATEGORY_VALUES = RENTAL_CATEGORIES.map(c => c.value);
