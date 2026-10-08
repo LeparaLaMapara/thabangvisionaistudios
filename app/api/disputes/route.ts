@@ -1,6 +1,8 @@
 export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
+import { transitionBookings } from '@/lib/rental/repos';
+import { buildNotices } from '@/lib/core/rental/notifications';
 import { requireAuth, checkNotSuspended } from '@/lib/auth';
 import { createClient, createAdminClient } from '@/lib/supabase/server';
 import { sendDisputeFiled } from '@/lib/email';
@@ -169,15 +171,27 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     // Update booking status to 'disputed'
     const now = new Date().toISOString();
     if (equipment_booking_id) {
-      await adminClient
-        .from('equipment_bookings')
-        .update({
-          status: 'disputed',
-          dispute_reason: reason.trim(),
-          disputed_at: now,
-          updated_at: now,
-        })
-        .eq('id', equipment_booking_id);
+      // Only a return awaiting inspection moves to `disputed` (spec §7.3). A
+      // hire still out stays active (the gear is with the renter), and a
+      // completed hire stays completed: the open dispute holds the deposit
+      // settlement and owner payout instead (lib/rental/workers.ts).
+      const moved = await transitionBookings(adminClient, {
+        ids: [equipment_booking_id],
+        from: ['return_pending', 'return_reviewed'],
+        to: 'disputed',
+        actor: 'customer',
+        actorId: auth.user.id,
+        reason: reason.trim().slice(0, 500),
+        patch: { dispute_reason: reason.trim(), disputed_at: now },
+        notices: buildNotices({ kind: 'staff_alert', userId: 'staff', bookingIds: [equipment_booking_id], discriminator: `dispute:${dispute.id}`, data: { what: 'dispute_opened', reference: equipment_booking_id } }),
+      });
+      if (moved.result !== 'moved' && moved.result !== 'already') {
+        // Not awaiting inspection (or 070 not applied): record the dispute on the booking without changing where the gear is.
+        await adminClient
+          .from('equipment_bookings')
+          .update({ dispute_reason: reason.trim(), disputed_at: now, updated_at: now })
+          .eq('id', equipment_booking_id);
+      }
     }
     if (booking_id) {
       await adminClient

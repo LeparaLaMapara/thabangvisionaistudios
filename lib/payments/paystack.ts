@@ -108,7 +108,7 @@ async function initializeTransaction(params: {
  * The signature is in the `x-paystack-signature` header.
  * Docs: https://paystack.com/docs/payments/webhooks/#verify-event-origin
  */
-function verifySignature(body: string, signature: string): boolean {
+export function verifySignature(body: string, signature: string): boolean {
   const hash = crypto
     .createHmac('sha512', getSecretKey())
     .update(body)

@@ -3,7 +3,14 @@ export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin, rateLimitAdmin } from '@/lib/auth';
 import { createAdminClient } from '@/lib/supabase/server';
-import { refundPayment } from '@/lib/payments/routing';
+import { isManualReference, refundPayment } from '@/lib/payments/routing';
+import { toCents } from '@/lib/core/pricing/money';
+import { refundObligationKey } from '@/lib/core/rental/refunds';
+import { submitRefund } from '@/lib/core/rental/use-cases';
+import { systemClock } from '@/lib/core/ports';
+import { paystackPayments } from '@/lib/payments/paystack-ports';
+import { SupabaseRefunds, isMissingPipeline, transitionBookings } from '@/lib/rental/repos';
+import { chargeOfBooking } from '@/lib/rental/charges';
 import { sendDisputeResolved } from '@/lib/email';
 import { profileWithEmail } from '@/lib/supabase/profile-email';
 
@@ -59,10 +66,13 @@ export async function GET(
     if (dispute.equipment_booking_id) {
       const { data } = await supabase
         .from('equipment_bookings')
-        .select('id, user_id, rental_id, status, total_price, start_date, end_date, checkout_photos, return_photos, condition_at_checkout, condition_at_return, payment_reference')
+        // payment_reference does not exist on equipment_bookings; asking for it
+        // failed the whole select, so the page never saw the booking. The
+        // gateway reference lives in payfast_payment_id (legacy name).
+        .select('id, user_id, rental_id, status, total_price, start_date, end_date, checkout_photos, return_photos, condition_at_checkout, condition_at_return, payfast_payment_id')
         .eq('id', dispute.equipment_booking_id)
         .single();
-      equipmentBookingDetails = data;
+      equipmentBookingDetails = data ? { ...data, payment_reference: (data as { payfast_payment_id?: string | null }).payfast_payment_id ?? null } : null;
     }
 
     // Fetch filer profile
@@ -100,12 +110,14 @@ export async function PATCH(
     return NextResponse.json({ error: 'Invalid JSON body.' }, { status: 400 });
   }
 
-  const { status, resolution, resolution_amount, resolution_notes, internal_notes } = body as {
+  const { status, resolution, resolution_amount, resolution_notes, internal_notes, suspend_user_id } = body as {
     status?: string;
     resolution?: string;
     resolution_amount?: number;
     resolution_notes?: string;
     internal_notes?: string;
+    /** Who to suspend for a user_suspended resolution: must be a party to the dispute. A person decides; it is never inferred. */
+    suspend_user_id?: string;
   };
 
   if (status && !VALID_STATUSES.includes(status)) {
@@ -168,31 +180,86 @@ export async function PATCH(
       if (dispute.equipment_booking_id) {
         const { data: eb } = await supabase
           .from('equipment_bookings')
-          .select('payfast_payment_id, total_price')
+          .select('id, user_id, checkout_group_id, payfast_payment_id, deposit_amount')
           .eq('id', dispute.equipment_booking_id)
           .single();
         // Legacy column name: this holds the gateway reference regardless of
         // which provider took the payment.
         paymentReference = eb?.payfast_payment_id ?? null;
 
-        if (paymentReference) {
-          const refundAmount = resolution === 'partial_refund' ? resolution_amount : undefined;
-          const refundResult = await refundPayment(paymentReference, refundAmount ?? undefined);
-          if (!refundResult.success) {
-            return NextResponse.json(
-              { error: `Refund failed: ${refundResult.error}` },
-              { status: 500 },
-            );
+        if (eb && paymentReference && !isManualReference(paymentReference)) {
+          // One refund obligation per dispute, capped at what is left of the
+          // charge (T13, T14), submitted now and reconciled by the pipeline if
+          // the provider does not answer.
+          const charge = await chargeOfBooking(supabase, eb);
+          const amountCents = resolution === 'partial_refund' ? toCents(Number(resolution_amount ?? 0)) : charge.remainderCents;
+          if (!Number.isSafeInteger(amountCents) || amountCents <= 0 || amountCents > charge.remainderCents) {
+            return NextResponse.json({ error: `The refund must be between R0.01 and what is left of the charge (R${(charge.remainderCents / 100).toFixed(2)}).` }, { status: 400 });
           }
+          const key = refundObligationKey('manual', `dispute:${id}`);
+          const { error: obErr } = await supabase.from('refund_obligations').upsert({
+            obligation_key: key,
+            reason: 'manual',
+            amount_cents: amountCents,
+            charged_cents: charge.totalCents,
+            transaction_reference: paymentReference,
+            user_id: eb.user_id,
+            booking_group_id: eb.checkout_group_id,
+            booking_ids: [eb.id],
+            evidence: { dispute_id: id, resolution, by: auth.user.id },
+            created_by: auth.user.id,
+          }, { onConflict: 'obligation_key', ignoreDuplicates: true });
+          if (obErr && !isMissingPipeline(obErr)) {
+            return NextResponse.json({ error: 'Could not record the refund. Nothing was sent.' }, { status: 500 });
+          }
+          if (obErr) {
+            // Migration 070 not applied: the earlier direct refund.
+            const refundResult = await refundPayment(paymentReference, resolution === 'partial_refund' ? resolution_amount : undefined);
+            if (!refundResult.success) return NextResponse.json({ error: 'Refund failed at the payment provider.' }, { status: 502 });
+          } else {
+            const { data: ob } = await supabase.from('refund_obligations').select('id').eq('obligation_key', key).maybeSingle();
+            if (ob) await submitRefund((ob as { id: string }).id, { refunds: new SupabaseRefunds(supabase), payments: paystackPayments, clock: systemClock }).catch(() => 'unknown_outcome');
+          }
+        } else if (paymentReference) {
+          // Paid by hand (EFT/cash): a person pays it back.
+          update.resolution_notes = `${resolution_notes ?? ''}${resolution_notes ? ' | ' : ''}Refund to be paid back by hand (manual payment).`;
         }
       }
     }
 
+    // A resolved gear dispute closes the booking, with the reason on record.
+    if (dispute.equipment_booking_id && (status === 'resolved' || status === 'dismissed')) {
+      await transitionBookings(supabase, {
+        ids: [dispute.equipment_booking_id],
+        from: ['disputed'],
+        to: 'completed',
+        actor: 'staff',
+        actorId: auth.user.id,
+        reason: `dispute ${status}: ${resolution ?? 'no resolution'}${resolution_notes ? ` (${String(resolution_notes).slice(0, 200)})` : ''}`,
+        notices: [],
+      }).catch(() => undefined);
+    }
+
     // Suspend user if resolution requires it
     if (resolution === 'user_suspended') {
-      const targetUserId = dispute.filed_by;
-      // Determine the offending user — for now, suspend the party against whom the dispute was filed
-      // For gear disputes, that's the renter; for service disputes, depends on type
+      // The admin names who is suspended. It used to be the person who FILED
+      // the dispute, which suspended complainants. It must be a party to it.
+      const parties = new Set<string>([dispute.filed_by]);
+      if (dispute.equipment_booking_id) {
+        const { data: eb } = await supabase.from('equipment_bookings').select('user_id, smart_rentals(owner_id)').eq('id', dispute.equipment_booking_id).maybeSingle();
+        if (eb?.user_id) parties.add(eb.user_id);
+        const r = (Array.isArray(eb?.smart_rentals) ? eb?.smart_rentals[0] : eb?.smart_rentals) as { owner_id?: string | null } | null;
+        if (r?.owner_id) parties.add(r.owner_id);
+      }
+      if (dispute.booking_id) {
+        const { data: sb } = await supabase.from('bookings').select('client_id, creator_id').eq('id', dispute.booking_id).maybeSingle();
+        if (sb?.client_id) parties.add(sb.client_id);
+        if (sb?.creator_id) parties.add(sb.creator_id);
+      }
+      if (!suspend_user_id || !parties.has(suspend_user_id)) {
+        return NextResponse.json({ error: 'Choose which party to suspend; it must be someone in this dispute.' }, { status: 400 });
+      }
+      const targetUserId = suspend_user_id;
       await supabase
         .from('profiles')
         .update({
