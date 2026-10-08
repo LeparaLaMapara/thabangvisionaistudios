@@ -1,6 +1,12 @@
+// Re-rendered every minute: the payment wording follows whether online
+// payment is open (onlinePaymentsOpen), which is configuration, not a constant.
+export const revalidate = 60;
+
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { STUDIO, RENTAL_POLICIES } from '@/lib/constants';
+import { STUDIO, RENTAL_POLICIES, RENTAL_POLICY } from '@/lib/constants';
+import { formatDocumentDate } from '@/lib/consent/documents';
+import { paymentsOpenForLegalPages } from '@/lib/consent/legal-facts';
 
 export const metadata: Metadata = {
   title: 'Refunds, Returns and Cancellations',
@@ -8,7 +14,8 @@ export const metadata: Metadata = {
     `How ${STUDIO.shortName} handles security deposits, returns and inspection, cancellations, refund timeframes, faulty equipment, and your rights under South African consumer law.`,
 };
 
-const LAST_UPDATED = '28 September 2026';
+const LAST_UPDATED = formatDocumentDate(STUDIO.legal.documents.refunds.version);
+const DEPOSIT_PERCENT = RENTAL_POLICY.depositRateBps / 100;
 
 /** Formats a rand amount without decimals, e.g. 150 -> "R150". */
 function zar(amount: number): string {
@@ -17,6 +24,7 @@ function zar(amount: number): string {
 
 export default function RefundsPage() {
   const link = 'text-[#D4A843] hover:text-[#D4A843]/80 transition-colors';
+  const paymentsOpen = paymentsOpenForLegalPages();
 
   return (
     <div className="min-h-screen bg-[#050505] pt-32 pb-20">
@@ -32,7 +40,7 @@ export default function RefundsPage() {
           <div className="w-8 h-px bg-[#D4A843] mt-6" />
         </div>
 
-        <p className="text-sm font-mono text-neutral-400 mb-10">Last Updated: {LAST_UPDATED}</p>
+        <p className="text-sm font-mono text-neutral-400 mb-10">Last updated {LAST_UPDATED}</p>
 
         <div className="space-y-10 text-sm font-mono text-neutral-400 leading-relaxed">
           <Section title="1. About This Policy">
@@ -45,8 +53,12 @@ export default function RefundsPage() {
           </Section>
 
           <Section title="2. Security Deposits on Equipment Hire">
-            <p>Every equipment hire carries a refundable security deposit, shown on the listing and in your cart before you pay. It is a fixed amount per item, not a percentage of the hire, and it is held against late return, damage, and loss.</p>
-            <p>At checkout you choose how to pay: everything online, or, when you collect, the deposit online to hold the equipment and the hire charge when you collect. Checkout shows the amounts before you pay. While online card payment is not offered, you pay the whole order by EFT within 48 hours of booking, using the reference on your booking, or in cash when you collect; we confirm your booking when the payment arrives.</p>
+            <p>Every equipment hire carries a refundable security deposit of {DEPOSIT_PERCENT}% of each item&rsquo;s replacement value, shown on the listing and in your cart before you pay. It is held against late return, damage, and loss, and it is refundable after the equipment is returned and inspected. A booking made before this version of the policy keeps the deposit shown when it was made.</p>
+            {paymentsOpen ? (
+              <p>At checkout you choose how to pay: everything online, or, when you collect, the deposit online to hold the equipment and the hire charge when you collect. Checkout shows the amounts before you pay.</p>
+            ) : (
+              <p>You pay the whole order, deposit included, by EFT within {STUDIO.bank.payWithinHours} hours of booking, using the reference on your booking, or in cash when you collect; we confirm your booking when the payment arrives.</p>
+            )}
             <p>When the equipment comes back we inspect each item and photograph its condition, then compare it against the record made when it left us. The deposit is then settled in one of four ways:</p>
             <ul className="list-disc pl-5 space-y-1">
               <li><span className="text-white">Released in full</span> — everything came back on time and in the condition it went out in.</li>
@@ -54,6 +66,10 @@ export default function RefundsPage() {
               <li><span className="text-white">Withheld</span> — the deduction equals or exceeds the deposit.</li>
               <li><span className="text-white">Held pending a dispute</span> — where the position is not clear, or the equipment has not come back, the deposit is held while we investigate.</li>
             </ul>
+            <p>Deductions are made only as our{' '}
+              <Link href="/legal" className={link}>Terms of Service</Link>{' '}
+              and your rental agreement allow: late return fees (section 3 below) and the cost of damage or loss (section 4).
+            </p>
             <p>Where any part of your deposit is withheld, we send you a written breakdown showing what was deducted and why. If you disagree with it, raise it with us using section 8 below.</p>
             <p>A deposit paid online is refunded to the card you paid with. A deposit paid by EFT or cash is paid back the same way. We do not refund to a third party.</p>
           </Section>
@@ -72,7 +88,7 @@ export default function RefundsPage() {
 
           <Section title="5. Cancelling an Equipment Hire">
             <p>You can cancel an equipment booking yourself from your dashboard while it is still pending payment or confirmed. Once the equipment has been released to you, the return process applies instead and you should contact us.</p>
-            <p>If you booked less than {STUDIO.legal.coolingOffDays} days ago, everything you paid online comes back: see section 10. Otherwise the refund is worked out automatically from how much notice you give, measured to the start of your first hire day, and processed to the card you paid with. You are shown the exact amount before you confirm the cancellation.</p>
+            <p>If you booked less than {STUDIO.legal.coolingOffDays} days ago, everything you paid online comes back: see section 10. Otherwise the refund is worked out automatically from how much notice you give, measured to the start of your first hire day, and refunded the way you paid: to your card for an online payment, or by EFT for an EFT or cash payment. You are shown the exact amount before you confirm the cancellation.</p>
             <ul className="list-disc pl-5 space-y-1">
               <li><span className="text-white">More than 48 hours before the hire starts</span> — the hire charge is refunded in full.</li>
               <li><span className="text-white">Between 24 and 48 hours before</span> — 50% of the hire charge is refunded.</li>
@@ -87,7 +103,7 @@ export default function RefundsPage() {
 
           <Section title="6. Cancelling a Production or Creative Service Booking">
             <p>You can cancel a service booking up to the point where the work is delivered. After delivery, the approval process in section 7 applies instead.</p>
-            <p>If you booked less than {STUDIO.legal.coolingOffDays} days ago and the shoot has not started, you get everything back: see section 10. Otherwise the refund is worked out from how much notice you give, measured to the start of your shoot day, and processed automatically to the card you paid with:</p>
+            <p>If you booked less than {STUDIO.legal.coolingOffDays} days ago and the shoot has not started, you get everything back: see section 10. Otherwise the refund is worked out from how much notice you give, measured to the start of your shoot day, and refunded the way you paid:</p>
             <ul className="list-disc pl-5 space-y-1">
               <li><span className="text-white">More than 48 hours before the shoot</span> — refunded in full.</li>
               <li><span className="text-white">Between 24 and 48 hours before</span> — 50% refunded.</li>
@@ -95,7 +111,7 @@ export default function RefundsPage() {
             </ul>
             <p>Where a booking was made without a fixed shoot date, we cannot measure the notice automatically, so a person assesses it. Contact{' '}
               <a href={`mailto:${STUDIO.supportEmail}`} className={link}>{STUDIO.supportEmail}</a>{' '}
-              with your booking reference and we will come back to you within 2 business days.
+              with your booking reference and we will come back to you {STUDIO.responseTime}.
             </p>
           </Section>
 
@@ -106,7 +122,7 @@ export default function RefundsPage() {
 
           <Section title="8. Faulty, Damaged or Misdescribed Supply">
             <p>Inspect equipment when you collect or receive it, and tell us immediately if an item is faulty, damaged, incomplete, or not what you booked. Do not use it. We will replace it, repair it, or refund it.</p>
-            <p>If equipment or a service is not supplied as described, tell us within 7 days of receiving it. Where the fault is ours, you choose between a re-supply and a full refund. This is your right under section 56 of the Consumer Protection Act and we do not limit it.</p>
+            <p>If equipment or a service is not supplied as described, tell us as soon as you notice the problem. Nothing in this policy limits your rights under the Consumer Protection Act.</p>
             <p>If we cancel your booking, or cannot supply what you paid for, you receive a full refund of everything you paid, with no deduction.</p>
           </Section>
 
@@ -134,7 +150,7 @@ export default function RefundsPage() {
               <a href={`mailto:${STUDIO.supportEmail}`} className={link}>{STUDIO.supportEmail}</a>{' '}
               with your booking reference, or WhatsApp us on {STUDIO.whatsapp.display} during business hours.
             </p>
-            <p>We acknowledge every complaint within 2 business days and aim to resolve it within 10 business days. If we need longer, we tell you why and give you a revised date.</p>
+            <p>We acknowledge every complaint {STUDIO.responseTime} and aim to resolve it within 10 business days. If we need longer, we tell you why and give you a revised date.</p>
             <p>If you are still not satisfied, escalate in writing to{' '}
               <a href={`mailto:${STUDIO.email}`} className={link}>{STUDIO.email}</a>{' '}
               for review by management. You keep the right to refer an unresolved complaint to the National Consumer Commission or to a court of competent jurisdiction in South Africa.

@@ -1,6 +1,17 @@
+// Re-rendered every minute: the payment wording follows whether online
+// payment is open (onlinePaymentsOpen), which is configuration, not a constant.
+export const revalidate = 60;
+
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { STUDIO, RENTAL_POLICIES } from '@/lib/constants';
+import { STUDIO, RENTAL_POLICIES, RENTAL_POLICY } from '@/lib/constants';
+import { formatDocumentDate } from '@/lib/consent/documents';
+import {
+  AI_PROVIDERS_DISCLOSED,
+  activePaymentProviderLabel,
+  listInProse,
+  paymentsOpenForLegalPages,
+} from '@/lib/consent/legal-facts';
 
 export const metadata: Metadata = {
   title: 'Terms of Service',
@@ -8,7 +19,9 @@ export const metadata: Metadata = {
     `${STUDIO.shortName} Terms of Service — who you contract with, equipment hire, deposits, damage and loss, production services, payment, cancellations, and dispute resolution.`,
 };
 
-const LAST_UPDATED = '28 September 2026';
+const LAST_UPDATED = formatDocumentDate(STUDIO.legal.documents.terms.version);
+const DEPOSIT_PERCENT = RENTAL_POLICY.depositRateBps / 100;
+const OWNER_SHARE_PERCENT = RENTAL_POLICY.ownerShareBps / 100;
 
 /** Formats a rand amount without decimals, e.g. 150 -> "R150". */
 function zar(amount: number): string {
@@ -17,6 +30,8 @@ function zar(amount: number): string {
 
 export default function LegalPage() {
   const link = 'text-[#D4A843] hover:text-[#D4A843]/80 transition-colors';
+  const paymentsOpen = paymentsOpenForLegalPages();
+  const paymentProvider = activePaymentProviderLabel();
 
   return (
     <div className="min-h-screen bg-[#050505] pt-32 pb-20">
@@ -32,7 +47,7 @@ export default function LegalPage() {
           <div className="w-8 h-px bg-[#D4A843] mt-6" />
         </div>
 
-        <p className="text-sm font-mono text-neutral-400 mb-10">Last Updated: {LAST_UPDATED}</p>
+        <p className="text-sm font-mono text-neutral-400 mb-10">Last updated {LAST_UPDATED}</p>
 
         <div className="space-y-10 text-sm font-mono text-neutral-400 leading-relaxed">
           <Part title="Part A — General" />
@@ -59,7 +74,7 @@ export default function LegalPage() {
           </Section>
 
           <Section title="4. Identity Verification">
-            <p>Before your first equipment hire, before your gear or services go live on the platform, and before your first payout, we ask for a photo of your ID and a selfie of you holding it. No certified copy is needed. An automated check compares the two faces, then a person reviews your submission, {STUDIO.verification.reviewTime}, and we email you the result.</p>
+            <p>Before your first equipment hire, before your gear or services go live on the platform, and before your first payout, we ask for a photo of your ID and a selfie of you holding it. No certified copy is needed. An AI service provider we use makes an automated comparison of the two faces, then a person reviews your submission, {STUDIO.verification.reviewTime}, and we email you the result. The automated comparison never decides on its own. You give a separate consent for this check before you upload anything.</p>
             <p>By submitting verification documents you confirm that you are the person depicted in those documents and that all information provided is accurate. Fraudulent submissions result in permanent account suspension.</p>
             <p>Verification documents are handled in accordance with our{' '}
               <Link href="/privacy" className={link}>Privacy Policy</Link>. Please read it before submitting: it explains where your documents are stored, that automated checks are performed on them, and how long they are kept.
@@ -73,17 +88,19 @@ export default function LegalPage() {
 
           <Section title="6. Pricing and Payment">
             <p>All prices are quoted in South African Rand ({STUDIO.currency.code}).</p>
-            {STUDIO.legal.vatRegistered ? (
-              <p>{STUDIO.legal.companyName} is a registered VAT vendor{STUDIO.legal.vatNumber ? ` under VAT registration number ${STUDIO.legal.vatNumber}` : ''}. Equipment hire prices shown on this site include VAT at {STUDIO.booking.vatRate}%, and the VAT portion is itemised in your cart and on your invoice. Production and creative service prices are also shown including VAT at {STUDIO.booking.vatRate}%; your quote and invoice show the price before VAT and the VAT as separate lines. Refundable security deposits are not subject to VAT. Our VAT registration number appears on every tax invoice we issue.</p>
-            ) : (
-              <p>Where VAT becomes applicable it is shown separately at checkout and on your invoice.</p>
+            {!STUDIO.legal.vatRegistered && (
+              <p>{STUDIO.legal.companyName} is not registered for VAT. No VAT is added to our prices, and the price shown at checkout is the price you pay.</p>
             )}
-            <p>When online payment opens, card payments are processed by our authorised payment gateway, a registered South African payment service provider, over secure encrypted connections, and we accept South African debit and credit cards together with the other payment methods presented at checkout. Until then, you pay by EFT to our business account, THABANGVISION STUDIO (PTY) LTD at Capitec Business (the details are on thabangvision.com/pay), or in cash when you collect. {STUDIO.shortName} does not store your full card details on our servers.</p>
+            {paymentsOpen ? (
+              <p>Online card payments are processed by our payment provider (currently {paymentProvider}) over encrypted connections. You can also pay by EFT to our business account, {STUDIO.bank.accountName} at {STUDIO.bank.bankName} (the details are on our <Link href="/pay" className={link}>payment page</Link>), or in cash when you collect. {STUDIO.shortName} does not store your full card details on our servers.</p>
+            ) : (
+              <p>You pay by EFT to our business account, {STUDIO.bank.accountName} at {STUDIO.bank.bankName} (the details are on our <Link href="/pay" className={link}>payment page</Link>), or in cash when you collect.</p>
+            )}
             <p>Payment is collected by {STUDIO.legal.companyName} as principal. Funds are not held in escrow or in trust for any third party, and no part of your payment is disbursed to a third party on your behalf.</p>
             <p>A booking is confirmed only once payment or the required deposit has been received and we have sent you a written confirmation.</p>
           </Section>
 
-          <Part title="Part B — Equipment Hire" />
+          <Part id="equipment-hire" title="Part B — Equipment Hire" />
 
           <Section title="7. Eligibility to Hire">
             <p>Equipment may only be hired by an account that has completed identity verification. Our checkout will not accept an equipment order from an unverified account. You must be 18 years or older.</p>
@@ -117,9 +134,13 @@ export default function LegalPage() {
           </Section>
 
           <Section title="10. Security Deposit">
-            <p>A refundable security deposit is payable on every equipment hire. The deposit is a fixed amount per item, shown on each listing and in your cart before you pay. It is not a percentage of the hire value, and it is not part payment of the hire.</p>
-            <p>At checkout you choose how to pay: everything online, or, when you collect, the deposit online to hold the equipment and the hire charge when you collect. Checkout shows the amounts before you pay. While online card payment is not offered, you pay the whole order by EFT within 48 hours of booking, using the reference on your booking, or in cash when you collect; we confirm your booking when the payment arrives. An EFT booking not paid within 48 hours is released.</p>
-            <p>After the equipment is returned and inspected, the deposit is released in full, released in part, or withheld, depending on the condition the equipment comes back in and whether it was returned on time. A deposit paid online is refunded to the card you paid with; a deposit paid by EFT or in cash is paid back by EFT or in cash. Where any part of the deposit is withheld, we give you a written breakdown of the deduction.</p>
+            <p>A refundable security deposit is payable on every equipment hire. The deposit is {DEPOSIT_PERCENT}% of each item&rsquo;s replacement value, and the amount is shown on each listing and in your cart before you pay. It is not part payment of the hire. A booking made before this version of the terms keeps the deposit shown when it was made.</p>
+            {paymentsOpen ? (
+              <p>At checkout you choose how to pay: everything online, or, when you collect, the deposit online to hold the equipment and the hire charge when you collect. Checkout shows the amounts before you pay. If you choose EFT, pay within {STUDIO.bank.payWithinHours} hours of booking using the reference on your booking; an EFT booking not paid within {STUDIO.bank.payWithinHours} hours is released.</p>
+            ) : (
+              <p>You pay the whole order, deposit included, by EFT within {STUDIO.bank.payWithinHours} hours of booking, using the reference on your booking, or in cash when you collect; we confirm your booking when the payment arrives. An EFT booking not paid within {STUDIO.bank.payWithinHours} hours is released.</p>
+            )}
+            <p>The deposit is refundable after the equipment is returned and inspected. It is released in full, released in part, or withheld. Deductions are made only as these terms and your rental agreement allow: late return fees under section 12, and the cost of damage or loss under section 13. A deposit paid online is refunded to the card you paid with; a deposit paid by EFT or in cash is paid back by EFT or in cash. Where any part of the deposit is withheld, we give you a written breakdown of the deduction.</p>
             <p>Full detail on timing and process is in our{' '}
               <Link href="/refunds" className={link}>Refunds, Returns and Cancellations Policy</Link>.
             </p>
@@ -128,7 +149,7 @@ export default function LegalPage() {
           <Section title="11. Collection and Return">
             <p>You choose collection or delivery at checkout.</p>
             <p><span className="text-white">Collection.</span> Collect from {STUDIO.fulfilment.dispatchFrom.meetingPoint}, {STUDIO.fulfilment.dispatchFrom.name}, {STUDIO.location.city}, during business hours, on the day in your booking confirmation. The person collecting must be the verified account holder, or someone you have nominated to us in writing beforehand.</p>
-            <p><span className="text-white">Delivery.</span> We deliver in our own vehicle within {STUDIO.fulfilment.delivery.maxRadiusKm}km of our collection point. The delivery fee is calculated from the road distance to your address and the size of your order, and the exact amount is shown to you at checkout before you pay. Beyond that radius, contact us for a quote. Delivery is charged in full at checkout and is not refundable once the vehicle has been dispatched.</p>
+            <p><span className="text-white">Delivery.</span> We deliver in our own vehicle within {STUDIO.fulfilment.delivery.maxRadiusKm}km of our collection point. The delivery fee is calculated from an estimate of the road distance to your address and the size of your order, and the exact amount is shown to you at checkout before you pay. Beyond that radius, contact us for a quote. Delivery is charged in full at checkout and is not refundable once the vehicle has been dispatched.</p>
             <p>Equipment is collected from {STUDIO.fulfilment.dispatchFrom.meetingPoint}, {STUDIO.fulfilment.dispatchFrom.name}, {STUDIO.location.city}. Our Pretoria studio is open by appointment only. Our business hours are {STUDIO.hours.weekday}, {STUDIO.hours.weekend}, {STUDIO.hours.sunday}. Collections, deliveries and returns outside these hours are by prior arrangement only, and a fee may apply.</p>
             <p>Each item is inspected and its condition recorded with photographs both when it leaves us and when it comes back. That pair of records is what your deposit is assessed against. You are welcome to be present at either inspection, and to ask us for a copy of both records.</p>
           </Section>
@@ -150,7 +171,7 @@ export default function LegalPage() {
 
           <Section title="14. Loss of Earnings">
             <p>Equipment that is lost, stolen, or out of service for repair cannot be hired to anyone else. Where that happens through loss, theft, or damage for which you are liable, we may in addition claim loss of earnings.</p>
-            <p>Loss of earnings is calculated as {RENTAL_POLICIES.lossOfEarnings.percentOfHireValue}% of the total hire value, or {RENTAL_POLICIES.lossOfEarnings.minimumWeeks} weeks of hire at the applicable rate, whichever is the higher, excluding VAT.</p>
+            <p>Loss of earnings is calculated as {RENTAL_POLICIES.lossOfEarnings.percentOfHireValue}% of the total hire value, or {RENTAL_POLICIES.lossOfEarnings.minimumWeeks} weeks of hire at the applicable rate, whichever is the higher.</p>
             <p>For theft or loss, the period runs from the date the incident is reported to the South African Police Service and a case number is issued. For damage, it runs from the date the damage is reported to us until the date a repaired or replacement item is back in service.</p>
             <p>Loss of earnings is claimed by invoice as a debt due to us. It is not deducted automatically from your deposit and it is not charged to your card without notice. Each claim is assessed on its own facts and we will discuss it with you before invoicing.</p>
           </Section>
@@ -164,7 +185,7 @@ export default function LegalPage() {
           <Part title="Part C — Production and Creative Services" />
 
           <Section title="16. Booking, Delivery and Approval">
-            <p>Production and creative service bookings are either charged by the hour, for {STUDIO.booking.minBookingHours} to {STUDIO.booking.maxBookingHours} hours at the rate confirmed in your booking, or as a studio package at its fixed price. All service prices are shown including VAT, and your quote shows the VAT separately.</p>
+            <p>Production and creative service bookings are either charged by the hour, for {STUDIO.booking.minBookingHours} to {STUDIO.booking.maxBookingHours} hours at the rate confirmed in your booking, or as a studio package at its fixed price.</p>
             <p>Shoots are booked by request. A booking moves through a fixed sequence: you send your request, we confirm who will carry out the work, the date and the price, you pay, the work is carried out, and the deliverables are submitted to you.</p>
             <p><span className="text-white">Approval and the 7 day window.</span> Once deliverables are submitted you have 7 days to review them and either approve them or raise an issue with us. If you do not respond within 7 days, the delivery is approved automatically and the booking is treated as complete. We remind you of this when the deliverables are sent. If something is wrong, tell us inside that window.</p>
             <p>If a booking has been accepted but nothing is delivered within 30 days, we review it and contact you and the creator. Cancellation and refunds for service bookings are dealt with in our{' '}
@@ -180,7 +201,7 @@ export default function LegalPage() {
             <p>You supply to {STUDIO.legal.companyName}, not to the client. We are the merchant of record on every order, we contract with the client, and we carry the client facing obligation for that order, including any refund. In return, you agree not to solicit payment directly from a client introduced through the platform for work booked through the platform.</p>
             <p>You warrant that you own, or have the right to hire out, every item you list; that it is in safe and working condition and accurately described; and that you hold any licences or permits your services require.</p>
             <p>Listings may be drafted, described, and priced with the assistance of our AI tools. Anything generated that way is a suggestion. It is published only once you have reviewed and confirmed it. New gear is saved as a draft and goes live only after your identity verification has passed and you have reviewed it. You remain responsible for the accuracy of your listings and rates.</p>
-            <p>Amounts due to you are paid to the bank account you register with us, once your identity verification has passed. For a service booking, we pay after our payment provider confirms the client&rsquo;s payment and the client approves the work or the 7 day approval window passes. Payouts for crew requests and equipment supply are made by us by hand. Our commission is {STUDIO.creators.commissionRate}% of the booking price before VAT, and it is shown on every booking in your dashboard. VAT is charged to the client and paid by us to SARS; it is not part of your share.</p>
+            <p>Amounts due to you are paid to the bank account you register with us, once your identity verification has passed. For a service booking, we pay after our payment provider confirms the client&rsquo;s payment and the client approves the work or the 7 day approval window passes. Payouts for crew requests and equipment supply are made by us by hand. On a service booking our commission is {STUDIO.creators.commissionRate}% of the booking price, and it is shown on every booking in your dashboard. For equipment you supply, your share is {OWNER_SHARE_PERCENT}% of the hire fee; the security deposit is not part of the hire fee and is not shared.</p>
             <p>Where disputes are opened against your account we may withhold payouts pending resolution. Accounts with three or more open disputes are suspended and their listings are removed from sale. We will tell you when this happens and why.</p>
           </Section>
 
@@ -201,7 +222,7 @@ export default function LegalPage() {
               <a href={`mailto:${STUDIO.supportEmail}`} className={link}>{STUDIO.supportEmail}</a>{' '}
               with your booking reference and a description of the issue, or WhatsApp us on {STUDIO.whatsapp.display} during business hours.
             </p>
-            <p>We acknowledge every complaint within 2 business days and aim to resolve it within 10 business days. If we need longer, we tell you why and give you a revised date. Our written resolution sets out the outcome and any refund or credit due to you.</p>
+            <p>We acknowledge every complaint {STUDIO.responseTime} and aim to resolve it within 10 business days. If we need longer, we tell you why and give you a revised date. Our written resolution sets out the outcome and any refund or credit due to you.</p>
             <p>If you are not satisfied with the outcome, you may escalate the matter in writing to{' '}
               <a href={`mailto:${STUDIO.email}`} className={link}>{STUDIO.email}</a>{' '}
               for review by management. You keep the right to refer an unresolved complaint to the National Consumer Commission or to a court of competent jurisdiction in South Africa.
@@ -218,7 +239,7 @@ export default function LegalPage() {
           </Section>
 
           <Section title="22. AI Assistant (Ubunye)">
-            <p>The Ubunye AI assistant provides estimates, recommendations, and general guidance. Its answers come from Google (Gemini), and Anthropic (Claude) takes over automatically if Google is unavailable. AI generated content is informational only and is not professional advice or a binding quotation. Actual costs, availability, and specifications are confirmed in your written booking confirmation, which prevails over anything the assistant tells you.</p>
+            <p>The Ubunye AI assistant provides estimates, recommendations, and general guidance. Its answers are generated by third-party AI providers, which may include {listInProse(AI_PROVIDERS_DISCLOSED)}, depending on our configuration and their availability. AI generated content is informational only and is not professional advice or a binding quotation. Actual costs, availability, and specifications are confirmed in your written booking confirmation, which prevails over anything the assistant tells you.</p>
             <p>Conversations with Ubunye are stored on our systems. See our{' '}
               <Link href="/privacy" className={link}>Privacy Policy</Link>{' '}for how that data is handled.
             </p>
@@ -254,7 +275,7 @@ export default function LegalPage() {
               {STUDIO.legal.companyName}<br />
               {STUDIO.legal.registeredAddress && (<>{STUDIO.legal.registeredAddress}<br /></>)}
               Registration number {STUDIO.legal.registrationNumber}<br />
-              {STUDIO.legal.vatNumber && (<>VAT number {STUDIO.legal.vatNumber}<br /></>)}
+              {STUDIO.legal.vatRegistered && STUDIO.legal.vatNumber && (<>VAT number {STUDIO.legal.vatNumber}<br /></>)}
               WhatsApp {STUDIO.whatsapp.display}<br />
               General{' '}
               <a href={`mailto:${STUDIO.email}`} className={link}>{STUDIO.email}</a>
@@ -270,9 +291,9 @@ export default function LegalPage() {
   );
 }
 
-function Part({ title }: { title: string }) {
+function Part({ title, id }: { title: string; id?: string }) {
   return (
-    <div className="pt-6 first:pt-0">
+    <div id={id} className="pt-6 first:pt-0 scroll-mt-32">
       <h2 className="text-xs font-mono uppercase tracking-[0.3em] text-[#D4A843]">{title}</h2>
       <div className="w-full h-px bg-white/10 mt-3" />
     </div>

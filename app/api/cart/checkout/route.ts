@@ -19,6 +19,8 @@ import { loadRenterRecord } from '@/lib/rental/protection-server';
 import { effectiveHoldMinutes } from '@/lib/rental/availability-server';
 import { paymentReference } from '@/lib/payments/eft';
 import { loadNoticeBookings, sendGearNotice } from '@/lib/rental/notices';
+import { recordConsent, requiredConsents } from '@/lib/consent';
+import { clientIp } from '@/lib/http/clientIp';
 
 function daysBetween(start: string, end: string): number {
   return Math.ceil(
@@ -107,7 +109,33 @@ export async function POST(request: NextRequest) {
     delivery_address,
     delivery_lat,
     delivery_lng,
+    acceptTerms,
   } = body;
+
+  // The Terms, Privacy Policy and rental agreement must be accepted for every
+  // order, and the acceptance is recorded server-side against the current
+  // document versions (public.consent_records, migration 068). A ticked box in
+  // the browser alone is not evidence, so the order stops if the record fails.
+  if (acceptTerms !== true) {
+    return NextResponse.json(
+      { error: 'Please accept the Terms, Privacy Policy and rental agreement.', code: 'CONSENT_REQUIRED' },
+      { status: 400 },
+    );
+  }
+  const consent = await recordConsent(supabase, {
+    userId: user.id,
+    purposes: requiredConsents('checkout'),
+    source: 'checkout',
+    ip: clientIp(request.headers),
+    userAgent: request.headers.get('user-agent'),
+  });
+  if (!consent.ok) {
+    console.error('[checkout] consent not recorded');
+    return NextResponse.json(
+      { error: 'Could not record your acceptance. Please try again.' },
+      { status: 503 },
+    );
+  }
 
   // ── Fulfilment ────────────────────────────────────────────────────────────
   // Never trust a fee sent by the client. We take the address and recalculate

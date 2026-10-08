@@ -9,7 +9,8 @@ import { Trash2, Minus, Plus, ShoppingCart, ArrowRight, AlertTriangle } from 'lu
 import { Button } from '@/components/ui/Button';
 import { DateRangePicker, type DateRange } from '@/components/ui/DateRangePicker';
 import { useCart } from '@/providers/CartProvider';
-import { calculateItemPrice, calculateIncludedVat } from '@/lib/cart/pricing';
+import { calculateItemPrice, calculateIncludedVat, depositPerUnit } from '@/lib/cart/pricing';
+import { TermsAcceptance } from '@/components/consent/TermsAcceptance';
 import { quoteDelivery, isDeliveryQuote } from '@/lib/delivery/quote';
 import AddressAutocomplete, { type AddressResult } from '@/components/ui/AddressAutocomplete';
 import { STUDIO } from '@/lib/constants';
@@ -38,6 +39,7 @@ export default function CartPage() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notes, setNotes] = useState('');
+  const [acceptTerms, setAcceptTerms] = useState(false);
   const [fulfilment, setFulfilment] = useState<'collection' | 'delivery'>('collection');
   const [payNow, setPayNow] = useState<'full' | 'deposit_only'>('full');
   // While card payment is off: EFT to the business account, or cash when collecting.
@@ -109,7 +111,7 @@ export default function CartPage() {
         days,
         unitPrice,
         subtotal: unitPrice * item.quantity,
-        deposit: (item.rental.deposit_amount ?? 0) * item.quantity,
+        deposit: depositPerUnit(item.rental) * item.quantity,
       };
     });
 
@@ -227,6 +229,7 @@ export default function CartPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           notes: notes.trim() || undefined,
+          acceptTerms,
           fulfilment_method: fulfilment,
           payment_plan: fulfilment === 'collection' ? payNow : 'full',
           payment_method: fulfilment === 'collection' ? payBy : 'eft',
@@ -660,11 +663,14 @@ export default function CartPage() {
           {/* Payment truth, above the button that commits */}
           <PaymentsNotOpenNote open={paymentsOpen} />
 
+          {/* Required acceptance, recorded by the checkout route */}
+          <TermsAcceptance checked={acceptTerms} onChange={setAcceptTerms} includeRentalAgreement />
+
           {/* Checkout button */}
           <Button
             onClick={handleCheckout}
             loading={submitting}
-            disabled={!allDatesSet || items.length === 0 || !fulfilmentReady}
+            disabled={!allDatesSet || items.length === 0 || !fulfilmentReady || !acceptTerms}
             className="w-full"
             size="lg"
           >

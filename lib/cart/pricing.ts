@@ -1,7 +1,7 @@
 import { STUDIO } from '@/lib/constants';
 import { allocateCents, bpsOf, fromCents, percentToBps, toCents } from '@/lib/core/pricing/money';
 import { vatOnInclusive, vatRateAt } from '@/lib/core/pricing/tax';
-import { hireCents } from '@/lib/core/pricing/rental';
+import { depositFor, hireCents } from '@/lib/core/pricing/rental';
 import type { CartItemWithRental, CartPricingItem, CartPricingSummary, CartPerItemPricingSummary } from '@/types/cart';
 
 /**
@@ -57,6 +57,20 @@ export function splitAcrossLines(totalRands: number, countOrWeights: number | re
   if (weights.length === 0) return [];
   const usable = weights.some((w) => w > 0) ? weights : weights.map(() => 1);
   return allocateCents(toCents(totalRands), usable).map(fromCents);
+}
+
+/**
+ * Refundable deposit for one unit, in rands.
+ *
+ * Founder decision 2026-10-08: the deposit is 25% of the item's replacement
+ * value (RENTAL_POLICY.depositRateBps). Listings that do not yet record a
+ * replacement value keep their stored fixed deposit, so nothing is charged
+ * that the owner has not set; those listings should get a replacement value.
+ */
+export function depositPerUnit(rental: { deposit_amount?: number | null; replacement_value?: number | null }): number {
+  const replacement = Number(rental.replacement_value ?? 0);
+  if (replacement > 0) return fromCents(depositFor(toCents(replacement)));
+  return Math.max(0, Number(rental.deposit_amount ?? 0));
 }
 
 /**
@@ -132,7 +146,7 @@ export function calculateCartPricing(
       days,
     );
     const subtotal = unitPrice * item.quantity;
-    const deposit = (item.rental.deposit_amount ?? 0) * item.quantity;
+    const deposit = depositPerUnit(item.rental) * item.quantity;
 
     return {
       rental_id: item.rental_id,
@@ -195,7 +209,7 @@ export function calculateCartPricingPerItem(
       days,
     );
     const subtotal = unitPrice * item.quantity;
-    const deposit = (item.rental.deposit_amount ?? 0) * item.quantity;
+    const deposit = depositPerUnit(item.rental) * item.quantity;
 
     return {
       rental_id: item.rental_id,

@@ -18,6 +18,8 @@ export interface CartItemWithRental extends CartItem {
     price_per_day: number;
     price_per_week: number | null;
     deposit_amount: number;
+    /** Replacement value in rands; drives the 25% deposit (RENTAL_POLICY). */
+    replacement_value?: number | null;
     currency: string;
     is_available: boolean;
     thumbnail_url: string | null;
