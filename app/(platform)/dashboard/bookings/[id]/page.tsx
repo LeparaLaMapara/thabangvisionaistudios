@@ -8,6 +8,7 @@ import {
   ArrowLeft,
   Calendar,
   CheckCircle2,
+  Clock,
   CreditCard,
   FileText,
   AlertTriangle,
@@ -41,8 +42,24 @@ const STATUS_VARIANT: Record<BookingStatus, 'default' | 'warning' | 'success' | 
   pending: 'warning',
   confirmed: 'info',
   active: 'success',
+  overdue: 'error',
+  return_pending: 'warning',
+  return_reviewed: 'info',
   completed: 'default',
+  disputed: 'error',
   cancelled: 'error',
+};
+
+const STATUS_LABEL: Record<BookingStatus, string> = {
+  pending: 'pending',
+  confirmed: 'confirmed',
+  active: 'on hire',
+  overdue: 'overdue',
+  return_pending: 'returned, being checked',
+  return_reviewed: 'inspected, deposit being settled',
+  completed: 'completed',
+  disputed: 'disputed',
+  cancelled: 'cancelled',
 };
 
 export default function BookingDetailPage() {
@@ -204,11 +221,11 @@ export default function BookingDetailPage() {
       {/* Payment status banner */}
       {booking.payment_info && <PayPanel info={booking.payment_info} startDate={booking.start_date} />}
       {paymentStatus === 'success' && (
-        <div className="flex items-center gap-3 p-4 mb-6 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400">
-          <CheckCircle2 className="w-5 h-5 flex-shrink-0" />
+        <div className="flex items-center gap-3 p-4 mb-6 bg-[#D4A843]/10 border border-[#D4A843]/20 text-[#D4A843]">
+          <Clock className="w-5 h-5 flex-shrink-0" />
           <div>
-            <p className="text-sm font-mono font-bold">Payment received</p>
-            <p className="text-xs font-mono text-emerald-400/70">Your booking is being confirmed. This page will update shortly.</p>
+            <p className="text-sm font-mono font-bold">Confirming your payment</p>
+            <p className="text-xs font-mono text-[#D4A843]/70">We are confirming the payment with the payment provider. Your booking updates once the provider confirms it.</p>
           </div>
         </div>
       )}
@@ -229,8 +246,8 @@ export default function BookingDetailPage() {
             <h2 className="text-lg font-display font-medium uppercase text-black dark:text-white">
               {booking.rental_title ?? `Booking #${booking.id.slice(0, 8)}`}
             </h2>
-            <Badge variant={STATUS_VARIANT[booking.status]}>
-              {booking.status}
+            <Badge variant={STATUS_VARIANT[booking.status] ?? 'default'}>
+              {STATUS_LABEL[booking.status] ?? booking.status}
             </Badge>
           </div>
           <p className="text-xs font-mono uppercase tracking-widest text-neutral-400">

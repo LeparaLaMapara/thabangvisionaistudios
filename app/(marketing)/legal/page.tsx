@@ -22,6 +22,21 @@ export const metadata: Metadata = {
 const LAST_UPDATED = formatDocumentDate(STUDIO.legal.documents.terms.version);
 const DEPOSIT_PERCENT = RENTAL_POLICY.depositRateBps / 100;
 const OWNER_SHARE_PERCENT = RENTAL_POLICY.ownerShareBps / 100;
+// Renter limits and collection rule, in rands (RENTAL_POLICY holds cents).
+const TRUST_LIMITS = {
+  contactable: RENTAL_POLICY.trustTierLimitsCents.contactable / 100,
+  verified: RENTAL_POLICY.trustTierLimitsCents.verified / 100,
+  proven: RENTAL_POLICY.trustTierLimitsCents.proven / 100,
+  trusted: RENTAL_POLICY.trustTierLimitsCents.trusted / 100,
+};
+const TRUST_STEPS = {
+  proven: RENTAL_POLICY.trustThresholds.proven,
+  trusted: {
+    ...RENTAL_POLICY.trustThresholds.trusted,
+    cleanReturnValue: RENTAL_POLICY.trustThresholds.trusted.cleanReturnValueCents / 100,
+  },
+};
+const HIGH_VALUE_COLLECTION = RENTAL_POLICY.highValueCollectionThresholdCents / 100;
 
 /** Formats a rand amount without decimals, e.g. 150 -> "R150". */
 function zar(amount: number): string {
@@ -107,7 +122,7 @@ export default function LegalPage() {
             <p>The verified account holder is the hirer and is responsible for the equipment for the entire hire period. Where you hire on behalf of a production, agency, or end client, or act as a facilitator or fixer, you remain the hirer and remain liable for payment and for the equipment, whether or not your own client settles with you.</p>
             <p>Equipment must be booked at least {STUDIO.rental.minLeadTimeHours} hours before the hire begins, so that it can be checked, charged and prepared for you. Because hires are booked by the day, this is measured to the start of your first hire day, which means the earliest date you can select is usually two to three days ahead depending on when you book. Shorter notice may be possible by arrangement, but cannot be booked online.</p>
             <p>An online hire may run for up to {STUDIO.rental.maxBookingDays} days, and a cart may hold up to {STUDIO.rental.maxCartItems} items. Longer hires are arranged directly with us. Equipment already booked for your dates cannot be double-booked, and our checkout will tell you if a conflict exists.</p>
-            <p>To protect everyone&rsquo;s gear, a new renter may have up to {zar(STUDIO.rental.protection.trustTiers[0].maxValue)} of equipment (by replacement value) booked or out at a time. The limit rises after returns made on time and in good condition, to {zar(STUDIO.rental.protection.trustTiers[1].maxValue)} after {STUDIO.rental.protection.trustTiers[1].cleanReturns} and {zar(STUDIO.rental.protection.trustTiers[2].maxValue)} after {STUDIO.rental.protection.trustTiers[2].cleanReturns}. Your first hire, and any order over {zar(STUDIO.rental.protection.collectionOnlyAboveValue)}, is collected in person: we check your ID, photograph the equipment with you, and you sign the rental agreement on screen. Checkout tells you your limit before you pay. For a larger hire, contact us.</p>
+            <p>To protect everyone&rsquo;s gear, each account has a limit on the total replacement value of equipment it may have booked or out at the same time. We work the limit out from what we have checked and from your hire history; you cannot choose it. The limits are: {zar(TRUST_LIMITS.contactable)} once your email address and phone number are verified; {zar(TRUST_LIMITS.verified)} once your identity documents have been approved by our team and a bank account in your own name has been validated; {zar(TRUST_LIMITS.proven)} after {TRUST_STEPS.proven.cleanReturns} {TRUST_STEPS.proven.cleanReturns === 1 ? 'hire' : 'hires'} returned on time and in good condition and {TRUST_STEPS.proven.historyDays} days since that return; and {zar(TRUST_LIMITS.trusted)} after {TRUST_STEPS.trusted.cleanReturns} such returns, covering at least {zar(TRUST_STEPS.trusted.cleanReturnValue)} of equipment in total, and {TRUST_STEPS.trusted.historyDays} days since your first clean return. Identity verification under this section is still required for any hire. While equipment is overdue and its return has been formally escalated, new bookings are paused until it is back; other concerns, such as an open dispute or recent late returns, may mean a member of our team must approve a booking before it goes ahead. Your first hire, and any hire that includes an item with a replacement value over {zar(HIGH_VALUE_COLLECTION)}, is collected in person: we check your ID, photograph the equipment with you, and you sign the rental agreement on screen. Checkout tells you your limit before you pay. For a larger hire, contact us. These limits are a risk control, not insurance, and they do not reduce your responsibility for the equipment under these Terms.</p>
           </Section>
 
           <Section title="8. Ownership and Permitted Use">

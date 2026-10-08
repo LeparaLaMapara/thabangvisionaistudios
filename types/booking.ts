@@ -1,10 +1,19 @@
 // ─── Booking status enums ────────────────────────────────────────────────────
 
+/**
+ * Gear-hire (equipment_bookings) status. The full vocabulary of the booking
+ * state machine in lib/core/rental/state.ts. Payment, deposit, refund and
+ * payout progress are tracked separately, not in this field.
+ */
 export type BookingStatus =
   | 'pending'
   | 'confirmed'
   | 'active'
+  | 'overdue'
+  | 'return_pending'
+  | 'return_reviewed'
   | 'completed'
+  | 'disputed'
   | 'cancelled';
 
 export type PaymentStatus =
