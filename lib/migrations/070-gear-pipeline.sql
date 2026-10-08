@@ -161,7 +161,7 @@ as $$
        and b.start_date <= p_end
        and (case
               when b.status in ('overdue', 'return_pending', 'return_reviewed', 'disputed') then 'infinity'::date
-              when b.status = 'active' and b.end_date < current_date then 'infinity'::date
+              when b.status = 'active' and b.end_date < (now() at time zone 'Africa/Johannesburg')::date then 'infinity'::date
               else b.end_date
             end) >= p_start
   ), 0)

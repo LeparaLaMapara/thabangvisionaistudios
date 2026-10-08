@@ -234,15 +234,24 @@ export async function submitRefund(id: string, deps: { refunds: RefundRepository
   const res = await deps.payments.refund({ transactionReference: refund.transactionReference, amountCents: refund.amountCents, idempotencyKey: refund.obligationKey });
   if (res.ok) {
     const state = mapProviderRefundStatus(res.value.status) ?? 'requested';
+    const to = state === 'processed' ? 'processed' : state === 'failed' ? 'failed' : state === 'needs_attention' ? 'needs_attention' : state === 'processing' ? 'processing' : 'pending';
+    // Tell the customer where the refund actually is: a refund the provider
+    // settles (or refuses) on the spot gets no later webhook that is not a duplicate.
+    const notices: OutboxMessage[] = [];
+    if (refund.userId && to !== 'needs_attention') {
+      const kind = to === 'processed' ? 'refund_processed' : to === 'failed' ? 'refund_failed' : 'refund_initiated';
+      notices.push(...buildNotices({ kind, userId: refund.userId, bookingIds: refund.bookingIds, discriminator: refund.id, data: { amountCents: refund.amountCents } }));
+    }
+    if (to === 'failed' || to === 'needs_attention') notices.push(...staffAlert(refund.id, `refund_${to}`));
     await deps.refunds.transition(
       refund.id,
       ['claimed'],
-      state === 'processed' ? 'processed' : state === 'failed' ? 'failed' : state === 'needs_attention' ? 'needs_attention' : state === 'processing' ? 'processing' : 'pending',
+      to,
       { providerRefundId: res.value.providerRefundId },
-      state === 'processed' ? L.refundProcessed({ refundId: refund.id, bookingGroupId: refund.bookingGroupId, amountCents: refund.amountCents, fromUnallocated: refund.fromUnallocated }) : null,
-      refund.userId ? buildNotices({ kind: 'refund_initiated', userId: refund.userId, bookingIds: refund.bookingIds, discriminator: refund.id, data: { amountCents: refund.amountCents } }) : [],
+      to === 'processed' ? L.refundProcessed({ refundId: refund.id, bookingGroupId: refund.bookingGroupId, amountCents: refund.amountCents, fromUnallocated: refund.fromUnallocated }) : null,
+      notices,
     );
-    return 'submitted';
+    return to === 'failed' || to === 'needs_attention' ? 'escalated' : 'submitted';
   }
   if (res.kind === 'rejected') {
     await deps.refunds.transition(

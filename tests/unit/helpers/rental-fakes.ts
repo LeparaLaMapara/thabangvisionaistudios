@@ -212,13 +212,15 @@ export class FakePaymentProvider implements PaymentPort {
   calls: { transactionReference: string; amountCents: number; idempotencyKey: string }[] = [];
   providerRefunds: ProviderRefund[] = [];
   mode: 'ok' | 'timeout_after_send' | 'reject' | 'down' = 'ok';
+  /** The status the provider answers a new refund with. */
+  initialStatus = 'pending';
   private seq = 0;
 
   async refund(p: { transactionReference: string; amountCents: number; idempotencyKey: string }): Promise<ProviderCallResult<ProviderRefund>> {
     if (this.mode === 'down') return { ok: false, kind: 'unknown', message: 'provider unavailable' };
     if (this.mode === 'reject') return { ok: false, kind: 'rejected', message: 'Transaction has been fully reversed' };
     this.calls.push(p);
-    const r = { providerRefundId: `prf_${++this.seq}`, status: 'pending', amountCents: p.amountCents };
+    const r = { providerRefundId: `prf_${++this.seq}`, status: this.initialStatus, amountCents: p.amountCents };
     this.providerRefunds.push(r);
     if (this.mode === 'timeout_after_send') return { ok: false, kind: 'unknown', message: 'timeout' };
     return { ok: true, value: r };

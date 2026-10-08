@@ -528,7 +528,7 @@ export function createBookingTools(
         // Tell them now if the renter limit would stop them at checkout.
         // Same server-side trust check the checkout applies (spec §7.9).
         try {
-          const eligibility = await checkRenterEligibility(admin(), user, [{ unitReplacementValueCents: toCents(itemValue(rental)), quantity: qty }], false);
+          const eligibility = await checkRenterEligibility(admin(), user, [{ unitReplacementValueCents: toCents(itemValue(rental)), quantity: qty }], false, new Date(), { start: start_date, end: end_date });
           if (!eligibility.ok) return { error: eligibility.message };
         } catch {
           return { error: 'Could not check your rental limit just now. Try again in a moment.' };

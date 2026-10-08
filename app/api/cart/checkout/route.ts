@@ -322,7 +322,11 @@ export async function POST(request: NextRequest) {
   }));
   let eligibility;
   try {
-    eligibility = await checkRenterEligibility(createAdminClient(), user, trustLines, fulfilment === 'delivery');
+    // Existing hires count only when they overlap the dates of this order.
+    const starts = items.map((item) => (usePerItemDates ? item.start_date! : start_date));
+    const ends = items.map((item) => (usePerItemDates ? item.end_date! : end_date));
+    const window = { start: starts.reduce((a, b) => (b < a ? b : a)), end: ends.reduce((a, b) => (b > a ? b : a)) };
+    eligibility = await checkRenterEligibility(createAdminClient(), user, trustLines, fulfilment === 'delivery', new Date(), window);
   } catch (err) {
     console.error('[cart/checkout] eligibility check failed:', err instanceof Error ? err.message : 'unknown error');
     return NextResponse.json({ error: 'Could not check your rental limit just now. Please try again.' }, { status: 503 });

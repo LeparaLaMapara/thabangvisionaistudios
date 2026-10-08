@@ -551,6 +551,24 @@ describe('payment, refund and payout use cases (in-memory adapters, not live)', 
     expect([...books.outbox.values()].some((n) => n.kind === 'refund_processed')).toBe(true);
   });
 
+  it('a refund the provider settles or refuses on the spot sends the matching notice', async () => {
+    const provider = new FakePaymentProvider();
+    provider.initialStatus = 'processed';
+    const done = refunds.create({ obligationKey: 'k-now', reason: 'cancellation', amountCents: 100, transactionReference: 'tx1', userId: 'u1', bookingGroupId: 'grp1', bookingIds: ['b1'], fromUnallocated: false })!;
+    expect(await submitRefund(done.id, { refunds, payments: provider, clock })).toBe('submitted');
+    expect((await refunds.get(done.id))!.state).toBe('processed');
+    const kindsFor = (id: string) => [...books.outbox.values()].filter((n) => JSON.stringify(n).includes(id)).map((n) => n.kind);
+    expect(kindsFor(done.id)).toContain('refund_processed');
+    expect(kindsFor(done.id)).not.toContain('refund_initiated');
+
+    provider.initialStatus = 'failed';
+    const bad = refunds.create({ obligationKey: 'k-bad', reason: 'cancellation', amountCents: 100, transactionReference: 'tx2', userId: 'u1', bookingGroupId: 'grp1', bookingIds: ['b1'], fromUnallocated: false })!;
+    expect(await submitRefund(bad.id, { refunds, payments: provider, clock })).toBe('escalated');
+    expect((await refunds.get(bad.id))!.state).toBe('failed');
+    expect(kindsFor(bad.id)).toEqual(expect.arrayContaining(['refund_failed', 'staff_alert']));
+    expect(kindsFor(bad.id)).not.toContain('refund_initiated');
+  });
+
   it('a payout stuck pending (lost webhook) is looked up by its reference and booked once', async () => {
     const payouts = new FakePayouts(books, clock);
     const transfers = new FakeTransferProvider();
