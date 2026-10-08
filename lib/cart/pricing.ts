@@ -1,4 +1,7 @@
 import { STUDIO } from '@/lib/constants';
+import { allocateCents, bpsOf, fromCents, percentToBps, toCents } from '@/lib/core/pricing/money';
+import { vatOnInclusive, vatRateAt } from '@/lib/core/pricing/tax';
+import { hireCents } from '@/lib/core/pricing/rental';
 import type { CartItemWithRental, CartPricingItem, CartPricingSummary, CartPerItemPricingSummary } from '@/types/cart';
 
 /**
@@ -10,6 +13,10 @@ export function calculateItemPrice(
   pricePerWeek: number | null,
   days: number,
 ): number {
+  if (Number.isSafeInteger(days) && days > 0) {
+    // Whole cents through the pricing core, so R99.99 × 3 is R299.97 exactly.
+    return fromCents(hireCents(toCents(pricePerDay), pricePerWeek ? toCents(pricePerWeek) : null, days));
+  }
   if (pricePerWeek && days >= 7) {
     const fullWeeks = Math.floor(days / 7);
     const extraDays = days % 7;
@@ -19,16 +26,37 @@ export function calculateItemPrice(
 }
 
 /**
- * VAT contained in a VAT-inclusive amount.
+ * VAT contained in a VAT-inclusive amount, in rands.
  *
- * Equipment hire prices in `smart_rentals` are stored VAT-inclusive, so VAT is
- * disclosed rather than added: the customer pays the same total either way.
- * Deposits are excluded by the caller — a refundable security deposit is not
+ * Equipment hire prices in `smart_rentals` are customer prices. VAT is never
+ * added to them: while the company is not VAT-registered the rate is 0 and
+ * this returns 0; after a dated registration (STUDIO.legal.tax) prices are
+ * treated as VAT-inclusive, so VAT is disclosed from the same total.
+ * Deposits are excluded by the caller: a refundable security deposit is not
  * consideration for a supply and carries no VAT.
  */
-export function calculateIncludedVat(taxableBase: number): number {
-  const rate = STUDIO.booking.vatRate;
-  return Math.round(taxableBase * (rate / (100 + rate)) * 100) / 100;
+export function calculateIncludedVat(taxableBase: number, at: Date = new Date()): number {
+  return fromCents(vatOnInclusive(toCents(taxableBase), vatRateAt(at)));
+}
+
+/** The VAT rate (percent) that applies to a sale now: 0 while not registered. */
+export function currentVatRate(at: Date = new Date()): number {
+  return vatRateAt(at);
+}
+
+/**
+ * Split a rand total across checkout lines so the parts add up to the total
+ * exactly (to the cent). `countOrWeights` is the number of lines for an even
+ * split, or one weight per line in rands (e.g. each line's amount) for a
+ * proportional split. Replaces round(total / n), which drifts by a cent.
+ */
+export function splitAcrossLines(totalRands: number, countOrWeights: number | readonly number[]): number[] {
+  const weights = typeof countOrWeights === 'number'
+    ? Array.from({ length: countOrWeights }, () => 1)
+    : countOrWeights.map((w) => toCents(w));
+  if (weights.length === 0) return [];
+  const usable = weights.some((w) => w > 0) ? weights : weights.map(() => 1);
+  return allocateCents(toCents(totalRands), usable).map(fromCents);
 }
 
 /**
@@ -42,6 +70,34 @@ function getBulkDiscountPercent(totalItems: number): number {
     }
   }
   return 0;
+}
+
+/**
+ * Cart totals worked in whole cents, returned in rands (the DB columns and
+ * the checkout route use rands). grandTotal = subtotal - discount + deposits;
+ * VAT is never added on top.
+ */
+function cartTotals(pricingItems: CartPricingItem[], totalItemCount: number): {
+  subtotal: number;
+  totalDeposit: number;
+  bulkDiscountPercent: number;
+  bulkDiscountAmount: number;
+  vatAmount: number;
+  grandTotal: number;
+} {
+  const subtotalCents = pricingItems.reduce((sum, pi) => sum + toCents(pi.subtotal), 0);
+  const depositCents = pricingItems.reduce((sum, pi) => sum + toCents(pi.deposit), 0);
+  const bulkDiscountPercent = getBulkDiscountPercent(totalItemCount);
+  const discountCents = bpsOf(subtotalCents, percentToBps(bulkDiscountPercent));
+  const hireCents = subtotalCents - discountCents;
+  return {
+    subtotal: fromCents(subtotalCents),
+    totalDeposit: fromCents(depositCents),
+    bulkDiscountPercent,
+    bulkDiscountAmount: fromCents(discountCents),
+    vatAmount: fromCents(vatOnInclusive(hireCents, vatRateAt())),
+    grandTotal: fromCents(hireCents + depositCents),
+  };
 }
 
 /**
@@ -61,7 +117,7 @@ export function calculateCartPricing(
       bulkDiscountPercent: 0,
       bulkDiscountAmount: 0,
       totalDeposit: 0,
-      vatRate: STUDIO.booking.vatRate,
+      vatRate: currentVatRate(),
       vatAmount: 0,
       grandTotal: 0,
     };
@@ -89,12 +145,8 @@ export function calculateCartPricing(
     };
   });
 
-  const subtotal = pricingItems.reduce((sum, pi) => sum + pi.subtotal, 0);
-  const totalDeposit = pricingItems.reduce((sum, pi) => sum + pi.deposit, 0);
-  const bulkDiscountPercent = getBulkDiscountPercent(totalItemCount);
-  const bulkDiscountAmount = Math.round(subtotal * (bulkDiscountPercent / 100) * 100) / 100;
-  const vatAmount = calculateIncludedVat(subtotal - bulkDiscountAmount);
-  const grandTotal = subtotal - bulkDiscountAmount + totalDeposit;
+  const { subtotal, totalDeposit, bulkDiscountPercent, bulkDiscountAmount, vatAmount, grandTotal } =
+    cartTotals(pricingItems, totalItemCount);
 
   return {
     items: pricingItems,
@@ -104,7 +156,7 @@ export function calculateCartPricing(
     bulkDiscountPercent,
     bulkDiscountAmount,
     totalDeposit,
-    vatRate: STUDIO.booking.vatRate,
+    vatRate: currentVatRate(),
     vatAmount,
     grandTotal,
   };
@@ -121,7 +173,7 @@ export function calculateCartPricingPerItem(
       bulkDiscountPercent: 0,
       bulkDiscountAmount: 0,
       totalDeposit: 0,
-      vatRate: STUDIO.booking.vatRate,
+      vatRate: currentVatRate(),
       vatAmount: 0,
       grandTotal: 0,
     };
@@ -156,12 +208,8 @@ export function calculateCartPricingPerItem(
     };
   });
 
-  const subtotal = pricingItems.reduce((sum, pi) => sum + pi.subtotal, 0);
-  const totalDeposit = pricingItems.reduce((sum, pi) => sum + pi.deposit, 0);
-  const bulkDiscountPercent = getBulkDiscountPercent(totalItemCount);
-  const bulkDiscountAmount = Math.round(subtotal * (bulkDiscountPercent / 100) * 100) / 100;
-  const vatAmount = calculateIncludedVat(subtotal - bulkDiscountAmount);
-  const grandTotal = subtotal - bulkDiscountAmount + totalDeposit;
+  const { subtotal, totalDeposit, bulkDiscountPercent, bulkDiscountAmount, vatAmount, grandTotal } =
+    cartTotals(pricingItems, totalItemCount);
 
   return {
     items: pricingItems,
@@ -170,7 +218,7 @@ export function calculateCartPricingPerItem(
     bulkDiscountPercent,
     bulkDiscountAmount,
     totalDeposit,
-    vatRate: STUDIO.booking.vatRate,
+    vatRate: currentVatRate(),
     vatAmount,
     grandTotal,
   };

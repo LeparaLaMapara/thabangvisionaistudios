@@ -2,7 +2,7 @@ export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
-import { generateQuotePDF, generateQuoteNumber } from '@/lib/pdf/quote';
+import { generateQuotePDF, generateQuoteNumber, quoteTotals } from '@/lib/pdf/quote';
 import type { QuoteData, QuoteLineItem } from '@/lib/pdf/quote';
 import { STUDIO } from '@/lib/constants';
 
@@ -75,9 +75,8 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  const subtotal = lineItems.reduce((sum, item) => sum + item.total, 0);
-  const vatAmount = subtotal * (STUDIO.booking.vatRate / 100);
-  const total = subtotal + vatAmount;
+  // VAT comes from the dated tax rule (0 while not VAT-registered).
+  const { subtotal, vatAmount, total } = quoteTotals(lineItems);
 
   const now = new Date();
   const validUntil = new Date(now);

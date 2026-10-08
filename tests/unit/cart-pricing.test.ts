@@ -118,28 +118,29 @@ describe('calculateCartPricing', () => {
     expect(result.grandTotal).toBe(960);
   });
 
-  it('reports the configured VAT rate', () => {
+  it('reports a 0% VAT rate while the company is not VAT-registered', () => {
+    expect(STUDIO.legal.vatRegistered).toBe(false);
     const result = calculateCartPricing([makeItem({ price_per_day: 500 })], 1);
-    expect(result.vatRate).toBe(STUDIO.booking.vatRate);
+    expect(result.vatRate).toBe(0);
   });
 
   it('returns zero VAT for an empty cart', () => {
     expect(calculateCartPricing([], 5).vatAmount).toBe(0);
   });
 
-  it('computes VAT on the discounted hire charge, excluding deposits', () => {
+  it('includes no VAT in the discounted hire charge while not VAT-registered', () => {
     const items = [
       makeItem({ price_per_day: 500, deposit_amount: 1000, quantity: 3 }),
     ];
     const result = calculateCartPricing(items, 1);
-    // subtotal 1500, less 10% bulk discount = 1350 taxable. Deposits (3000) are
-    // a refundable security and carry no VAT.
+    // subtotal 1500, less 10% bulk discount = 1350. Not VAT-registered, so no
+    // VAT is added or "included" (it used to disclose R176.09 at 15%).
     expect(result.bulkDiscountAmount).toBe(150);
     expect(result.totalDeposit).toBe(3000);
-    expect(result.vatAmount).toBe(176.09); // 1350 * 15 / 115
+    expect(result.vatAmount).toBe(0);
   });
 
-  it('discloses VAT without adding it to the grand total', () => {
+  it('never adds VAT to the grand total', () => {
     const items = [
       makeItem({ price_per_day: 500, deposit_amount: 1000, quantity: 3 }),
     ];
@@ -162,5 +163,15 @@ describe('calculateCartPricing', () => {
     expect(result.totalDeposit).toBe(2000); // 1000 + 500*2
     expect(result.itemCount).toBe(3);
     expect(result.bulkDiscountPercent).toBe(10); // 3 items
+  });
+
+  it('keeps cent-level totals exact with fractional rates and a discount', () => {
+    const items = [
+      makeItem({ price_per_day: 99.99, price_per_week: null, deposit_amount: 0.01, quantity: 3 }),
+    ];
+    const result = calculateCartPricing(items, 3);
+    expect(result.subtotal).toBe(899.91); // 99.99 × 3 days × 3
+    expect(result.bulkDiscountAmount).toBe(89.99); // 10% of 899.91 = 89.991
+    expect(result.grandTotal).toBe(809.95); // 899.91 - 89.99 + 0.03
   });
 });
