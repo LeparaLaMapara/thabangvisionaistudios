@@ -274,11 +274,12 @@ export class FakeTransferProvider implements PayoutPort {
   readonly provider = 'fake';
   sent = new Map<string, ProviderTransfer>();
   moneyMoved = 0;
-  mode: 'ok' | 'timeout_after_send' | 'down' = 'ok';
+  mode: 'ok' | 'timeout_after_send' | 'down' | 'reject' = 'ok';
   /** The status the provider answers a new transfer with. */
   initialStatus = 'pending';
   async transfer(p: { reference: string; amountCents: number; recipientCode: string }): Promise<ProviderCallResult<ProviderTransfer>> {
     if (this.mode === 'down') return { ok: false, kind: 'unknown', message: 'provider unavailable' };
+    if (this.mode === 'reject') return { ok: false, kind: 'rejected', message: 'Recipient is invalid' };
     let t = this.sent.get(p.reference);
     if (!t) {
       t = { transferCode: `TRF_${p.reference}`, status: this.initialStatus, amountCents: p.amountCents };

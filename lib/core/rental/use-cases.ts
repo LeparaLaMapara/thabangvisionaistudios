@@ -370,7 +370,11 @@ export async function submitPayout(id: string, deps: { payouts: PayoutRepository
     return 'submitted';
   }
   if (res.kind === 'rejected') {
-    await deps.payouts.transition(payout.id, ['claimed'], 'failed', { lastError: res.message.slice(0, 500) }, null, staffAlert(payout.transferReference, 'payout_rejected'));
+    // Refused outright: no transfer exists, so no webhook will follow. Tell the owner now.
+    await deps.payouts.transition(payout.id, ['claimed'], 'failed', { lastError: res.message.slice(0, 500) }, null, [
+      ...transferNotices(payout, { to: 'failed', notifyOwner: 'failed', alertStaff: false }),
+      ...staffAlert(payout.transferReference, 'payout_rejected'),
+    ]);
     return 'escalated';
   }
   return 'unknown_outcome';

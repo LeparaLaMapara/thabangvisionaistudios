@@ -552,10 +552,12 @@ begin
     return new;
   end if;
   perform pg_advisory_xact_lock(hashtext('refund:' || new.transaction_reference));
+  -- Failed obligations still count: the provider can report a failed refund
+  -- processed later, so it holds its share of the charge until a person
+  -- resolves it. Reopening the same obligation excludes itself (id <> new.id).
   select coalesce(sum(amount_cents), 0) into v_sum
     from public.refund_obligations
    where transaction_reference = new.transaction_reference
-     and state <> 'failed'
      and id <> new.id;
   if v_sum + new.amount_cents > new.charged_cents then
     raise exception 'refunds would exceed the original charge (% + % > %)', v_sum, new.amount_cents, new.charged_cents

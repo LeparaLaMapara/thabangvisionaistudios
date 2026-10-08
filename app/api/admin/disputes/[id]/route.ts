@@ -374,7 +374,8 @@ export async function PATCH(
     if (resolution === 'warning_issued' || resolution === 'user_suspended') {
       try {
         await supabase.from('moderation_log').insert({
-          user_id: dispute.filed_by,
+          // A suspension is logged against the party actually suspended.
+          user_id: resolution === 'user_suspended' && suspendTarget ? suspendTarget : dispute.filed_by,
           action: resolution === 'user_suspended' ? 'suspended' : 'warning_issued',
           reason: resolution_notes || `Dispute resolution: ${resolution}`,
           admin_id: auth.user.id,

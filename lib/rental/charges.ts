@@ -28,6 +28,7 @@ export async function chargeOfBooking(
     }
   }
   const { data: existing } = await db.from('refund_obligations').select('amount_cents, state').eq('transaction_reference', b.payfast_payment_id ?? '');
-  const already = ((existing ?? []) as { amount_cents: number; state: string }[]).filter((r) => r.state !== 'failed').reduce((sum, r) => sum + r.amount_cents, 0);
+  // Failed refunds count too: the provider can still process them (same rule as the DB cap).
+  const already = ((existing ?? []) as { amount_cents: number; state: string }[]).reduce((sum, r) => sum + r.amount_cents, 0);
   return { totalCents: total, remainderCents: refundableRemainder({ chargedCents: total, refundedOrInFlightCents: already }) };
 }

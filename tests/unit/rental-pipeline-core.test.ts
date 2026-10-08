@@ -609,6 +609,20 @@ describe('payment, refund and payout use cases (in-memory adapters, not live)', 
     expect([...books.outbox.values()].filter((n) => n.kind === 'payout_completed' && n.userId === 'o9' && n.channel === 'in_app')).toHaveLength(1);
   });
 
+  it('a transfer the provider refuses outright tells the owner and staff', async () => {
+    const payouts = new FakePayouts(books, clock);
+    const transfers = new FakeTransferProvider();
+    transfers.mode = 'reject';
+    const ref = payoutReference('9b2f1c3e-0000-4000-8000-00000000000a');
+    payouts.rows.set('po10', { id: 'po10', bookingId: 'b10', ownerId: 'o10', state: 'approved', amountCents: 100_000, transferReference: ref, recipientCode: 'RCP_10', providerTransferCode: null, claimedAt: null, bookingGroupId: 'grp10' });
+    expect(await submitPayout('po10', { payouts, transfers, clock })).toBe('escalated');
+    expect((await payouts.get('po10'))!.state).toBe('failed');
+    const msgs = [...books.outbox.values()];
+    expect(msgs.some((n) => n.kind === 'payout_failed' && n.userId === 'o10')).toBe(true);
+    expect(msgs.some((n) => n.kind === 'staff_alert' && JSON.stringify(n.data).includes('payout_rejected'))).toBe(true);
+    expect(transfers.moneyMoved).toBe(0);
+  });
+
   it('a payout stuck pending (lost webhook) is looked up by its reference and booked once', async () => {
     const payouts = new FakePayouts(books, clock);
     const transfers = new FakeTransferProvider();

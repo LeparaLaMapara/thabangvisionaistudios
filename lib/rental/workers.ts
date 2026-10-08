@@ -120,7 +120,8 @@ export async function evaluatePayout(
     db.from('profiles').select('verification_status').eq('id', p.owner_id).maybeSingle(),
     db.from('banking_details').select('is_verified, paystack_recipient_code').eq('user_id', p.owner_id).maybeSingle(),
     db.from('disputes').select('id', { count: 'exact', head: true }).eq('equipment_booking_id', p.booking_id).in('status', ['open', 'investigating', 'escalated']),
-    db.from('refund_obligations').select('state, reason').contains('booking_ids', [p.booking_id]).eq('reason', 'deposit_settlement'),
+    // Every refund that settles this booking (deposit, or a dispute's manual refund) must be done first.
+    db.from('refund_obligations').select('state, reason').contains('booking_ids', [p.booking_id]),
     db.from('owner_payouts').select('state').eq('booking_id', p.booking_id).maybeSingle(),
   ]);
   const b = booking as {
@@ -137,7 +138,7 @@ export async function evaluatePayout(
   // A deposit-only order's hire was due at the counter with no recorded payment:
   // the paid intent covers only the deposit, so the hire is not confirmed.
   if (b?.payment_plan === 'deposit_only' && Number(b.balance_due ?? 0) > 0) paymentConfirmed = false;
-  // A deposit with nothing to refund needs no obligation; one that exists must be processed.
+  // Nothing to refund needs no obligation; every one that exists must be processed.
   const depositRefunds = (refunds ?? []) as { state: string }[];
   const depositSettled = depositRefunds.every((r) => r.state === 'processed');
 

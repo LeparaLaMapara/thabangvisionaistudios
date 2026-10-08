@@ -213,6 +213,17 @@ begin
   exception when sqlstate '23514' then
     raise notice 'PASS: refunds cannot exceed the charge (T13, T14)';
   end;
+  -- A failed refund can still be processed later by the provider, so it keeps its share.
+  insert into public.refund_obligations (obligation_key, reason, amount_cents, charged_cents, transaction_reference, state)
+  values ('refund:manual:f1', 'manual', 600000, 700000, 'tx-2', 'failed');
+  begin
+    insert into public.refund_obligations (obligation_key, reason, amount_cents, charged_cents, transaction_reference)
+    values ('refund:manual:f2', 'manual', 200000, 700000, 'tx-2');
+    raise exception 'FAIL: a failed refund was left out of the charge cap';
+  exception when sqlstate '23514' then null;
+  end;
+  update public.refund_obligations set state = 'eligible' where obligation_key = 'refund:manual:f1';
+  raise notice 'PASS: failed refunds stay in the charge cap; reopening the same one is allowed';
 
   -- 10. Refund transitions are compare-and-set.
   select refund_transition(id, array['eligible'], 'claimed', '{"claim": true}', null, '[]') into ok from public.refund_obligations where obligation_key = 'refund:deposit_settlement:x';
