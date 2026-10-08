@@ -300,10 +300,12 @@ export const STUDIO = {
     },
     collection: {
       enabled: true,
-      // A collection can be paid in full online, or the security deposit can
-      // be paid online to hold the gear with the hire charge settled at the
-      // counter. We never hold stock with nothing paid.
-      allowBalanceOnCollection: true,
+      // Off since Phase 1 (spec §3.3: the hire fee and deposit are charged
+      // together online). A deposit-only order left the hire to be paid at the
+      // counter with no record of it, so an owner payout could be scheduled for
+      // money that was never collected. Turn on only with a recorded,
+      // reconciled counter payment.
+      allowBalanceOnCollection: false,
     },
     delivery: {
       enabled: true,

@@ -61,6 +61,17 @@ begin
     raise notice 'PASS: repeated checkout request is refused (T06)';
   end;
 
+  -- 1c. A cash-at-collection booking keeps its hold until the hire day ends.
+  r := public.reserve_rental_order(
+    jsonb_build_array(jsonb_build_object('user_id', u2, 'rental_id', lens, 'checkout_group_id', g4,
+      'start_date', '2030-09-01', 'end_date', '2030-09-02', 'total_price', 1, 'quantity', 1, 'payment_method', 'cash')), null, 30);
+  if (select hold_expires_at from public.equipment_bookings where checkout_group_id = g4) < '2030-09-01 22:00:00+00'::timestamptz then
+    raise exception 'FAIL: cash hold expires before the hire day';
+  end if;
+  delete from public.booking_status_history where booking_id in (select id from public.equipment_bookings where checkout_group_id = g4);
+  delete from public.equipment_bookings where checkout_group_id = g4;
+  raise notice 'PASS: cash-at-collection holds until the hire day ends';
+
   -- 2. The return day is not resold (inclusive dates).
   begin
     perform public.reserve_rental_order(

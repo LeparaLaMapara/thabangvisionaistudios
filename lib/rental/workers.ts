@@ -116,14 +116,17 @@ export async function evaluatePayout(
   now: Date,
 ): Promise<{ eligible: true; recipientCode: string | null } | { eligible: false; reasons: string[] }> {
   const [{ data: booking }, { data: owner }, { data: bank }, { count: disputes }, { data: refunds }, { data: payoutRow }] = await Promise.all([
-    db.from('equipment_bookings').select('status, completed_at, inspection_outcome, checkout_group_id, payfast_payment_id').eq('id', p.booking_id).maybeSingle(),
+    db.from('equipment_bookings').select('status, completed_at, inspection_outcome, checkout_group_id, payfast_payment_id, payment_plan, balance_due').eq('id', p.booking_id).maybeSingle(),
     db.from('profiles').select('verification_status').eq('id', p.owner_id).maybeSingle(),
     db.from('banking_details').select('is_verified, paystack_recipient_code').eq('user_id', p.owner_id).maybeSingle(),
     db.from('disputes').select('id', { count: 'exact', head: true }).eq('equipment_booking_id', p.booking_id).in('status', ['open', 'investigating', 'escalated']),
     db.from('refund_obligations').select('state, reason').contains('booking_ids', [p.booking_id]).eq('reason', 'deposit_settlement'),
     db.from('owner_payouts').select('state').eq('booking_id', p.booking_id).maybeSingle(),
   ]);
-  const b = booking as { status: string; completed_at: string | null; inspection_outcome: string | null; checkout_group_id: string | null; payfast_payment_id: string | null } | null;
+  const b = booking as {
+    status: string; completed_at: string | null; inspection_outcome: string | null; checkout_group_id: string | null;
+    payfast_payment_id: string | null; payment_plan: string | null; balance_due: number | null;
+  } | null;
   const bank_ = bank as { is_verified?: boolean; paystack_recipient_code?: string | null } | null;
 
   let paymentConfirmed = Boolean(b?.payfast_payment_id);
@@ -131,6 +134,9 @@ export async function evaluatePayout(
     const { data: intent } = await db.from('rental_payment_intents').select('state').eq('checkout_group_id', b.checkout_group_id).maybeSingle();
     if (intent) paymentConfirmed = (intent as { state: string }).state === 'paid';
   }
+  // A deposit-only order's hire was due at the counter with no recorded payment:
+  // the paid intent covers only the deposit, so the hire is not confirmed.
+  if (b?.payment_plan === 'deposit_only' && Number(b.balance_due ?? 0) > 0) paymentConfirmed = false;
   // A deposit with nothing to refund needs no obligation; one that exists must be processed.
   const depositRefunds = (refunds ?? []) as { state: string }[];
   const depositSettled = depositRefunds.every((r) => r.state === 'processed');

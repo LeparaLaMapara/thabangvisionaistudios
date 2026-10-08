@@ -35,12 +35,13 @@ type Row = {
   id: string; user_id: string; status: string; end_date: string; quantity: number | null;
   deposit_amount: number | null; total_price: number | null; payment_plan: string | null;
   checkout_group_id: string | null; payfast_payment_id: string | null; notes: string | null;
+  balance_due: number | null; delivery_fee: number | null;
 };
 
 async function load(id: string): Promise<Row | null> {
   const { data } = await createAdminClient()
     .from('equipment_bookings')
-    .select('id, user_id, status, end_date, quantity, deposit_amount, total_price, payment_plan, checkout_group_id, payfast_payment_id, notes')
+    .select('id, user_id, status, end_date, quantity, deposit_amount, total_price, payment_plan, checkout_group_id, payfast_payment_id, notes, balance_due, delivery_fee')
     .eq('id', id)
     .maybeSingle();
   return (data as Row | null) ?? null;
@@ -226,25 +227,38 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   }
 
   // Ledger only for orders paid through the provider (manual payments are outside it).
+  // A deposit-only order (no longer offered) paid its hire at the counter with
+  // no recorded payment: the hire is outside the ledger, and the owner's share
+  // is not scheduled automatically. A person settles it.
+  const hireUnrecorded = b.payment_plan === 'deposit_only' && Number(b.balance_due ?? 0) > 0;
   const journals: unknown[] = [];
   const groupId = b.checkout_group_id ?? id;
-  if (onCard && snap.hire_cents != null) {
+  if (onCard && snap.hire_cents != null && !hireUnrecorded) {
     const community = snap.ownership === 'community' && snap.owner_id && snap.owner_share_cents != null && snap.platform_share_cents != null;
-    journals.push(hireEarned({
-      bookingId: id,
-      bookingGroupId: groupId,
-      hireCents: snap.hire_cents,
-      ownership: community ? 'community' : 'studio',
-      ownerShareCents: community ? (snap.owner_share_cents as number) : 0,
-      platformShareCents: community ? (snap.platform_share_cents as number) : 0,
-    }));
+    const deliveryCents = toCents(Number(b.delivery_fee ?? 0));
+    // A journal needs money in it: a zero hire (and zero delivery) has nothing to recognise.
+    if (snap.hire_cents + deliveryCents > 0) {
+      journals.push(hireEarned({
+        bookingId: id,
+        bookingGroupId: groupId,
+        hireCents: snap.hire_cents,
+        ownership: community ? 'community' : 'studio',
+        ownerShareCents: community ? (snap.owner_share_cents as number) : 0,
+        platformShareCents: community ? (snap.platform_share_cents as number) : 0,
+        deliveryCents,
+      }));
+    }
+  }
+  if (onCard && depositCents > 0) {
     journals.push(depositSettled({ bookingId: id, bookingGroupId: groupId, depositCents, damageCents: plan.damageCents, lateFeeCents: plan.lateFeeCents }));
   }
 
   // Owner payout for community gear, 48h after a clean completion (spec §7.8).
   const payouts: unknown[] = [];
   const notices = buildNotices({ kind: 'inspection_completed', userId: b.user_id, bookingIds: [id], discriminator: id, data: { amountCents: plan.refundCents } });
-  if (snap.ownership === 'community' && snap.owner_id && (snap.owner_share_cents ?? 0) > 0 && snap.hire_cents != null) {
+  if (hireUnrecorded && snap.ownership === 'community' && snap.owner_id) {
+    notices.push(...buildNotices({ kind: 'staff_alert', userId: 'staff', bookingIds: [id], discriminator: `deposit-only-payout:${id}`, data: { what: 'owner_payout_needs_manual_check_balance_paid_at_counter', reference: id } }));
+  } else if (snap.ownership === 'community' && snap.owner_id && (snap.owner_share_cents ?? 0) > 0 && snap.hire_cents != null) {
     payouts.push({
       bookingId: id,
       ownerId: snap.owner_id,

@@ -162,6 +162,8 @@ export function hireEarned(p: {
   ownership: 'studio' | 'community';
   ownerShareCents: number;
   platformShareCents: number;
+  /** The order's delivery fee, on the one line that carries it: earned when the hire completes. */
+  deliveryCents?: number;
 }): Journal {
   if (p.ownership === 'community' && p.ownerShareCents + p.platformShareCents !== p.hireCents) {
     throw new RangeError('owner + platform share must equal the hire');
@@ -170,7 +172,12 @@ export function hireEarned(p: {
     p.ownership === 'studio'
       ? [cr('rental_revenue', p.hireCents)]
       : [cr('owner_payable', p.ownerShareCents), cr('platform_commission', p.platformShareCents)];
-  return journal(`earned:${p.bookingId}`, 'hire_earned', p.bookingGroupId, 'Hire completed', [dr('unearned_hire', p.hireCents), ...credits]);
+  const delivery = p.deliveryCents ?? 0;
+  return journal(`earned:${p.bookingId}`, 'hire_earned', p.bookingGroupId, 'Hire completed', [
+    dr('unearned_hire', p.hireCents + delivery),
+    ...credits,
+    cr('delivery_income', delivery),
+  ]);
 }
 
 /** Deposit settled after inspection: refund owed, documented deductions kept. */

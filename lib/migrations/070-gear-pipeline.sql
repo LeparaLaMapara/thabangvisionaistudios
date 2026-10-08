@@ -258,7 +258,13 @@ begin
     v_rec.status := 'pending';
     v_rec.created_at := now();
     v_rec.updated_at := now();
-    v_rec.hold_expires_at := v_hold;
+    -- Cash at collection holds until the hire day ends (as before 070);
+    -- everything else for the hold window.
+    v_rec.hold_expires_at := case
+      when v_rec.payment_method = 'cash'
+        then greatest(v_hold, (v_rec.start_date::timestamp + interval '1 day') at time zone 'Africa/Johannesburg')
+      else v_hold
+    end;
     v_rec.quantity := coalesce(v_rec.quantity, 1);
     v_rec.currency := coalesce(v_rec.currency, 'ZAR');
     v_rec.damage_fee := coalesce(v_rec.damage_fee, 0);

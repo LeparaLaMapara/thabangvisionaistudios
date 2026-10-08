@@ -148,6 +148,21 @@ describe('ledger', () => {
     expect(b.provider_fees).toBe(10_500); // fees are an expense, not taken from the owner
   });
 
+  it('a delivered order closes cleanly: the delivery fee is earned at completion', () => {
+    const js = [
+      L.paymentCaptured({ bookingGroupId: 'g', providerReference: 'tx', hireCents: 100_000, depositCents: 50_000, deliveryFeeCents: 25_000 }),
+      L.hireEarned({ bookingId: 'b', bookingGroupId: 'g', hireCents: 100_000, ownership: 'studio', ownerShareCents: 0, platformShareCents: 0, deliveryCents: 25_000 }),
+      L.depositSettled({ bookingId: 'b', bookingGroupId: 'g', depositCents: 50_000, damageCents: 0, lateFeeCents: 0 }),
+      L.refundProcessed({ refundId: 'r', bookingGroupId: 'g', amountCents: 50_000 }),
+    ];
+    expect(L.reconcileClosedGroup({ journals: js })).toEqual([]);
+    expect(-L.balances(js).delivery_income).toBe(25_000);
+  });
+
+  it('an all-zero journal is refused, so callers skip it (zero-deposit hires)', () => {
+    expect(() => L.depositSettled({ bookingId: 'b', bookingGroupId: 'g', depositCents: 0, damageCents: 0, lateFeeCents: 0 })).toThrow();
+  });
+
   it('flags a deposit still held, a refund still owed, and an owner still unpaid', () => {
     const js = [
       L.paymentCaptured({ bookingGroupId: 'g', providerReference: 'tx', hireCents: 1000, depositCents: 500 }),
