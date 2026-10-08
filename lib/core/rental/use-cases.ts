@@ -115,7 +115,10 @@ export async function processChargeEvent(
     case 'confirm_late': {
       if (!intent) return 'unknown_reference';
       const late = decision.action === 'confirm_late';
-      if (late && deps.lateAllowed && !(await deps.lateAllowed(intent))) {
+      // Also checked when the hold is about to lapse: the database confirms as
+      // late if it lapses before the confirm runs, and that must not skip the check.
+      const nearExpiry = new Date(intent.holdExpiresAt).getTime() - deps.clock.now().getTime() < 5 * 60_000;
+      if ((late || nearExpiry) && deps.lateAllowed && !(await deps.lateAllowed(intent))) {
         // Over the renter's limit now: never reinstate, give the money back.
         const r = await unallocated('late_payment_over_limit', 'refund_due', 'late_payment');
         return r === 'duplicate' ? 'duplicate' : 'late_unavailable_refund_due';

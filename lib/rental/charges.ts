@@ -12,7 +12,7 @@ type Admin = ReturnType<typeof createAdminClient>;
  */
 export async function chargeOfBooking(
   db: Admin,
-  b: { checkout_group_id: string | null; payfast_payment_id: string | null; deposit_amount?: number | null },
+  b: { id?: string; checkout_group_id: string | null; payfast_payment_id: string | null; deposit_amount?: number | null },
 ): Promise<{ totalCents: number; remainderCents: number }> {
   let total = toCents(Number(b.deposit_amount ?? 0));
   if (b.checkout_group_id) {
@@ -24,10 +24,17 @@ export async function chargeOfBooking(
       const { data: lines, error: linesErr } = await db.from('equipment_bookings').select('id').eq('checkout_group_id', b.checkout_group_id);
       if (linesErr) throw new Error(`chargeOfBooking: order lookup failed: ${linesErr.message}`);
       const ids = ((lines ?? []) as { id: string }[]).map((l) => l.id);
-      const { data: paid } = ids.length ? await db.from('booking_payments').select('amount').in('booking_id', ids).eq('status', 'succeeded') : { data: [] };
+      const { data: paid, error: paidErr } = ids.length ? await db.from('booking_payments').select('amount').in('booking_id', ids).eq('status', 'succeeded') : { data: [], error: null };
+      if (paidErr) throw new Error(`chargeOfBooking: payment lookup failed: ${paidErr.message}`);
       const sum = ((paid ?? []) as { amount: number }[]).reduce((acc, p) => acc + toCents(Number(p.amount ?? 0)), 0);
       if (sum > 0) total = sum;
     }
+  } else if (b.id) {
+    // A single booking from before cart checkout: its own recorded payments.
+    const { data: paid, error: paidErr } = await db.from('booking_payments').select('amount').eq('booking_id', b.id).eq('status', 'succeeded');
+    if (paidErr) throw new Error(`chargeOfBooking: payment lookup failed: ${paidErr.message}`);
+    const sum = ((paid ?? []) as { amount: number }[]).reduce((acc, p) => acc + toCents(Number(p.amount ?? 0)), 0);
+    if (sum > 0) total = sum;
   }
   const { data: existing, error: existingErr } = await db.from('refund_obligations').select('amount_cents, state').eq('transaction_reference', b.payfast_payment_id ?? '');
   // A failed lookup is not "nothing refunded yet": stop rather than over-refund.

@@ -142,18 +142,26 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   // ─── 0d. Cash bookings nobody collected: release the day after ──────────
   try {
     const today = now.toLocaleDateString('en-CA', { timeZone: 'Africa/Johannesburg' });
-    const { data: uncollected } = await supabase
-      .from('equipment_bookings')
-      .update({
-        status: 'cancelled',
-        cancelled_at: now.toISOString(),
-        updated_at: now.toISOString(),
-        cancellation_refund_status: 'not_required',
-      })
-      .eq('status', 'pending')
-      .eq('payment_method', 'cash')
-      .lt('start_date', today)
-      .select('id, checkout_group_id, amount_due');
+    // Pipeline cash holds (hold_expires_at = end of the hire day) are released
+    // by /api/cron/rental-pipeline as 'hold_expired'; this handles older rows.
+    const releaseCash = (pipelineAware: boolean) => {
+      let q = supabase
+        .from('equipment_bookings')
+        .update({
+          status: 'cancelled',
+          cancelled_at: now.toISOString(),
+          updated_at: now.toISOString(),
+          cancellation_refund_status: 'not_required',
+        })
+        .eq('status', 'pending')
+        .eq('payment_method', 'cash')
+        .lt('start_date', today);
+      if (pipelineAware) q = q.is('hold_expires_at', null);
+      return q.select('id, checkout_group_id, amount_due');
+    };
+    let { data: uncollected, error: cashErr } = await releaseCash(true);
+    if (cashErr && /hold_expires_at/.test(cashErr.message)) ({ data: uncollected, error: cashErr } = await releaseCash(false));
+    if (cashErr) throw new Error(cashErr.message);
     results.cashNotCollectedReleased = uncollected?.length ?? 0;
     const orders = (uncollected ?? []).filter((b) => b.amount_due != null);
     if (orders.length > 0) {

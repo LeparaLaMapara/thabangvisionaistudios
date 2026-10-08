@@ -210,12 +210,13 @@ export async function PATCH(
       if ('skipped' in settled) {
         pipelineApplied = settled.skipped !== 'missing_pipeline';
         if (settled.skipped === 'not_disputed_return' && moneyResolution) {
+          // Say what can actually be done for this booking.
+          const how =
+            settled.bookingStatus === 'pending' || settled.bookingStatus === 'confirmed'
+              ? 'Cancel the booking from its booking screen with the refund amount: that refund is capped at the charge and recorded in the ledger. Then resolve this dispute without a refund.'
+              : 'The hire has started or is complete, so its earnings (and any owner share) are already booked; the system has no safe automatic refund for this yet. Resolve this dispute without a refund, escalate the refund to the founder, and record it with finance (risk R-25).';
           return NextResponse.json(
-            {
-              error:
-                'This booking is not a disputed return waiting to be settled, so the system cannot refund it safely (its hire may already be earned and the owner paid). Resolve the dispute without a refund and record any refund by hand in Rental ops.',
-              code: 'REFUND_NEEDS_A_PERSON',
-            },
+            { error: `This booking is not a disputed return waiting to be settled, so it cannot be refunded here. ${how}`, code: 'REFUND_NEEDS_A_PERSON' },
             { status: 409 },
           );
         }
@@ -449,7 +450,7 @@ type Admin = ReturnType<typeof createAdminClient>;
 async function settleDisputedReturn(
   db: Admin,
   p: { disputeId: string; bookingId: string; resolution: DisputeResolution; partialRefundCents: number; adminId: string; reason: string },
-): Promise<{ ok: true; refundCents: number } | { error: string; status: number } | { skipped: 'missing_pipeline' | 'not_disputed_return' }> {
+): Promise<{ ok: true; refundCents: number } | { error: string; status: number } | { skipped: 'missing_pipeline' } | { skipped: 'not_disputed_return'; bookingStatus: string | null }> {
   const { data, error } = await db
     .from('equipment_bookings')
     .select('id, user_id, status, checkout_group_id, payfast_payment_id, deposit_amount, delivery_fee, payment_plan, balance_due, hire_cents, deposit_cents, ownership, owner_id')
@@ -463,7 +464,7 @@ async function settleDisputedReturn(
     deposit_amount: number | null; delivery_fee: number | null; payment_plan: string | null; balance_due: number | null;
     hire_cents: number | null; deposit_cents: number | null; ownership: string | null; owner_id: string | null;
   } | null;
-  if (!b || b.status !== 'disputed') return { skipped: 'not_disputed_return' };
+  if (!b || b.status !== 'disputed') return { skipped: 'not_disputed_return', bookingStatus: b?.status ?? null };
 
   const reference = b.payfast_payment_id;
   const onProvider = Boolean(reference) && !isManualReference(reference as string);

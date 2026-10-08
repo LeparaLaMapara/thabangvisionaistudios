@@ -458,6 +458,21 @@ describe('payment, refund and payout use cases (in-memory adapters, not live)', 
     expect([...refunds.rows.values()]).toHaveLength(1);
   });
 
+  it('an on-time payment well before the hold lapses is not re-checked against the limit', async () => {
+    let asked = 0;
+    const lateAllowed = async () => { asked += 1; return false; };
+    expect(await processChargeEvent(event, { repo, clock, lateAllowed })).toBe('confirmed');
+    expect(asked).toBe(0);
+  });
+
+  it('a payment in the last minutes of the hold is checked against the limit too', async () => {
+    clock.advanceMinutes(27);
+    let asked = 0;
+    const lateAllowed = async () => { asked += 1; return false; };
+    expect(await processChargeEvent(event, { repo, clock, lateAllowed })).toBe('late_unavailable_refund_due');
+    expect(asked).toBe(1);
+  });
+
   it('a refund on an order the ledger never held completes without a journal', async () => {
     const provider = new FakePaymentProvider();
     provider.initialStatus = 'processed';
