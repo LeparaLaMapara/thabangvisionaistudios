@@ -16,7 +16,7 @@ import * as L from './ledger';
 import { buildNotices, type OutboxMessage } from './notifications';
 import { decideCharge, type ChargeEvent } from './payments';
 import { applyProviderTransferStatus, mapProviderTransferStatus, nextPayoutAction } from './payouts';
-import { applyProviderRefundStatus, mapProviderRefundStatus, nextRefundAction, refundObligationKey } from './refunds';
+import { applyProviderRefundStatus, mapProviderRefundStatus, matchProviderRefund, nextRefundAction, refundObligationKey } from './refunds';
 
 export type ChargeOutcome =
   | 'confirmed'
@@ -178,22 +178,53 @@ export async function submitRefund(id: string, deps: { refunds: RefundRepository
   if (next.action === 'reconcile_first') {
     const found = await deps.payments.listRefunds(refund.transactionReference);
     if (!found.ok) return 'unknown_outcome';
-    const match = found.value.find((r) => r.providerRefundId === refund.providerRefundId) ?? found.value.find((r) => r.amountCents === refund.amountCents);
-    if (match) {
-      const state = mapProviderRefundStatus(match.status) ?? 'pending';
+
+    // Provider refunds already tied to OTHER obligations cannot be this one.
+    const taken = new Set<string>();
+    for (const c of found.value) {
+      if (!c.providerRefundId || c.providerRefundId === refund.providerRefundId) continue;
+      const owner = await deps.refunds.findByProvider({ providerRefundId: c.providerRefundId });
+      if (owner && owner.id !== refund.id) taken.add(c.providerRefundId);
+    }
+    const m = matchProviderRefund(refund, found.value, taken);
+
+    if (m.kind === 'ambiguous') {
+      // Two equal refunds on one charge and nothing to tell them apart: a person decides.
+      await deps.refunds.transition(refund.id, [refund.state], 'needs_attention', { lastError: 'reconcile: several provider refunds could be this one' }, null, staffAlert(refund.id, 'refund_ambiguous'));
+      return 'escalated';
+    }
+
+    if (m.kind === 'match') {
+      const incoming = mapProviderRefundStatus(m.refund.status) ?? 'pending';
+      const inSubmit = refund.state === 'claimed' || refund.state === 'requested';
+      const update = inSubmit ? null : applyProviderRefundStatus(refund.state, incoming);
+      if (update && !update.apply) return 'waiting';
+      const to = update && update.apply ? update.to : incoming;
+      const notices: OutboxMessage[] = [];
+      if (refund.userId && (to === 'processed' || to === 'failed')) {
+        notices.push(...buildNotices({ kind: to === 'processed' ? 'refund_processed' : 'refund_failed', userId: refund.userId, bookingIds: refund.bookingIds, discriminator: refund.id, data: { amountCents: refund.amountCents } }));
+      }
+      if (to === 'failed' || to === 'needs_attention') notices.push(...staffAlert(refund.id, `refund_${to}`));
       const moved = await deps.refunds.transition(
         refund.id,
         [refund.state],
-        state,
-        { providerRefundId: match.providerRefundId },
-        state === 'processed' ? L.refundProcessed({ refundId: refund.id, bookingGroupId: refund.bookingGroupId, amountCents: refund.amountCents, fromUnallocated: refund.fromUnallocated }) : null,
-        [],
+        to,
+        { providerRefundId: m.refund.providerRefundId },
+        to === 'processed' ? L.refundProcessed({ refundId: refund.id, bookingGroupId: refund.bookingGroupId, amountCents: refund.amountCents, fromUnallocated: refund.fromUnallocated }) : null,
+        notices,
       );
       return moved ? 'reconciled' : 'lost_race';
     }
-    // The provider never received it: release the claim so it can be sent.
-    const released = await deps.refunds.transition(refund.id, [refund.state], 'eligible', { lastError: 'reconciled: not found at provider' }, null, []);
-    return released ? 'reconciled' : 'lost_race';
+
+    // Not at the provider.
+    if (refund.state === 'claimed' || refund.state === 'requested') {
+      // The earlier call never reached the provider: release the claim so it can be sent.
+      const released = await deps.refunds.transition(refund.id, [refund.state], 'eligible', { lastError: 'reconciled: not found at provider' }, null, []);
+      return released ? 'reconciled' : 'lost_race';
+    }
+    // The provider accepted it earlier but no longer lists it: never resend blind.
+    await deps.refunds.transition(refund.id, [refund.state], 'needs_attention', { lastError: 'reconcile: provider no longer lists this refund' }, null, staffAlert(refund.id, 'refund_missing_at_provider'));
+    return 'escalated';
   }
 
   // submit: claim first, so only one worker calls the provider.
@@ -284,18 +315,17 @@ export async function submitPayout(id: string, deps: { payouts: PayoutRepository
     const found = await deps.transfers.verifyTransfer(payout.transferReference);
     if (!found.ok) return 'unknown_outcome';
     if (found.value) {
-      const state = mapProviderTransferStatus(found.value.status) ?? 'pending';
-      const update = applyProviderTransferStatus(payout.state, state);
-      if (!update.apply) return 'waiting';
-      const moved = await deps.payouts.transition(
-        payout.id,
-        [payout.state],
-        update.to,
-        { providerTransferCode: found.value.transferCode },
-        update.ledger === 'completed' ? L.payoutCompleted({ payoutId: payout.id, bookingGroupId: payout.bookingGroupId, amountCents: payout.amountCents }) : null,
-        [],
+      // Same path as a webhook: ledger, owner notice and staff alerts included.
+      const outcome = await processTransferEvent(
+        { reference: payout.transferReference, status: found.value.status, transferCode: found.value.transferCode },
+        { payouts: deps.payouts },
       );
-      return moved ? 'reconciled' : 'lost_race';
+      return outcome === 'applied' ? 'reconciled' : outcome === 'duplicate' || outcome === 'stale' ? 'waiting' : 'unknown_outcome';
+    }
+    if (payout.state !== 'claimed') {
+      // The provider accepted it earlier but has no record now: never resend blind.
+      await deps.payouts.transition(payout.id, [payout.state], 'needs_attention', { lastError: 'reconcile: provider has no record of this transfer' }, null, staffAlert(payout.transferReference, 'payout_missing_at_provider'));
+      return 'escalated';
     }
     const released = await deps.payouts.transition(payout.id, [payout.state], 'approved', { lastError: 'reconciled: not found at provider' }, null, []);
     return released ? 'reconciled' : 'lost_race';

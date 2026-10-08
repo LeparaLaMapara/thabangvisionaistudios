@@ -445,10 +445,14 @@ create table if not exists public.notification_outbox (
   status text not null default 'pending' check (status in ('pending', 'sending', 'sent', 'failed', 'dead', 'skipped')),
   attempts integer not null default 0,
   send_after timestamptz,
+  -- When a dispatcher last claimed the row: a 'sending' row is reclaimable
+  -- only 10 minutes after its LAST claim, never just because it is old.
+  claimed_at timestamptz,
   sent_at timestamptz,
   last_error text,
   created_at timestamptz not null default now()
 );
+alter table public.notification_outbox add column if not exists claimed_at timestamptz;
 create index if not exists idx_notification_outbox_todo on public.notification_outbox (created_at)
   where status in ('pending', 'failed', 'sending');
 
@@ -485,10 +489,10 @@ begin
    where status in ('failed', 'sending') and attempts >= p_max_attempts;
   return query
   update public.notification_outbox o
-     set status = 'sending', attempts = o.attempts + 1
+     set status = 'sending', attempts = o.attempts + 1, claimed_at = now()
    where o.id in (
      select id from public.notification_outbox
-      where (status in ('pending', 'failed') or (status = 'sending' and created_at < now() - interval '10 minutes'))
+      where (status in ('pending', 'failed') or (status = 'sending' and coalesce(claimed_at, created_at) < now() - interval '10 minutes'))
         and coalesce(send_after, now()) <= now()
       order by created_at
       limit p_limit

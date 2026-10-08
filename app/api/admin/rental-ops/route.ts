@@ -6,7 +6,7 @@ import { requireAdmin, rateLimitAdmin } from '@/lib/auth';
 import { createAdminClient } from '@/lib/supabase/server';
 import { logEvent } from '@/lib/data/events';
 import { systemClock } from '@/lib/core/ports';
-import { refundObligationKey } from '@/lib/core/rental/refunds';
+import { matchProviderRefund, refundObligationKey } from '@/lib/core/rental/refunds';
 import { submitPayout, submitRefund } from '@/lib/core/rental/use-cases';
 import { paymentPort, payoutPort } from '@/lib/payments/ports';
 import { SupabasePayouts, SupabaseRefunds, isMissingPipeline } from '@/lib/rental/repos';
@@ -92,7 +92,16 @@ export async function POST(request: NextRequest) {
         // followed, never sent a second time.
         const known = await paymentPort.listRefunds(r.transactionReference);
         if (!known.ok) return NextResponse.json({ error: 'Could not check with the payment provider. Nothing was sent; try again later.' }, { status: 503 });
-        const existing = known.value.find((x) => (r.providerRefundId && x.providerRefundId === r.providerRefundId) || (!r.providerRefundId && x.amountCents === r.amountCents));
+        const taken = new Set<string>();
+        for (const c of known.value) {
+          const owner = c.providerRefundId ? await refunds.findByProvider({ providerRefundId: c.providerRefundId }) : null;
+          if (owner && owner.id !== r.id) taken.add(c.providerRefundId);
+        }
+        const m = matchProviderRefund(r, known.value, taken);
+        if (m.kind === 'ambiguous') {
+          return NextResponse.json({ error: 'Several refunds at the provider could be this one. Check the provider dashboard; nothing was sent.', code: 'AMBIGUOUS_AT_PROVIDER' }, { status: 409 });
+        }
+        const existing = m.kind === 'match' ? m.refund : null;
         if (existing && existing.status !== 'failed') {
           audit({ refundId: r.id, outcome: 'already_at_provider', providerStatus: existing.status });
           return NextResponse.json(

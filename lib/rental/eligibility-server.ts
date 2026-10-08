@@ -14,6 +14,7 @@ type Admin = ReturnType<typeof createAdminClient>;
  */
 
 interface BookingFactRow {
+  id: string;
   status: string;
   quantity: number | null;
   late_fee: number | null;
@@ -40,7 +41,7 @@ export async function loadRenterFacts(
   user: { id: string; email_confirmed_at?: string | null },
   now: Date = new Date(),
 ): Promise<{ facts: RenterFacts; exposureCents: number }> {
-  const BASE = 'status, quantity, late_fee, dispute_reason, completed_at, returned_at, updated_at, smart_rentals(replacement_value, deposit_amount)';
+  const BASE = 'id, status, quantity, late_fee, dispute_reason, completed_at, returned_at, updated_at, smart_rentals(replacement_value, deposit_amount)';
   const PIPELINE = ', inspection_outcome, hold_expires_at, unit_replacement_value_cents';
   const bookingsQuery = (cols: string) => admin.from('equipment_bookings').select(cols).eq('user_id', user.id);
   const [profileRes, bankRes, first] = await Promise.all([
@@ -66,7 +67,7 @@ export async function loadRenterFacts(
   let cleanReturns = 0;
   let cleanReturnValueCents = 0;
   let firstClean: number | null = null;
-  let openDisputes = 0;
+  const disputedBookings = new Set<string>();
   let overdueNow = 0;
   let recentLateReturns = 0;
   let exposureCents = 0;
@@ -84,7 +85,7 @@ export async function loadRenterFacts(
       }
       if (late && at >= sixMonthsAgo) recentLateReturns += 1;
     }
-    if (r.status === 'disputed') openDisputes += 1;
+    if (r.status === 'disputed') disputedBookings.add(r.id);
     if (r.status === 'overdue') overdueNow += 1;
 
     const holding =
@@ -92,6 +93,22 @@ export async function loadRenterFacts(
       (r.status === 'pending' && r.hold_expires_at != null && new Date(r.hold_expires_at).getTime() > now.getTime());
     if (holding) exposureCents += unitValueCents(r) * qty;
   }
+
+  // Open dispute records count too. A dispute on a hire that is still out, or
+  // already completed, leaves the booking's status alone (app/api/disputes).
+  const bookingIds = rows.map((r) => r.id);
+  if (bookingIds.length > 0) {
+    const { data: open, error: dErr } = await admin
+      .from('disputes')
+      .select('equipment_booking_id')
+      .in('equipment_booking_id', bookingIds)
+      .in('status', ['open', 'investigating', 'escalated']);
+    if (dErr) throw new Error('could not load renter disputes');
+    for (const d of (open ?? []) as { equipment_booking_id: string | null }[]) {
+      if (d.equipment_booking_id) disputedBookings.add(d.equipment_booking_id);
+    }
+  }
+  const openDisputes = disputedBookings.size;
 
   // Overdue past formal escalation (+48h) pauses new bookings.
   let overdueEscalated = 0;

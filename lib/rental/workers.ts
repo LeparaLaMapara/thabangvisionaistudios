@@ -43,7 +43,8 @@ export async function runRefunds(
   const { data, error } = await db
     .from('refund_obligations')
     .select('id')
-    .in('state', ['eligible', 'claimed', 'requested'])
+    // In-flight refunds too: if their webhook is lost, submitRefund polls the provider.
+    .in('state', ['eligible', 'claimed', 'requested', 'pending', 'processing'])
     .eq('provider', payments.provider)
     .order('created_at')
     .limit(limit);

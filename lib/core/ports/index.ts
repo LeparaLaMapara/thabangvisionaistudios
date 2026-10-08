@@ -140,6 +140,7 @@ export interface RefundRecord {
   providerRefundId: string | null;
   claimedAt: string | null;
   attempts: number;
+  updatedAt?: string | null;
   userId: string | null;
   bookingGroupId: string | null;
   bookingIds: string[];
@@ -170,6 +171,7 @@ export interface PayoutRecord {
   recipientCode: string | null;
   providerTransferCode: string | null;
   claimedAt: string | null;
+  updatedAt?: string | null;
   bookingGroupId: string | null;
 }
 

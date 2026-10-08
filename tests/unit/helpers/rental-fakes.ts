@@ -164,7 +164,7 @@ export class FakeRefunds implements RefundRepository {
       if (already + p.amountCents > charged) throw new Error('refunds would exceed the original charge');
     }
     const id = `rf_${++this.seq}`;
-    const row: RefundRecord = { ...p, id, state: 'eligible', providerRefundId: null, claimedAt: null, attempts: 0 };
+    const row: RefundRecord = { ...p, id, state: 'eligible', providerRefundId: null, claimedAt: null, attempts: 0, updatedAt: this.clock.now().toISOString() };
     delete (row as { chargedCents?: number }).chargedCents;
     this.rows.set(id, row);
     return row;
@@ -194,6 +194,7 @@ export class FakeRefunds implements RefundRepository {
     const r = this.rows.get(id);
     if (!r || !from.includes(r.state)) return false;
     r.state = to;
+    r.updatedAt = this.clock.now().toISOString();
     if (patch.providerRefundId !== undefined && patch.providerRefundId !== null) r.providerRefundId = patch.providerRefundId;
     if (patch.claim) {
       r.claimedAt = this.clock.now().toISOString();
@@ -221,6 +222,10 @@ export class FakePaymentProvider implements PaymentPort {
     this.providerRefunds.push(r);
     if (this.mode === 'timeout_after_send') return { ok: false, kind: 'unknown', message: 'timeout' };
     return { ok: true, value: r };
+  }
+  setStatus(providerRefundId: string, status: string): void {
+    const r = this.providerRefunds.find((x) => x.providerRefundId === providerRefundId);
+    if (r) r.status = status;
   }
   async listRefunds(): Promise<ProviderCallResult<ProviderRefund[]>> {
     if (this.mode === 'down') return { ok: false, kind: 'unknown', message: 'provider unavailable' };
@@ -253,6 +258,7 @@ export class FakePayouts implements PayoutRepository {
     const r = this.rows.get(id);
     if (!r || !from.includes(r.state)) return false;
     r.state = to;
+    r.updatedAt = this.clock.now().toISOString();
     if (patch.providerTransferCode) r.providerTransferCode = patch.providerTransferCode;
     if (patch.claim) r.claimedAt = this.clock.now().toISOString();
     this.books.append(journal);
@@ -277,6 +283,10 @@ export class FakeTransferProvider implements PayoutPort {
     }
     if (this.mode === 'timeout_after_send') return { ok: false, kind: 'unknown', message: 'timeout' };
     return { ok: true, value: t };
+  }
+  setStatus(reference: string, status: string): void {
+    const t = this.sent.get(reference);
+    if (t) t.status = status;
   }
   async verifyTransfer(reference: string): Promise<ProviderCallResult<ProviderTransfer | null>> {
     if (this.mode === 'down') return { ok: false, kind: 'unknown', message: 'provider unavailable' };

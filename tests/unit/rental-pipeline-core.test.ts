@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { checkTransition, blocksInventory, allowedFromStatuses, EXPOSURE_STATUSES } from '@/lib/core/rental/state';
 import { assessTrust, checkEligibility, collectionReasons, type RenterFacts } from '@/lib/core/rental/trust';
 import * as L from '@/lib/core/rental/ledger';
-import { applyProviderRefundStatus, nextRefundAction, planDepositRefund, refundableRemainder, mapProviderRefundStatus } from '@/lib/core/rental/refunds';
+import { applyProviderRefundStatus, matchProviderRefund, nextRefundAction, planDepositRefund, refundableRemainder, mapProviderRefundStatus } from '@/lib/core/rental/refunds';
 import { applyProviderTransferStatus, approveTransferRequest, checkPayoutEligibility, payoutReference } from '@/lib/core/rental/payouts';
 import { decideCharge, eventDedupeKey, type PaymentIntent, type ChargeEvent } from '@/lib/core/rental/payments';
 import { dueEscalations, returnDueAt, restrictsNewBookings } from '@/lib/core/rental/overdue';
@@ -465,6 +465,60 @@ describe('payment, refund and payout use cases (in-memory adapters, not live)', 
     const b = L.balances([...books.journals.values()].filter((j) => j.kind.startsWith('payout')));
     expect(b.owner_payable).toBe(0); // paid then reversed: the payable is back where it was
     expect([...books.outbox.values()].some((n) => n.kind === 'staff_alert' && String(n.data.what).includes('reversed'))).toBe(true);
+  });
+
+  it('a timed-out refund is matched to a provider refund only when that match is unique', async () => {
+    expect(matchProviderRefund({ providerRefundId: null, amountCents: 100 }, [{ providerRefundId: 'a', amountCents: 100 }], new Set())).toMatchObject({ kind: 'match' });
+    expect(matchProviderRefund({ providerRefundId: null, amountCents: 100 }, [{ providerRefundId: 'a', amountCents: 100 }, { providerRefundId: 'b', amountCents: 100 }], new Set())).toEqual({ kind: 'ambiguous' });
+    expect(matchProviderRefund({ providerRefundId: null, amountCents: 100 }, [{ providerRefundId: 'a', amountCents: 100 }, { providerRefundId: 'b', amountCents: 100 }], new Set(['a']))).toMatchObject({ kind: 'match', refund: { providerRefundId: 'b' } });
+    expect(matchProviderRefund({ providerRefundId: 'z', amountCents: 100 }, [{ providerRefundId: 'a', amountCents: 100 }], new Set())).toEqual({ kind: 'none' });
+
+    // Two equal deposits on one charge, both timed out: a person decides; nothing is resent.
+    const provider = new FakePaymentProvider();
+    const args = { reason: 'deposit_settlement' as const, amountCents: 250_000, transactionReference: 'tx1', userId: 'u1', bookingGroupId: 'grp1', fromUnallocated: false };
+    const a = refunds.create({ ...args, obligationKey: 'k-a', bookingIds: ['b1'], chargedCents: 700_000 })!;
+    const b = refunds.create({ ...args, obligationKey: 'k-b', bookingIds: ['b2'] })!;
+    provider.mode = 'timeout_after_send';
+    await submitRefund(a.id, { refunds, payments: provider, clock });
+    await submitRefund(b.id, { refunds, payments: provider, clock });
+    clock.advanceMinutes(15);
+    provider.mode = 'ok';
+    expect(await submitRefund(a.id, { refunds, payments: provider, clock })).toBe('escalated');
+    expect((await refunds.get(a.id))!.state).toBe('needs_attention');
+    expect(provider.calls).toHaveLength(2);
+  });
+
+  it('a refund stuck pending (lost webhook) is polled and completed, once', async () => {
+    const provider = new FakePaymentProvider();
+    const r = refunds.create({ obligationKey: 'k', reason: 'cancellation', amountCents: 100, transactionReference: 'tx1', userId: 'u1', bookingGroupId: 'grp1', bookingIds: ['b1'], fromUnallocated: false })!;
+    expect(await submitRefund(r.id, { refunds, payments: provider, clock })).toBe('submitted');
+    const row = (await refunds.get(r.id))!;
+    expect(row.state).toBe('pending');
+    expect(nextRefundAction(row, clock.now())).toEqual({ action: 'wait' });
+    provider.setStatus(row.providerRefundId!, 'processed');
+    clock.advanceMinutes(7 * 60);
+    expect(await submitRefund(r.id, { refunds, payments: provider, clock })).toBe('reconciled');
+    expect((await refunds.get(r.id))!.state).toBe('processed');
+    expect(books.journals.has(`refund:${r.id}`)).toBe(true);
+    expect(provider.calls).toHaveLength(1);
+    expect([...books.outbox.values()].some((n) => n.kind === 'refund_processed')).toBe(true);
+  });
+
+  it('a payout stuck pending (lost webhook) is looked up by its reference and booked once', async () => {
+    const payouts = new FakePayouts(books, clock);
+    const transfers = new FakeTransferProvider();
+    const ref = payoutReference('9b2f1c3e-0000-4000-8000-000000000003');
+    payouts.rows.set('po2', { id: 'po2', bookingId: 'b1', ownerId: 'o1', state: 'approved', amountCents: 360_000, transferReference: ref, recipientCode: 'RCP_1', providerTransferCode: null, claimedAt: null, bookingGroupId: 'grp1' });
+    expect(await submitPayout('po2', { payouts, transfers, clock })).toBe('submitted');
+    expect((await payouts.get('po2'))!.state).toBe('pending');
+    expect(await submitPayout('po2', { payouts, transfers, clock })).toBe('waiting');
+    transfers.setStatus(ref, 'success');
+    clock.advanceMinutes(90);
+    expect(await submitPayout('po2', { payouts, transfers, clock })).toBe('reconciled');
+    expect((await payouts.get('po2'))!.state).toBe('success');
+    expect(books.journals.has('payout:po2')).toBe(true);
+    expect([...books.outbox.values()].some((n) => n.kind === 'payout_completed' && n.userId === 'o1')).toBe(true);
+    expect(transfers.moneyMoved).toBe(360_000);
   });
 
   it('T29: a provider outage leaves every obligation recoverable', async () => {

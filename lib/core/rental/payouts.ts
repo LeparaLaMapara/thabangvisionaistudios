@@ -138,7 +138,12 @@ export function approveTransferRequest(
 
 export type PayoutNextAction = { action: 'submit' } | { action: 'reconcile_first' } | { action: 'wait' } | { action: 'escalate'; why: string } | { action: 'none' };
 
-export function nextPayoutAction(p: { state: PayoutState; providerTransferCode: string | null; claimedAt: string | null }, now: Date, claimTimeoutMinutes = 10): PayoutNextAction {
+export function nextPayoutAction(
+  p: { state: PayoutState; providerTransferCode: string | null; claimedAt: string | null; updatedAt?: string | null },
+  now: Date,
+  claimTimeoutMinutes = 10,
+  pollAfterHours = 1,
+): PayoutNextAction {
   switch (p.state) {
     case 'approved':
       return { action: 'submit' };
@@ -148,8 +153,13 @@ export function nextPayoutAction(p: { state: PayoutState; providerTransferCode: 
       return now.getTime() - at > claimTimeoutMinutes * 60_000 ? { action: 'reconcile_first' } : { action: 'wait' };
     }
     case 'pending':
-    case 'received':
-      return p.providerTransferCode ? { action: 'wait' } : { action: 'reconcile_first' };
+    case 'received': {
+      if (!p.providerTransferCode) return { action: 'reconcile_first' };
+      // A transfer the provider accepted is normally finished by its webhook.
+      // If none arrives, look it up by our stable reference.
+      const at = p.updatedAt ? new Date(p.updatedAt).getTime() : NaN;
+      return !Number.isNaN(at) && now.getTime() - at > pollAfterHours * 3_600_000 ? { action: 'reconcile_first' } : { action: 'wait' };
+    }
     case 'otp':
       return { action: 'escalate', why: 'transfer needs OTP approval in the provider dashboard (configuration issue)' };
     case 'failed':

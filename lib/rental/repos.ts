@@ -138,6 +138,7 @@ interface RefundRow {
   provider_refund_id: string | null;
   claimed_at: string | null;
   attempts: number;
+  updated_at: string | null;
   user_id: string | null;
   booking_group_id: string | null;
   booking_ids: string[] | null;
@@ -145,7 +146,7 @@ interface RefundRow {
 }
 
 const REFUND_COLUMNS =
-  'id, obligation_key, reason, state, amount_cents, transaction_reference, provider_refund_id, claimed_at, attempts, user_id, booking_group_id, booking_ids, from_unallocated';
+  'id, obligation_key, reason, state, amount_cents, transaction_reference, provider_refund_id, claimed_at, attempts, updated_at, user_id, booking_group_id, booking_ids, from_unallocated';
 
 function toRefund(r: RefundRow): RefundRecord {
   return {
@@ -158,6 +159,7 @@ function toRefund(r: RefundRow): RefundRecord {
     providerRefundId: r.provider_refund_id,
     claimedAt: r.claimed_at,
     attempts: r.attempts,
+    updatedAt: r.updated_at,
     userId: r.user_id,
     bookingGroupId: r.booking_group_id,
     bookingIds: r.booking_ids ?? [],
@@ -213,10 +215,11 @@ interface PayoutRow {
   recipient_code: string | null;
   provider_transfer_code: string | null;
   claimed_at: string | null;
+  updated_at: string | null;
   booking_group_id: string | null;
 }
 
-const PAYOUT_COLUMNS = 'id, booking_id, owner_id, state, owner_amount_cents, transfer_reference, recipient_code, provider_transfer_code, claimed_at, booking_group_id';
+const PAYOUT_COLUMNS = 'id, booking_id, owner_id, state, owner_amount_cents, transfer_reference, recipient_code, provider_transfer_code, claimed_at, updated_at, booking_group_id';
 
 function toPayout(r: PayoutRow): PayoutRecord {
   return {
@@ -229,6 +232,7 @@ function toPayout(r: PayoutRow): PayoutRecord {
     recipientCode: r.recipient_code,
     providerTransferCode: r.provider_transfer_code,
     claimedAt: r.claimed_at,
+    updatedAt: r.updated_at,
     bookingGroupId: r.booking_group_id,
   };
 }

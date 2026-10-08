@@ -97,6 +97,8 @@ export interface RefundObligation {
   /** When a worker claimed it; used to spot calls that never came back. */
   claimedAt: string | null;
   attempts: number;
+  /** Last time the obligation changed; used to poll the provider when a webhook seems lost. */
+  updatedAt?: string | null;
 }
 
 export type RefundNextAction =
@@ -116,7 +118,7 @@ export type RefundNextAction =
  * - in flight with the provider → wait for the webhook, or poll.
  * - failed or needs_attention → a person decides (T15).
  */
-export function nextRefundAction(o: RefundObligation, now: Date, claimTimeoutMinutes = 10, maxAttempts = 3): RefundNextAction {
+export function nextRefundAction(o: RefundObligation, now: Date, claimTimeoutMinutes = 10, maxAttempts = 3, pollAfterHours = 6): RefundNextAction {
   switch (o.state) {
     case 'eligible':
       return o.attempts >= maxAttempts ? { action: 'escalate', why: 'too many attempts' } : { action: 'submit' };
@@ -127,8 +129,12 @@ export function nextRefundAction(o: RefundObligation, now: Date, claimTimeoutMin
     case 'requested':
       return o.providerRefundId ? { action: 'wait' } : { action: 'reconcile_first' };
     case 'pending':
-    case 'processing':
-      return { action: 'wait' };
+    case 'processing': {
+      // Normally the webhook moves it on. If nothing has happened for a while,
+      // ask the provider (a lost webhook must not leave it pending forever).
+      const at = o.updatedAt ? new Date(o.updatedAt).getTime() : NaN;
+      return !Number.isNaN(at) && now.getTime() - at > pollAfterHours * 3_600_000 ? { action: 'reconcile_first' } : { action: 'wait' };
+    }
     case 'failed':
       return { action: 'escalate', why: 'provider reported the refund failed' };
     case 'needs_attention':
@@ -199,4 +205,25 @@ export function planDepositRefund(p: {
 /** Stable key for one refund obligation. Same reason + subject ⇒ same obligation. */
 export function refundObligationKey(reason: RefundReason, subjectId: string): string {
   return `refund:${reason}:${subjectId}`;
+}
+
+/**
+ * Which provider refund belongs to this obligation, when its provider id was
+ * never stored (the submit timed out). The provider id decides when we have
+ * it. Otherwise a refund of the same amount counts only if it is the ONLY
+ * such refund not already tied to another obligation. Two equal deposits on
+ * one charge are ambiguous, and then a person decides.
+ */
+export function matchProviderRefund<T extends { providerRefundId: string; amountCents: number }>(
+  obligation: { providerRefundId: string | null; amountCents: number },
+  candidates: readonly T[],
+  takenByOthers: ReadonlySet<string>,
+): { kind: 'match'; refund: T } | { kind: 'none' } | { kind: 'ambiguous' } {
+  if (obligation.providerRefundId) {
+    const byId = candidates.find((c) => c.providerRefundId === obligation.providerRefundId);
+    return byId ? { kind: 'match', refund: byId } : { kind: 'none' };
+  }
+  const same = candidates.filter((c) => c.amountCents === obligation.amountCents && !takenByOthers.has(c.providerRefundId));
+  if (same.length === 1) return { kind: 'match', refund: same[0] };
+  return same.length === 0 ? { kind: 'none' } : { kind: 'ambiguous' };
 }

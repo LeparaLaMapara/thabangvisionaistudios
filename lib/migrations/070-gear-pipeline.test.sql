@@ -234,6 +234,18 @@ begin
   exception when unique_violation then
     raise notice 'PASS: one payout per booking (T16)';
   end;
+
+  -- 12b. An old notification that was just claimed is not handed to a second dispatcher.
+  insert into public.notification_outbox (dedupe_key, kind, channel, user_id, created_at)
+  values ('lease-test', 'staff_alert', 'in_app', 'staff', now() - interval '1 day');
+  select count(*) into n from public.claim_outbox(100) where dedupe_key = 'lease-test';
+  if n <> 1 then raise exception 'FAIL: first claim got % rows', n; end if;
+  select count(*) into n from public.claim_outbox(100) where dedupe_key = 'lease-test';
+  if n <> 0 then raise exception 'FAIL: a row being sent was claimed again'; end if;
+  update public.notification_outbox set claimed_at = now() - interval '11 minutes' where dedupe_key = 'lease-test';
+  select count(*) into n from public.claim_outbox(100) where dedupe_key = 'lease-test';
+  if n <> 1 then raise exception 'FAIL: an abandoned send was not reclaimed'; end if;
+  raise notice 'PASS: outbox lease follows the last claim, not the creation time';
 end $$;
 
 -- 13. Clients cannot call the money functions or write the money tables.
