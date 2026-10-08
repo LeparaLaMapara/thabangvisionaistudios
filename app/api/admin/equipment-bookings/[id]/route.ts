@@ -4,7 +4,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin, rateLimitAdmin } from '@/lib/auth';
 import { createAdminClient } from '@/lib/supabase/server';
 import { checkTransition, isBookingStatus } from '@/lib/core/rental/state';
-import { refundObligationKey } from '@/lib/core/rental/refunds';
+import { disputeMoney, refundObligationKey } from '@/lib/core/rental/refunds';
+import { personSettlement } from '@/lib/core/rental/ledger';
+import { toCents } from '@/lib/core/pricing/money';
 import { buildNotices } from '@/lib/core/rental/notifications';
 import { isManualReference } from '@/lib/payments/routing';
 import { isMissingPipeline, transitionBookings } from '@/lib/rental/repos';
@@ -69,6 +71,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
   const paidOnProvider = Boolean(booking.payfast_payment_id) && !isManualReference(booking.payfast_payment_id as string);
   const refunds: unknown[] = [];
+  const journals: unknown[] = [];
   const notices = [];
   if (to === 'cancelled' && booking.payfast_payment_id) {
     const refundCents = Number(body.refundCents);
@@ -80,6 +83,27 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       if (booking.checkout_group_id) {
         const { data: intent } = await db.from('rental_payment_intents').select('expected_amount_cents, state').eq('checkout_group_id', booking.checkout_group_id).maybeSingle();
         if (intent && (intent as { state: string }).state === 'paid') chargedCents = (intent as { expected_amount_cents: number }).expected_amount_cents;
+      }
+      // Release what this line held in the ledger: the refund becomes
+      // refunds_payable, the rest a cancellation fee (deposit refunded first).
+      const held = await heldForLine(db, booking);
+      if (held && refundCents > held.hireCents + held.depositCents) {
+        return NextResponse.json({ error: 'The refund is more than this booking holds.', code: 'REFUND_TOO_LARGE' }, { status: 400 });
+      }
+      if (held && held.hireCents + held.depositCents > 0) {
+        const split = disputeMoney({ resolution: 'partial_refund', hireCents: held.hireCents, depositCents: held.depositCents, partialRefundCents: refundCents });
+        journals.push(personSettlement({
+          key: `staff-cancel:${id}`,
+          bookingGroupId: booking.checkout_group_id as string,
+          hireCents: held.hireCents,
+          depositCents: held.depositCents,
+          hireRefundCents: split.hireRefundCents,
+          depositRefundCents: split.depositRefundCents,
+          keptHireAs: 'cancelled',
+          ownership: 'studio',
+          ownerShareCents: 0,
+          platformShareCents: 0,
+        }));
       }
       refunds.push({
         obligationKey: refundObligationKey('manual', `staff-cancel:${id}`),
@@ -108,6 +132,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     actorId: auth.user.id,
     reason,
     patch: to === 'cancelled' ? { cancel_reason: 'staff', cancellation_refund_status: refunds.length || notices.length ? 'pending' : 'not_required' } : {},
+    journals,
     refunds,
     notices,
   });
@@ -132,4 +157,29 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   const { data: updated, error } = await db.from('equipment_bookings').select().eq('id', id).maybeSingle();
   if (error && !isMissingPipeline(error)) return NextResponse.json({ error: 'Updated, but could not reload the booking.' }, { status: 200 });
   return NextResponse.json(updated);
+}
+
+/**
+ * What this line holds in the ledger, for orders paid through the provider
+ * (a paid payment intent): its hire and deposit, plus the order's delivery fee
+ * when this is the last line still open and no line has earned it yet.
+ * Null when the order is outside the ledger (manual payment, pre-070).
+ */
+async function heldForLine(
+  db: ReturnType<typeof createAdminClient>,
+  booking: { id: string; checkout_group_id: string | null },
+): Promise<{ hireCents: number; depositCents: number } | null> {
+  if (!booking.checkout_group_id) return null;
+  const { data: intent } = await db.from('rental_payment_intents').select('state').eq('checkout_group_id', booking.checkout_group_id).maybeSingle();
+  if ((intent as { state?: string } | null)?.state !== 'paid') return null;
+  const { data: lines } = await db
+    .from('equipment_bookings')
+    .select('id, status, hire_cents, deposit_cents, delivery_fee')
+    .eq('checkout_group_id', booking.checkout_group_id);
+  const rows = (lines ?? []) as { id: string; status: string; hire_cents: number | null; deposit_cents: number | null; delivery_fee: number | null }[];
+  const me = rows.find((r) => r.id === booking.id);
+  if (!me || me.hire_cents == null) return null;
+  const othersOpen = rows.some((r) => r.id !== booking.id && r.status !== 'cancelled');
+  const delivery = othersOpen ? 0 : rows.reduce((sum, r) => sum + toCents(Number(r.delivery_fee ?? 0)), 0);
+  return { hireCents: me.hire_cents + delivery, depositCents: me.deposit_cents ?? 0 };
 }

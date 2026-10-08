@@ -12,7 +12,7 @@ import { RENTAL_POLICY } from '@/lib/constants';
 import { fromCents, toCents } from '@/lib/core/pricing/money';
 import { planDepositRefund, refundObligationKey } from '@/lib/core/rental/refunds';
 import { chargeOfBooking } from '@/lib/rental/charges';
-import { depositSettled, hireEarned } from '@/lib/core/rental/ledger';
+import { deliveryEarned, depositSettled, hireEarned } from '@/lib/core/rental/ledger';
 import { payoutReference } from '@/lib/core/rental/payouts';
 import { buildNotices } from '@/lib/core/rental/notifications';
 import { submitRefund } from '@/lib/core/rental/use-cases';
@@ -235,9 +235,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const groupId = b.checkout_group_id ?? id;
   if (onCard && snap.hire_cents != null && !hireUnrecorded) {
     const community = snap.ownership === 'community' && snap.owner_id && snap.owner_share_cents != null && snap.platform_share_cents != null;
-    const deliveryCents = toCents(Number(b.delivery_fee ?? 0));
-    // A journal needs money in it: a zero hire (and zero delivery) has nothing to recognise.
-    if (snap.hire_cents + deliveryCents > 0) {
+    // A journal needs money in it: a zero hire has nothing to recognise.
+    if (snap.hire_cents > 0) {
       journals.push(hireEarned({
         bookingId: id,
         bookingGroupId: groupId,
@@ -245,9 +244,13 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         ownership: community ? 'community' : 'studio',
         ownerShareCents: community ? (snap.owner_share_cents as number) : 0,
         platformShareCents: community ? (snap.platform_share_cents as number) : 0,
-        deliveryCents,
       }));
     }
+    // The order's delivery fee is stored on one line (whichever line that is,
+    // even a cancelled one). It is earned once per order, when the first line
+    // completes; the journal key makes a second completion a no-op.
+    const deliveryCents = await groupDeliveryCents(db, b);
+    if (deliveryCents > 0) journals.push(deliveryEarned({ bookingGroupId: groupId, deliveryCents }));
   }
   if (onCard && depositCents > 0) {
     journals.push(depositSettled({ bookingId: id, bookingGroupId: groupId, depositCents, damageCents: plan.damageCents, lateFeeCents: plan.lateFeeCents }));
@@ -315,6 +318,13 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     refund_method: refundMethod,
     refund_status: refundStatus,
   });
+}
+
+/** The delivery fee charged for this booking's order (stored on one of its lines). */
+async function groupDeliveryCents(db: ReturnType<typeof createAdminClient>, b: Row): Promise<number> {
+  if (!b.checkout_group_id) return toCents(Number(b.delivery_fee ?? 0));
+  const { data } = await db.from('equipment_bookings').select('delivery_fee').eq('checkout_group_id', b.checkout_group_id);
+  return ((data ?? []) as { delivery_fee: number | null }[]).reduce((sum, r) => sum + toCents(Number(r.delivery_fee ?? 0)), 0);
 }
 
 /** The pre-070 take-back, used only while migration 070 is not applied. */

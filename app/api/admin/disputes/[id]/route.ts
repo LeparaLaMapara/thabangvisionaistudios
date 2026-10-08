@@ -5,7 +5,12 @@ import { requireAdmin, rateLimitAdmin } from '@/lib/auth';
 import { createAdminClient } from '@/lib/supabase/server';
 import { isManualReference, refundPayment } from '@/lib/payments/routing';
 import { toCents } from '@/lib/core/pricing/money';
-import { refundObligationKey } from '@/lib/core/rental/refunds';
+import { disputeMoney, refundObligationKey, type DisputeResolution } from '@/lib/core/rental/refunds';
+import { deliveryEarned, personSettlement } from '@/lib/core/rental/ledger';
+import { splitHire } from '@/lib/core/pricing/rental';
+import { payoutReference } from '@/lib/core/rental/payouts';
+import { buildNotices } from '@/lib/core/rental/notifications';
+import { RENTAL_POLICY } from '@/lib/constants';
 import { submitRefund } from '@/lib/core/rental/use-cases';
 import { systemClock } from '@/lib/core/ports';
 import { paymentPort } from '@/lib/payments/ports';
@@ -156,6 +161,23 @@ export async function PATCH(
     if (resolution_amount !== undefined) update.resolution_amount = resolution_amount;
     if (resolution_notes) update.resolution_notes = resolution_notes;
 
+    // A disputed gear RETURN (booking still 'disputed', deposit unsettled) is
+    // settled here in one transaction: refund obligation, ledger, owner payout
+    // and closing the booking (default money rules: disputeMoney, D-19).
+    let settledEquipment = false;
+    if (dispute.equipment_booking_id && (status === 'resolved' || status === 'dismissed')) {
+      const settled = await settleDisputedReturn(supabase, {
+        disputeId: id,
+        bookingId: dispute.equipment_booking_id,
+        resolution: (resolution ?? null) as DisputeResolution,
+        partialRefundCents: resolution_amount !== undefined ? toCents(Number(resolution_amount)) : 0,
+        adminId: auth.user.id,
+        reason: `dispute ${status}: ${resolution ?? 'no resolution'}${resolution_notes ? ` (${String(resolution_notes).slice(0, 200)})` : ''}`,
+      });
+      if (settled && 'error' in settled) return NextResponse.json({ error: settled.error }, { status: settled.status });
+      settledEquipment = settled !== null;
+    }
+
     // Process refund if applicable
     if (resolution === 'full_refund' || resolution === 'partial_refund') {
       let paymentReference: string | null = null;
@@ -180,7 +202,7 @@ export async function PATCH(
         }
       }
 
-      if (dispute.equipment_booking_id) {
+      if (dispute.equipment_booking_id && !settledEquipment) {
         const { data: eb } = await supabase
           .from('equipment_bookings')
           .select('id, user_id, checkout_group_id, payfast_payment_id, deposit_amount')
@@ -231,7 +253,7 @@ export async function PATCH(
     }
 
     // A resolved gear dispute closes the booking, with the reason on record.
-    if (dispute.equipment_booking_id && (status === 'resolved' || status === 'dismissed')) {
+    if (dispute.equipment_booking_id && !settledEquipment && (status === 'resolved' || status === 'dismissed')) {
       await transitionBookings(supabase, {
         ids: [dispute.equipment_booking_id],
         from: ['disputed'],
@@ -383,4 +405,137 @@ export async function PATCH(
     console.error('[admin/disputes/[id]] PATCH error:', err);
     return NextResponse.json({ error: 'Internal server error.' }, { status: 500 });
   }
+}
+
+type Admin = ReturnType<typeof createAdminClient>;
+
+/**
+ * Settle a disputed gear return in one transaction (spec §7.7, §7.8): the
+ * refund obligation, the ledger, the owner payout, and closing the booking.
+ * Returns null when the booking is not an unsettled disputed return, or 070
+ * is not applied. The caller then keeps its earlier behaviour.
+ */
+async function settleDisputedReturn(
+  db: Admin,
+  p: { disputeId: string; bookingId: string; resolution: DisputeResolution; partialRefundCents: number; adminId: string; reason: string },
+): Promise<{ ok: true; refundCents: number } | { error: string; status: number } | null> {
+  const { data, error } = await db
+    .from('equipment_bookings')
+    .select('id, user_id, status, checkout_group_id, payfast_payment_id, deposit_amount, delivery_fee, payment_plan, balance_due, hire_cents, deposit_cents, ownership, owner_id')
+    .eq('id', p.bookingId)
+    .maybeSingle();
+  if (error && isMissingPipeline(error)) return null;
+  const b = data as {
+    id: string; user_id: string; status: string; checkout_group_id: string | null; payfast_payment_id: string | null;
+    deposit_amount: number | null; delivery_fee: number | null; payment_plan: string | null; balance_due: number | null;
+    hire_cents: number | null; deposit_cents: number | null; ownership: string | null; owner_id: string | null;
+  } | null;
+  if (!b || b.status !== 'disputed') return null;
+
+  const reference = b.payfast_payment_id;
+  const onProvider = Boolean(reference) && !isManualReference(reference as string);
+  let intentPaid = false;
+  if (b.checkout_group_id) {
+    const { data: intent } = await db.from('rental_payment_intents').select('state').eq('checkout_group_id', b.checkout_group_id).maybeSingle();
+    intentPaid = (intent as { state?: string } | null)?.state === 'paid';
+  }
+  // A deposit-only order's hire was paid at the counter with no record: outside the ledger.
+  const hireUnrecorded = b.payment_plan === 'deposit_only' && Number(b.balance_due ?? 0) > 0;
+  const hire = hireUnrecorded ? 0 : b.hire_cents ?? 0;
+  const deposit = b.deposit_cents ?? toCents(Number(b.deposit_amount ?? 0));
+  const money = disputeMoney({ resolution: p.resolution, hireCents: hire, depositCents: deposit, partialRefundCents: p.partialRefundCents });
+  const refundCents = money.hireRefundCents + money.depositRefundCents;
+
+  const refunds: unknown[] = [];
+  const notices = buildNotices({ kind: 'dispute_resolved', userId: b.user_id, bookingIds: [b.id], discriminator: p.disputeId });
+  if (refundCents > 0) {
+    if (onProvider) {
+      const charge = await chargeOfBooking(db, b);
+      if (refundCents > charge.remainderCents) {
+        return { error: `The refund is more than is left of the charge (R${(charge.remainderCents / 100).toFixed(2)}).`, status: 400 };
+      }
+      refunds.push({
+        obligationKey: refundObligationKey('manual', `dispute:${p.disputeId}`),
+        reason: 'manual',
+        amountCents: refundCents,
+        chargedCents: charge.totalCents,
+        transactionReference: reference,
+        userId: b.user_id,
+        bookingGroupId: b.checkout_group_id,
+        bookingIds: [b.id],
+        evidence: { dispute_id: p.disputeId, resolution: p.resolution, by: p.adminId },
+      });
+    } else {
+      notices.push(...buildNotices({ kind: 'staff_alert', userId: 'staff', bookingIds: [b.id], discriminator: `manual-refund:dispute:${p.disputeId}`, data: { what: 'manual_dispute_refund_due', reference: b.id } }));
+    }
+  }
+
+  const keptHire = hire - money.hireRefundCents;
+  const community = b.ownership === 'community' && Boolean(b.owner_id) && !hireUnrecorded;
+  const split = community ? splitHire(keptHire) : { ownerShareCents: 0, platformShareCents: 0 };
+  const journals: unknown[] = [];
+  const groupId = b.checkout_group_id ?? b.id;
+  if (onProvider && intentPaid && b.hire_cents != null && hire + deposit > 0) {
+    journals.push(personSettlement({
+      key: `dispute-settled:${b.id}`,
+      bookingGroupId: groupId,
+      hireCents: hire,
+      depositCents: deposit,
+      hireRefundCents: money.hireRefundCents,
+      depositRefundCents: money.depositRefundCents,
+      keptHireAs: 'earned',
+      ownership: community ? 'community' : 'studio',
+      ownerShareCents: split.ownerShareCents,
+      platformShareCents: split.platformShareCents,
+    }));
+    if (b.checkout_group_id) {
+      const { data: lines } = await db.from('equipment_bookings').select('delivery_fee').eq('checkout_group_id', b.checkout_group_id);
+      const delivery = ((lines ?? []) as { delivery_fee: number | null }[]).reduce((sum, r) => sum + toCents(Number(r.delivery_fee ?? 0)), 0);
+      if (delivery > 0) journals.push(deliveryEarned({ bookingGroupId: groupId, deliveryCents: delivery }));
+    }
+  }
+
+  const payouts: unknown[] = [];
+  if (community && split.ownerShareCents > 0) {
+    payouts.push({
+      bookingId: b.id,
+      ownerId: b.owner_id,
+      bookingGroupId: groupId,
+      grossCents: keptHire,
+      platformCents: split.platformShareCents,
+      ownerCents: split.ownerShareCents,
+      transferReference: payoutReference(b.id),
+      scheduledAt: new Date(Date.now() + RENTAL_POLICY.ownerPayoutDelayHours * 3_600_000).toISOString(),
+    });
+    notices.push(...buildNotices({ kind: 'payout_scheduled', userId: b.owner_id as string, bookingIds: [b.id], discriminator: b.id, data: { amountCents: split.ownerShareCents } }));
+  } else if (hireUnrecorded && b.ownership === 'community' && b.owner_id) {
+    notices.push(...buildNotices({ kind: 'staff_alert', userId: 'staff', bookingIds: [b.id], discriminator: `deposit-only-payout:${b.id}`, data: { what: 'owner_payout_needs_manual_check_balance_paid_at_counter', reference: b.id } }));
+  }
+
+  const moved = await transitionBookings(db, {
+    ids: [b.id],
+    from: ['disputed'],
+    to: 'completed',
+    actor: 'staff',
+    actorId: p.adminId,
+    reason: p.reason,
+    patch: {
+      deposit_released: money.depositRefundCents / 100,
+      damage_fee: (deposit - money.depositRefundCents) / 100,
+      return_reviewed_by: p.adminId,
+      return_reviewed_at: new Date().toISOString(),
+    },
+    journals,
+    refunds,
+    payouts,
+    notices,
+  });
+  if (moved.result === 'missing_pipeline') return null;
+  if (moved.result === 'conflict') return { error: 'The booking changed; reload and try again.', status: 409 };
+
+  if (refunds.length) {
+    const { data: ob } = await db.from('refund_obligations').select('id').eq('obligation_key', refundObligationKey('manual', `dispute:${p.disputeId}`)).maybeSingle();
+    if (ob) await submitRefund((ob as { id: string }).id, { refunds: new SupabaseRefunds(db), payments: paymentPort, clock: systemClock }).catch(() => 'unknown_outcome');
+  }
+  return { ok: true, refundCents };
 }

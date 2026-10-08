@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { checkTransition, blocksInventory, allowedFromStatuses, EXPOSURE_STATUSES } from '@/lib/core/rental/state';
 import { assessTrust, checkEligibility, collectionReasons, type RenterFacts } from '@/lib/core/rental/trust';
 import * as L from '@/lib/core/rental/ledger';
-import { applyProviderRefundStatus, matchProviderRefund, nextRefundAction, planDepositRefund, refundableRemainder, mapProviderRefundStatus } from '@/lib/core/rental/refunds';
+import { applyProviderRefundStatus, disputeMoney, matchProviderRefund, nextRefundAction, planDepositRefund, refundableRemainder, mapProviderRefundStatus } from '@/lib/core/rental/refunds';
 import { applyProviderTransferStatus, approveTransferRequest, checkPayoutEligibility, payoutReference } from '@/lib/core/rental/payouts';
 import { decideCharge, eventDedupeKey, type PaymentIntent, type ChargeEvent } from '@/lib/core/rental/payments';
 import { dueEscalations, returnDueAt, restrictsNewBookings } from '@/lib/core/rental/overdue';
@@ -157,6 +157,38 @@ describe('ledger', () => {
     ];
     expect(L.reconcileClosedGroup({ journals: js })).toEqual([]);
     expect(-L.balances(js).delivery_income).toBe(25_000);
+  });
+
+  it('dispute money defaults (D-19) and a person-settled line reconcile to zero', () => {
+    expect(disputeMoney({ resolution: 'full_refund', hireCents: 450_000, depositCents: 250_000 })).toEqual({ hireRefundCents: 450_000, depositRefundCents: 250_000 });
+    expect(disputeMoney({ resolution: 'partial_refund', hireCents: 450_000, depositCents: 250_000, partialRefundCents: 300_000 })).toEqual({ depositRefundCents: 250_000, hireRefundCents: 50_000 });
+    expect(disputeMoney({ resolution: 'deposit_forfeit', hireCents: 450_000, depositCents: 250_000 })).toEqual({ hireRefundCents: 0, depositRefundCents: 0 });
+    expect(disputeMoney({ resolution: 'no_action', hireCents: 450_000, depositCents: 250_000 })).toEqual({ hireRefundCents: 0, depositRefundCents: 250_000 });
+
+    // Community gear, partial refund of R3,000: R2,500 deposit + R500 hire back; owner paid 80% of the R4,000 kept.
+    const m = disputeMoney({ resolution: 'partial_refund', hireCents: 450_000, depositCents: 250_000, partialRefundCents: 300_000 });
+    const js = [
+      L.paymentCaptured({ bookingGroupId: 'g', providerReference: 'tx', hireCents: 450_000, depositCents: 250_000, deliveryFeeCents: 20_000 }),
+      L.personSettlement({ key: 'dispute-settled:b', bookingGroupId: 'g', hireCents: 450_000, depositCents: 250_000, ...m, keptHireAs: 'earned', ownership: 'community', ownerShareCents: 320_000, platformShareCents: 80_000 }),
+      L.deliveryEarned({ bookingGroupId: 'g', deliveryCents: 20_000 }),
+      L.refundProcessed({ refundId: 'r', bookingGroupId: 'g', amountCents: 300_000 }),
+      L.payoutCompleted({ payoutId: 'p', bookingGroupId: 'g', amountCents: 320_000 }),
+    ];
+    expect(L.reconcileClosedGroup({ journals: js })).toEqual([]);
+  });
+
+  it('a staff cancellation releases the hire and deposit it held', () => {
+    const js = [
+      L.paymentCaptured({ bookingGroupId: 'g', providerReference: 'tx', hireCents: 100_000, depositCents: 50_000 }),
+      L.personSettlement({ key: 'staff-cancel:b', bookingGroupId: 'g', hireCents: 100_000, depositCents: 50_000, depositRefundCents: 50_000, hireRefundCents: 30_000, keptHireAs: 'cancelled', ownership: 'studio', ownerShareCents: 0, platformShareCents: 0 }),
+      L.refundProcessed({ refundId: 'r', bookingGroupId: 'g', amountCents: 80_000 }),
+    ];
+    expect(L.reconcileClosedGroup({ journals: js })).toEqual([]);
+    expect(-L.balances(js).cancellation_income).toBe(70_000);
+  });
+
+  it('the delivery fee is earned once per order, whichever line completes', () => {
+    expect(L.deliveryEarned({ bookingGroupId: 'g', deliveryCents: 1 }).idempotencyKey).toBe(L.deliveryEarned({ bookingGroupId: 'g', deliveryCents: 1 }).idempotencyKey);
   });
 
   it('an all-zero journal is refused, so callers skip it (zero-deposit hires)', () => {

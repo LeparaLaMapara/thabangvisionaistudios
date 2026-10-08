@@ -227,3 +227,34 @@ export function matchProviderRefund<T extends { providerRefundId: string; amount
   if (same.length === 1) return { kind: 'match', refund: same[0] };
   return same.length === 0 ? { kind: 'none' } : { kind: 'ambiguous' };
 }
+
+export type DisputeResolution = 'full_refund' | 'partial_refund' | 'deposit_forfeit' | 'warning_issued' | 'user_suspended' | 'no_action' | 'custom' | null;
+
+/**
+ * Money outcome of a resolved gear dispute (default policy, decision D-19:
+ * REQUIRES_FOUNDER_APPROVAL to change).
+ *   full_refund     everything charged for the line comes back; no hire is earned
+ *   partial_refund  the stated amount comes back, from the deposit first, then the hire
+ *   deposit_forfeit the deposit is kept (a person decided, with evidence); the hire is earned
+ *   anything else   the deposit is refunded in full; the hire is earned
+ */
+export function disputeMoney(p: {
+  resolution: DisputeResolution;
+  hireCents: number;
+  depositCents: number;
+  partialRefundCents?: number;
+}): { hireRefundCents: number; depositRefundCents: number } {
+  switch (p.resolution) {
+    case 'full_refund':
+      return { hireRefundCents: p.hireCents, depositRefundCents: p.depositCents };
+    case 'partial_refund': {
+      const amount = Math.max(0, Math.min(p.partialRefundCents ?? 0, p.hireCents + p.depositCents));
+      const fromDeposit = Math.min(amount, p.depositCents);
+      return { depositRefundCents: fromDeposit, hireRefundCents: amount - fromDeposit };
+    }
+    case 'deposit_forfeit':
+      return { hireRefundCents: 0, depositRefundCents: 0 };
+    default:
+      return { hireRefundCents: 0, depositRefundCents: p.depositCents };
+  }
+}

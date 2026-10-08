@@ -293,3 +293,60 @@ export function reconcileClosedGroup(params: {
   }
   return issues;
 }
+
+/**
+ * The order's delivery fee becomes income once the order is delivered and a
+ * line completes. One journal per order (keyed by the order), so it is
+ * recognised exactly once whichever line completes first (spec §4.3).
+ */
+export function deliveryEarned(p: { bookingGroupId: string; deliveryCents: number }): Journal {
+  return journal(`delivery:${p.bookingGroupId}`, 'hire_earned', p.bookingGroupId, 'Delivery fee earned', [
+    dr('unearned_hire', p.deliveryCents),
+    cr('delivery_income', p.deliveryCents),
+  ]);
+}
+
+/**
+ * Settles one booking line whose outcome a person decided: a staff
+ * cancellation, or a resolved dispute. Every amount it held as a liability
+ * (hire, deposit) is released. What goes back to the customer becomes
+ * refunds_payable. What is kept becomes income: earned hire (split
+ * owner/platform for community gear), kept deposit (damage income) or
+ * retained hire on cancellation (cancellation income).
+ */
+export function personSettlement(p: {
+  key: string;
+  bookingGroupId: string;
+  hireCents: number;
+  depositCents: number;
+  hireRefundCents: number;
+  depositRefundCents: number;
+  /** 'earned': kept hire is revenue (hire happened). 'cancelled': kept hire is a cancellation fee. */
+  keptHireAs: 'earned' | 'cancelled';
+  ownership: 'studio' | 'community';
+  ownerShareCents: number;
+  platformShareCents: number;
+}): Journal {
+  for (const [label, v] of [['hire', p.hireCents], ['deposit', p.depositCents], ['hire refund', p.hireRefundCents], ['deposit refund', p.depositRefundCents]] as const) {
+    assertCents(v, label);
+    if (v < 0) throw new RangeError(`${label} cannot be negative`);
+  }
+  if (p.hireRefundCents > p.hireCents || p.depositRefundCents > p.depositCents) throw new RangeError('cannot refund more than was held');
+  const keptHire = p.hireCents - p.hireRefundCents;
+  if (p.ownership === 'community' && p.keptHireAs === 'earned' && p.ownerShareCents + p.platformShareCents !== keptHire) {
+    throw new RangeError('owner + platform share must equal the kept hire');
+  }
+  const keptHireLines =
+    p.keptHireAs === 'cancelled'
+      ? [cr('cancellation_income', keptHire)]
+      : p.ownership === 'community'
+        ? [cr('owner_payable', p.ownerShareCents), cr('platform_commission', p.platformShareCents)]
+        : [cr('rental_revenue', keptHire)];
+  return journal(p.key, p.keptHireAs === 'cancelled' ? 'cancellation' : 'deposit_settled', p.bookingGroupId, 'Settled by a person', [
+    dr('unearned_hire', p.hireCents),
+    dr('customer_deposits', p.depositCents),
+    cr('refunds_payable', p.hireRefundCents + p.depositRefundCents),
+    cr('damage_income', p.depositCents - p.depositRefundCents),
+    ...keptHireLines,
+  ]);
+}

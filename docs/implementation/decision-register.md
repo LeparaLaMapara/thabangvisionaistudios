@@ -36,7 +36,7 @@ Statuses: CONFIRMED · NEEDS_VERIFICATION · BLOCKED · REQUIRES_LEGAL_REVIEW ·
 | D-16 | Legal merchant of record for marketplace transactions | REQUIRES_LEGAL_REVIEW | Phase 2 |
 | D-17 | Verification evidence required for high-value listings | REQUIRES_FOUNDER_APPROVAL | Phase 2 |
 | D-18 | Refund and payout fees: does the platform or the owner bear them? | REQUIRES_FOUNDER_APPROVAL | Phase 1 payouts |
-| D-19 | What triggers an owner payout hold or a dispute escalation | REQUIRES_FOUNDER_APPROVAL | Phase 1 |
+| D-19 | What triggers an owner payout hold or a dispute escalation; the money outcome of a resolved dispute | REQUIRES_FOUNDER_APPROVAL (default implemented) | Phase 1. Holds: any open dispute on the booking holds its payout (`evaluatePayout`), and auto-approval is off. Resolved gear disputes are settled by `disputeMoney`. Full refund: everything charged comes back and nothing is earned. Partial: the stated amount comes back, deposit first, then hire. Deposit forfeit: a person keeps the deposit and the hire is earned. Anything else: the deposit is refunded in full and the hire is earned. The owner is paid 80% of the hire kept |
 | D-20 | Procedure for separating the production database; where the Observatory goes | BLOCKED | `docs/operations/database-isolation.md` |
 
 ## Phase 1 decisions (2026-10-08)
