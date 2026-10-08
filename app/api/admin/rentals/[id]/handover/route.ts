@@ -32,6 +32,12 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     .maybeSingle();
   if (!booking) return NextResponse.json({ error: 'Booking not found' }, { status: 404 });
 
+  // Risk flag, read separately so a database without the column (migration not
+  // applied yet) still loads the handover; a missing column means no flag.
+  const risk = await admin.from('equipment_bookings').select('requires_manual_approval').eq('id', id).maybeSingle();
+  const requiresManualApproval =
+    !risk.error && (risk.data as { requires_manual_approval?: boolean | null } | null)?.requires_manual_approval === true;
+
   const { data: profile } = await admin
     .from('profiles')
     .select('first_name, last_name, display_name, verification_status, selfie_with_id_path')
@@ -60,6 +66,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
       quantity: booking.quantity,
       fulfilment_method: booking.fulfilment_method,
       handover: booking.handover,
+      requires_manual_approval: requiresManualApproval,
     },
     rental,
     renter: { name: renterName, verification: profile?.verification_status ?? 'none', selfieUrl },

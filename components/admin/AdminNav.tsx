@@ -19,6 +19,7 @@ const ADMIN_LINKS = [
   { label: 'FAQs', href: '/admin/faqs' },
   // Operations
   { label: 'Bookings', href: '/admin/bookings' },
+  { label: 'Rental ops', href: '/admin/rental-ops' },
   { label: 'Service Bookings', href: '/admin/service-bookings' },
   { label: 'Verifications', href: '/admin/verifications' },
   { label: 'Creator Requests', href: '/admin/creator-requests' },

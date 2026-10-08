@@ -13,6 +13,8 @@ import { notifyClient } from '@/lib/bookings/notify-client';
 import { loadNoticeBookings, sendGearNotice } from '@/lib/rental/notices';
 import { paymentReference } from '@/lib/payments/eft';
 import { autoSendWelcomes, draftMissingWelcomes } from '@/lib/greetings/process';
+import { runOverdueLadder } from '@/lib/rental/workers';
+import { buildNotices } from '@/lib/core/rental/notifications';
 
 /**
  * Daily Maintenance — runs at 2am SAST (00:00 UTC)
@@ -410,79 +412,18 @@ Please contact the client and the creator. They are not paid out or refunded aut
     results.autoReassignedError = String(err);
   }
 
-  // ─── 8. Auto-detect overdue rentals ──────────────────────────────────────────
+  // ─── 8–9. Overdue rentals: the escalation ladder ─────────────────────────
+  // Marks hires past their return time (end of the end date, SAST) overdue and
+  // records the +2h/+24h/+48h/+96h escalation stages for staff, with reminders
+  // to the renter (lib/rental/workers.ts, spec §7.13). This replaced a step
+  // that opened a "not returned" dispute after 14 days with the RENTER as the
+  // person filing it, and set the booking to disputed automatically. Treating a
+  // late return as a dispute or theft is a person's decision, not a job's.
   try {
-    const today = new Date().toISOString().split('T')[0];
-    const { data: overdueRentals, error: overdueError } = await supabase
-      .from('equipment_bookings')
-      .update({ status: 'overdue', updated_at: new Date().toISOString() })
-      .eq('status', 'active')
-      .lt('end_date', today)
-      .select('id, user_id');
-
-    if (overdueError) throw overdueError;
-
-    // Notify renters
-    for (const booking of overdueRentals ?? []) {
-      await supabase.from('notifications').insert({
-        user_id: booking.user_id,
-        type: 'rental_overdue',
-        title: 'Your rental is overdue',
-        body: 'Please return your gear. Late fees may apply.',
-        link: `/dashboard/bookings/${booking.id}`,
-      });
-    }
-
-    results.overdueRentals = { marked: overdueRentals?.length ?? 0 };
+    results.overdueRentals = await runOverdueLadder(supabase);
   } catch (err) {
-    console.error('[daily-maintenance] overdue rental detection failed:', err);
+    console.error('[daily-maintenance] overdue ladder failed:', err);
     results.overdueRentals = { error: String(err) };
-  }
-
-  // ─── 9. Auto-escalate unreturned gear to disputes (14+ days overdue) ──────
-  try {
-    const fourteenDaysAgo = new Date();
-    fourteenDaysAgo.setDate(fourteenDaysAgo.getDate() - 14);
-    const cutoff = fourteenDaysAgo.toISOString().split('T')[0];
-
-    const { data: unreturned } = await supabase
-      .from('equipment_bookings')
-      .select('id, user_id, rental_id')
-      .eq('status', 'overdue')
-      .lt('end_date', cutoff);
-
-    let escalated = 0;
-    if (unreturned && unreturned.length > 0) {
-      const unreturnedIds = unreturned.map((b) => b.id);
-      const { data: existingDisputes } = await supabase
-        .from('disputes')
-        .select('equipment_booking_id')
-        .eq('dispute_type', 'gear_not_returned')
-        .in('equipment_booking_id', unreturnedIds);
-
-      const disputedBookingIds = new Set((existingDisputes ?? []).map((d) => d.equipment_booking_id));
-
-      for (const booking of unreturned) {
-        if (disputedBookingIds.has(booking.id)) continue;
-
-        await supabase.from('disputes').insert({
-          dispute_type: 'gear_not_returned',
-          equipment_booking_id: booking.id,
-          filed_by: booking.user_id,
-          reason: 'Gear not returned after 14+ days overdue. Auto-escalated.',
-          status: 'open',
-        });
-        await supabase
-          .from('equipment_bookings')
-          .update({ status: 'disputed', disputed_at: new Date().toISOString() })
-          .eq('id', booking.id);
-        escalated++;
-      }
-    }
-    results.disputeEscalation = { escalated };
-  } catch (err) {
-    console.error('[daily-maintenance] dispute escalation failed:', err);
-    results.disputeEscalation = { error: String(err) };
   }
 
   // ─── 10. Auto-flag users with 3+ disputes for review ─────────────────────
@@ -555,76 +496,34 @@ Please contact the client and the creator. They are not paid out or refunded aut
         if (profile.is_suspended) continue;
         const count = userDisputeCounts.get(profile.id) ?? 0;
 
-        await supabase.from('profiles').update({
-          is_suspended: true,
-          suspended_at: new Date().toISOString(),
-          suspension_reason: `Auto-suspended: ${count} active disputes filed against this user.`,
-        }).eq('id', profile.id);
-
-        await supabase.from('moderation_log').insert({
-          user_id: profile.id,
-          action: 'suspended',
-          reason: `Auto-suspended: ${count} active disputes.`,
-          admin_id: null,
-          metadata: { trigger: 'auto_dispute_count', dispute_count: count, actor: 'system:daily-maintenance' },
+        // Flag for a person to review; never suspend automatically (spec
+        // §7.13: human decisions, records and appeals). The renter's open
+        // disputes already route new gear bookings to manual approval
+        // (lib/core/rental/trust.ts).
+        // One alert per user per week (dedupe key), delivered to admins by the outbox.
+        const week = Math.floor(Date.now() / (7 * 86_400_000));
+        await supabase.rpc('outbox_enqueue', {
+          p_notices: buildNotices({
+            kind: 'staff_alert',
+            userId: 'staff',
+            bookingIds: [],
+            discriminator: `dispute-review:${profile.id}:${week}`,
+            data: { what: `${count}_open_disputes_review_user`, reference: profile.id },
+          }),
         });
-
-        await supabase.from('smart_rentals').update({ is_available: false }).eq('owner_id', profile.id);
         autoSuspended++;
       }
     }
-    results.autoSuspension = { flaggedUsers: userDisputeCounts.size, autoSuspended };
+    results.disputeReview = { usersWithDisputes: userDisputeCounts.size, flaggedForReview: autoSuspended };
   } catch (err) {
     console.error('[daily-maintenance] auto-suspension failed:', err);
     results.autoSuspension = { error: String(err) };
   }
 
-  // ─── 11. Auto-suspend users with gear overdue 30+ days ────────────────────
-  try {
-    const thirtyDaysAgo = new Date();
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-    const cutoff30 = thirtyDaysAgo.toISOString().split('T')[0];
-
-    const { data: severeOverdue } = await supabase
-      .from('equipment_bookings')
-      .select('user_id')
-      .in('status', ['overdue', 'disputed'])
-      .lt('end_date', cutoff30);
-
-    const uniqueUserIds = [...new Set((severeOverdue ?? []).map((b) => b.user_id))];
-    let suspended30 = 0;
-
-    if (uniqueUserIds.length > 0) {
-      const { data: profiles } = await supabase
-        .from('profiles')
-        .select('id, is_suspended')
-        .in('id', uniqueUserIds)
-        .eq('is_suspended', false);
-
-      for (const profile of profiles ?? []) {
-        await supabase.from('profiles').update({
-          is_suspended: true,
-          suspended_at: new Date().toISOString(),
-          suspension_reason: 'Auto-suspended: gear overdue for 30+ days.',
-        }).eq('id', profile.id);
-
-        await supabase.from('moderation_log').insert({
-          user_id: profile.id,
-          action: 'suspended',
-          reason: 'Auto-suspended: gear overdue 30+ days.',
-          admin_id: profile.id,
-          metadata: { trigger: 'auto_overdue_30_days' },
-        });
-
-        await supabase.from('smart_rentals').update({ is_available: false }).eq('owner_id', profile.id);
-        suspended30++;
-      }
-    }
-    results.overdueAutoSuspension = { checked: severeOverdue?.length ?? 0, suspended: suspended30 };
-  } catch (err) {
-    console.error('[daily-maintenance] 30-day overdue suspension failed:', err);
-    results.overdueAutoSuspension = { error: String(err) };
-  }
+  // ─── 11. (removed) Automatic suspension after 30 days overdue ─────────────
+  // Replaced by the escalation ladder's senior-review stage (+96h), where a
+  // person decides on recovery steps. Gear overdue past formal escalation
+  // already pauses that renter's new bookings (lib/core/rental/trust.ts).
 
   // ─── 12. Abandoned cart recovery notifications ────────────────────────────
   try {
