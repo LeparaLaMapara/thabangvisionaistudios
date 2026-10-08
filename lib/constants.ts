@@ -70,7 +70,29 @@ export const STUDIO = {
     registeredAddress: '9873 Extension 5, Soshanguve South, Gauteng, 0152, South Africa',
     // Whether the company is a registered VAT vendor. This — not vatNumber —
     // is what drives VAT wording and the VAT line at checkout.
-    vatRegistered: true,
+    // Founder decision 2026-10-08: NOT registered. No VAT is added, shown or
+    // invoiced. Rates and the effective date live in `tax` below so a future
+    // registration is a dated config change, not a rewrite (lib/core/pricing/tax.ts).
+    vatRegistered: false,
+    tax: {
+      vatRate: 15,
+      // ISO date the registration takes effect, or null while not registered.
+      // Sales before this date keep the meaning they had (no VAT).
+      vatEffectiveFrom: null as string | null,
+      // When registration happens, advertised prices are treated as
+      // VAT-INCLUSIVE, so customer prices never rise automatically.
+      pricesIncludeVat: true,
+    },
+    // Versioned legal documents. Bump the version (and date) whenever the
+    // published text changes; acceptances are recorded against these strings
+    // in public.consent_records (lib/migrations/068).
+    documents: {
+      terms: { version: '2026-10-08', label: 'Terms of Service', href: '/legal' },
+      privacy: { version: '2026-10-08', label: 'Privacy Policy', href: '/privacy' },
+      refunds: { version: '2026-10-08', label: 'Refunds & Cancellations', href: '/refunds' },
+      rentalAgreement: { version: '2026-10-08', label: 'Rental agreement', href: '/legal#equipment-hire' },
+      biometricNotice: { version: '2026-10-08', label: 'Identity check notice', href: '/privacy#identity-verification' },
+    },
     // The VAT number itself. Optional: a vendor must show it on a tax invoice,
     // but is not obliged to publish it on the website. Rendered only if set.
     vatNumber: '',
@@ -98,6 +120,20 @@ export const STUDIO = {
     // lib/rental/cancellation.ts and explained on /refunds section 10.
     coolingOffDays: 7,
   },
+
+  // Where we work. Founder decision 2026-10-08: Gauteng, with travel outside
+  // the province quoted separately. `listedCities` are the Gauteng places we
+  // have pages for; they are examples, NOT the whole of Gauteng, so copy must
+  // say "Gauteng" rather than imply these cities are the full area.
+  serviceArea: {
+    province: 'Gauteng',
+    outsideProvince: 'travel_by_quote' as const,
+    summary: 'Gauteng',
+    outsideProvinceNote: 'Outside Gauteng, travel is quoted separately.',
+  },
+
+  // One promise for how fast we reply, used everywhere a time is stated.
+  responseTime: 'within 2 business days',
 
   meta: {
     // The address the site is served on. The apex redirects to www, so every
@@ -627,6 +663,23 @@ export const RENTAL_POLICIES = {
   supportEmail: STUDIO.supportEmail,
 } as const;
 
+// ─── RENTAL POLICY (money, integer basis points / cents) ─────────────────────
+// Founder decisions 2026-10-08. Read by the pure pricing core
+// (lib/core/pricing/rental.ts). Basis points avoid fractional-cent drift:
+// 2500 bps = 25%.
+export const RENTAL_POLICY = {
+  // Deposit = 25% of the item's replacement value. Refundable; never revenue.
+  depositRateBps: 2500,
+  // Community-owned gear: owner 80% of the hire fee, platform 20%. The
+  // deposit is excluded from this split.
+  ownerShareBps: 8000,
+  platformShareBps: 2000,
+  ownerPayoutDelayHours: 48,
+  // Any single item above R50,000 replacement value is collected in person.
+  highValueCollectionThresholdCents: 5_000_000,
+  firstHireCollectionOnly: true,
+} as const;
+
 export const RENTAL_CATEGORY_VALUES = RENTAL_CATEGORIES.map(c => c.value);
 export type RentalCategorySlug = (typeof RENTAL_CATEGORIES)[number]['value'];
 
@@ -773,25 +826,13 @@ export const PRODUCTION_SERVICES = {
     videoEdit: { rate: 650, unit: "hour", description: "Video Editing & Assembly — Rough cut through final master, audio sync" },
     cinemaGrade: { rate: 650, unit: "hour", description: "Cinema Colour Grade / SFX — DaVinci Resolve grade, motion graphics, VFX" },
   },
-  logistics: {
-    travelRate: 4.95,
-    fuelSurcharge: 550,
-  },
+  // Travel, fuel surcharge, overtime, instalments and the "competitive edge"
+  // claims were removed 2026-10-08 (Phase 0): nothing in the product charged
+  // or delivered them. Travel outside Gauteng is quoted by a person.
   billing: {
     minimumBooking: "1 hour",
-    incrementAfter: "30 minutes",
-    overtimeMultiplier: 1.5,
-    overtimeAfterHours: 8,
     vatRate: 15,
-    instalmentThreshold: 15000,
   },
-  edge: [
-    "Cinema Grade Hardware: All video captured on Sony FX/Canon Cinema systems (4K 10-bit)",
-    "Transparent Pricing: Every hour is accounted for — no hidden package markups",
-    "Logistics Precision: Travel billed at the official 2026 SARS rate of R4.95/km",
-    "Cloud Ecosystem: Secure, 12-month digital hosting of all final assets",
-    "Intellectual Property: Full commercial usage licence granted upon final payment",
-  ],
 };
 
 // ─── Production Packages ─────────────────────────────────────────────────────

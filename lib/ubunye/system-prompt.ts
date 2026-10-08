@@ -43,8 +43,8 @@ export function formatServices(): string {
     }
   }
 
-  lines.push(`- Travel: R${PRODUCTION_SERVICES.logistics.travelRate}/km + R${PRODUCTION_SERVICES.logistics.fuelSurcharge} fuel surcharge`);
-  lines.push(`- Billing: Min ${PRODUCTION_SERVICES.billing.minimumBooking}, then per ${PRODUCTION_SERVICES.billing.incrementAfter}. Overtime (${PRODUCTION_SERVICES.billing.overtimeAfterHours}h+): ${PRODUCTION_SERVICES.billing.overtimeMultiplier}x rate. VAT: ${PRODUCTION_SERVICES.billing.vatRate}%. Instalment plans for orders over R${PRODUCTION_SERVICES.billing.instalmentThreshold}.`);
+  lines.push(`- Area: ${STUDIO.serviceArea.summary}. ${STUDIO.serviceArea.outsideProvinceNote}`);
+  lines.push(`- Billing: Minimum ${PRODUCTION_SERVICES.billing.minimumBooking}. ${STUDIO.legal.vatRegistered ? 'Prices include VAT.' : 'No VAT is charged (not VAT-registered).'} No instalments, no overtime multipliers.`);
 
   return lines.join('\n');
 }
@@ -262,9 +262,6 @@ ${productionsLine}${productionsLine ? '\n' : ''}- Rentals — Equipment rental w
 
 ===== PRODUCTION SERVICES =====
 ${platform.services}
-
-===== COMPETITIVE EDGE =====
-${PRODUCTION_SERVICES.edge.map(e => `- ${e}`).join('\n')}
 
 ===== PACKAGES (fixed price) =====
 ${PRODUCTION_PACKAGES.map((pk) => { const pr = calculatePackagePrice(pk); return `- ${pk.name}: R${pr.subtotal} excl. VAT (R${pr.total} incl.) — ${pk.description} — Book: /book?production=${pk.id}`; }).join('\n')}
