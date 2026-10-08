@@ -1,0 +1,19 @@
+# Risk register
+
+Severity levels: P0 = critical security or financial exposure · P1 = core function broken · P2 = misrepresentation or a serious usability problem.
+
+| # | Risk | Sev | Phase 0 action | Residual risk |
+|---|---|---|---|---|
+| R-1 | Other apps share prod `auth.users` and hold the prod service-role key | P0 | Isolation planned (`database-isolation.md`) | **Open: BLOCKED** until the new organisation is accessible |
+| R-2 | Users can write privileged profile and banking columns (verification evidence, recipient code, `is_verified`) | P0 | Migration 067: per-column grants, triggers, audit log | Closed in code; **prod migration pending** founder approval |
+| R-3 | Client-supplied subscription price | P0 | Server-side plan resolution, guarded activation | Closed in code; live Paystack not tested |
+| R-4 | Wrong Paystack host (`api.paystack.com`) and Nigerian recipient type (`nuban`) | P0/P1 | Fixed; regression test | Live Paystack call not tested from the sandbox |
+| R-5 | Verification storage overwrite | P0 | UPDATE policy dropped; unique paths; uploads via service role | Prod migration pending |
+| R-6 | VAT charged or shown while not registered | P2/legal | Tax core returns 0; copy removed | None once deployed |
+| R-7 | Pages for cities not served; nationwide claims | P2 | 308 redirects; sitemap and structured data | Search engines re-crawl over time |
+| R-8 | Legal pages not reviewed by an attorney | P2/legal | Drafts plus the legal-review checklist | **Open: REQUIRES_LEGAL_REVIEW** |
+| R-9 | Webhook replay and out-of-order events; double refunds; take-back race | P0 | Not in Phase 0 scope | **Open:** Phase 1 (webhook inbox, refund obligations) |
+| R-10 | Gear can be double-booked (`return_pending`/`disputed` don't hold stock) | P1 | Not in Phase 0 scope | **Open:** Phase 1 availability engine |
+| R-11 | Creator and gear-owner payouts blocked or missing | P1 | Recipient type fixed | **Open:** Phase 1 `PayoutPort` |
+| R-12 | Ubunye can create bookings without a code-enforced approval | P0 | Booking agent now says "reserved" | **Open:** Phase 2 approval tokens |
+| R-13 | The e2e test password is committed in the repo | P1 | Noted | Rotate during key rotation (`database-isolation.md` §4.7) |
