@@ -151,16 +151,20 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     at: iso,
   };
 
+  const returnPatch = { condition_at_return: body.condition, return_photos: photos, return_notes: note || null, returned_at: iso, return_evidence: evidence, late_fee: late.fee };
+
   // Step 1: the gear is back. Recorded whatever happens next, so the unit is
   // accounted for even if settlement needs a person.
+  // (A booking already in return_pending, e.g. from the old self-reported
+  // return, goes straight to inspection: the move below reports `already`.)
   const back = await transitionBookings(db, {
     ids: [id],
-    from: ['active', 'overdue'],
+    from: b.status === 'return_pending' ? ['return_pending'] : ['active', 'overdue'],
     to: 'return_pending',
     actor: 'staff',
     actorId: auth.user.id,
     reason: 'returned at the counter',
-    patch: { condition_at_return: body.condition, return_photos: photos, return_notes: note || null, returned_at: iso, return_evidence: evidence, late_fee: late.fee },
+    patch: returnPatch,
     notices: buildNotices({ kind: 'return_recorded', userId: b.user_id, bookingIds: [id], discriminator: id }),
   });
   if (back.result === 'missing_pipeline') return legacyTakeBack(id, auth.user.id, body);
@@ -172,7 +176,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const reason = body.dispute ? note || 'Opened at return' : 'Serial number not confirmed at return';
     const d = await transitionBookings(db, {
       ids: [id], from: ['return_pending'], to: 'disputed', actor: 'staff', actorId: auth.user.id, reason,
-      patch: { dispute_reason: reason, disputed_at: iso, inspection_outcome: outcome },
+      patch: { ...returnPatch, dispute_reason: reason, disputed_at: iso, inspection_outcome: outcome },
       notices: buildNotices({ kind: 'dispute_opened', userId: b.user_id, bookingIds: [id], discriminator: id }),
     });
     if (d.result === 'conflict') return NextResponse.json({ error: 'The booking changed while you were working. Reload and try again.' }, { status: 409 });
@@ -259,6 +263,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     actorId: auth.user.id,
     reason: `inspection: ${outcome}`,
     patch: {
+      ...returnPatch,
       inspection_outcome: outcome,
       damage_fee: fromCents(plan.damageCents),
       deposit_released: fromCents(plan.refundCents),
