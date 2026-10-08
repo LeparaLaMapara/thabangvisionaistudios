@@ -1,5 +1,69 @@
 import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
+import {
+  decideMaintenance,
+  maintenancePageHtml,
+  MAINTENANCE_BYPASS_COOKIE,
+  MAINTENANCE_PAGE_CSP,
+  MAINTENANCE_PREVIEW_PARAM,
+  MAINTENANCE_RETRY_AFTER_SECONDS,
+} from '@/lib/maintenance';
+
+/** Applies maintenance mode (lib/maintenance.ts). Returns null to continue normally. */
+function maintenanceResponse(request: NextRequest): NextResponse | null {
+  const decision = decideMaintenance({
+    pathname: request.nextUrl.pathname,
+    previewParam: request.nextUrl.searchParams.get(MAINTENANCE_PREVIEW_PARAM),
+    bypassCookie: request.cookies.get(MAINTENANCE_BYPASS_COOKIE)?.value,
+    maintenanceMode: process.env.MAINTENANCE_MODE,
+    bypassToken: process.env.MAINTENANCE_BYPASS_TOKEN,
+  });
+
+  switch (decision.action) {
+    case 'pass':
+      return null;
+    case 'set-bypass':
+    case 'clear-bypass': {
+      const clean = request.nextUrl.clone();
+      clean.searchParams.delete(MAINTENANCE_PREVIEW_PARAM);
+      const res = NextResponse.redirect(clean);
+      if (decision.action === 'set-bypass') {
+        res.cookies.set(MAINTENANCE_BYPASS_COOKIE, decision.token, {
+          httpOnly: true,
+          secure: request.nextUrl.protocol === 'https:',
+          sameSite: 'lax',
+          path: '/',
+          maxAge: 60 * 60 * 24 * 7,
+        });
+      } else {
+        res.cookies.delete(MAINTENANCE_BYPASS_COOKIE);
+      }
+      return res;
+    }
+    case 'api':
+      return NextResponse.json(
+        { error: 'The service is temporarily unavailable for maintenance.' },
+        {
+          status: 503,
+          headers: {
+            'Retry-After': String(MAINTENANCE_RETRY_AFTER_SECONDS),
+            'Cache-Control': 'no-store',
+          },
+        },
+      );
+    case 'page':
+      return new NextResponse(maintenancePageHtml(), {
+        status: 503,
+        headers: {
+          'Content-Type': 'text/html; charset=utf-8',
+          'Retry-After': String(MAINTENANCE_RETRY_AFTER_SECONDS),
+          'Cache-Control': 'no-store',
+          'Content-Security-Policy': MAINTENANCE_PAGE_CSP,
+          'X-Robots-Tag': 'noindex',
+        },
+      });
+  }
+}
 
 /**
  * Runs on every request matching the pattern below.
@@ -10,6 +74,10 @@ import { NextResponse, type NextRequest } from 'next/server';
  * the token refresh.
  */
 export async function proxy(request: NextRequest) {
+  // Maintenance mode runs first: it must not depend on Supabase being reachable.
+  const maintenance = maintenanceResponse(request);
+  if (maintenance) return maintenance;
+
   // M1: CSRF protection — validate Origin header on mutation requests to /api/ routes
   // Exemptions: PayFast ITN webhook (server-to-server, no Origin header)
   const method = request.method;
