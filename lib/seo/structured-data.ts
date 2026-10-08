@@ -2,6 +2,19 @@ import { STUDIO, PRODUCTION_SERVICES } from '@/lib/constants';
 
 type JsonLd = Record<string, unknown>;
 
+/**
+ * Where we work, for every `areaServed`: the province in STUDIO.serviceArea
+ * (Gauteng). Outside it, travel is quoted separately, so the country is never
+ * claimed as the service area.
+ */
+export function serviceAreaJsonLd(): JsonLd {
+  return {
+    '@type': 'AdministrativeArea',
+    name: STUDIO.serviceArea.province,
+    containedInPlace: { '@type': 'Country', name: STUDIO.location.country },
+  };
+}
+
 export function organizationJsonLd(): JsonLd {
   return {
     '@context': 'https://schema.org',
@@ -24,10 +37,7 @@ export function organizationJsonLd(): JsonLd {
       STUDIO.social?.facebook,
       STUDIO.social?.linkedin,
     ].filter(Boolean),
-    areaServed: {
-      '@type': 'Country',
-      name: 'South Africa',
-    },
+    areaServed: serviceAreaJsonLd(),
   };
 }
 
@@ -75,6 +85,7 @@ export function localBusinessJsonLd(priceRange?: { min: number; max: number } | 
     ...(priceRange
       ? { priceRange: `R${zar(priceRange.min)} - R${zar(priceRange.max)}` }
       : {}),
+    areaServed: serviceAreaJsonLd(),
     currenciesAccepted: 'ZAR',
     paymentAccepted: 'Credit Card, Debit Card, EFT',
   };
@@ -133,8 +144,8 @@ export function serviceJsonLd(opts: {
       url: STUDIO.meta.url,
     },
     areaServed: opts.city
-      ? { '@type': 'City', name: opts.city }
-      : { '@type': 'Country', name: 'South Africa' },
+      ? { '@type': 'City', name: opts.city, containedInPlace: serviceAreaJsonLd() }
+      : serviceAreaJsonLd(),
     ...(opts.startingRate && {
       offers: {
         '@type': 'Offer',

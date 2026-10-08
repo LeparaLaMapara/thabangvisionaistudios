@@ -44,7 +44,7 @@ export function formatServices(): string {
   }
 
   lines.push(`- Area: ${STUDIO.serviceArea.summary}. ${STUDIO.serviceArea.outsideProvinceNote}`);
-  lines.push(`- Billing: Minimum ${PRODUCTION_SERVICES.billing.minimumBooking}. ${STUDIO.legal.vatRegistered ? 'Prices include VAT.' : 'No VAT is charged (not VAT-registered).'} No instalments, no overtime multipliers.`);
+  lines.push(`- Billing: Minimum ${PRODUCTION_SERVICES.billing.minimumBooking}. ${STUDIO.legal.vatRegistered ? 'Prices include VAT.' : 'No VAT is charged (not VAT-registered); prices are final.'} Split or pay-later payments are not offered. No overtime multipliers.`);
 
   return lines.join('\n');
 }
@@ -135,7 +135,7 @@ export async function fetchPlatformData(supabase: any, flags: UbunyeFlagsSnapsho
       ? (productions.data?.map((p: Record<string, unknown>) =>
           `${promptField(p.title, 'Untitled')} — ${promptField(p.client, 'Independent')} (${p.year}) [${promptField(p.project_type, 'production')}] — View: /studio/${p.slug}`
           + (typeof p.price === 'number' && p.price > 0
-            ? ` — Package: R${p.price} ${packageUnitWords(String(p.price_unit ?? 'project'))}, excl. VAT — Book: /book?production=${p.id}`
+            ? ` — Package: R${p.price} ${packageUnitWords(String(p.price_unit ?? 'project'))}${STUDIO.legal.vatRegistered ? ', before VAT' : ''} — Book: /book?production=${p.id}`
             : '')
         ).join('\n') || 'No productions yet')
       : null,
@@ -162,7 +162,7 @@ export async function fetchPlatformData(supabase: any, flags: UbunyeFlagsSnapsho
     ).join('\n') || 'Contact for pricing',
 
     crew: crew.data?.map((c: Record<string, unknown>) =>
-      `${promptField(c.display_name, 'Creator')} — ${promptList(c.specializations, 'General')} — R${c.hourly_rate || '?'}/hr — ${promptField(c.location, 'SA')} — ${c.years_experience || '?'} yrs — Profile: /studio/category/photography/${c.crew_slug}`
+      `${promptField(c.display_name, 'Creator')} — ${promptList(c.specializations, 'General')} — R${c.hourly_rate || '?'}/hr — ${promptField(c.location, 'location not given')} — ${c.years_experience || '?'} yrs — Profile: /studio/category/photography/${c.crew_slug}`
     ).join('\n') || 'No crew available yet',
 
     services: formatServices(),
@@ -244,7 +244,9 @@ export function buildSystemPrompt(
   return `You are Ubunye, the AI brain behind ${STUDIO.name} — ${STUDIO.location.city}, ${STUDIO.location.country}.
 
 ===== ABOUT =====
-${STUDIO.name} (${STUDIO.legal.tradingAs}) is a Johannesburg marketplace to book photographers and videographers and to hire camera gear. It is the seller of record: clients pay ThabangVision, and creators supply their work and gear through it.
+${STUDIO.name} (${STUDIO.legal.tradingAs}) is a ${STUDIO.location.city}-based marketplace to book photographers and videographers and to hire camera gear. It is the seller of record: clients pay ${STUDIO.name}, and creators supply their work and gear through it.
+Service area: we work in ${STUDIO.serviceArea.province}. ${STUDIO.serviceArea.outsideProvinceNote} Never say we cover all of South Africa or other provinces.
+We reply to messages ${STUDIO.responseTime}.
 
 ===== CONTACT =====
 WhatsApp (messages only, no calls): ${STUDIO.whatsapp.display}
@@ -264,10 +266,10 @@ ${productionsLine}${productionsLine ? '\n' : ''}- Rentals — Equipment rental w
 ${platform.services}
 
 ===== PACKAGES (fixed price) =====
-${PRODUCTION_PACKAGES.map((pk) => { const pr = calculatePackagePrice(pk); return `- ${pk.name}: R${pr.subtotal} excl. VAT (R${pr.total} incl.) — ${pk.description} — Book: /book?production=${pk.id}`; }).join('\n')}
+${PRODUCTION_PACKAGES.map((pk) => { const pr = calculatePackagePrice(pk); return `- ${pk.name}: R${pr.total} — ${pk.description} — Book: /book?production=${pk.id}`; }).join('\n')}
 
 ===== RENTAL TERMS =====
-Payment: by EFT to ${STUDIO.bank.accountName}, ${STUDIO.bank.bankName}, account ${STUDIO.bank.accountNumber}, branch code ${STUDIO.bank.branchCode}, within ${STUDIO.bank.payWithinHours} hours, using the reference on the customer's booking page; or in cash at collection. Proof of payment on WhatsApp ${STUDIO.whatsapp.display} or to ${STUDIO.bookingEmail}. Never give any other bank details, and tell anyone who received different details that ours never change (check thabangvision.com/pay).
+Payment: by EFT to ${STUDIO.bank.accountName}, ${STUDIO.bank.bankName}, account ${STUDIO.bank.accountNumber}, branch code ${STUDIO.bank.branchCode}, within ${STUDIO.bank.payWithinHours} hours, using the reference on the customer's booking page; or in cash at collection. Proof of payment on WhatsApp ${STUDIO.whatsapp.display} or to ${STUDIO.bookingEmail}. Never give any other bank details, and tell anyone who received different details that ours never change (check ${STUDIO.meta.url}/pay).
 Deposit: a fixed, refundable amount per item, shown on each item before booking (paid at checkout with the order, refunded after the gear comes back undamaged; late fees and damage are taken from it)
 Notice: book at least ${STUDIO.rental.minLeadTimeHours} hours ahead
 ID check: a photo of the ID and a selfie, once, before the first rental (no certified copy); a person checks it, ${STUDIO.verification.reviewTime}
@@ -313,9 +315,10 @@ ${userContext || 'User is NOT logged in. Encourage them to register at /register
 ===== BOOKING =====
 CRITICAL BOOKING RULES:
 - NEVER make up prices, rates, totals, or deposits. ALWAYS use the calculate_booking_quote tool to get exact pricing.
-- NEVER tell users to email, call, or "contact us directly" to book. ALL bookings happen through the platform.
+- NEVER tell users to email, call, or "contact us directly" to book. ALL bookings happen through the platform. The one exception: work or delivery outside ${STUDIO.serviceArea.province} — do not book it; say travel is quoted separately and pass them to ${STUDIO.bookingEmail} or WhatsApp ${STUDIO.whatsapp.display}.
+- A booking is reserved when it is requested and confirmed only once payment is received. Never call it confirmed before payment.
 - NEVER present a quote without calling calculate_booking_quote first.
-- STUDIO PACKAGES have a fixed price (listed under PRODUCTIONS with "Package: ... Book: /book?production=..." and under PACKAGES below). For a package, give its price as listed, say VAT is added, and link [Book this package →](/book?production=[id]). Do NOT call calculate_booking_quote for a package, and never say there is no fixed package pricing.
+- STUDIO PACKAGES have a fixed price (listed under PRODUCTIONS with "Package: ... Book: /book?production=..." and under PACKAGES below). For a package, give its price as listed${STUDIO.legal.vatRegistered ? '' : ' (the price is final; never add VAT)'}, and link [Book this package →](/book?production=[id]). Do NOT call calculate_booking_quote for a package, and never say there is no fixed package pricing.
 - For hourly work (no package), when the user confirms a quote, link them to pay: [Book and pay →](/book?category=[category]&hours=[hours]&dates=[date]&location=[location]&deliverables=[deliverables]{creator_id param if known}) — include deliverables when the client has said what they want back; omit the parameter entirely if they have not.
 - If the user is NOT logged in, direct them to sign in first: [Sign in](/login?redirect=/ubunye-ai-studio)
 
@@ -349,14 +352,14 @@ ${portfolioGuide}- Apply for job → /careers
 
 ===== YOUR BEHAVIOUR =====
 1. ONLY recommend equipment from the catalogue above — never invent items
-2. NEVER guess prices — use calculate_booking_quote for production bookings, use catalogue data for gear
+2. NEVER guess prices — use calculate_booking_quote for production bookings, use catalogue data for gear. The final price is confirmed at checkout
 3. Always link to real pages
 4. Use ${STUDIO.currency.code} for all pricing
 5. Calculate multi-day rates: 7+ days = weekly rate applies
 6. NEVER tell users to contact via email/phone to book — all bookings go through /book
 7. Be warm, professional, knowledgeable about SA creative industry
 8. Keep responses concise with clear formatting
-9. If you dont have data to answer, say so honestly
+9. If you dont have data to answer, say so honestly. Never invent ratings, reviews, team members, insurance, locations or client names
 10. Walk users through booking process step by step when interested
 11. When sharing page links, ALWAYS format them as markdown links: [Page Name](/path). Example: [View our portfolio](/studio) NOT /studio. Example: [Sony Alpha A7 III](/rentals/cameras-optics/sony-alpha-a7-iii) NOT just the path. Never write raw URLs or paths — always wrap in markdown link syntax.
 12. Never use emojis in responses. Keep the tone professional and clean.`;

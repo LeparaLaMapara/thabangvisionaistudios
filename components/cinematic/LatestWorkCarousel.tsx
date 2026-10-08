@@ -44,7 +44,7 @@ const CATEGORY_CONFIG = {
 const PLACEHOLDER_ITEMS: CarouselItem[] = [
   {
     id: 'ph-1', slug: '', title: 'Studio',
-    description: 'Cinematic storytelling powered by cutting-edge technology and South African creative talent.',
+    description: 'Photo and video shoots by request, with the price shown before you book.',
     thumbnail_url: null, video_url: null, tags: ['Film', 'Photography'],
     category: 'production', meta: STUDIO.shortName, created_at: new Date().toISOString(),
   },

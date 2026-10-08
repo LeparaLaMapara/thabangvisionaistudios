@@ -164,12 +164,12 @@ export function ChatInputBar({
       </form>
 
       {/* Footer */}
-      <div className="flex items-center justify-between mt-2 px-1">
+      <div className="flex items-start justify-between gap-3 mt-2 px-1">
         <p className="text-xs text-neutral-400">
-          Powered by Ubunye AI
+          Ubunye is an AI assistant and can make mistakes. Prices are confirmed at checkout.
         </p>
         {!limitReached && remaining !== -1 && (
-          <p className="text-xs text-neutral-400">
+          <p className="text-xs text-neutral-400 shrink-0">
             {remaining} free message{remaining === 1 ? '' : 's'} left{isAuthenticated ? ' today' : ''}
           </p>
         )}

@@ -10,7 +10,7 @@ import { onlinePaymentsOpen } from '@/lib/payments/status';
 
 export const metadata = buildPageMetadata({
   title: 'Frequently Asked Questions',
-  description: `Answers about ${STUDIO.shortName}: renting gear, paying, prices and VAT, deposits, collection and delivery, the ID check, shoots by request and cancelling.`,
+  description: `Answers about ${STUDIO.shortName}: renting gear, paying, prices, deposits, where we work, collection and delivery, the ID check, shoots by request and cancelling.`,
   path: '/faq',
 });
 

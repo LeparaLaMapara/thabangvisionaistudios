@@ -1,4 +1,5 @@
 import type { UbunyeAgent } from '../types';
+import { STUDIO } from '@/lib/constants';
 
 export const outreachAgent: UbunyeAgent = {
   id: 'outreach',
@@ -29,15 +30,19 @@ export interface OutreachOutput {
 
 export function buildOutreachPrompt(input: OutreachInput): string {
   const services = input.servicesFit.join(', ');
+  const area = STUDIO.serviceArea.province;
 
-  return `You are drafting a B2B outreach email on behalf of ThabangVision, a Johannesburg marketplace to book photographers and videographers and hire camera gear.
+  return `You are drafting a B2B outreach email on behalf of ${STUDIO.name}, a ${STUDIO.location.city}-based marketplace to book photographers and videographers and hire camera gear in ${area}.
 
-ThabangVision offers:
-- Photography and video packages (from R1,500, excl. VAT)
-- Equipment rentals (cameras, lighting, audio, grip)
-- AI-powered booking and instant quoting via Ubunye AI assistant
-- Verified, vetted creative professionals across South Africa
-- End-to-end production: shoot → edit → deliver
+${STUDIO.name} offers (state only these facts; do not add others):
+- Equipment rentals (cameras, lighting, audio, grip), collected in ${STUDIO.location.city}
+- Photography and video shoots by request, with prices shown on each package page
+- Ubunye, an AI assistant that answers questions and helps with quotes; prices are confirmed at checkout
+- Creators who have passed an identity check
+- We work in ${area}. ${STUDIO.serviceArea.outsideProvinceNote}
+
+Do NOT claim: national coverage, an in-house production team, insurance, ratings, client numbers,
+discounts, or any price that is not listed above.
 
 RECIPIENT:
 Name: ${input.recipientName}
@@ -54,14 +59,14 @@ Draft TWO emails:
 - Body: 3-4 short paragraphs
   - Opening: reference their company/industry specifically (not generic)
   - Value: one concrete way ThabangVision solves a problem they likely have
-  - Social proof: mention AI-powered quoting, verified creators, or SA-wide coverage
+  - Proof: mention only facts from the list above (for example, ID-checked creators or seeing the full price before booking)
   - CTA: suggest a specific next step (reply, book a call, visit the site)
-- Sign off as the ThabangVision Business Development team
+- Sign off as ${STUDIO.name}
 
 **EMAIL 2 — FOLLOW-UP (sent 5 days later if no reply)**
 - Subject line (reference the first email naturally)
 - Body: 2 short paragraphs, different angle, lighter tone
-- Include a direct link: https://thabangvision.com/contact
+- Include a direct link: ${STUDIO.meta.url}/contact
 
 Rules:
 - South African English spelling

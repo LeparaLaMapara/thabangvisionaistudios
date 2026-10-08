@@ -94,7 +94,6 @@ export default async function BookPage({ searchParams }: BookPageProps) {
         initialLocation={location}
         initialDates={dates}
         hourlyRate={hourlyRate}
-        vatRate={STUDIO.booking.vatRate}
         minHours={STUDIO.booking.minBookingHours}
         maxHours={STUDIO.booking.maxBookingHours}
         pkg={pkgInfo}
@@ -107,9 +106,9 @@ export default async function BookPage({ searchParams }: BookPageProps) {
   const bookedHours = pkg && pkg.priceUnit !== 'hour' ? (pkg.hours ?? STUDIO.booking.minBookingHours) : hours;
   const hourlyRate = pkg ? 0 : getHourlyRate(category);
   const quote = pkg
-    ? quotePackage(pkg.price, pkg.priceUnit, bookedHours, STUDIO.booking.vatRate)
-    : quoteHourly(hourlyRate, hours, STUDIO.booking.vatRate);
-  const { subtotal, vat, total } = quote;
+    ? quotePackage(pkg.price, pkg.priceUnit, bookedHours)
+    : quoteHourly(hourlyRate, hours);
+  const { total } = quote;
 
   return (
     <BookConfirmation
@@ -124,10 +123,7 @@ export default async function BookPage({ searchParams }: BookPageProps) {
       creatorId={creatorId}
       creatorName={creatorName}
       hourlyRate={hourlyRate}
-      subtotal={subtotal}
-      vat={vat}
       total={total}
-      vatRate={STUDIO.booking.vatRate}
       cancellationPolicy={STUDIO.booking.cancellationPolicy}
       paymentsOpen={onlinePaymentsOpen()}
     />

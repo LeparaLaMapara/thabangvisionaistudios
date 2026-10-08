@@ -253,9 +253,6 @@ function PackageCard({
           <span className="text-2xl font-bold text-white font-mono">
             {formatRand(price.total)}
           </span>
-          <span className="block text-white/60 text-xs mt-0.5">
-            incl. VAT
-          </span>
         </div>
       </div>
 
@@ -329,7 +326,7 @@ function CreatorCard({ creator, categorySlug }: { creator: CrewMember; categoryS
         )}
         {creator.hourly_rate != null && (
           <p className="text-xs font-mono text-[#D4A843] mt-0.5">
-            From {formatRand(withServiceVat(creator.hourly_rate))} an hour, incl. VAT
+            From {formatRand(withServiceVat(creator.hourly_rate))} an hour
           </p>
         )}
       </div>
@@ -515,7 +512,7 @@ export default function CategoryPageClient({ category, packages, productions, cr
 
           {fromPrice !== null && (
             <div className="text-xs font-mono text-[#D4A843]">
-              From {formatRand(fromPrice)} incl. VAT
+              From {formatRand(fromPrice)}
             </div>
           )}
           <p className="text-xs font-mono text-neutral-400 mt-2">

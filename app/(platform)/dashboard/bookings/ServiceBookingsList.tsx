@@ -75,7 +75,7 @@ export default function ServiceBookingsList({ bookings }: { bookings: ServiceBoo
     : bookings.filter((b) => b.status === activeTab);
 
   async function handleApprove(bookingId: string) {
-    if (!confirm('Approve this delivery? This will release payment to the creator.')) return;
+    if (!confirm('Approve this delivery? Approving confirms the work is complete.')) return;
     try {
       const res = await fetch(`/api/service-bookings/${bookingId}/status`, {
         method: 'PATCH',
@@ -165,7 +165,6 @@ export default function ServiceBookingsList({ bookings }: { bookings: ServiceBoo
                 </div>
                 <div className="text-right">
                   <p className="text-lg font-bold text-white">R{booking.total.toLocaleString()}</p>
-                  <p className="text-xs text-neutral-400">incl. VAT</p>
                 </div>
               </div>
 
@@ -215,7 +214,7 @@ export default function ServiceBookingsList({ bookings }: { bookings: ServiceBoo
                     onClick={() => handleApprove(booking.id)}
                     className="rounded-lg bg-[#D4A843] px-4 py-2 text-sm font-medium text-black hover:bg-[#c49a3a]"
                   >
-                    Approve &amp; Release Payment
+                    Approve delivery
                   </button>
                 )}
 

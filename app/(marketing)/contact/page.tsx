@@ -70,7 +70,7 @@ export default function ContactPage() {
                     <Send className="text-black w-6 h-6" />
                  </div>
                  <h3 className="text-2xl font-display uppercase mb-2 text-white">Message Sent</h3>
-                 <p className="text-neutral-400 font-mono text-sm">We&apos;ll get back to you within 24 hours.</p>
+                 <p className="text-neutral-400 font-mono text-sm">We&apos;ll get back to you {STUDIO.responseTime}.</p>
                  <button
                    onClick={() => setIsSubmitted(false)}
                    className="mt-8 text-xs font-mono font-bold uppercase tracking-widest text-[#D4A843] hover:text-[#D4A843]/80 transition-colors"

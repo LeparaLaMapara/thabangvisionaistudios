@@ -17,10 +17,7 @@ interface BookConfirmationProps {
   creatorId: string | null;
   creatorName: string | null;
   hourlyRate: number;
-  subtotal: number;
-  vat: number;
   total: number;
-  vatRate: number;
   cancellationPolicy: string;
   /** A studio package booked at its own price. */
   pkg?: BookingPackage | null;
@@ -40,10 +37,7 @@ export default function BookConfirmation({
   creatorId,
   creatorName,
   hourlyRate,
-  subtotal,
-  vat,
   total,
-  vatRate,
   cancellationPolicy,
   pkg = null,
   rateLine,
@@ -128,16 +122,8 @@ export default function BookConfirmation({
                 <span>{pkg ? 'Package' : 'Rate'}</span>
                 <span>{rateLine ?? `${formatRand(hourlyRate)}/hr × ${hours}hrs`}</span>
               </div>
-              <div className="flex justify-between text-neutral-400">
-                <span>Subtotal, excl. VAT</span>
-                <span>{formatRand(subtotal)}</span>
-              </div>
-              <div className="flex justify-between text-neutral-400">
-                <span>VAT ({vatRate}%)</span>
-                <span>{formatRand(vat)}</span>
-              </div>
               <div className="flex justify-between border-t border-neutral-700 pt-2 text-lg font-bold text-white">
-                <span>Total, incl. VAT</span>
+                <span>Total</span>
                 <span>{formatRand(total)}</span>
               </div>
             </div>

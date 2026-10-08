@@ -7,6 +7,7 @@ import ReactMarkdown, { type Components } from 'react-markdown';
 import Link from 'next/link';
 import type { UIMessage } from 'ai';
 import { FollowUpSuggestions } from '@/components/ubunye/FollowUpSuggestions';
+import { STUDIO } from '@/lib/constants';
 
 const TOOL_LABELS: Record<string, string> = {
   search_creators: 'Searching creators',
@@ -161,7 +162,7 @@ export function ChatMessageList({
                 Create Account
               </Link>
             </div>
-          ) : (
+          ) : STUDIO.subscriptions.enabled ? (
             <div className="flex gap-2 mt-3 pl-4">
               <Link
                 href="/pricing"
@@ -171,7 +172,7 @@ export function ChatMessageList({
                 Upgrade Plan
               </Link>
             </div>
-          )}
+          ) : null}
         </motion.div>
       )}
 

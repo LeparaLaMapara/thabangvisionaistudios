@@ -10,7 +10,7 @@ import { PAYMENTS_NOT_OPEN_NOTICE } from '@/lib/payments/offline-message';
 
 export const metadata: Metadata = buildPageMetadata({
   title: 'Pricing',
-  description: `Free to join ${STUDIO.shortName}. Pay per booking: gear by the day or week, shoots by the package. Prices include VAT, and the full price is shown before you book.`,
+  description: `Free to join ${STUDIO.shortName}. Pay per booking: gear by the day or week, shoots by the package. The full price is shown before you book, and it is the price you pay.`,
   path: '/pricing',
 });
 
@@ -19,7 +19,7 @@ function faqItems(paymentsOpen: boolean) {
   return [
     {
       question: `How much does ${STUDIO.shortName} cost?`,
-      answer: 'Creating an account and browsing is free. You pay per booking: equipment hire is charged at the daily or weekly rate shown on each listing, plus a refundable security deposit, and shoots at the package price shown. Prices include VAT.',
+      answer: 'Creating an account and browsing is free. You pay per booking: equipment hire is charged at the daily or weekly rate shown on each listing, plus a refundable security deposit, and shoots at the package price shown. The price shown is the price you pay.',
     },
     {
       question: 'What payment methods do you accept?',

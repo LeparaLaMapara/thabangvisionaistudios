@@ -4,6 +4,8 @@
  * Delivered, Approved, Creator paid, Reviewed. Pure, so it is tested.
  */
 
+import { STUDIO } from '@/lib/constants';
+
 export interface TimelineBooking {
   status: string;
   created_at: string;
@@ -32,8 +34,8 @@ export function shootTimeline(b: TimelineBooking, viewer: 'client' | 'creator'):
   const paid = b.payment_status === 'paid' || Boolean(b.paid_at);
   const approved = b.status === 'completed' || Boolean(b.completed_at);
   const steps: Omit<TimelineStep, 'state'>[] = [
-    { key: 'booked', label: 'Booked', at: b.created_at, detail: 'The booking was made.' },
-    { key: 'paid', label: 'Paid', at: paid ? (b.paid_at ?? null) : null, detail: 'ThabangVision holds the payment until the work is approved.' },
+    { key: 'booked', label: 'Booked', at: b.created_at, detail: 'Reserved. It is confirmed once payment is received.' },
+    { key: 'paid', label: 'Paid', at: paid ? (b.paid_at ?? null) : null, detail: viewer === 'client' ? `Payment received by ${STUDIO.name}.` : `The client has paid ${STUDIO.name}.` },
     {
       key: 'confirmed', label: 'Creator confirmed', at: b.accepted_at ?? null,
       detail: viewer === 'client' ? 'Your creator has accepted the date.' : 'You accepted the booking.',
@@ -49,7 +51,7 @@ export function shootTimeline(b: TimelineBooking, viewer: 'client' | 'creator'):
     {
       key: 'approved', label: 'Approved', at: approved ? (b.completed_at ?? null) : null,
       detail: viewer === 'client'
-        ? 'You approve the work, or tell us within 7 days if something is wrong. After 7 days it is approved automatically.'
+        ? 'Approving confirms the work is complete. Tell us within 7 days if something is wrong; after 7 days it is approved automatically.'
         : 'The client approves, or it is approved automatically after 7 days.',
     },
     {

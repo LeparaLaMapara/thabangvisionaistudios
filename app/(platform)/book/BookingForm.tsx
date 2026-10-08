@@ -51,7 +51,6 @@ interface BookingFormProps {
   initialLocation: string;
   initialDates: string;
   hourlyRate: number;
-  vatRate: number;
   minHours: number;
   maxHours: number;
   pkg?: BookingPackage | null;
@@ -69,7 +68,6 @@ export function BookingForm({
   initialLocation,
   initialDates,
   hourlyRate: defaultRate,
-  vatRate,
   minHours,
   maxHours,
   pkg = null,
@@ -89,11 +87,11 @@ export function BookingForm({
   const quote = useMemo(() => {
     if (pkg) {
       if (!fixedPackage && (!hours || hours < minHours)) return null;
-      return quotePackage(pkg.price, pkg.unit, hours, vatRate);
+      return quotePackage(pkg.price, pkg.unit, hours);
     }
     if (!hours || hours < minHours) return null;
-    return quoteHourly(rate, hours, vatRate);
-  }, [pkg, fixedPackage, rate, hours, vatRate, minHours]);
+    return quoteHourly(rate, hours);
+  }, [pkg, fixedPackage, rate, hours, minHours]);
 
   const canSubmit = pkg ? date && (fixedPackage || hours >= minHours) : category && hours >= minHours && date;
 
@@ -132,11 +130,11 @@ export function BookingForm({
         )}
         {pkg ? (
           <p className="mb-8 text-[#D4A843] font-mono text-sm">
-            {formatRand(withServiceVat(pkg.price))} {pkg.unitWords}, incl. VAT
+            {formatRand(withServiceVat(pkg.price))} {pkg.unitWords}
           </p>
         ) : rate > 0 && (
           <p className="mb-8 text-[#D4A843] font-mono text-sm">
-            {formatRand(withServiceVat(rate))} an hour, incl. VAT
+            {formatRand(withServiceVat(rate))} an hour
           </p>
         )}
 
@@ -250,14 +248,10 @@ export function BookingForm({
               <div className="space-y-2 text-sm font-mono">
                 <div className="flex justify-between text-neutral-400">
                   <span>{quote.line}</span>
-                  <span>{formatRand(quote.subtotal)}</span>
-                </div>
-                <div className="flex justify-between text-neutral-400">
-                  <span>VAT ({vatRate}%)</span>
-                  <span>{formatRand(quote.vat)}</span>
+                  <span>{formatRand(quote.total)}</span>
                 </div>
                 <div className="flex justify-between border-t border-neutral-700 pt-2 text-lg font-bold text-white">
-                  <span>Total, incl. VAT</span>
+                  <span>Total</span>
                   <span>{formatRand(quote.total)}</span>
                 </div>
               </div>

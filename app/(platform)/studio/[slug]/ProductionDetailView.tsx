@@ -289,7 +289,7 @@ function BookingWidget({ project }: { project: SmartProduction }) {
               {formatRand(withServiceVat(project.price!))}
             </span>
             <span className="text-sm font-mono text-neutral-400 mb-0.5">
-              {priceUnitLabel(project.price_unit)} incl. VAT
+              {priceUnitLabel(project.price_unit)}
             </span>
           </div>
         </div>

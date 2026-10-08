@@ -179,14 +179,6 @@ export const STUDIO = {
     },
   ],
 
-  partnerships: {
-    international: [
-      { city: 'Los Angeles', status: 'planned' as const },
-      { city: 'London', status: 'planned' as const },
-      { city: 'Dubai', status: 'planned' as const },
-    ],
-  },
-
   nav: {
     sections: [
       { id: '01', label: 'About', href: '/about' },
@@ -556,6 +548,7 @@ export const FOOTER_SECTIONS = [
       { label: 'Legal / Terms', href: '/legal' },
       { label: 'Privacy Policy', href: '/privacy' },
       { label: 'Refunds & Returns', href: '/refunds' },
+      { label: 'PAIA & data requests', href: '/paia' },
     ],
   },
 ];

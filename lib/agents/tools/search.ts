@@ -24,7 +24,7 @@ export function createSearchTools(
         type: 'object' as const,
         properties: {
           specialization: { type: 'string', description: 'Type of work: photography, cinematography, editing, sound, directing' },
-          location: { type: 'string', description: 'City or area, e.g. johannesburg, cape town' },
+          location: { type: 'string', description: 'City or area in Gauteng, e.g. johannesburg, pretoria, soweto' },
           budget_max: { type: 'number', description: 'Maximum hourly rate in ZAR' },
         },
       }),

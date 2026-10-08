@@ -73,6 +73,9 @@ export default function LocationsPage() {
             <h1 className="text-5xl md:text-7xl font-display font-medium text-white tracking-tighter uppercase mb-8">
               Where to <span className="text-neutral-400">Collect</span>
             </h1>
+            <p className="text-lg text-neutral-400 font-light leading-relaxed max-w-2xl">
+              We work in {STUDIO.serviceArea.province}. {STUDIO.serviceArea.outsideProvinceNote}
+            </p>
             <div className="w-8 h-px bg-[#D4A843] mt-6" />
           </div>
 

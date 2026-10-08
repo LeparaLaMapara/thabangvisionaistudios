@@ -28,7 +28,7 @@ export async function generateMetadata({ params }: Props) {
     title: `${category.name} — Production Services`,
     description: (() => {
       const from = categoryFromPrice(PRODUCTION_PACKAGES.filter((p) => p.category === slug));
-      return `${category.description} By request in ${STUDIO.location.city}${from !== null ? `, from ${formatRand(from)} incl. VAT` : ''}.`;
+      return `${category.description} By request in ${STUDIO.serviceArea.province}${from !== null ? `, from ${formatRand(from)}` : ''}.`;
     })(),
     path: `/studio/category/${slug}`,
     imageUrl: category.coverImageUrl ?? undefined,
