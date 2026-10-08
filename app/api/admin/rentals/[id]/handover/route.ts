@@ -5,7 +5,7 @@ import { requireAdmin } from '@/lib/auth';
 import { createAdminClient } from '@/lib/supabase/server';
 import { AGREEMENT_VERSION, handoverAgreement } from '@/lib/rental/agreement';
 import { logEvent } from '@/lib/data/events';
-import { transitionBookings } from '@/lib/rental/repos';
+import { isMissingPipeline, transitionBookings } from '@/lib/rental/repos';
 import { buildNotices } from '@/lib/core/rental/notifications';
 import { dispatchOutbox } from '@/lib/rental/notify';
 
@@ -145,10 +145,15 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     .maybeSingle();
   if (!booking) return NextResponse.json({ error: 'Booking not found' }, { status: 404 });
   const extra = await admin.from('equipment_bookings').select('requires_manual_approval').eq('id', id).maybeSingle();
+  // Not knowing whether a risk approval is needed is not "not needed".
+  if (extra.error && !isMissingPipeline(extra.error)) {
+    return NextResponse.json({ error: 'Could not load this booking just now. Nothing was changed; try again.' }, { status: 503 });
+  }
   const needsRiskApproval = (extra.data as { requires_manual_approval?: boolean } | null)?.requires_manual_approval === true;
 
   // Identity must be approved before gear leaves (spec §3.5).
-  const { data: renter } = await admin.from('profiles').select('verification_status, is_suspended').eq('id', booking.user_id).maybeSingle();
+  const { data: renter, error: renterErr } = await admin.from('profiles').select('verification_status, is_suspended').eq('id', booking.user_id).maybeSingle();
+  if (renterErr) return NextResponse.json({ error: 'Could not check the renter just now. Do not hand over yet; try again.' }, { status: 503 });
   if ((renter as { verification_status?: string } | null)?.verification_status !== 'verified') {
     return NextResponse.json({ error: 'The renter has not passed identity verification. Do not hand over.' }, { status: 409 });
   }

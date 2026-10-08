@@ -113,13 +113,18 @@ export async function handlePaymentComplete(webhook: WebhookResult) {
     }
   } else if (paymentType === 'equipment_booking') {
     // Reconcile payment amount before confirming
-    const { data: booking } = await supabase
+    const { data: booking, error: lookupErr } = await supabase
       .from('equipment_bookings')
       .select('total_price')
       .eq('id', paymentId)
       .single();
 
-    if (booking && Math.abs(booking.total_price - amountGross) > 0.01) {
+    // Without the booking there is nothing to check the amount against: never confirm blind.
+    if (lookupErr || !booking) {
+      console.error('[payment-webhook] Could not load the booking to check the amount; not confirmed:', paymentId);
+      throw new Error('equipment booking lookup failed');
+    }
+    if (Math.abs(booking.total_price - amountGross) > 0.01) {
       console.error('[payment-webhook] Amount mismatch:', {
         expected: booking.total_price,
         received: amountGross,

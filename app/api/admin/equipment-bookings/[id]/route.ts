@@ -68,30 +68,25 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   if (booking.status === 'disputed' && to === 'completed') {
     // Closed through its dispute record. A booking disputed before records were
     // always created gets one now, so it can be settled there.
-    const { data: open, error: findErr } = await db
-      .from('disputes')
-      .select('id')
-      .eq('equipment_booking_id', id)
-      .in('status', ['open', 'investigating', 'escalated'])
-      .limit(1)
-      .maybeSingle();
-    if (findErr) return NextResponse.json({ error: 'Could not load the dispute; try again.' }, { status: 503 });
-    let disputeId = (open as { id: string } | null)?.id ?? null;
-    if (!disputeId) {
-      const { data: inserted } = await db
-        .from('disputes')
-        .insert({ dispute_type: 'gear_damage', equipment_booking_id: id, filed_by: auth.user.id, reason: reason || 'Disputed return to settle', status: 'open' })
-        .select('id')
-        .single();
-      disputeId = (inserted as { id: string } | null)?.id ?? null;
+    const { data: disputeRow, error: disputeErr } = await db.rpc('open_return_dispute', {
+      p_booking: id,
+      p_by: auth.user.id,
+      p_reason: reason || 'Disputed return to settle',
+      p_photos: [],
+      p_note: null,
+    });
+    if (disputeErr && !isMissingPipeline(disputeErr)) return NextResponse.json({ error: 'Could not load the dispute; try again.' }, { status: 503 });
+    if (!disputeErr) {
+      return NextResponse.json(
+        { error: NEEDS_OWN_SCREEN['disputed>completed'], code: 'USE_WORKFLOW', dispute_id: (disputeRow as string | null) ?? null },
+        { status: 409 },
+      );
     }
-    return NextResponse.json(
-      { error: NEEDS_OWN_SCREEN['disputed>completed'], code: 'USE_WORKFLOW', dispute_id: disputeId },
-      { status: 409 },
-    );
+    // Migration 070 not applied: nothing is in the ledger yet, so the earlier
+    // direct completion still applies (below, via the legacy update).
   }
 
-  const ownScreen = NEEDS_OWN_SCREEN[`${booking.status}>${to}`];
+  const ownScreen = booking.status === 'disputed' && to === 'completed' ? undefined : NEEDS_OWN_SCREEN[`${booking.status}>${to}`];
   if (ownScreen) return NextResponse.json({ error: ownScreen, code: 'USE_WORKFLOW' }, { status: 409 });
 
   const check = checkTransition(booking.status, to, 'staff', reason || null);

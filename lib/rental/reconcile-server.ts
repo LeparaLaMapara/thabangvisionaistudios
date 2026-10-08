@@ -35,6 +35,7 @@ export async function gatherRentalPipelineFindings(db: Admin, now: Date): Promis
   const lines = groupIds.length
     ? await db.from('equipment_bookings').select('checkout_group_id, status').in('checkout_group_id', groupIds)
     : { data: [], error: null };
+  if (lines.error) throw new Error(`rental lines: ${lines.error.message}`);
   const byGroup = new Map<string, string[]>();
   for (const l of (lines.data ?? []) as { checkout_group_id: string; status: string }[]) {
     byGroup.set(l.checkout_group_id, [...(byGroup.get(l.checkout_group_id) ?? []), l.status]);
@@ -47,6 +48,10 @@ export async function gatherRentalPipelineFindings(db: Admin, now: Date): Promis
     db.from('payment_events').select('id, processing_status, received_at').in('processing_status', ['received', 'failed', 'processing', 'dead']),
     db.from('equipment_bookings').select('rental_id, start_date, end_date, quantity, status, smart_rentals(quantity)').in('status', ['confirmed', 'active', 'overdue', 'return_pending', 'return_reviewed', 'disputed']),
   ]);
+  // A query that failed must not read as "no problems": the sweep reports it as a check error.
+  for (const [name, r] of [['confirmed', confirmed], ['refunds', refunds], ['payouts', payouts], ['inbox', inbox], ['stock', stockRows]] as const) {
+    if (r.error) throw new Error(`rental ${name}: ${r.error.message}`);
+  }
 
   const findings: Finding[] = [
     ...detectIntentProblems(
@@ -114,11 +119,13 @@ async function closedGroupLedgerFindings(db: Admin, intents: unknown[], byGroup:
   if (closed.length === 0) return [];
 
   // A closed order is only "financially closed" once its refunds and payouts are done.
-  const [{ data: openRefunds }, { data: openPayouts }, { data: journals }] = await Promise.all([
+  const [{ data: openRefunds, error: e1 }, { data: openPayouts, error: e2 }, { data: journals, error: e3 }] = await Promise.all([
     db.from('refund_obligations').select('booking_group_id').in('booking_group_id', closed).neq('state', 'processed'),
     db.from('owner_payouts').select('booking_group_id').in('booking_group_id', closed).neq('state', 'success'),
     db.from('ledger_journals').select('idempotency_key, kind, booking_group_id, memo, ledger_lines(account, debit_cents, credit_cents)').in('booking_group_id', closed),
   ]);
+  const failed = e1 ?? e2 ?? e3;
+  if (failed) throw new Error(`rental reconciliation: ${failed.message}`);
   const stillOpen = new Set([...(openRefunds ?? []), ...(openPayouts ?? [])].map((r) => (r as { booking_group_id: string }).booking_group_id));
 
   const byJournalGroup = new Map<string, Journal[]>();

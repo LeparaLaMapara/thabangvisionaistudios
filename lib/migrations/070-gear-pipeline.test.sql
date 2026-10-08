@@ -270,6 +270,36 @@ begin
   raise notice 'PASS: outbox lease follows the last claim, not the creation time';
 end $$;
 
+-- 12b. One open dispute per disputed return (open_return_dispute). The
+-- disputes table predates the numbered migrations; a stand-in is created
+-- here only if it is missing (rolled back with everything else).
+do $$
+begin
+  if to_regclass('public.disputes') is null then
+    create table public.disputes (
+      id uuid primary key default gen_random_uuid(),
+      dispute_type text not null, booking_id uuid, equipment_booking_id uuid,
+      filed_by uuid not null, reason text not null, evidence_photos jsonb default '[]',
+      evidence_notes text, status text not null default 'open', created_at timestamptz not null default now());
+  end if;
+end $$;
+do $$
+declare
+  b uuid;
+  u uuid;
+  d1 uuid;
+  d2 uuid;
+begin
+  select id, user_id into b, u from public.equipment_bookings order by created_at desc limit 1;
+  d1 := public.open_return_dispute(b, u, 'test', '[]'::jsonb, null);
+  d2 := public.open_return_dispute(b, u, 'test again', '[]'::jsonb, null);
+  if d1 is null or d1 <> d2 then raise exception 'FAIL: a second dispute was opened for one return'; end if;
+  if (select count(*) from public.disputes where equipment_booking_id = b and status = 'open') <> 1 then
+    raise exception 'FAIL: more than one open dispute for one return';
+  end if;
+  raise notice 'PASS: one open dispute per disputed return';
+end $$;
+
 -- 13. Clients cannot call the money functions or write the money tables.
 set local role authenticated;
 select set_config('request.jwt.claims', json_build_object('sub', gen_random_uuid(), 'role', 'authenticated')::text, true);

@@ -65,7 +65,8 @@ export class SupabaseRentalPayments implements RentalPaymentRepository {
     }
     if (!data) return null;
     const row = data as IntentRow;
-    const { data: lines } = await this.db.from('equipment_bookings').select('id').eq('checkout_group_id', row.checkout_group_id).order('created_at');
+    const { data: lines, error: linesErr } = await this.db.from('equipment_bookings').select('id').eq('checkout_group_id', row.checkout_group_id).order('created_at');
+    if (linesErr) throw rpcError('getIntent lines', linesErr);
     return {
       reference: row.reference,
       checkoutGroupId: row.checkout_group_id,
@@ -178,13 +179,16 @@ export class SupabaseRefunds implements RefundRepository {
 
   async findByProvider(p: { providerRefundId?: string | null; transactionReference?: string | null; amountCents?: number | null }): Promise<RefundRecord | null> {
     if (p.providerRefundId) {
-      const { data } = await this.db.from('refund_obligations').select(REFUND_COLUMNS).eq('provider_refund_id', p.providerRefundId).maybeSingle();
+      const { data, error } = await this.db.from('refund_obligations').select(REFUND_COLUMNS).eq('provider_refund_id', p.providerRefundId).maybeSingle();
+      // A failed lookup is not "unknown refund": throw so the event is retried.
+      if (error) throw rpcError('refund findByProvider', error);
       if (data) return toRefund(data as RefundRow);
     }
     if (p.transactionReference) {
       let q = this.db.from('refund_obligations').select(REFUND_COLUMNS).eq('transaction_reference', p.transactionReference).neq('state', 'processed');
       if (p.amountCents != null) q = q.eq('amount_cents', p.amountCents);
-      const { data } = await q.order('created_at').limit(2);
+      const { data, error } = await q.order('created_at').limit(2);
+      if (error) throw rpcError('refund findByProvider', error);
       // Only match when it is unambiguous.
       if (data && data.length === 1) return toRefund(data[0] as RefundRow);
     }

@@ -432,6 +432,8 @@ async function settleDisputedReturn(
     .eq('id', p.bookingId)
     .maybeSingle();
   if (error && isMissingPipeline(error)) return null;
+  // Any other failure is not "nothing to settle": stop before the dispute is resolved without its money.
+  if (error) return { error: 'Could not load the booking just now. Nothing was changed; try again.', status: 503 };
   const b = data as {
     id: string; user_id: string; status: string; checkout_group_id: string | null; payfast_payment_id: string | null;
     deposit_amount: number | null; delivery_fee: number | null; payment_plan: string | null; balance_due: number | null;

@@ -197,11 +197,12 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'No unallocated payment for this reference.' }, { status: 404 });
       }
       const i = intent as { checkout_group_id: string; user_id: string };
-      const { data: journals } = await db
+      const { data: journals, error: journalsErr } = await db
         .from('ledger_journals')
         .select('idempotency_key, ledger_lines(account, debit_cents)')
         .eq('booking_group_id', i.checkout_group_id)
         .like('idempotency_key', 'unallocated:%');
+      if (journalsErr) return NextResponse.json({ error: 'Could not load the receipts just now. Nothing was created; try again.' }, { status: 503 });
       let created = 0;
       for (const j of (journals ?? []) as { idempotency_key: string; ledger_lines: { account: string; debit_cents: number }[] }[]) {
         const tx = j.idempotency_key.slice('unallocated:'.length);

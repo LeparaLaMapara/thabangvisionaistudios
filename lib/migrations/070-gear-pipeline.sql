@@ -1028,6 +1028,43 @@ begin
 end;
 $$;
 
+-- One open dispute per disputed return, however many staff press "dispute" at
+-- once: the booking row lock serialises callers, so the second finds the
+-- first one's record and reuses it. (The disputes table predates the
+-- numbered migrations; see docs/tasks/done/TASK-037.md.)
+create or replace function public.open_return_dispute(
+  p_booking uuid,
+  p_by uuid,
+  p_reason text,
+  p_photos jsonb,
+  p_note text
+) returns uuid
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $$
+declare
+  v_id uuid;
+begin
+  perform 1 from public.equipment_bookings where id = p_booking for update;
+  if not found then
+    raise exception 'booking_not_found' using errcode = 'P0002';
+  end if;
+  select id into v_id
+    from public.disputes
+   where equipment_booking_id = p_booking
+     and status in ('open', 'investigating', 'escalated')
+   order by created_at
+   limit 1;
+  if v_id is null then
+    insert into public.disputes (dispute_type, equipment_booking_id, filed_by, reason, evidence_photos, evidence_notes, status)
+    values ('gear_damage', p_booking, p_by, p_reason, coalesce(p_photos, '[]'::jsonb), p_note, 'open')
+    returning id into v_id;
+  end if;
+  return v_id;
+end;
+$$;
+
 -- ── 13. Notification types ───────────────────────────────────────────────────
 
 alter table public.notifications drop constraint if exists notifications_type_check;
@@ -1110,7 +1147,8 @@ begin
     'public.transition_rental_booking(uuid[], text[], text, text, uuid, text, jsonb, jsonb, jsonb, jsonb, jsonb)',
     'public.refund_transition(uuid, text[], text, jsonb, jsonb, jsonb)',
     'public.payout_transition(uuid, text[], text, jsonb, jsonb, jsonb)',
-    'public.expire_rental_holds()'
+    'public.expire_rental_holds()',
+    'public.open_return_dispute(uuid, uuid, text, jsonb, text)'
   ] loop
     execute format('revoke all on function %s from public, anon, authenticated', f);
     execute format('grant execute on function %s to service_role', f);
@@ -1121,6 +1159,7 @@ commit;
 
 -- ── ROLLBACK (manual; only before any Phase 1 code has written to these tables) ──
 --   begin;
+--   drop function if exists public.open_return_dispute(uuid, uuid, text, jsonb, text);
 --   drop function if exists public.expire_rental_holds(), public.payout_transition(uuid, text[], text, jsonb, jsonb, jsonb),
 --     public.refund_transition(uuid, text[], text, jsonb, jsonb, jsonb),
 --     public.transition_rental_booking(uuid[], text[], text, text, uuid, text, jsonb, jsonb, jsonb, jsonb, jsonb),

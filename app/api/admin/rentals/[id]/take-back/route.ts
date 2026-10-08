@@ -119,7 +119,11 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   }
 
   const db = createAdminClient();
-  const { data: serialRow } = await db.from('equipment_bookings').select('smart_rentals(serial_number)').eq('id', id).maybeSingle();
+  const retryLater = (): NextResponse =>
+    NextResponse.json({ error: 'Could not load this booking just now. Nothing was changed; try again in a moment.' }, { status: 503 });
+  // Not being able to check the serial is not "no serial": a mismatched unit must not slip through.
+  const { data: serialRow, error: serialErr } = await db.from('equipment_bookings').select('smart_rentals(serial_number)').eq('id', id).maybeSingle();
+  if (serialErr) return retryLater();
   const serialRental = serialRow ? ((Array.isArray(serialRow.smart_rentals) ? serialRow.smart_rentals[0] : serialRow.smart_rentals) as { serial_number?: string | null } | null) : null;
   const hasSerial = Boolean(serialRental?.serial_number?.trim());
   const pipeline = await db
@@ -128,6 +132,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     .eq('id', id)
     .maybeSingle();
   if (pipeline.error && isMissingPipeline(pipeline.error)) return legacyTakeBack(id, auth.user.id, body);
+  if (pipeline.error || !pipeline.data) return retryLater();
   const snap = (pipeline.data ?? {}) as {
     hire_cents?: number | null; deposit_cents?: number | null; owner_share_cents?: number | null;
     platform_share_cents?: number | null; ownership?: string | null; owner_id?: string | null;
@@ -180,44 +185,27 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const reason = body.dispute ? note || 'Opened at return' : 'Serial number not confirmed at return';
     // The dispute record comes first: it is how the case is worked and settled
     // (/admin/disputes → settleDisputedReturn). A booking must never be
-    // 'disputed' without one. An open record for this booking is reused.
-    const { data: openDispute, error: findErr } = await db
-      .from('disputes')
-      .select('id')
-      .eq('equipment_booking_id', id)
-      .in('status', ['open', 'investigating', 'escalated'])
-      .limit(1)
-      .maybeSingle();
-    if (findErr) return NextResponse.json({ error: 'Could not open the dispute just now. Nothing was changed; try again.' }, { status: 503 });
-    let disputeId = (openDispute as { id: string } | null)?.id ?? null;
-    let created = false;
-    if (!disputeId) {
-      const { data: inserted, error: insErr } = await db
-        .from('disputes')
-        .insert({
-          dispute_type: 'gear_damage',
-          equipment_booking_id: id,
-          filed_by: auth.user.id,
-          reason,
-          evidence_photos: photos,
-          evidence_notes: note || null,
-          status: 'open',
-        })
-        .select('id')
-        .single();
-      if (insErr || !inserted) return NextResponse.json({ error: 'Could not open the dispute just now. Nothing was changed; try again.' }, { status: 503 });
-      disputeId = (inserted as { id: string }).id;
-      created = true;
-    }
+    // 'disputed' without one. open_return_dispute locks the booking row, so
+    // concurrent requests share one open record instead of creating two.
+    const { data: disputeRow, error: disputeErr } = await db.rpc('open_return_dispute', {
+      p_booking: id,
+      p_by: auth.user.id,
+      p_reason: reason,
+      p_photos: photos,
+      p_note: note || null,
+    });
+    if (disputeErr || !disputeRow) return NextResponse.json({ error: 'Could not open the dispute just now. Nothing was changed; try again.' }, { status: 503 });
+    const disputeId = disputeRow as string;
     const d = await transitionBookings(db, {
       ids: [id], from: ['return_pending'], to: 'disputed', actor: 'staff', actorId: auth.user.id, reason,
       patch: { ...returnPatch, dispute_reason: reason, disputed_at: iso, inspection_outcome: outcome },
       notices: buildNotices({ kind: 'dispute_opened', userId: b.user_id, bookingIds: [id], discriminator: id }),
     });
     if (d.result === 'conflict') {
-      // The booking moved on without us: close the record we just opened.
-      if (created) await db.from('disputes').update({ status: 'dismissed', resolution_notes: 'Booking changed before the dispute was opened', updated_at: iso }).eq('id', disputeId);
-      return NextResponse.json({ error: 'The booking changed while you were working. Reload and try again.' }, { status: 409 });
+      // The booking moved on without being disputed. The record stays open for
+      // staff to review (it may be shared with a concurrent request) and is
+      // closed through /admin/disputes like any other.
+      return NextResponse.json({ error: 'The booking changed while you were working. Reload and try again.', dispute_id: disputeId }, { status: 409 });
     }
     logEvent({ eventType: 'return_disputed', eventCategory: 'booking', userId: b.user_id, metadata: { bookingId: id } });
     await dispatchOutbox(10).catch(() => undefined);
@@ -298,7 +286,12 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     // The order's delivery fee is stored on one line (whichever line that is,
     // even a cancelled one). It is earned once per order, when the first line
     // completes; the journal key makes a second completion a no-op.
-    const deliveryCents = await groupDeliveryCents(db, b);
+    let deliveryCents: number;
+    try {
+      deliveryCents = await groupDeliveryCents(db, b);
+    } catch {
+      return NextResponse.json({ error: 'Could not load the order just now. The return is recorded; finish the inspection again in a moment.' }, { status: 503 });
+    }
     if (deliveryCents > 0) journals.push(deliveryEarned({ bookingGroupId: groupId, deliveryCents }));
   }
   if (inLedger && depositCents > 0) {
@@ -377,7 +370,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 /** The delivery fee charged for this booking's order (stored on one of its lines). */
 async function groupDeliveryCents(db: ReturnType<typeof createAdminClient>, b: Row): Promise<number> {
   if (!b.checkout_group_id) return toCents(Number(b.delivery_fee ?? 0));
-  const { data } = await db.from('equipment_bookings').select('delivery_fee').eq('checkout_group_id', b.checkout_group_id);
+  const { data, error } = await db.from('equipment_bookings').select('delivery_fee').eq('checkout_group_id', b.checkout_group_id);
+  // A failed lookup is not "no delivery": the caller stops so the fee is not left unearned.
+  if (error) throw new Error(`groupDeliveryCents: ${error.message}`);
   return ((data ?? []) as { delivery_fee: number | null }[]).reduce((sum, r) => sum + toCents(Number(r.delivery_fee ?? 0)), 0);
 }
 
