@@ -115,7 +115,7 @@ export async function evaluatePayout(
   p: { booking_id: string; owner_id: string },
   now: Date,
 ): Promise<{ eligible: true; recipientCode: string | null } | { eligible: false; reasons: string[] }> {
-  const [{ data: booking }, { data: owner }, { data: bank }, { count: disputes }, { data: refunds }, { data: payoutRow }] = await Promise.all([
+  const [{ data: booking, error: bookingErr }, { data: owner }, { data: bank }, { count: disputes, error: disputesErr }, { data: refunds, error: refundsErr }, { data: payoutRow }] = await Promise.all([
     db.from('equipment_bookings').select('status, completed_at, inspection_outcome, checkout_group_id, payfast_payment_id, payment_plan, balance_due').eq('id', p.booking_id).maybeSingle(),
     db.from('profiles').select('verification_status').eq('id', p.owner_id).maybeSingle(),
     db.from('banking_details').select('is_verified, paystack_recipient_code').eq('user_id', p.owner_id).maybeSingle(),
@@ -124,6 +124,10 @@ export async function evaluatePayout(
     db.from('refund_obligations').select('state, reason').contains('booking_ids', [p.booking_id]),
     db.from('owner_payouts').select('state').eq('booking_id', p.booking_id).maybeSingle(),
   ]);
+  // A lookup that failed is not "nothing found": a blocker we could not read holds the payout.
+  if (bookingErr || disputesErr || refundsErr || disputes == null) {
+    return { eligible: false, reasons: ['could_not_check_blockers'] };
+  }
   const b = booking as {
     status: string; completed_at: string | null; inspection_outcome: string | null; checkout_group_id: string | null;
     payfast_payment_id: string | null; payment_plan: string | null; balance_due: number | null;
@@ -132,8 +136,9 @@ export async function evaluatePayout(
 
   let paymentConfirmed = Boolean(b?.payfast_payment_id);
   if (b?.checkout_group_id) {
-    const { data: intent } = await db.from('rental_payment_intents').select('state').eq('checkout_group_id', b.checkout_group_id).maybeSingle();
-    if (intent) paymentConfirmed = (intent as { state: string }).state === 'paid';
+    const { data: intent, error: intentErr } = await db.from('rental_payment_intents').select('state').eq('checkout_group_id', b.checkout_group_id).maybeSingle();
+    if (intentErr) paymentConfirmed = false;
+    else if (intent) paymentConfirmed = (intent as { state: string }).state === 'paid';
   }
   // A deposit-only order's hire was due at the counter with no recorded payment:
   // the paid intent covers only the deposit, so the hire is not confirmed.

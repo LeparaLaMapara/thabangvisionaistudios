@@ -101,11 +101,21 @@ export async function POST(request: NextRequest) {
         if (m.kind === 'ambiguous') {
           return NextResponse.json({ error: 'Several refunds at the provider could be this one. Check the provider dashboard; nothing was sent.', code: 'AMBIGUOUS_AT_PROVIDER' }, { status: 409 });
         }
+        // Any refund the provider still lists for this obligation, failed ones
+        // included, blocks a resend: a failed provider refund can still be
+        // processed later, and a second one would refund the customer twice.
+        // Only an obligation the provider has no record of is sent again.
         const existing = m.kind === 'match' ? m.refund : null;
-        if (existing && existing.status !== 'failed') {
+        if (existing) {
           audit({ refundId: r.id, outcome: 'already_at_provider', providerStatus: existing.status });
           return NextResponse.json(
-            { error: `The provider already has this refund (status: ${existing.status}). Resolve it in the provider dashboard; it was not sent again.`, code: 'ALREADY_AT_PROVIDER' },
+            {
+              error:
+                existing.status === 'failed'
+                  ? 'The provider still lists this refund as failed. Resolve it with the provider first (it can still be completed on their side); it was not sent again.'
+                  : `The provider already has this refund (status: ${existing.status}). Resolve it in the provider dashboard; it was not sent again.`,
+              code: 'ALREADY_AT_PROVIDER',
+            },
             { status: 409 },
           );
         }

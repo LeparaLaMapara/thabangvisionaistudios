@@ -388,10 +388,26 @@ export async function POST(request: NextRequest) {
   // Same idempotency key → same order id → the database refuses a second copy (T06).
   const checkoutGroupId = checkoutGroupIdFor(user.id, request.headers.get('idempotency-key'));
   const currency = items[0]?.rental.currency ?? STUDIO.currency.code;
+  // Who owns each item decides the owner/platform split and the payout. Read
+  // it on the server (the cart projection does not carry it), and refuse to
+  // snapshot an order whose ownership could not be read: guessing "studio"
+  // would credit a community owner's hire to the studio.
+  const ownership = new Map<string, { owner_type: string | null; owner_id: string | null }>();
+  {
+    const { data: owners, error: ownersError } = await createAdminClient()
+      .from('smart_rentals')
+      .select('id, owner_type, owner_id')
+      .in('id', items.map((i) => i.rental_id));
+    if (ownersError) {
+      console.error('[cart/checkout] could not load item ownership:', ownersError.message);
+      return NextResponse.json({ error: 'Could not start checkout just now. Please try again.' }, { status: 503 });
+    }
+    for (const o of (owners ?? []) as { id: string; owner_type: string | null; owner_id: string | null }[]) ownership.set(o.id, o);
+  }
   const snapshots = snapshotLines(
     items.map((item) => {
       const pi = pricing.items.find((x) => x.rental_id === item.rental_id);
-      const rental = item.rental as { owner_type?: string | null; owner_id?: string | null; replacement_value?: number | null; deposit_amount?: number | null };
+      const rental = { ...(item.rental as { replacement_value?: number | null; deposit_amount?: number | null }), ...ownership.get(item.rental_id) };
       return {
         rentalId: item.rental_id,
         quantity: item.quantity,
