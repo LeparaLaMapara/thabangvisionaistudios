@@ -8,7 +8,7 @@ import { logEvent } from '@/lib/data/events';
 import { systemClock } from '@/lib/core/ports';
 import { refundObligationKey } from '@/lib/core/rental/refunds';
 import { submitPayout, submitRefund } from '@/lib/core/rental/use-cases';
-import { paystackPayments, paystackPayouts } from '@/lib/payments/paystack-ports';
+import { paymentPort, payoutPort } from '@/lib/payments/ports';
 import { SupabasePayouts, SupabaseRefunds, isMissingPipeline } from '@/lib/rental/repos';
 import { evaluatePayout } from '@/lib/rental/workers';
 import { drainInbox } from '@/lib/rental/inbox';
@@ -90,7 +90,7 @@ export async function POST(request: NextRequest) {
         const reopened = await refunds.transition(r.id, [r.state], 'eligible', { lastError: `reopened by ${auth.user.id}` }, null, []);
         if (!reopened) return NextResponse.json({ error: 'The refund changed; reload.' }, { status: 409 });
       }
-      const outcome = await submitRefund(r.id, { refunds, payments: paystackPayments, clock: systemClock });
+      const outcome = await submitRefund(r.id, { refunds, payments: paymentPort, clock: systemClock });
       audit({ refundId: r.id, outcome });
       await dispatchOutbox(10).catch(() => undefined);
       return NextResponse.json({ ok: true, outcome });
@@ -110,7 +110,7 @@ export async function POST(request: NextRequest) {
       if (!decision.recipientCode) return NextResponse.json({ error: 'The owner has no validated payout account.' }, { status: 409 });
       const approved = await payouts.transition(p.id, [p.state], 'approved', { recipientCode: decision.recipientCode, approvedBy: auth.user.id, holdReasons: [] }, null, []);
       if (!approved) return NextResponse.json({ error: 'The payout changed; reload.' }, { status: 409 });
-      const outcome = await submitPayout(p.id, { payouts, transfers: paystackPayouts, clock: systemClock });
+      const outcome = await submitPayout(p.id, { payouts, transfers: payoutPort, clock: systemClock });
       audit({ payoutId: p.id, outcome });
       await dispatchOutbox(10).catch(() => undefined);
       return NextResponse.json({ ok: true, outcome });

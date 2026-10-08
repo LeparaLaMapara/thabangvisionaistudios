@@ -17,7 +17,7 @@ import { cancellation as cancellationJournal } from '@/lib/core/rental/ledger';
 import { buildNotices } from '@/lib/core/rental/notifications';
 import { submitRefund } from '@/lib/core/rental/use-cases';
 import { systemClock } from '@/lib/core/ports';
-import { paystackPayments } from '@/lib/payments/paystack-ports';
+import { paymentPort } from '@/lib/payments/ports';
 import { SupabaseRefunds, isMissingPipeline, transitionBookings } from '@/lib/rental/repos';
 import { dispatchOutbox } from '@/lib/rental/notify';
 import { paymentReference } from '@/lib/payments/eft';
@@ -372,7 +372,7 @@ async function cancelThroughPipeline(
   if (refunds.length) {
     const { data: ob } = await db.from('refund_obligations').select('id').eq('obligation_key', refundObligationKey('cancellation', booking.id)).maybeSingle();
     if (ob) {
-      const outcome = await submitRefund((ob as { id: string }).id, { refunds: new SupabaseRefunds(db), payments: paystackPayments, clock: systemClock }).catch(() => 'unknown_outcome');
+      const outcome = await submitRefund((ob as { id: string }).id, { refunds: new SupabaseRefunds(db), payments: paymentPort, clock: systemClock }).catch(() => 'unknown_outcome');
       refundStatus = outcome === 'submitted' ? 'initiated' : outcome === 'escalated' ? 'failed' : 'pending';
     }
   }

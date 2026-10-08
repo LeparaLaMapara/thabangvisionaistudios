@@ -5,7 +5,7 @@ import { submitPayout, submitRefund } from '@/lib/core/rental/use-cases';
 import { checkPayoutEligibility } from '@/lib/core/rental/payouts';
 import { ESCALATION_LADDER, dueEscalations, returnDueAt, type EscalationStage } from '@/lib/core/rental/overdue';
 import { buildNotices, sastDate, type OutboxMessage } from '@/lib/core/rental/notifications';
-import { paystackPayments, paystackPayouts } from '@/lib/payments/paystack-ports';
+import { paymentPort, payoutPort } from '@/lib/payments/ports';
 import { SupabasePayouts, SupabaseRefunds, isMissingPipeline, transitionBookings } from './repos';
 
 type Admin = ReturnType<typeof createAdminClient>;
@@ -36,7 +36,7 @@ export async function expireHolds(db: Admin = createAdminClient()): Promise<numb
 /** Move refund obligations forward (submit, reconcile, escalate). */
 export async function runRefunds(
   db: Admin = createAdminClient(),
-  payments: PaymentPort = paystackPayments,
+  payments: PaymentPort = paymentPort,
   clock: Clock = systemClock,
   limit = 25,
 ): Promise<Record<string, number>> {
@@ -155,7 +155,7 @@ export async function evaluatePayout(
 /** Send approved payouts and reconcile in-flight ones. */
 export async function runPayouts(
   db: Admin = createAdminClient(),
-  transfers: PayoutPort = paystackPayouts,
+  transfers: PayoutPort = payoutPort,
   clock: Clock = systemClock,
   limit = 25,
 ): Promise<Record<string, number>> {

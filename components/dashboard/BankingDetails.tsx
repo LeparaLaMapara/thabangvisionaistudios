@@ -29,6 +29,8 @@ export default function BankingDetails({ onSaved }: { onSaved?: () => void } = {
   const [accountNumber, setAccountNumber] = useState('');
   const [accountType, setAccountType] = useState('cheque');
   const [accountHolder, setAccountHolder] = useState('');
+  // Used once, for the bank's ownership check. Never stored by us.
+  const [idNumber, setIdNumber] = useState('');
 
   useEffect(() => {
     fetchBanking();
@@ -73,6 +75,7 @@ export default function BankingDetails({ onSaved }: { onSaved?: () => void } = {
           account_number: accountNumber,
           account_type: accountType,
           account_holder: accountHolder,
+          ...(idNumber ? { id_number: idNumber.replace(/\s/g, '') } : {}),
         }),
       });
 
@@ -81,7 +84,11 @@ export default function BankingDetails({ onSaved }: { onSaved?: () => void } = {
       if (!res.ok) {
         setMessage({ type: 'error', text: data.error || 'Failed to save.' });
       } else {
-        setMessage({ type: 'success', text: 'Banking details saved.' });
+        setMessage({
+          type: 'success',
+          text: data.validated ? 'Banking details saved and validated with your bank.' : `Banking details saved. ${data.message ?? 'Not validated yet.'}`,
+        });
+        setIdNumber('');
         setEditing(false);
         fetchBanking();
         onSaved?.();
@@ -142,6 +149,11 @@ export default function BankingDetails({ onSaved }: { onSaved?: () => void } = {
             <CheckCircle className="w-3 h-3" /> Linked for payouts
           </div>
         )}
+        <p className="mt-2 text-xs font-mono text-neutral-400">
+          {(banking as { is_verified?: boolean }).is_verified
+            ? 'Validated: the bank confirmed this account is yours.'
+            : 'Not validated yet. Edit and add your SA ID number to validate it. Validation raises your rental limit and is needed before payouts.'}
+        </p>
       </div>
     );
   }
@@ -214,6 +226,18 @@ export default function BankingDetails({ onSaved }: { onSaved?: () => void } = {
           placeholder="Full name as on bank account"
           required
         />
+
+        <Input
+          label="SA ID number (for validation)"
+          value={idNumber}
+          onChange={(e) => setIdNumber(e.target.value)}
+          placeholder="13 digits"
+          inputMode="numeric"
+          autoComplete="off"
+        />
+        <p className="text-xs font-mono text-neutral-400 -mt-2">
+          Sent to our payment provider once so your bank can confirm the account is yours. We do not store it.
+        </p>
 
         {message && (
           <div className={`text-xs font-mono px-3 py-2 border ${

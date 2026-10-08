@@ -17,7 +17,7 @@ import { payoutReference } from '@/lib/core/rental/payouts';
 import { buildNotices } from '@/lib/core/rental/notifications';
 import { submitRefund } from '@/lib/core/rental/use-cases';
 import { systemClock } from '@/lib/core/ports';
-import { paystackPayments } from '@/lib/payments/paystack-ports';
+import { paymentPort } from '@/lib/payments/ports';
 import { SupabaseRefunds, isMissingPipeline, transitionBookings } from '@/lib/rental/repos';
 import { dispatchOutbox } from '@/lib/rental/notify';
 
@@ -284,7 +284,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   let refundStatus: string | null = null;
   if (refundMethod === 'card') {
     const { data: ob } = await db.from('refund_obligations').select('id').eq('obligation_key', refundObligationKey('deposit_settlement', id)).maybeSingle();
-    if (ob) refundStatus = await submitRefund((ob as { id: string }).id, { refunds: new SupabaseRefunds(db), payments: paystackPayments, clock: systemClock }).catch(() => 'unknown_outcome');
+    if (ob) refundStatus = await submitRefund((ob as { id: string }).id, { refunds: new SupabaseRefunds(db), payments: paymentPort, clock: systemClock }).catch(() => 'unknown_outcome');
   }
   await dispatchOutbox(10).catch(() => undefined);
 

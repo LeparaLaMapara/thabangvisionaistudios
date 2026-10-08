@@ -8,7 +8,7 @@ import { toCents } from '@/lib/core/pricing/money';
 import { refundObligationKey } from '@/lib/core/rental/refunds';
 import { submitRefund } from '@/lib/core/rental/use-cases';
 import { systemClock } from '@/lib/core/ports';
-import { paystackPayments } from '@/lib/payments/paystack-ports';
+import { paymentPort } from '@/lib/payments/ports';
 import { SupabaseRefunds, isMissingPipeline, transitionBookings } from '@/lib/rental/repos';
 import { chargeOfBooking } from '@/lib/rental/charges';
 import { sendDisputeResolved } from '@/lib/email';
@@ -218,7 +218,7 @@ export async function PATCH(
             if (!refundResult.success) return NextResponse.json({ error: 'Refund failed at the payment provider.' }, { status: 502 });
           } else {
             const { data: ob } = await supabase.from('refund_obligations').select('id').eq('obligation_key', key).maybeSingle();
-            if (ob) await submitRefund((ob as { id: string }).id, { refunds: new SupabaseRefunds(supabase), payments: paystackPayments, clock: systemClock }).catch(() => 'unknown_outcome');
+            if (ob) await submitRefund((ob as { id: string }).id, { refunds: new SupabaseRefunds(supabase), payments: paymentPort, clock: systemClock }).catch(() => 'unknown_outcome');
           }
         } else if (paymentReference) {
           // Paid by hand (EFT/cash): a person pays it back.
