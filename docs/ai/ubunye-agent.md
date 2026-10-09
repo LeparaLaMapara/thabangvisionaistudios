@@ -50,5 +50,5 @@ Ubunye helps people find gear and creators and **prepare** bookings. It never bo
 
 ## Known limits
 - Gear approval adds to the cart. The total on the card is for that item alone; checkout shows the final total with the rest of the cart, including any bulk discount.
-- Service bookings made through Ubunye use the same pricing as `/book`. The revision policy captured by the services workstream is added on the website form; check that it is also set for Ubunye bookings when the two workstreams are merged.
+- Service bookings made through Ubunye use the same pricing as `/book` and record the same agreed terms (revision allowance and policy, cancellation policy, shoot date when an ISO date is given).
 - The chat keeps only text in the browser's session storage. After a reload the card is gone, but the proposal is not: saying "yes" brings it back.

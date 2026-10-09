@@ -4,7 +4,8 @@ import { createAdminClient } from '@/lib/supabase/server';
 import { payments } from '@/lib/payments';
 import { email as emailProvider } from '@/lib/email';
 import { reportUnpaidRequest, PAYMENTS_OFF_MESSAGE } from '@/lib/payments/offline';
-import { getHourlyRate } from '@/lib/supabase/queries/service-bookings';
+import { getHourlyRate, mentionsFulfilmentSchema, withoutFulfilmentColumns } from '@/lib/supabase/queries/service-bookings';
+import { revisionPolicyText } from '@/lib/core/services/fulfilment';
 import { quoteHourly, quotePackage, splitServiceBooking } from '@/lib/bookings/pricing';
 import { getBookablePackage } from '@/lib/bookings/packages';
 import { addToCart } from '@/lib/supabase/queries/cart';
@@ -255,6 +256,14 @@ export function executorFor(user: { id: string; email?: string | null; email_con
   };
 }
 
+/** An ISO date from the client becomes the shoot date; free text ("first week of March") stays null, as on /book. */
+function toShootDate(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) return null;
+  return Number.isNaN(new Date(trimmed).getTime()) ? null : trimmed;
+}
+
 async function createServiceBooking(
   user: { id: string; email?: string | null },
   p: ServicePayload,
@@ -265,9 +274,9 @@ async function createServiceBooking(
   const { platformAmount, creatorAmount } = splitServiceBooking({ subtotal: q.subtotal }, STUDIO.booking.platformCommission);
   const reference = `BK-${nanoid(10)}`;
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL || STUDIO.meta.url;
-  const { data: booking, error } = await admin()
-    .from('bookings')
-    .insert({
+  // The agreed terms are recorded the same way as on the /book form (spec §8.3).
+  const revisionsIncluded = STUDIO.booking.defaultRevisionsIncluded;
+  const row: Record<string, unknown> = {
       reference,
       client_id: user.id,
       client_email: user.email,
@@ -287,9 +296,15 @@ async function createServiceBooking(
       creator_amount: creatorAmount,
       status: 'pending',
       payment_status: 'unpaid',
-    })
-    .select('id, reference')
-    .single();
+      shoot_date: toShootDate(p.preferred_dates),
+      revisions_included: revisionsIncluded,
+      revision_policy: revisionPolicyText(revisionsIncluded),
+      cancellation_policy: STUDIO.booking.cancellationPolicy,
+  };
+  const insert = (values: Record<string, unknown>) => admin().from('bookings').insert(values).select('id, reference').single();
+  let { data: booking, error } = await insert(row);
+  // Before migration 073 the terms columns do not exist yet.
+  if (error && mentionsFulfilmentSchema(error.message)) ({ data: booking, error } = await insert(withoutFulfilmentColumns(row)));
   if (error || !booking) return { ok: false, message: 'Could not create the booking. Nothing was charged; try again.' };
 
   if (!payments.isConfigured()) {
