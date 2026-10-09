@@ -57,3 +57,12 @@ export function unbalancedJournals(): Array<{ journal_id: string; debits: number
      group by journal_id
     having sum(debit_cents) <> sum(credit_cents)`);
 }
+
+/**
+ * Let a per-minute rate limit window pass (the shared counter lives in
+ * rate_limits). Used where a real person would simply take longer than a
+ * test does, e.g. five staff delivery updates in a row.
+ */
+export function clearRateLimit(keyPrefix: string): void {
+  exec(`delete from rate_limits where key like ${lit(`${keyPrefix}%`)};`);
+}
