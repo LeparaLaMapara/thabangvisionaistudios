@@ -135,7 +135,21 @@ export async function proxy(request: NextRequest) {
   );
 
   // Refresh session — do NOT remove this line
-  await supabase.auth.getUser();
+  const { data: { user } } = await supabase.auth.getUser();
+
+  // Signed-out visitors to the dashboard go to sign-in with the page they
+  // wanted as ?next= (the dashboard layout cannot see its own path, so this
+  // is the server-side redirect; the layout keeps a browser fallback).
+  const path = request.nextUrl.pathname;
+  if (!user && (path === '/dashboard' || path.startsWith('/dashboard/'))) {
+    const login = request.nextUrl.clone();
+    login.pathname = '/login';
+    login.search = '';
+    login.searchParams.set('next', `${path}${request.nextUrl.search}`);
+    const redirect = NextResponse.redirect(login);
+    supabaseResponse.cookies.getAll().forEach((c) => redirect.cookies.set(c));
+    return redirect;
+  }
 
   return supabaseResponse;
 }
