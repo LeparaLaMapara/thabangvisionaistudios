@@ -367,8 +367,11 @@ export async function settleOrderDeliveryOnCancel(
         // would otherwise refund the legs and quotes as a platform cancellation.
         for (const quoteId of unused) await deps.repo.setQuoteStatus(quoteId, ['paid'], 'consumed');
         const group = input.bookingGroupId ?? (plan.shipmentIds[0] ? (await deps.repo.getShipment(plan.shipmentIds[0]))?.bookingGroupId : null) ?? (unused[0] ? (await deps.repo.getQuote(unused[0]))?.bookingGroupId : null) ?? null;
-        if (group) await noteCancelledOrder(db, group, 'legacy_cancel');
+        const held = group ? await noteCancelledOrder(db, group, 'legacy_cancel') : false;
         await deps.repo.post([], alert('delivery_legacy_cancel_has_phase4_delivery', input.bookingId));
+        // Without the hold the daily sweep would refund these legs a second time:
+        // staff must hold the order (or settle its legs) before the next run.
+        if (!held) await deps.repo.post([], alert('delivery_legacy_hold_not_recorded', input.bookingId));
       }
       return 0;
     }
@@ -409,15 +412,19 @@ export async function settleOrderDeliveryOnCancel(
  * Record, for the daily sweep (076 `delivery_note_cancelled_order`), that it
  * looked at a fully cancelled order (`hold` null: the order moves to the back
  * of the next run's queue, round 3 finding 5) or that the order is left to
- * staff (`hold` set: the sweep skips it, finding 3). Never throws: a missed
- * note only costs a place in the queue.
+ * staff (`hold` set: the sweep skips it, finding 3). Never throws. A missed
+ * queue note only costs a place in the queue; a missed hold matters (the sweep
+ * would settle the order), so callers alert staff when this returns false.
  */
-async function noteCancelledOrder(db: Admin, bookingGroupId: string, hold: string | null): Promise<void> {
+async function noteCancelledOrder(db: Admin, bookingGroupId: string, hold: string | null): Promise<boolean> {
   try {
     const { error } = await db.rpc('delivery_note_cancelled_order', { p_group: bookingGroupId, p_hold: hold });
-    if (error && !isMissingPipeline(error)) console.error('[delivery] could not note the cancelled order:', error.message);
+    if (!error) return true;
+    if (!isMissingPipeline(error)) console.error('[delivery] could not note the cancelled order:', error.message);
+    return false;
   } catch (err) {
     console.error('[delivery] could not note the cancelled order:', err instanceof Error ? err.message : 'unknown error');
+    return false;
   }
 }
 

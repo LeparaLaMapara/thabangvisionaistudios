@@ -250,3 +250,48 @@ describe('finding 5: the sweep records each attempt so a stuck order moves to th
     ]);
   });
 });
+
+// ── Round 3 follow-up: a later attempt of a leg earns under its own key ────────
+
+describe('round 3 follow-up: re-dispatched leg (attempt 2) is earned, not swallowed by attempt 1', () => {
+  it('attempt 1 keeps the plain leg key; later attempts get their own', () => {
+    const base = { bookingGroupId: GROUP, deliveryCents: 15000, leg: 'outbound' as const };
+    expect(L.deliveryEarned(base).idempotencyKey).toBe(`delivery:${GROUP}:outbound`);
+    expect(L.deliveryEarned({ ...base, attempt: 1 }).idempotencyKey).toBe(`delivery:${GROUP}:outbound`);
+    expect(L.deliveryEarned({ ...base, attempt: 2 }).idempotencyKey).toBe(`delivery:${GROUP}:outbound:a2`);
+    expect(L.deliveryEarned({ bookingGroupId: GROUP, deliveryCents: 15000, attempt: 2 }).idempotencyKey).toBe(`delivery:${GROUP}`);
+  });
+
+  it('attempt 1 refunded before earning (earn key settled), attempt 2 accepted: its fee reaches delivery income once', () => {
+    const fee1 = 15000;
+    const fee2 = 12000;
+    const posted = new Map<string, L.Journal>();
+    const post = (j: L.Journal) => {
+      if (!posted.has(j.idempotencyKey)) posted.set(j.idempotencyKey, j); // ledger_post skips a duplicate key
+    };
+    post(L.paymentCaptured({ providerReference: 'p1', bookingGroupId: GROUP, hireCents: 0, depositCents: 0, deliveryFeeCents: fee1 }));
+    post(L.deliveryEarned({ bookingGroupId: GROUP, deliveryCents: fee1, leg: 'outbound', attempt: 1 }));
+    post(L.deliveryEarnedRefund({ shipmentId: 'ship-a1', bookingGroupId: GROUP, refundCents: fee1 }));
+    post(L.paymentCaptured({ providerReference: 'p2', bookingGroupId: GROUP, hireCents: 0, depositCents: 0, deliveryFeeCents: fee2 }));
+    post(L.deliveryEarned({ bookingGroupId: GROUP, deliveryCents: fee2, leg: 'outbound', attempt: 2 }));
+    const b = L.balances([...posted.values()]);
+    expect(b.unearned_hire).toBe(0);
+    expect(b.delivery_income).toBe(-fee2);
+    expect(b.refunds_payable).toBe(-fee1);
+  });
+});
+
+describe('round 3 follow-up: a legacy hold that could not be recorded alerts staff', () => {
+  it('hold RPC fails → a distinct staff alert, still no refund', async () => {
+    const w = world({ providers: 'manual' });
+    const q = await quoteDelivery({ caller: renter, renterId: RENTER, bookingGroupId: GROUP, leg: 'outbound', originAddressId: OFFICE, destinationAddressId: RENTER_HOME, lines: LINES_FOR_QUOTE, window: WINDOW_OUT }, w.deps);
+    if (!q.ok) throw new Error(q.code);
+    const quoteId = q.quotes[0].id;
+    await markDeliveryQuotesPaid({ paymentReference: 'pay-ref-1', bookingGroupId: GROUP, renterId: RENTER, quoteIds: [quoteId], paidDeliveryCents: q.quotes[0].customerFeeCents }, w.deps);
+    const db = { rpc: async () => ({ data: null, error: { message: 'connection reset', code: '08006' } }) };
+    const plan: DeliveryCancellationPlan = { phase4: true, lastLine: true, shipmentIds: [], tooLate: false, feeCents: 0, courierBooked: false, unusedPaidQuoteIds: [quoteId] };
+    expect(await settleOrderDeliveryOnCancel(db as never, { plan, caller: renter, bookingId: 'bk-1', reason: 'x', bookingGroupId: GROUP, phase4AtCancel: false }, { deps: async () => w.deps, submit: async () => undefined })).toBe(0);
+    expect(staffAlerts(w)).toEqual(expect.arrayContaining(['delivery_legacy_cancel_has_phase4_delivery', 'delivery_legacy_hold_not_recorded']));
+    expect(w.repo.refunds.size).toBe(0);
+  });
+});

@@ -95,7 +95,8 @@ it records `coverage_verified = false` (D-40).
 - Delivery money is never part of the owner's 80% hire share.
 - Ledger (`lib/core/rental/ledger.ts`):
   - the fee is collected into `unearned_hire` with the order (unchanged);
-  - `deliveryEarned({ leg })` → `delivery:{group}:{leg}` moves it to
+  - `deliveryEarned({ leg, attempt })` → `delivery:{group}:{leg}` (attempt 1;
+    later attempts `delivery:{group}:{leg}:a{n}`) moves it to
     `delivery_income` when the leg is done: outbound when every item is
     accepted by the renter, return when every item is received back;
   - `courierCost` → `courier_costs` / `delivery_payable` when a courier job is
@@ -121,7 +122,7 @@ it records `coverage_verified = false` (D-40).
     still be earned later (the renter accepts, deemed acceptance, a review
     closed as delivered). Its refund posts `deliveryEarned` and then
     `deliveryEarnedRefund` (the same net effect as `deliveryCancelled`), so
-    any later earn of that leg dedupes on `delivery:{group}:{leg}`; every
+    any later earn of that attempt of the leg dedupes on its key; every
     earn site also skips a fee whose quote is `refunded`, and deemed
     acceptance skips such a leg (and a leg whose booking lines are all
     cancelled) entirely (review fix round 3, D-56);

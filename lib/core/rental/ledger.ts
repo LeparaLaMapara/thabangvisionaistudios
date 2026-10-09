@@ -317,8 +317,12 @@ export function reconcileClosedGroup(params: {
  * for different money (a legacy order fee vs Phase-4 leg quotes) and an order
  * uses one or the other, never both.
  */
-export function deliveryEarned(p: { bookingGroupId: string; deliveryCents: number; leg?: ShipmentLeg }): Journal {
-  const key = p.leg ? `delivery:${p.bookingGroupId}:${p.leg}` : `delivery:${p.bookingGroupId}`;
+export function deliveryEarned(p: { bookingGroupId: string; deliveryCents: number; leg?: ShipmentLeg; attempt?: number }): Journal {
+  // A later attempt of a leg (the first failed and was re-dispatched with its
+  // own paid quote) earns under its own key, or the first attempt's journal
+  // would swallow it. Attempt 1 keeps the plain leg key.
+  const attempt = p.leg && p.attempt && p.attempt > 1 ? `:a${p.attempt}` : '';
+  const key = p.leg ? `delivery:${p.bookingGroupId}:${p.leg}${attempt}` : `delivery:${p.bookingGroupId}`;
   return journal(key, 'hire_earned', p.bookingGroupId, p.leg ? `Delivery fee earned (${p.leg} leg)` : 'Delivery fee earned', [
     dr('unearned_hire', p.deliveryCents),
     cr('delivery_income', p.deliveryCents),

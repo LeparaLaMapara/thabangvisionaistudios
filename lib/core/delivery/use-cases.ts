@@ -703,7 +703,7 @@ function withFeeRefund(t: ShipmentTransition, s: Shipment, refundCents: number):
   } else if (refund > 0 && !FINAL_DELIVERY_STATES.includes(t.to)) {
     // Not earned yet, and the leg stays open: settle the earn key now so a later earn is a no-op.
     t.journals.push(
-      L.deliveryEarned({ bookingGroupId: s.bookingGroupId, deliveryCents: s.customerFeeCents, leg: s.leg }),
+      L.deliveryEarned({ bookingGroupId: s.bookingGroupId, deliveryCents: s.customerFeeCents, leg: s.leg, attempt: s.attempt }),
       L.deliveryEarnedRefund({ shipmentId: s.id, bookingGroupId: s.bookingGroupId, refundCents: refund }),
     );
   } else {
@@ -1129,7 +1129,7 @@ export async function confirmHandover(
       if (t.to === 'delivered' && !s.deliveredAt) t.patch.deliveredAt = e.occurredAt;
       if (allAccepted(s.items, chain)) {
         t.patch.acceptedAt = e.occurredAt;
-        if (feeInLedger(s) && !refunded) t.journals.push(L.deliveryEarned({ bookingGroupId: s.bookingGroupId, deliveryCents: s.customerFeeCents, leg: 'outbound' }));
+        if (feeInLedger(s) && !refunded) t.journals.push(L.deliveryEarned({ bookingGroupId: s.bookingGroupId, deliveryCents: s.customerFeeCents, leg: 'outbound', attempt: s.attempt }));
       }
       return;
     }
@@ -1159,7 +1159,7 @@ export async function confirmHandover(
         advance(t, s, 'delivered', 'staff');
         if (!s.deliveredAt) t.patch.deliveredAt = e.occurredAt;
         t.patch.acceptedAt = e.occurredAt;
-        if (feeInLedger(s) && !refunded) t.journals.push(L.deliveryEarned({ bookingGroupId: s.bookingGroupId, deliveryCents: s.customerFeeCents, leg: 'return' }));
+        if (feeInLedger(s) && !refunded) t.journals.push(L.deliveryEarned({ bookingGroupId: s.bookingGroupId, deliveryCents: s.customerFeeCents, leg: 'return', attempt: s.attempt }));
         t.notices.push(...legNotices({ kind: 'delivery_returned_for_inspection', userIds: [s.renterId], shipment: s, discriminator: 'received' }));
       }
     }
@@ -1591,7 +1591,7 @@ export async function deemDeliveryAccepted(
     }
   }
   t.patch.acceptedAt = now.toISOString();
-  if (feeInLedger(s)) t.journals.push(L.deliveryEarned({ bookingGroupId: s.bookingGroupId, deliveryCents: s.customerFeeCents, leg: 'outbound' }));
+  if (feeInLedger(s)) t.journals.push(L.deliveryEarned({ bookingGroupId: s.bookingGroupId, deliveryCents: s.customerFeeCents, leg: 'outbound', attempt: s.attempt }));
   const r = await deps.repo.transitionShipment(t);
   return { ok: true, outcome: r === 'applied' ? 'deemed' : r };
 }
@@ -1719,8 +1719,8 @@ export async function closeDeliveryReview(
     if (!s.acceptedAt) {
       t.patch.acceptedAt = now;
       if (!s.deliveredAt) t.patch.deliveredAt = now;
-      // Earned once: the journal is keyed per order and leg.
-      if (feeInLedger(s) && !refunded) t.journals.push(L.deliveryEarned({ bookingGroupId: s.bookingGroupId, deliveryCents: s.customerFeeCents, leg: 'outbound' }));
+      // Earned once: the journal is keyed per order, leg and attempt.
+      if (feeInLedger(s) && !refunded) t.journals.push(L.deliveryEarned({ bookingGroupId: s.bookingGroupId, deliveryCents: s.customerFeeCents, leg: 'outbound', attempt: s.attempt }));
     }
   }
   if (input.to === 'failed' && input.refundFee) {
