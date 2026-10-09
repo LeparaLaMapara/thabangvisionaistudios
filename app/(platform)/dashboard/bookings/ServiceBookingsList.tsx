@@ -25,6 +25,7 @@ interface ServiceBooking {
   delivery_url: string | null;
   delivery_message: string | null;
   delivered_at: string | null;
+  revisions_used?: number | null;
   paid_at?: string | null;
   accepted_at?: string | null;
   arrived_at?: string | null;
@@ -218,8 +219,9 @@ export default function ServiceBookingsList({ bookings }: { bookings: ServiceBoo
                   </button>
                 )}
 
-                {/* Cancel */}
-                {['paid', 'accepted'].includes(booking.status) && (
+                {/* Cancel: not once the work has been delivered (a revision
+                    request puts it back to 'accepted'); the API refuses it. */}
+                {['paid', 'accepted'].includes(booking.status) && !booking.delivery_url && !((booking.revisions_used ?? 0) > 0) && (
                   <button
                     onClick={() => handleCancel(booking.id)}
                     className="rounded-lg border border-red-600/30 px-4 py-2 text-sm text-red-400 hover:bg-red-600/10"

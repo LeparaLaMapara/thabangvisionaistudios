@@ -36,6 +36,13 @@ export interface StorageProvider {
   isConfigured(): boolean;
 
   /**
+   * Whether `url` is an asset delivered from THIS account (not merely from
+   * the same provider). Optional: a provider without it is treated as never
+   * owning a URL.
+   */
+  ownsUrl?(url: string): boolean;
+
+  /**
    * Upload an image/file from the server side.
    *
    * @param file - File buffer or base64 data URI

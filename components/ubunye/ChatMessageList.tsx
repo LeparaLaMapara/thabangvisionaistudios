@@ -7,13 +7,18 @@ import ReactMarkdown, { type Components } from 'react-markdown';
 import Link from 'next/link';
 import type { UIMessage } from 'ai';
 import { FollowUpSuggestions } from '@/components/ubunye/FollowUpSuggestions';
+import { ApprovalCard } from '@/components/ubunye/ApprovalCard';
 import { STUDIO } from '@/lib/constants';
 
 const TOOL_LABELS: Record<string, string> = {
   search_creators: 'Searching creators',
   get_creator_detail: 'Getting creator details',
-  submit_creator_request: 'Submitting booking request',
   calculate_booking_quote: 'Calculating quote',
+  check_availability: 'Checking availability',
+  prepare_gear_booking: 'Preparing your hire for approval',
+  prepare_service_booking: 'Preparing your booking for approval',
+  get_pending_proposal: 'Loading your proposal',
+  my_bookings: 'Checking your bookings',
   improve_brief: 'Analyzing your brief',
 };
 
@@ -24,30 +29,36 @@ function getMessageText(msg: UIMessage): string {
     .join('');
 }
 
-function getToolStates(msg: UIMessage) {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const parts = msg.parts as any[];
-  const toolCalls = parts.filter(p => p.type === 'tool-call');
-  const toolResults = parts.filter(p => p.type === 'tool-result');
-  const completedIds = new Set(toolResults.map(p => p.toolCallId));
+/** A tool part as the AI SDK (v6) streams it: type `tool-<name>`, with a state. */
+interface ToolPart {
+  type: string;
+  state?: string;
+  output?: unknown;
+}
 
-  return toolCalls
-    .filter(p => !completedIds.has(p.toolCallId))
-    .map(p => ({
-      name: p.toolName as string,
-      label: TOOL_LABELS[p.toolName as string] || 'Processing',
-    }));
+const toolParts = (msg: UIMessage): ToolPart[] =>
+  (msg.parts as unknown as ToolPart[]).filter((p) => typeof p.type === 'string' && p.type.startsWith('tool-'));
+
+const toolName = (p: ToolPart): string => p.type.slice('tool-'.length);
+
+function getToolStates(msg: UIMessage) {
+  return toolParts(msg)
+    .filter((p) => p.state !== 'output-available' && p.state !== 'output-error')
+    .map((p) => ({ name: toolName(p), label: TOOL_LABELS[toolName(p)] || 'Processing' }));
 }
 
 function getLastCompletedTool(msg: UIMessage): string | null {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const parts = msg.parts as any[];
-  const toolResults = parts.filter(p => p.type === 'tool-result');
-  if (toolResults.length === 0) return null;
-  const lastResult = toolResults[toolResults.length - 1];
-  const toolCalls = parts.filter(p => p.type === 'tool-call');
-  const matching = toolCalls.find(p => p.toolCallId === lastResult.toolCallId);
-  return matching?.toolName ?? null;
+  const done = toolParts(msg).filter((p) => p.state === 'output-available');
+  return done.length > 0 ? toolName(done[done.length - 1]) : null;
+}
+
+/** The latest proposal in this message that is waiting for approval, if any. */
+function getProposalId(msg: UIMessage): string | null {
+  const ids = toolParts(msg)
+    .filter((p) => p.state === 'output-available')
+    .map((p) => p.output as { approval_required?: boolean; proposal_id?: unknown } | undefined)
+    .filter((o): o is { approval_required: boolean; proposal_id: string } => Boolean(o?.approval_required) && typeof o?.proposal_id === 'string');
+  return ids.length > 0 ? ids[ids.length - 1].proposal_id : null;
 }
 
 interface ChatMessageListProps {
@@ -77,6 +88,16 @@ export function ChatMessageList({
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, isLoading]);
 
+  // One card per proposal: when a later message mentions the same proposal
+  // (get_pending_proposal), only the latest mention shows the card.
+  const cardAt = new Map<string, number>();
+  if (isAuthenticated) {
+    messages.forEach((m, i) => {
+      const id = m.role === 'assistant' ? getProposalId(m) : null;
+      if (id) cardAt.set(id, i);
+    });
+  }
+
   return (
     <motion.div
       initial={{ opacity: 0 }}
@@ -90,6 +111,8 @@ export function ChatMessageList({
         const pendingTools = isAssistant ? getToolStates(msg) : [];
         const isLastAssistant = isAssistant && msgIndex === messages.length - 1;
         const completedTool = isLastAssistant && pendingTools.length === 0 ? getLastCompletedTool(msg) : null;
+        const mentioned = isAssistant && isAuthenticated ? getProposalId(msg) : null;
+        const proposalId = mentioned && cardAt.get(mentioned) === msgIndex ? mentioned : null;
 
         return (
           <motion.div
@@ -125,6 +148,8 @@ export function ChatMessageList({
                 </span>
               </div>
             )}
+
+            {proposalId && <ApprovalCard key={proposalId} proposalId={proposalId} />}
 
             {completedTool && (
               <FollowUpSuggestions toolName={completedTool} onSelect={onSend} />

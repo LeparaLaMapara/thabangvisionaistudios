@@ -12,6 +12,7 @@ const ADMIN_LINKS = [
   { label: 'Projects', href: '/admin/projects' },
   { label: 'Categories', href: '/admin/production-categories' },
   { label: 'Rentals', href: '/admin/rentals' },
+  { label: 'Listing review', href: '/admin/listings' },
   { label: 'Import', href: '/admin/rentals/import' },
   { label: 'Press', href: '/admin/press' },
   { label: 'Repurpose', href: '/admin/content-repurpose' },

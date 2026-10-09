@@ -422,6 +422,10 @@ export const STUDIO = {
       'gpt-4o': { input: 45, output: 270 },   // $2.50/$15 per 1M
       'gemini-3.6-flash': { input: 1.35, output: 5.4 }, // $0.075/$0.30 per 1M
     } as Record<string, { input: number; output: number }>,
+    // Signed-out messages per network address per day, across everyone on it.
+    // Higher than one guest's allowance because many people can share one
+    // address (mobile carriers, offices, campuses); it caps cost, not people.
+    guestNetworkDailyMessages: 60,
   },
 
   booking: {
@@ -439,6 +443,19 @@ export const STUDIO = {
       { minHoursBefore: 0, refundPercent: 0 },
     ],
     autoCompleteAfterDays: 30,
+    // ── Creative service fulfilment (spec §8.3, docs/marketplace/services.md) ──
+    // Hours after the client approves the work (or it is approved
+    // automatically) before the creator payout is sent, provided no dispute
+    // is open. This is when WE send it; when it reaches the bank is the
+    // bank's timing and is never promised.
+    payoutDelayHours: 72,
+    // Days a client has to approve, ask for a revision or raise a problem
+    // after delivery before the work is approved automatically.
+    autoApproveDeliveryAfterDays: 7,
+    // Revision rounds included when the package does not say otherwise.
+    defaultRevisionsIncluded: 1,
+    // Automatic payout attempts before a person takes over.
+    maxPayoutAttempts: 3,
     projectCategories: [
       'Wedding Photography',
       'Wedding Cinematography',
@@ -467,9 +484,11 @@ export const STUDIO = {
       pending: 'Pending Payment',
       paid: 'Paid',
       accepted: 'Accepted',
+      delivered: 'Delivered',
       completed: 'Completed',
       paid_out: 'Paid Out',
       cancelled: 'Cancelled',
+      declined: 'Declined',
       disputed: 'Disputed',
     } as Record<string, string>,
   },
@@ -693,6 +712,30 @@ export const RENTAL_POLICY = {
   // approve them in /admin/rental-ops until the founder decides otherwise
   // (decision register D-19). Set true to let the daily job approve them.
   payoutAutoApprove: false,
+} as const;
+
+// ─── Community listing review (spec §8.1–8.2) ───────────────────────────────
+// Rules live in lib/core/listings/review.ts and run on the server only.
+export const LISTING_POLICY = {
+  // A person reviews any listing whose replacement value is above this.
+  reviewValueThresholdCents: RENTAL_POLICY.highValueCollectionThresholdCents,
+  // An owner may publish without a person reviewing the listing only when
+  // ALL of these hold (and they have no rejected listing, no open dispute and
+  // are not suspended). Deliberately conservative; lower only by founder
+  // decision.
+  establishedOwner: {
+    minPublishedListings: 3,
+    minCompletedRentals: 5,
+  },
+  // Sanity bounds on owner-entered amounts, in cents. Not business rules:
+  // they stop typos (an extra zero) from reaching a renter's deposit.
+  maxPricePerDayCents: 100_000_000,
+  maxReplacementValueCents: 1_000_000_000,
+  // Owner declarations are recorded against the Terms version in force
+  // (Part D, Creators and Suppliers).
+  ownerTermsVersion: STUDIO.legal.documents.terms.version,
+  ownerTermsHref: STUDIO.legal.documents.terms.href,
+  reviewNotesMaxLength: 2000,
 } as const;
 
 export const RENTAL_CATEGORY_VALUES = RENTAL_CATEGORIES.map(c => c.value);

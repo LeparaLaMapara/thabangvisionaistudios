@@ -200,18 +200,19 @@ export async function fetchUserContext(supabase: any, userId: string): Promise<s
       .limit(10),
   ]);
 
-  const name = profile.data?.display_name || 'Unknown';
+  // Typed by the person themselves: flattened like catalogue data (spec §8.8).
+  const name = promptField(profile.data?.display_name);
   const email = userEmail;
   const phone = profile.data?.phone || '';
   const verified = profile.data?.is_verified ? 'Verified Creator' : 'Unverified';
 
   const bookingLines = bookings.data?.map((b: Record<string, unknown>) => {
     const rental = b.smart_rentals as { title?: string } | null;
-    return `- ${rental?.title || 'Unknown'} — ${b.start_date} to ${b.end_date} — ${b.status} — R${b.total_price}`;
+    return `- ${promptField(rental?.title)} — ${b.start_date} to ${b.end_date} — ${b.status} — R${Number(b.total_price ?? 0)}`;
   }).join('\n') || 'No bookings';
 
   const listingLines = myListings.data?.map((l: Record<string, unknown>) =>
-    `- ${l.title} — R${l.price}/${l.pricing_model}`
+    `- ${promptField(l.title)} — R${Number(l.price ?? 0)}/${promptField(l.pricing_model, '')}`
   ).join('\n') || 'No listings';
 
   return `

@@ -5,6 +5,7 @@
  * one refund obligation per key. These are test doubles, not a live
  * integration.
  */
+import { PAYSTACK_PAYMENT_CAPABILITIES, PAYSTACK_PAYOUT_CAPABILITIES } from '@/lib/payments/paystack-ports';
 import type {
   Clock,
   ConfirmOutcome,
@@ -209,6 +210,7 @@ export class FakeRefunds implements RefundRepository {
 /** A payment provider double. Records every call so tests can count real refunds. */
 export class FakePaymentProvider implements PaymentPort {
   readonly provider = 'fake';
+  readonly capabilities = { ...PAYSTACK_PAYMENT_CAPABILITIES };
   calls: { transactionReference: string; amountCents: number; idempotencyKey: string }[] = [];
   providerRefunds: ProviderRefund[] = [];
   mode: 'ok' | 'timeout_after_send' | 'reject' | 'down' = 'ok';
@@ -272,6 +274,7 @@ export class FakePayouts implements PayoutRepository {
 /** Transfer provider double: a repeated reference returns the existing transfer, like Paystack. */
 export class FakeTransferProvider implements PayoutPort {
   readonly provider = 'fake';
+  readonly capabilities = { ...PAYSTACK_PAYOUT_CAPABILITIES };
   sent = new Map<string, ProviderTransfer>();
   moneyMoved = 0;
   mode: 'ok' | 'timeout_after_send' | 'down' | 'reject' = 'ok';

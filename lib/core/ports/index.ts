@@ -9,6 +9,7 @@ import type { OutboxMessage } from '@/lib/core/rental/notifications';
 import type { IntentState, OrderLinesState } from '@/lib/core/rental/payments';
 import type { RefundReason, RefundState } from '@/lib/core/rental/refunds';
 import type { PayoutState } from '@/lib/core/rental/payouts';
+import type { PaymentCapabilities, PayoutCapabilities } from '@/lib/core/payments/capabilities';
 
 export interface Clock {
   now(): Date;
@@ -33,6 +34,8 @@ export interface ProviderRefund {
 
 export interface PaymentPort {
   readonly provider: string;
+  /** What this adapter can do; a caller needing more is refused (spec §8.4). */
+  readonly capabilities: PaymentCapabilities;
   /** Refund part or all of a charge. `idempotencyKey` is sent where the provider supports it. */
   refund(params: { transactionReference: string; amountCents: number; idempotencyKey: string }): Promise<ProviderCallResult<ProviderRefund>>;
   /** Refunds the provider holds for a charge. Used to reconcile after an unknown outcome. */
@@ -49,6 +52,7 @@ export interface ProviderTransfer {
 
 export interface PayoutPort {
   readonly provider: string;
+  readonly capabilities: PayoutCapabilities;
   /** Send money to a validated recipient under a stable reference. Re-sending the same reference must not pay twice. */
   transfer(params: { reference: string; amountCents: number; recipientCode: string; reason: string }): Promise<ProviderCallResult<ProviderTransfer>>;
   /** Look a transfer up by our reference. */

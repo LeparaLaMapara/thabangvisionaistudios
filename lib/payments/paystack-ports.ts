@@ -1,3 +1,4 @@
+import type { PaymentCapabilities, PayoutCapabilities } from '@/lib/core/payments/capabilities';
 import type { IdentityPort, PaymentPort, PayoutPort, ProviderCallResult, ProviderRefund, ProviderTransfer } from '@/lib/core/ports';
 import { PAYSTACK_API } from './paystack';
 
@@ -66,8 +67,33 @@ function toTransfer(d: Json): ProviderTransfer {
   return { transferCode: str(d.transfer_code ?? d.id), status: str(d.status).toLowerCase(), amountCents: cents(d.amount) };
 }
 
+/**
+ * What these adapters implement (not everything Paystack offers): hosted
+ * checkout lives in paystack.ts; pre-authorisation, recurring billing and
+ * instant (PayShap/RTC) transfers are not implemented or verified here.
+ */
+export const PAYSTACK_PAYMENT_CAPABILITIES: PaymentCapabilities = {
+  cardPayments: true,
+  partialRefunds: true,
+  cardPreauthorisation: false,
+  recurringPayments: false,
+  chargeVerification: true,
+  refundLookup: true,
+  currencies: ['ZAR'],
+  countries: ['ZA'],
+};
+
+export const PAYSTACK_PAYOUT_CAPABILITIES: PayoutCapabilities = {
+  bankTransfers: true,
+  instantTransfers: false,
+  transferVerification: true,
+  currencies: ['ZAR'],
+  countries: ['ZA'],
+};
+
 export const paystackPayments: PaymentPort = {
   provider: 'paystack',
+  capabilities: PAYSTACK_PAYMENT_CAPABILITIES,
 
   async refund({ transactionReference, amountCents }) {
     if (!Number.isSafeInteger(amountCents) || amountCents <= 0) return { ok: false, kind: 'rejected', message: 'invalid refund amount' };
@@ -93,6 +119,7 @@ export const paystackPayments: PaymentPort = {
 
 export const paystackPayouts: PayoutPort = {
   provider: 'paystack',
+  capabilities: PAYSTACK_PAYOUT_CAPABILITIES,
 
   async transfer({ reference, amountCents, recipientCode, reason }) {
     if (!Number.isSafeInteger(amountCents) || amountCents <= 0) return { ok: false, kind: 'rejected', message: 'invalid transfer amount' };

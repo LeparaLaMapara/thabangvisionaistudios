@@ -73,6 +73,9 @@ export function sanitiseForPrompt(
   // it is quoted inside.
   text = text.replace(/```+/g, '');
   text = text.replace(/^-{3,}$/gm, '');
+  // The prompt fences its data blocks with "=====" lines (catalogue, retrieved
+  // context, a pending proposal): a value must not be able to fake one.
+  text = text.replace(/={3,}/g, '');
 
   for (const pattern of INSTRUCTION_PATTERNS) {
     text = text.replace(pattern, '[removed]');

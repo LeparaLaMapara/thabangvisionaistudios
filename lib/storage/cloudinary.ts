@@ -38,6 +38,17 @@ export const cloudinary: StorageProvider = {
     );
   },
 
+  ownsUrl(url: string): boolean {
+    const cloudName = process.env.CLOUDINARY_CLOUD_NAME;
+    if (!cloudName) return false;
+    try {
+      const u = new URL(url);
+      return u.protocol === 'https:' && u.hostname === 'res.cloudinary.com' && u.pathname.startsWith(`/${cloudName}/`);
+    } catch {
+      return false;
+    }
+  },
+
   async uploadImage(
     file: Buffer | string,
     folder: string,

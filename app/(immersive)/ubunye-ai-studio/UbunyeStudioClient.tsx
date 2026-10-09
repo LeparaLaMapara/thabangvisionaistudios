@@ -80,6 +80,15 @@ export default function UbunyeStudioClient({ context }: UbunyeStudioClientProps)
         ...(creatorIdRef.current && { creator_id: creatorIdRef.current }),
         ...(conversationIdRef.current && { conversation_id: conversationIdRef.current }),
       }),
+      // The server names the conversation it logged this turn under. Keeping
+      // it means the next turn (e.g. "yes, approve that") finds the pending
+      // proposal even when creating the session up front failed.
+      fetch: async (input: RequestInfo | URL, init?: RequestInit) => {
+        const res = await fetch(input, init);
+        const id = res.headers.get('x-conversation-id');
+        if (id && !conversationIdRef.current) conversationIdRef.current = id;
+        return res;
+      },
     })
   );
 
