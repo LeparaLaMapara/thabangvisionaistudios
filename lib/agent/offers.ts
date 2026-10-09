@@ -219,6 +219,8 @@ export async function prepareService(
   if (payload.creator_id && payload.creator_id === user.id) return { ok: false, message: 'You cannot book yourself.' };
   const q = await quoteService(payload);
   if (!q.ok) return q;
+  // A package names its own creator: the same rule applies to it.
+  if (q.creatorId && q.creatorId === user.id) return { ok: false, message: 'You cannot book yourself.' };
   return {
     ok: true,
     payload: { ...payload, project_category: q.category, duration_hours: q.hours, creator_id: q.creatorId },
@@ -295,6 +297,7 @@ async function createServiceBooking(
 ): Promise<{ ok: true; result: Record<string, unknown> } | { ok: false; message: string }> {
   const q = await quoteService(p);
   if (!q.ok) return q;
+  if (q.creatorId && q.creatorId === user.id) return { ok: false, message: 'You cannot book yourself.' };
   if (toCents(q.total) !== approvedAmountCents) return { ok: false, message: PRICE_MOVED };
   const { platformAmount, creatorAmount } = splitServiceBooking({ subtotal: q.subtotal }, STUDIO.booking.platformCommission);
   const reference = `BK-${nanoid(10)}`;
