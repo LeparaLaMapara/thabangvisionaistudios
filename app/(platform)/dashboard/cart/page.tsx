@@ -10,8 +10,7 @@ import { Button } from '@/components/ui/Button';
 import { useCart } from '@/providers/CartProvider';
 import { calculateItemPrice, calculateIncludedVat, depositPerUnit } from '@/lib/cart/pricing';
 import { TermsAcceptance } from '@/components/consent/TermsAcceptance';
-import { quoteDelivery, isDeliveryQuote } from '@/lib/delivery/quote';
-import AddressAutocomplete, { type AddressResult } from '@/components/ui/AddressAutocomplete';
+import DeliveryOptions, { centsToRand, selectionFromQuotes, useDeliveryEligibility, type DeliverySelection, type PendingApproval, type PublicQuote } from './DeliveryOptions';
 import { RENTAL_POLICY, STUDIO } from '@/lib/constants';
 import { DashboardSubTabs, ACTIVITY_TABS } from '@/components/dashboard/DashboardSubTabs';
 import type { CartItemWithRental } from '@/types/cart';
@@ -85,7 +84,10 @@ export default function CartPage() {
   const [payNow, setPayNow] = useState<'full' | 'deposit_only'>('full');
   // While card payment is off: EFT to the business account, or cash when collecting.
   const [payBy, setPayBy] = useState<'eft' | 'cash'>('eft');
-  const [address, setAddress] = useState<AddressResult | null>(null);
+  // Delivery: the server's stored quote for a server-verified address (never a browser figure).
+  const [deliverySelection, setDeliverySelection] = useState<DeliverySelection | null>(null);
+  const [deliveryApproval, setDeliveryApproval] = useState<PendingApproval | null>(null);
+  const [deliveryNote, setDeliveryNote] = useState<string | null>(null);
   const [cartVersion, setCartVersion] = useState(0);
   const [cancel, setCancel] = useState<CancelState>(() =>
     searchParams.get('payment') === 'cancelled' ? (UUID.test(searchParams.get('order') ?? '') ? { kind: 'releasing' } : { kind: 'generic' }) : { kind: 'none' },
@@ -179,10 +181,18 @@ export default function CartPage() {
   const { readiness, reload: reloadReadiness } = useRenterReadiness(
     !loading && items.length > 0 ? `v=${cartVersion}` : null,
   );
-  const deliveryBlocked = !!readiness?.collectionRequired;
+  // Delivery is shown only to renters who may have this cart delivered (spec §4.17).
+  const deliveryEligibility = useDeliveryEligibility(!loading && items.length > 0 ? `v=${cartVersion}` : null);
+  const deliveryBlocked = !!readiness?.collectionRequired || deliveryEligibility?.delivery_available === false || !!deliveryNote;
   useEffect(() => {
     if (deliveryBlocked) setFulfilment('collection');
   }, [deliveryBlocked]);
+  // A changed cart needs a new delivery quote (the server checks this too).
+  useEffect(() => {
+    setDeliverySelection(null);
+    setDeliveryApproval(null);
+    setDeliveryNote(null);
+  }, [cartVersion]);
 
   const lines = useMemo(() => {
     // Saved dates can go stale (an older item, items put back after a
@@ -241,20 +251,8 @@ export default function CartPage() {
     };
   }, [lines, allDatesSet]);
 
-  // Same pure function the server uses to charge, so the figure shown here is
-  // the figure billed. The server recalculates it regardless.
-  const delivery = useMemo(() => {
-    if (fulfilment !== 'delivery' || !pricing) return null;
-    return quoteDelivery({
-      destination:
-        address?.lat != null && address?.lng != null
-          ? { lat: address.lat, lng: address.lng }
-          : null,
-      itemCount: pricing.itemCount,
-    });
-  }, [fulfilment, address, pricing]);
-
-  const deliveryFee = delivery && isDeliveryQuote(delivery) ? delivery.fee : 0;
+  // The server's stored quote; the checkout charges that quote, not this figure.
+  const deliveryFee = fulfilment === 'delivery' && deliverySelection ? deliverySelection.totalCents / 100 : 0;
 
   const totals = useMemo(() => {
     if (!pricing) return null;
@@ -269,9 +267,9 @@ export default function CartPage() {
     };
   }, [pricing, deliveryFee, payNow, paymentsOpen]);
 
-  // A delivery cannot proceed until we have a locatable address.
+  // A delivery cannot proceed without a quote the renter has accepted.
   const fulfilmentReady =
-    fulfilment === 'collection' || (delivery !== null && isDeliveryQuote(delivery));
+    fulfilment === 'collection' || (deliverySelection !== null && deliveryApproval === null);
 
   const handleQuantityChange = async (itemId: string, newQty: number) => {
     if (newQty < 1 || newQty > MAX_QTY) return;
@@ -364,19 +362,16 @@ export default function CartPage() {
           fulfilment_method: fulfilment,
           payment_plan: fulfilment === 'collection' ? payNow : 'full',
           payment_method: fulfilment === 'collection' ? payBy : 'eft',
-          ...(fulfilment === 'delivery' && address
-            ? {
-                delivery_address: [
-                  address.streetAddress,
-                  address.city,
-                  address.province,
-                  address.postalCode,
-                ]
-                  .filter(Boolean)
-                  .join(', '),
-                delivery_lat: address.lat,
-                delivery_lng: address.lng,
-              }
+          // Delivery: the stored quote ids and the total the renter accepted
+          // (compared on the server, never charged). No coordinates.
+          ...(fulfilment === 'delivery' && deliverySelection
+            ? deliverySelection.kind === 'quote'
+              ? {
+                  delivery_quote_id: deliverySelection.outboundId,
+                  ...(deliverySelection.returnId ? { return_quote_id: deliverySelection.returnId } : {}),
+                  delivery_approved_cents: deliverySelection.totalCents,
+                }
+              : { delivery_address: deliverySelection.address }
             : {}),
         }),
       });
@@ -389,6 +384,18 @@ export default function CartPage() {
           router.push(`/dashboard/bookings?checkout=${data.checkout_group_id}`);
           return;
         }
+        // Delivery: an expired quote was re-quoted at a different total, or the
+        // total the renter saw is no longer the stored one. They approve again.
+        if ((data.code === 'DELIVERY_REQUOTE' || data.code === 'DELIVERY_PRICE_CHANGED') && Array.isArray(data.quotes) && typeof data.delivery_total_cents === 'number') {
+          setDeliveryApproval({ message: data.error ?? 'The delivery price changed. Please confirm it.', totalCents: data.delivery_total_cents, quotes: data.quotes as PublicQuote[] });
+          setSubmitting(false);
+          return;
+        }
+        if (data.code === 'DELIVERY_UNAVAILABLE') {
+          setDeliverySelection(null);
+          setDeliveryNote(data.error ?? 'Delivery is not available for this order. You can collect in person.');
+        }
+        if (data.code === 'DELIVERY_QUOTE_INVALID' || data.code === 'DELIVERY_QUOTE_REQUIRED') setDeliverySelection(null);
         setError(explain(res.status, data));
         if (res.status === 403) reloadReadiness();
         setSubmitting(false);
@@ -792,7 +799,7 @@ export default function CartPage() {
               {deliveryFee > 0 && (
                 <div className="flex justify-between text-xs font-mono">
                   <span className="text-neutral-400">Delivery</span>
-                  <span className="text-neutral-400">{formatRand(deliveryFee)}</span>
+                  <span className="text-neutral-400">{centsToRand(Math.round(deliveryFee * 100))}</span>
                 </div>
               )}
 
@@ -839,7 +846,7 @@ export default function CartPage() {
 
               <div className="grid grid-cols-2 gap-3" role="group" aria-labelledby="fulfilment-label">
                 {(['collection', 'delivery'] as const).map((method) => {
-                  const disabled = method === 'delivery' && (deliveryBlocked || !STUDIO.fulfilment.delivery.enabled);
+                  const disabled = method === 'delivery' && (deliveryBlocked || !STUDIO.fulfilment.delivery.enabled || deliveryEligibility === null);
                   return (
                     <button
                       key={method}
@@ -854,17 +861,27 @@ export default function CartPage() {
                           : 'border-white/10 text-neutral-400 hover:border-white/30'
                       }`}
                     >
-                      {method === 'collection' ? 'Collect' : 'Deliver'}
+                      {method === 'collection' ? (
+                        <>
+                          Collect in person<span className="block text-neutral-500 normal-case tracking-normal">Free</span>
+                        </>
+                      ) : (
+                        <>
+                          Deliver to me<span className="block text-neutral-500 normal-case tracking-normal">Get a quote</span>
+                        </>
+                      )}
                     </button>
                   );
                 })}
               </div>
 
-              {(deliveryBlocked || !STUDIO.fulfilment.delivery.enabled) && (
+              {(deliveryBlocked || !STUDIO.fulfilment.delivery.enabled) && (deliveryEligibility !== null || !!readiness?.collectionRequired) && (
                 <p id="delivery-reason" className="text-xs font-mono text-neutral-400 leading-relaxed">
                   {!STUDIO.fulfilment.delivery.enabled
                     ? 'Delivery is not available at the moment.'
-                    : [
+                    : deliveryNote ?? (!readiness?.collectionRequired && deliveryEligibility?.delivery_available === false
+                      ? `Collection in person only: ${deliveryEligibility.message ?? 'delivery is not available for this order.'}`
+                      : null) ?? [
                         readiness?.collectionReasons.includes('first_hire')
                           ? 'Your first hire is collected in person so we can check the gear with you. Delivery opens after your first clean return.'
                           : null,
@@ -941,29 +958,25 @@ export default function CartPage() {
                   )}
                 </div>
               ) : (
-                <div className="space-y-3">
-                  <p className="text-xs font-mono text-neutral-400 leading-relaxed">
-                    We deliver in our own vehicle. The fee is worked out from the distance
-                    and the size of your order, and shown below before you book.
-                  </p>
-
-                  <AddressAutocomplete onSelect={setAddress} />
-
-                  {delivery && !isDeliveryQuote(delivery) && address && (
-                    <p className="text-xs font-mono text-amber-400 leading-relaxed">
-                      {delivery.reason === 'out_of_range'
-                        ? `That address is about ${delivery.distanceKm}km away, past our ${delivery.maxRadiusKm}km delivery radius. Choose Collect, or contact us for a delivery quote.`
-                        : 'Pick your address from the suggestions so we can work out the distance.'}
-                    </p>
-                  )}
-
-                  {delivery && isDeliveryQuote(delivery) && (
-                    <p className="text-xs font-mono text-neutral-400">
-                      About {delivery.distanceKm}km from our {delivery.fromLocation} collection point.
-                      {delivery.minimumApplied && ' Minimum delivery fee applied.'}
-                    </p>
-                  )}
-                </div>
+                <DeliveryOptions
+                  selection={deliverySelection}
+                  onSelection={(sel) => {
+                    setDeliverySelection(sel);
+                    setDeliveryApproval(null);
+                  }}
+                  approval={deliveryApproval}
+                  onApprove={() => {
+                    if (!deliveryApproval || !deliverySelection) return;
+                    const legacy = deliverySelection.kind === 'legacy' ? deliverySelection.address : undefined;
+                    setDeliverySelection(selectionFromQuotes(deliveryApproval.quotes, deliverySelection.addressSummary, legacy));
+                    setDeliveryApproval(null);
+                    setError(null);
+                  }}
+                  onCollectionOnly={(message) => {
+                    setDeliveryNote(message);
+                    setFulfilment('collection');
+                  }}
+                />
               )}
             </div>
           )}
@@ -1026,7 +1039,9 @@ export default function CartPage() {
               : blockedByChecks
                 ? 'Finish the steps above to pay'
                 : !fulfilmentReady
-                  ? 'Enter a delivery address'
+                  ? deliveryApproval
+                    ? 'Accept the delivery price above'
+                    : 'Get a delivery quote first'
                   : paymentsOpen === false
                     ? fulfilment === 'collection' && payBy === 'cash'
                       ? `Reserve, pay ${formatRand(totals?.dueNow ?? pricing.grandTotal)} cash on collection`

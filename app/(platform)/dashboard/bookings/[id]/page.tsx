@@ -30,6 +30,7 @@ import type {
   BookingStatus,
 } from '@/types/booking';
 import { PayPanel, type PaymentInfo } from '@/components/payments/PayPanel';
+import { DeliveryPanel } from './DeliveryPanel';
 
 /** Extended booking with optional joined rental fields from the API */
 type BookingWithRental = EquipmentBooking & {
@@ -161,6 +162,11 @@ export default function BookingDetailPage() {
     // plan, delivery), so the page shows the server's quote, not its own.
     const quote = (booking as { cancellation?: CancellationQuote | null }).cancellation;
     if (!quote) return;
+    const delivery = (booking as { delivery_cancellation?: { refund_cents: number; courier_booked: boolean; too_late: boolean } | null }).delivery_cancellation ?? null;
+    if (delivery?.too_late) {
+      alert('Your gear is already on its way, so this booking cannot be cancelled online. Please contact us.');
+      return;
+    }
 
     const money = (n: number) =>
       `${STUDIO.currency.symbol}${n.toLocaleString(STUDIO.currency.locale)}`;
@@ -179,7 +185,12 @@ export default function BookingDetailPage() {
       `Hire refunded:    ${money(quote.hireRefund)}`,
       `Deposit refunded: ${money(quote.depositRefund)}`,
       ...(quote.deliveryRefund > 0 ? [`Delivery refunded: ${money(quote.deliveryRefund)}`] : []),
-      `Total back to you: ${money(quote.totalRefund)}`,
+      // Phase 4 delivery: refunded per trip, in full unless a courier was
+      // already booked (then its cancellation fee, at most the delivery fee).
+      ...(delivery && delivery.refund_cents > 0
+        ? [`Delivery refunded: ${money(delivery.refund_cents / 100)}${delivery.courier_booked ? ' (less any courier cancellation fee)' : ''}`]
+        : []),
+      `Total back to you: ${money(quote.totalRefund + (delivery?.refund_cents ?? 0) / 100)}${delivery?.courier_booked ? ' or slightly less' : ''}`,
       '',
       'Refunds go back to the card you paid with.',
     ];
@@ -361,6 +372,9 @@ export default function BookingDetailPage() {
           </div>
         </Card>
       </div>
+
+      {/* Delivery: verified status, tracking when the provider gives it, return pickup */}
+      <DeliveryPanel bookingId={booking.id} />
 
       {/* Dispute filed success */}
       {disputeSuccess && (

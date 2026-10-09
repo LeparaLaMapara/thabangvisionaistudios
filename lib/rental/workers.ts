@@ -8,6 +8,8 @@ import { ESCALATION_LADDER, dueEscalations, returnDueAt, type EscalationStage } 
 import { buildNotices, sastDate, type OutboxMessage } from '@/lib/core/rental/notifications';
 import { paymentPort, payoutPort } from '@/lib/payments/ports';
 import { trackFunnel } from '@/lib/analytics/funnel';
+import { afterRentalPayment } from '@/lib/delivery/after-payment';
+import { deliverySettlement } from './delivery-settlement';
 import { SupabasePayouts, SupabaseRefunds, SupabaseRentalPayments, isMissingPipeline, transitionBookings } from './repos';
 
 type Admin = ReturnType<typeof createAdminClient>;
@@ -130,6 +132,16 @@ export async function evaluatePayout(
   if (bookingErr || disputesErr || refundsErr || disputes == null) {
     return { eligible: false, reasons: ['could_not_check_blockers'] };
   }
+  // Phase 4 (R-40, D17, D29): an open delivery incident, or a return delivery
+  // not yet received and inspected, holds the owner payout.
+  let deliveryHoldReasons: string[] = [];
+  try {
+    const groupId = (booking as { checkout_group_id?: string | null } | null)?.checkout_group_id ?? null;
+    const hold = await deliverySettlement({ bookingGroupId: groupId, bookingId: p.booking_id });
+    deliveryHoldReasons = hold.allowed ? [] : hold.reasons;
+  } catch {
+    return { eligible: false, reasons: ['could_not_check_blockers'] };
+  }
   const b = booking as {
     status: string; completed_at: string | null; inspection_outcome: string | null; return_reviewed_at: string | null; checkout_group_id: string | null;
     payfast_payment_id: string | null; payment_plan: string | null; balance_due: number | null;
@@ -161,6 +173,7 @@ export async function evaluatePayout(
       depositSettled,
       payoutAlreadyStarted: !['scheduled', 'held'].includes((payoutRow as { state?: string } | null)?.state ?? 'scheduled'),
       completedAt: b?.completed_at ?? null,
+      deliveryHoldReasons,
     },
     now,
     RENTAL_POLICY.ownerPayoutDelayHours,
@@ -325,9 +338,11 @@ export async function recoverMissedPayments(
       },
       { repo, clock, lateAllowed: (i) => lateConfirmationAllowed(db, i) },
     );
-    if (outcome === 'confirmed' || outcome === 'confirmed_late') {
+    if (outcome === 'confirmed' || outcome === 'confirmed_late' || outcome === 'duplicate') {
       const intent = await repo.getIntent(row.reference).catch(() => null);
-      if (intent) trackFunnel('payment_confirmed', { userId: intent.userId, meta: { groupId: intent.checkoutGroupId, source: 'recovery' } });
+      if (intent && outcome !== 'duplicate') trackFunnel('payment_confirmed', { userId: intent.userId, meta: { groupId: intent.checkoutGroupId, source: 'recovery' } });
+      // Phase 4: book the order's delivery legs (idempotent; never throws).
+      if (intent) await afterRentalPayment(intent.checkoutGroupId, 'recovery');
     }
     out[outcome] = (out[outcome] ?? 0) + 1;
   }

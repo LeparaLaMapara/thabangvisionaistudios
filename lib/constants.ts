@@ -791,6 +791,47 @@ export const DELIVERY_POLICY = {
   },
 } as const;
 
+// ─── Delivery at checkout (Phase 4 customer flow) ────────────────────────────
+// Additive block for the cart, checkout and booking screens. The delivery
+// rules themselves live in DELIVERY_POLICY above; this holds only what the
+// customer flow needs: delivery windows, the server-side address check and
+// copy limits. Prices never come from here (they come from stored quotes).
+export const DELIVERY_CHECKOUT = {
+  // Windows a renter can choose, in SAST, on the first hire day (delivery)
+  // and the last hire day (return pickup). Our own vehicle works to a
+  // scheduled window; there is no on-demand option.
+  windows: [
+    { id: 'morning', label: '08:00 to 12:00', start: '08:00', end: '12:00' },
+    { id: 'afternoon', label: '12:00 to 17:00', start: '12:00', end: '17:00' },
+  ],
+  // South African Standard Time (no daylight saving).
+  utcOffset: '+02:00',
+  // A position the browser reports is only a hint. Farther than this from the
+  // server-verified address, it is logged as a mismatch; it never sets a price.
+  hintToleranceKm: 2,
+  // Server-side address verification (AddressPort, lib/delivery/address.ts).
+  // ADDRESS_PROVIDER=nominatim (default) or none (delivery then falls back to
+  // collection with a clear message).
+  address: {
+    nominatimUrl: 'https://nominatim.openstreetmap.org/search',
+    // OSMF Nominatim usage policy: at most 1 request per second, identified
+    // by a real User-Agent with contact details, results cached, no
+    // autocomplete. One lookup per "Get quote" press, never per keystroke.
+    minIntervalMs: 1100,
+    timeoutMs: 5000,
+    cacheTtlMs: 24 * 60 * 60 * 1000,
+    cacheMaxEntries: 500,
+    countryCode: 'za',
+    attribution: 'Address check: © OpenStreetMap contributors',
+    minLength: 10,
+    maxLength: 300,
+  },
+  contact: {
+    maxNameLength: 80,
+    maxInstructionsLength: 300,
+  },
+} as const;
+
 // ─── Community listing review (spec §8.1–8.2) ───────────────────────────────
 // Rules live in lib/core/listings/review.ts and run on the server only.
 export const LISTING_POLICY = {
