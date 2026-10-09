@@ -744,6 +744,45 @@ export const LISTING_POLICY = {
   reviewNotesMaxLength: 2000,
 } as const;
 
+// Starting-point rates the listing flow pre-fills after a photo is
+// recognised (lib/core/listings/suggest.ts). Rands. A suggestion only: it is
+// marked AI-suggested and the owner must confirm or change it before the
+// listing can be submitted. No replacement value is ever suggested here.
+export const LISTING_SUGGESTED_RATES = {
+  dayRateByCategory: {
+    'cameras-optics': 650,
+    'lighting-power': 400,
+    audio: 350,
+    'grip-motion': 450,
+    'specialized-solutions': 300,
+  } as Record<string, number>,
+  defaultDayRate: 400,
+  // Condition vocabulary as stored in smart_rentals.sub_category.
+  conditionMultiplier: {
+    new: 1.1,
+    'like-new': 1.0,
+    good: 0.9,
+    fair: 0.75,
+  } as Record<string, number>,
+  defaultConditionMultiplier: 0.9,
+  // SA market norm: a week's hire is billed as 5 days.
+  weekBilledAsDays: 5,
+} as const;
+
+// Creator specialisations (profiles.specializations), stored lower-case.
+// Search and the profile page use this list; onboarding maps detected skills
+// onto it (lib/creators/specializations.ts).
+export const CREATOR_SPECIALIZATIONS = [
+  { value: 'photography', label: 'Photography' },
+  { value: 'cinematography', label: 'Cinematography' },
+  { value: 'editing', label: 'Editing' },
+  { value: 'sound', label: 'Sound' },
+  { value: 'directing', label: 'Directing' },
+  { value: 'lighting', label: 'Lighting' },
+  { value: 'producing', label: 'Producing' },
+] as const;
+export type CreatorSpecialization = (typeof CREATOR_SPECIALIZATIONS)[number]['value'];
+
 export const RENTAL_CATEGORY_VALUES = RENTAL_CATEGORIES.map(c => c.value);
 export type RentalCategorySlug = (typeof RENTAL_CATEGORIES)[number]['value'];
 

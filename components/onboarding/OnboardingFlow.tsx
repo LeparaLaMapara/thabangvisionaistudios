@@ -10,7 +10,8 @@ import OnboardingProgress from './OnboardingProgress';
 import StepPortfolioUpload from './StepPortfolioUpload';
 import StepSkillsDetection from './StepSkillsDetection';
 import StepBioReview from './StepBioReview';
-import StepGearRentals from './StepGearRentals';
+import StepGearRentals, { type GearDraftResult } from './StepGearRentals';
+import { mergeSpecializations } from '@/lib/creators/specializations';
 import type { SceneAnalysisResult, SkillDetectionResult } from '@/lib/agents/types';
 
 // The ID check is not a step here: it is the one check on the verification
@@ -97,6 +98,38 @@ export default function OnboardingFlow() {
   const handleSkillsComplete = useCallback(async (skills: SkillDetectionResult) => {
     setData(prev => ({ ...prev, skills }));
     await saveProgress(2, { detected_skills: skills });
+
+    // The skills the creator confirmed go on the profile, where search and
+    // the public profile read them: specializations on the shared vocabulary
+    // (CREATOR_SPECIALIZATIONS), and the skill names as profile skills.
+    // Best effort: the step still completes if this write fails, and the
+    // profile page lets them set both by hand.
+    try {
+      const supabase = createClient();
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const names = skills.skills.map(s => s.name);
+        const { data: current } = await supabase
+          .from('profiles')
+          .select('specializations, skills')
+          .eq('id', user.id)
+          .maybeSingle();
+        const existingSkills = ((current?.skills as string[] | null) ?? []).filter(Boolean);
+        const mergedSkills = [...existingSkills];
+        for (const n of names) if (n && !mergedSkills.includes(n)) mergedSkills.push(n);
+        await supabase
+          .from('profiles')
+          .update({
+            specializations: mergeSpecializations(current?.specializations as string[] | null, names),
+            skills: mergedSkills,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', user.id);
+      }
+    } catch {
+      // Not worth stopping onboarding for.
+    }
+
     setStep(3);
   }, [saveProgress]);
 
@@ -106,7 +139,7 @@ export default function OnboardingFlow() {
     setStep(4);
   }, [saveProgress]);
 
-  const completeOnboarding = useCallback(async (gear?: unknown[]) => {
+  const completeOnboarding = useCallback(async (gear?: unknown[], drafts?: GearDraftResult | null) => {
     setSaving(true);
     setError(null);
 
@@ -129,7 +162,13 @@ export default function OnboardingFlow() {
         throw new Error(body.error || 'Failed to complete onboarding.');
       }
 
-      // One next step: the ID check, then back to the dashboard.
+      // Gear saved as drafts: show them, with what each still needs (the
+      // listings page lists the ID check and payout account too).
+      if (drafts && drafts.created > 0) {
+        window.location.assign(`/dashboard/listings?drafted=${drafts.created}&low=${drafts.lowConfidence}`);
+        return;
+      }
+      // Otherwise one next step: the ID check, then back to the dashboard.
       window.location.assign('/dashboard/verification?redirect=%2Fdashboard');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save.');
@@ -137,8 +176,8 @@ export default function OnboardingFlow() {
     }
   }, [saveProgress]);
 
-  const handleGearComplete = useCallback(async (gear: unknown[]) => {
-    await completeOnboarding(gear);
+  const handleGearComplete = useCallback(async (gear: unknown[], drafts: GearDraftResult | null) => {
+    await completeOnboarding(gear, drafts);
   }, [completeOnboarding]);
 
   const handleGearSkip = useCallback(async () => {
@@ -231,7 +270,7 @@ export default function OnboardingFlow() {
 
           {/* Error */}
           {error && (
-            <div className="bg-red-500/10 border border-red-500/30 px-4 py-3 mt-4">
+            <div className="bg-red-500/10 border border-red-500/30 px-4 py-3 mt-4" role="alert">
               <p className="text-xs text-red-400 font-mono">{error}</p>
             </div>
           )}

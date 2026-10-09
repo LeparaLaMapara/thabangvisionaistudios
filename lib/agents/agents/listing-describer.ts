@@ -1,3 +1,6 @@
+import { generateText } from 'ai';
+import { anthropic } from '@ai-sdk/anthropic';
+import { trackedCompletion } from '@/lib/ai/tracked';
 import type { UbunyeAgent } from '../types';
 
 export const listingDescriberAgent: UbunyeAgent = {
@@ -67,4 +70,36 @@ export function parseListingDescriberOutput(text: string): ListingDescriberOutpu
       ? parsed.suggestedUpsells.map((s) => String(s).trim()).filter(Boolean)
       : [],
   };
+}
+
+/**
+ * Runs the listing describer once, tracked in ai_token_usage under this
+ * agent's id. Callers rate-limit it (the daily limit is
+ * listingDescriberAgent.rateLimit.free). Throws when the call or the
+ * parse fails; every caller treats the output as an untrusted suggestion.
+ */
+export async function describeListing(
+  input: ListingDescriberInput,
+  userId: string | null,
+): Promise<ListingDescriberOutput> {
+  return trackedCompletion<ListingDescriberOutput>({
+    agentId: listingDescriberAgent.id,
+    provider: listingDescriberAgent.provider,
+    model: listingDescriberAgent.model,
+    userId,
+    call: async () => {
+      const res = await generateText({
+        model: anthropic(listingDescriberAgent.model),
+        prompt: buildListingDescriberPrompt(input),
+        temperature: 0.6,
+      });
+      return {
+        result: parseListingDescriberOutput(res.text),
+        usage: {
+          inputTokens: res.usage.inputTokens ?? 0,
+          outputTokens: res.usage.outputTokens ?? 0,
+        },
+      };
+    },
+  });
 }

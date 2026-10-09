@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { isWelcomeIntent } from '@/lib/welcome';
 import { STUDIO } from '@/lib/constants';
-import { createClient } from '@/lib/supabase/server';
+import { createClient, createAdminClient } from '@/lib/supabase/server';
 import { auth } from '@/lib/auth';
 import { getProfileById } from '@/lib/supabase/queries/profiles';
 import { Calendar, Package, ShoppingBag, ArrowRight, Users, Search, ShieldCheck, Clock, Briefcase, FileText, Settings, Camera } from 'lucide-react';
@@ -53,11 +53,16 @@ export default async function DashboardPage() {
           .select('id', { count: 'exact', head: true })
           .eq('user_id', user.id)
       : { count: 0 },
-    user && isVerified
-      ? supabase
-          .from('listings')
+    // The owner's own community gear listings (any status, drafts too: they
+    // can be saved before the ID check). Read with the service role and an
+    // explicit owner filter, as /api/listings does: smart_rentals has no
+    // owner RLS policy, so the session client sees only published rows.
+    user
+      ? createAdminClient()
+          .from('smart_rentals')
           .select('id', { count: 'exact', head: true })
-          .eq('user_id', user.id)
+          .eq('owner_id', user.id)
+          .eq('owner_type', 'community')
           .is('deleted_at', null)
       : { count: 0 },
     user && isVerified
@@ -167,16 +172,18 @@ export default async function DashboardPage() {
       )}
 
       {/* Stat cards */}
-      <div className={`grid grid-cols-1 gap-4 mb-10 ${isVerified ? 'sm:grid-cols-5' : 'sm:grid-cols-2'}`}>
+      <div className={`grid grid-cols-1 gap-4 mb-10 ${isVerified ? 'sm:grid-cols-5' : listingsCount > 0 ? 'sm:grid-cols-3' : 'sm:grid-cols-2'}`}>
         <StatCard label="Bookings" value={String(bookingsCount)} icon={Calendar} href="/dashboard/bookings" />
         <StatCard label="My Requests" value={String(requestsCount)} icon={FileText} href="/dashboard/creator-requests" />
-        {isVerified && (
+        {isVerified ? (
           <>
             <StatCard label="Gigs" value={String(gigsCount)} icon={Briefcase} href="/dashboard/gigs" />
             <StatCard label="Listings" value={String(listingsCount)} icon={Package} href="/dashboard/listings" />
             <StatCard label="Orders" value={String(ordersCount)} icon={ShoppingBag} href="/dashboard/orders" />
           </>
-        )}
+        ) : listingsCount > 0 ? (
+          <StatCard label="Listings" value={String(listingsCount)} icon={Package} href="/dashboard/listings" />
+        ) : null}
       </div>
 
       {/* Profile completeness prompt (verified creators missing bio/skills) */}

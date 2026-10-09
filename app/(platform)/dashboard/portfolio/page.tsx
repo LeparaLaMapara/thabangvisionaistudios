@@ -10,6 +10,8 @@ import { uploadFile, portfolioFolder } from '@/lib/cloudinary/upload';
 import { STUDIO } from '@/lib/constants';
 import { DashboardSubTabs, STUDIO_TABS } from '@/components/dashboard/DashboardSubTabs';
 import type { PortfolioProject, PortfolioPhoto, PortfolioVideo } from '@/types/portfolio';
+import { hasCompletePortfolio } from '@/lib/portfolio/validation';
+import CreatorBookableChecklist from '@/components/onboarding/CreatorBookableChecklist';
 
 export const dynamic = 'force-dynamic';
 
@@ -75,7 +77,11 @@ export default function PortfolioPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
-  const [notVerified, setNotVerified] = useState(false);
+  // A portfolio can be built before the ID check; it is not shown to anyone
+  // until the creator is verified and available for hire.
+  const [verificationStatus, setVerificationStatus] = useState<string | null>(null);
+  const [availableForHire, setAvailableForHire] = useState(false);
+  const [hasPayoutAccount, setHasPayoutAccount] = useState(false);
 
   // Upload state per project
   const [uploadingPhotos, setUploadingPhotos] = useState<Record<string, boolean>>({});
@@ -93,14 +99,22 @@ export default function PortfolioPage() {
   useEffect(() => {
     (async () => {
       try {
-        const res = await fetch('/api/portfolio');
-        if (res.status === 403) {
-          setNotVerified(true);
-          return;
-        }
+        const [res, bankRes] = await Promise.all([
+          fetch('/api/portfolio'),
+          fetch('/api/banking').catch(() => null),
+        ]);
         if (!res.ok) throw new Error('Failed to load portfolio');
-        const data = await res.json() as { projects: PortfolioProject[] };
+        const data = await res.json() as {
+          projects: PortfolioProject[];
+          verification_status?: string | null;
+          available_for_hire?: boolean;
+        };
         setProjects(data.projects);
+        setVerificationStatus(data.verification_status ?? null);
+        setAvailableForHire(data.available_for_hire === true);
+        // GET /api/banking answers 200 with null when nothing is saved.
+        const bank = bankRes?.ok ? await bankRes.json().catch(() => null) : null;
+        setHasPayoutAccount(Boolean(bank && typeof bank === 'object'));
 
         // Get user ID for folder paths
         const authRes = await fetch('/api/auth/me').catch(() => null);
@@ -333,26 +347,6 @@ export default function PortfolioPage() {
     );
   }
 
-  if (notVerified) {
-    return (
-      <div className="max-w-2xl mx-auto py-20 text-center">
-        <AlertCircle className="w-10 h-10 text-neutral-400 mx-auto mb-4" />
-        <h1 className="text-2xl font-display font-bold uppercase text-white mb-3">
-          Verification Required
-        </h1>
-        <p className="text-sm text-neutral-400 mb-6">
-          You need to complete identity verification before you can upload your portfolio.
-        </p>
-        <a
-          href="/dashboard/verification"
-          className="inline-flex items-center gap-2 bg-[#D4A843] text-black px-6 py-3 text-xs font-mono font-bold uppercase tracking-widest hover:opacity-80 transition-opacity"
-        >
-          Start Verification
-        </a>
-      </div>
-    );
-  }
-
   return (
     <div className="max-w-4xl mx-auto py-8 px-4">
       <DashboardSubTabs tabs={STUDIO_TABS} />
@@ -365,7 +359,23 @@ export default function PortfolioPage() {
         <p className="text-sm text-neutral-400">
           Showcase your best work. Up to {maxProjects} projects, {maxPhotosPerProject} photos and 1 showreel ({maxVideoDurationSeconds}s max) each.
         </p>
+        {verificationStatus !== 'verified' && (
+          <p className="text-xs font-mono text-amber-300 mt-3">
+            Your portfolio is saved but not shown to anyone yet. It goes public once your ID check passes and you switch
+            on available for hire.
+          </p>
+        )}
       </div>
+
+      <CreatorBookableChecklist
+        className="mb-8"
+        facts={{
+          verificationStatus,
+          portfolioComplete: hasCompletePortfolio(projects),
+          hasPayoutAccount,
+          availableForHire,
+        }}
+      />
 
       {/* Status messages */}
       <AnimatePresence>

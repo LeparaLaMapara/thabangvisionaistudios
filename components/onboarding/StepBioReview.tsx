@@ -77,7 +77,8 @@ export default function StepBioReview({ analyses, skills, onComplete }: StepBioR
 
       const { error: updateError } = await supabase
         .from('profiles')
-        .update({ bio: trimmed })
+        // crew_bio is what the public creator profile shows; bio is kept too.
+        .update({ bio: trimmed, crew_bio: trimmed })
         .eq('id', userData.user.id);
 
       if (updateError) throw updateError;
