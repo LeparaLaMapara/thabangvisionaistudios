@@ -4,7 +4,7 @@ export const revalidate = 60;
 export const dynamicParams = true;
 
 import { notFound, redirect, permanentRedirect } from 'next/navigation';
-import { getPublishedRentalsByCategory } from '@/lib/supabase/queries/smartRentals';
+import { fetchPublishedRentalsByCategory } from '@/lib/supabase/queries/smartRentals';
 import { getListedCityBySlug } from '@/lib/seo/cities';
 import { collectionPointWithCity } from '@/lib/rental/collection-point';
 import { RENTAL_CATEGORIES, STUDIO } from '@/lib/constants';
@@ -55,7 +55,9 @@ export default async function RentalLocationPage({ params }: Props) {
 
   const locationName = city.name;
 
-  const rentals = await getPublishedRentalsByCategory(category);
+  // Same read as the category page: a failed read shows an error with a retry,
+  // not "nothing here", and a capped list says there is more.
+  const { rentals, failed, hasMore } = await fetchPublishedRentalsByCategory(category);
 
   const jsonLd = [
     serviceJsonLd({
@@ -85,6 +87,8 @@ export default async function RentalLocationPage({ params }: Props) {
         rentals={rentals}
         category={category}
         locationName={locationName}
+        loadFailed={failed}
+        hasMore={hasMore}
       />
       <RelatedCategories currentSlug={category} type="rentals" locationSlug={citySlug} />
     </>

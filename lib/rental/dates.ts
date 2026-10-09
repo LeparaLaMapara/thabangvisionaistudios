@@ -36,10 +36,19 @@ export function hireDays(start: Date, end: Date): number {
 
 export type HireRangeCheck =
   | { ok: true; days: number }
-  | { ok: false; problem: 'incomplete' | 'same_day' | 'end_before_start' | 'too_long'; message: string };
+  | { ok: false; problem: 'incomplete' | 'same_day' | 'end_before_start' | 'too_long' | 'too_soon'; message: string };
 
-/** Whether a picked range is one the checkout will accept (dates only; notice and availability are separate). */
-export function checkHireRange(start: Date | null, end: Date | null, maxDays: number): HireRangeCheck {
+/**
+ * Whether a picked range is one the checkout will accept.
+ *
+ * `earliest` is the first day a hire may start (earliestBookableDate in
+ * lib/rental/leadTime.ts, the rule the checkout enforces). Pass it wherever
+ * dates can arrive from outside the picker: a link with ?start=&end=, an
+ * older cart item, items put back after a cancelled payment. A start before
+ * it (in the past, or without enough notice) is refused with a message that
+ * names the first day that works. Availability is checked separately.
+ */
+export function checkHireRange(start: Date | null, end: Date | null, maxDays: number, earliest?: Date | null): HireRangeCheck {
   if (!start || !end) return { ok: false, problem: 'incomplete', message: 'Choose a pick-up day, then a return day.' };
   const days = hireDays(start, end);
   if (days === 0) {
@@ -47,5 +56,13 @@ export function checkHireRange(start: Date | null, end: Date | null, maxDays: nu
   }
   if (days < 0) return { ok: false, problem: 'end_before_start', message: 'The return day must come after the pick-up day.' };
   if (days > maxDays) return { ok: false, problem: 'too_long', message: `A hire can be at most ${maxDays} days. Choose an earlier return day.` };
+  if (earliest && hireDays(earliest, start) < 0) {
+    const first = earliest.toLocaleDateString('en-ZA', { weekday: 'long', day: 'numeric', month: 'long' });
+    return {
+      ok: false,
+      problem: 'too_soon',
+      message: `These dates are too soon or already past. Choose new dates: the earliest pick-up day is ${first}.`,
+    };
+  }
   return { ok: true, days };
 }

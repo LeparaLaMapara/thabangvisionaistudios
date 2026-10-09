@@ -21,9 +21,10 @@ import { usePaymentsOpen } from '@/lib/payments/usePaymentsOpen';
 import { PaymentsNotOpenNote } from '@/components/booking/PaymentsNotOpenNote';
 import { RenterChecklist, useRenterReadiness } from '@/components/booking/BookingWidget';
 import { collectionPoint } from '@/lib/rental/collection-point';
-import { fromLocalYmd, hireDays } from '@/lib/rental/dates';
+import { checkHireRange, fromLocalYmd } from '@/lib/rental/dates';
+import { earliestBookableDate } from '@/lib/rental/leadTime';
 
-const MAX_QTY = 5;
+const MAX_QTY = STUDIO.rental.maxQuantityPerItem;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /** A cart date ("2026-10-03", or an older timestamp) as the local calendar day. */
@@ -55,8 +56,11 @@ type CancelState =
   | { kind: 'none' }
   | { kind: 'releasing' }
   | { kind: 'released'; restored: number }
+  | { kind: 'already_released' }
   | { kind: 'already_paid'; bookingId: string | null }
+  | { kind: 'payment_in_progress'; bookingId: string | null }
   | { kind: 'hold_kept'; bookingId: string | null }
+  | { kind: 'check_unavailable'; message: string }
   | { kind: 'failed' }
   | { kind: 'generic' };
 
@@ -116,9 +120,18 @@ export default function CartPage() {
       const data = await res.json().catch(() => ({}));
       let settled = true;
       if (res.ok && data.released) setCancel({ kind: 'released', restored: Number(data.restored ?? 0) });
-      else if (data.code === 'ALREADY_PAID') setCancel({ kind: 'already_paid', bookingId: data.booking_id ?? null });
+      else if (data.code === 'ALREADY_RELEASED') setCancel({ kind: 'already_released' });
+      // The provider says this order was paid: the hold stays and it is confirmed shortly.
+      else if (data.code === 'ALREADY_PAID' || data.code === 'PAYMENT_RECEIVED') setCancel({ kind: 'already_paid', bookingId: data.booking_id ?? null });
       else if (data.code === 'HOLD_KEPT') setCancel({ kind: 'hold_kept', bookingId: data.booking_id ?? null });
-      else {
+      else if (data.code === 'PAYMENT_IN_PROGRESS') {
+        // Not settled: keep the order in the address so "Check again" (or a reload) asks again.
+        settled = false;
+        setCancel({ kind: 'payment_in_progress', bookingId: data.booking_id ?? null });
+      } else if (data.code === 'PAYMENT_CHECK_UNAVAILABLE') {
+        settled = false;
+        setCancel({ kind: 'check_unavailable', message: typeof data.error === 'string' ? data.error : "We can't check your payment right now. Please try again shortly." });
+      } else {
         settled = false;
         setCancel({ kind: 'failed' });
       }
@@ -171,16 +184,17 @@ export default function CartPage() {
     if (deliveryBlocked) setFulfilment('collection');
   }, [deliveryBlocked]);
 
-  const lines = useMemo(
-    () =>
-      items.map((item) => {
-        const start = cartDay(item.start_date);
-        const end = cartDay(item.end_date);
-        const days = start && end ? hireDays(start, end) : 0;
-        return { item, start, end, days, valid: !!start && !!end && days > 0 && days <= STUDIO.rental.maxBookingDays };
-      }),
-    [items],
-  );
+  const lines = useMemo(() => {
+    // Saved dates can go stale (an older item, items put back after a
+    // cancelled payment): the same lead-time rule as the checkout applies here.
+    const earliest = earliestBookableDate(new Date());
+    return items.map((item) => {
+      const start = cartDay(item.start_date);
+      const end = cartDay(item.end_date);
+      const check = checkHireRange(start, end, STUDIO.rental.maxBookingDays, earliest);
+      return { item, start, end, days: check.ok ? check.days : 0, valid: check.ok, problem: check.ok ? null : check };
+    });
+  }, [items]);
   const allDatesSet = lines.length > 0 && lines.every((l) => l.valid);
 
   const pricing = useMemo(() => {
@@ -298,10 +312,14 @@ export default function CartPage() {
   const checkoutKey = useRef<string>(crypto.randomUUID());
 
   /** A refusal from the checkout, with the step that fixes it. */
-  const explain = (status: number, data: { error?: string; code?: string }): CheckoutError => {
+  const explain = (status: number, data: { error?: string; code?: string; rental_id?: string | null }): CheckoutError => {
     const message = data.error ?? 'Checkout failed.';
-    const first = items[0];
+    // The item the server named; the first one only when it named none.
+    const named = data.rental_id ? items.find((i) => i.rental_id === data.rental_id) : undefined;
+    const first = named ?? items[0];
     switch (data.code) {
+      case 'INVALID_DATES':
+        return { message, action: first ? { href: editDatesHref(first), label: 'Choose new dates' } : undefined };
       case 'ID_REQUIRED':
         return { message, action: { href: `/dashboard/verification?redirect=${encodeURIComponent('/dashboard/cart')}`, label: 'Do the ID check' } };
       case 'ID_PENDING':
@@ -318,14 +336,18 @@ export default function CartPage() {
       case 'UNAVAILABLE':
         return { message, action: first ? { href: editDatesHref(first), label: 'Choose other dates' } : undefined };
       default:
-        if (status === 409 && first) return { message, action: { href: editDatesHref(first), label: 'Choose other dates' } };
-        return { message };
+        if (status === 409 && first) return { message, action: { href: editDatesHref(first), label: 'Choose other dates' } };        return { message };
     }
   };
 
   const handleCheckout = async () => {
     if (!allDatesSet) {
-      setError({ message: 'Choose dates for each item on its page first.' });
+      const stale = lines.find((l) => l.problem?.problem === 'too_soon');
+      setError(
+        stale
+          ? { message: stale.problem!.message, action: { href: editDatesHref(stale.item), label: 'Choose new dates' } }
+          : { message: 'Choose dates for each item on its page first.' },
+      );
       return;
     }
 
@@ -415,12 +437,56 @@ export default function CartPage() {
             </span>
           </div>
         );
+      case 'already_released':
+        return (
+          <div role="status" className="flex items-start gap-2 p-3 bg-yellow-500/10 border border-yellow-500/20 text-yellow-400 text-xs font-mono">
+            <AlertTriangle className="w-4 h-4 flex-shrink-0" aria-hidden="true" />
+            <span>
+              These dates were already released, so nothing changed. Anything we put back is in your cart below.
+            </span>
+          </div>
+        );
+      case 'payment_in_progress':
+        return (
+          <div role="status" className="flex flex-wrap items-center justify-between gap-2 p-3 bg-[#D4A843]/5 border border-[#D4A843]/30 text-neutral-300 text-xs font-mono">
+            <span>
+              Your payment for this order is still being processed, so your dates stay held. Please do not pay again.{' '}
+              <Link href={cancel.bookingId ? `/dashboard/bookings/${cancel.bookingId}` : '/dashboard/bookings'} className="underline underline-offset-4 text-[#D4A843]">
+                See your booking
+              </Link>
+            </span>
+            {cancelledOrder && (
+              <button
+                type="button"
+                onClick={() => void releaseCancelledOrder(cancelledOrder)}
+                className="min-h-[44px] px-3 inline-flex items-center gap-1.5 uppercase tracking-widest text-[#D4A843]"
+              >
+                <RotateCw className="w-3 h-3" aria-hidden="true" /> Check again
+              </button>
+            )}
+          </div>
+        );
+      case 'check_unavailable':
+        return (
+          <div role="alert" className="flex items-center justify-between gap-2 p-3 bg-red-500/10 border border-red-500/20 text-red-400 text-xs font-mono">
+            <span>{cancel.message}</span>
+            {cancelledOrder && (
+              <button
+                type="button"
+                onClick={() => void releaseCancelledOrder(cancelledOrder)}
+                className="min-h-[44px] px-3 inline-flex items-center gap-1.5 uppercase tracking-widest text-[#D4A843]"
+              >
+                <RotateCw className="w-3 h-3" aria-hidden="true" /> Try again
+              </button>
+            )}
+          </div>
+        );
       case 'already_paid':
         return (
           <div role="status" className="flex items-start gap-2 p-3 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-mono">
             <CheckCircle2 className="w-4 h-4 flex-shrink-0" aria-hidden="true" />
             <span>
-              That order is already paid.{' '}
+              Your payment for that order went through, so your dates stay booked. It shows as confirmed shortly.{' '}
               <Link href={cancel.bookingId ? `/dashboard/bookings/${cancel.bookingId}` : '/dashboard/bookings'} className="underline underline-offset-4">
                 See your booking
               </Link>
@@ -549,7 +615,7 @@ export default function CartPage() {
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_360px] gap-8">
         {/* Cart items. Dates were chosen on each item's page and are changed there. */}
         <ul className="space-y-3" aria-label="Items in your cart">
-          {lines.map(({ item, start, end, days, valid }) => {
+          {lines.map(({ item, start, end, days, valid, problem }) => {
             const itemTotal = valid
               ? calculateItemPrice(item.rental.price_per_day, item.rental.price_per_week, days) * item.quantity
               : 0;
@@ -655,14 +721,16 @@ export default function CartPage() {
                   </p>
                   <Link
                     href={gearHref}
-                    aria-label={`${start && end ? 'Edit dates' : 'Choose dates'} for ${item.rental.title}`}
+                    aria-label={`${start && end ? (problem?.problem === 'too_soon' ? 'Choose new dates' : 'Edit dates') : 'Choose dates'} for ${item.rental.title}`}
                     className="min-h-[44px] inline-flex items-center text-xs font-mono uppercase tracking-widest text-[#D4A843] underline underline-offset-4"
                   >
-                    {start && end ? 'Edit dates' : 'Choose dates'}
+                    {start && end ? (problem?.problem === 'too_soon' ? 'Choose new dates' : 'Edit dates') : 'Choose dates'}
                   </Link>
                   {start && end && !valid && (
                     <p className="w-full text-xs font-mono text-amber-400">
-                      These dates cannot be booked as they are. Choose a return day after the pick-up day, at most {STUDIO.rental.maxBookingDays} days later.
+                      {problem?.problem === 'too_soon'
+                        ? problem.message
+                        : `These dates cannot be booked as they are. Choose a return day after the pick-up day, at most ${STUDIO.rental.maxBookingDays} days later.`}
                     </p>
                   )}
                 </div>

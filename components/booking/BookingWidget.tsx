@@ -161,6 +161,18 @@ export function RenterChecklist({
   );
 }
 
+/** The gear page with its dates (when both are set) and quantity (when more than one). */
+export function pageHref(pathname: string, start: string | null, end: string | null, quantity: number): string {
+  const q = new URLSearchParams();
+  if (start && end) {
+    q.set('start', start);
+    q.set('end', end);
+  }
+  if (quantity > 1) q.set('qty', String(quantity));
+  const qs = q.toString();
+  return qs ? `${pathname}?${qs}` : pathname;
+}
+
 /** What renting needs, from the policy, for someone not signed in. */
 function SignedOutSummary({ highValue }: { highValue: boolean }) {
   const limits = RENTAL_POLICY.trustTierLimitsCents;
@@ -216,11 +228,13 @@ function BookingWidgetInner({ rental, paymentsOpen: paymentsOpenProp }: Props) {
     start: fromLocalYmd(searchParams.get('start')),
     end: fromLocalYmd(searchParams.get('end')),
   }));
-  // The cart's "Edit dates" link keeps the quantity it had.
-  const quantity = useMemo(() => {
+  // The cart's "Edit dates" link keeps the quantity it had. Read once from
+  // the address and kept here: the address is rewritten while dates are
+  // picked, and a quantity read from it again could fall back to 1.
+  const [quantity] = useState<number>(() => {
     const q = Number(searchParams.get('qty') ?? '1');
-    return Number.isInteger(q) && q >= 1 && q <= 5 ? q : 1;
-  }, [searchParams]);
+    return Number.isInteger(q) && q >= 1 && q <= STUDIO.rental.maxQuantityPerItem ? q : 1;
+  });
   const [availability, setAvailability] = useState<{
     available: boolean;
     booked_count: number;
@@ -229,7 +243,13 @@ function BookingWidgetInner({ rental, paymentsOpen: paymentsOpenProp }: Props) {
   const [availabilityFailed, setAvailabilityFailed] = useState(false);
   const [availabilityTick, setAvailabilityTick] = useState(0);
   const [checkingAvailability, setCheckingAvailability] = useState(
-    () => checkHireRange(fromLocalYmd(searchParams.get('start')), fromLocalYmd(searchParams.get('end')), STUDIO.rental.maxBookingDays).ok,
+    () =>
+      checkHireRange(
+        fromLocalYmd(searchParams.get('start')),
+        fromLocalYmd(searchParams.get('end')),
+        STUDIO.rental.maxBookingDays,
+        earliestBookableDate(new Date()),
+      ).ok,
   );
   const [booking, setBooking] = useState(false);
 
@@ -253,10 +273,12 @@ function BookingWidgetInner({ rental, paymentsOpen: paymentsOpenProp }: Props) {
     return d;
   }, [today]);
 
-  // One date rule with the cart and checkout: return after pick-up, at most maxBookingDays.
+  // One date rule with the cart and checkout: return after pick-up, at most
+  // maxBookingDays, and not before the first bookable day. Dates can arrive
+  // in the address (an older cart item, a shared link), not only from the picker.
   const rangeCheck = useMemo(
-    () => checkHireRange(dateRange.start, dateRange.end, STUDIO.rental.maxBookingDays),
-    [dateRange],
+    () => checkHireRange(dateRange.start, dateRange.end, STUDIO.rental.maxBookingDays, firstBookable),
+    [dateRange, firstBookable],
   );
   const days = rangeCheck.ok ? rangeCheck.days : 0;
 
@@ -274,11 +296,8 @@ function BookingWidgetInner({ rental, paymentsOpen: paymentsOpenProp }: Props) {
     Math.round(itemValue(rental as { replacement_value?: number | null; deposit_amount?: number | null }) * 100) >
     RENTAL_POLICY.highValueCollectionThresholdCents;
 
-  // This page with the chosen dates, for sign-in and the checks to return to.
-  const here = useMemo(() => {
-    if (!startStr || !endStr) return pathname;
-    return `${pathname}?start=${startStr}&end=${endStr}${quantity > 1 ? `&qty=${quantity}` : ''}`;
-  }, [pathname, startStr, endStr, quantity]);
+  // This page with the chosen dates and quantity, for sign-in and the checks to return to.
+  const here = useMemo(() => pageHref(pathname, startStr, endStr, quantity), [pathname, startStr, endStr, quantity]);
 
   // Funnel (spec §9.6): ids and a day count only.
   useEffect(() => {
@@ -359,11 +378,13 @@ function BookingWidgetInner({ rental, paymentsOpen: paymentsOpenProp }: Props) {
     setError(null);
     setAvailability(null);
     setAvailabilityFailed(false);
-    const valid = checkHireRange(range.start, range.end, STUDIO.rental.maxBookingDays).ok;
+    const valid = checkHireRange(range.start, range.end, STUDIO.rental.maxBookingDays, firstBookable).ok;
     setCheckingAvailability(valid);
-    // Keep the dates in the address so they survive sign-in and the ID check.
-    const qty = quantity > 1 ? `&qty=${quantity}` : '';
-    const next = valid ? `${pathname}?start=${toLocalYmd(range.start!)}&end=${toLocalYmd(range.end!)}${qty}` : pathname;
+    // Keep the dates and the quantity in the address so they survive sign-in
+    // and the ID check. The quantity stays even while the range is incomplete.
+    const next = valid
+      ? pageHref(pathname, toLocalYmd(range.start!), toLocalYmd(range.end!), quantity)
+      : pageHref(pathname, null, null, quantity);
     router.replace(next, { scroll: false });
   };
 

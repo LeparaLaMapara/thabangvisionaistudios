@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { checkHireRange, fromLocalYmd, hireDays, toLocalYmd } from '@/lib/rental/dates';
+import { earliestBookableDate, meetsLeadTime } from '@/lib/rental/leadTime';
 
 /**
  * One date rule for a hire, on the gear page, the cart and the checkout:
@@ -50,5 +51,33 @@ describe('checkHireRange', () => {
     expect(checkHireRange(d('2026-10-05'), d('2026-10-03'), 30)).toMatchObject({ ok: false, problem: 'end_before_start' });
     expect(checkHireRange(d('2026-10-01'), d('2026-11-01'), 30)).toMatchObject({ ok: false, problem: 'too_long' });
     expect(checkHireRange(d('2026-10-01'), d('2026-10-31'), 30)).toEqual({ ok: true, days: 30 });
+  });
+});
+
+describe('checkHireRange with the first bookable day (lead time, past dates)', () => {
+  const d = (s: string) => fromLocalYmd(s)!;
+  // Friday 9 October 2026 at 14:00: with 48 hours' notice the first bookable day is Monday 12 October.
+  const now = new Date(2026, 9, 9, 14, 0, 0);
+  const earliest = earliestBookableDate(now, 48);
+
+  it('refuses a start before the first bookable day, naming it, and says "Choose new dates"', () => {
+    expect(toLocalYmd(earliest)).toBe('2026-10-12');
+    const tooSoon = checkHireRange(d('2026-10-11'), d('2026-10-13'), 30, earliest);
+    expect(tooSoon).toMatchObject({ ok: false, problem: 'too_soon' });
+    expect(tooSoon.ok ? '' : tooSoon.message).toMatch(/Choose new dates/);
+    expect(tooSoon.ok ? '' : tooSoon.message).toMatch(/12 October/);
+    expect(checkHireRange(d('2026-10-01'), d('2026-10-03'), 30, earliest)).toMatchObject({ ok: false, problem: 'too_soon' });
+  });
+
+  it('accepts the first bookable day and later, and agrees with the checkout rule', () => {
+    expect(checkHireRange(d('2026-10-12'), d('2026-10-13'), 30, earliest)).toEqual({ ok: true, days: 1 });
+    for (const start of ['2026-10-10', '2026-10-11', '2026-10-12', '2026-10-15']) {
+      const ok = checkHireRange(d(start), d('2026-10-20'), 30, earliest).ok;
+      expect(ok).toBe(meetsLeadTime(d(start), now, 48));
+    }
+  });
+
+  it('without a first bookable day the rule is unchanged (callers that do not pass it)', () => {
+    expect(checkHireRange(d('2020-01-01'), d('2020-01-02'), 30)).toEqual({ ok: true, days: 1 });
   });
 });
