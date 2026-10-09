@@ -1,3 +1,4 @@
+import { sanitiseForPrompt } from '@/lib/ubunye/sanitise';
 import { jsonSchema } from 'ai';
 import { escapeIlike } from '@/lib/search/types';
 
@@ -44,7 +45,7 @@ export function createSearchTools(
         if (budget_max) query = query.lte('hourly_rate', budget_max);
 
         const { data, error } = await query;
-        if (error) return { error: error.message };
+        if (error) return { error: 'Search is unavailable just now.' };
         if (!data || data.length === 0) return { results: [], message: 'No creators found matching your criteria.' };
 
         const creatorIds = data.map((c: { id: string }) => c.id);
@@ -58,10 +59,10 @@ export function createSearchTools(
 
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         return { results: data.map((c: any) => ({
-          id: c.id, name: c.display_name, slug: c.crew_slug,
+          id: c.id, name: sanitiseForPrompt(c.display_name), slug: c.crew_slug,
           specializations: c.specializations, hourly_rate: c.hourly_rate,
           location: c.location, years_experience: c.years_experience,
-          featured: c.crew_featured, bio: c.crew_bio,
+          featured: c.crew_featured, bio: sanitiseForPrompt(c.crew_bio, 400),
           available: !busyIds.has(c.id),
           profile_url: `/studio/category/photography/${c.crew_slug}`,
         })) };
@@ -97,12 +98,12 @@ export function createSearchTools(
         if (location) query = query.ilike('location', `%${escapeIlike(location)}%`);
 
         const { data, error } = await query;
-        if (error) return { error: error.message };
+        if (error) return { error: 'Search is unavailable just now.' };
         if (!data || data.length === 0) return { results: [], message: 'No equipment found matching your criteria.' };
 
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         return { results: data.map((g: any) => ({
-          id: g.id, title: g.title, brand: g.brand, model: g.model,
+          id: g.id, title: sanitiseForPrompt(g.title), brand: sanitiseForPrompt(g.brand, 60), model: sanitiseForPrompt(g.model, 80),
           price_per_day: g.price_per_day, price_per_week: g.price_per_week,
           deposit: g.deposit_amount, available: g.is_available,
           category: g.category, url: `/rentals/${g.category}/${g.slug}`,
@@ -135,14 +136,14 @@ export function createSearchTools(
         if (search_term) query = query.or(`title.ilike.%${escapeIlike(search_term)}%,client.ilike.%${escapeIlike(search_term)}%,description.ilike.%${escapeIlike(search_term)}%`);
 
         const { data, error } = await query;
-        if (error) return { error: error.message };
+        if (error) return { error: 'Search is unavailable just now.' };
         if (!data || data.length === 0) return { results: [], message: 'No productions found matching your criteria.' };
 
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         return { results: data.map((p: any) => ({
-          id: p.id, title: p.title, client: p.client,
+          id: p.id, title: sanitiseForPrompt(p.title), client: sanitiseForPrompt(p.client, 80),
           project_type: p.project_type, year: p.year,
-          description: p.description?.slice(0, 200),
+          description: sanitiseForPrompt(p.description, 200),
           url: `/studio/${p.slug}`,
         })) };
       },
@@ -169,12 +170,12 @@ export function createSearchTools(
         if (search_term) query = query.or(`title.ilike.%${escapeIlike(search_term)}%,excerpt.ilike.%${escapeIlike(search_term)}%`);
 
         const { data, error } = await query;
-        if (error) return { error: error.message };
+        if (error) return { error: 'Search is unavailable just now.' };
         if (!data || data.length === 0) return { results: [], message: 'No press articles found.' };
 
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         return { results: data.map((p: any) => ({
-          id: p.id, title: p.title, excerpt: p.excerpt,
+          id: p.id, title: sanitiseForPrompt(p.title), excerpt: sanitiseForPrompt(p.excerpt, 300),
           published_at: p.published_at, url: `/press/${p.slug}`,
         })) };
       },
