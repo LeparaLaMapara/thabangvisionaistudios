@@ -428,6 +428,12 @@ export const STUDIO = {
     guestNetworkDailyMessages: 60,
   },
 
+  // Customer funnel metrics (spec §9.6): ids and codes only, kept this long,
+  // then deleted by the daily maintenance job.
+  analytics: {
+    funnelRetentionDays: 180,
+  },
+
   booking: {
     platformCommission: 15,
     vatRate: 15,
