@@ -4,6 +4,7 @@ import { useState, useCallback, useRef, useEffect } from 'react';
 import Image from 'next/image';
 import { Upload, X, Loader2, ImageIcon } from 'lucide-react';
 import type { SceneAnalysisResult } from '@/lib/agents/types';
+import { analysesForUploaded, analysisUnavailable } from '@/lib/onboarding/skill-choices';
 
 const SCENE_OPTIONS = [
   'wedding',
@@ -235,6 +236,14 @@ export default function StepPortfolioUpload({ onComplete }: StepPortfolioUploadP
     onComplete(validAnalyses);
   };
 
+  // The photos were analysed but the AI could not read them (down, or out of
+  // quota): carry on, and choose the skills by hand on the next step.
+  const aiUnavailable = !canProceed && analysisUnavailable(items, analyzing);
+  const handleProceedWithoutAnalysis = () => {
+    if (!aiUnavailable) return;
+    onComplete(analysesForUploaded(items));
+  };
+
   const uploadedCount = items.filter(i => i.url && !i.uploading && !i.error).length;
 
   return (
@@ -361,7 +370,21 @@ export default function StepPortfolioUpload({ onComplete }: StepPortfolioUploadP
             Looks Good
           </button>
         )}
+        {aiUnavailable && (
+          <button
+            type="button"
+            onClick={handleProceedWithoutAnalysis}
+            className="flex-1 bg-[#D4A843] text-black py-3 px-6 text-xs font-mono font-bold uppercase tracking-widest hover:opacity-80 transition-opacity min-h-[44px]"
+          >
+            Continue and choose my skills
+          </button>
+        )}
       </div>
+      {aiUnavailable && (
+        <p className="text-xs font-mono text-neutral-400" role="status">
+          We could not analyse your photos just now. Your photos are saved; continue and choose your skills yourself.
+        </p>
+      )}
 
       {analyzing && (
         <div className="flex items-center justify-center gap-3 py-4">
