@@ -67,7 +67,12 @@ export type RefundAttempt =
 export async function refundWithOutcome(params: {
   reference: string;
   amountRands: number;
-  /** Stable per obligation, e.g. "service-cancel:<booking id>". Sent where the provider supports it. */
+  /**
+   * Stable per obligation, e.g. "service-cancel:<booking id>". Sent where the
+   * provider supports it. Paystack's refund call takes none (the adapter drops
+   * it), so it does NOT stop a second refund: callers claim the refund in the
+   * database first (lib/payments/service-refunds.ts for service bookings).
+   */
   idempotencyKey: string;
 }): Promise<RefundAttempt> {
   const { reference, amountRands, idempotencyKey } = params;

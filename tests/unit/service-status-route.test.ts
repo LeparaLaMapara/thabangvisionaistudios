@@ -5,7 +5,7 @@ import type { WebhookResult } from '@/lib/payments/types';
 // ─── Recording Supabase fake shared by the session and service-role clients ──
 
 type Row = Record<string, unknown>;
-interface Write { table: string; op: 'update' | 'insert'; values: Row; filters: [string, unknown][] }
+interface Write { table: string; op: 'update' | 'insert'; values: Row; filters: ([string, unknown] | [string, unknown, 'is'])[] }
 
 const tables: Record<string, Row[]> = {};
 const writes: Write[] = [];
@@ -15,9 +15,10 @@ let sessionUser: { id: string; email: string } | null = null;
 function builder(table: string) {
   let op: 'select' | 'update' | 'insert' = 'select';
   let values: Row = {};
-  const filters: [string, unknown][] = [];
+  // [column, value] is eq; [column, value, 'is'] is IS (a missing column reads as null).
+  const filters: ([string, unknown] | [string, unknown, 'is'])[] = [];
   const rows = (): Row[] => (tables[table] ??= []);
-  const match = (r: Row) => filters.every(([k, v]) => r[k] === v);
+  const match = (r: Row) => filters.every((f) => (f.length === 3 ? (r[f[0]] ?? null) === f[1] : r[f[0]] === f[1]));
   const run = () => {
     if (op === 'insert') {
       writes.push({ table, op, values, filters: [] });
@@ -42,6 +43,7 @@ function builder(table: string) {
     update: (v: Row) => { op = 'update'; values = v; return b; },
     insert: (v: Row) => { op = 'insert'; values = v; return b; },
     eq: (k: string, v: unknown) => { filters.push([k, v]); return b; },
+    is: (k: string, v: unknown) => { filters.push([k, v, 'is']); return b; },
     maybeSingle: async () => { const r = run(); return { data: (r.data as Row[] | null)?.[0] ?? null, error: r.error }; },
     single: async () => { const r = run(); const d = r.data as Row[] | null; return d && d.length === 1 ? { data: d[0], error: null } : { data: null, error: { message: 'not one row' } }; },
     then: (res: (v: unknown) => unknown, rej?: (e: unknown) => unknown) => Promise.resolve(run()).then(res, rej),
