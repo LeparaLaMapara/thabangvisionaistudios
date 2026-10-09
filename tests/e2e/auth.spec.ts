@@ -1,38 +1,29 @@
 import { test, expect } from '@playwright/test';
 
 test.describe('Auth flow', () => {
-  test('register page loads and shows form fields', async ({ page }) => {
+  // /register is the same screen as /login now (spec 9.1): Google or a
+  // passwordless email, and no confirm-password field.
+  test('register redirects to the sign-in screen and shows the form', async ({ page }) => {
     await page.goto('/register');
+    await expect(page).toHaveURL(/\/login/);
     await expect(page.locator('#email')).toBeVisible();
-    await expect(page.locator('#password')).toBeVisible();
-    await expect(page.locator('#confirmPassword')).toBeVisible();
     await expect(
-      page.getByRole('button', { name: /create account/i }),
+      page.getByRole('button', { name: /continue with email/i }),
     ).toBeVisible();
   });
 
-  test('register shows error for mismatched passwords', async ({ page }) => {
+  test('there is no confirm-password field', async ({ page }) => {
     await page.goto('/register');
-    await page.locator('#email').fill('test@example.com');
-    await page.locator('#password').fill('Password123!');
-    await page.locator('#confirmPassword').fill('DifferentPassword!');
-
-    // Must agree to terms first so that validation reaches the password check
-    await page.locator('input[type="checkbox"]').check();
-
-    await page
-      .getByRole('button', { name: /create account/i })
-      .click();
-
-    // Error text: "Passwords do not match."
-    await expect(
-      page.getByText('Passwords do not match'),
-    ).toBeVisible({ timeout: 5000 });
+    await page.getByRole('button', { name: /use a password instead/i }).click();
+    await expect(page.locator('#password')).toBeVisible();
+    await expect(page.locator('#confirmPassword')).toHaveCount(0);
   });
 
   test('login page loads and shows form', async ({ page }) => {
     await page.goto('/login');
     await expect(page.locator('#email')).toBeVisible();
+    // Password sign-in is one tap away from the passwordless default.
+    await page.getByRole('button', { name: /use a password instead/i }).click();
     await expect(page.locator('#password')).toBeVisible();
     await expect(
       page.getByRole('button', { name: 'Sign In', exact: true }),
@@ -43,6 +34,7 @@ test.describe('Auth flow', () => {
     page,
   }) => {
     await page.goto('/login');
+    await page.getByRole('button', { name: /use a password instead/i }).click();
     await page.locator('#email').fill('wrong@example.com');
     await page.locator('#password').fill('WrongPassword123!');
     await page.getByRole('button', { name: 'Sign In', exact: true }).click();
@@ -55,6 +47,7 @@ test.describe('Auth flow', () => {
 
   test('forgot password link exists on login page', async ({ page }) => {
     await page.goto('/login');
+    await page.getByRole('button', { name: /use a password instead/i }).click();
     await expect(
       page.getByRole('button', { name: /forgot password/i }),
     ).toBeVisible();

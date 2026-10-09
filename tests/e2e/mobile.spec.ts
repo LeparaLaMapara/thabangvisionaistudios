@@ -254,7 +254,10 @@ test.describe('Mobile auth forms', () => {
     expect(box!.width).toBeGreaterThan(250);
     expect(box!.height).toBeGreaterThanOrEqual(40);
 
+    // Password sign-in is one tap away from the passwordless default.
+    await page.getByRole('button', { name: /use a password instead/i }).click();
     const passwordInput = page.locator('#password');
+    await expect(passwordInput).toBeVisible();
     const pwBox = await passwordInput.boundingBox();
     expect(pwBox).toBeTruthy();
     expect(pwBox!.height).toBeGreaterThanOrEqual(40);
@@ -268,13 +271,14 @@ test.describe('Mobile auth forms', () => {
 
     await page.waitForSelector('input#email', { timeout: 15000 });
 
-    // Scope to the register form. A page-wide input selector also catches the
+    // Scope to the sign-up form. A page-wide input selector also catches the
     // footer newsletter box, which is deliberately narrower and would fail the
-    // touch-target assertions below.
+    // touch-target assertions below. /register is the one passwordless
+    // sign-in screen now: just the email field (no password, no confirm).
     const inputs = page.locator('form').first()
       .locator('input[type="email"], input[type="password"], input[type="text"]');
     const count = await inputs.count();
-    expect(count).toBeGreaterThanOrEqual(3);
+    expect(count).toBeGreaterThanOrEqual(1);
 
     for (let i = 0; i < count; i++) {
       const box = await inputs.nth(i).boundingBox();
@@ -291,7 +295,7 @@ test.describe('Mobile auth forms', () => {
       return;
     }
 
-    const submitBtn = page.getByRole('button', { name: 'Sign In', exact: true });
+    const submitBtn = page.getByRole('button', { name: /continue with email/i });
     await expect(submitBtn).toBeVisible({ timeout: 10000 });
 
     const box = await submitBtn.boundingBox();

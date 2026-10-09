@@ -1,6 +1,6 @@
 export const dynamic = 'force-dynamic';
 
-import { redirect } from 'next/navigation';
+import { Suspense } from 'react';
 import { auth } from '@/lib/auth';
 import { createClient } from '@/lib/supabase/server';
 import SignOutButton from '@/components/dashboard/SignOutButton';
@@ -8,6 +8,7 @@ import NotificationBell from '@/components/notifications/NotificationBell';
 import { DashboardTabBar } from '@/components/dashboard/DashboardTabBar';
 import { DashboardSidebar } from '@/components/dashboard/DashboardSidebar';
 import { SuspensionBanner } from '@/components/dashboard/SuspensionBanner';
+import { RedirectToLogin } from '@/components/auth/RedirectToLogin';
 
 export default async function DashboardLayout({
   children,
@@ -15,17 +16,34 @@ export default async function DashboardLayout({
   children: React.ReactNode;
 }) {
   const user = await auth.getUser();
-  if (!user) redirect('/login');
+  // Back to this exact page after signing in (the layout cannot see its own
+  // path on the server, so the redirect carrying ?next= runs in the browser).
+  if (!user) {
+    return (
+      <Suspense fallback={null}>
+        <RedirectToLogin />
+      </Suspense>
+    );
+  }
 
-  // Fetch verification status to determine role
+  // Fetch verification status and what they came to do
   const supabase = await createClient();
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('verification_status, is_suspended, suspension_reason')
-    .eq('id', user.id)
-    .single();
+  const [{ data: profile }, { data: { user: authUser } }] = await Promise.all([
+    supabase
+      .from('profiles')
+      .select('verification_status, is_suspended, suspension_reason, onboarding_completed_at')
+      .eq('id', user.id)
+      .single(),
+    supabase.auth.getUser(),
+  ]);
 
-  const isCreator = profile?.verification_status === 'verified';
+  const isVerified = profile?.verification_status === 'verified';
+  // Someone who said they came to rent gear or hire a creator, and never
+  // started offering gear or services, is a renter: verifying their ID does
+  // not make them a creator, so they see renter words and no studio tools.
+  const intent = authUser?.user_metadata?.intent;
+  const isRenterOnly = (intent === 'rent' || intent === 'hire') && !profile?.onboarding_completed_at;
+  const isCreator = isVerified && !isRenterOnly;
   const isSuspended = profile?.is_suspended === true;
   const suspensionReason = (profile?.suspension_reason as string) ?? null;
 
@@ -49,7 +67,7 @@ export default async function DashboardLayout({
         <div className="grid grid-cols-1 md:grid-cols-[200px_1fr] gap-10">
           {/* Desktop sidebar — grouped sections */}
           <div className="hidden md:block">
-            <DashboardSidebar isCreator={isCreator} />
+            <DashboardSidebar isCreator={isCreator} isVerified={isVerified} />
             <div className="border-t border-white/10 mt-6 pt-4">
               <SignOutButton />
             </div>

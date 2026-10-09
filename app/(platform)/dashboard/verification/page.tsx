@@ -287,7 +287,7 @@ function VerificationPageInner() {
         Identity Verification
       </h2>
       <p className="text-xs font-mono text-neutral-400 mb-8">
-        Get verified to list equipment and take bookings as a creator.
+        We check your ID once. It lets you rent gear and, if you want to, list your own gear or take bookings.
       </p>
 
       {error && (
