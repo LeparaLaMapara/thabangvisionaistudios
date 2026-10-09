@@ -25,6 +25,8 @@ import {
   Image as ImageIcon,
 } from 'lucide-react';
 
+import { verificationPhotos } from '@/lib/metadata/photo-metadata-view';
+
 // ─── Types ───────────────────────────────────────────────────────────────────
 
 type VerificationStatus = 'pending' | 'verified' | 'rejected';
@@ -552,13 +554,13 @@ export default function AdminVerificationsPage() {
                               Photo Metadata
                             </SectionLabel>
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                              <MetadataCard label="Selfie with ID" metadata={sub.verification_metadata.selfie} />
-                              <MetadataCard label="ID Front" metadata={sub.verification_metadata.id_front} />
-                              <MetadataCard label="ID Back" metadata={sub.verification_metadata.id_back} />
+                              <MetadataCard label="Selfie with ID" metadata={verificationPhotos(sub.verification_metadata).selfie} />
+                              <MetadataCard label="ID Front" metadata={verificationPhotos(sub.verification_metadata).id_front} />
+                              <MetadataCard label="ID Back" metadata={verificationPhotos(sub.verification_metadata).id_back} />
                             </div>
 
                             {/* Consistency checks */}
-                            <ConsistencyChecks metadata={sub.verification_metadata} />
+                            <ConsistencyChecks metadata={verificationPhotos(sub.verification_metadata)} />
 
                             {/* Face match result */}
                             {sub.verification_metadata.face_match && (
