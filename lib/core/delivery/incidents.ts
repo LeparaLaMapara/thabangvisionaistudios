@@ -32,8 +32,10 @@ export interface DeliveryIncident {
   status: IncidentStatus;
   /**
    * true = the provider caused it; false = it did not; null = not yet known.
-   * Only true/null protect the renter from an automatic late fee; a person
-   * decides false.
+   * Only staff (or a provider's own event) ever set true or false; a renter,
+   * owner or agent report always starts null. Only an attributed true waives
+   * an automatic late fee; an open unattributed incident holds settlement
+   * for a person instead (D19, D29).
    */
   providerCaused: boolean | null;
   /** Always 'undetermined' when opened. Only a person sets anything else. */
@@ -47,9 +49,6 @@ export interface DeliveryIncident {
 }
 
 export const OPEN_INCIDENT_STATUSES: readonly IncidentStatus[] = ['open', 'investigating'];
-
-/** Kinds that, by their nature, were caused by the provider side. */
-const PROVIDER_SIDE: readonly IncidentKind[] = ['driver_no_show', 'lost'];
 
 export function incidentKey(shipmentId: string, kind: IncidentKind, discriminator = ''): string {
   return `incident:${shipmentId}:${kind}${discriminator ? `:${discriminator}` : ''}`;
@@ -66,12 +65,16 @@ export function newIncident(p: {
   reportedBy: DeliveryIncident['reportedBy'];
   description: string;
   evidence?: DeliveryIncident['evidence'];
-  /** Set when the reporter knows (e.g. the provider says its driver was late). */
+  /**
+   * Set only by staff or from a provider's own event (e.g. the provider
+   * reports its driver lost the parcel). Anyone else: leave it out (null).
+   */
   providerCaused?: boolean | null;
   discriminator?: string;
   now: Date;
 }): DeliveryIncident {
-  const providerCaused = p.providerCaused !== undefined ? p.providerCaused : PROVIDER_SIDE.includes(p.kind) ? true : null;
+  // Never inferred from the kind: a renter saying "the driver did not come" does not attribute it.
+  const providerCaused = p.providerCaused === undefined ? null : p.providerCaused;
   return {
     id: p.id,
     shipmentId: p.shipmentId,
@@ -116,14 +119,18 @@ export function settlementBlockedByIncidents(incidents: readonly Pick<DeliveryIn
 
 /**
  * D19: whether a late fee for this return may be charged automatically.
- * Never when a delay, no-show or failed collection on the RETURN leg was
- * caused by the provider or is not yet attributed; a person decides those.
+ * Waived only for a delay, no-show or failed collection on the RETURN leg
+ * that staff (or the provider's own event) attributed to the provider
+ * (`providerCaused === true`). An unattributed incident does not waive
+ * anything silently: while it is open it holds settlement for a person
+ * (settlementBlockedByIncidents); resolved without attribution, the normal
+ * late-fee rule applies.
  */
 export function lateFeeAutoChargeAllowed(incidents: readonly Pick<DeliveryIncident, 'leg' | 'kind' | 'providerCaused'>[]): { allowed: boolean; reason: string | null } {
   const delay = incidents.find(
-    (i) => i.leg === 'return' && (i.kind === 'delayed' || i.kind === 'driver_no_show' || i.kind === 'failed_attempt') && i.providerCaused !== false,
+    (i) => i.leg === 'return' && (i.kind === 'delayed' || i.kind === 'driver_no_show' || i.kind === 'failed_attempt') && i.providerCaused === true,
   );
-  if (delay) return { allowed: false, reason: delay.providerCaused ? 'provider_caused_delay' : 'delay_not_yet_attributed' };
+  if (delay) return { allowed: false, reason: 'provider_caused_delay' };
   return { allowed: true, reason: null };
 }
 

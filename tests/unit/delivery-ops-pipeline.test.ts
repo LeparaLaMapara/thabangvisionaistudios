@@ -42,6 +42,7 @@ vi.mock('@/lib/delivery/jobs', () => ({
   SupabaseDeliveryJobQueries: function SupabaseDeliveryJobQueries() {},
   reconcileUncertainDispatches: rec('delivery_reconcile'),
   pollTrackedShipments: rec('delivery_poll'),
+  deemDeliveryAcceptances: rec('delivery_acceptance'),
   remindReturnPickups: rec('delivery_return_reminders'),
 }));
 

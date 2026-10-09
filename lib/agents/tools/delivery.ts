@@ -1,5 +1,7 @@
 import { jsonSchema } from 'ai';
 import { checkRateLimit } from '@/lib/auth';
+import { DELIVERY_OPS } from '@/lib/constants';
+import { formatRand } from '@/lib/format/money';
 import { INCIDENT_KINDS, type IncidentKind } from '@/lib/core/delivery/incidents';
 import type { DeliveryDeps } from '@/lib/core/delivery/repository';
 import type { DeliveryState, ShipmentLeg } from '@/lib/core/delivery/state';
@@ -16,8 +18,11 @@ import { sanitiseForPrompt } from '@/lib/ubunye/sanitise';
  * works out a price, an eligibility rule or a state on its own.
  *
  * Read-only: check_delivery_eligibility, get_delivery_quote,
- * get_delivery_status, get_return_pickup_options. (A quote is stored so it
- * can later be paid at checkout; storing it charges nothing.)
+ * get_delivery_status, get_return_pickup_options. A quote is stored as an
+ * ADVISORY quote: without the order link, so it never joins the order's
+ * checkout payment (whose delivery total must equal its linked quotes), and
+ * rate limited per person (DELIVERY_OPS.ubunyeQuoteRateLimit). Storing it
+ * charges nothing; a person confirms it and the payment.
  *
  * State-changing: report_delivery_issue only. It moves no money, books
  * nothing and blames nobody: it opens an incident for a person to review.
@@ -77,7 +82,7 @@ const defaultPorts: DeliveryToolPorts = {
   rateLimit: checkRateLimit,
 };
 
-const rands = (cents: number): string => `R${(cents / 100).toFixed(2)}`;
+const rands = (cents: number): string => formatRand(cents / 100, { decimals: true });
 const optionLabel = (kind: 'courier' | 'own_fleet'): string => (kind === 'own_fleet' ? 'Our own driver' : 'Courier');
 
 const STATE_LABEL: Record<DeliveryState, string> = {
@@ -104,7 +109,7 @@ const STATE_LABEL: Record<DeliveryState, string> = {
 const RECEIPT_LABEL: Record<string, string> = {
   not_sent: 'not sent yet',
   with_courier: 'with the driver',
-  awaiting_renter: 'delivered: waiting for you to check and confirm it on your booking page',
+  awaiting_renter: `delivered: waiting for you to check it and press "Received" or "Report a problem" on your booking page (it counts as received after a while if you do not)`,
   accepted: 'received and confirmed',
   exception: 'problem reported',
   with_renter: 'with you',
@@ -115,7 +120,7 @@ const RECEIPT_LABEL: Record<string, string> = {
 
 /** Said with every answer: the model must not add anything the tools did not return. */
 const HONESTY =
-  'Quote only what this tool returned. Never invent a price, courier name, ETA or location, and never say a delivery is insured or covered. Delivery is paid and booked on the website, not in this chat.';
+  'Quote only what this tool returned. Never invent a price, courier name, ETA or location, and never say a delivery is insured or covered. Nothing is paid or booked in this chat.';
 
 type Who = { ok: true; userId: string; bookingGroupId: string; caller: DeliveryCaller; role: 'renter' | 'owner' } | { ok: false; error: string };
 
@@ -143,6 +148,10 @@ export function createDeliveryTools(supabase: SupabaseClient, isAuthenticated: b
   }
 
   async function quoteLeg(who: Extract<Who, { ok: true }>, leg: ShipmentLeg, date: unknown): Promise<Record<string, unknown>> {
+    // Each call stores a quote: limit how many one person can ask for.
+    if (!(await p.rateLimit(`ubunye-delivery-quote:${who.userId}`, DELIVERY_OPS.ubunyeQuoteRateLimit.max, DELIVERY_OPS.ubunyeQuoteRateLimit.windowMs))) {
+      return { error: 'Several delivery prices were asked for just now. Try again a little later, or contact us.' };
+    }
     const deps = await p.deps();
     const inputs = await legInputsFor(deps, who.bookingGroupId, leg);
     if (!inputs.ok) return { available: false, message: inputs.message, collection_in_person: 'Free', note: HONESTY };
@@ -152,7 +161,8 @@ export function createDeliveryTools(supabase: SupabaseClient, isAuthenticated: b
     const window = sastDayWindow(typeof date === 'string' && date ? date : inputs.defaultDate);
     if (!window) return { error: 'Give the date as YYYY-MM-DD.' };
     const r = await quoteDelivery(
-      { caller: who.caller, renterId: who.userId, bookingGroupId: who.bookingGroupId, leg, originAddressId: inputs.originAddressId, destinationAddressId: inputs.destinationAddressId, lines: inputs.lines, window },
+      // Advisory (no order link): it never changes what the order's payment covers.
+      { caller: who.caller, renterId: who.userId, bookingGroupId: who.bookingGroupId, leg, originAddressId: inputs.originAddressId, destinationAddressId: inputs.destinationAddressId, lines: inputs.lines, window, link: false },
       deps,
     );
     if (!r.ok) return { available: false, reason: r.code, message: r.message, collection_in_person: 'Free', note: HONESTY };
@@ -162,7 +172,10 @@ export function createDeliveryTools(supabase: SupabaseClient, isAuthenticated: b
       day: (typeof date === 'string' && date) || inputs.defaultDate,
       options: r.quotes.map((q) => ({ option: optionLabel(q.providerKind), price: rands(q.customerFeeCents), valid_until: q.expiresAt })),
       collection_in_person: 'Free',
-      how_to_book: `Choose and pay for it on the booking page: /dashboard/bookings. I cannot book or pay for it from this chat.`,
+      how_to_book:
+        leg === 'return'
+          ? 'Request the return pickup in the Delivery section of the booking page (/dashboard/bookings). There is no online payment for it yet: our team confirms it and arranges payment with you. I cannot book or pay for it from this chat.'
+          : 'A new delivery for an existing booking is arranged by our team: contact us and we confirm it and how to pay. There is no online payment for it on the booking page, and I cannot book or pay for it from this chat.',
       note: HONESTY,
     };
   }

@@ -36,10 +36,18 @@ export interface ParcelItem {
   bookingId: string;
   /** Description shown to the driver: generic ("camera equipment"), never the value. */
   driverLabel: string;
+  /** Replacement value of ALL the units on this line. */
   replacementValueCents: number;
+  /** Units of this listing on the line (default 1). A line of 3 tripods is 3 items to carry. */
+  quantity?: number;
   weightGrams: number | null;
   /** Contains lithium-ion batteries (many couriers restrict them). */
   containsLithium: boolean;
+}
+
+/** Physical units on a parcel: the sum of each line's quantity (at least 1 each). */
+export function parcelUnits(items: readonly Pick<ParcelItem, 'quantity'>[]): number {
+  return items.reduce((n, i) => n + Math.max(1, Math.floor(i.quantity ?? 1)), 0);
 }
 
 export interface DeliveryWindow {

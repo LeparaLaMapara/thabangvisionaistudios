@@ -22,9 +22,7 @@ import { SupabaseRefunds, isMissingPipeline, transitionBookings } from '@/lib/re
 import { dispatchOutbox } from '@/lib/rental/notify';
 import { chargeOfBooking } from '@/lib/rental/charges';
 import { paymentReference } from '@/lib/payments/eft';
-import { deliveryCancellationPlan, type DeliveryCancellationPlan } from '@/lib/rental/delivery-settlement';
-import { cancelDelivery, deliveryFeeRefundKey } from '@/lib/core/delivery/use-cases';
-import { deliveryDeps } from '@/lib/delivery/server';
+import { deliveryCancellationPlan, settleOrderDeliveryOnCancel, type DeliveryCancellationPlan } from '@/lib/rental/delivery-settlement';
 
 type BookingForQuote = {
   id: string;
@@ -452,25 +450,13 @@ async function cancelThroughPipeline(
   // Phase 4 delivery: the last line went, so its delivery legs go too. The fee
   // is refunded in full unless a courier was already booked, when the
   // courier's cancellation fee is passed on at cost, capped at the fee (D-39).
+  // A paid quote no leg was made from is refunded too. Sent now like the hire
+  // refund; the daily pipeline retries it if the provider is slow (never twice).
   // The booking is already cancelled; a leg that cannot be cancelled goes to
   // the ops queue, never back to the customer as an error.
   let legRefundCents = 0;
-  if (deliveryPlan?.phase4 && deliveryPlan.lastLine && deliveryPlan.shipmentIds.length > 0) {
-    try {
-      const deps = await deliveryDeps();
-      for (const shipmentId of deliveryPlan.shipmentIds) {
-        const r = await cancelDelivery({ caller: { kind: 'renter', userId }, shipmentId, reason: 'booking cancelled by the customer' }, deps);
-        if (r.ok && r.refundCents > 0) {
-          legRefundCents += r.refundCents;
-          // Sent now like the hire refund; the daily pipeline retries it if the provider is slow (never twice).
-          const { data: ob } = await db.from('refund_obligations').select('id').eq('obligation_key', deliveryFeeRefundKey(shipmentId)).maybeSingle();
-          if (ob) await submitRefund((ob as { id: string }).id, { refunds: new SupabaseRefunds(db), payments: paymentPort, clock: systemClock }).catch(() => 'unknown_outcome');
-        } else if (!r.ok) await deps.repo.post([], buildNotices({ kind: 'staff_alert', userId: 'staff', bookingIds: [booking.id], discriminator: `delivery:cancel_failed:${shipmentId}`, data: { what: `delivery_cancel_failed_${r.code}`, reference: shipmentId } }));
-      }
-    } catch (err) {
-      console.error('[bookings/[id]] delivery cancellation failed:', err instanceof Error ? err.message : 'unknown error');
-      await db.rpc('outbox_enqueue', { p_notices: buildNotices({ kind: 'staff_alert', userId: 'staff', bookingIds: [booking.id], discriminator: `delivery:cancel_error:${booking.id}`, data: { what: 'delivery_cancel_error', reference: booking.id } }) });
-    }
+  if (deliveryPlan) {
+    legRefundCents = await settleOrderDeliveryOnCancel(db, { plan: deliveryPlan, caller: { kind: 'renter', userId }, bookingId: booking.id, reason: 'booking cancelled by the customer' });
     if (legRefundCents > 0 && refundStatus === 'not_required') refundStatus = 'pending';
   }
   await dispatchOutbox(10).catch(() => undefined);

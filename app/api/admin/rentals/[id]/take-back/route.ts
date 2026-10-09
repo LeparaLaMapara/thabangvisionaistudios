@@ -49,6 +49,13 @@ async function load(id: string): Promise<Row | null> {
   return (data as Row | null) ?? null;
 }
 
+/** The moment the renter gave the gear back: a return pickup's collection, if earlier than now. */
+function handedBackAt(now: Date, returnCollectedAt: string | null): Date {
+  if (!returnCollectedAt) return now;
+  const t = new Date(returnCollectedAt);
+  return Number.isNaN(t.getTime()) || t.getTime() > now.getTime() ? now : t;
+}
+
 /** Whether the deposit went through a payment provider, so it can go back to the card. */
 function depositOnCard(b: Row): boolean {
   if (!b.payfast_payment_id || isManualReference(b.payfast_payment_id)) return false;
@@ -76,7 +83,8 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   } catch {
     deliveryUnknown = true;
   }
-  const late = lateFeeAfterDelivery({ endDate: b.end_date, returnedAt: new Date(), quantity: b.quantity, deposit }, delivery);
+  // A return pickup that took the gear from the renter is when they gave it back (D-49).
+  const late = lateFeeAfterDelivery({ endDate: b.end_date, returnedAt: handedBackAt(new Date(), delivery.returnCollectedAt), quantity: b.quantity, deposit }, delivery);
   const [notice] = await loadNoticeBookings([id]);
   const { data: serialRow } = await createAdminClient().from('equipment_bookings').select('smart_rentals(serial_number)').eq('id', id).maybeSingle();
   const serialRental = serialRow ? ((Array.isArray(serialRow.smart_rentals) ? serialRow.smart_rentals[0] : serialRow.smart_rentals) as { serial_number?: string | null } | null) : null;
@@ -170,7 +178,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const iso = now.toISOString();
   const depositRands = Number(b.deposit_amount ?? 0);
   const depositCents = snap.deposit_cents ?? toCents(depositRands);
-  const late = lateFeeAfterDelivery({ endDate: b.end_date, returnedAt: now, quantity: b.quantity, deposit: depositRands }, delivery);
+  // A return pickup that took the gear from the renter is when they gave it back (D-49).
+  const late = lateFeeAfterDelivery({ endDate: b.end_date, returnedAt: handedBackAt(now, delivery.returnCollectedAt), quantity: b.quantity, deposit: depositRands }, delivery);
   const lateFeeCents = toCents(late.fee);
   const damageCents = Math.min(toCents(damageFee), depositCents);
 

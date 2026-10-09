@@ -98,7 +98,8 @@ describe('D30 - entire outbound-and-return workflow', () => {
     // 5. Inspection, then settlement may proceed.
     for (const [bookingId, rentalId] of [['bk-1', 'cam-1'], ['bk-2', 'lens-1']] as const) {
       expect(await recordReturnInspection({ caller: staff, shipmentId: sRet.id, bookingId, rentalId, evidence: photo(`i-${rentalId}`), condition: 'clean' }, w.deps)).toMatchObject({ ok: true });
-      expect(await checkRentalSettlement({ bookingGroupId: GROUP, bookingId }, w.deps)).toEqual({ allowed: true, reasons: [], lateFeeAutoCharge: true });
+      // returnCollectedAt (D-49): when the return pickup took the gear from the renter.
+      expect(await checkRentalSettlement({ bookingGroupId: GROUP, bookingId }, w.deps)).toEqual({ allowed: true, reasons: [], lateFeeAutoCharge: true, returnCollectedAt: expect.any(String) });
     }
 
     // 6. Ledger: every delivery cent paid is earned, leg by leg; the courier cost is ours, owed to the provider.

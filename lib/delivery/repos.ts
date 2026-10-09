@@ -19,11 +19,13 @@ import type {
   ShipmentPatch,
   ShipmentTransition,
   TransitionResult,
+  UnusedQuoteRefund,
 } from '@/lib/core/delivery/repository';
 import type { DeliveryState } from '@/lib/core/delivery/state';
 import type { Journal } from '@/lib/core/rental/ledger';
 import type { OutboxMessage } from '@/lib/core/rental/notifications';
 import type { BookingStatus } from '@/lib/core/rental/state';
+import { isManualPaymentReference } from '@/lib/core/delivery/use-cases';
 import { loadRenterFacts } from '@/lib/rental/eligibility-server';
 import { isMissingPipeline } from '@/lib/rental/repos';
 import type { DeliveryInboxStore, StoredDeliveryEvent } from './inbox';
@@ -49,7 +51,7 @@ const str = (v: unknown): string | null => (v === null || v === undefined ? null
 const num = (v: unknown): number => Number(v ?? 0);
 
 const QUOTE_COLS =
-  'id, renter_id, booking_group_id, leg, provider, provider_kind, provider_quote_ref, quote_amount_cents, provider_cost_cents, platform_fee_cents, customer_fee_cents, replacement_value_cents, booking_ids, rental_ids, origin_address_id, destination_address_id, window_start, window_end, expires_at, status, paid_reference, created_at';
+  'id, renter_id, booking_group_id, leg, provider, provider_kind, provider_quote_ref, quote_amount_cents, provider_cost_cents, platform_fee_cents, customer_fee_cents, replacement_value_cents, booking_ids, rental_ids, origin_address_id, destination_address_id, window_start, window_end, expires_at, status, paid_reference, line_snapshot, requested_at, created_at';
 
 function toQuote(r: Row): CustomerDeliveryQuote {
   return {
@@ -73,6 +75,8 @@ function toQuote(r: Row): CustomerDeliveryQuote {
     expiresAt: String(r.expires_at),
     status: r.status as QuoteStatus,
     paidReference: str(r.paid_reference),
+    lines: Array.isArray(r.line_snapshot) ? (r.line_snapshot as CustomerDeliveryQuote['lines']) : [],
+    requestedAt: str(r.requested_at),
     createdAt: String(r.created_at),
   };
 }
@@ -199,6 +203,8 @@ export class SupabaseDeliveryRepository implements DeliveryRepository {
         expires_at: q.expiresAt,
         status: q.status,
         paid_reference: q.paidReference,
+        line_snapshot: q.lines ?? [],
+        requested_at: q.requestedAt ?? null,
       })
       .select(QUOTE_COLS)
       .single();
@@ -356,6 +362,12 @@ export class SupabaseDeliveryRepository implements DeliveryRepository {
     if (journals.length === 0 && notices.length === 0) return;
     const { error } = await this.db.rpc('delivery_post', { p_journals: journals, p_notices: notices });
     if (error) throw dbError('delivery_post', error);
+  }
+
+  async refundUnusedQuote(r: UnusedQuoteRefund): Promise<'applied' | 'conflict'> {
+    const { data, error } = await this.db.rpc('delivery_refund_quote', { p: r });
+    if (error) throw dbError('delivery_refund_quote', error);
+    return data === 'applied' ? 'applied' : 'conflict';
   }
 }
 
@@ -535,6 +547,23 @@ export class SupabaseDeliveryInbox implements DeliveryInboxStore {
   }
 }
 
+const CONFIRMED_BY_HAND: readonly string[] = ['confirmed', 'active', 'overdue', 'return_pending', 'return_reviewed', 'completed', 'disputed'];
+
+/**
+ * The manual-payment reference when every live line of the order was confirmed
+ * through confirm_manual_payment (070): each carries the same `manual:`
+ * reference (payfast_payment_id) and is past `pending`. Otherwise null.
+ */
+export function manualPaymentOf(rows: readonly Row[]): string | null {
+  const live = rows.filter((r) => r.status !== 'cancelled');
+  if (live.length === 0) return null;
+  const refs = new Set(live.map((r) => str(r.payfast_payment_id)));
+  if (refs.size !== 1) return null;
+  const ref = [...refs][0];
+  if (!ref || !isManualPaymentReference(ref)) return null;
+  return live.every((r) => CONFIRMED_BY_HAND.includes(String(r.status))) ? ref : null;
+}
+
 /** What delivery needs from the hire: lines, owners, values and whether payment was verified. */
 export class SupabaseDeliveryBookings implements DeliveryBookingPort {
   constructor(private db: Admin = createAdminClient()) {}
@@ -543,7 +572,7 @@ export class SupabaseDeliveryBookings implements DeliveryBookingPort {
     const [lines, intent] = await Promise.all([
       this.db
         .from('equipment_bookings')
-        .select('id, user_id, rental_id, owner_id, status, quantity, start_date, end_date, unit_replacement_value_cents, smart_rentals(serial_number, replacement_value, owner_id)')
+        .select('id, user_id, rental_id, owner_id, status, quantity, start_date, end_date, unit_replacement_value_cents, payfast_payment_id, smart_rentals(serial_number, replacement_value, owner_id)')
         .eq('checkout_group_id', bookingGroupId)
         .order('created_at'),
       this.db.from('rental_payment_intents').select('reference, state').eq('checkout_group_id', bookingGroupId).maybeSingle(),
@@ -557,6 +586,7 @@ export class SupabaseDeliveryBookings implements DeliveryBookingPort {
       renterId: String(rows[0].user_id),
       paymentVerified: pi?.state === 'paid',
       paymentReference: str(pi?.reference),
+      manualPaymentReference: manualPaymentOf(rows),
       lines: rows.map((r) => {
         const rental = (Array.isArray(r.smart_rentals) ? r.smart_rentals[0] : r.smart_rentals) as Row | null;
         const unit =

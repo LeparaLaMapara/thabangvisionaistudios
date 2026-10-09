@@ -16,11 +16,18 @@
  *  - An item's chain never goes backwards.
  *  - A courier collecting a return releases nothing: the deposit waits for
  *    `inspected` (D17).
+ *  - Deemed acceptance (D-48): when the renter neither accepts nor reports a
+ *    problem within DELIVERY_POLICY.deemedAcceptanceHours of a recorded
+ *    delivery, the system records `deemed_accepted`. It counts as acceptance
+ *    for earning the outbound fee, settlement and address retention, never
+ *    for a return leg (it is an outbound-only event) and never over an
+ *    exception the renter reported.
  */
 
 import type { ShipmentLeg } from './state';
 
-export const CUSTODY_ACTOR_KINDS = ['owner', 'thabangvision_staff', 'courier', 'renter'] as const;
+/** `system` records only `deemed_accepted` (D-48); it never vouches for a physical handover. */
+export const CUSTODY_ACTOR_KINDS = ['owner', 'thabangvision_staff', 'courier', 'renter', 'system'] as const;
 export type CustodyActorKind = (typeof CUSTODY_ACTOR_KINDS)[number];
 
 export const CUSTODY_EVENT_KINDS = [
@@ -29,6 +36,7 @@ export const CUSTODY_EVENT_KINDS = [
   'delivered_to_renter',
   'renter_accepted',
   'renter_reported_exception',
+  'deemed_accepted',
   'handed_to_return_courier',
   'received_by_owner',
   'inspected',
@@ -83,6 +91,7 @@ const RULES: Record<CustodyEventKind, { leg: ShipmentLeg; actors: readonly Custo
   delivered_to_renter: { leg: 'outbound', actors: ['courier', 'thabangvision_staff'], stage: 2 },
   renter_accepted: { leg: 'outbound', actors: ['renter'], stage: 3 },
   renter_reported_exception: { leg: 'outbound', actors: ['renter', 'thabangvision_staff'], stage: 3 },
+  deemed_accepted: { leg: 'outbound', actors: ['system'], stage: 3 },
   handed_to_return_courier: { leg: 'return', actors: ['renter', 'thabangvision_staff'], stage: 1 },
   received_by_owner: { leg: 'return', actors: ['owner', 'thabangvision_staff'], stage: 3 },
   inspected: { leg: 'return', actors: ['thabangvision_staff'], stage: 4 },
@@ -161,9 +170,14 @@ export function checkCustodyEvent(e: CustodyEvent, ctx: ShipmentCustodyContext, 
     return { ok: false, code: 'out_of_order', message: 'This item has not been sent yet.' };
   }
   // Receipt from a renter is final: an item is either accepted or under exception.
-  if (e.kind === 'renter_accepted' && mine.some((c) => c.kind === 'renter_reported_exception')) {
+  if ((e.kind === 'renter_accepted' || e.kind === 'deemed_accepted') && mine.some((c) => c.kind === 'renter_reported_exception')) {
     return { ok: false, code: 'out_of_order', message: 'An exception is open for this item; staff resolve it.' };
   }
+  // Deemed acceptance needs a recorded delivery to the renter, and never replaces the renter's own answer.
+  if (e.kind === 'deemed_accepted' && !mine.some((c) => c.kind === 'delivered_to_renter')) {
+    return { ok: false, code: 'out_of_order', message: 'This item has no recorded delivery to the renter.' };
+  }
+  if (e.kind === 'deemed_accepted' && mine.some((c) => c.kind === 'renter_accepted')) return { ok: true, duplicate: true };
   if (e.kind === 'inspected' && !mine.some((c) => c.kind === 'received_by_owner')) {
     return { ok: false, code: 'out_of_order', message: 'An item is inspected only after it is received back.' };
   }
@@ -212,7 +226,7 @@ export type ItemReceipt = 'not_sent' | 'with_courier' | 'awaiting_renter' | 'acc
 export function outboundReceipt(chain: readonly CustodyEvent[]): ItemReceipt {
   const kinds = new Set(chain.map((c) => c.kind));
   if (kinds.has('renter_reported_exception')) return 'exception';
-  if (kinds.has('renter_accepted')) return 'accepted';
+  if (kinds.has('renter_accepted') || kinds.has('deemed_accepted')) return 'accepted';
   if (kinds.has('delivered_to_renter')) return 'awaiting_renter';
   if (kinds.has('collected_by_courier') || kinds.has('handed_to_courier')) return 'with_courier';
   return 'not_sent';

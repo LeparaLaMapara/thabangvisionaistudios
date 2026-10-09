@@ -25,6 +25,16 @@
 --       tracking link or money columns; a stranger sees nothing
 --   12. clients cannot write delivery tables or execute delivery functions
 --   13. custody and incidents are readable by the renter and the item's owner only
+--   14. review fixes: a delivery-fee refund is capped at what is LEFT of the
+--       charge (never above the charge in total); a payment with no verified
+--       charge gets no provider refund (staff alert)
+--   15. a paid quote with no leg is refunded once (delivery_refund_quote); a
+--       refunded quote cannot be made into a shipment
+--   16. the address purge refuses while a live shipment uses the address
+--   17. custody accepts the system's deemed_accepted (D-48); quotes accept 'refunded'
+--   18. clients read events without actor/note, custody and incidents without
+--       evidence or staff ids; an owner reads an incident only when every line
+--       on it is theirs
 
 begin;
 
@@ -399,6 +409,184 @@ begin
   exception when insufficient_privilege then
     raise notice 'PASS 12b: anonymous visitors cannot read delivery tables';
   end;
+end $$;
+reset role;
+
+-- 14–17 run as the server (service role in production; the test owner here).
+do $$
+declare
+  renter uuid := '00000000-0000-4000-8000-0000000760a1';
+  stranger uuid := '00000000-0000-4000-8000-0000000760a2';
+  grp uuid := '00000000-0000-4000-8000-0000000760d1';
+  bk1 uuid := '00000000-0000-4000-8000-0000000760e1';
+  bk2 uuid := '00000000-0000-4000-8000-0000000760e2';
+  cam uuid := '00000000-0000-4000-8000-0000000760c1';
+  office uuid := '00000000-0000-4000-8000-0000000760f1';
+  home uuid := '00000000-0000-4000-8000-0000000760f2';
+  strangers_home uuid := '00000000-0000-4000-8000-0000000760f3';
+  q3 uuid := '00000000-0000-4000-8000-000000076103';
+  s1 uuid;
+  n integer;
+  res text;
+  ok boolean;
+begin
+  select id into s1 from public.delivery_shipments where merchant_reference = 'tvd_test_o1';
+
+  -- 15. A paid quote with no leg: refunded once, with its obligation.
+  insert into public.delivery_quotes (id, renter_id, booking_group_id, leg, provider, provider_kind, quote_amount_cents, provider_cost_cents,
+    platform_fee_cents, customer_fee_cents, rental_ids, origin_address_id, destination_address_id, expires_at, status, paid_reference, line_snapshot)
+  values (q3, renter, grp, 'return', 'manual', 'own_fleet', 5000, 5000, 0, 5000, array[cam], home, office, now() - interval '1 hour', 'paid', 'p4-pay-1',
+          jsonb_build_array(jsonb_build_object('rentalId', cam, 'quantity', 1, 'startDate', '2030-02-01', 'endDate', '2030-02-03')));
+  res := public.delivery_refund_quote(jsonb_build_object('quoteId', q3, 'bookingGroupId', grp, 'journals', '[]'::jsonb, 'notices', '[]'::jsonb,
+    'refund', jsonb_build_object('key', 'refund:cancellation:delivery-quote-' || q3, 'amountCents', 5000, 'paidReference', 'p4-pay-1', 'userId', renter, 'bookingIds', jsonb_build_array(bk1))));
+  if res <> 'applied' then raise exception 'FAIL 15: unused paid quote refund was %', res; end if;
+  if (select status from public.delivery_quotes where id = q3) <> 'refunded'
+     or (select amount_cents from public.refund_obligations where obligation_key = 'refund:cancellation:delivery-quote-' || q3) <> 5000 then
+    raise exception 'FAIL 15: quote not refunded with its obligation';
+  end if;
+  res := public.delivery_refund_quote(jsonb_build_object('quoteId', q3, 'bookingGroupId', grp, 'journals', '[]'::jsonb, 'notices', '[]'::jsonb,
+    'refund', jsonb_build_object('key', 'refund:cancellation:delivery-quote-again', 'amountCents', 5000, 'paidReference', 'p4-pay-1', 'userId', renter, 'bookingIds', '[]'::jsonb)));
+  if res <> 'conflict' or exists (select 1 from public.refund_obligations where obligation_key = 'refund:cancellation:delivery-quote-again') then
+    raise exception 'FAIL 15: a refunded quote was refunded again';
+  end if;
+  begin
+    perform public.delivery_create_shipment(
+      jsonb_build_object('bookingGroupId', grp, 'leg', 'return', 'attempt', 1, 'renterId', renter,
+        'items', jsonb_build_array(jsonb_build_object('bookingId', bk1, 'rentalId', cam, 'ownerId', null, 'serialNumber', null)),
+        'providerId', 'manual', 'providerKind', 'own_fleet', 'quoteId', q3, 'merchantReference', 'tvd_test_r1', 'quoteAmountCents', 5000,
+        'customerFeeCents', 5000, 'platformFeeCents', 0, 'replacementValueCents', 0, 'originAddressId', home, 'destinationAddressId', office, 'window', '{}'::jsonb),
+      jsonb_build_object('merchantReference', 'tvd_test_r1', 'idempotencyKey', 'delivery-dispatch:test:return:1', 'providerId', 'manual'));
+    raise exception 'FAIL 15: a shipment was made from a refunded quote';
+  exception when raise_exception then
+    if sqlerrm not like 'delivery_quote_not_active%' then raise; end if;
+  end;
+  raise notice 'PASS 15: a paid quote with no leg is refunded once; a refunded quote is never dispatched';
+
+  -- 14. The cap is what is LEFT of the charge (300000 on p4-pay-1).
+  select coalesce(sum(amount_cents), 0) into n from public.refund_obligations where transaction_reference = 'p4-pay-1';
+  -- A staff refund takes the charge down to 8000 left.
+  insert into public.refund_obligations (obligation_key, reason, amount_cents, charged_cents, transaction_reference)
+  values ('refund:manual:staff-cancel:test', 'manual', 300000 - n - 8000, 300000, 'p4-pay-1');
+  n := public.delivery_insert_fee_refund(jsonb_build_object('key', 'refund:cancellation:delivery-cap-1', 'amountCents', 12000, 'paidReference', 'p4-pay-1',
+    'userId', renter, 'bookingIds', jsonb_build_array(bk1)), grp, '{}'::jsonb);
+  if n <> 8000 or (select amount_cents from public.refund_obligations where obligation_key = 'refund:cancellation:delivery-cap-1') <> 8000 then
+    raise exception 'FAIL 14: the delivery refund was not capped at the remainder (got %)', n;
+  end if;
+  if (select sum(amount_cents) from public.refund_obligations where transaction_reference = 'p4-pay-1') <> 300000 then
+    raise exception 'FAIL 14: refunds on the charge do not add up to the charge';
+  end if;
+  n := public.delivery_insert_fee_refund(jsonb_build_object('key', 'refund:cancellation:delivery-cap-2', 'amountCents', 12000, 'paidReference', 'p4-pay-1',
+    'userId', renter, 'bookingIds', '[]'::jsonb), grp, '{}'::jsonb);
+  if n <> 0 or exists (select 1 from public.refund_obligations where obligation_key = 'refund:cancellation:delivery-cap-2') then
+    raise exception 'FAIL 14: a refund was owed on a fully refunded charge';
+  end if;
+  if not exists (select 1 from public.notification_outbox where dedupe_key = 'staff_alert:in_app:staff:delivery:delivery_refund_capped:refund:cancellation:delivery-cap-2') then
+    raise exception 'FAIL 14: no staff alert for a capped refund';
+  end if;
+  -- Through a transition too: the cap applies, and the transition still commits.
+  res := public.delivery_apply_transition(jsonb_build_object(
+    'shipmentId', s1, 'from', jsonb_build_array('failed'), 'to', 'failed', 'patch', '{}'::jsonb,
+    'event', jsonb_build_object('source', 'system', 'dedupeKey', 'test:cap-transition', 'occurredAt', now()),
+    'refund', jsonb_build_object('key', 'refund:cancellation:delivery-cap-3', 'amountCents', 500, 'paidReference', 'p4-pay-1', 'userId', renter, 'bookingIds', '[]'::jsonb)));
+  if res <> 'applied' or exists (select 1 from public.refund_obligations where obligation_key = 'refund:cancellation:delivery-cap-3') then
+    raise exception 'FAIL 14: a transition refund went above the charge (%)', res;
+  end if;
+  -- No verified charge on record: no provider refund at all, staff refund by hand.
+  n := public.delivery_insert_fee_refund(jsonb_build_object('key', 'refund:cancellation:delivery-nocharge', 'amountCents', 1000, 'paidReference', 'no-such-charge',
+    'userId', renter, 'bookingIds', '[]'::jsonb), grp, '{}'::jsonb);
+  if n <> 0 or exists (select 1 from public.refund_obligations where transaction_reference = 'no-such-charge')
+     or not exists (select 1 from public.notification_outbox where dedupe_key like 'staff_alert:in_app:staff:delivery:delivery_refund_unverified_charge:%') then
+    raise exception 'FAIL 14: a refund was owed without a verified charge';
+  end if;
+  raise notice 'PASS 14: delivery refunds are capped at what is left of the charge; none without a verified charge';
+
+  -- 16. Purge re-check at write time: the stranger's shipment (prepared) still uses their address.
+  ok := public.delivery_redact_address(strangers_home, jsonb_build_object('formatted_address', 'Rosebank, Johannesburg', 'lat', -26.14, 'lng', 28.04), now());
+  if ok or (select redacted_at from public.delivery_addresses where id = strangers_home) is not null then
+    raise exception 'FAIL 16: an address in use by a live shipment was redacted';
+  end if;
+  update public.delivery_shipments set status = 'cancelled' where merchant_reference = 'tvd_test2_o1';
+  ok := public.delivery_redact_address(strangers_home, jsonb_build_object('formatted_address', 'Rosebank, Johannesburg', 'lat', -26.14, 'lng', 28.04), now());
+  if not ok or (select contact_phone from public.delivery_addresses where id = strangers_home) <> '' then
+    raise exception 'FAIL 16: a closed address was not redacted';
+  end if;
+  raise notice 'PASS 16: the purge re-checks live use in the same write';
+
+  -- 17. Deemed acceptance and the refunded status are stored.
+  insert into public.delivery_custody_events (shipment_id, booking_group_id, booking_id, rental_id, kind, actor_kind, actor_id, occurred_at, dedupe_key)
+  values (s1, grp, bk1, cam, 'deemed_accepted', 'system', null, now(), 'deemed_accepted:test');
+  raise notice 'PASS 17: custody records the system''s deemed acceptance; quotes can be refunded';
+
+  -- Incidents for 18: one on both lines (the whole order), one on the lens only (owner B).
+  insert into public.delivery_incidents (id, shipment_id, booking_group_id, booking_ids, leg, kind, reported_by_kind, reported_by_id, description, evidence, dedupe_key)
+  values (gen_random_uuid(), s1, grp, array[bk1, bk2], 'outbound', 'delayed', 'renter', renter::text, 'both late', '[{"kind":"photo","ref":"https://x/door.jpg"}]', 'incident:test:both'),
+         (gen_random_uuid(), s1, grp, array[bk2], 'outbound', 'damaged', 'owner', 'owner-b', 'lens chipped', '[]', 'incident:test:lens');
+  insert into public.delivery_events (shipment_id, from_status, to_status, source, actor_id, dedupe_key, occurred_at, note)
+  values (s1, 'failed', 'failed', 'staff', 'staff-1', 'test:staff-note', now(), 'internal: renter was rude');
+end $$;
+
+-- 18 as the renter, then each owner.
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '00000000-0000-4000-8000-0000000760a1', 'role', 'authenticated')::text, true);
+do $$
+declare
+  n integer;
+begin
+  select count(*) into n from public.delivery_events where to_status is not null;
+  if n = 0 then raise exception 'FAIL 18: the renter cannot read their delivery history'; end if;
+  begin
+    perform actor_id from public.delivery_events;
+    raise exception 'FAIL 18: the renter can read who acted (actor_id)';
+  exception when insufficient_privilege then
+    null;
+  end;
+  begin
+    perform note from public.delivery_events;
+    raise exception 'FAIL 18: the renter can read staff notes';
+  exception when insufficient_privilege then
+    null;
+  end;
+  select count(*) into n from public.delivery_incidents where kind is not null;
+  if n <> 3 then raise exception 'FAIL 18: the renter sees % incidents (expected 3)', n; end if;
+  begin
+    perform reported_by_id from public.delivery_incidents;
+    raise exception 'FAIL 18: incident reporter ids are readable';
+  exception when insufficient_privilege then
+    null;
+  end;
+  raise notice 'PASS 18a: the renter reads history and incidents without staff ids or notes';
+end $$;
+
+select set_config('request.jwt.claims', json_build_object('sub', '00000000-0000-4000-8000-0000000760b1', 'role', 'authenticated')::text, true);
+do $$
+declare
+  n integer;
+begin
+  begin
+    perform evidence from public.delivery_custody_events;
+    raise exception 'FAIL 18: an owner can read custody evidence (photos at the renter''s door)';
+  exception when insufficient_privilege then
+    null;
+  end;
+  begin
+    perform evidence from public.delivery_incidents;
+    raise exception 'FAIL 18: an owner can read incident evidence';
+  exception when insufficient_privilege then
+    null;
+  end;
+  select count(*) into n from public.delivery_incidents where kind is not null;
+  if n <> 1 then raise exception 'FAIL 18: owner A sees % incidents (expected only the one on their camera alone)', n; end if;
+  raise notice 'PASS 18b: owner A sees no evidence links and no incident that covers another owner''s line';
+end $$;
+
+select set_config('request.jwt.claims', json_build_object('sub', '00000000-0000-4000-8000-0000000760b2', 'role', 'authenticated')::text, true);
+do $$
+declare
+  n integer;
+begin
+  select count(*) into n from public.delivery_incidents where kind is not null;
+  if n <> 1 then raise exception 'FAIL 18: owner B sees % incidents (expected only the one on their lens)', n; end if;
+  raise notice 'PASS 18c: owner B sees only the incident on their own line';
 end $$;
 reset role;
 

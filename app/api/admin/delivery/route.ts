@@ -10,6 +10,7 @@ import { INCIDENT_KINDS, type IncidentKind, type DeliveryIncident } from '@/lib/
 import {
   advanceManualDelivery,
   cancelDelivery,
+  closeDeliveryReview,
   commitDelivery,
   confirmCollection,
   confirmHandover,
@@ -21,11 +22,15 @@ import {
   type DeliveryCaller,
 } from '@/lib/core/delivery/use-cases';
 import { drainDeliveryInbox } from '@/lib/delivery/inbox';
-import { SupabaseDeliveryJobQueries, pollTrackedShipments, reconcileUncertainDispatches } from '@/lib/delivery/jobs';
+import { SupabaseDeliveryJobQueries, deemDeliveryAcceptances, pollTrackedShipments, reconcileUncertainDispatches } from '@/lib/delivery/jobs';
 import { legInputsFor, loadDeliveryOpsQueues, photoEvidence, quoteReadyNotices, revealShipmentAddress, sastDayWindow } from '@/lib/delivery/ops';
 import { SupabaseDeliveryInbox } from '@/lib/delivery/repos';
 import { deliveryDeps } from '@/lib/delivery/server';
+import { dispatchAfterManualPayment } from '@/lib/delivery/after-payment';
+import { SupabaseQuoteLinks } from '@/lib/delivery/checkout';
 import { dispatchOutbox } from '@/lib/rental/notify';
+import { manualReference } from '@/lib/payments/routing';
+import { toCents } from '@/lib/core/pricing/money';
 
 /**
  * Delivery operations for staff (spec Phase 4 §4.18). GET lists the queues;
@@ -50,6 +55,8 @@ const text = (v: unknown, max: number): string => (typeof v === 'string' ? v.tri
 const MANUAL_STATES = ['courier_assigned', 'courier_at_pickup', 'in_transit', 'courier_at_dropoff', 'delivery_attempt_failed'] as const;
 const LIABILITY: readonly DeliveryIncident['liability'][] = ['undetermined', 'provider', 'renter', 'owner', 'platform', 'none'];
 const RESCHEDULABLE = ['prepared', 'booking', 'scheduled', 'courier_assigned'] as const;
+const REVIEW_TARGETS = ['delivered', 'lost', 'damaged', 'failed'] as const;
+const MANUAL_METHODS = ['eft', 'cash', 'card_link'] as const;
 
 export async function GET() {
   const auth = await requireAdmin();
@@ -244,6 +251,57 @@ export async function POST(request: NextRequest) {
         return NextResponse.json(r);
       }
 
+      case 'close_review': {
+        // A leg under review, lost, damaged or returning to the sender is closed by a person,
+        // with a reason, through the core transition rules (staff only, reason required).
+        if (!isId(body.shipmentId) || !REVIEW_TARGETS.includes(body.to as (typeof REVIEW_TARGETS)[number])) return NextResponse.json({ error: 'Choose the delivery and how the review ends.' }, { status: 400 });
+        const reason = text(body.reason, 500);
+        const r = await closeDeliveryReview({ caller: staff, shipmentId: body.shipmentId, to: body.to as (typeof REVIEW_TARGETS)[number], reason, refundFee: body.refundFee === true }, await deliveryDeps());
+        audit({ shipmentId: body.shipmentId, to: String(body.to), refundFee: body.refundFee === true, outcome: r.ok ? r.outcome : r.code, refundCents: r.ok ? r.refundCents : null });
+        if (!r.ok) return refusal(r);
+        await flush();
+        return NextResponse.json(r);
+      }
+
+      case 'dispatch_manual_paid': {
+        // F-2 / F-3 (D-50): a delivery paid by hand. The order's own manual payment (an EFT
+        // order: its linked quotes, its recorded delivery total), or a return pickup the renter
+        // requested during the hire (that quote, the payment staff just took). The core checks
+        // the order is confirmed, the quotes are the renter's and the amount is exact; it never
+        // dispatches an unpaid leg.
+        if (!isId(body.bookingGroupId)) return NextResponse.json({ error: 'Choose the booking.' }, { status: 400 });
+        const deps = await deliveryDeps();
+        const group = await deps.bookings.getGroup(body.bookingGroupId);
+        if (!group) return NextResponse.json({ error: 'Booking not found.' }, { status: 404 });
+        const quoteIds = Array.isArray(body.quoteIds) ? body.quoteIds.filter(isId).slice(0, 4) : [];
+        let reference: string;
+        let receivedCents: number;
+        let ids: string[];
+        if (quoteIds.length > 0) {
+          const method = MANUAL_METHODS.find((m) => m === body.method);
+          const ref = text(body.reference, 60);
+          if (!method || ref.length < 2) return NextResponse.json({ error: 'Record how it was paid and its reference.' }, { status: 400 });
+          if (!Number.isSafeInteger(body.receivedCents)) return NextResponse.json({ error: 'Enter the amount received in cents.' }, { status: 400 });
+          reference = manualReference(method, ref);
+          receivedCents = body.receivedCents as number;
+          ids = quoteIds;
+        } else {
+          // The order paid by hand at checkout: its own recorded payment and delivery total.
+          if (!group.manualPaymentReference) return NextResponse.json({ error: 'This order was not paid by hand. Record its payment with "Mark paid" first.', code: 'payment_not_confirmed' }, { status: 409 });
+          const db = createAdminClient();
+          const { data: rows, error } = await db.from('equipment_bookings').select('delivery_fee').eq('checkout_group_id', body.bookingGroupId);
+          if (error) return NextResponse.json({ error: 'Could not read the order just now.' }, { status: 503 });
+          receivedCents = ((rows ?? []) as { delivery_fee: number | null }[]).reduce((n, r) => n + toCents(Number(r.delivery_fee ?? 0)), 0);
+          ids = (await new SupabaseQuoteLinks(db).quotesForGroup(body.bookingGroupId)).filter((q) => q.status === 'active' || q.status === 'expired').map((q) => q.id);
+          reference = group.manualPaymentReference;
+        }
+        const r = await dispatchAfterManualPayment({ staffId: auth.user.id, bookingGroupId: body.bookingGroupId, quoteIds: ids, reference, receivedCents }, deps);
+        audit({ bookingGroupId: body.bookingGroupId, quotes: ids.length, receivedCents, outcome: r.ok ? `marked_${r.marked}` : r.code, legs: r.ok ? r.legs.map((l) => `${l.leg}:${l.result}`).join(',') : null });
+        if (!r.ok) return refusal(r);
+        await flush();
+        return NextResponse.json(r);
+      }
+
       case 'quote_leg': {
         // Staff obtain a quote for a renter (e.g. a return pickup arranged by phone). The renter
         // is told a quote is ready; they pay for it through checkout, never here.
@@ -254,8 +312,10 @@ export async function POST(request: NextRequest) {
         if (!inputs.ok) return NextResponse.json({ error: inputs.message, code: inputs.code }, { status: inputs.code === 'not_found' ? 404 : 409 });
         const window = sastDayWindow(typeof body.date === 'string' ? body.date : inputs.defaultDate);
         if (!window) return NextResponse.json({ error: 'Choose the date (YYYY-MM-DD).' }, { status: 400 });
+        // Advisory: stored without the order link, so it never joins the order's checkout
+        // payment; it is tied to the order when its own payment is recorded (dispatch_manual_paid).
         const r = await quoteDelivery(
-          { caller: staff, renterId: inputs.renterId, bookingGroupId: body.bookingGroupId, leg, originAddressId: inputs.originAddressId, destinationAddressId: inputs.destinationAddressId, lines: inputs.lines, window },
+          { caller: staff, renterId: inputs.renterId, bookingGroupId: body.bookingGroupId, leg, originAddressId: inputs.originAddressId, destinationAddressId: inputs.destinationAddressId, lines: inputs.lines, window, link: false },
           deps,
         );
         if (!r.ok) {
@@ -291,16 +351,18 @@ export async function POST(request: NextRequest) {
       }
 
       case 'run_jobs': {
-        // Re-drive the provider inbox, reconcile unknown dispatches and poll courier legs now.
+        // Re-drive the provider inbox, reconcile unknown dispatches, poll courier legs and
+        // remind / deem acceptance of delivered legs now.
         const db = createAdminClient();
         const deps = await deliveryDeps();
         const jobs = new SupabaseDeliveryJobQueries(db);
         const inbox = await drainDeliveryInbox({ store: new SupabaseDeliveryInbox(db), useCases: deps }, DELIVERY_OPS.inboxBatchSize, DELIVERY_OPS.inboxMaxRetries);
         const reconcile = await reconcileUncertainDispatches(deps, jobs);
         const poll = await pollTrackedShipments(deps, jobs);
-        audit({ inboxClaimed: inbox.claimed, reconciled: reconcile.checked, polled: poll.checked });
+        const acceptance = await deemDeliveryAcceptances(deps, jobs);
+        audit({ inboxClaimed: inbox.claimed, reconciled: reconcile.checked, polled: poll.checked, acceptance: acceptance.checked });
         await flush();
-        return NextResponse.json({ ok: true, inbox, reconcile, poll });
+        return NextResponse.json({ ok: true, inbox, reconcile, poll, acceptance });
       }
 
       case 'reveal_address': {

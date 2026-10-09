@@ -17,7 +17,7 @@
  *    inspection (D17), and an open incident holds settlement (D29).
  */
 
-import { DELIVERY_POLICY } from '@/lib/constants';
+import { DELIVERY_OPS, DELIVERY_POLICY } from '@/lib/constants';
 import * as L from '@/lib/core/rental/ledger';
 import { buildNotices, type OutboxMessage, type RentalNoticeKind } from '@/lib/core/rental/notifications';
 import { refundObligationKey } from '@/lib/core/rental/refunds';
@@ -49,8 +49,8 @@ import {
 } from './incidents';
 import { evaluateDeliveryEligibility, providerRiskGate, type DeliveryIneligibleCode, type InsuranceAnswer } from './policy';
 import type { CreateDeliveryRequest, DeliveryWindow, ParcelItem, ProviderDelivery, ProviderDeliveryState, ProviderQuote } from './port';
-import { checkQuotesForCharge, priceDeliveryQuote, quoteIsLive, type ChargeCheck, type CustomerDeliveryQuote } from './quote';
-import type { DeliveryDeps, DeliveryProof, DispatchIntent, Shipment, ShipmentTransition } from './repository';
+import { checkQuotesForCharge, priceDeliveryQuote, quoteIsLive, type ChargeCheck, type CustomerDeliveryQuote, type QuoteLineSnapshot } from './quote';
+import type { DeliveryBookingLine, DeliveryDeps, DeliveryProof, DispatchIntent, Shipment, ShipmentTransition } from './repository';
 import { selectDeliveryProviders, type EvaluatedCandidate } from './select';
 import {
   CANCELLABLE_STATES,
@@ -97,6 +97,32 @@ function agentApproved(caller: DeliveryCaller, renterId: string, amountCents: nu
 }
 
 const actorId = (c: DeliveryCaller): string | null => (c.kind === 'system' ? null : c.userId);
+
+/**
+ * A payment a person recorded by hand (EFT, cash, card link): the same prefix
+ * as `manualReference()` in lib/payments/routing.ts (a test keeps the two in
+ * step). Such a payment was never booked in the ledger and is never refunded
+ * through the payment provider: a person refunds it.
+ */
+export const MANUAL_PAYMENT_PREFIX = 'manual:';
+export function isManualPaymentReference(ref: string | null | undefined): boolean {
+  return typeof ref === 'string' && ref.startsWith(MANUAL_PAYMENT_PREFIX);
+}
+
+/** The leg's fee went through the ledger (collected into unearned hire with a provider-verified payment). */
+const feeInLedger = (s: Pick<Shipment, 'customerFeeCents' | 'paidReference'>): boolean => s.customerFeeCents > 0 && !!s.paidReference && !isManualPaymentReference(s.paidReference);
+
+function lineSnapshot(lines: readonly { rentalId: string; quantity: number; startDate?: string; endDate?: string }[]): QuoteLineSnapshot[] {
+  return lines.map((l) => ({ rentalId: l.rentalId, quantity: Math.max(1, Math.floor(l.quantity)), startDate: (l.startDate ?? '').slice(0, 10), endDate: (l.endDate ?? '').slice(0, 10) }));
+}
+
+/** Two line snapshots describe the same units on the same days (order does not matter). */
+export function sameLineSnapshot(a: readonly QuoteLineSnapshot[], b: readonly QuoteLineSnapshot[]): boolean {
+  const key = (l: QuoteLineSnapshot): string => `${l.rentalId}|${Math.max(1, Math.floor(l.quantity))}|${l.startDate.slice(0, 10)}|${l.endDate.slice(0, 10)}`;
+  const x = a.map(key).sort();
+  const y = b.map(key).sort();
+  return x.length === y.length && x.every((v, i) => v === y[i]);
+}
 
 async function safeCall<T>(fn: () => Promise<ProviderCallResult<T>>): Promise<ProviderCallResult<T>> {
   try {
@@ -196,6 +222,14 @@ export async function quoteDelivery(
     destinationAddressId: string;
     lines: readonly DeliveryLineInput[];
     window: DeliveryWindow;
+    /**
+     * false: an advisory quote for a leg of an existing order (staff by phone,
+     * Ubunye, a renter's mid-hire request). It is stored WITHOUT the order
+     * link, so it never joins the order's checkout payment (whose delivery
+     * total must equal its linked quotes); it is tied to the order only when
+     * its own payment is recorded. Default true (the checkout flow).
+     */
+    link?: boolean;
   },
   deps: DeliveryDeps,
 ): Promise<QuoteDeliveryResult> {
@@ -213,6 +247,7 @@ export async function quoteDelivery(
     bookingId: l.bookingId ?? '',
     driverLabel: l.driverLabel,
     replacementValueCents: l.unitReplacementValueCents * Math.max(1, l.quantity),
+    quantity: Math.max(1, l.quantity),
     weightGrams: l.weightGrams,
     containsLithium: l.containsLithium,
   }));
@@ -249,7 +284,7 @@ export async function quoteDelivery(
     quotes.push(
       await deps.repo.saveQuote({
         renterId: input.renterId,
-        bookingGroupId: input.bookingGroupId,
+        bookingGroupId: input.link === false ? null : input.bookingGroupId,
         leg: input.leg,
         providerId: o.providerId,
         providerKind: o.kind,
@@ -263,6 +298,8 @@ export async function quoteDelivery(
         window: o.quote.window,
         status: 'active',
         paidReference: null,
+        lines: lineSnapshot(input.lines),
+        requestedAt: null,
       }),
     );
   }
@@ -335,7 +372,21 @@ export type PrepareResult =
       | 'provider_unavailable'
       | 'provider_excluded'
       | 'too_many_attempts'
+      | 'dates_mismatch'
     >;
+
+/**
+ * Whether the quote still describes this booking: the same listings, units
+ * and hire days it was priced for (its line snapshot). The checkout derived
+ * the quote's window from those same days (and its stale check compares the
+ * window's day with the leg day), so a booking whose dates or quantities
+ * changed since is never dispatched on the old quote. A quote made before the
+ * snapshot existed is not refused on this ground.
+ */
+export function quoteFitsBooking(quote: Pick<CustomerDeliveryQuote, 'lines'>, lines: readonly Pick<DeliveryBookingLine, 'rentalId' | 'quantity' | 'startDate' | 'endDate'>[]): boolean {
+  if (lines.length === 0) return false;
+  return !(quote.lines && quote.lines.length > 0 && !sameLineSnapshot(quote.lines, lineSnapshot(lines)));
+}
 
 /**
  * PREPARE (spec §4.8): validate booking, renter, items, eligibility, provider
@@ -371,7 +422,14 @@ export async function prepareDelivery(input: { caller: DeliveryCaller; quoteId: 
   if (attempt > DELIVERY_POLICY.maxDispatchAttemptsPerLeg) return refuse('too_many_attempts', 'This delivery needs a member of staff to arrange it.');
 
   if (quote.status !== 'active' && quote.status !== 'paid') return refuse('quote_not_active', 'That delivery quote has already been used or replaced.');
+  // A quote is dispatched at most once. A leg made from it that was cancelled or
+  // failed had its fee refunded (or kept as a passed-on fee): a payment replay or
+  // recovery run must never send attempt 2 on the same, already-settled fee. A
+  // re-attempt needs a new quote and its own payment (staff: quote_leg, then
+  // dispatch after payment).
+  if (sameLeg.some((s) => s.quoteId === quote.id)) return refuse('quote_not_active', 'That delivery quote has already been used. A new delivery needs a new quote.');
   if (quote.status === 'active' && !quoteIsLive(quote, now)) return refuse('quote_expired', 'Your delivery quote has expired. Please get a new quote.');
+  if (!quoteFitsBooking(quote, bookingLines)) return refuse('dates_mismatch', 'The booking dates or quantities changed since this delivery was quoted. Please get a new quote.');
 
   const port = deps.providers.get(quote.providerId);
   if (!port) return refuse('provider_unavailable', 'That delivery option is no longer available. Please get a new quote.');
@@ -398,6 +456,7 @@ export async function prepareDelivery(input: { caller: DeliveryCaller; quoteId: 
     bookingId: l.bookingId,
     driverLabel: l.driverLabel,
     replacementValueCents: l.unitReplacementValueCents * Math.max(1, l.quantity),
+    quantity: Math.max(1, l.quantity),
     weightGrams: l.weightGrams,
     containsLithium: l.containsLithium,
   }));
@@ -439,8 +498,12 @@ export async function prepareDelivery(input: { caller: DeliveryCaller; quoteId: 
 
 // ── Commit / dispatch ───────────────────────────────────────────────────────
 
-/** A claim older than this is presumed dead (worker crashed mid-call); reconcile before reuse. */
-const CLAIM_STALE_MS = 10 * 60_000;
+/**
+ * A claim older than this is presumed dead (worker crashed mid-call); reconcile
+ * before reuse. One constant for the core, the daily reconcile job and the ops
+ * queue: DELIVERY_OPS.staleClaimMinutes.
+ */
+export const CLAIM_STALE_MS = DELIVERY_OPS.staleClaimMinutes * 60_000;
 
 export type CommitResult =
   | { ok: true; outcome: 'dispatched' | 'already_dispatched' | 'reconciled'; shipment: Shipment }
@@ -486,7 +549,11 @@ export async function commitDelivery(input: { caller: DeliveryCaller; shipmentId
 
   const group = await deps.bookings.getGroup(shipment.bookingGroupId);
   if (!group) return refuse('not_found', 'Booking not found.');
-  if (!group.paymentVerified) return refuse('payment_not_verified', 'The payment for this order is not verified yet.');
+  // The order's payment: verified by the provider, or (staff only) confirmed
+  // through the manual-payment path, where a person recorded the EFT/cash
+  // payment and marked this leg's fee paid with its reference (D-50).
+  const paymentOk = group.paymentVerified || (input.caller.kind === 'staff' && !!group.manualPaymentReference);
+  if (!paymentOk) return refuse('payment_not_verified', 'The payment for this order is not verified yet.');
   if (shipment.customerFeeCents > 0 && !shipment.paidReference) return refuse('fee_not_paid', 'The delivery fee has not been paid.');
   const wanted: readonly BookingStatus[] = shipment.leg === 'outbound' ? ['confirmed'] : ['confirmed', 'active', 'overdue'];
   const lineOk = shipment.items.every((i) => {
@@ -534,6 +601,7 @@ export async function commitDelivery(input: { caller: DeliveryCaller; shipmentId
       bookingId: i.bookingId,
       driverLabel: l?.driverLabel ?? 'equipment',
       replacementValueCents: (l?.unitReplacementValueCents ?? 0) * Math.max(1, l?.quantity ?? 1),
+      quantity: Math.max(1, l?.quantity ?? 1),
       weightGrams: l?.weightGrams ?? null,
       containsLithium: l?.containsLithium ?? false,
     };
@@ -578,17 +646,30 @@ export async function commitDelivery(input: { caller: DeliveryCaller; shipmentId
   const t = emptyTransition(shipment, 'failed', { source: 'system', actorId: null, dedupeKey: `dispatch-rejected:${intent.id}`, providerState: null, occurredAt: now.toISOString(), note: res.message.slice(0, 500) });
   const refundCents = withFeeRefund(t, shipment, shipment.customerFeeCents);
   t.notices.push(...legNotices({ kind: 'delivery_cancelled', userIds: [shipment.renterId], shipment, discriminator: 'dispatch_rejected' }), ...staffAlert('delivery_dispatch_rejected', shipment.merchantReference));
-  t.quoteStatus = { quoteId: shipment.quoteId, to: 'consumed' };
+  t.quoteStatus = { quoteId: shipment.quoteId, to: shipment.paidReference ? 'refunded' : 'consumed' };
   t.from = ['booking', 'prepared'];
   await deps.repo.transitionShipment(t);
   await deps.repo.finishDispatch(intent.id, 'rejected', { lastError: res.message.slice(0, 500) });
   return { ...refuse('dispatch_rejected', 'The provider could not take this delivery. Your delivery fee will be refunded; you can collect in person.'), refundDueCents: refundCents };
 }
 
-/** Add the delivery-fee refund (journal, obligation, notice) to a transition. Returns the refund in cents. */
+/**
+ * Add the delivery-fee refund (journal, obligation, notice) to a transition.
+ * Returns the refund in cents. The obligation is capped again in the
+ * database at what is left of the original charge (076). A fee paid by hand
+ * (manual reference) was never in the ledger and is not refunded through the
+ * provider: staff are alerted to refund it.
+ */
 function withFeeRefund(t: ShipmentTransition, s: Shipment, refundCents: number): number {
   if (s.customerFeeCents <= 0 || !s.paidReference) return 0;
   const refund = Math.max(0, Math.min(refundCents, s.customerFeeCents));
+  if (!feeInLedger(s)) {
+    if (refund > 0) {
+      t.notices.push(...staffAlert('delivery_manual_fee_refund_due', `${s.merchantReference}:${refund}`));
+      t.notices.push(...legNotices({ kind: 'delivery_fee_refund', userIds: [s.renterId], shipment: s, discriminator: 'fee_refund', data: { amountCents: refund } }));
+    }
+    return refund;
+  }
   t.journals.push(L.deliveryCancelled({ shipmentId: s.id, bookingGroupId: s.bookingGroupId, customerFeeCents: s.customerFeeCents, refundCents: refund }));
   if (refund > 0) {
     t.refund = { key: deliveryFeeRefundKey(s.id), amountCents: refund, paidReference: s.paidReference, userId: s.renterId, bookingIds: s.items.map((i) => i.bookingId) };
@@ -790,8 +871,10 @@ export async function recordProviderEvent(input: ProviderEventInput, deps: Pick<
       break;
     case 'cancelled':
     case 'failed':
-      // The provider ended a job before the gear moved: the customer is refunded in full.
+      // The provider ended a job before the gear moved: the customer is refunded in full,
+      // and the quote can never be dispatched again (a payment replay sends nothing).
       withFeeRefund(t, shipment, shipment.customerFeeCents);
+      t.quoteStatus = { quoteId: shipment.quoteId, to: shipment.paidReference ? 'refunded' : 'consumed' };
       if (shipment.providerKind === 'courier' && shipment.accruedCostCents > 0) {
         t.journals.push(L.courierCostReduction({ shipmentId: shipment.id, bookingGroupId: shipment.bookingGroupId, amountCents: shipment.accruedCostCents, what: `provider-${to}` }));
         t.patch.accruedCostCents = 0;
@@ -815,8 +898,9 @@ export async function recordProviderEvent(input: ProviderEventInput, deps: Pick<
         reportedBy: { kind: 'provider', id: shipment.providerId },
         description: `Provider reported ${input.state.replace(/_/g, ' ')}.`,
         evidence: (input.proof ?? []).map((p) => ({ kind: p.kind, ref: p.ref })),
-        // A failed attempt is not attributed until a person looks (protects the renter from automatic late fees).
-        providerCaused: incidentKind === 'failed_attempt' ? null : undefined,
+        // Attribution from the provider's own event: it says it lost the parcel. Damage and a
+        // failed attempt are not attributed until a person looks (an open incident holds settlement).
+        providerCaused: incidentKind === 'lost' ? true : null,
         discriminator: incidentKind === 'failed_attempt' ? at : '',
         now,
       }),
@@ -995,7 +1079,7 @@ export async function confirmHandover(
       if (t.to === 'delivered' && !s.deliveredAt) t.patch.deliveredAt = e.occurredAt;
       if (allAccepted(s.items, chain)) {
         t.patch.acceptedAt = e.occurredAt;
-        if (s.customerFeeCents > 0 && s.paidReference) t.journals.push(L.deliveryEarned({ bookingGroupId: s.bookingGroupId, deliveryCents: s.customerFeeCents, leg: 'outbound' }));
+        if (feeInLedger(s)) t.journals.push(L.deliveryEarned({ bookingGroupId: s.bookingGroupId, deliveryCents: s.customerFeeCents, leg: 'outbound' }));
       }
       return;
     }
@@ -1025,7 +1109,7 @@ export async function confirmHandover(
         advance(t, s, 'delivered', 'staff');
         if (!s.deliveredAt) t.patch.deliveredAt = e.occurredAt;
         t.patch.acceptedAt = e.occurredAt;
-        if (s.customerFeeCents > 0 && s.paidReference) t.journals.push(L.deliveryEarned({ bookingGroupId: s.bookingGroupId, deliveryCents: s.customerFeeCents, leg: 'return' }));
+        if (feeInLedger(s)) t.journals.push(L.deliveryEarned({ bookingGroupId: s.bookingGroupId, deliveryCents: s.customerFeeCents, leg: 'return' }));
         t.notices.push(...legNotices({ kind: 'delivery_returned_for_inspection', userIds: [s.renterId], shipment: s, discriminator: 'received' }));
       }
     }
@@ -1044,8 +1128,16 @@ export interface SettlementCheck {
   /** The deposit (and owner payout) for this line may be settled now. */
   allowed: boolean;
   reasons: string[];
-  /** A late fee may be charged automatically (false when a provider delay may explain it). */
+  /** A late fee may be charged automatically (false when a delay attributed to the provider explains it). */
   lateFeeAutoCharge: boolean;
+  /**
+   * When a return pickup took every unit of this line from the renter
+   * (`collected_by_courier` or `handed_to_return_courier` on a live return
+   * leg), or null. The renter handed the gear back at that moment: late fees
+   * are counted to it, not to when the gear reached us (D-49). It never
+   * releases the deposit (D17).
+   */
+  returnCollectedAt: string | null;
 }
 
 /**
@@ -1058,18 +1150,28 @@ export async function checkRentalSettlement(input: { bookingGroupId: string; boo
   const shipments = (await deps.repo.listShipments(input.bookingGroupId)).filter((s) => s.items.some((i) => i.bookingId === input.bookingId));
   const incidents = (await deps.repo.listIncidents(input.bookingGroupId)).filter((i) => i.bookingIds.length === 0 || i.bookingIds.includes(input.bookingId));
   const reasons: string[] = [];
+  let returnCollectedAt: string | null = null;
   const ret = shipments.filter((s) => s.leg === 'return' && !FINAL_DELIVERY_STATES.includes(s.status));
   for (const s of ret) {
     const chain = (await deps.repo.listCustody(s.id)).filter((c) => c.bookingId === input.bookingId);
     const items = s.items.filter((i) => i.bookingId === input.bookingId);
     const verdict = depositSettlementAllowed({ everyItemInspected: allInspected(items, chain), incidents: [] });
     if (!verdict.allowed && verdict.reason) reasons.push(verdict.reason);
+    // The moment the last unit of this line left the renter on this leg (a leg on
+    // its way back to the renter, return_to_sender, does not count).
+    if (s.status === 'return_to_sender' || items.length === 0) continue;
+    const left = items.map((i) => chain.filter((c) => c.rentalId === i.rentalId && (c.kind === 'collected_by_courier' || c.kind === 'handed_to_return_courier')).map((c) => c.occurredAt).sort()[0] ?? null);
+    if (left.every((x): x is string => x !== null)) {
+      const at = [...left].sort().reverse()[0];
+      if (!returnCollectedAt || at < returnCollectedAt) returnCollectedAt = at;
+    }
   }
   const blocked = settlementBlockedByIncidents(incidents, input.bookingId);
   if (blocked.blocked) reasons.push('open_delivery_incident');
-  // A provider-caused (or unattributed) delay protects the renter even after the incident is resolved.
+  // Only a delay staff (or the provider itself) attributed to the provider waives the
+  // automatic late fee; an unattributed one is held above while open (D19).
   const late = lateFeeAutoChargeAllowed(incidents);
-  return { allowed: reasons.length === 0, reasons: [...new Set(reasons)], lateFeeAutoCharge: late.allowed };
+  return { allowed: reasons.length === 0, reasons: [...new Set(reasons)], lateFeeAutoCharge: late.allowed, returnCollectedAt };
 }
 
 export interface DeliveryStatusLeg {
@@ -1126,7 +1228,17 @@ export async function getDeliveryStatus(
  * under review. Nobody is accused and no deposit is touched; a person decides.
  */
 export async function reportIncident(
-  input: { caller: DeliveryCaller; shipmentId: string; kind: IncidentKind; description: string; evidence?: { kind: string; ref: string }[]; providerCaused?: boolean | null },
+  input: {
+    caller: DeliveryCaller;
+    shipmentId: string;
+    kind: IncidentKind;
+    description: string;
+    evidence?: { kind: string; ref: string }[];
+    /** Staff (or the system, from a provider event) only; ignored for anyone else. */
+    providerCaused?: boolean | null;
+    /** Narrow the incident to these booking lines (each must be the reporter's own). */
+    bookingIds?: string[];
+  },
   deps: Pick<DeliveryDeps, 'repo' | 'clock' | 'newId'>,
 ): Promise<{ ok: true; incidentId: string; duplicate: boolean } | Refusal<'not_found' | 'not_allowed' | 'description_required'>> {
   const s = await deps.repo.getShipment(input.shipmentId);
@@ -1138,23 +1250,38 @@ export async function reportIncident(
   if (input.description.trim().length < 3) return refuse('description_required', 'Say what happened.');
   const now = deps.clock.now();
   const reporter = c.kind === 'agent' ? 'renter' : c.kind;
-  // Only staff or the provider can say who caused it; anyone else leaves it open.
-  const providerCaused = c.kind === 'staff' || c.kind === 'system' ? input.providerCaused : undefined;
+  // Only staff (or the system, for a provider's own event) say who caused it.
+  // A renter, owner or agent report always starts unattributed: it holds
+  // settlement for a person and never waives a late fee by itself (D19).
+  const providerCaused = c.kind === 'staff' || c.kind === 'system' ? (input.providerCaused ?? null) : null;
+  // The incident covers the reporter's own lines only: an owner reports on
+  // their own items (never another owner's), the renter on the order's lines.
+  // It then holds settlement only for those lines (D29) and is readable only
+  // by the parties to them (076 policy).
+  const mine = [...new Set((c.kind === 'owner' ? s.items.filter((i) => i.ownerId === c.userId) : s.items).map((i) => i.bookingId))];
+  let bookingIds = mine;
+  if (input.bookingIds && input.bookingIds.length > 0) {
+    bookingIds = [...new Set(input.bookingIds.filter((b) => mine.includes(b)))];
+    if (bookingIds.length === 0) return refuse('not_allowed', 'You cannot report on those items.');
+  }
   const incident = newIncident({
     id: deps.newId(),
     shipmentId: s.id,
     bookingGroupId: s.bookingGroupId,
-    bookingIds: s.items.map((i) => i.bookingId),
+    bookingIds,
     leg: s.leg,
     kind: input.kind,
     reportedBy: { kind: reporter, id: actorId(c) },
     description: input.description,
     evidence: input.evidence,
-    providerCaused: providerCaused === undefined ? (input.kind === 'delayed' || input.kind === 'failed_attempt' ? null : undefined) : providerCaused,
+    providerCaused,
     discriminator: now.toISOString(),
     now,
   });
-  const notices = [...legNotices({ kind: 'delivery_incident', userIds: [s.renterId], shipment: s, discriminator: `incident:${incident.id}` }), ...staffAlert(`delivery_incident_${input.kind}`, s.merchantReference)];
+  const notices = [
+    ...buildNotices({ kind: 'delivery_incident', userId: s.renterId, bookingIds, discriminator: `${s.id}:incident:${incident.id}` }),
+    ...staffAlert(`delivery_incident_${input.kind}`, s.merchantReference),
+  ];
   const review = (input.kind === 'lost' || input.kind === 'damaged' || input.kind === 'stolen') && checkDeliveryTransition(s.status, 'incident_under_review', 'system').ok;
   if (review) {
     const t = emptyTransition(s, 'incident_under_review', { source: c.kind === 'renter' || c.kind === 'agent' ? 'renter' : c.kind === 'owner' ? 'owner' : c.kind === 'staff' ? 'staff' : 'system', actorId: actorId(c), dedupeKey: `incident:${incident.id}`, providerState: null, occurredAt: now.toISOString(), note: input.kind });
@@ -1292,7 +1419,10 @@ export async function cancelDelivery(
     t.patch.accruedCostCents = providerFee;
   }
   t.notices.push(...legNotices({ kind: 'delivery_cancelled', userIds: [s.renterId], shipment: s, discriminator: 'cancelled' }));
-  t.quoteStatus = s.paidReference ? null : { quoteId: s.quoteId, to: 'superseded' };
+  // A paid quote is settled by this cancellation (refunded, or kept as a passed-on
+  // fee): it can never be dispatched again, whatever replays later (a payment
+  // webhook duplicate, missed-payment recovery).
+  t.quoteStatus = { quoteId: s.quoteId, to: s.paidReference ? (refund > 0 ? 'refunded' : 'consumed') : 'superseded' };
   const r = await deps.repo.transitionShipment(t);
   if (r === 'conflict') return refuse('conflict', 'This delivery changed at the same time. Please try again.');
   // Close the intent so no later commit can book a courier for a cancelled leg.
@@ -1323,4 +1453,220 @@ export async function advanceManualDelivery(
     },
     deps,
   );
+}
+
+// ── Deemed acceptance (D-48) ───────────────────────────────────────────────
+
+export type DeemedAcceptanceOutcome = 'deemed' | 'reminded' | 'not_due' | 'not_applicable' | 'held' | 'duplicate' | 'conflict';
+
+/**
+ * A delivered outbound leg the renter neither accepted nor reported a problem
+ * with (spec §4.10, D-48). Run daily by the system:
+ *  1. from `deemedAcceptanceHours - deemedAcceptanceReminderLeadHours` after
+ *     the recorded delivery, the renter is reminded once to confirm;
+ *  2. from `deemedAcceptanceHours`, and only if that reminder went out on an
+ *     EARLIER run, every item not yet accepted gets a system custody event
+ *     `deemed_accepted`: the outbound fee is earned and `acceptedAt` is set
+ *     (so the address can follow retention).
+ * Never when the renter reported an exception or an incident on the leg is
+ * open (a person decides), and never for a return leg: deemed acceptance is an
+ * outbound event and the return still needs receipt and inspection (D17).
+ */
+export async function deemDeliveryAccepted(
+  input: { caller: DeliveryCaller; shipmentId: string },
+  deps: Pick<DeliveryDeps, 'repo' | 'clock'>,
+): Promise<{ ok: true; outcome: DeemedAcceptanceOutcome } | Refusal<'not_allowed' | 'not_found'>> {
+  if (input.caller.kind !== 'system') return refuse('not_allowed', 'Only the system records a deemed acceptance.');
+  const s = await deps.repo.getShipment(input.shipmentId);
+  if (!s) return refuse('not_found', 'Delivery not found.');
+  if (s.leg !== 'outbound' || s.status !== 'delivered' || s.acceptedAt || !s.deliveredAt) return { ok: true, outcome: 'not_applicable' };
+  const now = deps.clock.now();
+  const age = now.getTime() - new Date(s.deliveredAt).getTime();
+  const hour = 3_600_000;
+  if (age < (DELIVERY_POLICY.deemedAcceptanceHours - DELIVERY_POLICY.deemedAcceptanceReminderLeadHours) * hour) return { ok: true, outcome: 'not_due' };
+
+  const chain = await deps.repo.listCustody(s.id);
+  if (chain.some((c) => c.kind === 'renter_reported_exception')) return { ok: true, outcome: 'held' };
+  const open = (await deps.repo.listIncidents(s.bookingGroupId)).filter((i) => i.shipmentId === s.id && isOpen(i));
+  if (open.length > 0) return { ok: true, outcome: 'held' };
+
+  const deemAt = new Date(new Date(s.deliveredAt).getTime() + DELIVERY_POLICY.deemedAcceptanceHours * hour).toISOString();
+  const reminderKey = `accept-reminder:${s.id}`;
+  if (!(await deps.repo.hasEvent(reminderKey))) {
+    const t = emptyTransition(s, s.status, { source: 'system', actorId: null, dedupeKey: reminderKey, providerState: null, occurredAt: now.toISOString(), note: 'renter reminded to confirm the delivery' });
+    t.notices.push(...legNotices({ kind: 'delivery_delivered', userIds: [s.renterId], shipment: s, discriminator: 'accept_reminder', data: { reminder: true, deemedAcceptanceAt: deemAt } }));
+    const r = await deps.repo.transitionShipment(t);
+    return { ok: true, outcome: r === 'applied' ? 'reminded' : r };
+  }
+  if (age < DELIVERY_POLICY.deemedAcceptanceHours * hour) return { ok: true, outcome: 'not_due' };
+
+  const chains = chainsByItem(chain);
+  const pending = s.items.filter((i) => outboundReceipt(chains.get(`${i.bookingId}:${i.rentalId}`) ?? []) !== 'accepted');
+  const t = emptyTransition(s, 'delivered', { source: 'system', actorId: null, dedupeKey: `deemed:${s.id}`, providerState: null, occurredAt: now.toISOString(), note: `deemed accepted ${DELIVERY_POLICY.deemedAcceptanceHours} hours after delivery` });
+  const sofar = [...chain];
+  for (const i of pending) {
+    const e: CustodyEvent = {
+      shipmentId: s.id,
+      bookingGroupId: s.bookingGroupId,
+      bookingId: i.bookingId,
+      rentalId: i.rentalId,
+      serialNumber: i.serialNumber,
+      kind: 'deemed_accepted',
+      actor: { kind: 'system', id: null },
+      occurredAt: now.toISOString(),
+      evidence: [],
+      accessories: [],
+      serialConfirmed: false,
+      condition: null,
+      discrepancies: [],
+      incidentId: null,
+      dedupeKey: `deemed_accepted:${s.id}:${i.bookingId}:${i.rentalId}`,
+    };
+    const check = checkCustodyEvent(e, { shipmentId: s.id, bookingGroupId: s.bookingGroupId, leg: s.leg, items: s.items, renterId: s.renterId }, sofar);
+    // An item with no recorded delivery to the renter is not deemed received: a person looks.
+    if (!check.ok) return { ok: true, outcome: 'held' };
+    if (!check.duplicate) {
+      t.custody.push(e);
+      sofar.push(e);
+    }
+  }
+  t.patch.acceptedAt = now.toISOString();
+  if (feeInLedger(s)) t.journals.push(L.deliveryEarned({ bookingGroupId: s.bookingGroupId, deliveryCents: s.customerFeeCents, leg: 'outbound' }));
+  const r = await deps.repo.transitionShipment(t);
+  return { ok: true, outcome: r === 'applied' ? 'deemed' : r };
+}
+
+// ── A paid quote whose leg never ran (R-50, item 6) ─────────────────────────
+
+export type UnusedQuoteRefundResult =
+  | { ok: true; outcome: 'refunded' | 'already_refunded'; refundCents: number }
+  | Refusal<'not_allowed' | 'approval_required' | 'not_found' | 'not_paid' | 'in_use'>;
+
+/**
+ * The renter paid for a leg that was never made: after payment it could not
+ * be prepared (no longer eligible, provider gone, the booking changed), or
+ * the order is cancelled before it was made. The fee is owed back in full at
+ * once: journal, refund obligation (capped in the database at what is left
+ * of the charge) and notices, atomically with the quote moving paid →
+ * refunded. Refused while a live leg uses the quote (cancel that leg
+ * instead). A fee paid by hand is refunded by a person (staff alert).
+ */
+export async function refundUnusedDeliveryQuote(
+  input: { caller: DeliveryCaller; quoteId: string; reason: string },
+  deps: Pick<DeliveryDeps, 'repo'>,
+): Promise<UnusedQuoteRefundResult> {
+  const q = await deps.repo.getQuote(input.quoteId);
+  if (!q) return refuse('not_found', 'That delivery quote does not exist.');
+  const c = input.caller;
+  if (c.kind === 'owner' || !actsForRenter(c, q.renterId)) return refuse('not_allowed', 'You cannot refund this delivery.');
+  if (!agentApproved(c, q.renterId, q.customerFeeCents)) return refuse('approval_required', 'Please confirm this yourself.');
+  if (q.status === 'refunded') return { ok: true, outcome: 'already_refunded', refundCents: 0 };
+  if (q.status !== 'paid' || !q.paidReference || !q.bookingGroupId) return refuse('not_paid', 'That delivery quote was not paid.');
+  const made = (await deps.repo.listShipments(q.bookingGroupId)).filter((s) => s.quoteId === q.id);
+  // A leg made from it settles its own fee (cancelDelivery, a refused dispatch, a provider cancellation).
+  if (made.length > 0) return refuse('in_use', 'A delivery was made from this quote; cancel that delivery instead.');
+  const fee = q.customerFeeCents;
+  const ref = `quote-${q.id}`;
+  const manual = isManualPaymentReference(q.paidReference);
+  const notices: OutboxMessage[] = [];
+  if (fee > 0) {
+    notices.push(...buildNotices({ kind: 'delivery_fee_refund', userId: q.renterId, bookingIds: q.bookingIds, discriminator: `${ref}:fee_refund`, data: { amountCents: fee } }));
+    notices.push(...staffAlert(manual ? 'delivery_manual_fee_refund_due' : 'delivery_unused_quote_refunded', `${q.bookingGroupId}:${q.leg}:${fee}`));
+  }
+  const r = await deps.repo.refundUnusedQuote({
+    quoteId: q.id,
+    bookingGroupId: q.bookingGroupId,
+    journals: fee > 0 && !manual ? [L.deliveryCancelled({ shipmentId: ref, bookingGroupId: q.bookingGroupId, customerFeeCents: fee, refundCents: fee })] : [],
+    notices,
+    refund: fee > 0 && !manual ? { key: deliveryFeeRefundKey(ref), amountCents: fee, paidReference: q.paidReference, userId: q.renterId, bookingIds: q.bookingIds } : null,
+  });
+  if (r === 'conflict') {
+    const now = await deps.repo.getQuote(q.id);
+    return now?.status === 'refunded' ? { ok: true, outcome: 'already_refunded', refundCents: 0 } : refuse('in_use', 'This delivery changed at the same time. Please try again.');
+  }
+  return { ok: true, outcome: 'refunded', refundCents: fee };
+}
+
+// ── Closing a review (item 10) ──────────────────────────────────────────────
+
+const REVIEW_STATES: readonly DeliveryState[] = ['incident_under_review', 'lost', 'damaged', 'return_to_sender'];
+
+/**
+ * Staff close a leg that is under review, lost, damaged or returning to the
+ * sender, to a final state, with a recorded reason (the core transition
+ * rules: staff only, reason required). Moves no money unless staff ask for
+ * the delivery fee to be refunded on a leg that failed (capped at the fee).
+ * Incidents are resolved separately (resolveIncident).
+ */
+export async function closeDeliveryReview(
+  input: { caller: DeliveryCaller; shipmentId: string; to: Extract<DeliveryState, 'delivered' | 'lost' | 'damaged' | 'failed'>; reason: string; refundFee?: boolean },
+  deps: Pick<DeliveryDeps, 'repo' | 'clock'>,
+): Promise<{ ok: true; outcome: 'closed' | 'duplicate'; refundCents: number } | Refusal<'not_allowed' | 'not_found' | 'reason_required' | 'not_under_review' | 'transition_not_allowed' | 'conflict'>> {
+  if (input.caller.kind !== 'staff') return refuse('not_allowed', 'Only staff close a delivery review.');
+  const reason = input.reason.trim();
+  if (reason.length < 3) return refuse('reason_required', 'Record why the review is closed.');
+  const s = await deps.repo.getShipment(input.shipmentId);
+  if (!s) return refuse('not_found', 'Delivery not found.');
+  if (!REVIEW_STATES.includes(s.status)) return refuse('not_under_review', 'This delivery is not under review.');
+  const check = checkDeliveryTransition(s.status, input.to, 'staff', reason);
+  if (!check.ok) return refuse('transition_not_allowed', check.message);
+  const now = deps.clock.now().toISOString();
+  const t = emptyTransition(s, input.to, { source: 'staff', actorId: input.caller.userId, dedupeKey: `review-close:${s.id}:${s.status}:${input.to}`, providerState: null, occurredAt: now, note: reason.slice(0, 500) });
+  let refundCents = 0;
+  if (input.to === 'failed' && input.refundFee) {
+    refundCents = withFeeRefund(t, s, s.customerFeeCents);
+    if (s.paidReference) t.quoteStatus = { quoteId: s.quoteId, to: refundCents > 0 ? 'refunded' : 'consumed' };
+  }
+  const r = await deps.repo.transitionShipment(t);
+  if (r === 'conflict') return refuse('conflict', 'This delivery changed at the same time. Please reload.');
+  return { ok: true, outcome: r === 'duplicate' ? 'duplicate' : 'closed', refundCents: r === 'duplicate' ? 0 : refundCents };
+}
+
+// ── Payment taken by hand (F-2, F-3, D-50) ──────────────────────────────────
+
+/**
+ * Staff record that a delivery fee was paid by hand (EFT, cash, card link)
+ * and mark those quotes paid with the manual reference, so the legs can be
+ * prepared and dispatched by STAFF (commitDelivery accepts a staff caller on
+ * an order confirmed through the manual-payment path). Nothing here takes or
+ * moves money. Refused unless:
+ *  - the caller is staff and the reference is a manual-payment reference;
+ *  - the order is confirmed (provider-verified, or confirmed by hand);
+ *  - every quote belongs to this renter and this order's lines, is still
+ *    payable (active or expired), and the total equals what was received.
+ */
+export async function markDeliveryQuotesPaidByStaff(
+  input: { caller: DeliveryCaller; bookingGroupId: string; quoteIds: readonly string[]; reference: string; receivedCents: number },
+  deps: Pick<DeliveryDeps, 'repo' | 'bookings'>,
+): Promise<
+  | { ok: true; marked: number }
+  | Refusal<'not_allowed' | 'not_manual' | 'not_found' | 'payment_not_confirmed' | 'quote_not_found' | 'wrong_renter' | 'items_mismatch' | 'quote_not_active' | 'amount_mismatch'>
+> {
+  if (input.caller.kind !== 'staff') return refuse('not_allowed', 'Only staff record a payment taken by hand.');
+  if (!isManualPaymentReference(input.reference)) return refuse('not_manual', 'Record how it was paid (EFT, cash or card link) and its reference.');
+  if (!Number.isSafeInteger(input.receivedCents) || input.receivedCents < 0) return refuse('amount_mismatch', 'Enter the amount received in cents.');
+  if (input.quoteIds.length === 0) return refuse('quote_not_found', 'Choose the delivery quote that was paid.');
+  const group = await deps.bookings.getGroup(input.bookingGroupId);
+  if (!group) return refuse('not_found', 'Booking not found.');
+  if (!group.paymentVerified && !group.manualPaymentReference) return refuse('payment_not_confirmed', 'The order itself is not paid yet. Record its payment first (Mark paid).');
+  const onOrder = new Set(group.lines.map((l) => l.bookingId));
+  const rentals = new Set(group.lines.map((l) => l.rentalId));
+  const quotes: CustomerDeliveryQuote[] = [];
+  for (const id of new Set(input.quoteIds)) {
+    const q = await deps.repo.getQuote(id);
+    if (!q) return refuse('quote_not_found', 'A delivery quote is missing.');
+    if (q.renterId !== group.renterId) return refuse('wrong_renter', 'That quote belongs to someone else.');
+    if ((q.bookingGroupId && q.bookingGroupId !== group.bookingGroupId) || q.bookingIds.some((b) => !onOrder.has(b)) || q.rentalIds.some((r) => !rentals.has(r))) {
+      return refuse('items_mismatch', 'That quote is for a different booking.');
+    }
+    if (q.status !== 'active' && q.status !== 'expired') return refuse('quote_not_active', 'That quote was already paid, used or replaced.');
+    quotes.push(q);
+  }
+  const total = quotes.reduce((n, q) => n + q.customerFeeCents, 0);
+  if (total !== input.receivedCents) return refuse('amount_mismatch', `The delivery total is ${total} cents; the amount received must match it.`);
+  let marked = 0;
+  for (const q of quotes) {
+    if (await deps.repo.setQuoteStatus(q.id, ['active', 'expired'], 'paid', { paidReference: input.reference, bookingGroupId: group.bookingGroupId })) marked += 1;
+  }
+  return { ok: true, marked };
 }

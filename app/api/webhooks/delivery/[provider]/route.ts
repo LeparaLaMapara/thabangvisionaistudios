@@ -3,7 +3,8 @@ export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
 import { logEvent } from '@/lib/data/events';
 import { dispatchOutbox } from '@/lib/rental/notify';
-import { handleDeliveryWebhook, headerRecord } from '@/lib/delivery/webhooks';
+import { DELIVERY_OPS } from '@/lib/constants';
+import { handleDeliveryWebhook, headerRecord, readBodyWithin } from '@/lib/delivery/webhooks';
 import '@/lib/delivery/webhook-adapters';
 
 /**
@@ -12,7 +13,9 @@ import '@/lib/delivery/webhook-adapters';
  * Generic for every courier: the provider's parser (signature scheme and
  * payload shape) comes from the registry in lib/delivery/webhooks.ts.
  *
- * 1. Unknown provider → 404. Body over the limit → 413.
+ * 1. Unknown provider → 404. Body over the limit → 413, decided from the
+ *    Content-Length before reading and enforced while streaming (never more
+ *    than the limit is read into memory).
  * 2. Signature over the RAW body, constant time. Fails → 401; nothing is
  *    stored or applied (D11).
  * 3. Store a minimal copy in the durable inbox (unique dedupe key, so a
@@ -27,7 +30,11 @@ import '@/lib/delivery/webhook-adapters';
  */
 export async function POST(request: NextRequest, { params }: { params: Promise<{ provider: string }> }) {
   const { provider } = await params;
-  const rawBody = await request.text();
+  const rawBody = await readBodyWithin(request, DELIVERY_OPS.webhookMaxBodyBytes);
+  if (rawBody === null) {
+    logEvent({ eventType: 'delivery_webhook', eventCategory: 'delivery', metadata: { provider, status: 413, outcome: 'too_large' } });
+    return NextResponse.json({ error: 'Payload too large' }, { status: 413 });
+  }
   const result = await handleDeliveryWebhook({ providerId: provider, rawBody, headers: headerRecord(request.headers) });
 
   if (result.status !== 404) {

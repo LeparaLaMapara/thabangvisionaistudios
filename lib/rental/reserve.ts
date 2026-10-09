@@ -121,9 +121,19 @@ export async function reserveOrder(
   return { ok: true, bookingIds: result.booking_ids, holdExpiresAt: result.hold_expires_at };
 }
 
-/** Undo a reservation whose payment page could not be created (nothing was paid). */
+/**
+ * Undo a reservation whose payment page could not be created (nothing was
+ * paid). Its delivery quotes are unlinked (still unpaid), so they never stay
+ * tied to an order that no longer exists and the next checkout can use them.
+ */
 export async function releaseUnpaidReservation(db: Admin, checkoutGroupId: string): Promise<void> {
   await db.from('equipment_bookings').delete().eq('checkout_group_id', checkoutGroupId).eq('status', 'pending').is('payfast_payment_id', null);
   const { error } = await db.from('rental_payment_intents').delete().eq('checkout_group_id', checkoutGroupId).eq('state', 'initiated');
   if (error && !isMissingPipeline(error)) console.error('[reserve] could not remove intent:', error.message);
+  const { error: quoteErr } = await db
+    .from('delivery_quotes')
+    .update({ booking_group_id: null, updated_at: new Date().toISOString() })
+    .eq('booking_group_id', checkoutGroupId)
+    .in('status', ['active', 'expired']);
+  if (quoteErr && !isMissingPipeline(quoteErr)) console.error('[reserve] could not unlink delivery quotes:', quoteErr.message);
 }

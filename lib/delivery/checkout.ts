@@ -8,7 +8,7 @@ import type { CustomerDeliveryQuote } from '@/lib/core/delivery/quote';
 import type { DeliveryDeps } from '@/lib/core/delivery/repository';
 import type { ShipmentLeg } from '@/lib/core/delivery/state';
 import { SupabaseDeliveryRepository } from './repos';
-import { priceDeliveryForCheckout, quoteDelivery, type DeliveryCaller, type DeliveryLineInput } from '@/lib/core/delivery/use-cases';
+import { priceDeliveryForCheckout, quoteDelivery, sameLineSnapshot, type DeliveryCaller, type DeliveryLineInput } from '@/lib/core/delivery/use-cases';
 
 /**
  * The customer side of delivery at checkout (spec Phase 4 §4.7, §4.17).
@@ -127,13 +127,37 @@ export function publicQuote(q: CustomerDeliveryQuote): PublicQuote {
 export interface QuoteLinkStore {
   /** Tie an active, unlinked quote to the order. False if it is used elsewhere or no longer active. */
   linkToGroup(quoteId: string, bookingGroupId: string): Promise<boolean>;
-  /** Every quote tied to the order (any status). Empty when migration 076 is not applied. */
+  /**
+   * The quotes tied to the order that are part of its payment: every status
+   * except `superseded` (replaced before payment, never charged). Empty when
+   * migration 076 is not applied.
+   */
   quotesForGroup(bookingGroupId: string): Promise<CustomerDeliveryQuote[]>;
   /** Migration 076 is applied (the delivery tables exist). */
   available(): Promise<boolean>;
 }
 
 type Admin = ReturnType<typeof createAdminClient>;
+
+/**
+ * Whether a PostgREST answer means "this table does not exist here". A HEAD
+ * request cannot tell: PostgREST answers a missing table with 404 and an
+ * empty body, which postgrest-js turns into status 204 with NO error. So the
+ * probes below always use GET, which carries the error body (PGRST205 /
+ * 42P01), and also treat a bare 404 as missing.
+ */
+export function isMissingTable(r: { error: { code?: string; message?: string } | null; status?: number }): boolean {
+  if (r.error && isMissingPipeline(r.error)) return true;
+  return r.status === 404;
+}
+
+/** Probe a table with a real GET (never HEAD). True when it exists. Throws on any other failure. */
+export async function tableExists(db: Admin, table: string): Promise<boolean> {
+  const r = await db.from(table).select('id').limit(1);
+  if (isMissingTable(r)) return false;
+  if (r.error) throw new Error(`${table} check failed: ${r.error.message}`);
+  return true;
+}
 
 export class SupabaseQuoteLinks implements QuoteLinkStore {
   constructor(private db: Admin = createAdminClient()) {}
@@ -152,7 +176,7 @@ export class SupabaseQuoteLinks implements QuoteLinkStore {
   }
 
   async quotesForGroup(bookingGroupId: string): Promise<CustomerDeliveryQuote[]> {
-    const { data, error } = await this.db.from('delivery_quotes').select('id').eq('booking_group_id', bookingGroupId).order('created_at');
+    const { data, error } = await this.db.from('delivery_quotes').select('id').eq('booking_group_id', bookingGroupId).neq('status', 'superseded').order('created_at');
     if (error) {
       if (isMissingPipeline(error)) return [];
       throw new Error(`delivery quotes for order failed: ${error.message}`);
@@ -167,10 +191,39 @@ export class SupabaseQuoteLinks implements QuoteLinkStore {
   }
 
   async available(): Promise<boolean> {
-    const { error } = await this.db.from('delivery_quotes').select('id', { head: true, count: 'exact' }).limit(1);
-    if (!error) return true;
-    if (isMissingPipeline(error)) return false;
-    throw new Error(`delivery tables check failed: ${error.message}`);
+    return tableExists(this.db, 'delivery_quotes');
+  }
+
+  /**
+   * A return pickup the renter asked for during the hire and staff have not
+   * confirmed yet (requested, still unpaid): at most one per order.
+   */
+  async pendingReturnRequest(renterId: string, bookingIds: readonly string[]): Promise<CustomerDeliveryQuote | null> {
+    if (bookingIds.length === 0) return null;
+    const { data, error } = await this.db
+      .from('delivery_quotes')
+      .select('id')
+      .eq('renter_id', renterId)
+      .eq('leg', 'return')
+      .is('booking_group_id', null)
+      .not('requested_at', 'is', null)
+      .in('status', ['active', 'expired'])
+      .overlaps('booking_ids', [...bookingIds])
+      .order('requested_at', { ascending: false })
+      .limit(1);
+    if (error) {
+      if (isMissingPipeline(error)) return null;
+      throw new Error(`pending return request failed: ${error.message}`);
+    }
+    const id = ((data ?? []) as { id: string }[])[0]?.id;
+    return id ? new SupabaseDeliveryRepository(this.db).getQuote(id) : null;
+  }
+
+  /** Record the renter's request on the quote, once. True when this call recorded it. */
+  async markRequested(quoteId: string, at: string): Promise<boolean> {
+    const { data, error } = await this.db.from('delivery_quotes').update({ requested_at: at, updated_at: at }).eq('id', quoteId).is('requested_at', null).eq('status', 'active').select('id');
+    if (error) throw new Error(`mark return request failed: ${error.message}`);
+    return (data ?? []).length === 1;
   }
 }
 
@@ -238,6 +291,33 @@ const sameSet = (a: readonly string[], b: readonly string[]): boolean => {
 
 const sum = (qs: readonly CustomerDeliveryQuote[]): number => qs.reduce((s, q) => s + q.customerFeeCents, 0);
 
+const sastDay = (iso: string): string => new Date(new Date(iso).getTime() + 2 * 3_600_000).toISOString().slice(0, 10);
+
+/**
+ * Whether a stored quote still describes this cart: the same listings, units
+ * and hire days, and a window on the day the leg runs (the first hire day out,
+ * the last one back). Quotes recorded before the line snapshot existed are
+ * compared on listings and the leg day.
+ */
+export function quoteMatchesCart(q: Pick<CustomerDeliveryQuote, 'rentalIds' | 'lines' | 'leg' | 'window'>, lines: readonly DeliveryLineInput[]): boolean {
+  if (!sameSet(q.rentalIds, lines.map((l) => l.rentalId))) return false;
+  if (q.lines && q.lines.length > 0) {
+    const cart = lines.map((l) => ({ rentalId: l.rentalId, quantity: Math.max(1, l.quantity), startDate: (l.startDate ?? '').slice(0, 10), endDate: (l.endDate ?? '').slice(0, 10) }));
+    if (!sameLineSnapshot(q.lines, cart)) return false;
+  }
+  const day = legDate(lines.map((l) => ({ startDate: l.startDate ?? '', endDate: l.endDate ?? '' })), q.leg);
+  if (q.window.start && day && sastDay(q.window.start) !== day) return false;
+  return true;
+}
+
+/** The same window (same SAST times) moved to another day. */
+export function windowOnDay(win: DeliveryWindow, dateYmd: string): DeliveryWindow {
+  if (!win.start || !/^\d{4}-\d{2}-\d{2}$/.test(dateYmd)) return win;
+  const shift = new Date(`${dateYmd}T00:00:00${DELIVERY_CHECKOUT.utcOffset}`).getTime() - new Date(`${sastDay(win.start)}T00:00:00${DELIVERY_CHECKOUT.utcOffset}`).getTime();
+  const move = (iso: string | null): string | null => (iso ? new Date(new Date(iso).getTime() + shift).toISOString() : null);
+  return { start: move(win.start), end: move(win.end) };
+}
+
 /**
  * What this checkout may charge for delivery, from the stored quotes only.
  * `approvedCents` is the delivery total the customer saw and accepted; it is
@@ -257,9 +337,8 @@ export async function priceCheckoutDelivery(
   if (!qs.some((q) => q.leg === 'outbound')) return invalid('Choose a delivery option first.');
   if (new Set(qs.map((q) => q.leg)).size !== qs.length) return invalid('Choose one delivery option per trip.');
 
-  const cartIds = input.lines.map((l) => l.rentalId);
-  // A quote is stale when the cart changed, or another order already holds it.
-  const stale = qs.some((q) => !sameSet(q.rentalIds, cartIds) || (q.bookingGroupId !== null && q.bookingGroupId !== (input.bookingGroupId ?? null)));
+  // A quote is stale when the cart changed (items, units or dates), or another order already holds it.
+  const stale = qs.some((q) => !quoteMatchesCart(q, input.lines) || (q.bookingGroupId !== null && q.bookingGroupId !== (input.bookingGroupId ?? null)));
 
   if (!stale) {
     const check = await priceDeliveryForCheckout({ renterId: input.renterId, quoteIds: qs.map((q) => q.id), browserAmountCents: input.approvedCents }, deps);
@@ -270,9 +349,11 @@ export async function priceCheckoutDelivery(
     if (check.code !== 'quote_expired' && check.code !== 'quote_not_active') return invalid(check.message);
   }
 
-  // Re-quote every leg for the same addresses and window (D07).
+  // Re-quote every leg for the same addresses and window slot, on the day the
+  // leg now runs (D07): a changed date moves the window with it.
   const fresh: CustomerDeliveryQuote[] = [];
   for (const old of qs) {
+    const day = legDate(input.lines.map((l) => ({ startDate: l.startDate ?? '', endDate: l.endDate ?? '' })), old.leg);
     const r = await quoteDelivery(
       {
         caller: { kind: 'renter', userId: input.renterId },
@@ -282,7 +363,7 @@ export async function priceCheckoutDelivery(
         originAddressId: old.originAddressId,
         destinationAddressId: old.destinationAddressId,
         lines: input.lines,
-        window: old.window,
+        window: day ? windowOnDay(old.window, day) : old.window,
       },
       deps,
     );

@@ -1,16 +1,17 @@
 import { DELIVERY_POLICY } from '@/lib/constants';
 import type { ProviderCallResult } from '@/lib/core/ports';
 import type { DeliveryCapabilities } from '@/lib/core/delivery/capabilities';
-import type {
-  CreateDeliveryRequest,
-  DeliveryPort,
-  DeliveryQuoteRequest,
-  ProviderDelivery,
-  ProviderDeliveryState,
-  ProviderQuote,
-  ServiceabilityRequest,
-  ServiceabilityResult,
-  TrackingResult,
+import {
+  parcelUnits,
+  type CreateDeliveryRequest,
+  type DeliveryPort,
+  type DeliveryQuoteRequest,
+  type ProviderDelivery,
+  type ProviderDeliveryState,
+  type ProviderQuote,
+  type ServiceabilityRequest,
+  type ServiceabilityResult,
+  type TrackingResult,
 } from '@/lib/core/delivery/port';
 import { quoteOwnVehicleCents } from './quote';
 
@@ -87,7 +88,8 @@ export function createManualDeliveryAdapter(store: ManualTaskStore, opts: { now?
     return quoteOwnVehicleCents({
       origin: { name: 'origin', coords: { lat: r.from.lat, lng: r.from.lng } },
       destination: { lat: r.to.lat, lng: r.to.lng },
-      itemCount: r.items.length,
+      // Units, not lines: three tripods on one line are three items (as in lib/cart/pricing.ts).
+      itemCount: parcelUnits(r.items),
     });
   }
 
@@ -124,7 +126,7 @@ export function createManualDeliveryAdapter(store: ManualTaskStore, opts: { now?
           state: 'pending',
           windowStart: r.window.start,
           windowEnd: r.window.end,
-          itemCount: r.items.length,
+          itemCount: parcelUnits(r.items),
           createdAt: now().toISOString(),
         });
         return ok(toDelivery(task));

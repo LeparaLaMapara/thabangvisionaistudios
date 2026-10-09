@@ -1,7 +1,14 @@
 import { buildNotices, type OutboxMessage } from '@/lib/core/rental/notifications';
 import type { CustomerDeliveryQuote } from '@/lib/core/delivery/quote';
 import type { DeliveryDeps } from '@/lib/core/delivery/repository';
-import { commitDelivery, markDeliveryQuotesPaid, prepareDelivery } from '@/lib/core/delivery/use-cases';
+import {
+  commitDelivery,
+  markDeliveryQuotesPaid,
+  markDeliveryQuotesPaidByStaff,
+  prepareDelivery,
+  refundUnusedDeliveryQuote,
+  type DeliveryCaller,
+} from '@/lib/core/delivery/use-cases';
 import type { QuoteLinkStore } from './checkout';
 
 /**
@@ -19,6 +26,12 @@ import type { QuoteLinkStore } from './checkout';
  *
  * It never throws and never undoes the payment confirmation: a failure is
  * recorded as a staff alert (ops queue) and returned for the logs.
+ *
+ * A paid leg that cannot be prepared for a lasting reason (no longer
+ * eligible, the booking changed, the provider is gone) has its fee refunded
+ * at once (refundUnusedDeliveryQuote: obligation capped at the charge), so the
+ * money is never left stuck on a delivery that will not run. A quote already
+ * refunded, or used by a leg that was cancelled, is never dispatched again.
  */
 
 export type AfterPaymentOutcome =
@@ -41,7 +54,11 @@ async function tellStaff(deps: Pick<DeliveryDeps, 'repo'>, what: string, referen
   }
 }
 
-const LIVE_QUOTE: readonly CustomerDeliveryQuote['status'][] = ['active', 'expired', 'paid', 'consumed'];
+/** Quotes that were part of the order's payment (superseded ones never were). */
+const LIVE_QUOTE: readonly CustomerDeliveryQuote['status'][] = ['active', 'expired', 'paid', 'consumed', 'refunded'];
+
+/** Prepare refusals that will not go away by retrying: the paid fee is owed back now. */
+const REFUND_ON: readonly string[] = ['not_eligible', 'provider_excluded', 'provider_unavailable', 'items_mismatch', 'booking_state', 'too_many_attempts', 'dates_mismatch'];
 
 export async function dispatchDeliveryAfterPayment(
   input: { bookingGroupId: string; paidDeliveryCents: number | null },
@@ -73,11 +90,23 @@ export async function dispatchDeliveryAfterPayment(
     const legs: { leg: string; result: string }[] = [];
     const ordered = [...quotes].sort((a, b) => (a.leg === b.leg ? 0 : a.leg === 'outbound' ? -1 : 1));
     for (const q of ordered) {
+      // Settled already (cancelled and refunded): a replay never dispatches it again.
+      const current = await deps.delivery.repo.getQuote(q.id);
+      if (current?.status === 'refunded') {
+        legs.push({ leg: q.leg, result: 'refunded' });
+        continue;
+      }
       const prepared = await prepareDelivery({ caller: { kind: 'system' }, quoteId: q.id, bookingGroupId: groupId }, deps.delivery);
       if (!prepared.ok) {
-        // Paid but not prepared (for example no longer eligible): the fee is
-        // owed back or a person arranges it. Never dispatched silently.
+        // Paid but not prepared. For a lasting reason the fee goes back now
+        // (capped at the charge); otherwise a person arranges it. Never
+        // dispatched silently.
         await tellStaff(deps.delivery, `delivery_prepare_failed_${prepared.code}`, `${groupId}:${q.leg}`);
+        if (REFUND_ON.includes(prepared.code)) {
+          const refunded = await refundUnusedDeliveryQuote({ caller: { kind: 'system' }, quoteId: q.id, reason: `prepare refused: ${prepared.code}` }, deps.delivery);
+          legs.push({ leg: q.leg, result: refunded.ok ? `refunded_${prepared.code}` : `prepare_${prepared.code}` });
+          continue;
+        }
         legs.push({ leg: q.leg, result: `prepare_${prepared.code}` });
         continue;
       }
@@ -121,4 +150,46 @@ export async function afterRentalPayment(bookingGroupId: string, source: 'webhoo
     console.error(`[delivery] after-payment hook failed for ${bookingGroupId}: ${message}`);
     return { outcome: 'error', message };
   }
+}
+
+// ── Dispatch after a payment taken by hand (F-2, F-3, D-50) ─────────────────
+
+export type ManualDispatchOutcome =
+  | { ok: true; marked: number; legs: { leg: string; result: string }[] }
+  | { ok: false; code: string; message: string };
+
+/**
+ * Staff confirm that a delivery fee was paid by hand and dispatch it:
+ *
+ *   mark the quotes paid with the manual reference (core, staff only: the
+ *   order must be confirmed, the quotes this renter's, the amount exact)
+ *   → prepare each leg (eligibility re-checked) → commit as STAFF.
+ *
+ * Two uses: an order paid by EFT/cash at checkout (its linked quotes, the
+ * order's own manual reference, the delivery total recorded on the order),
+ * and a return pickup the renter requested during the hire (the requested
+ * quote, a new manual reference, the amount received). Never dispatches an
+ * unpaid leg: the core refuses unless the fee is marked paid. Every step goes
+ * through the core with the staff caller; the route logs the action.
+ */
+export async function dispatchAfterManualPayment(
+  input: { staffId: string; bookingGroupId: string; quoteIds: readonly string[]; reference: string; receivedCents: number },
+  deps: DeliveryDeps,
+): Promise<ManualDispatchOutcome> {
+  const staff: DeliveryCaller = { kind: 'staff', userId: input.staffId };
+  const marked = await markDeliveryQuotesPaidByStaff({ caller: staff, bookingGroupId: input.bookingGroupId, quoteIds: input.quoteIds, reference: input.reference, receivedCents: input.receivedCents }, deps);
+  if (!marked.ok) return { ok: false, code: marked.code, message: marked.message };
+  const legs: { leg: string; result: string }[] = [];
+  const quotes = (await Promise.all(input.quoteIds.map((id) => deps.repo.getQuote(id)))).filter((q): q is CustomerDeliveryQuote => !!q);
+  const ordered = [...quotes].sort((a, b) => (a.leg === b.leg ? 0 : a.leg === 'outbound' ? -1 : 1));
+  for (const q of ordered) {
+    const prepared = await prepareDelivery({ caller: staff, quoteId: q.id, bookingGroupId: input.bookingGroupId }, deps);
+    if (!prepared.ok) {
+      legs.push({ leg: q.leg, result: `prepare_${prepared.code}` });
+      continue;
+    }
+    const committed = await commitDelivery({ caller: staff, shipmentId: prepared.shipment.id }, deps);
+    legs.push({ leg: q.leg, result: committed.ok ? committed.outcome : `commit_${committed.code}` });
+  }
+  return { ok: true, marked: marked.marked, legs };
 }

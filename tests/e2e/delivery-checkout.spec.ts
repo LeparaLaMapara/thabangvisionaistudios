@@ -1,15 +1,16 @@
 import { test, expect, type Page } from '@playwright/test';
 
 /**
- * Phase 4 delivery in the customer flow. What runs without a database runs
- * always: the API contracts and auth gates of the delivery endpoints and the
- * checkout. The signed-in flows (quote, approve a changed price, pay, see the
- * delivery on the booking) need a renter account with a cart and migration
- * 076; they skip with that reason. The money rules behind them are covered by
- * tests/unit/delivery-checkout-*.test.ts.
+ * Phase 4 delivery in the customer flow: the API contracts and auth gates of
+ * the delivery endpoints and the checkout, which run without a database.
+ *
+ * The signed-in flows (quote, approve a changed price, pay, see the delivery
+ * on the booking, confirm receipt, request a return pickup) need a renter
+ * account with a cart, a payment provider and migration 076, none of which
+ * this run has. They are not stubbed here as always-skipped placeholders;
+ * their rules are covered by tests/unit/delivery-checkout-*.test.ts and
+ * tests/unit/delivery-review-*.test.ts.
  */
-
-const NEEDS_DB = 'Needs a signed-in renter with a cart and migration 076 applied (no database in this run).';
 
 async function safeGoto(page: Page, path: string): Promise<void> {
   try {
@@ -51,23 +52,17 @@ test.describe('Delivery: contracts that need no database', () => {
     expect([401, 403]).toContain(res.status());
   });
 
+  test('confirming a delivered item needs the signed-in renter', async ({ page }) => {
+    const res = await page.request.post('/api/delivery/accept', {
+      data: { booking_id: BOOKING, items: [{ booking_id: BOOKING, rental_id: BOOKING, outcome: 'accepted' }] },
+      headers: { Origin: base() },
+    });
+    expect([401, 403]).toContain(res.status());
+  });
+
   test('the cart (with its delivery options) stays behind sign-in', async ({ page }) => {
     await safeGoto(page, '/dashboard/cart');
     await page.waitForLoadState('domcontentloaded');
     expect(page.url()).toMatch(/\/login/);
-  });
-});
-
-test.describe('Delivery: signed-in flows', () => {
-  test('quote, approve a changed price, pay, and see the delivery on the booking', async () => {
-    test.skip(true, NEEDS_DB);
-  });
-
-  test('a first-time renter sees collection in person only, with the reason', async () => {
-    test.skip(true, NEEDS_DB);
-  });
-
-  test('arrange a return pickup during the hire', async () => {
-    test.skip(true, NEEDS_DB);
   });
 });

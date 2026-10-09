@@ -40,7 +40,25 @@
 --      delivery_create_shipment, delivery_claim_dispatch,
 --      delivery_apply_transition, delivery_mark_quote_paid,
 --      delivery_open_incident, delivery_save_reconciliation, delivery_post,
---      claim_delivery_provider_events.
+--      claim_delivery_provider_events, delivery_insert_fee_refund,
+--      delivery_refund_quote, delivery_redact_address.
+--
+-- REVIEW FIXES (2026-10-09, before 076 was applied anywhere)
+--   - Every delivery-fee refund obligation is capped at what is LEFT of the
+--     original charge (charge less every obligation already on it), not at
+--     the refund itself; a payment with no verified charge on record gets no
+--     provider refund (staff alert). delivery_insert_fee_refund.
+--   - A paid quote whose leg never ran can be refunded atomically
+--     (delivery_refund_quote); quotes gain status 'refunded', the line
+--     snapshot they were priced for (line_snapshot) and requested_at.
+--   - delivery_create_shipment refuses a quote that is no longer payable
+--     (refunded, consumed, superseded), so a refunded fee is never dispatched.
+--   - Custody gains the system event 'deemed_accepted' (D-48).
+--   - Address purge re-checks, in the same UPDATE, that nothing live uses the
+--     address (delivery_redact_address).
+--   - Clients read events without actor or note, custody and incidents without
+--     evidence (photo links) or staff ids; an owner reads an incident only when
+--     every line it concerns is theirs.
 --   Provider configuration stays in code/env (lib/delivery/ports.ts,
 --   DELIVERY_POLICY), reviewed like any other change; there is no
 --   delivery_provider_config table.
@@ -111,16 +129,29 @@ create table if not exists public.delivery_quotes (
   window_start timestamptz,
   window_end timestamptz,
   expires_at timestamptz not null,
-  status text not null default 'active' check (status in ('active', 'paid', 'consumed', 'expired', 'superseded')),
-  -- The charge's transaction reference (rental_payment_intents.reference) once paid.
+  status text not null default 'active'
+    constraint delivery_quotes_status_check check (status in ('active', 'paid', 'consumed', 'expired', 'superseded', 'refunded')),
+  -- The charge's transaction reference (rental_payment_intents.reference) once paid,
+  -- or a manual payment reference ('manual:…') recorded by staff.
   paid_reference text,
   paid_at timestamptz,
+  -- What the quote was priced for: [{rentalId, quantity, startDate, endDate}]. A
+  -- quote is stale when the cart's units or dates differ.
+  line_snapshot jsonb not null default '[]'::jsonb,
+  -- A renter asked for this leg during the hire; staff confirm it after payment.
+  requested_at timestamptz,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   check (customer_fee_cents = provider_cost_cents + platform_fee_cents)
 );
 create index if not exists idx_delivery_quotes_renter on public.delivery_quotes (renter_id, created_at desc);
 create index if not exists idx_delivery_quotes_group on public.delivery_quotes (booking_group_id);
+-- Re-runnable on a database that already has the first version of this table.
+alter table public.delivery_quotes add column if not exists line_snapshot jsonb not null default '[]'::jsonb;
+alter table public.delivery_quotes add column if not exists requested_at timestamptz;
+alter table public.delivery_quotes drop constraint if exists delivery_quotes_status_check;
+alter table public.delivery_quotes add constraint delivery_quotes_status_check
+  check (status in ('active', 'paid', 'consumed', 'expired', 'superseded', 'refunded'));
 
 -- ── 3. Shipments (one per order + leg + attempt) ─────────────────────────────
 
@@ -223,9 +254,11 @@ create table if not exists public.delivery_custody_events (
   booking_id uuid not null,
   rental_id uuid not null,
   serial_number text,
-  kind text not null check (kind in ('handed_to_courier', 'collected_by_courier', 'delivered_to_renter', 'renter_accepted',
-    'renter_reported_exception', 'handed_to_return_courier', 'received_by_owner', 'inspected')),
-  actor_kind text not null check (actor_kind in ('owner', 'thabangvision_staff', 'courier', 'renter')),
+  kind text not null constraint delivery_custody_events_kind_check check (kind in ('handed_to_courier', 'collected_by_courier',
+    'delivered_to_renter', 'renter_accepted', 'renter_reported_exception', 'deemed_accepted', 'handed_to_return_courier',
+    'received_by_owner', 'inspected')),
+  -- 'system' records only deemed_accepted (D-48).
+  actor_kind text not null constraint delivery_custody_events_actor_kind_check check (actor_kind in ('owner', 'thabangvision_staff', 'courier', 'renter', 'system')),
   -- A user id, or the provider id for a courier.
   actor_id text,
   occurred_at timestamptz not null,
@@ -239,6 +272,13 @@ create table if not exists public.delivery_custody_events (
   dedupe_key text not null unique
 );
 create index if not exists idx_delivery_custody_shipment on public.delivery_custody_events (shipment_id, booking_id, rental_id, id);
+alter table public.delivery_custody_events drop constraint if exists delivery_custody_events_kind_check;
+alter table public.delivery_custody_events add constraint delivery_custody_events_kind_check check (kind in ('handed_to_courier',
+  'collected_by_courier', 'delivered_to_renter', 'renter_accepted', 'renter_reported_exception', 'deemed_accepted',
+  'handed_to_return_courier', 'received_by_owner', 'inspected'));
+alter table public.delivery_custody_events drop constraint if exists delivery_custody_events_actor_kind_check;
+alter table public.delivery_custody_events add constraint delivery_custody_events_actor_kind_check
+  check (actor_kind in ('owner', 'thabangvision_staff', 'courier', 'renter', 'system'));
 create index if not exists idx_delivery_custody_booking on public.delivery_custody_events (booking_id);
 
 -- ── 7. Proofs (append-only) ──────────────────────────────────────────────────
@@ -465,7 +505,14 @@ set search_path = public, pg_temp
 as $$
 declare
   v_id uuid;
+  v_quote_status text;
 begin
+  -- The quote must still be payable or paid. Locked, so it cannot be refunded
+  -- (delivery_refund_quote) while a leg is being made from it.
+  select status into v_quote_status from public.delivery_quotes where id = (p_shipment ->> 'quoteId')::uuid for update;
+  if v_quote_status is null or v_quote_status not in ('active', 'paid') then
+    raise exception 'delivery_quote_not_active: %', coalesce(v_quote_status, 'missing') using errcode = 'P0001';
+  end if;
   begin
     insert into public.delivery_shipments (
       booking_group_id, leg, attempt, renter_id, owner_ids, items, booking_ids, equipment_ids, provider, provider_kind,
@@ -524,6 +571,69 @@ begin
 end;
 $$;
 
+-- A delivery-fee refund obligation, capped at what is LEFT of the original
+-- charge: the paid intent's expected amount less every obligation already on
+-- that transaction (any reason: a staff cancellation, a hire refund, another
+-- leg). The obligation is never larger than the refund asked for, and never
+-- takes the total above the charge. A reference with no verified charge on
+-- record (no paid intent) gets NO provider refund: staff are alerted to
+-- refund it by hand. A cut-down or skipped refund alerts staff too (the
+-- ledger journal then shows more refunds_payable than the obligation, which
+-- a person reconciles). Returns the cents the obligation holds (0 = none).
+create or replace function public.delivery_insert_fee_refund(p_refund jsonb, p_group uuid, p_evidence jsonb) returns integer
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $$
+declare
+  v_key text := p_refund ->> 'key';
+  v_ref text := p_refund ->> 'paidReference';
+  v_want integer := (p_refund ->> 'amountCents')::int;
+  v_charged integer;
+  v_provider text;
+  v_already bigint;
+  v_amount integer;
+  v_alert text;
+begin
+  if p_refund is null or p_refund = 'null'::jsonb or coalesce(v_want, 0) <= 0 then
+    return 0;
+  end if;
+  -- A replay of the same obligation changes nothing.
+  if exists (select 1 from public.refund_obligations where obligation_key = v_key) then
+    return 0;
+  end if;
+  select expected_amount_cents, provider into v_charged, v_provider
+    from public.rental_payment_intents
+   where reference = v_ref and state in ('paid', 'refund_due', 'refunded');
+  if v_charged is null then
+    v_alert := 'delivery_refund_unverified_charge';
+    v_amount := 0;
+  else
+    perform pg_advisory_xact_lock(hashtext('refund:' || v_ref));
+    select coalesce(sum(amount_cents), 0) into v_already from public.refund_obligations where transaction_reference = v_ref;
+    v_amount := least(v_want, greatest(v_charged - v_already, 0))::int;
+    if v_amount < v_want then
+      v_alert := 'delivery_refund_capped';
+    end if;
+  end if;
+  if v_alert is not null then
+    perform public.outbox_enqueue(jsonb_build_array(jsonb_build_object(
+      'dedupeKey', 'staff_alert:in_app:staff:delivery:' || v_alert || ':' || v_key,
+      'kind', 'staff_alert', 'channel', 'in_app', 'userId', 'staff', 'bookingIds', '[]'::jsonb,
+      'data', jsonb_build_object('what', v_alert, 'reference', v_key, 'askedCents', v_want, 'allowedCents', v_amount))));
+  end if;
+  if v_amount <= 0 then
+    return 0;
+  end if;
+  insert into public.refund_obligations (obligation_key, reason, amount_cents, charged_cents, transaction_reference, provider,
+    user_id, booking_group_id, booking_ids, evidence)
+  values (v_key, 'cancellation', v_amount, v_charged, v_ref, coalesce(v_provider, 'paystack'), (p_refund ->> 'userId')::uuid,
+          p_group, coalesce(array(select jsonb_array_elements_text(p_refund -> 'bookingIds'))::uuid[], '{}'), p_evidence)
+  on conflict (obligation_key) do nothing;
+  return v_amount;
+end;
+$$;
+
 -- Post journals and enqueue notices together (idempotent by key).
 create or replace function public.delivery_post(p_journals jsonb, p_notices jsonb) returns void
 language plpgsql
@@ -556,12 +666,11 @@ declare
   v_ev bigint;
   v_patch jsonb := coalesce(p -> 'patch', '{}'::jsonb);
   v_from text;
-  v_charged integer;
-  v_provider text;
+  v_group uuid;
   v_refund jsonb := p -> 'refund';
 begin
   begin
-    select status into v_from from public.delivery_shipments
+    select status, booking_group_id into v_from, v_group from public.delivery_shipments
      where id = (p ->> 'shipmentId')::uuid for update;
     if not found then
       raise exception 'delivery_conflict';
@@ -622,19 +731,8 @@ begin
 
     perform public.delivery_post(p -> 'journals', p -> 'notices');
 
-    if v_refund is not null and v_refund <> 'null'::jsonb then
-      select expected_amount_cents, provider into v_charged, v_provider
-        from public.rental_payment_intents where reference = v_refund ->> 'paidReference';
-      insert into public.refund_obligations (obligation_key, reason, amount_cents, charged_cents, transaction_reference, provider,
-        user_id, booking_group_id, booking_ids, evidence)
-      select v_refund ->> 'key', 'cancellation', (v_refund ->> 'amountCents')::int,
-             greatest(coalesce(v_charged, 0), (v_refund ->> 'amountCents')::int),
-             v_refund ->> 'paidReference', coalesce(v_provider, 'paystack'), (v_refund ->> 'userId')::uuid,
-             s.booking_group_id, coalesce(array(select jsonb_array_elements_text(v_refund -> 'bookingIds'))::uuid[], '{}'),
-             jsonb_build_object('delivery_shipment_id', s.id)
-        from public.delivery_shipments s where s.id = (p ->> 'shipmentId')::uuid
-      on conflict (obligation_key) do nothing;
-    end if;
+    -- Capped at what is left of the charge (never above what was charged in total).
+    perform public.delivery_insert_fee_refund(v_refund, v_group, jsonb_build_object('delivery_shipment_id', p ->> 'shipmentId'));
 
     if p -> 'quoteStatus' is not null and p -> 'quoteStatus' <> 'null'::jsonb then
       update public.delivery_quotes set status = p #>> '{quoteStatus,to}', updated_at = now()
@@ -672,6 +770,74 @@ begin
     update public.delivery_shipments set paid_reference = p_paid_reference, updated_at = now() where quote_id = p_quote;
   end if;
   return true;
+end;
+$$;
+
+-- A paid quote whose leg never ran: paid -> refunded (compare-and-set, and only
+-- while no live shipment uses it), its journal, notices and the capped refund
+-- obligation, all or nothing. Returns 'applied' or 'conflict'.
+create or replace function public.delivery_refund_quote(p jsonb) returns text
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $$
+declare
+  v_id uuid := (p ->> 'quoteId')::uuid;
+  v_status text;
+  v_group uuid;
+begin
+  select status, booking_group_id into v_status, v_group from public.delivery_quotes where id = v_id for update;
+  if v_status is distinct from 'paid' then
+    return 'conflict';
+  end if;
+  if exists (select 1 from public.delivery_shipments where quote_id = v_id and status not in ('cancelled', 'failed')) then
+    return 'conflict';
+  end if;
+  update public.delivery_quotes set status = 'refunded', updated_at = now() where id = v_id;
+  perform public.delivery_post(p -> 'journals', p -> 'notices');
+  perform public.delivery_insert_fee_refund(p -> 'refund', coalesce(v_group, (p ->> 'bookingGroupId')::uuid), jsonb_build_object('delivery_quote_id', v_id));
+  return 'applied';
+end;
+$$;
+
+-- Reduce an address to suburb level (R-41, D-46), only if nothing live uses it
+-- AT THE MOMENT OF WRITING: no open shipment (anything but cancelled, failed,
+-- or delivered and accepted/received), no open incident on a shipment using
+-- it, no live quote, no paid quote still to be dispatched. The job decides
+-- first; this re-check closes the gap between that decision and the write.
+-- Returns true when this call redacted it.
+create or replace function public.delivery_redact_address(p_address uuid, p_fields jsonb, p_now timestamptz) returns boolean
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $$
+begin
+  update public.delivery_addresses a
+     set formatted_address = coalesce(p_fields ->> 'formatted_address', 'Address removed'),
+         contact_name = '',
+         contact_phone = '',
+         instructions = null,
+         lat = (p_fields ->> 'lat')::double precision,
+         lng = (p_fields ->> 'lng')::double precision,
+         redacted_at = p_now
+   where a.id = p_address
+     and a.redacted_at is null
+     and a.purpose in ('renter_address', 'owner_handover')
+     and not exists (
+       select 1 from public.delivery_shipments s
+        where (s.origin_address_id = a.id or s.destination_address_id = a.id)
+          and not (s.status in ('cancelled', 'failed') or (s.status = 'delivered' and s.accepted_at is not null)))
+     and not exists (
+       select 1 from public.delivery_incidents i
+         join public.delivery_shipments s on s.id = i.shipment_id
+        where (s.origin_address_id = a.id or s.destination_address_id = a.id)
+          and i.status in ('open', 'investigating'))
+     and not exists (
+       select 1 from public.delivery_quotes q
+        where (q.origin_address_id = a.id or q.destination_address_id = a.id)
+          and ((q.status = 'active' and q.expires_at > p_now)
+               or (q.status = 'paid' and not exists (select 1 from public.delivery_shipments s2 where s2.quote_id = q.id))));
+  return found;
 end;
 $$;
 
@@ -780,10 +946,19 @@ revoke all on public.delivery_addresses, public.delivery_quotes, public.delivery
 
 -- Signed-in users read only their own rows (policies below). Shipments: only
 -- the columns that carry no address, tracking link or money detail.
-grant select on public.delivery_addresses, public.delivery_quotes, public.delivery_custody_events, public.delivery_incidents,
-  public.delivery_events to authenticated;
+grant select on public.delivery_addresses, public.delivery_quotes to authenticated;
 grant select (id, booking_group_id, leg, attempt, provider, provider_kind, status, window_start, window_end,
   scheduled_at, collected_at, delivered_at, accepted_at, created_at, updated_at) on public.delivery_shipments to authenticated;
+-- History without who did it or staff notes (actor_id, note).
+grant select (id, shipment_id, from_status, to_status, source, provider_state, occurred_at, recorded_at)
+  on public.delivery_events to authenticated;
+-- Custody without the evidence (photo links taken at the renter's door or at
+-- an owner's handover) or the actor's id.
+grant select (id, shipment_id, booking_group_id, booking_id, rental_id, serial_number, kind, actor_kind, occurred_at, recorded_at,
+  accessories, serial_confirmed, condition, discrepancies, incident_id) on public.delivery_custody_events to authenticated;
+-- Incidents without evidence, reporter/resolver ids or the staff resolution note.
+grant select (id, shipment_id, booking_group_id, booking_ids, leg, kind, status, provider_caused, liability, reported_by_kind,
+  description, resolved_at, created_at, updated_at) on public.delivery_incidents to authenticated;
 
 grant all on public.delivery_addresses, public.delivery_quotes, public.delivery_shipments, public.delivery_dispatch_intents,
   public.delivery_incidents, public.delivery_provider_events, public.delivery_reconciliation, public.delivery_manual_tasks
@@ -832,6 +1007,23 @@ as $$
        and (i ->> 'bookingId')::uuid = any (p_bookings));
 $$;
 
+-- The caller owns EVERY booking line in p_bookings on this shipment (and there is at least one).
+create or replace function public.delivery_owns_all(p_shipment uuid, p_bookings uuid[]) returns boolean
+language sql
+stable
+security definer
+set search_path = public, pg_temp
+as $$
+  select coalesce(array_length(p_bookings, 1), 0) > 0
+     and not exists (
+       select 1 from unnest(p_bookings) b
+        where not exists (
+          select 1 from public.delivery_shipments s, jsonb_array_elements(s.items) i
+           where s.id = p_shipment
+             and (i ->> 'ownerId') = auth.uid()::text
+             and (i ->> 'bookingId')::uuid = b));
+$$;
+
 drop policy if exists "Renter reads delivery events" on public.delivery_events;
 create policy "Renter reads delivery events" on public.delivery_events for select to authenticated
   using (public.is_admin() or public.delivery_is_renter(shipment_id));
@@ -842,11 +1034,13 @@ create policy "Party reads custody" on public.delivery_custody_events for select
   using (public.is_admin() or public.delivery_is_renter(shipment_id) or public.delivery_owns_any(shipment_id, array[booking_id]));
 
 drop policy if exists "Party reads incidents" on public.delivery_incidents;
+-- An owner reads an incident only when every line it concerns is theirs: a
+-- report about another owner's item, or the whole order, is not theirs to read.
 create policy "Party reads incidents" on public.delivery_incidents for select to authenticated
-  using (public.is_admin() or public.delivery_is_renter(shipment_id) or public.delivery_owns_any(shipment_id, booking_ids));
+  using (public.is_admin() or public.delivery_is_renter(shipment_id) or public.delivery_owns_all(shipment_id, booking_ids));
 
-revoke all on function public.delivery_is_renter(uuid), public.delivery_owns_any(uuid, uuid[]) from public, anon;
-grant execute on function public.delivery_is_renter(uuid), public.delivery_owns_any(uuid, uuid[]) to authenticated, service_role;
+revoke all on function public.delivery_is_renter(uuid), public.delivery_owns_any(uuid, uuid[]), public.delivery_owns_all(uuid, uuid[]) from public, anon;
+grant execute on function public.delivery_is_renter(uuid), public.delivery_owns_any(uuid, uuid[]), public.delivery_owns_all(uuid, uuid[]) to authenticated, service_role;
 
 do $$
 declare
@@ -860,7 +1054,10 @@ begin
     'public.delivery_mark_quote_paid(uuid, text[], text, text, uuid)',
     'public.delivery_open_incident(jsonb, jsonb)',
     'public.delivery_save_reconciliation(jsonb, jsonb, jsonb)',
-    'public.claim_delivery_provider_events(integer, integer)'
+    'public.claim_delivery_provider_events(integer, integer)',
+    'public.delivery_insert_fee_refund(jsonb, uuid, jsonb)',
+    'public.delivery_refund_quote(jsonb)',
+    'public.delivery_redact_address(uuid, jsonb, timestamptz)'
   ] loop
     execute format('revoke all on function %s from public, anon, authenticated', f);
     execute format('grant execute on function %s to service_role', f);
@@ -874,7 +1071,10 @@ commit;
 --   drop policy if exists "Party reads custody" on public.delivery_custody_events;
 --   drop policy if exists "Party reads incidents" on public.delivery_incidents;
 --   drop policy if exists "Renter reads delivery events" on public.delivery_events;
---   drop function if exists public.delivery_owns_any(uuid, uuid[]), public.delivery_is_renter(uuid);
+--   drop function if exists public.delivery_owns_all(uuid, uuid[]), public.delivery_owns_any(uuid, uuid[]),
+--     public.delivery_is_renter(uuid);
+--   drop function if exists public.delivery_redact_address(uuid, jsonb, timestamptz), public.delivery_refund_quote(jsonb),
+--     public.delivery_insert_fee_refund(jsonb, uuid, jsonb);
 --   drop function if exists public.claim_delivery_provider_events(integer, integer),
 --     public.delivery_save_reconciliation(jsonb, jsonb, jsonb), public.delivery_open_incident(jsonb, jsonb),
 --     public.delivery_mark_quote_paid(uuid, text[], text, text, uuid), public.delivery_apply_transition(jsonb),

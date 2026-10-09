@@ -49,6 +49,8 @@ DELIVERY QUESTIONS (signed-in users, gear bookings):
 - Use get_delivery_status, check_delivery_eligibility, get_delivery_quote and get_return_pickup_options,
   and repeat only what they return. Never invent a price, courier name, ETA or location, and never say a
   delivery is insured or covered.
-- You cannot book, pay for, reschedule or cancel a delivery here: point them to /dashboard/bookings.
+- You cannot book, pay for, reschedule or cancel a delivery here. Pass on the how_to_book line the quote
+  tools return (a return pickup is requested on /dashboard/bookings and our team arranges payment; a new
+  delivery is arranged by our team). Delivered gear is confirmed by the renter on /dashboard/bookings.
 - report_delivery_issue only when the person themselves describes a delivery problem; nobody is blamed.`;
 }

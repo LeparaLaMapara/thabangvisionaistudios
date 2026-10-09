@@ -763,6 +763,15 @@ export const DELIVERY_POLICY = {
   reconciliationToleranceCents: 0,
   // At most this many dispatch attempts per leg before a person takes over.
   maxDispatchAttemptsPerLeg: 3,
+  // FOUNDER DECISION (D-48): a delivered outbound leg that the renter neither
+  // accepts nor reports a problem with within this many hours of the recorded
+  // delivery is deemed accepted by the system (custody event
+  // `deemed_accepted`): the outbound fee is earned and the address can follow
+  // retention. Never over a reported exception or an open incident, and never
+  // for a return leg's inspection. The renter is reminded first
+  // (deemedAcceptanceReminderLeadHours before).
+  deemedAcceptanceHours: 48,
+  deemedAcceptanceReminderLeadHours: 24,
   // Delivery addresses and driver contact details are deleted (or reduced to
   // suburb level) this many days after the leg closes (POPIA purpose limit).
   addressRetentionDays: 180,
@@ -818,6 +827,16 @@ export const DELIVERY_OPS = {
   // Coordinates of a purged address are kept to this many decimals (about
   // 1 km: suburb level), so history still shows the area, not the house.
   purgedCoordinateDecimals: 2,
+  // The daily pipeline runs the delivery steps AFTER the money steps; together
+  // they get at most this long (the cron has 60 s), so a slow courier API can
+  // never starve the payment, refund and payout steps or the outbox. Work left
+  // over waits for the next pass or "Run delivery jobs now".
+  pipelineStepsBudgetMs: 20_000,
+  // Ubunye's delivery quote tools store an (advisory) quote per call: limit
+  // how many one person can ask for.
+  ubunyeQuoteRateLimit: { max: 10, windowMs: 60 * 60_000 },
+  // Renter acceptance requests (POST /api/delivery/accept) per person per minute.
+  acceptRateLimit: { max: 20, windowMs: 60_000 },
 } as const;
 
 // ─── Delivery at checkout (Phase 4 customer flow) ────────────────────────────
@@ -835,6 +854,8 @@ export const DELIVERY_CHECKOUT = {
   ],
   // South African Standard Time (no daylight saving).
   utcOffset: '+02:00',
+  // The same zone for showing times to people (quote expiry, windows), whatever the browser's zone.
+  timeZone: 'Africa/Johannesburg',
   // A position the browser reports is only a hint. Farther than this from the
   // server-verified address, it is logged as a mismatch; it never sets a price.
   hintToleranceKm: 2,
