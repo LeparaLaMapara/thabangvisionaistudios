@@ -8,6 +8,8 @@ import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
 import type { Profile } from '@/lib/supabase/queries/profiles';
 import { hasCompletePortfolio } from '@/lib/portfolio/validation';
+import { CREATOR_SPECIALIZATIONS } from '@/lib/constants';
+import CreatorBookableChecklist from '@/components/onboarding/CreatorBookableChecklist';
 import { DashboardSubTabs, ACCOUNT_TABS_CREATOR, ACCOUNT_TABS_USER } from '@/components/dashboard/DashboardSubTabs';
 import type { PortfolioProject } from '@/types/portfolio';
 import { Input } from '@/components/ui/Input';
@@ -53,6 +55,8 @@ export default function ProfileEditPage() {
   const [yearsExperience, setYearsExperience] = useState('');
   const [specializations, setSpecializations] = useState<string[]>([]);
   const [isVerified, setIsVerified] = useState(false);
+  const [verificationStatus, setVerificationStatus] = useState<string | null>(null);
+  const [hasAnyPortfolio, setHasAnyPortfolio] = useState(false);
   // After ID verification the legal name is locked in the database (067).
   const [nameLocked, setNameLocked] = useState(false);
 
@@ -78,7 +82,10 @@ export default function ProfileEditPage() {
   async function checkBankingStatus() {
     try {
       const res = await fetch('/api/banking', { credentials: 'include' });
-      setHasBanking(res.ok);
+      // GET /api/banking answers 200 with null when nothing is saved, so
+      // the status code alone is not "has banking details".
+      const body = res.ok ? await res.json().catch(() => null) : null;
+      setHasBanking(Boolean(body && typeof body === 'object'));
     } catch {
       setHasBanking(false);
     }
@@ -121,6 +128,9 @@ export default function ProfileEditPage() {
       setYearsExperience(String((data as Record<string, unknown>).years_experience ?? ''));
       setSpecializations((data as Record<string, unknown>).specializations as string[] ?? []);
       setIsVerified((data as Record<string, unknown>).verification_status === 'verified');
+      setVerificationStatus(((data as Record<string, unknown>).verification_status as string | null) ?? null);
+      const projects = (data as Record<string, unknown>).portfolio_projects as PortfolioProject[] | null;
+      setHasAnyPortfolio(Array.isArray(projects) && projects.length > 0);
       setNameLocked(isVerifiedProfile(data as { verification_status?: string | null; is_verified?: boolean | null }));
       setHasPortfolio(hasCompletePortfolio((data as Record<string, unknown>).portfolio_projects as PortfolioProject[] | null));
 
@@ -396,6 +406,19 @@ export default function ProfileEditPage() {
         Profile
       </h2>
 
+      {/* Creators see up front what makes them bookable. */}
+      {(isVerified || hasAnyPortfolio || specializations.length > 0 || crewBio.trim().length > 0) && (
+        <CreatorBookableChecklist
+          className="mb-8"
+          facts={{
+            verificationStatus,
+            portfolioComplete: hasPortfolio,
+            hasPayoutAccount: hasBanking,
+            availableForHire,
+          }}
+        />
+      )}
+
       <form onSubmit={handleSubmit} className="space-y-10">
         {/* Section 1: Profile Photo */}
         <div className="flex items-center gap-6">
@@ -630,25 +653,26 @@ export default function ProfileEditPage() {
                 Specializations
               </p>
               <div className="flex flex-wrap gap-2">
-                {['Photography', 'Cinematography', 'Editing', 'Sound', 'Directing', 'Lighting', 'Producing'].map(
-                  (spec) => (
+                {CREATOR_SPECIALIZATIONS.map(
+                  ({ value, label }) => (
                     <button
-                      key={spec}
+                      key={value}
                       type="button"
+                      aria-pressed={specializations.includes(value)}
                       onClick={() =>
                         setSpecializations((prev) =>
-                          prev.includes(spec.toLowerCase())
-                            ? prev.filter((s) => s !== spec.toLowerCase())
-                            : [...prev, spec.toLowerCase()],
+                          prev.includes(value)
+                            ? prev.filter((s) => s !== value)
+                            : [...prev, value],
                         )
                       }
-                      className={`text-xs font-mono uppercase tracking-widest px-4 py-2 border transition-all min-h-[36px] ${
-                        specializations.includes(spec.toLowerCase())
-                          ? 'bg-white text-black border-white'
+                      className={`text-xs font-mono uppercase tracking-widest px-4 py-2 border transition-all min-h-[44px] ${
+                        specializations.includes(value)
+                          ? 'bg-[#D4A843] text-[#050505] border-[#D4A843]'
                           : 'bg-transparent text-neutral-400 border-white/10 hover:border-white/30'
                       }`}
                     >
-                      {spec}
+                      {label}
                     </button>
                   ),
                 )}

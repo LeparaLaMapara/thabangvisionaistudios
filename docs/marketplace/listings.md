@@ -5,34 +5,71 @@ platform checks on the way, and what it does **not** check.
 
 ## Journey
 
-1. **Photo.** The owner uploads photos (Cloudinary, from the browser).
-2. **AI suggests details.** Onboarding (`/api/onboarding/create-rentals`)
-   guesses brand, model, category, title, description, what's included and a
-   day/week rate. Every guessed field is recorded in `listing_private.ai_fields`
-   as `suggested`. Suggested values are **untrusted**.
-3. **Owner reviews and corrects.** In `/dashboard/listings` each unconfirmed
-   field shows an "AI suggested" marker. The owner either edits it (recorded
-   as `owner_edited`) or presses "Correct" (`owner_confirmed`, via
-   `PUT /api/listings { action: 'confirm_ai_fields' }`). Every field the AI
-   can suggest is editable, including the week rate and what's included.
+Three steps for the owner (spec §9.3): **photo → review the suggested details
+and price → submit**. Verification adds what it must (ID check, validated
+payout account) and a person reviews where the rules say so; none of it is
+hidden or skipped. Anyone signed in can save a draft before the ID check.
+
+1. **Photo.** `/dashboard/listings` (or `?new=1`, where the welcome choice
+   "List my gear" lands) opens on the photo upload. The owner then chooses
+   "Suggest details from photo" or "Fill in details myself".
+2. **AI suggests details.** `POST /api/listings/suggest` recognises the gear
+   in the cover photo (vision, `lib/agents/tools/vision.ts`; the photo is
+   sent as its metadata-free delivery, so no GPS reaches the AI), drafts the
+   title, description and what's included (the listing describer,
+   `lib/agents/agents/listing-describer.ts`, skipped when vision is under
+   `MIN_CONFIDENCE`) and suggests a day and week rate
+   (`estimateDailyRate`, `lib/core/listings/suggest.ts`, numbers in
+   `LISTING_SUGGESTED_RATES`). The **server** creates the draft, so every
+   pre-filled field is recorded in `listing_private.ai_fields` as
+   `suggested` whatever the browser does (`suggestListing` returns the
+   values and the list of suggested fields together). Suggested values are
+   **untrusted**. AI calls are tracked (`trackedCompletion`) and share the
+   per-user limits of the onboarding identify step and the describer.
+   Onboarding (`/api/onboarding/create-rentals`) uses the same functions.
+   - **Replacement value is never suggested.** There is no reliable source
+     for it, so it stays empty and is required to submit.
+   - **Location** is pre-filled from the profile (city, province). It is the
+     owner's own data, not an AI value; the owner's declaration covers it.
+   - **Condition** is stored in `sub_category` in the dashboard's vocabulary
+     (`new`, `like-new`, `good`, `fair`; `normaliseCondition`). Vision's
+     `for_parts` maps to no condition. The equipment type goes to
+     `metadata.equipment_type`.
+3. **Owner reviews and corrects.** Each unconfirmed field shows an "AI
+   suggested" marker and is listed with its value. The owner edits it
+   (recorded as `owner_edited`), presses "Looks right" (`owner_confirmed`,
+   via `PUT /api/listings { action: 'confirm_ai_fields' }`), or presses
+   "Confirm all suggestions" (the same action with every pending field).
+   Required fields (photo, title, category, day rate, replacement value,
+   location) are marked; the optional ones (week rate, what's included,
+   serial number, replacement value evidence) are under "More details",
+   whose summary says how many suggestions inside still need checking.
    What's included is edited **one item per line** (an item may contain a
-   comma, e.g. "Lens caps (front, rear)"). Onboarding cuts the AI's list to
-   what an owner could enter (20 items of up to 80 characters,
-   `clampIncludes`).
-4. **Day rate, replacement value, location.** The owner enters the day rate,
-   an optional week rate, what it would cost to replace the item, and the
-   suburb and city where it is kept. The week rate is charged for each full
-   7 days of a hire (`hireCents`, `lib/core/pricing/rental.ts`), so it may not
-   be more than 7 days at the day rate (`weekRateProblem`); an edit that
-   lowers the day rate below a seventh of the stored week rate is refused
-   until the week rate is lowered or cleared. The renter deposit is worked out on the server from the
+   comma, e.g. "Lens caps (front, rear)"); AI lists are cut to what an owner
+   could enter (20 items of up to 80 characters, `clampIncludes`).
+4. **Day rate, replacement value, location.** The week rate is charged for
+   each full 7 days of a hire (`hireCents`, `lib/core/pricing/rental.ts`), so
+   it may not be more than 7 days at the day rate (`weekRateProblem`; the
+   suggested week rate is 5 days); an edit that lowers the day rate below a
+   seventh of the stored week rate is refused until the week rate is lowered
+   or cleared. The renter deposit is worked out on the server from the
    replacement value (`RENTAL_POLICY.depositRateBps`); the browser cannot set
    it. A serial number can be recorded for theft reports; it is not shown on
    the listing page, but see Known gaps (it is still readable via the API).
-5. **Owner declarations.** Three ticks, stored in `listing_private.owner_attestations` with
-   the Terms version and time set by the server: owns it or has the legal
-   right to rent it out; it is in the condition described and works; the
-   location is accurate.
+5. **Submit step: pre-check and declarations.** Saving opens the submit
+   step, which calls `GET /api/listings/[id]/check` (read-only;
+   `precheckSubmission`, the same rules as submit) and shows, before the
+   owner presses Submit: owner blocks (ID check, validated payout account
+   with the name-match rule, suspension), listing blocks (fields, AI
+   suggestions), and whether a person will review it and why. The three
+   declarations are ticked here and stored with `PUT /api/listings
+   { action: 'attest' }` (all three required, terms version and time set by
+   the server, only on a draft or rejected listing, only onto the private
+   row version read). They are stored in
+   `listing_private.owner_attestations`: owns it or has the legal right to
+   rent it out; it is in the condition described and works; the location is
+   accurate. After a submission that goes to review, the owner sees why
+   (`review_reason_codes`).
 6. **Submit.** `POST /api/listings/[id]/submit`. The server loads every fact
    itself and runs `decideSubmission` (`lib/core/listings/review.ts`). It then
    replaces every photo with a metadata-free copy (see Location and photos)
@@ -45,6 +82,22 @@ platform checks on the way, and what it does **not** check.
 8. **Published.** `listing_status = 'published'`; the database sets
    `is_published = true` (migration 072). Public pages still read
    `is_published`.
+
+## Funnel events (spec §9.6)
+
+Recorded with `trackFunnel` (ids and codes only; user id = owner id,
+`meta.listingId`):
+
+| Stage | Where | Meta |
+|---|---|---|
+| `listing_started` | a draft is created (`insertDraft`, `app/api/listings/_lib/drafts.ts`) | `source`: `dashboard`, `ai` or `onboarding` |
+| `listing_draft_complete` | submit is pressed on a draft/rejected listing whose own part is done: every required field, the declarations and every AI suggestion (`listingFieldsComplete`), whether or not the owner's ID or payout account still block it | |
+| `listing_submitted` | submit succeeded | `reviewed` (true when it went to a person), `codes` (review reasons) |
+| `listing_published` | auto-publish on submit, or admin approve (`/api/admin/listings/review`) | `source`: `auto` or `admin` |
+
+"Draft complete" is measured at the Submit press (not on every save) so it
+means "the owner tried to go live with a finished listing". A second press
+records it again; funnel reports count distinct listings.
 
 ## Rules
 

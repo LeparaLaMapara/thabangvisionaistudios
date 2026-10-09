@@ -3,6 +3,7 @@ export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
 import { rateLimitAdmin, requireAdmin } from '@/lib/auth';
 import { LISTING_POLICY } from '@/lib/constants';
+import { trackFunnel } from '@/lib/analytics/funnel';
 import {
   canSubmit,
   checkListingTransition,
@@ -218,6 +219,11 @@ export async function PATCH(request: NextRequest): Promise<NextResponse> {
     } catch (privErr) {
       console.error('[admin/listings/review] review record not written:', privErr);
       warning = 'The decision was saved, but the reviewer note and time were not recorded.';
+    }
+
+    // Funnel (spec 9.6): the owner's listing went live after a person approved it.
+    if (action.to === 'published') {
+      trackFunnel('listing_published', { userId: row.owner_id, meta: { listingId: row.id, source: 'admin' } });
     }
 
     if (action.notify) {

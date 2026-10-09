@@ -239,10 +239,13 @@ export async function getPublishedCreatorProfiles(limit?: number): Promise<Creat
 
   const creatorIds = [...new Set(prods.map((p: { creator_id: string }) => p.creator_id))];
 
+  // Only creators whose ID check passed: a creator may build a portfolio
+  // before verification, and it must not be shown until then.
   let query = supabase
     .from('public_profiles')
     .select('id, display_name, crew_slug, avatar_url, crew_bio, bio, specializations, hourly_rate, location, years_experience, crew_featured, skills, social_links, portfolio_projects')
     .in('id', creatorIds)
+    .eq('verification_status', 'verified')
     .order('crew_featured', { ascending: false })
     .order('created_at', { ascending: false });
 
@@ -382,12 +385,44 @@ export async function autoPublishCreatorProductions(): Promise<number> {
   const supabase = createAdminClient();
   const cutoff = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
 
-  const { data, error } = await supabase
+  // Only for creators whose ID check passed and who are not suspended:
+  // finishing onboarding is not a check, so waiting 7 days must not publish
+  // an unverified creator's page.
+  const { data: waiting, error: waitingErr } = await supabase
     .from('smart_productions')
-    .update({ is_published: true, updated_at: new Date().toISOString() })
+    .select('id, creator_id')
     .not('creator_id', 'is', null)
     .eq('is_published', false)
     .lt('submitted_at', cutoff)
+    .is('deleted_at', null);
+  if (waitingErr) {
+    console.error('[autoPublishCreatorProductions]', waitingErr.message);
+    return 0;
+  }
+  const creatorIds = Array.from(new Set((waiting ?? []).map((w: { creator_id: string }) => w.creator_id)));
+  if (creatorIds.length === 0) return 0;
+
+  const { data: verified, error: verifiedErr } = await supabase
+    .from('profiles')
+    .select('id')
+    .in('id', creatorIds)
+    .eq('verification_status', 'verified')
+    .not('is_suspended', 'is', true);
+  if (verifiedErr) {
+    console.error('[autoPublishCreatorProductions]', verifiedErr.message);
+    return 0;
+  }
+  const allowed = new Set((verified ?? []).map((p: { id: string }) => p.id));
+  const ids = (waiting ?? [])
+    .filter((w: { id: string; creator_id: string }) => allowed.has(w.creator_id))
+    .map((w: { id: string }) => w.id);
+  if (ids.length === 0) return 0;
+
+  const { data, error } = await supabase
+    .from('smart_productions')
+    .update({ is_published: true, updated_at: new Date().toISOString() })
+    .in('id', ids)
+    .eq('is_published', false)
     .is('deleted_at', null)
     .select('id');
 

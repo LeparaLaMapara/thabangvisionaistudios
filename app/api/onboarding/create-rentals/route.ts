@@ -2,100 +2,38 @@ export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
 import { NextRequest, NextResponse } from 'next/server';
-import { generateText } from 'ai';
-import { anthropic } from '@ai-sdk/anthropic';
 import { requireAuth, checkNotSuspended, checkRateLimit } from '@/lib/auth';
 import { createAdminClient } from '@/lib/supabase/server';
-import { STUDIO } from '@/lib/constants';
-import { trackedCompletion } from '@/lib/ai/tracked';
+import { describeListing, type ListingDescriberOutput } from '@/lib/agents/agents/listing-describer';
 import {
-  listingDescriberAgent,
-  buildListingDescriberPrompt,
-  parseListingDescriberOutput,
-  type ListingDescriberInput,
-  type ListingDescriberOutput,
-} from '@/lib/agents/agents/listing-describer';
-import { markAiSuggested, type AiSuggestibleField } from '@/lib/core/listings/review';
-import { clampIncludes } from '@/lib/core/listings/input';
-import { savePrivate } from '@/app/api/listings/_lib/server';
+  isLowConfidence,
+  onboardingItemKey,
+  parseOnboardingItem,
+  profileLocation,
+  suggestListing,
+  type OnboardingItem,
+} from '@/lib/core/listings/suggest';
+import { insertDraft } from '@/app/api/listings/_lib/drafts';
 import { isOwnImageUrl, metadataFreeImageUrl } from '@/app/api/listings/_lib/images';
 
-const MIN_CONFIDENCE = 0.7;
+/**
+ * POST /api/onboarding/create-rentals — the gear step of onboarding turns
+ * each photo into a DRAFT listing.
+ *
+ * What the owner typed on that step (name, category, condition, day rate)
+ * is used as their own value; what vision recognised and the describer
+ * wrote is used where the owner did not change it, and is recorded as
+ * AI-suggested (lib/core/listings/suggest.ts), so the owner must confirm it
+ * before submitting. An item vision was not sure about is still saved as a
+ * draft, flagged in the answer (`lowConfidence`) so the owner is told to
+ * check every detail; the describer is not asked to write about a guess.
+ * No replacement value is guessed. The location is the profile's city and
+ * province. Going live is POST /api/listings/[id]/submit.
+ */
 
-interface DetectedGearItem {
-  brand: string;
-  model: string;
-  category: string;
-  equipmentType?: string;
-  condition?: string;
-  confidence: number;
-  thumbnailUrl?: string | null;
-}
+const MAX_ITEMS = 20;
 
-function slugify(text: string): string {
-  return text
-    .toLowerCase()
-    .trim()
-    .replace(/[^\w\s-]/g, '')
-    .replace(/[\s_]+/g, '-')
-    .replace(/-+/g, '-');
-}
-
-async function describeListing(
-  input: ListingDescriberInput,
-  userId: string,
-): Promise<ListingDescriberOutput | null> {
-  try {
-    return await trackedCompletion<ListingDescriberOutput>({
-      agentId: listingDescriberAgent.id,
-      provider: 'anthropic',
-      model: listingDescriberAgent.model,
-      userId,
-      call: async () => {
-        const res = await generateText({
-          model: anthropic(listingDescriberAgent.model),
-          prompt: buildListingDescriberPrompt(input),
-          temperature: 0.6,
-        });
-        return {
-          result: parseListingDescriberOutput(res.text),
-          usage: {
-            inputTokens: res.usage.inputTokens ?? 0,
-            outputTokens: res.usage.outputTokens ?? 0,
-          },
-        };
-      },
-    });
-  } catch (err) {
-    console.error('[create-rentals] describe failed for', input.brand, input.model, err);
-    return null;
-  }
-}
-
-// Rough daily rate heuristic from condition + category.
-// Owners can edit before publishing; this is just a starting point.
-function estimateDailyRate(category: string, condition: string): number {
-  const base: Record<string, number> = {
-    'cameras-optics': 650,
-    'lighting-power': 400,
-    'audio': 350,
-    'grip-motion': 450,
-    'specialized-solutions': 300,
-  };
-  const conditionMultiplier: Record<string, number> = {
-    new: 1.1,
-    like_new: 1.0,
-    good: 0.9,
-    fair: 0.75,
-    for_parts: 0.4,
-  };
-  const categoryBase = base[category] ?? 400;
-  const mult = conditionMultiplier[condition] ?? 0.9;
-  return Math.round(categoryBase * mult);
-}
-
-function httpsUrl(v: unknown): boolean {
-  if (typeof v !== 'string' || !v) return false;
+function httpsUrl(v: string): boolean {
   try {
     return new URL(v).protocol === 'https:';
   } catch {
@@ -124,154 +62,135 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
   const supabase = createAdminClient();
 
-  // New suppliers save their gear as drafts (listing_status 'draft' below)
-  // before their ID check; this used to refuse every new supplier, so the last
-  // onboarding step always failed. Going live is POST /api/listings/[id]/submit,
-  // which requires verification, a validated payout account and, where the
+  // New suppliers save their gear as drafts before their ID check. Going
+  // live requires verification, a validated payout account and, where the
   // rules say so, a person's review.
   const { data: profile } = await supabase
     .from('profiles')
-    .select('location')
+    .select('city, province, location')
     .eq('id', auth.user.id)
-    .single();
+    .maybeSingle();
+  const location = profileLocation(profile as { city?: string | null; province?: string | null; location?: string | null } | null);
 
   try {
-    const body = await req.json();
-    const items = body.items as DetectedGearItem[] | undefined;
+    const body = (await req.json()) as { items?: unknown };
+    const raw = body?.items;
 
-    if (!items || !Array.isArray(items) || items.length === 0) {
+    if (!Array.isArray(raw) || raw.length === 0) {
       return NextResponse.json(
         { error: 'items must be a non-empty array.' },
         { status: 400 },
       );
     }
 
-    // Dedupe by brand+model, keep highest confidence
-    const dedup = new Map<string, DetectedGearItem>();
-    for (const item of items) {
-      if (!item.brand || !item.model) continue;
-      if (item.confidence < MIN_CONFIDENCE) continue;
-      const key = `${item.brand.trim().toLowerCase()}|${item.model.trim().toLowerCase()}`;
-      const existing = dedup.get(key);
-      if (!existing || item.confidence > existing.confidence) {
-        dedup.set(key, item);
+    // Drop items with nothing to make a draft from, and duplicates (same
+    // name, brand and model), keeping the most confident recognition.
+    const dedup = new Map<string, OnboardingItem>();
+    let skipped = 0;
+    for (const entry of raw.slice(0, MAX_ITEMS)) {
+      const item = parseOnboardingItem(entry);
+      if (!item) {
+        skipped += 1;
+        continue;
       }
+      const key = onboardingItemKey(item, item.owner.title ?? '');
+      const existing = dedup.get(key);
+      if (!existing || (item.facts?.confidence ?? 0) > (existing.facts?.confidence ?? 0)) dedup.set(key, item);
     }
 
     const unique = Array.from(dedup.values());
     if (unique.length === 0) {
       return NextResponse.json(
-        { error: `No gear items met the ${MIN_CONFIDENCE * 100}% confidence threshold.` },
+        { error: 'Give each item a name, or add a clearer photo.' },
         { status: 400 },
       );
     }
 
-    const created: Array<{ id: string; title: string; brand: string; model: string }> = [];
-    const failed: Array<{ brand: string; model: string; reason: string }> = [];
+    const created: Array<{ id: string; title: string; lowConfidence: boolean }> = [];
+    const failed: Array<{ title: string; reason: string }> = [];
 
     for (const item of unique) {
-      const condition = item.condition ?? 'good';
-      const described = await describeListing(
-        {
-          brand: item.brand,
-          model: item.model,
-          category: item.category,
-          condition,
-          city: profile?.location ?? null,
-        },
-        auth.user.id,
-      );
+      const facts = item.facts;
+      let described: ListingDescriberOutput | null = null;
+      if (facts && !isLowConfidence(facts) && facts.brand && facts.model) {
+        try {
+          described = await describeListing(
+            {
+              brand: facts.brand,
+              model: facts.model,
+              category: item.owner.category ?? facts.category ?? '',
+              condition: item.owner.condition ?? facts.condition ?? 'good',
+              city: location,
+            },
+            auth.user.id,
+          );
+        } catch (err) {
+          console.error('[create-rentals] describe failed:', err);
+        }
+      }
 
-      const fallbackTitle = `${item.brand} ${item.model}`.trim();
-      const title = described?.title || fallbackTitle;
-      const description = described?.description ?? null;
-      // Cut to what the owner could enter themselves (item length and count),
-      // so the draft can be edited without first rewriting this list.
-      const rentalIncludes = clampIncludes(described?.rentalIncludes ?? []);
-
-      const pricePerDay = estimateDailyRate(item.category, condition);
-      const pricePerWeek = Math.round(pricePerDay * 5); // SA market norm: 7 days billed as 5
+      const suggestion = suggestListing({ facts, described, owner: item.owner, location });
+      const v = suggestion.values;
+      if (!v.category) {
+        failed.push({ title: v.title, reason: 'Choose a category for this item.' });
+        continue;
+      }
 
       // The photo becomes the listing's one gallery image and its cover, so
       // the cover is always one of the photos a reviewer sees. Only a photo
       // in our own storage account is kept (the onboarding upload puts it
       // there); anything else is left off and the owner adds photos later.
       const photoUrl =
-        httpsUrl(item.thumbnailUrl) && isOwnImageUrl(item.thumbnailUrl as string)
-          ? metadataFreeImageUrl(item.thumbnailUrl as string)
+        item.photoUrl && httpsUrl(item.photoUrl) && isOwnImageUrl(item.photoUrl)
+          ? metadataFreeImageUrl(item.photoUrl)
           : null;
 
-      // Everything below except the owner and location was guessed by the AI
-      // (vision for brand/model/category, the describer for the words, a
-      // heuristic for the rates). Each stays untrusted until the owner
-      // confirms or edits it; a listing with unconfirmed fields cannot be
-      // submitted (lib/core/listings/review.ts). No deposit is guessed: it is
-      // computed from the replacement value the owner enters.
-      const aiSuggested: AiSuggestibleField[] = [
-        'title', 'brand', 'model', 'category', 'price_per_day', 'price_per_week',
-        ...(description ? (['description'] as const) : []),
-        ...(rentalIncludes.length > 0 ? (['rental_includes'] as const) : []),
-      ];
-
-      const { data, error } = await supabase
-        .from('smart_rentals')
-        .insert({
-          title,
-          slug: slugify(`${title}-${Date.now()}`),
-          description,
-          category: item.category,
-          sub_category: item.equipmentType ?? null,
-          brand: item.brand,
-          model: item.model,
-          price_per_day: pricePerDay,
-          price_per_week: pricePerWeek,
-          deposit_amount: null,
-          currency: STUDIO.currency.code,
-          thumbnail_url: photoUrl,
-          gallery: photoUrl ? [{ url: photoUrl, public_id: '' }] : [],
-          rental_includes: rentalIncludes,
-          metadata: {
-            ai_generated: true,
-            detection_confidence: item.confidence,
-            suggested_upsells: described?.suggestedUpsells ?? [],
-            location: profile?.location ?? null,
-          },
-          owner_type: 'community',
-          owner_id: auth.user.id,
-          listing_status: 'draft',
-          is_published: false,
-          is_available: true,
-          is_ai_generated: true,
-          quantity: 1,
-          ranking_score: 0,
-        })
-        .select('id, title')
-        .single();
-
-      if (error || !data) {
-        failed.push({
-          brand: item.brand,
-          model: item.model,
-          reason: error?.message ?? 'Insert failed',
-        });
-        continue;
-      }
-
-      // The AI flags live in listing_private (migration 072). A draft whose
-      // flags could not be saved would look owner-confirmed, so it is removed.
       try {
-        await savePrivate(supabase, data.id, { ai_fields: markAiSuggested(null, aiSuggested, new Date()) });
-      } catch (privErr) {
-        console.error('[create-rentals] AI flags not saved; draft removed:', privErr);
-        await supabase.from('smart_rentals').delete().eq('id', data.id).eq('owner_id', auth.user.id);
-        failed.push({ brand: item.brand, model: item.model, reason: 'Could not save the draft. Try again.' });
-        continue;
+        const id = await insertDraft(
+          supabase,
+          auth.user.id,
+          {
+            title: v.title,
+            description: v.description,
+            category: v.category,
+            condition: v.condition,
+            brand: v.brand,
+            model: v.model,
+            price_per_day: v.price_per_day,
+            price_per_week: v.price_per_week,
+            replacement_value: null,
+            rental_includes: v.rental_includes,
+            serial_number: null,
+            location: v.location,
+            gallery: photoUrl ? [{ url: photoUrl, public_id: '' }] : [],
+            thumbnail_url: photoUrl,
+            cover_public_id: null,
+          },
+          {
+            source: 'onboarding',
+            aiSuggested: suggestion.aiSuggested,
+            metadata: {
+              ai_generated: suggestion.aiSuggested.length > 0,
+              detection_confidence: facts?.confidence ?? null,
+              equipment_type: facts?.equipmentType ?? null,
+              suggested_upsells: described?.suggestedUpsells ?? [],
+            },
+          },
+        );
+        created.push({ id, title: v.title, lowConfidence: suggestion.lowConfidence });
+      } catch (err) {
+        console.error('[create-rentals] draft not saved:', err);
+        failed.push({ title: v.title, reason: 'Could not save the draft. Try again.' });
       }
-
-      created.push({ id: data.id, title: data.title, brand: item.brand, model: item.model });
     }
 
-    return NextResponse.json({ created, failed, totalConsidered: items.length });
+    return NextResponse.json({
+      created,
+      failed,
+      lowConfidence: created.filter((c) => c.lowConfidence).length,
+      skipped,
+      totalConsidered: raw.length,
+    });
   } catch (err) {
     console.error('[POST /api/onboarding/create-rentals]', err);
     return NextResponse.json({ error: 'Failed to draft listings.' }, { status: 500 });
