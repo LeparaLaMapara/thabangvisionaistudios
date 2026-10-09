@@ -15,6 +15,7 @@ import {
   type ListingDescriberInput,
   type ListingDescriberOutput,
 } from '@/lib/agents/agents/listing-describer';
+import { markAiSuggested, type AiSuggestibleField } from '@/lib/core/listings/review';
 
 const MIN_CONFIDENCE = 0.7;
 
@@ -111,10 +112,11 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
   const supabase = createAdminClient();
 
-  // New suppliers save their gear as drafts (is_published: false below) before
-  // their ID check; this used to refuse every new supplier, so the last
-  // onboarding step always failed. Publishing requires verification
-  // (PUT /api/listings) and our review.
+  // New suppliers save their gear as drafts (listing_status 'draft' below)
+  // before their ID check; this used to refuse every new supplier, so the last
+  // onboarding step always failed. Going live is POST /api/listings/[id]/submit,
+  // which requires verification, a validated payout account and, where the
+  // rules say so, a person's review.
   const { data: profile } = await supabase
     .from('profiles')
     .select('location')
@@ -175,7 +177,18 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
       const pricePerDay = estimateDailyRate(item.category, condition);
       const pricePerWeek = Math.round(pricePerDay * 5); // SA market norm: 7 days billed as 5
-      const depositAmount = Math.round(pricePerDay * (STUDIO.rental.depositPercent / 100) * 3);
+
+      // Everything below except the owner and location was guessed by the AI
+      // (vision for brand/model/category, the describer for the words, a
+      // heuristic for the rates). Each stays untrusted until the owner
+      // confirms or edits it; a listing with unconfirmed fields cannot be
+      // submitted (lib/core/listings/review.ts). No deposit is guessed: it is
+      // computed from the replacement value the owner enters.
+      const aiSuggested: AiSuggestibleField[] = [
+        'title', 'brand', 'model', 'category', 'price_per_day', 'price_per_week',
+        ...(description ? (['description'] as const) : []),
+        ...(rentalIncludes.length > 0 ? (['rental_includes'] as const) : []),
+      ];
 
       const { data, error } = await supabase
         .from('smart_rentals')
@@ -189,7 +202,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
           model: item.model,
           price_per_day: pricePerDay,
           price_per_week: pricePerWeek,
-          deposit_amount: depositAmount,
+          deposit_amount: null,
           currency: STUDIO.currency.code,
           thumbnail_url: item.thumbnailUrl ?? null,
           rental_includes: rentalIncludes,
@@ -201,9 +214,11 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
           },
           owner_type: 'community',
           owner_id: auth.user.id,
+          listing_status: 'draft',
           is_published: false,
           is_available: true,
           is_ai_generated: true,
+          ai_fields: markAiSuggested(null, aiSuggested, new Date()),
           quantity: 1,
           ranking_score: 0,
         })
