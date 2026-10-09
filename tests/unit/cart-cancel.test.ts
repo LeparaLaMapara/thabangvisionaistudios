@@ -82,12 +82,16 @@ let adapterProvider = 'paystack';
 const charge = (status: string): Verify => ({ ok: true, value: { status, amountCents: 100_00, currency: 'ZAR', providerTransactionId: 'tx' } });
 
 const addToCart = vi.fn(async () => ({ id: 'cart-item' }));
+let cartNow: { rental_id: string }[] = [];
 vi.mock('@/lib/supabase/server', () => ({
   createClient: async () => ({ auth: { getUser: async () => ({ data: { user } }) } }),
   createAdminClient: () => ({ from: (t: string) => builder(t) }),
 }));
 vi.mock('@/lib/auth', () => ({ checkRateLimit: async () => true }));
-vi.mock('@/lib/supabase/queries/cart', () => ({ addToCart: (...a: unknown[]) => addToCart(...(a as [])) }));
+vi.mock('@/lib/supabase/queries/cart', () => ({
+  addToCart: (...a: unknown[]) => addToCart(...(a as [])),
+  getCartItems: async () => cartNow,
+}));
 vi.mock('@/lib/data/events', () => ({ logEvent: vi.fn() }));
 vi.mock('@/lib/payments/ports', () => ({
   paymentAdapterFor: () => ({ ok: true, adapter: { provider: adapterProvider, verifyCharge: (r: string) => verifyCharge(r) } }),
@@ -114,6 +118,7 @@ describe('POST /api/cart/cancel', () => {
     updateErrors = {};
     updates.length = 0;
     addToCart.mockClear();
+    cartNow = [];
     verifyCharge.mockReset().mockResolvedValue(charge('abandoned'));
   });
 
@@ -141,6 +146,14 @@ describe('POST /api/cart/cancel', () => {
     expect(updates[1].filters).toEqual(expect.arrayContaining([['user_id', 'renter-1'], ['status', 'pending'], ['payfast_payment_id', null]]));
     expect(updates[1].filters.map(([k]) => k)).toContain('hold_expires_at');
     expect(addToCart).toHaveBeenCalledWith('renter-1', 'r1', 2, '2026-10-20', '2026-10-22');
+    expect(addToCart).toHaveBeenCalledWith('renter-1', 'r2', 1, '2026-10-20', '2026-10-22');
+  });
+
+  it('keeps a newer choice for the same gear already in the cart (another tab)', async () => {
+    cartNow = [{ rental_id: 'r1' }];
+    const res = await post({ checkout_group_id: ORDER });
+    expect(await res.json()).toMatchObject({ released: true, restored: 1, kept: 1 });
+    expect(addToCart).toHaveBeenCalledTimes(1);
     expect(addToCart).toHaveBeenCalledWith('renter-1', 'r2', 1, '2026-10-20', '2026-10-22');
   });
 

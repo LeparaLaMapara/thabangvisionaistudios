@@ -418,7 +418,11 @@ function BookingWidgetInner({ rental, paymentsOpen: paymentsOpenProp }: Props) {
     }
   };
 
-  const datesReady = days > 0 && !!availability?.available && !checkingAvailability;
+  // Enough units for the quantity asked for (an "Edit dates" line can carry
+  // more than one), not merely one free unit: checkout checks the quantity.
+  const unitsFree = availability ? Math.max(0, availability.total_quantity - availability.booked_count) : 0;
+  const enoughUnits = !!availability?.available && unitsFree >= quantity;
+  const datesReady = days > 0 && enoughUnits && !checkingAvailability;
   const canBook = datesReady && !booking;
   const rangeHint =
     !rangeCheck.ok && rangeCheck.problem !== 'incomplete'
@@ -555,17 +559,19 @@ function BookingWidgetInner({ rental, paymentsOpen: paymentsOpenProp }: Props) {
         {availability && !checkingAvailability && (
           <div
             role="status"
-            className={`flex items-center gap-2 ${availability.available ? 'text-emerald-400' : 'text-red-400'}`}
+            className={`flex items-center gap-2 ${enoughUnits ? 'text-emerald-400' : 'text-red-400'}`}
           >
-            {availability.available ? (
+            {enoughUnits ? (
               <Check className="w-3 h-3" aria-hidden="true" />
             ) : (
               <AlertCircle className="w-3 h-3" aria-hidden="true" />
             )}
             <p className="text-xs font-mono">
-              {availability.available
+              {enoughUnits
                 ? 'Available for selected dates'
-                : 'Not available for selected dates. Try other dates.'}
+                : availability.available && quantity > 1
+                  ? `Only ${unitsFree} of the ${quantity} you asked for ${unitsFree === 1 ? 'is' : 'are'} free on these dates. Try other dates or a smaller quantity.`
+                  : 'Not available for selected dates. Try other dates.'}
             </p>
           </div>
         )}
