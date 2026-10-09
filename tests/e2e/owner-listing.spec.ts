@@ -29,7 +29,9 @@ test.describe('owner listings: signed out', () => {
   test('/welcome asks a signed-out visitor to log in', async ({ page }) => {
     await page.goto('/welcome');
     await page.waitForURL(/\/login/, { timeout: 15_000 });
-    expect(page.url()).toContain('redirect=%2Fwelcome');
+    // /welcome is never a sign-in destination (sign-in returns there by itself
+    // when terms acceptance is missing), so no next= points back to it.
+    expect(page.url()).not.toContain('welcome');
   });
 
   test('/dashboard/portfolio sends a signed-out visitor to log in', async ({ page }) => {
