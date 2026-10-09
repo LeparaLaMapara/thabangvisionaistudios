@@ -439,6 +439,19 @@ export const STUDIO = {
       { minHoursBefore: 0, refundPercent: 0 },
     ],
     autoCompleteAfterDays: 30,
+    // ── Creative service fulfilment (spec §8.3, docs/marketplace/services.md) ──
+    // Hours after the client approves the work (or it is approved
+    // automatically) before the creator payout is sent, provided no dispute
+    // is open. This is when WE send it; when it reaches the bank is the
+    // bank's timing and is never promised.
+    payoutDelayHours: 72,
+    // Days a client has to approve, ask for a revision or raise a problem
+    // after delivery before the work is approved automatically.
+    autoApproveDeliveryAfterDays: 7,
+    // Revision rounds included when the package does not say otherwise.
+    defaultRevisionsIncluded: 1,
+    // Automatic payout attempts before a person takes over.
+    maxPayoutAttempts: 3,
     projectCategories: [
       'Wedding Photography',
       'Wedding Cinematography',
@@ -467,9 +480,11 @@ export const STUDIO = {
       pending: 'Pending Payment',
       paid: 'Paid',
       accepted: 'Accepted',
+      delivered: 'Delivered',
       completed: 'Completed',
       paid_out: 'Paid Out',
       cancelled: 'Cancelled',
+      declined: 'Declined',
       disputed: 'Disputed',
     } as Record<string, string>,
   },

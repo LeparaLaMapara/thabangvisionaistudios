@@ -13,6 +13,8 @@ import { validateBookingRequest } from '@/lib/bookings/validate';
 import { quoteHourly, quotePackage, splitServiceBooking } from '@/lib/bookings/pricing';
 import { getBookablePackage } from '@/lib/bookings/packages';
 import { reportUnpaidRequest, PAYMENTS_OFF_MESSAGE } from '@/lib/payments/offline';
+import { revisionPolicyText } from '@/lib/core/services/fulfilment';
+import { mentionsFulfilmentSchema, withoutFulfilmentColumns } from '@/lib/supabase/queries/service-bookings';
 
 // Writes that touch money or status go through the service role, after the
 // route has checked who the user is and that the record is theirs. The users'
@@ -101,36 +103,53 @@ export async function POST(request: NextRequest) {
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL || STUDIO.meta.url;
 
   try {
+    // What was agreed, recorded on the booking at the time it was made
+    // (spec §8.3): deliverables, duration, the revision allowance and the
+    // cancellation terms. Packages have no structured revision count yet, so
+    // every booking gets the default allowance.
+    const revisionsIncluded = STUDIO.booking.defaultRevisionsIncluded;
+    const terms = {
+      revisions_included: revisionsIncluded,
+      revision_policy: revisionPolicyText(revisionsIncluded),
+      cancellation_policy: STUDIO.booking.cancellationPolicy,
+    };
+
+    const row: Record<string, unknown> = {
+      reference,
+      client_id: user.id,
+      client_email: user.email,
+      creator_id: creator_id || null,
+      booking_type: booking_type || 'production',
+      project_category,
+      project_description: descriptionText,
+      deliverables: deliverablesText,
+      duration_hours,
+      location: location || null,
+      preferred_dates: preferred_dates || null,
+      // The booking form sends an ISO date. Promote it to a real column so
+      // cancellation notice can actually be measured (migration 040).
+      // The AI assistant may send free text, which stays null here.
+      shoot_date: toShootDate(preferred_dates),
+      subtotal,
+      vat,
+      total,
+      platform_commission: STUDIO.booking.platformCommission,
+      platform_amount: platformAmount,
+      creator_amount: creatorAmount,
+      status: 'pending',
+      payment_status: 'unpaid',
+      ...terms,
+    };
+
     // Create booking record
-    const { data: booking, error } = await admin()
+    const insert = (values: Record<string, unknown>) => admin()
       .from('bookings')
-      .insert({
-        reference,
-        client_id: user.id,
-        client_email: user.email,
-        creator_id: creator_id || null,
-        booking_type: booking_type || 'production',
-        project_category,
-        project_description: descriptionText,
-        deliverables: deliverablesText,
-        duration_hours,
-        location: location || null,
-        preferred_dates: preferred_dates || null,
-        // The booking form sends an ISO date. Promote it to a real column so
-        // cancellation notice can actually be measured (migration 040).
-        // The AI assistant may send free text, which stays null here.
-        shoot_date: toShootDate(preferred_dates),
-        subtotal,
-        vat,
-        total,
-        platform_commission: STUDIO.booking.platformCommission,
-        platform_amount: platformAmount,
-        creator_amount: creatorAmount,
-        status: 'pending',
-        payment_status: 'unpaid',
-      })
+      .insert(values)
       .select('id, reference')
       .single();
+    let { data: booking, error } = await insert(row);
+    // Before migration 073 the terms columns do not exist yet.
+    if (error && mentionsFulfilmentSchema(error.message)) ({ data: booking, error } = await insert(withoutFulfilmentColumns(row)));
 
     if (error || !booking) {
       console.error('[service-bookings] Insert error:', error?.message);
@@ -152,6 +171,7 @@ export async function POST(request: NextRequest) {
         booking: { id: booking.id, reference, total },
         payments_offline: true,
         message: PAYMENTS_OFF_MESSAGE,
+        terms,
       });
     }
 
@@ -195,6 +215,7 @@ export async function POST(request: NextRequest) {
       success: true,
       booking: { id: booking.id, reference, total },
       paymentUrl,
+      terms,
     });
   } catch (err) {
     console.error('[service-bookings] Unexpected error:', err);

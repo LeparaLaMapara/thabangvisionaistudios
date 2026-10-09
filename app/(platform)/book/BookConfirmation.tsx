@@ -6,6 +6,7 @@ import type { BookingPackage } from './BookingForm';
 import { isPaymentUrl } from '@/lib/payments/hosts';
 import { formatRand } from '@/lib/format/money';
 import { PaymentsNotOpenNote } from '@/components/booking/PaymentsNotOpenNote';
+import { approvalText, revisionPolicyText } from '@/lib/core/services/fulfilment';
 
 interface BookConfirmationProps {
   category: string;
@@ -149,8 +150,11 @@ export default function BookConfirmation({
               : `Send booking request, ${formatRand(total)}`}
         </button>
 
-        {/* Policy */}
+        {/* Policy: what is agreed with this booking */}
         <p className="mt-4 text-center text-xs text-neutral-400">
+          {revisionPolicyText()} {approvalText()}
+        </p>
+        <p className="mt-2 text-center text-xs text-neutral-400">
           {cancellationPolicy}
         </p>
         <p className="mt-2 text-center text-xs text-neutral-400">
