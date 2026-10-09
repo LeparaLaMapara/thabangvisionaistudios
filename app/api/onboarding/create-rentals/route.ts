@@ -16,8 +16,9 @@ import {
   type ListingDescriberOutput,
 } from '@/lib/agents/agents/listing-describer';
 import { markAiSuggested, type AiSuggestibleField } from '@/lib/core/listings/review';
+import { clampIncludes } from '@/lib/core/listings/input';
 import { savePrivate } from '@/app/api/listings/_lib/server';
-import { metadataFreeImageUrl } from '@/app/api/listings/_lib/images';
+import { isOwnImageUrl, metadataFreeImageUrl } from '@/app/api/listings/_lib/images';
 
 const MIN_CONFIDENCE = 0.7;
 
@@ -184,14 +185,21 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       const fallbackTitle = `${item.brand} ${item.model}`.trim();
       const title = described?.title || fallbackTitle;
       const description = described?.description ?? null;
-      const rentalIncludes = described?.rentalIncludes ?? [];
+      // Cut to what the owner could enter themselves (item length and count),
+      // so the draft can be edited without first rewriting this list.
+      const rentalIncludes = clampIncludes(described?.rentalIncludes ?? []);
 
       const pricePerDay = estimateDailyRate(item.category, condition);
       const pricePerWeek = Math.round(pricePerDay * 5); // SA market norm: 7 days billed as 5
 
       // The photo becomes the listing's one gallery image and its cover, so
-      // the cover is always one of the photos a reviewer sees.
-      const photoUrl = httpsUrl(item.thumbnailUrl) ? metadataFreeImageUrl(item.thumbnailUrl as string) : null;
+      // the cover is always one of the photos a reviewer sees. Only a photo
+      // in our own storage account is kept (the onboarding upload puts it
+      // there); anything else is left off and the owner adds photos later.
+      const photoUrl =
+        httpsUrl(item.thumbnailUrl) && isOwnImageUrl(item.thumbnailUrl as string)
+          ? metadataFreeImageUrl(item.thumbnailUrl as string)
+          : null;
 
       // Everything below except the owner and location was guessed by the AI
       // (vision for brand/model/category, the describer for the words, a

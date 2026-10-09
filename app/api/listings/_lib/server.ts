@@ -41,9 +41,11 @@ const PRIVATE_COLUMNS = [
 
 /**
  * The listing plus its embedded private row. The owner may see their own
- * serial number. Flatten results with flattenListing().
+ * serial number. Flatten results with flattenListing(). The private row's
+ * updated_at comes back as private_updated_at (its version, see
+ * savePrivateIfUnchanged); it must not overwrite the listing's updated_at.
  */
-export const OWNER_LISTING_COLUMNS = `${PUBLIC_TABLE_COLUMNS.join(', ')}, listing_private(${PRIVATE_COLUMNS.join(', ')})`;
+export const OWNER_LISTING_COLUMNS = `${PUBLIC_TABLE_COLUMNS.join(', ')}, listing_private(${PRIVATE_COLUMNS.join(', ')}, private_updated_at:updated_at)`;
 
 export interface ListingPrivateFields {
   review_notes: string | null;
@@ -82,9 +84,12 @@ export interface OwnerListingRow extends ListingPrivateFields {
   created_at: string;
   updated_at: string;
   deleted_at: string | null;
+  /** listing_private.updated_at, or null when the listing has no private row yet. */
+  private_updated_at: string | null;
 }
 
-const EMPTY_PRIVATE: ListingPrivateFields = {
+const EMPTY_PRIVATE: ListingPrivateFields & { private_updated_at: null } = {
+  private_updated_at: null,
   review_notes: null,
   reviewed_by: null,
   reviewed_at: null,
@@ -111,14 +116,79 @@ export function forOwner(row: OwnerListingRow): Omit<OwnerListingRow, 'reviewed_
 }
 
 /**
- * Writes the listing's private row (service role only; clients have no write
- * grant on listing_private). Throws on failure.
+ * A listing_private.updated_at value for a write: now, with random
+ * microseconds (timestamptz keeps them), so two writes in the same
+ * millisecond still leave different versions behind.
  */
-export async function savePrivate(admin: Admin, rentalId: string, fields: Partial<ListingPrivateFields>): Promise<void> {
+export function privateVersionStamp(now: Date = new Date()): string {
+  const micros = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
+  return now.toISOString().replace('Z', `${micros}Z`);
+}
+
+/**
+ * Writes the listing's private row (service role only; clients have no write
+ * grant on listing_private), creating it if needed. Unconditional: for stamps
+ * (submission, review) that must land whatever else was written. Returns the
+ * version written. Throws on failure.
+ */
+export async function savePrivate(admin: Admin, rentalId: string, fields: Partial<ListingPrivateFields>): Promise<string> {
+  const version = privateVersionStamp();
   const { error } = await admin
     .from('listing_private')
-    .upsert({ rental_id: rentalId, ...fields, updated_at: new Date().toISOString() }, { onConflict: 'rental_id' });
+    .upsert({ rental_id: rentalId, ...fields, updated_at: version }, { onConflict: 'rental_id' });
   if (error) throw new Error(`savePrivate: ${error.message}`);
+  return version;
+}
+
+const UNIQUE_VIOLATION = '23505';
+
+/**
+ * Writes the listing's private row only if it is still the version this
+ * request read (`expected`: its private_updated_at, null = no row yet).
+ * Returns the new version, or null when someone else wrote it meanwhile
+ * (the caller answers 409; nothing was written). Throws on other failures.
+ */
+export async function savePrivateIfUnchanged(
+  admin: Admin,
+  rentalId: string,
+  fields: Partial<ListingPrivateFields>,
+  expected: string | null,
+): Promise<string | null> {
+  const version = privateVersionStamp();
+  if (expected === null) {
+    const { error } = await admin.from('listing_private').insert({ rental_id: rentalId, ...fields, updated_at: version });
+    if (!error) return version;
+    if ((error as { code?: string }).code === UNIQUE_VIOLATION) return null;
+    throw new Error(`savePrivateIfUnchanged: ${error.message}`);
+  }
+  const { data, error } = await admin
+    .from('listing_private')
+    .update({ ...fields, updated_at: version })
+    .eq('rental_id', rentalId)
+    .eq('updated_at', expected)
+    .select('rental_id')
+    .maybeSingle();
+  if (error) throw new Error(`savePrivateIfUnchanged: ${error.message}`);
+  return data ? version : null;
+}
+
+/**
+ * Whether the owner is suspended now, read with the service role. Unlike
+ * checkNotSuspended (lib/auth), a failed read throws instead of answering
+ * "not suspended", so callers fail closed. A suspension whose expiry has
+ * passed does not count (checkNotSuspended clears those).
+ */
+export async function isOwnerSuspended(admin: Admin, userId: string, now: Date = new Date()): Promise<boolean> {
+  const { data, error } = await admin
+    .from('profiles')
+    .select('is_suspended, suspension_expires_at')
+    .eq('id', userId)
+    .maybeSingle();
+  if (error) throw new Error(`isOwnerSuspended: ${error.message}`);
+  const p = data as { is_suspended: boolean | null; suspension_expires_at: string | null } | null;
+  if (p?.is_suspended !== true) return false;
+  if (p.suspension_expires_at && new Date(p.suspension_expires_at) < now) return false;
+  return true;
 }
 
 export function locationOf(row: { metadata: unknown }): string | null {

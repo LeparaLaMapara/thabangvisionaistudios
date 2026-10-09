@@ -334,7 +334,7 @@ describe('week rate', () => {
     const payload = mainUpdate()?.payload as Record<string, unknown>;
     expect(payload.price_per_week).toBe(1800);
     expect(payload.rental_includes).toEqual(['Battery', 'Charger']);
-    const priv = state.log.find((q) => q.table === 'listing_private' && q.op === 'upsert')?.payload as { ai_fields: Record<string, { status: string; confirmed_by?: string }> };
+    const priv = state.log.find((q) => q.table === 'listing_private' && q.op !== 'select')?.payload as { ai_fields: Record<string, { status: string; confirmed_by?: string }> };
     expect(priv.ai_fields.price_per_week).toMatchObject({ status: 'confirmed', confirmed_by: 'owner_edited' });
     expect(priv.ai_fields.rental_includes).toMatchObject({ status: 'confirmed', confirmed_by: 'owner_edited' });
   });
@@ -397,10 +397,15 @@ describe('submit is guarded by updated_at', () => {
     const res = await put(editBody({ title: 'Sony A7 III body' }));
     expect(res.status).toBe(409);
     const ops = state.log.filter((q) => q.op !== 'select').map((q) => `${q.table}:${q.op}`);
-    expect(ops).toEqual(['listing_private:upsert', 'smart_rentals:update', 'listing_private:upsert']);
+    // No private row yet: created (insert), then put back only while it is
+    // still the version this request wrote (a conditional update).
+    expect(ops).toEqual(['listing_private:insert', 'smart_rentals:update', 'listing_private:update']);
     expect(typeof (mainUpdate()?.payload as Record<string, unknown>).updated_at).toBe('string');
-    const restored = state.log.filter((q) => q.table === 'listing_private')[1].payload as Record<string, unknown>;
-    expect(restored.owner_attestations).toEqual((storedRow().listing_private as Record<string, unknown>).owner_attestations);
+    const [written, restore] = state.log.filter((q) => q.table === 'listing_private' && q.op !== 'select');
+    expect(restore.eq.updated_at).toBe((written.payload as Record<string, unknown>).updated_at);
+    expect((restore.payload as Record<string, unknown>).owner_attestations).toEqual(
+      (storedRow().listing_private as Record<string, unknown>).owner_attestations,
+    );
   });
 });
 
@@ -421,21 +426,23 @@ describe('photo copies', () => {
   });
 
   it('copies every photo from its metadata-free delivery and keeps the cover', async () => {
+    // Was: a photo from another Cloudinary account was copied too. It is
+    // now refused (see "listing photos must be in our account" below).
     const r = await cleanListingImages(
       {
         gallery: [
           { url: A, public_id: 'thabangvision_usecase/media/listings/a' },
-          { url: OTHER, public_id: 'x/evil' },
+          { url: B, public_id: 'thabangvision_usecase/media/listings/b' },
           { url: CLEAN, public_id: `${CLEAN_IMAGE_FOLDER}/c1` },
         ],
-        thumbnail_url: OTHER,
-        cover_public_id: 'x/evil',
+        thumbnail_url: B,
+        cover_public_id: 'thabangvision_usecase/media/listings/b',
       },
       fakeStorage,
     );
     expect(r.ok).toBe(true);
     if (!r.ok) return;
-    expect(uploads.map((u) => u.file)).toEqual([A, 'https://res.cloudinary.com/othercloud/image/upload/q_auto/v1/x/evil.jpg']);
+    expect(uploads.map((u) => u.file)).toEqual([A, B]);
     expect(uploads.every((u) => u.folder === CLEAN_IMAGE_FOLDER)).toBe(true);
     expect(r.gallery?.map((g) => g.public_id)).toEqual([`${CLEAN_IMAGE_FOLDER}/copy1`, `${CLEAN_IMAGE_FOLDER}/copy2`, `${CLEAN_IMAGE_FOLDER}/c1`]);
     expect(r.cover_public_id).toBe(`${CLEAN_IMAGE_FOLDER}/copy2`);

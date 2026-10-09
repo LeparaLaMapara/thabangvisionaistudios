@@ -122,7 +122,10 @@ function isHttpsUrl(v: string): boolean {
   }
 }
 
-function parseGallery(raw: unknown): { ok: true; value: ListingImage[] | null } | { ok: false; error: string } {
+function parseGallery(
+  raw: unknown,
+  isAllowedImageUrl: ((url: string) => boolean) | undefined,
+): { ok: true; value: ListingImage[] | null } | { ok: false; error: string } {
   if (raw === undefined || raw === null) return { ok: true, value: null };
   if (!Array.isArray(raw)) return { ok: false, error: 'Images must be a list.' };
   if (raw.length > STUDIO.platform.maxListingImages) {
@@ -133,6 +136,9 @@ function parseGallery(raw: unknown): { ok: true; value: ListingImage[] | null } 
     if (!item || typeof item !== 'object') return { ok: false, error: 'Each image needs a URL.' };
     const { url, public_id } = item as Record<string, unknown>;
     if (typeof url !== 'string' || !isHttpsUrl(url)) return { ok: false, error: 'Each image needs a secure (https) URL.' };
+    if (isAllowedImageUrl && !isAllowedImageUrl(url)) {
+      return { ok: false, error: 'Upload your photos through the listing form; photos from other sites cannot be used.' };
+    }
     // Only the URL and storage id are kept: any other key (EXIF, GPS, camera
     // data) the browser attaches is dropped here.
     out.push({ url, public_id: typeof public_id === 'string' ? public_id : '' });
@@ -140,19 +146,86 @@ function parseGallery(raw: unknown): { ok: true; value: ListingImage[] | null } 
   return { ok: true, value: out.length > 0 ? out : null };
 }
 
-function parseIncludes(raw: unknown): { ok: true; value: string[] | undefined } | { ok: false; error: string } {
+/**
+ * A what's-included list as the owner sees it: text items trimmed, blanks
+ * and repeats dropped, order kept. Used to tell a re-sent list from an edit.
+ */
+export function normaliseIncludes(list: unknown): string[] {
+  if (!Array.isArray(list)) return [];
+  const out: string[] = [];
+  for (const item of list) {
+    if (typeof item !== 'string') continue;
+    const v = item.trim();
+    if (v && !out.includes(v)) out.push(v);
+  }
+  return out;
+}
+
+/**
+ * The listing form edits what's included as text, one item per line. Items
+ * may contain commas ("Lens caps (front, rear)"), so lines are the only
+ * separator: a stored list goes out and comes back unchanged.
+ */
+export function includesToText(list: readonly string[] | null | undefined): string {
+  return (list ?? []).join('\n');
+}
+
+export function includesFromText(text: string): string[] {
+  return text
+    .split('\n')
+    .map((v) => v.trim())
+    .filter(Boolean);
+}
+
+/** True when two what's-included lists are the same once normalised. */
+export function sameIncludes(a: unknown, b: unknown): boolean {
+  const x = normaliseIncludes(a);
+  const y = normaliseIncludes(b);
+  return x.length === y.length && x.every((v, i) => v === y[i]);
+}
+
+/**
+ * A what's-included list cut to what an owner may enter (item length and
+ * item count), for lists the server writes itself, e.g. an AI draft. Long
+ * items are shortened, not dropped.
+ */
+export function clampIncludes(list: unknown): string[] {
+  const out: string[] = [];
+  for (const item of normaliseIncludes(list)) {
+    const v = item.length > LIMITS.shortText ? item.slice(0, LIMITS.shortText).trim() : item;
+    if (v && !out.includes(v)) out.push(v);
+    if (out.length === LIMITS.includesItems) break;
+  }
+  return out;
+}
+
+/**
+ * What's included, one item per entry. The length and count limits apply to
+ * what the owner adds: an item already stored on the listing (`stored`)
+ * passes as it is, and a list no longer than the stored one is accepted, so
+ * a list saved before these limits (or by an AI draft) never blocks an edit.
+ */
+function parseIncludes(
+  raw: unknown,
+  stored: readonly string[] | null | undefined,
+): { ok: true; value: string[] | undefined } | { ok: false; error: string } {
   if (raw === undefined) return { ok: true, value: undefined };
   if (raw === null || raw === '') return { ok: true, value: [] };
   if (!Array.isArray(raw)) return { ok: false, error: "What's included must be a list." };
+  const existing = normaliseIncludes(stored);
   const out: string[] = [];
   for (const item of raw) {
     if (typeof item !== 'string') return { ok: false, error: "Each item in what's included must be text." };
     const v = item.trim();
     if (!v) continue;
-    if (v.length > LIMITS.shortText) return { ok: false, error: `Each included item is limited to ${LIMITS.shortText} characters.` };
+    if (v.length > LIMITS.shortText && !existing.includes(v)) {
+      return { ok: false, error: `Each included item is limited to ${LIMITS.shortText} characters.` };
+    }
     if (!out.includes(v)) out.push(v);
   }
-  if (out.length > LIMITS.includesItems) return { ok: false, error: `At most ${LIMITS.includesItems} included items.` };
+  if (out.length > Math.max(LIMITS.includesItems, existing.length)) {
+    return { ok: false, error: `At most ${LIMITS.includesItems} included items.` };
+  }
   return { ok: true, value: out };
 }
 
@@ -181,12 +254,24 @@ export function resolveCover(
   return { ok: true, value: { thumbnail_url: cover.url, cover_public_id: cover.public_id || null } };
 }
 
+export interface ParseOptions {
+  /** True on create. */
+  requireCategory: boolean;
+  /** On an edit: the listing's stored what's-included list (see parseIncludes). */
+  storedIncludes?: readonly string[] | null;
+  /**
+   * When set, every photo URL must pass it. The routes pass "delivered from
+   * our own storage account, or already on this listing".
+   */
+  isAllowedImageUrl?: (url: string) => boolean;
+}
+
 /**
  * Parses a create or edit body. `requireCategory` is true on create. Title is
  * always required (every save writes it). Amounts may be blank on a draft;
  * submission checks they are set.
  */
-export function parseListingInput(body: unknown, opts: { requireCategory: boolean }): ParseResult {
+export function parseListingInput(body: unknown, opts: ParseOptions): ParseResult {
   if (!body || typeof body !== 'object' || Array.isArray(body)) return fail('body', 'Send the listing as a JSON object.');
   const b = body as Record<string, unknown>;
 
@@ -226,7 +311,7 @@ export function parseListingInput(body: unknown, opts: { requireCategory: boolea
     if (problem) return fail('price_per_week', problem);
   }
 
-  const includes = parseIncludes(b.rental_includes);
+  const includes = parseIncludes(b.rental_includes, opts.storedIncludes);
   if (!includes.ok) return fail('rental_includes', includes.error);
 
   const location = optionalText(b.location, LIMITS.location);
@@ -241,7 +326,7 @@ export function parseListingInput(body: unknown, opts: { requireCategory: boolea
     return fail('replacement_value_evidence', 'An evidence link must start with https://');
   }
 
-  const gallery = parseGallery(b.gallery);
+  const gallery = parseGallery(b.gallery, opts.isAllowedImageUrl);
   if (!gallery.ok) return fail('gallery', gallery.error);
 
   const cover = resolveCover(gallery.value, b.thumbnail_url, b.cover_public_id);

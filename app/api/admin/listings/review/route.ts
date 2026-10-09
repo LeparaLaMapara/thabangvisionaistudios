@@ -193,6 +193,11 @@ export async function PATCH(request: NextRequest): Promise<NextResponse> {
       }
     }
 
+    // An approved listing always has a listing_private row already: approval
+    // requires the owner declarations (canSubmit above), which live there.
+    // Migration 072's backfill leaves every community listing with a private
+    // row alone, so a re-run never takes an approved listing offline, even
+    // when the review record below is not written.
     const { data, error } = await admin
       .from('smart_rentals')
       .update({ listing_status: action.to })
@@ -203,14 +208,13 @@ export async function PATCH(request: NextRequest): Promise<NextResponse> {
     if (error) throw error;
     if (!data) return NextResponse.json({ error: 'The listing changed; reload the queue.' }, { status: 409 });
 
-    // Who decided, when and why: listing_private (not public).
+    // Who decided, when and why: listing_private (not public). Written after
+    // the decision (a note must never describe a decision that did not
+    // happen), so a failure cannot undo it: retried once, then reported.
     let warning: string | undefined;
+    const record = { review_notes: notes || null, reviewed_by: auth.user.id, reviewed_at: new Date().toISOString() };
     try {
-      await savePrivate(admin, row.id, {
-        review_notes: notes || null,
-        reviewed_by: auth.user.id,
-        reviewed_at: new Date().toISOString(),
-      });
+      await savePrivate(admin, row.id, record).catch(() => savePrivate(admin, row.id, record));
     } catch (privErr) {
       console.error('[admin/listings/review] review record not written:', privErr);
       warning = 'The decision was saved, but the reviewer note and time were not recorded.';
