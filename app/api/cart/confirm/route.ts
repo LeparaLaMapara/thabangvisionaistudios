@@ -64,7 +64,7 @@ export async function POST(request: NextRequest) {
         /* the pipeline job sends them */
       }
     }
-    return NextResponse.json({ state: result.state, ...(result.state === 'paid' ? { outcome: result.outcome } : {}) });
+    return NextResponse.json({ state: result.state, ...(result.state === 'paid' || result.state === 'held' ? { outcome: result.outcome } : {}) });
   } catch (err) {
     console.error('[cart/confirm] check failed:', err instanceof Error ? err.message : 'unknown error');
     return NextResponse.json({ state: 'unknown' }, { status: 503 });

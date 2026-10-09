@@ -86,6 +86,18 @@ describe('confirmPaymentOnReturn', () => {
     expect(processChargeEvent.mock.calls[0][0]).toMatchObject({ kind: 'charge.success', reference: ORDER, amountCents: 97500, providerTransactionId: '5000001' });
   });
 
+  it('reports a charge the order could not accept (held or refund due) as held, not paid', async () => {
+    verifyCharge.mockResolvedValue(success);
+    for (const outcome of ['mismatch_held', 'late_unavailable_refund_due', 'cancelled_refund_due', 'unknown_reference'] as const) {
+      processChargeEvent.mockResolvedValueOnce(outcome);
+      expect(await confirmPaymentOnReturn(db, { reference: ORDER, provider: 'paystack', state: 'initiated' }, port)).toEqual({ state: 'held', outcome });
+    }
+    for (const outcome of ['confirmed_late', 'duplicate'] as const) {
+      processChargeEvent.mockResolvedValueOnce(outcome);
+      expect((await confirmPaymentOnReturn(db, { reference: ORDER, provider: 'paystack', state: 'initiated' }, port)).state).toBe('paid');
+    }
+  });
+
   it('confirms nothing when the provider says abandoned, pending, or cannot be asked', async () => {
     verifyCharge.mockResolvedValueOnce({ ok: true, value: { ...success.value, status: 'abandoned' } });
     expect((await confirmPaymentOnReturn(db, { reference: ORDER, provider: 'paystack', state: 'initiated' }, port)).state).toBe('not_paid');

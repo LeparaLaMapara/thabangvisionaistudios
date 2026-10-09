@@ -29,7 +29,8 @@ export function ConfirmPaymentOnReturn({ onConfirmed }: { onConfirmed: () => voi
     })
       .then((r) => (r.ok ? r.json() : null))
       .then((d: { state?: string } | null) => {
-        if (d?.state === 'paid') onConfirmed();
+        // Paid, or taken but held for a person: either way the bookings changed.
+        if (d?.state === 'paid' || d?.state === 'held') onConfirmed();
       })
       .catch(() => undefined);
   }, [returned, order, onConfirmed]);

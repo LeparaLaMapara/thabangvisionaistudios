@@ -392,7 +392,12 @@ export async function confirmVerifiedCharge(
 /** What the payment return page learns from asking the provider. */
 export type ReturnCheck =
   | { state: 'paid'; outcome: ChargeOutcome }
+  /** The provider took the money but the order was not confirmed (held for a mismatch, or refund due). */
+  | { state: 'held'; outcome: ChargeOutcome }
   | { state: 'not_paid' | 'pending' | 'unknown' | 'already_settled' };
+
+/** Outcomes that mean the order is now paid and confirmed. */
+const CONFIRMED_OUTCOMES: readonly ChargeOutcome[] = ['confirmed', 'confirmed_late', 'duplicate'];
 
 /**
  * The renter is back from the payment page saying they paid. Ask the
@@ -415,5 +420,5 @@ export async function confirmPaymentOnReturn(
     return { state: ['failed', 'abandoned', 'reversed'].includes(v.value.status) ? 'not_paid' : 'pending' };
   }
   const outcome = await confirmVerifiedCharge(db, intent.reference, v.value, clock, 'return');
-  return { state: 'paid', outcome };
+  return { state: CONFIRMED_OUTCOMES.includes(outcome) ? 'paid' : 'held', outcome };
 }

@@ -363,4 +363,12 @@ describe('creator payout: the payment is verified by our own reference', () => {
     await triggerCreatorPayout({ bookingId: ID }, { db: w.db, transfers: port({ ok: true, value: null }).p, verifyCharge: async (ref: string) => { seen.push(ref); return { success: true, amount: 3000 }; }, now: NOW });
     expect(seen).toEqual(['legacy-ref']);
   });
+
+  it('a Yoco charge id (ch_...) is still verified as stored (it is looked up in our own confirmations)', async () => {
+    const w = world({ reference: 'BK-yoco1', paystack_reference: 'ch_abc123' });
+    const seen: string[] = [];
+    const r = await triggerCreatorPayout({ bookingId: ID }, { db: w.db, transfers: port({ ok: true, value: null }).p, verifyCharge: async (ref: string) => { seen.push(ref); return { success: ref === 'ch_abc123', amount: 3000 }; }, now: NOW });
+    expect(seen).toEqual(['ch_abc123']);
+    expect(r.outcome).toBe('sent');
+  });
 });
