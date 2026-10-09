@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { UBUNYE_QUICK_ACTIONS } from '../../lib/constants';
 
 // All tests in this file run on iPhone 14 (393×852) via the "mobile" project
 // in playwright.config.ts using Chromium with mobile emulation.
@@ -6,6 +7,23 @@ import { test, expect } from '@playwright/test';
 // functional tests are covered by the desktop suite.
 
 const VIEWPORT_WIDTH = 393; // iPhone 14 CSS viewport width
+const MIN_TOUCH = 44; // spec 9.5: touch targets at least 44x44 CSS px
+
+/** Asserts every element matched is at least MIN_TOUCH tall (and wide, unless full-width text). */
+async function expectTouchTargets(
+  locator: import('@playwright/test').Locator,
+  { checkWidth = true }: { checkWidth?: boolean } = {},
+): Promise<void> {
+  const count = await locator.count();
+  for (let i = 0; i < count; i++) {
+    const el = locator.nth(i);
+    if (!(await el.isVisible())) continue;
+    const box = await el.boundingBox();
+    expect(box, `touch target ${i} has no box`).toBeTruthy();
+    expect(box!.height, `touch target ${i} height`).toBeGreaterThanOrEqual(MIN_TOUCH);
+    if (checkWidth) expect(box!.width, `touch target ${i} width`).toBeGreaterThanOrEqual(MIN_TOUCH);
+  }
+}
 
 /**
  * Navigate to a page, returning true if it loaded successfully.
@@ -208,32 +226,71 @@ test.describe('Mobile rentals', () => {
 // ─── 4. Rental Detail ─────────────────────────────────────────────────────────
 
 test.describe('Mobile rental detail', () => {
-  // KNOWN BUG, not a stale test. At a 393px viewport a rental detail page
-  // reports document.documentElement.scrollWidth = 558 against clientWidth 393.
-  // Localised so far: <main> scrollWidth is also 558, and the fixed header
-  // computes to width: 558px, so its containing block is being widened rather
-  // than the header itself being at fault. body has overflow-x: hidden, which
-  // is why nobody has noticed visually -- the overflow is clipped, not absent.
-  // The viewport meta is present and correct, and the desktop nav is correctly
-  // display:none, so neither is the cause.
+  // Was a known bug: at 393px a rental page measured scrollWidth 558. A grid
+  // column without min-w-0 and an unbreakable title let long content widen the
+  // page; on a phone the layout viewport then grew to fit it, which is why the
+  // fixed header also reported 558px. Fixed in the category and detail views.
   //
-  // Left as fixme rather than skipped so it keeps reporting until fixed, and
-  // rather than "corrected" by loosening the assertion, which would hide it.
-  test.fixme('pricing info does not overflow horizontally', async ({ page }) => {
+  // Walks /rentals -> first category -> first item (when the catalogue has
+  // one) and checks each page for horizontal overflow.
+  test('pricing info does not overflow horizontally', async ({ page }) => {
     if (!(await safeGoto(page, '/rentals', { timeout: 45000 }))) {
       test.skip(true, 'Rentals page unavailable');
       return;
     }
 
-    const link = page.locator('a[href*="/rentals/"]').first();
-    if ((await link.count()) > 0) {
-      await link.tap();
-      await page.waitForLoadState('domcontentloaded');
-
+    const noOverflow = async (where: string) => {
       const scrollWidth = await page.evaluate(() => document.documentElement.scrollWidth);
       const clientWidth = await page.evaluate(() => document.documentElement.clientWidth);
-      expect(scrollWidth).toBeLessThanOrEqual(clientWidth + 5);
+      expect(scrollWidth, `${where} overflows`).toBeLessThanOrEqual(clientWidth + 5);
+    };
+
+    const link = page.locator('main a[href^="/rentals/"]').first();
+    if ((await link.count()) > 0) {
+      await link.tap();
+      await page.waitForURL(/\/rentals\/[^/]+$/, { timeout: 30000, waitUntil: 'domcontentloaded' });
+      await page.waitForLoadState('load');
+      await noOverflow(page.url());
+
+      const item = page.locator('main a[href^="/rentals/"]').filter({ hasText: /view details/i }).first();
+      if ((await item.count()) > 0) {
+        await item.tap();
+        await page.waitForURL(/\/rentals\/[^/]+\/[^/]+$/, { timeout: 30000, waitUntil: 'domcontentloaded' });
+        await page.waitForLoadState('load');
+        await noOverflow(page.url());
+      }
     }
+  });
+
+  test('category filters and sort are reachable with 44px targets', async ({ page }) => {
+    if (!(await safeGoto(page, '/rentals/cameras-optics', { timeout: 45000 }))) {
+      test.skip(true, 'Category page unavailable');
+      return;
+    }
+    const filters = page.getByRole('button', { name: /filters/i });
+    await expect(filters).toBeVisible({ timeout: 15000 });
+    await expectTouchTargets(filters);
+
+    // Sort used to be hidden below the desktop breakpoint.
+    const sort = page.getByRole('combobox', { name: 'Sort' }).first();
+    await expect(sort).toBeVisible();
+    await expectTouchTargets(sort, { checkWidth: false });
+
+    // The filter sheet is a labelled dialog above the header, and Escape closes it.
+    await filters.tap();
+    const sheet = page.getByRole('dialog', { name: 'Filters' });
+    await expect(sheet).toBeVisible();
+    const close = sheet.getByRole('button', { name: 'Close filters' });
+    await expect(close).toBeVisible();
+    await expectTouchTargets(close);
+    const onTop = await close.evaluate((el) => {
+      const r = el.getBoundingClientRect();
+      const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+      return !!hit && (hit === el || el.contains(hit));
+    });
+    expect(onTop, 'close button is covered by the header').toBe(true);
+    await page.keyboard.press('Escape');
+    await expect(sheet).toBeHidden();
   });
 });
 
@@ -347,10 +404,13 @@ test.describe('Mobile Ubunye AI', () => {
       return;
     }
 
-    const chips = page.locator('button').filter({ hasText: /plan a shoot|find gear|hire crew|build package|compare pricing/i });
+    // One card per UBUNYE_QUICK_ACTIONS entry (the count used to be
+    // hardcoded as 5 and went stale when "Hire Crew" was removed).
+    const labels = UBUNYE_QUICK_ACTIONS.map((a) => a.label);
+    const chips = page.locator('button').filter({ hasText: new RegExp(labels.join('|'), 'i') });
     await expect(chips.first()).toBeVisible({ timeout: 15000 });
     const count = await chips.count();
-    expect(count).toBe(5);
+    expect(count).toBe(labels.length);
 
     for (let i = 0; i < count; i++) {
       const box = await chips.nth(i).boundingBox();
@@ -382,6 +442,34 @@ test.describe('Mobile Ubunye AI', () => {
       );
       expect(display).toBe('none');
     }
+  });
+
+  test('send button, example prompts and header controls are 44px targets', async ({ page }) => {
+    if (!(await safeGoto(page, '/ubunye-ai-studio', { timeout: 45000 }))) {
+      test.skip(true, 'Ubunye AI page unavailable');
+      return;
+    }
+    await page.waitForSelector('textarea[placeholder*="Ask Ubunye"]', { timeout: 15000 });
+
+    await expectTouchTargets(page.getByRole('button', { name: 'Send message' }));
+    await expectTouchTargets(page.getByRole('button', { name: 'Open menu' }));
+    // Example prompt chips ("Build a podcast setup..." etc.) were ~24px tall.
+    await expectTouchTargets(page.locator('button').filter({ hasText: /^\u201c/ }), { checkWidth: false });
+    // The textarea is labelled, and 16px so iOS Safari does not zoom on focus.
+    const input = page.getByRole('textbox', { name: 'Message Ubunye' });
+    const fontSize = await input.evaluate((el) => parseFloat(getComputedStyle(el).fontSize));
+    expect(fontSize).toBeGreaterThanOrEqual(16);
+    // The input bar sits inside the visible viewport (100dvh, not 100vh).
+    const box = await input.boundingBox();
+    expect(box!.y + box!.height).toBeLessThanOrEqual(852);
+  });
+
+  test('Ask Ubunye header link is a 44px target', async ({ page }) => {
+    if (!(await safeGoto(page, '/rentals', { timeout: 45000 }))) {
+      test.skip(true, 'Rentals page unavailable');
+      return;
+    }
+    await expectTouchTargets(page.locator('header').getByRole('link', { name: 'Ask Ubunye' }));
   });
 
   test('no horizontal overflow', async ({ page }) => {

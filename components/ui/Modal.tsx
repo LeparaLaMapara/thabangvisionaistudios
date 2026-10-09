@@ -1,8 +1,9 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useId, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X } from 'lucide-react';
+import { useFocusTrap } from '@/components/ui/useFocusTrap';
 
 type ModalSize = 'sm' | 'md' | 'lg';
 
@@ -21,26 +22,12 @@ const SIZE_CLASSES: Record<ModalSize, string> = {
 };
 
 export function Modal({ isOpen, onClose, title, children, size = 'md' }: ModalProps) {
-  // Lock body scroll when open
-  useEffect(() => {
-    if (isOpen) {
-      document.body.style.overflow = 'hidden';
-    } else {
-      document.body.style.overflow = '';
-    }
-    return () => {
-      document.body.style.overflow = '';
-    };
-  }, [isOpen]);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const titleId = useId();
 
-  // Close on Escape
-  useEffect(() => {
-    const handleKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
-    };
-    if (isOpen) window.addEventListener('keydown', handleKey);
-    return () => window.removeEventListener('keydown', handleKey);
-  }, [isOpen, onClose]);
+  // Focus moves into the dialog, Tab stays inside it, Escape closes it, page
+  // scroll is locked, and focus returns to the opener on close.
+  useFocusTrap(panelRef, { active: isOpen, onEscape: onClose });
 
   return (
     <AnimatePresence>
@@ -59,29 +46,32 @@ export function Modal({ isOpen, onClose, title, children, size = 'md' }: ModalPr
 
           {/* Panel */}
           <motion.div
+            ref={panelRef}
+            tabIndex={-1}
             initial={{ opacity: 0, scale: 0.96, y: 8 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.96, y: 8 }}
             transition={{ duration: 0.2, ease: 'easeOut' }}
             role="dialog"
             aria-modal="true"
-            aria-labelledby={title ? 'modal-title' : undefined}
+            aria-labelledby={title ? titleId : undefined}
+            aria-label={title ? undefined : 'Dialog'}
             className={[
               'fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-50',
-              'w-full',
+              'w-[calc(100%-2rem)]',
               SIZE_CLASSES[size],
-              'bg-white dark:bg-neutral-900',
-              'border border-black/10 dark:border-white/10',
+              'bg-neutral-900',
+              'border border-white/10',
               'shadow-2xl',
               'max-h-[90vh] overflow-y-auto',
             ].join(' ')}
           >
             {/* Header */}
-            <div className="flex items-center justify-between p-6 border-b border-black/10 dark:border-white/10">
+            <div className="flex items-center justify-between py-3 pl-6 pr-3 border-b border-white/10">
               {title ? (
                 <h2
-                  id="modal-title"
-                  className="text-sm font-display font-medium uppercase tracking-tight text-black dark:text-white"
+                  id={titleId}
+                  className="text-sm font-display font-medium uppercase tracking-tight text-white"
                 >
                   {title}
                 </h2>
@@ -91,9 +81,9 @@ export function Modal({ isOpen, onClose, title, children, size = 'md' }: ModalPr
               <button
                 onClick={onClose}
                 aria-label="Close modal"
-                className="text-neutral-400 hover:text-black dark:hover:text-white transition-colors ml-4 flex-shrink-0"
+                className="w-11 h-11 flex items-center justify-center text-neutral-400 hover:text-white transition-colors ml-4 flex-shrink-0"
               >
-                <X className="w-4 h-4" />
+                <X className="w-5 h-5" aria-hidden="true" />
               </button>
             </div>
 

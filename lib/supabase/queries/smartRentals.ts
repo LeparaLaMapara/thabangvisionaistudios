@@ -1,3 +1,5 @@
+import { cache } from 'react';
+import { unstable_rethrow } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import { STUDIO, LISTING_TO_RENTAL_CATEGORY } from '@/lib/constants';
 
@@ -56,11 +58,164 @@ const LIST_COLUMNS = [
   'average_rating', 'review_count',
 ].join(',');
 
+// ─── Catalogue list pages ─────────────────────────────────────────────────────
+// The category grid ships every row to the browser inside the page payload, so
+// it reads only what a card shows. In particular it takes the first gallery
+// image (`gallery->0`), not the whole gallery array, and no description.
+//
+// Both list reads are capped. A cap keeps one huge category from turning into
+// a multi-megabyte page; `hasMore` lets the page say it is showing the top N
+// rather than silently dropping the rest.
+
+/** Most rentals one category page lists (ranked best first). */
+export const RENTAL_CATEGORY_PAGE_LIMIT = 200;
+/** Ceiling for the per-category count read on /rentals (one tiny row per item). */
+export const RENTAL_COUNT_SCAN_LIMIT = 5000;
+
+/** The fields a rental card on a category page uses. */
+export type RentalListItem = Pick<
+  SmartRental,
+  | 'id' | 'slug' | 'title' | 'category' | 'sub_category' | 'brand' | 'model'
+  | 'price_per_day' | 'currency' | 'thumbnail_url' | 'gallery'
+  | 'is_available' | 'is_featured' | 'features' | 'metadata' | 'created_at'
+  | 'owner_type' | 'owner_id' | 'ranking_score'
+>;
+
+export const RENTAL_CARD_COLUMNS = [
+  'id', 'slug', 'title', 'category', 'sub_category', 'brand', 'model',
+  'price_per_day', 'currency', 'thumbnail_url', 'first_image:gallery->0',
+  'is_available', 'is_featured', 'features', 'metadata', 'created_at',
+  'owner_type', 'owner_id', 'ranking_score',
+].join(',');
+
+type CardRow = Omit<RentalListItem, 'gallery'> & {
+  first_image: { url: string; public_id: string } | null;
+};
+
+function toListItem({ first_image, ...row }: CardRow): RentalListItem {
+  return { ...row, gallery: first_image?.url ? [first_image] : null };
+}
+
+/**
+ * A list read that can fail. `failed` is true when the database could not be
+ * read, so a page can say "couldn't load, try again" instead of showing an
+ * outage as "no equipment in this category".
+ */
+export type RentalListResult = {
+  rentals: RentalListItem[];
+  failed: boolean;
+  /** More rows matched than the limit allowed. */
+  hasMore: boolean;
+};
+
+/**
+ * Published rentals in one category, ranked, capped at `limit`.
+ * Used by the /rentals/[category] page.
+ */
+export async function fetchPublishedRentalsByCategory(
+  category: string,
+  limit: number = RENTAL_CATEGORY_PAGE_LIMIT,
+): Promise<RentalListResult> {
+  try {
+    const supabase = await createClient();
+
+    // One extra row tells us whether the cap cut anything off.
+    const { data, error } = await supabase
+      .from('smart_rentals')
+      .select(RENTAL_CARD_COLUMNS)
+      .eq('is_published', true)
+      .eq('category', category)
+      .is('deleted_at', null)
+      .order('ranking_score', { ascending: false })
+      .order('created_at', { ascending: false })
+      .limit(limit + 1);
+
+    if (error) {
+      console.error('[fetchPublishedRentalsByCategory]', error.message);
+      return { rentals: [], failed: true, hasMore: false };
+    }
+
+    const rows = ((data as unknown as CardRow[]) ?? []).map(toListItem);
+    return { rentals: rows.slice(0, limit), failed: false, hasMore: rows.length > limit };
+  } catch (err) {
+    // Let Next's own control-flow errors (dynamic-rendering bailout, redirects)
+    // through; only a real failure becomes `failed`.
+    unstable_rethrow(err);
+    console.error('[fetchPublishedRentalsByCategory]', err instanceof Error ? err.message : err);
+    return { rentals: [], failed: true, hasMore: false };
+  }
+}
+
+/**
+ * Returns published rentals filtered by category slug (ranked, capped).
+ * Kept for callers that only want the list; a database error reads as [].
+ * Prefer fetchPublishedRentalsByCategory where the page can show an error.
+ */
+export async function getPublishedRentalsByCategory(
+  category: string,
+): Promise<RentalListItem[]> {
+  return (await fetchPublishedRentalsByCategory(category)).rentals;
+}
+
+/** Items per category for the /rentals index, plus whether the read failed. */
+export type RentalCategoryCounts = {
+  /** Ordered by each category's best-ranked item (the order /rentals shows). */
+  counts: { category: string; count: number }[];
+  failed: boolean;
+};
+
+/**
+ * How many published items each category holds, for the /rentals index.
+ *
+ * The index page used to load every rental (gallery included) just to count
+ * them. This reads one short column per row instead.
+ */
+export async function getRentalCategoryCounts(): Promise<RentalCategoryCounts> {
+  try {
+    const supabase = await createClient();
+
+    const { data, error } = await supabase
+      .from('smart_rentals')
+      .select('category')
+      .eq('is_published', true)
+      .is('deleted_at', null)
+      .order('ranking_score', { ascending: false })
+      .order('created_at', { ascending: false })
+      .limit(RENTAL_COUNT_SCAN_LIMIT);
+
+    if (error) {
+      console.error('[getRentalCategoryCounts]', error.message);
+      return { counts: [], failed: true };
+    }
+
+    return { counts: tallyCategories((data as { category: string | null }[]) ?? []), failed: false };
+  } catch (err) {
+    unstable_rethrow(err);
+    console.error('[getRentalCategoryCounts]', err instanceof Error ? err.message : err);
+    return { counts: [], failed: true };
+  }
+}
+
+/** Counts rows per category, keeping first-seen order. Exported for tests. */
+export function tallyCategories(
+  rows: { category: string | null }[],
+): { category: string; count: number }[] {
+  const order: string[] = [];
+  const tally = new Map<string, number>();
+  for (const row of rows) {
+    if (!row.category) continue;
+    if (!tally.has(row.category)) order.push(row.category);
+    tally.set(row.category, (tally.get(row.category) ?? 0) + 1);
+  }
+  return order.map((category) => ({ category, count: tally.get(category) ?? 0 }));
+}
+
 // ─── Queries ──────────────────────────────────────────────────────────────────
 
 /**
- * Returns all published, non-deleted rentals ordered by ranking_score DESC.
+ * Returns published, non-deleted rentals ordered by ranking_score DESC.
  * Safe to call in Server Components — never exposes the service key.
+ * Capped at RENTAL_COUNT_SCAN_LIMIT; /rentals now uses getRentalCategoryCounts.
  */
 export async function getPublishedRentals(): Promise<SmartRental[]> {
   const supabase = await createClient();
@@ -71,7 +226,8 @@ export async function getPublishedRentals(): Promise<SmartRental[]> {
     .eq('is_published', true)
     .is('deleted_at', null)
     .order('ranking_score', { ascending: false })
-    .order('created_at', { ascending: false });
+    .order('created_at', { ascending: false })
+    .limit(RENTAL_COUNT_SCAN_LIMIT);
 
   if (error) {
     console.error('[getPublishedRentals]', error.message);
@@ -82,36 +238,13 @@ export async function getPublishedRentals(): Promise<SmartRental[]> {
 }
 
 /**
- * Returns published rentals filtered by category slug.
- * Used by the /rentals/[category] server page.
- */
-export async function getPublishedRentalsByCategory(
-  category: string,
-): Promise<SmartRental[]> {
-  const supabase = await createClient();
-
-  const { data, error } = await supabase
-    .from('smart_rentals')
-    .select(LIST_COLUMNS)
-    .eq('is_published', true)
-    .eq('category', category)
-    .is('deleted_at', null)
-    .order('ranking_score', { ascending: false })
-    .order('created_at', { ascending: false });
-
-  if (error) {
-    console.error('[getPublishedRentalsByCategory]', error.message);
-    return [];
-  }
-
-  return (data as unknown as SmartRental[]) ?? [];
-}
-
-/**
  * Returns a single published rental by slug, or null if not found.
  * PGRST116 = "no rows" — treated as a normal 404, not an error.
+ *
+ * Wrapped in React cache(): a detail page calls it from generateMetadata and
+ * again from the page body; within one request that is now one round trip.
  */
-export async function getRentalBySlug(slug: string): Promise<SmartRental | null> {
+export const getRentalBySlug = cache(async (slug: string): Promise<SmartRental | null> => {
   const supabase = await createClient();
 
   const { data, error } = await supabase
@@ -130,7 +263,7 @@ export async function getRentalBySlug(slug: string): Promise<SmartRental | null>
   }
 
   return data as SmartRental;
-}
+});
 
 /**
  * Returns featured published rentals, limited and ordered by ranking_score DESC.

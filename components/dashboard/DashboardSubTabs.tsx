@@ -24,12 +24,13 @@ export function DashboardSubTabs({ tabs }: DashboardSubTabsProps) {
     pathname === href || pathname.startsWith(href + '/');
 
   return (
-    <div className="flex gap-2 mb-6 overflow-x-auto scrollbar-none md:hidden">
+    <nav aria-label="Section" className="flex gap-2 mb-6 overflow-x-auto scrollbar-none md:hidden">
       {tabs.map((tab) => (
         <Link
           key={tab.href}
           href={tab.href}
-          className={`text-xs font-mono uppercase tracking-wider px-3 py-1.5 rounded-full whitespace-nowrap transition-colors ${
+          aria-current={isActive(tab.href) ? 'page' : undefined}
+          className={`inline-flex items-center min-h-[44px] text-xs font-mono uppercase tracking-wider px-4 rounded-full whitespace-nowrap transition-colors ${
             isActive(tab.href)
               ? 'bg-[#D4A843]/10 text-[#D4A843] border border-[#D4A843]/30'
               : 'text-neutral-400 border border-white/10 hover:text-white hover:border-white/20'
@@ -38,7 +39,7 @@ export function DashboardSubTabs({ tabs }: DashboardSubTabsProps) {
           {tab.label}
         </Link>
       ))}
-    </div>
+    </nav>
   );
 }
 

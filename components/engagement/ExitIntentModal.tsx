@@ -1,9 +1,10 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useId, useRef } from 'react';
 import { X, MessageCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import Link from 'next/link';
+import { useFocusTrap } from '@/components/ui/useFocusTrap';
 
 interface ExitIntentModalProps {
   prompt?: string;
@@ -23,6 +24,9 @@ export function ExitIntentModal({
   const [show, setShow] = useState(false);
   const firedRef = useRef(false);
   const timerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const headingId = useId();
+  const bodyId = useId();
 
   const handleMouseLeave = useCallback((e: MouseEvent) => {
     if (e.clientY > 10 || firedRef.current) return;
@@ -31,7 +35,8 @@ export function ExitIntentModal({
   }, []);
 
   useEffect(() => {
-    const dismissed = sessionStorage.getItem('exit-intent-dismissed');
+    let dismissed: string | null = null;
+    try { dismissed = sessionStorage.getItem('exit-intent-dismissed'); } catch { /* storage blocked */ }
     if (dismissed) return;
 
     const delay = setTimeout(() => {
@@ -45,10 +50,12 @@ export function ExitIntentModal({
     };
   }, [handleMouseLeave]);
 
-  const dismiss = () => {
+  const dismiss = useCallback(() => {
     setShow(false);
-    sessionStorage.setItem('exit-intent-dismissed', '1');
-  };
+    try { sessionStorage.setItem('exit-intent-dismissed', '1'); } catch { /* storage blocked */ }
+  }, []);
+
+  useFocusTrap(panelRef, { active: show, onEscape: dismiss });
 
   return (
     <AnimatePresence>
@@ -65,25 +72,31 @@ export function ExitIntentModal({
             animate={{ scale: 1, opacity: 1 }}
             exit={{ scale: 0.9, opacity: 0 }}
             transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+            ref={panelRef}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby={headingId}
+            aria-describedby={bodyId}
+            tabIndex={-1}
             className="bg-[#0A0A0B] border border-white/10 max-w-md w-full p-8 relative"
             onClick={(e) => e.stopPropagation()}
           >
             <button
               onClick={dismiss}
-              className="absolute top-4 right-4 text-neutral-400 hover:text-white transition-colors"
+              className="absolute top-2 right-2 w-11 h-11 flex items-center justify-center text-neutral-400 hover:text-white transition-colors"
               aria-label="Close"
             >
-              <X className="w-4 h-4" />
+              <X className="w-5 h-5" aria-hidden="true" />
             </button>
 
             <div className="mb-6">
               <div className="w-10 h-10 rounded-full bg-[#D4A843]/10 flex items-center justify-center mb-4">
-                <MessageCircle className="w-5 h-5 text-[#D4A843]" />
+                <MessageCircle className="w-5 h-5 text-[#D4A843]" aria-hidden="true" />
               </div>
-              <h2 className="text-xl font-display font-medium uppercase text-white mb-2">
+              <h2 id={headingId} className="text-xl font-display font-medium uppercase text-white mb-2">
                 {heading}
               </h2>
-              <p className="text-sm text-neutral-400 font-light leading-relaxed">
+              <p id={bodyId} className="text-sm text-neutral-400 font-light leading-relaxed">
                 {body}
               </p>
             </div>
@@ -92,13 +105,13 @@ export function ExitIntentModal({
               <Link
                 href={prompt ? `${ctaHref}?prompt=${encodeURIComponent(prompt)}` : ctaHref}
                 onClick={dismiss}
-                className="w-full bg-[#D4A843] text-neutral-950 py-3 px-6 text-xs font-mono font-bold uppercase tracking-widest text-center hover:bg-[#E8C96A] transition-colors"
+                className="w-full min-h-[44px] flex items-center justify-center bg-[#D4A843] text-neutral-950 py-3 px-6 text-xs font-mono font-bold uppercase tracking-widest text-center hover:bg-[#E8C96A] transition-colors"
               >
                 {ctaLabel}
               </Link>
               <button
                 onClick={dismiss}
-                className="text-xs font-mono uppercase tracking-widest text-neutral-400 hover:text-white transition-colors py-2"
+                className="min-h-[44px] text-xs font-mono uppercase tracking-widest text-neutral-400 hover:text-white transition-colors py-2"
               >
                 No thanks, I&apos;m just browsing
               </button>
