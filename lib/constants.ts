@@ -695,6 +695,30 @@ export const RENTAL_POLICY = {
   payoutAutoApprove: false,
 } as const;
 
+// ─── Community listing review (spec §8.1–8.2) ───────────────────────────────
+// Rules live in lib/core/listings/review.ts and run on the server only.
+export const LISTING_POLICY = {
+  // A person reviews any listing whose replacement value is above this.
+  reviewValueThresholdCents: RENTAL_POLICY.highValueCollectionThresholdCents,
+  // An owner may publish without a person reviewing the listing only when
+  // ALL of these hold (and they have no rejected listing, no open dispute and
+  // are not suspended). Deliberately conservative; lower only by founder
+  // decision.
+  establishedOwner: {
+    minPublishedListings: 3,
+    minCompletedRentals: 5,
+  },
+  // Sanity bounds on owner-entered amounts, in cents. Not business rules:
+  // they stop typos (an extra zero) from reaching a renter's deposit.
+  maxPricePerDayCents: 100_000_000,
+  maxReplacementValueCents: 1_000_000_000,
+  // Owner declarations are recorded against the Terms version in force
+  // (Part D, Creators and Suppliers).
+  ownerTermsVersion: STUDIO.legal.documents.terms.version,
+  ownerTermsHref: STUDIO.legal.documents.terms.href,
+  reviewNotesMaxLength: 2000,
+} as const;
+
 export const RENTAL_CATEGORY_VALUES = RENTAL_CATEGORIES.map(c => c.value);
 export type RentalCategorySlug = (typeof RENTAL_CATEGORIES)[number]['value'];
 
