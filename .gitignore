@@ -48,3 +48,6 @@ next-env.d.ts
 # claude code — local settings and auto-memory (contain secrets/personal data)
 .claude/settings.local.json
 .claude/projects/
+
+# Agent worktrees (temporary, per session)
+.claude/worktrees/
