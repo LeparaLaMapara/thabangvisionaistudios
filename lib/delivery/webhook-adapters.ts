@@ -1,12 +1,35 @@
 /**
- * Courier adapters that receive webhooks register their parser by being
- * imported here (one side-effect import each). The module imported calls
- * `registerDeliveryWebhookParser` from lib/delivery/webhooks.ts.
- *
- *   import '@/lib/delivery/<provider>/webhook';
+ * Courier adapters that receive webhooks, registered with the parser registry
+ * (lib/delivery/webhooks.ts). The route /api/webhooks/delivery/<id> answers:
+ *   404 for an unknown id, 503 when the provider is not switched on or has no
+ *   verified signing secret (nothing is stored), 401 for a bad signature.
  *
  * Our own fleet (the manual adapter) has no webhooks: staff move its legs in
- * the admin console. Until a courier adapter is added, every provider id is
- * unknown and the route answers 404 without storing anything.
+ * the admin console.
  */
-export {};
+
+import { registerDeliveryWebhookParser } from './webhooks';
+import { uberDirectWebhookParser } from './uber-direct';
+import { wumdropWebhookParser } from './wumdrop';
+
+type Env = Record<string, string | undefined>;
+
+const enabled = (env: Env, id: string): boolean =>
+  (env[`DELIVERY_PROVIDER_${id.toUpperCase()}_ENABLED`] ?? '').toLowerCase() === 'true';
+
+// Uber Direct: HMAC-SHA256 over the raw body. Only when the provider is
+// switched on and the signing key for its mode is set.
+registerDeliveryWebhookParser('uber_direct', (env: Env) => {
+  if (!enabled(env, 'uber_direct')) return null;
+  const sandbox = (env.DELIVERY_PROVIDER_UBER_DIRECT_MODE ?? '').toLowerCase() === 'sandbox';
+  const key = sandbox ? env.UBER_DIRECT_SANDBOX_WEBHOOK_SIGNING_KEY : env.UBER_DIRECT_WEBHOOK_SIGNING_KEY;
+  return key?.trim() ? uberDirectWebhookParser(env) : null;
+});
+
+// WumDrop: webhook signing is not verified (docs/logistics/wumdrop.md), so its
+// webhooks are never accepted; jobs are followed by the daily poll instead.
+registerDeliveryWebhookParser('wumdrop', (env: Env) => {
+  void wumdropWebhookParser;
+  void env;
+  return null;
+});
