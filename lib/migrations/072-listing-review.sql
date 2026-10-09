@@ -51,10 +51,17 @@
 --
 -- BACKFILL (public.listing_review_backfill_072(), section 2c; safe to re-run)
 --   published studio rows                 -> 'published'
---   published community rows that were never submitted or reviewed under
---   this flow (no listing_private row with submitted_at or reviewed_at)
---                                         -> 'pending_review'  (TAKEN OFFLINE)
+--   published community rows that never went through this flow (NO
+--   listing_private row at all)           -> 'pending_review'  (TAKEN OFFLINE)
 --   everything else                       -> 'draft' (the column default)
+--   Every community listing that can go live through the app has a
+--   listing_private row before it does: submission and admin approval both
+--   require the owner declarations, which are stored there (and create,
+--   onboarding drafts and edits all write one). The submitted_at /
+--   reviewed_at stamps are not the test: the review record is written after
+--   the decision and may fail, and that must not take an approved listing
+--   offline on a re-run. A row copied from an earlier draft of this file
+--   (2b) also counts as having gone through the flow.
 --   Community gear published before 072 went live with no review, usually no
 --   replacement value and so a zero deposit. Leaving it 'published' would
 --   let it be hired with no deposit and count towards the owner's
@@ -202,9 +209,10 @@ end $$;
 --
 -- A function so 072-listing-review.test.sql can run the same code against
 -- fixtures. Idempotent: every step only touches rows not yet in their
--- backfilled state, and a listing that has been submitted or reviewed under
--- this flow is never taken offline by a re-run. Only the migration owner
--- (postgres) can run it.
+-- backfilled state, and a listing that has a listing_private row (every
+-- listing the app has created, edited, submitted or approved since 072) is
+-- never taken offline by a re-run. Only the migration owner (postgres) can
+-- run it.
 
 create or replace function public.listing_review_backfill_072()
 returns void
@@ -234,7 +242,10 @@ begin
 
   -- (b) Community gear that went live without review: offline until a person
   --     approves it. is_published is set here too because on a first run the
-  --     status trigger (section 3) does not exist yet.
+  --     status trigger (section 3) does not exist yet. A listing with any
+  --     listing_private row went through this flow and is left alone (see
+  --     the header); (c) below runs after this, so the rows it adds on a
+  --     first run do not spare anything.
   update public.smart_rentals r
      set listing_status = 'pending_review',
          is_published = false
@@ -243,7 +254,6 @@ begin
      and not exists (
        select 1 from public.listing_private p
         where p.rental_id = r.id
-          and (p.reviewed_at is not null or p.submitted_at is not null)
      );
 
   if has_updated_at_trigger then
@@ -418,9 +428,10 @@ commit;
 -- Community listings the backfill took offline (2c b) stay offline after a
 -- rollback: is_published is not restored. To put one back exactly as before
 -- 072, set is_published = true on it by hand AFTER dropping the trigger
--- below (there is no record of which rows they were other than
--- listing_status = 'pending_review' with no listing_private.submitted_at, so
--- list them before rolling back:
+-- below (there is no exact record of which rows they were; the closest is
+-- listing_status = 'pending_review' with no listing_private.submitted_at
+-- (rows the AI backfill (c) gave flags have a private row but were never
+-- submitted), so list them before rolling back:
 --   select r.id from public.smart_rentals r
 --    where r.owner_type = 'community' and r.listing_status = 'pending_review'
 --      and not exists (select 1 from public.listing_private p

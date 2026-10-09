@@ -18,12 +18,18 @@ import { storage as activeStorage, type StorageProvider } from '@/lib/storage';
  *      docs/marketplace/listings.md); it is no longer referenced by the
  *      listing.
  *
- * Non-Cloudinary URLs are returned unchanged by metadataFreeImageUrl and
- * refused by cleanListingImages.
+ * Non-Cloudinary URLs are returned unchanged by metadataFreeImageUrl.
+ * cleanListingImages copies only images delivered from our own account
+ * (/<our cloud>/image/upload/...) and refuses anything else; the listing
+ * routes refuse new photos from anywhere else at save time (isOwnImageUrl).
  */
 
 const CLOUDINARY_HOST = 'res.cloudinary.com';
 const UPLOAD_SEGMENT = '/image/upload/';
+// A delivery path: /<cloud name>/image/upload/<rest>. Anchored, so a fetch
+// or other delivery type that merely contains "/image/upload/" further on
+// (e.g. /<cloud>/image/fetch/https://elsewhere/image/upload/x.jpg) is not one.
+const DELIVERY_PATH = /^\/([^/]+)\/image\/upload\/(.+)$/;
 // A Cloudinary transformation segment: comma-separated `x_value` parameters.
 const TRANSFORMATION = /^[a-z]{1,3}_[^/]*$/;
 // Flags that make Cloudinary keep embedded metadata on a transformed delivery.
@@ -42,7 +48,13 @@ interface CloudinaryParts {
   rest: string[];
 }
 
-function cloudinaryParts(url: string): CloudinaryParts | null {
+/**
+ * A Cloudinary image delivery URL, split up: https, res.cloudinary.com, and a
+ * path that starts with /<cloud>/image/upload/. With `owner`, the URL must
+ * also be delivered from that provider's own account (ownsUrl), i.e. the
+ * path starts with /<our cloud>/image/upload/. Anything else is null.
+ */
+function cloudinaryParts(url: string, owner?: StorageProvider): CloudinaryParts | null {
   let parsed: URL;
   try {
     parsed = new URL(url);
@@ -50,12 +62,21 @@ function cloudinaryParts(url: string): CloudinaryParts | null {
     return null;
   }
   if (parsed.protocol !== 'https:' || parsed.hostname !== CLOUDINARY_HOST) return null;
-  const idx = parsed.pathname.indexOf(UPLOAD_SEGMENT);
-  if (idx === -1) return null;
-  const segments = parsed.pathname.slice(idx + UPLOAD_SEGMENT.length).split('/');
+  const match = DELIVERY_PATH.exec(parsed.pathname);
+  if (!match) return null;
+  if (owner && owner.ownsUrl?.(url) !== true) return null;
+  const segments = match[2].split('/');
   const transformations: string[] = [];
   while (segments.length > 1 && TRANSFORMATION.test(segments[0])) transformations.push(segments.shift() as string);
-  return { url: parsed, prefix: parsed.pathname.slice(0, idx + UPLOAD_SEGMENT.length), transformations, rest: segments };
+  return { url: parsed, prefix: `/${match[1]}${UPLOAD_SEGMENT}`, transformations, rest: segments };
+}
+
+/**
+ * True when `url` is an image delivered from our own storage account (the
+ * only photos a listing may use: the listing form uploads there).
+ */
+export function isOwnImageUrl(url: string, provider: StorageProvider = activeStorage): boolean {
+  return cloudinaryParts(url, provider) !== null;
 }
 
 /** The asset's public id as written in a Cloudinary delivery URL, or null. */
@@ -143,14 +164,17 @@ export async function cleanListingImages(
 
   const todo = source.map((img) => !isCleanCopy(img, provider));
   if (todo.some(Boolean)) {
-    if (source.some((img, i) => todo[i] && !cloudinaryParts(img.url))) return { ok: false, reason: 'unsupported_image' };
     if (provider.name !== 'cloudinary' || !provider.isConfigured()) return { ok: false, reason: 'storage_unavailable' };
+    // Only photos already in our account are copied. Anything else (another
+    // Cloudinary account, a fetch/remote delivery, another host) is refused,
+    // so this never pulls an arbitrary internet image into CLEAN_IMAGE_FOLDER.
+    if (source.some((img, i) => todo[i] && !cloudinaryParts(img.url, provider))) return { ok: false, reason: 'unsupported_image' };
   }
 
   const settled = await Promise.allSettled(
     source.map((img, i) =>
       todo[i]
-        ? provider.uploadImage(strippedDeliveryUrl(img.url), CLEAN_IMAGE_FOLDER, 'image')
+        ? (async () => provider.uploadImage(strippedDeliveryUrl(img.url, provider), CLEAN_IMAGE_FOLDER, 'image'))()
         : Promise.resolve(null),
     ),
   );
@@ -176,9 +200,9 @@ export async function cleanListingImages(
 }
 
 /** A delivery of the asset with every transformation replaced by q_auto (which strips metadata). */
-function strippedDeliveryUrl(url: string): string {
-  const parts = cloudinaryParts(url);
-  if (!parts) return url;
+function strippedDeliveryUrl(url: string, provider: StorageProvider): string {
+  const parts = cloudinaryParts(url, provider);
+  if (!parts) throw new Error('strippedDeliveryUrl: not an image in our account');
   parts.url.pathname = `${parts.prefix}q_auto/${parts.rest.join('/')}`;
   parts.url.search = '';
   return parts.url.toString();

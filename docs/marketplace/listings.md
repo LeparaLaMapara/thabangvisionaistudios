@@ -15,6 +15,10 @@ platform checks on the way, and what it does **not** check.
    as `owner_edited`) or presses "Correct" (`owner_confirmed`, via
    `PUT /api/listings { action: 'confirm_ai_fields' }`). Every field the AI
    can suggest is editable, including the week rate and what's included.
+   What's included is edited **one item per line** (an item may contain a
+   comma, e.g. "Lens caps (front, rear)"). Onboarding cuts the AI's list to
+   what an owner could enter (20 items of up to 80 characters,
+   `clampIncludes`).
 4. **Day rate, replacement value, location.** The owner enters the day rate,
    an optional week rate, what it would cost to replace the item, and the
    suburb and city where it is kept. The week rate is charged for each full
@@ -89,6 +93,22 @@ included, serial number, location, photos or the cover photo on a
 `published` one, takes it back to `draft` (`MATERIAL_FIELDS`). Day rate and
 description edits keep it live.
 
+**What's included on an edit:** a list sent back equal to the stored one
+once normalised (items trimmed, blanks and repeats dropped, order kept) is
+not a change: the stored list is kept exactly as stored, the listing stays
+live and an AI marker on it stays as it was. The 80-character and 20-item
+limits apply to what the owner adds; items already stored pass as they are,
+and a list no longer than the stored one is accepted, so a list saved before
+these limits never blocks an edit.
+
+**Concurrent edits:** an edit writes the private row only if it is still the
+version the request read (`listing_private.updated_at`, read back as
+`private_updated_at`), then the listing only if its status and `updated_at`
+are unchanged. Of two edits that overlap, one is saved whole and the other
+gets **409** having changed nothing; if the listing write loses, the private
+row is put back only while it still holds that request's own write.
+"Confirm AI fields" is conditional on the private version in the same way.
+
 **Cover photo:** `thumbnail_url` is always one of the listing's own gallery
 photos. The server picks it from the gallery by `cover_public_id` or URL (else
 the first photo) and refuses a cover that is not one of them, so a cover can
@@ -96,7 +116,11 @@ never be an image a reviewer was not shown. The review page shows the cover
 first, then every photo.
 
 **Suspended owners** cannot edit, confirm AI fields or submit (403). They can
-still take a live listing down.
+still take a live listing down. On an edit the check fails closed: after
+`checkNotSuspended` (which answers "not suspended" if its own read fails),
+the route re-reads `profiles.is_suspended` with the service role and answers
+**503** if that read fails. A suspension whose expiry has passed does not
+block.
 
 **Database guard (072):** `is_published` is derived from `listing_status`. A
 community row cannot be made public by setting `is_published` directly, and
@@ -122,10 +146,18 @@ rows; for community rows use the review page.
   `thabangvision_usecase/media/listings/clean/` through the storage
   abstraction, and the listing is pointed at those copies (gallery, cover and
   `cover_public_id`). The copy's own original has no EXIF, so rebuilding its
-  untransformed URL serves no GPS. Photos from another Cloudinary account are
-  copied into ours the same way; a photo not on Cloudinary blocks submission
-  (422, re-upload it). If any copy fails, nothing changes and submission
+  untransformed URL serves no GPS. Only photos delivered from **our own
+  account** are copied: the URL must be `https://res.cloudinary.com/<our
+  cloud>/image/upload/...` (`ownsUrl` plus an anchored path). Anything else,
+  including another account's photo or a fetch delivery such as
+  `/<cloud>/image/fetch/https://elsewhere/image/upload/x.jpg`, blocks
+  submission (422, re-upload it), so the clean folder only ever holds copies
+  of our own uploads. If any copy fails, nothing changes and submission
   answers 503. A draft's photos are not public (drafts are hidden by RLS).
+- On **save** (create and edit) a new photo must also be from our account
+  (`isOwnImageUrl`, 400 on `gallery`); photos already on the listing may stay,
+  so an older listing remains editable. Onboarding drafts drop a photo that
+  is not from our account (the owner adds photos later).
 - Saved URLs also always go through a `q_auto` transformation (a
   `keep_iptc`/`keep_attribution` transformation is replaced), so even a draft
   URL never serves GPS.
@@ -153,9 +185,9 @@ rows; for community rows use the review page.
 **Applying 072 takes community listings offline.** Community gear published
 before 072 went live with no review, usually with no replacement value, so
 with a zero deposit. 072's backfill (`listing_review_backfill_072()`) moves
-every community listing that is published but was never submitted or
-reviewed under this flow to `pending_review`. It disappears from the site
-until:
+every community listing that is published but has **no `listing_private`
+row** (never created, edited, submitted or reviewed under this flow) to
+`pending_review`. It disappears from the site until:
 - the owner adds a replacement value (so a deposit is charged) and the three
   declarations, and confirms any AI-suggested fields; then
 - a person approves it in `/admin/listings` (approval re-runs every
@@ -165,7 +197,16 @@ until:
 While offline it does not count towards the owner's established-owner
 threshold, so it cannot be used to skip review of their next listing.
 Studio gear is not affected. Re-running 072 never takes down a listing that
-was submitted or reviewed under this flow.
+went live under this flow: submission and approval both require the owner
+declarations, which are stored in `listing_private`, so such a listing always
+has a private row. The test is the row, not the `submitted_at` /
+`reviewed_at` stamps, because the review record is written after the
+decision and can fail. (`submitted_at` is written before the status change
+and a failure stops the submission with 503; the review record is retried
+once and otherwise reported to the admin as a warning.) A community row
+inserted published by hand or through the raw admin rental create
+(`POST /api/admin/rentals`), with no private row, would still be taken
+offline by a re-run.
 
 The backfill also marks the AI-filled fields of AI-drafted community
 listings that have no recorded AI flags (drafted before 072) as unconfirmed,
@@ -196,7 +237,11 @@ by hand.
     `smart_rentals` hides them from the owner); admins (`is_admin()`) can
     read all; `anon` has no access.
   - No client role can insert, update or delete. The server writes with the
-    service role (`savePrivate()` in `app/api/listings/_lib/server.ts`).
+    service role (`app/api/listings/_lib/server.ts`): `savePrivate()` for
+    stamps that must land (submission, review), `savePrivateIfUnchanged()`
+    for owner edits and AI confirmations (only onto the version read). Each
+    write stamps `updated_at` with random microseconds so it identifies that
+    write.
   - The owner's dashboard gets the private fields except `reviewed_by`.
 - If saving the private row fails when a draft is created (owner form or
   onboarding), the draft is removed, so AI-suggested values can never look

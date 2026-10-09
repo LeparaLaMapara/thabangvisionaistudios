@@ -26,7 +26,7 @@ import {
   type AiSuggestibleField,
   type ListingStatus,
 } from '@/lib/core/listings/review';
-import { depositForListing } from '@/lib/core/listings/input';
+import { depositForListing, includesFromText, includesToText } from '@/lib/core/listings/input';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { Card } from '@/components/ui/Card';
@@ -266,7 +266,8 @@ export default function ListingsPage() {
       price_per_day: listing.price_per_day?.toString() ?? '',
       price_per_week: listing.price_per_week?.toString() ?? '',
       replacement_value: listing.replacement_value?.toString() ?? '',
-      rental_includes: (listing.rental_includes ?? []).join(', '),
+      // One item per line: an item may itself contain a comma.
+      rental_includes: includesToText(listing.rental_includes),
       serial_number: listing.serial_number ?? '',
       replacement_value_evidence: listing.replacement_value_evidence ?? '',
       condition: listing.sub_category ?? '',
@@ -358,10 +359,9 @@ export default function ListingsPage() {
       price_per_day: form.price_per_day || null,
       price_per_week: form.price_per_week || null,
       replacement_value: form.replacement_value || null,
-      rental_includes: form.rental_includes
-        .split(/[,\n]/)
-        .map((v) => v.trim())
-        .filter(Boolean),
+      // New lines only, so "Lens caps (front, rear)" stays one item and an
+      // unchanged list is sent back as it was stored.
+      rental_includes: includesFromText(form.rental_includes),
       serial_number: form.serial_number.trim() || null,
       replacement_value_evidence: form.replacement_value_evidence.trim() || null,
       condition: form.condition || null,
@@ -698,13 +698,14 @@ export default function ListingsPage() {
               <label className={LABEL_CLASS}>
                 What&rsquo;s included (optional) {isAi('rental_includes') && <AiMark />}
               </label>
-              <input
-                type="text"
+              <textarea
                 value={form.rental_includes}
                 onChange={(e) => setForm((f) => ({ ...f, rental_includes: e.target.value }))}
-                placeholder="e.g. 2 batteries, charger, strap"
-                className={INPUT_CLASS}
+                rows={3}
+                placeholder={'One item per line, e.g.\n2 batteries\nCharger'}
+                className={`${INPUT_CLASS} resize-none`}
               />
+              <p className="mt-1 text-xs font-mono text-neutral-500">One item per line.</p>
             </div>
 
             <div>

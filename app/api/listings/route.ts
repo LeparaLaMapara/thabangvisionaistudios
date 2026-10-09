@@ -17,20 +17,23 @@ import {
   depositForListing,
   listingMetadata,
   parseListingInput,
+  sameIncludes,
   type ListingInput,
 } from '@/lib/core/listings/input';
 import {
   adminClient,
   flattenListing,
   forOwner,
+  isOwnerSuspended,
   loadOwnListing,
   locationOf,
   OWNER_LISTING_COLUMNS,
   savePrivate,
+  savePrivateIfUnchanged,
   type Admin,
   type OwnerListingRow,
 } from '@/app/api/listings/_lib/server';
-import { metadataFreeGallery, metadataFreeImageUrl } from '@/app/api/listings/_lib/images';
+import { isOwnImageUrl, metadataFreeGallery, metadataFreeImageUrl } from '@/app/api/listings/_lib/images';
 
 /**
  * Community gear listings, owner side.
@@ -86,6 +89,17 @@ function comparable(row: OwnerListingRow): Record<string, unknown> {
 }
 
 /**
+ * What's included after this edit. Not sent, or sent back the same once
+ * normalised (trimmed, blanks and repeats dropped), keeps the stored list
+ * exactly as stored: re-saving a form is not an edit of what's included.
+ */
+function includesAfterEdit(input: ListingInput, row: OwnerListingRow): string[] {
+  const stored = row.rental_includes ?? [];
+  if (input.rental_includes === undefined || sameIncludes(input.rental_includes, stored)) return stored;
+  return input.rental_includes;
+}
+
+/**
  * What the row will hold after this edit, in the same shape as comparable().
  * Week rate and what's included keep their stored value when not sent.
  */
@@ -100,7 +114,7 @@ function incoming(input: ListingInput, row: OwnerListingRow): Record<string, unk
     price_per_day: input.price_per_day,
     price_per_week: weekRateAfterEdit(input, row),
     replacement_value: input.replacement_value,
-    rental_includes: input.rental_includes ?? row.rental_includes ?? [],
+    rental_includes: includesAfterEdit(input, row),
     serial_number: input.serial_number,
     location: input.location,
     gallery: galleryKeys(metadataFreeGallery(input.gallery)),
@@ -169,7 +183,11 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: 'Too many requests. Please wait before trying again.' }, { status: 429 });
   }
 
-  const parsed = parseListingInput(await readJson(request), { requireCategory: true });
+  const parsed = parseListingInput(await readJson(request), {
+    requireCategory: true,
+    // Photos come from the listing form's upload to our storage account.
+    isAllowedImageUrl: (url) => isOwnImageUrl(url),
+  });
   if (!parsed.ok) {
     return NextResponse.json({ error: parsed.error, field: parsed.field }, { status: 400 });
   }
@@ -272,11 +290,22 @@ export async function PUT(request: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: 'Unknown action.' }, { status: 400 });
   }
 
-  // A suspended owner may still take a listing down, nothing else. Also
-  // clears an expired suspension, so the answer is current.
+  // A suspended owner may still take a listing down, nothing else.
+  // checkNotSuspended also clears an expired suspension, but it answers "not
+  // suspended" when its read fails; isOwnerSuspended then re-reads and fails
+  // closed (503) so a database error never lets a suspended owner edit.
   if (action !== 'unpublish') {
     const suspension = await checkNotSuspended(auth.user.id);
-    if (suspension.suspended) {
+    let suspended = suspension.suspended;
+    if (!suspended) {
+      try {
+        suspended = await isOwnerSuspended(adminClient(), auth.user.id);
+      } catch (err) {
+        console.error('[listings] PUT: suspension check failed:', err);
+        return NextResponse.json({ error: 'Could not check your account. Please try again.' }, { status: 503 });
+      }
+    }
+    if (suspended) {
       return NextResponse.json(
         { error: 'Your account is suspended. Contact support.', code: 'owner_suspended' },
         { status: 403 },
@@ -298,7 +327,15 @@ export async function PUT(request: NextRequest): Promise<NextResponse> {
     if (action === 'confirm_ai_fields') {
       const fields = Array.isArray(b.fields) ? b.fields : [];
       if (fields.length === 0) return NextResponse.json({ error: 'Say which fields to confirm.' }, { status: 400 });
-      await savePrivate(admin, row.id, { ai_fields: confirmAiFields(row.ai_fields, fields, now) });
+      // Only onto the private row this request read: confirming from a stale
+      // copy would drop AI markers an edit added meanwhile.
+      const written = await savePrivateIfUnchanged(
+        admin,
+        row.id,
+        { ai_fields: confirmAiFields(row.ai_fields, fields, now) },
+        row.private_updated_at,
+      );
+      if (!written) return NextResponse.json({ error: 'The listing changed; reload and try again.' }, { status: 409 });
       return ownListingResponse(admin, row.id, auth.user.id);
     }
 
@@ -320,7 +357,14 @@ export async function PUT(request: NextRequest): Promise<NextResponse> {
     }
 
     // ── Edit ──
-    const parsed = parseListingInput(body, { requireCategory: false });
+    // Photos already on this listing may stay; new ones must come from our
+    // storage account. Stored what's-included items pass the item limits.
+    const storedImageUrls = new Set([...(row.gallery ?? []).map((g) => g.url), ...(row.thumbnail_url ? [row.thumbnail_url] : [])]);
+    const parsed = parseListingInput(body, {
+      requireCategory: false,
+      storedIncludes: row.rental_includes,
+      isAllowedImageUrl: (url) => storedImageUrls.has(url) || isOwnImageUrl(url),
+    });
     if (!parsed.ok) return NextResponse.json({ error: parsed.error, field: parsed.field }, { status: 400 });
     const input = parsed.value;
 
@@ -360,7 +404,7 @@ export async function PUT(request: NextRequest): Promise<NextResponse> {
       price_per_week: weekRate,
       replacement_value: input.replacement_value,
       deposit_amount: depositForListing(input.replacement_value),
-      rental_includes: input.rental_includes ?? row.rental_includes ?? [],
+      rental_includes: includesAfterEdit(input, row),
       serial_number: input.serial_number,
       // Always one of the gallery photos (parseListingInput), served metadata-free.
       thumbnail_url: input.thumbnail_url ? metadataFreeImageUrl(input.thumbnail_url) : null,
@@ -376,11 +420,23 @@ export async function PUT(request: NextRequest): Promise<NextResponse> {
     // Private row first, then the listing row (which moves updated_at). A
     // submission that read the listing before this edit then fails its
     // updated_at check (409) instead of publishing on half-old facts.
-    await savePrivate(admin, row.id, {
-      ai_fields: hasAiFields ? aiFields : null,
-      owner_attestations: attestations,
-      replacement_value_evidence: input.replacement_value_evidence,
-    });
+    // Both writes are conditional on what this request read, so of two
+    // concurrent edits one wins whole and the other gets 409 having changed
+    // nothing: the private row only if it is still the version read here,
+    // the listing only if its status and updated_at are.
+    const privateWritten = await savePrivateIfUnchanged(
+      admin,
+      row.id,
+      {
+        ai_fields: hasAiFields ? aiFields : null,
+        owner_attestations: attestations,
+        replacement_value_evidence: input.replacement_value_evidence,
+      },
+      row.private_updated_at,
+    );
+    if (!privateWritten) {
+      return NextResponse.json({ error: 'The listing changed; reload and try again.' }, { status: 409 });
+    }
 
     const { data, error } = await admin
       .from('smart_rentals')
@@ -388,12 +444,14 @@ export async function PUT(request: NextRequest): Promise<NextResponse> {
       .eq('id', row.id)
       .eq('owner_id', auth.user.id)
       .eq('listing_status', row.listing_status)
+      .eq('updated_at', row.updated_at)
       .select('id')
       .maybeSingle();
 
     if (error || !data) {
-      // The listing was not saved; put the private row back as it was.
-      await restorePrivate(admin, row);
+      // The listing was not saved; put the private row back as it was, but
+      // only if it still holds what this request wrote.
+      await restorePrivate(admin, row, privateWritten);
       if (error) throw error;
       return NextResponse.json({ error: 'The listing changed; reload and try again.' }, { status: 409 });
     }
@@ -407,14 +465,25 @@ export async function PUT(request: NextRequest): Promise<NextResponse> {
   }
 }
 
-/** Best effort: a failure is logged (listing id only); the caller's answer stands. */
-async function restorePrivate(admin: Admin, row: OwnerListingRow): Promise<void> {
+/**
+ * Puts back the private values read at the start, only while the private
+ * row is still the version this request wrote (`written`): if anyone has
+ * written it since, their data stays. Best effort: a failure is logged
+ * (listing id only); the caller's answer stands.
+ */
+async function restorePrivate(admin: Admin, row: OwnerListingRow, written: string): Promise<void> {
   try {
-    await savePrivate(admin, row.id, {
-      ai_fields: row.ai_fields,
-      owner_attestations: row.owner_attestations,
-      replacement_value_evidence: row.replacement_value_evidence,
-    });
+    const restored = await savePrivateIfUnchanged(
+      admin,
+      row.id,
+      {
+        ai_fields: row.ai_fields,
+        owner_attestations: row.owner_attestations,
+        replacement_value_evidence: row.replacement_value_evidence,
+      },
+      written,
+    );
+    if (!restored) console.warn('[listings] PUT: private row changed meanwhile, left as is for listing', row.id);
   } catch (err) {
     console.error('[listings] PUT: private row not restored for listing', row.id, err);
   }

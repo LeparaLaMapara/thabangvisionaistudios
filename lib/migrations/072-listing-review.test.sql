@@ -249,6 +249,8 @@ declare
   legacy uuid := gen_random_uuid();      -- community, live before 072, never reviewed
   reviewed uuid := gen_random_uuid();    -- community, approved under 072
   submitted uuid := gen_random_uuid();   -- community, auto-published under 072
+  unstamped uuid := gen_random_uuid();   -- community, live under 072, its review stamp never written
+  legacy_ai uuid := gen_random_uuid();   -- community AI draft, live before 072, never reviewed
   studio uuid := gen_random_uuid();      -- studio gear, live
   ai_draft uuid := gen_random_uuid();    -- AI draft whose flags were never recorded
   ai_flagged uuid := gen_random_uuid();  -- AI draft with flags already recorded
@@ -262,9 +264,17 @@ begin
     (legacy, '072-bf-legacy-' || legacy, 'Legacy camera', 'community', 'published'),
     (reviewed, '072-bf-reviewed-' || reviewed, 'Reviewed camera', 'community', 'published'),
     (submitted, '072-bf-submitted-' || submitted, 'Submitted camera', 'community', 'published'),
+    (unstamped, '072-bf-unstamped-' || unstamped, 'Unstamped camera', 'community', 'published'),
     (studio, '072-bf-studio-' || studio, 'Studio camera', 'studio', 'published');
+  insert into public.smart_rentals (id, slug, title, owner_type, listing_status, is_ai_generated, price_per_day)
+  values (legacy_ai, '072-bf-legacy-ai-' || legacy_ai, 'Legacy AI camera', 'community', 'published', true, 400);
   insert into public.listing_private (rental_id, reviewed_at) values (reviewed, now());
   insert into public.listing_private (rental_id, submitted_at) values (submitted, now());
+  -- Approved under 072, but the review record written after the decision
+  -- failed: the private row exists (it holds the owner declarations that
+  -- approval required) with no stamp.
+  insert into public.listing_private (rental_id, owner_attestations)
+  values (unstamped, '{"owns_or_authorised": true, "condition_working": true, "location_accurate": true}');
   insert into public.smart_rentals
     (id, slug, title, owner_type, is_ai_generated, price_per_day, price_per_week, description, rental_includes)
   values
@@ -281,10 +291,18 @@ begin
   end if;
   raise notice 'PASS: community listing live before 072 is taken offline for review';
 
+  -- (c) gives it a private row in the same run, after (b): still offline.
+  select listing_status, is_published into st, pub from public.smart_rentals where id = legacy_ai;
+  select count(*) into n from public.listing_private where rental_id = legacy_ai and ai_fields is not null;
+  if st <> 'pending_review' or pub or n <> 1 then
+    raise exception 'FAIL: live AI listing from before 072 not taken offline with flags (status %, published %, flags %)', st, pub, n;
+  end if;
+  raise notice 'PASS: AI listing live before 072 is taken offline and its AI fields flagged';
+
   select count(*) into n from public.smart_rentals
-   where id in (reviewed, submitted, studio) and listing_status = 'published' and is_published;
-  if n <> 3 then raise exception 'FAIL: reviewed/submitted/studio listings were taken offline (% of 3 live)', n; end if;
-  raise notice 'PASS: reviewed, submitted and studio listings stay live';
+   where id in (reviewed, submitted, unstamped, studio) and listing_status = 'published' and is_published;
+  if n <> 4 then raise exception 'FAIL: reviewed/submitted/unstamped/studio listings were taken offline (% of 4 live)', n; end if;
+  raise notice 'PASS: reviewed, submitted, unstamped (private row, no stamp) and studio listings stay live';
 
   select ai_fields into flags from public.listing_private where rental_id = ai_draft;
   if flags is null then raise exception 'FAIL: AI draft got no ai_fields'; end if;
@@ -301,16 +319,24 @@ begin
   end if;
   raise notice 'PASS: recorded AI flags are left alone';
 
-  -- Re-run: nothing changes.
+  -- Re-run: nothing changes. Then the AI listing is approved (status back to
+  -- published; it has the private row (c) made) and a third run must leave
+  -- it live.
   perform public.listing_review_backfill_072();
   select listing_status into st from public.smart_rentals where id = legacy;
   select count(*) into n from public.smart_rentals
-   where id in (reviewed, submitted, studio) and listing_status = 'published';
+   where id in (reviewed, submitted, unstamped, studio) and listing_status = 'published';
   select ai_fields into flags_after from public.listing_private where rental_id = ai_draft;
-  if st <> 'pending_review' or n <> 3 or flags_after <> flags then
+  if st <> 'pending_review' or n <> 4 or flags_after <> flags then
     raise exception 'FAIL: second backfill run changed something';
   end if;
-  raise notice 'PASS: backfill is idempotent';
+  update public.smart_rentals set listing_status = 'published' where id = legacy_ai;
+  perform public.listing_review_backfill_072();
+  select listing_status into st from public.smart_rentals where id = legacy_ai;
+  if st <> 'published' then
+    raise exception 'FAIL: a re-run took an approved listing offline (status %)', st;
+  end if;
+  raise notice 'PASS: backfill is idempotent and a re-run leaves approved listings live';
 
   select count(*) into n from public.smart_rentals
    where coalesce(is_published, false) <> (listing_status = 'published');

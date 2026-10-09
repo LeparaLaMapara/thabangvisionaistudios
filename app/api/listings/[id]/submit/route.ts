@@ -99,6 +99,21 @@ export async function POST(
       return NextResponse.json({ error: 'Could not prepare your photos. Please try again.' }, { status: 503 });
     }
 
+    // The submission time is written BEFORE the status changes, and a
+    // failure stops the submission, so a submitted listing always has it.
+    // (The listing already has a listing_private row: submission requires
+    // the owner declarations, which live there. Migration 072's backfill
+    // relies on that row, not on this stamp.) If the status change below
+    // loses a race (409), submitted_at records that attempt; it only orders
+    // the review queue.
+    try {
+      await savePrivate(admin, row.id, { submitted_at: new Date().toISOString() });
+    } catch (privErr) {
+      console.error('[listings/submit] submitted_at not recorded for listing', row.id, privErr);
+      await discardUploadedImages(photos.uploaded);
+      return NextResponse.json({ error: 'Could not submit your listing. Please try again.' }, { status: 503 });
+    }
+
     const { data, error } = await admin
       .from('smart_rentals')
       .update({
@@ -122,13 +137,6 @@ export async function POST(
       return NextResponse.json({ error: 'The listing changed while it was being submitted; reload and try again.' }, { status: 409 });
     }
 
-    // The status change above is what counts; the submission time only
-    // orders the review queue, so a failure here is logged, not fatal.
-    try {
-      await savePrivate(admin, row.id, { submitted_at: new Date().toISOString() });
-    } catch (privErr) {
-      console.error('[listings/submit] submitted_at not recorded:', privErr);
-    }
     const listing = await loadOwnListing(admin, row.id, auth.user.id);
 
     return NextResponse.json({
