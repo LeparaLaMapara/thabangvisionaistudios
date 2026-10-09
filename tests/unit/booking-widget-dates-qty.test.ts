@@ -130,6 +130,20 @@ describe('BookingWidget: quantity survives "Edit dates"', () => {
     await waitFor(() => expect(addToCart).toHaveBeenCalledWith('r-1', 3, ymd(20), ymd(23)));
   });
 
+  it('cannot book when fewer units are free than the quantity carried from the cart', async () => {
+    authUser = { id: 'u-1' };
+    search = `start=${ymd(10)}&end=${ymd(12)}&qty=3`;
+    fetchSpy.mockImplementation(async (url: string) => {
+      if (url.startsWith('/api/rentals/eligibility')) return new Response(JSON.stringify(READY), { status: 200 });
+      if (url.includes('/availability')) return new Response(JSON.stringify({ available: true, booked_count: 4, total_quantity: 5 }), { status: 200 });
+      return new Response('{}', { status: 404 });
+    });
+    renderWidget();
+    expect(await screen.findByText(/Only 1 of the 3 you asked for is free/)).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /^Book for/ })).toBeNull();
+    expect(addToCart).not.toHaveBeenCalled();
+  });
+
   it('the sign-in link keeps the quantity, with or without dates', async () => {
     search = 'qty=2';
     renderWidget();

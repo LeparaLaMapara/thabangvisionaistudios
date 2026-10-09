@@ -3,7 +3,7 @@ export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient, createAdminClient } from '@/lib/supabase/server';
 import { checkRateLimit } from '@/lib/auth';
-import { addToCart } from '@/lib/supabase/queries/cart';
+import { addToCart, getCartItems } from '@/lib/supabase/queries/cart';
 import { isMissingPipeline } from '@/lib/rental/repos';
 import { logEvent } from '@/lib/data/events';
 import { paymentAdapterFor } from '@/lib/payments/ports';
@@ -256,12 +256,20 @@ export async function POST(request: NextRequest) {
 
   // Back in the cart: only what this call released, never a cancelled line.
   const toRestore = after.filter((l) => releasedIds.has(l.id) && l.status === 'pending');
+  // The cart holds one line per item: a newer choice for the same gear (added
+  // in another tab since this checkout) is kept, not overwritten by the old order.
+  const inCart = new Set((await getCartItems(user.id)).map((c) => c.rental_id));
   let restored = 0;
+  let kept = 0;
   for (const line of toRestore) {
+    if (inCart.has(line.rental_id)) {
+      kept += 1;
+      continue;
+    }
     const item = await addToCart(user.id, line.rental_id, Math.max(1, line.quantity ?? 1), line.start_date, line.end_date);
     if (item) restored += 1;
   }
 
   logEvent({ eventType: 'checkout_payment_cancelled', eventCategory: 'booking', userId: user.id, metadata: { checkoutGroupId: groupId, items: toRestore.length, restored } });
-  return NextResponse.json({ released: true, restored, items: toRestore.length });
+  return NextResponse.json({ released: true, restored, kept, items: toRestore.length });
 }

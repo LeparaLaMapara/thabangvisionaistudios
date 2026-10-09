@@ -234,6 +234,23 @@ describe('photo first: POST /api/listings/suggest', () => {
     expect(draft.price_per_day).toBe(650);
   });
 
+  it('a retry with the same request id returns the draft it already made, without a second insert', async () => {
+    const id = '7d2c5f0e-1a2b-4c3d-8e9f-0a1b2c3d4e5f';
+    const base = resolver(storedRow());
+    let earlier = false;
+    state.resolver = (q) => (q.table === 'smart_rentals' && 'metadata->>suggest_request_id' in q.eq ? { data: earlier ? { id: 'r1' } : null } : base(q));
+    const first = await suggest({ ...body, request_id: id });
+    expect(first.status).toBe(201);
+    expect(inserts('smart_rentals')[0].metadata).toMatchObject({ suggest_request_id: id });
+    earlier = true;
+    state.log = [];
+    const again = await suggest({ ...body, request_id: id });
+    expect(again.status).toBe(200);
+    expect(await again.json()).toMatchObject({ repeated: true });
+    expect(inserts('smart_rentals')).toHaveLength(0);
+    expect(vision.urls).toHaveLength(1);
+  });
+
   it('never guesses a replacement value (or a deposit), and takes the location from the profile', async () => {
     state.resolver = resolver(storedRow());
     await suggest(body);

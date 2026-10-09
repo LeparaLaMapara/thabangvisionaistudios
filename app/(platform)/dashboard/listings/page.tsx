@@ -176,6 +176,19 @@ const FIELD_INPUT_ID: Record<string, string> = {
   gallery: 'listing-photos',
 };
 
+// One request id per set of photos, kept for this page visit, so retrying a
+// suggestion for the same photos is recognised by the server.
+const suggestIds = new Map<string, string>();
+function suggestRequestId(images: readonly { url: string; public_id?: string | null }[]): string {
+  const key = images.map((i) => i.public_id || i.url).join('|');
+  let id = suggestIds.get(key);
+  if (!id) {
+    id = crypto.randomUUID();
+    suggestIds.set(key, id);
+  }
+  return id;
+}
+
 const THRESHOLD_RANDS = LISTING_POLICY.reviewValueThresholdCents / 100;
 const ESTABLISHED = LISTING_POLICY.establishedOwner;
 
@@ -574,6 +587,9 @@ export default function ListingsPage() {
         body: JSON.stringify({
           gallery: images.map((i) => ({ url: i.url, public_id: i.public_id })),
           cover_public_id: images[0]?.public_id || null,
+          // Same id on a retry of the same photos: the server returns the draft
+          // it already made instead of creating a duplicate.
+          request_id: suggestRequestId(images),
         }),
       });
       const body = await res.json().catch(() => null);

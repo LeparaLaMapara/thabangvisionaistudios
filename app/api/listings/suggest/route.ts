@@ -11,6 +11,8 @@ import { adminClient, forOwner, isOwnerSuspended, loadOwnListing } from '@/app/a
 import { insertDraft } from '@/app/api/listings/_lib/drafts';
 import { isOwnImageUrl, metadataFreeGallery, metadataFreeImageUrl } from '@/app/api/listings/_lib/images';
 
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
 /**
  * POST /api/listings/suggest — photo first (spec §9.3).
  *
@@ -91,6 +93,29 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       return NextResponse.json({ error: 'Your account is suspended. Contact support.', code: 'owner_suspended' }, { status: 403 });
     }
 
+    // A retry of the same suggestion (the response was lost) returns the draft
+    // it already created instead of making a second one. The browser sends one
+    // request id per photo set.
+    const requestId = typeof b.request_id === 'string' && UUID.test(b.request_id) ? b.request_id : null;
+    if (requestId) {
+      const { data: earlier, error: earlierErr } = await admin
+        .from('smart_rentals')
+        .select('id')
+        .eq('owner_id', userId)
+        .eq('metadata->>suggest_request_id', requestId)
+        .is('deleted_at', null)
+        .limit(1)
+        .maybeSingle();
+      if (earlierErr) {
+        console.error('[listings/suggest] retry lookup failed:', earlierErr.message);
+        return NextResponse.json({ error: 'Could not check for an earlier draft. Please try again.' }, { status: 503 });
+      }
+      if (earlier) {
+        const listing = await loadOwnListing(admin, (earlier as { id: string }).id, userId);
+        return NextResponse.json({ listing: listing ? forOwner(listing) : null, repeated: true }, { status: 200 });
+      }
+    }
+
     const { data: profile } = await admin
       .from('profiles')
       .select('city, province, location')
@@ -167,6 +192,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         aiSuggested: suggestion.aiSuggested,
         metadata: {
           ai_generated: true,
+          suggest_request_id: requestId,
           detection_confidence: facts.confidence ?? null,
           equipment_type: facts.equipmentType ?? null,
           suggested_upsells: [],
