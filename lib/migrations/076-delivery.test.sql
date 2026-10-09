@@ -42,6 +42,16 @@
 --       exception or an open incident, before the limit
 --   21. round 2: the cancelled-order sweep lists only fully cancelled orders
 --       that still hold a cancellable leg or an unused paid quote
+--   22. round 3: the sweep skips an order held for staff (legacy cancel) and a
+--       return pickup kept because the renter has the gear; it lists orders it
+--       never tried before ones it already tried (a leg the provider will not
+--       cancel never clogs the batch)
+--   23. round 3: the deemed-acceptance list leaves out a leg whose fee was
+--       refunded or whose booking lines are all cancelled
+--   24. round 3: the 070 cap trigger is order-wide: a hire refund filed under
+--       the provider's transaction id is capped by a delivery-fee obligation
+--       filed under the intent reference; a reference with no paid intent (and
+--       a refund of money that arrived apart) is capped exactly as before
 
 begin;
 
@@ -693,6 +703,167 @@ begin
     raise exception 'FAIL 21: an open order or a moving leg was listed (%)', ids;
   end if;
   raise notice 'PASS 21: the daily sweep lists only fully cancelled orders with a cancellable leg or an unused paid quote';
+end $$;
+
+-- 22–24 (review fixes, round 3) run as the server.
+do $$
+declare
+  renter uuid := '00000000-0000-4000-8000-0000000760a1';
+  owner_a uuid := '00000000-0000-4000-8000-0000000760b1';
+  cam uuid := '00000000-0000-4000-8000-0000000760c1';
+  office uuid := '00000000-0000-4000-8000-0000000760f1';
+  home uuid := '00000000-0000-4000-8000-0000000760f2';
+  g_ok uuid := '00000000-0000-4000-8000-000000076201';
+  g_held uuid := '00000000-0000-4000-8000-000000076301';
+  g_gear uuid := '00000000-0000-4000-8000-000000076302';
+  g_back uuid := '00000000-0000-4000-8000-000000076303';
+  g_refunded uuid := '00000000-0000-4000-8000-000000076304';
+  g_cx_delivered uuid := '00000000-0000-4000-8000-000000076305';
+  g_cap uuid := '00000000-0000-4000-8000-000000076306';
+  g uuid;
+  leg text;
+  st text;
+  i integer := 0;
+  q uuid;
+  b uuid;
+  ids uuid[];
+  first_id uuid;
+  next_id uuid;
+begin
+  -- Fully cancelled orders with an outbound and a return leg each:
+  --   g_held  both scheduled; the legacy cancel path leaves it to staff
+  --   g_gear  outbound delivered (the renter has the gear), return scheduled
+  --   g_back  outbound cancelled (never reached the renter), return scheduled
+  -- and two orders with a delivered, unaccepted outbound leg for 23:
+  --   g_refunded      its fee was refunded (quote refunded), booking confirmed
+  --   g_cx_delivered  every line cancelled (only its delivered leg is left)
+  foreach g in array array[g_held, g_gear, g_back, g_refunded, g_cx_delivered] loop
+    i := i + 1;
+    b := gen_random_uuid();
+    insert into public.equipment_bookings (id, user_id, rental_id, start_date, end_date, total_price, status, checkout_group_id, owner_id)
+    values (b, renter, cam, date '2032-03-01' + i * 7, date '2032-03-02' + i * 7, 100,
+            case when g = g_refunded then 'confirmed' else 'cancelled' end, g, owner_a);
+    foreach leg in array array['outbound', 'return'] loop
+      if leg = 'return' and g in (g_refunded, g_cx_delivered) then
+        continue;
+      end if;
+      st := case
+              when leg = 'return' then 'scheduled'
+              when g in (g_gear, g_refunded, g_cx_delivered) then 'delivered'
+              when g = g_back then 'cancelled'
+              else 'scheduled'
+            end;
+      q := gen_random_uuid();
+      insert into public.delivery_quotes (id, renter_id, booking_group_id, leg, provider, provider_kind, quote_amount_cents, provider_cost_cents,
+        platform_fee_cents, customer_fee_cents, rental_ids, origin_address_id, destination_address_id, expires_at, status, paid_reference)
+      values (q, renter, g, leg, 'manual', 'own_fleet', 5000, 5000, 0, 5000, array[cam],
+              case when leg = 'outbound' then office else home end, case when leg = 'outbound' then home else office end,
+              now() + interval '1 hour', case when g = g_refunded then 'refunded' else 'consumed' end, g::text);
+      insert into public.delivery_shipments (booking_group_id, leg, attempt, renter_id, items, provider, provider_kind, quote_id, merchant_reference,
+        status, quote_amount_cents, customer_fee_cents, origin_address_id, destination_address_id, delivered_at, paid_reference)
+      values (g, leg, 1, renter, jsonb_build_array(jsonb_build_object('bookingId', b, 'rentalId', cam, 'ownerId', owner_a, 'serialNumber', null)),
+              'manual', 'own_fleet', q, 'tvd_r3_' || left(leg, 1) || replace(g::text, '-', ''), st, 5000, 5000,
+              case when leg = 'outbound' then office else home end, case when leg = 'outbound' then home else office end,
+              case when st = 'delivered' then now() - interval '3 days' end, g::text);
+    end loop;
+  end loop;
+
+  -- 22. Held orders and kept return pickups are never listed; tried orders go to the back.
+  select array_agg(x) into ids from public.delivery_cancelled_orders_to_settle(500) x;
+  if not (g_held = any (ids)) or not (g_back = any (ids)) then
+    raise exception 'FAIL 22: a fully cancelled order with a cancellable leg was not listed (%)', ids;
+  end if;
+  if g_gear = any (ids) then
+    raise exception 'FAIL 22: a return pickup kept because the renter has the gear was listed for the sweep (it would be cancelled)';
+  end if;
+  perform public.delivery_note_cancelled_order(g_held, 'legacy_cancel');
+  select array_agg(x) into ids from public.delivery_cancelled_orders_to_settle(500) x;
+  if g_held = any (ids) then
+    raise exception 'FAIL 22: an order the legacy cancel path left to staff was listed for the sweep';
+  end if;
+  -- A later attempt note never clears the hold.
+  perform public.delivery_note_cancelled_order(g_held, null);
+  select array_agg(x) into ids from public.delivery_cancelled_orders_to_settle(500) x;
+  if g_held = any (ids) then
+    raise exception 'FAIL 22: an attempt note cleared a staff hold';
+  end if;
+  select x into first_id from public.delivery_cancelled_orders_to_settle(1) x;
+  perform public.delivery_note_cancelled_order(first_id, null);
+  select x into next_id from public.delivery_cancelled_orders_to_settle(1) x;
+  if next_id is null or next_id = first_id then
+    raise exception 'FAIL 22: an order the sweep already tried stayed at the head of the queue (%)', next_id;
+  end if;
+  if not (first_id = any (array(select x from public.delivery_cancelled_orders_to_settle(500) x))) then
+    raise exception 'FAIL 22: a tried order was dropped instead of moved to the back';
+  end if;
+  perform public.delivery_note_cancelled_order(first_id, null);
+  if (select attempts from public.delivery_cancelled_order_notes where booking_group_id = first_id) <> 2 then
+    raise exception 'FAIL 22: attempts were not counted';
+  end if;
+  raise notice 'PASS 22: the sweep skips held orders and kept return pickups; tried orders go to the back of the queue';
+
+  -- 23. Deemed acceptance never lists a refunded fee or a cancelled booking.
+  select array_agg(x) into ids from public.delivery_list_awaiting_acceptance(now(), 500) x;
+  if not ((select id from public.delivery_shipments where booking_group_id = g_ok) = any (ids)) then
+    raise exception 'FAIL 23: the deemable leg was not listed (%)', ids;
+  end if;
+  if (select id from public.delivery_shipments where booking_group_id = g_refunded) = any (ids) then
+    raise exception 'FAIL 23: a leg whose fee was refunded was listed for deemed acceptance';
+  end if;
+  if (select id from public.delivery_shipments where booking_group_id = g_cx_delivered) = any (ids) then
+    raise exception 'FAIL 23: a leg whose booking is cancelled was listed for deemed acceptance';
+  end if;
+  raise notice 'PASS 23: deemed acceptance skips refunded fees and cancelled bookings';
+
+  -- 24. The 070 cap trigger is order-wide for an order's own charge.
+  insert into public.rental_payment_intents (checkout_group_id, reference, provider, user_id, expected_amount_cents, hire_cents, deposit_cents,
+    delivery_cents, hold_expires_at, state, provider_transaction_id)
+  values (g_cap, 'p4r3-pay', 'paystack', renter, 100000, 70000, 0, 30000, now() + interval '1 hour', 'paid', 'p4r3-tx');
+  -- The delivery fee owed back, filed under the intent reference.
+  insert into public.refund_obligations (obligation_key, reason, amount_cents, charged_cents, transaction_reference, booking_group_id)
+  values ('r3:delivery', 'cancellation', 30000, 100000, 'p4r3-pay', g_cap);
+  begin
+    -- A hire refund under the transaction id: 30000 + 80000 > 100000.
+    insert into public.refund_obligations (obligation_key, reason, amount_cents, charged_cents, transaction_reference, booking_group_id)
+    values ('r3:hire-over', 'cancellation', 80000, 100000, 'p4r3-tx', g_cap);
+    raise exception 'FAIL 24: a hire refund under the transaction id ignored the delivery-fee obligation under the intent reference';
+  exception when check_violation then
+    null;
+  end;
+  begin
+    -- Without the order id on it, the reference still ties it to the order.
+    insert into public.refund_obligations (obligation_key, reason, amount_cents, charged_cents, transaction_reference)
+    values ('r3:hire-no-order', 'manual', 80000, 100000, 'p4r3-tx');
+    raise exception 'FAIL 24: a refund under the transaction id without the order id ignored the order';
+  exception when check_violation then
+    null;
+  end;
+  insert into public.refund_obligations (obligation_key, reason, amount_cents, charged_cents, transaction_reference, booking_group_id)
+  values ('r3:hire', 'cancellation', 70000, 100000, 'p4r3-tx', g_cap);
+  begin
+    update public.refund_obligations set amount_cents = 70001 where obligation_key = 'r3:hire';
+    raise exception 'FAIL 24: raising an obligation above what is left of the order was allowed';
+  exception when check_violation then
+    null;
+  end;
+  -- No paid intent for the reference: capped exactly as before (its own reference only).
+  insert into public.refund_obligations (obligation_key, reason, amount_cents, charged_cents, transaction_reference, booking_group_id)
+  values ('r3:elsewhere', 'manual', 50000, 50000, 'p4r3-elsewhere', g_cap);
+  begin
+    insert into public.refund_obligations (obligation_key, reason, amount_cents, charged_cents, transaction_reference, booking_group_id)
+    values ('r3:elsewhere-2', 'manual', 1, 50000, 'p4r3-elsewhere', g_cap);
+    raise exception 'FAIL 24: the per-reference cap no longer holds for a reference with no paid intent';
+  exception when check_violation then
+    null;
+  end;
+  -- Money that arrived apart from the order's charge: capped exactly as before.
+  insert into public.refund_obligations (obligation_key, reason, amount_cents, charged_cents, transaction_reference, booking_group_id, from_unallocated)
+  values ('r3:stray', 'overpayment', 1000, 200000, 'p4r3-pay', g_cap, true);
+  if not exists (select 1 from pg_proc p where p.proname = 'refund_obligations_cap' and p.prosecdef
+                 and p.proconfig @> array['search_path=public, pg_temp']) then
+    raise exception 'FAIL 24: the cap trigger lost SECURITY DEFINER or its pinned search_path';
+  end if;
+  raise notice 'PASS 24: the refund cap trigger counts the whole order; unmatched references are capped as before';
 end $$;
 
 select 'ALL 076 CHECKS PASSED' as result;

@@ -126,6 +126,24 @@ describe('finding 3: staff cancel after the gear reached the renter', () => {
     expect(h.w.repo.refunds.size).toBe(1);
   });
 
+  it('round 3, finding 2: delivered outbound and a scheduled return pickup: the booking is cancelled, the pickup stays scheduled, staff are alerted', async () => {
+    const { shipmentId } = await deliveredLeg(h.w, false);
+    const ret = await quoteDelivery({ caller: { kind: 'renter', userId: RENTER }, renterId: RENTER, bookingGroupId: GROUP, leg: 'return', originAddressId: RENTER_HOME, destinationAddressId: OFFICE, lines: LINES_FOR_QUOTE, window: { start: '2026-10-22T10:00:00Z', end: '2026-10-22T15:00:00Z' } }, h.w.deps);
+    if (!ret.ok) throw new Error(ret.code);
+    h.w.repo.quotes.get(ret.quotes[0].id)!.customerFeeCents = 0;
+    h.w.bookings.setStatus(GROUP, 'active');
+    const p = await prepareDelivery({ caller: { kind: 'system' }, quoteId: ret.quotes[0].id, bookingGroupId: GROUP }, h.w.deps);
+    if (!p.ok) throw new Error(p.code);
+    await commitDelivery({ caller: { kind: 'system' }, shipmentId: p.shipment.id }, h.w.deps);
+    h.plan = plan({ tooLate: true, inMotion: false, keptShipmentIds: [shipmentId], returnKeptShipmentIds: [p.shipment.id], gearWithRenter: true });
+    const r = await staffCancel();
+    expect(r.status).toBe(200);
+    expect(h.transitions).toHaveLength(1);
+    expect(h.w.repo.shipments.get(p.shipment.id)?.status).toBe('scheduled');
+    expect([...h.w.repo.outbox.values()].some((n) => n.userId === 'staff' && (n.data as { what?: string }).what === 'delivery_gear_with_renter_after_cancel')).toBe(true);
+    expect(h.events.at(-1)).toMatchObject({ metadata: { deliveryReturnLegsKept: 1, deliveryGearWithRenter: true } });
+  });
+
   it('a leg in motion (gear with the driver) still blocks staff: 409 and nothing changes', async () => {
     const { shipmentId } = await deliveredLeg(h.w, false);
     h.plan = plan({ tooLate: true, inMotion: true });
@@ -137,7 +155,7 @@ describe('finding 3: staff cancel after the gear reached the renter', () => {
 });
 
 describe('deliveryCancellationPlan: the renter rule and the staff rule', () => {
-  it('a delivered outbound leg is too late for the renter, not in motion for staff, and left as it is; a scheduled return leg is cancelled', async () => {
+  it('a delivered outbound leg is too late for the renter, not in motion for staff, and left as it is; the scheduled return leg is KEPT (round 3, finding 2)', async () => {
     const { deliveryCancellationPlan } = await vi.importActual<typeof import('@/lib/rental/delivery-settlement')>('@/lib/rental/delivery-settlement');
     const w = world({ providers: 'manual' });
     const { shipmentId } = await deliveredLeg(w, false);
@@ -157,7 +175,8 @@ describe('deliveryCancellationPlan: the renter rule and the staff rule', () => {
       },
     };
     const r = await deliveryCancellationPlan(fake as never, { bookingGroupId: GROUP, bookingId: 'bk-1' }, w.repo);
-    expect(r).toMatchObject({ phase4: true, lastLine: true, tooLate: true, inMotion: false, keptShipmentIds: [shipmentId], shipmentIds: [p.shipment.id] });
+    // Round 3, finding 2: the renter still has the gear, so its return pickup is not cancelled with the order.
+    expect(r).toMatchObject({ phase4: true, lastLine: true, tooLate: true, inMotion: false, keptShipmentIds: [shipmentId], shipmentIds: [], returnKeptShipmentIds: [p.shipment.id], gearWithRenter: true });
     // Our driver is on the way back with it: in motion for everyone.
     w.repo.shipments.get(p.shipment.id)!.status = 'in_transit';
     expect(await deliveryCancellationPlan(fake as never, { bookingGroupId: GROUP, bookingId: 'bk-1' }, w.repo)).toMatchObject({ tooLate: true, inMotion: true, shipmentIds: [] });

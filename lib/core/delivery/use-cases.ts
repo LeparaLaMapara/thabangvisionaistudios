@@ -676,6 +676,16 @@ export async function commitDelivery(input: { caller: DeliveryCaller; shipmentId
  * (`deliveryEarnedRefund`) instead of releasing unearned hire a second time
  * (review fix round 2, finding 4). Both journals share one key per shipment,
  * so a leg's fee is refunded in the ledger once.
+ *
+ * A fee NOT yet earned on a leg that stays open after the refund (delivered,
+ * lost, damaged or under review: refundDeliveryFee) could still be earned
+ * later (the renter accepts, deemed acceptance, staff close the review as
+ * delivered, the owner receives a return). Its refund therefore posts the
+ * earn journal first and reverses it (`deliveryEarned` + `deliveryEarnedRefund`):
+ * the same net effect as `deliveryCancelled`, but any later `deliveryEarned`
+ * for the leg dedupes on its key instead of debiting unearned hire a second
+ * time (review fix round 3, finding 1). The earn sites also skip earning a
+ * refunded fee (`feeRefunded`).
  */
 function withFeeRefund(t: ShipmentTransition, s: Shipment, refundCents: number): number {
   if (s.customerFeeCents <= 0 || !s.paidReference) return 0;
@@ -690,6 +700,12 @@ function withFeeRefund(t: ShipmentTransition, s: Shipment, refundCents: number):
   if (s.acceptedAt) {
     // Earned: only what goes back moves (income → refunds payable); what is kept stays income.
     if (refund > 0) t.journals.push(L.deliveryEarnedRefund({ shipmentId: s.id, bookingGroupId: s.bookingGroupId, refundCents: refund }));
+  } else if (refund > 0 && !FINAL_DELIVERY_STATES.includes(t.to)) {
+    // Not earned yet, and the leg stays open: settle the earn key now so a later earn is a no-op.
+    t.journals.push(
+      L.deliveryEarned({ bookingGroupId: s.bookingGroupId, deliveryCents: s.customerFeeCents, leg: s.leg }),
+      L.deliveryEarnedRefund({ shipmentId: s.id, bookingGroupId: s.bookingGroupId, refundCents: refund }),
+    );
   } else {
     t.journals.push(L.deliveryCancelled({ shipmentId: s.id, bookingGroupId: s.bookingGroupId, customerFeeCents: s.customerFeeCents, refundCents: refund }));
   }
@@ -698,6 +714,15 @@ function withFeeRefund(t: ShipmentTransition, s: Shipment, refundCents: number):
     t.notices.push(...legNotices({ kind: 'delivery_fee_refund', userIds: [s.renterId], shipment: s, discriminator: 'fee_refund', data: { amountCents: refund } }));
   }
   return refund;
+}
+
+/**
+ * The leg's fee was refunded (its quote is `refunded`): it is never earned
+ * afterwards (review fix round 3, finding 1). Belt and braces with the earn
+ * key withFeeRefund settles.
+ */
+async function feeRefunded(s: Pick<Shipment, 'quoteId'>, repo: Pick<DeliveryDeps['repo'], 'getQuote'>): Promise<boolean> {
+  return (await repo.getQuote(s.quoteId))?.status === 'refunded';
 }
 
 /**
@@ -1083,6 +1108,9 @@ export async function confirmHandover(
     input.outcome === 'delivered' ? 'delivered_to_renter' : input.outcome === 'accepted' ? 'renter_accepted' : input.outcome === 'exception' ? 'renter_reported_exception' : 'received_by_owner';
   if (input.outcome === 'delivered' && input.caller.kind !== 'staff') return refuse('not_allowed', 'Only our staff driver records a handover this way.');
   const now = deps.clock.now();
+  // A fee refunded before receipt is never earned by it (round 3, finding 1).
+  const leg = input.outcome === 'accepted' || input.outcome === 'received' ? await deps.repo.getShipment(input.shipmentId) : null;
+  const refunded = leg ? await feeRefunded(leg, deps.repo) : false;
   return recordCustody(input, kind, deps, (s, e, chain, t) => {
     if (kind === 'delivered_to_renter') {
       const all = s.items.every((i) => chain.some((c) => c.bookingId === i.bookingId && c.rentalId === i.rentalId && c.kind === 'delivered_to_renter'));
@@ -1101,7 +1129,7 @@ export async function confirmHandover(
       if (t.to === 'delivered' && !s.deliveredAt) t.patch.deliveredAt = e.occurredAt;
       if (allAccepted(s.items, chain)) {
         t.patch.acceptedAt = e.occurredAt;
-        if (feeInLedger(s)) t.journals.push(L.deliveryEarned({ bookingGroupId: s.bookingGroupId, deliveryCents: s.customerFeeCents, leg: 'outbound' }));
+        if (feeInLedger(s) && !refunded) t.journals.push(L.deliveryEarned({ bookingGroupId: s.bookingGroupId, deliveryCents: s.customerFeeCents, leg: 'outbound' }));
       }
       return;
     }
@@ -1131,7 +1159,7 @@ export async function confirmHandover(
         advance(t, s, 'delivered', 'staff');
         if (!s.deliveredAt) t.patch.deliveredAt = e.occurredAt;
         t.patch.acceptedAt = e.occurredAt;
-        if (feeInLedger(s)) t.journals.push(L.deliveryEarned({ bookingGroupId: s.bookingGroupId, deliveryCents: s.customerFeeCents, leg: 'return' }));
+        if (feeInLedger(s) && !refunded) t.journals.push(L.deliveryEarned({ bookingGroupId: s.bookingGroupId, deliveryCents: s.customerFeeCents, leg: 'return' }));
         t.notices.push(...legNotices({ kind: 'delivery_returned_for_inspection', userIds: [s.renterId], shipment: s, discriminator: 'received' }));
       }
     }
@@ -1499,12 +1527,19 @@ export type DeemedAcceptanceOutcome = 'deemed' | 'reminded' | 'not_due' | 'not_a
  */
 export async function deemDeliveryAccepted(
   input: { caller: DeliveryCaller; shipmentId: string },
-  deps: Pick<DeliveryDeps, 'repo' | 'clock'>,
+  deps: Pick<DeliveryDeps, 'repo' | 'clock' | 'bookings'>,
 ): Promise<{ ok: true; outcome: DeemedAcceptanceOutcome } | Refusal<'not_allowed' | 'not_found'>> {
   if (input.caller.kind !== 'system') return refuse('not_allowed', 'Only the system records a deemed acceptance.');
   const s = await deps.repo.getShipment(input.shipmentId);
   if (!s) return refuse('not_found', 'Delivery not found.');
   if (s.leg !== 'outbound' || s.status !== 'delivered' || s.acceptedAt || !s.deliveredAt) return { ok: true, outcome: 'not_applicable' };
+  // Round 3, finding 1: a leg whose fee was refunded, or whose booking lines are
+  // all cancelled, is never deemed accepted (no reminder, no custody, no earning):
+  // a person decides (the cancellation alerted staff when the gear is with the renter).
+  if (await feeRefunded(s, deps.repo)) return { ok: true, outcome: 'not_applicable' };
+  const group = await deps.bookings.getGroup(s.bookingGroupId);
+  const legLines = group ? group.lines.filter((l) => s.items.some((i) => i.bookingId === l.bookingId)) : [];
+  if (legLines.length === 0 || legLines.every((l) => l.status === 'cancelled')) return { ok: true, outcome: 'not_applicable' };
   const now = deps.clock.now();
   const age = now.getTime() - new Date(s.deliveredAt).getTime();
   const hour = 3_600_000;
@@ -1658,6 +1693,8 @@ export async function closeDeliveryReview(
   const t = emptyTransition(s, input.to, { source: 'staff', actorId: input.caller.userId, dedupeKey: `review-close:${s.id}:${s.status}:${input.to}`, providerState: null, occurredAt: now, note: reason.slice(0, 500) });
   let refundCents = 0;
   if (receivedDecision) {
+    // A fee refunded while the leg was under review is never earned by closing it (round 3, finding 1).
+    const refunded = await feeRefunded(s, deps.repo);
     const chains = chainsByItem(await deps.repo.listCustody(s.id));
     for (const i of s.items) {
       if (outboundReceipt(chains.get(`${i.bookingId}:${i.rentalId}`) ?? []) === 'accepted') continue;
@@ -1683,7 +1720,7 @@ export async function closeDeliveryReview(
       t.patch.acceptedAt = now;
       if (!s.deliveredAt) t.patch.deliveredAt = now;
       // Earned once: the journal is keyed per order and leg.
-      if (feeInLedger(s)) t.journals.push(L.deliveryEarned({ bookingGroupId: s.bookingGroupId, deliveryCents: s.customerFeeCents, leg: 'outbound' }));
+      if (feeInLedger(s) && !refunded) t.journals.push(L.deliveryEarned({ bookingGroupId: s.bookingGroupId, deliveryCents: s.customerFeeCents, leg: 'outbound' }));
     }
   }
   if (input.to === 'failed' && input.refundFee) {
