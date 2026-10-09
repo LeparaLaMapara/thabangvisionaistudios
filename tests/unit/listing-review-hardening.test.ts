@@ -638,3 +638,11 @@ describe('suspended owner check on PUT fails closed', () => {
     expect(res.status).toBe(200);
   });
 });
+
+describe('an item with a newline inside it survives the one-per-line editor', () => {
+  it('round-trips as unchanged', async () => {
+    const { includesToText, includesFromText, sameIncludes } = await import('@/lib/core/listings/input');
+    const stored = ['Battery\ncharger', 'Lens caps (front, rear)'];
+    expect(sameIncludes(stored, includesFromText(includesToText(stored)))).toBe(true);
+  });
+});

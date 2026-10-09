@@ -223,10 +223,13 @@ export async function updateServiceBooking(
   id: string,
   fromStatus: string | null,
   patch: Record<string, unknown>,
+  /** Further columns that must still hold the value read (null compares with IS NULL). */
+  expect: Record<string, string | null> = {},
 ): Promise<ServiceUpdateResult> {
   const run = async (values: Record<string, unknown>) => {
     let q = db.from('bookings').update(values).eq('id', id);
     if (fromStatus) q = q.eq('status', fromStatus);
+    for (const [column, value] of Object.entries(expect)) q = value === null ? q.is(column, null) : q.eq(column, value);
     return q.select('id');
   };
   let degraded = false;

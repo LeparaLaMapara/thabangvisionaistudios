@@ -246,4 +246,25 @@ describe('the daily run keeps to its time budget', () => {
     expect(t.transfer).toHaveBeenCalledWith(expect.objectContaining({ reference: 'tvsp_9b2f1c3e000040008000000000000003' }));
     expect(s.notProcessed).toBe(2);
   });
+  it('the held group is shuffled each run, so a held booking further back is still reached', async () => {
+    const held = Array.from({ length: 5 }, (_, i) => booking({ id: idN(20 + i), reference: `BK-h${i}`, creator_id: 'creator-unverified', completed_at: ago(500 - i), payout_due_at: ago(400 - i), payout_last_error: 'held: the creator has not passed the ID check' }));
+    const firstReached = async (random: () => number) => {
+      const { w, order, clock } = timed(held.map((r) => ({ ...r })));
+      await runServicePayouts({ db: w.db, transfers: port().p, verifyCharge: confirmed, now: NOW }, 50, 1000, { timeBudgetMs: 5_000, clock, random });
+      return order[0];
+    };
+    // random() = 0.999 leaves the queue order; 0 rotates the last row to the front.
+    expect(await firstReached(() => 0.999)).toBe(idN(20));
+    expect(await firstReached(() => 0)).not.toBe(idN(20));
+  });
+
+  it('names the payouts it did not reach', async () => {
+    const rows = Array.from({ length: 3 }, (_, i) => booking({ id: idN(30 + i), reference: `BK-n${i}`, completed_at: ago(90 - i), payout_due_at: ago(10 - i) }));
+    const { w, clock } = timed(rows);
+    const s = await runServicePayouts({ db: w.db, transfers: port().p, verifyCharge: confirmed, now: NOW }, 50, 1000, { timeBudgetMs: 5_000, clock });
+    expect(s.attention).toEqual(expect.arrayContaining([
+      { reference: 'BK-n1', why: 'not processed this run (time budget)' },
+      { reference: 'BK-n2', why: 'not processed this run (time budget)' },
+    ]));
+  });
 });

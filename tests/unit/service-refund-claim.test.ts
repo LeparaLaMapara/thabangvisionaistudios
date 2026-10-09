@@ -219,6 +219,8 @@ describe('admin cancel: claimed before the provider is called', () => {
     const r = await adminCancel();
     expect(r.json.refund_status).toBe('already_started');
     expect(refundWithOutcome).not.toHaveBeenCalled();
+    // A person is told, so the stuck claim is not forgotten.
+    expect(sendEmail).toHaveBeenCalledWith(expect.objectContaining({ subject: expect.stringMatching(/Refund already on record/), text: expect.stringMatching(/\(pending\)[\s\S]*CHECK the payment provider/) }));
   });
 
   it('manual_review is a person\'s job: no automatic refund, staff told, the client is not promised an amount', async () => {

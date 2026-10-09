@@ -56,11 +56,12 @@ interface StatusBookingRow {
   created_at: string | null;
   delivered_at: string | null;
   delivery_url: string | null;
+  cancellation_refund_status: string | null;
   revisions_included?: number | null;
   revisions_used?: number | null;
 }
 
-const BASE = 'id, client_id, client_email, creator_id, project_category, status, total, creator_amount, reference, payment_status, shoot_date, paystack_reference, created_at, delivered_at, delivery_url';
+const BASE = 'id, client_id, client_email, creator_id, project_category, status, total, creator_amount, reference, payment_status, shoot_date, paystack_reference, created_at, delivered_at, delivery_url, cancellation_refund_status';
 const EXTRA = 'revisions_included, revisions_used';
 
 const sast = (iso: string): string =>
@@ -140,6 +141,7 @@ export async function PATCH(
       deliveryUrl: booking.delivery_url,
       revisionsIncluded: booking.revisions_included ?? null,
       revisionsUsed: booking.revisions_used ?? null,
+      refundStatus: booking.cancellation_refund_status,
     },
     now,
     reason,
@@ -152,7 +154,10 @@ export async function PATCH(
   // ── Write: compare-and-set on the status we read ─────────────────────────
   let writtenStatus: string = decision.to;
   const patch: Record<string, unknown> = { ...decision.patch, status: decision.to, updated_at: now.toISOString() };
-  let result = await updateServiceBooking(admin(), id, decision.from, patch);
+  // A refund is claimed in this same update, so it must also still see the
+  // refund record it was decided on (no second refund over a recorded one).
+  const refundExpect: Record<string, string | null> = decision.refund ? { cancellation_refund_status: booking.cancellation_refund_status ?? null } : {};
+  let result = await updateServiceBooking(admin(), id, decision.from, patch, refundExpect);
 
   if (!result.ok && decision.to === 'declined' && /bookings_status_check/.test(result.error)) {
     // Migration 073 not applied yet: 'declined' is not a valid status there.
@@ -163,7 +168,7 @@ export async function PATCH(
       status: 'cancelled',
       cancelled_at: now.toISOString(),
       cancellation_reason: `Declined by creator${decision.patch.decline_reason ? `: ${decision.patch.decline_reason}` : ''}`,
-    });
+    }, refundExpect);
   }
 
   if (!result.ok) {
@@ -239,6 +244,10 @@ async function settleRefund(id: string, booking: StatusBookingRow, decision: Ext
   return r.outcome;
 }
 
+/** A refund was already on record, so no automatic one was sent. */
+const REFUND_ON_RECORD_LINE = (status: string): string =>
+  `ACTION NEEDED: a refund was already on record for this booking (${status}), so no automatic refund was sent. Check the payment provider for what has gone back, then refund any balance by hand.`;
+
 /** Staff wording for a refund that did not complete automatically. */
 function staffRefundLine(outcome: RefundOutcome, amount: number | undefined, reference: string | null): string {
   switch (outcome) {
@@ -277,7 +286,9 @@ async function sideEffects(p: {
         ? `Your payment of R${decision.refund?.amount} is being refunded in full to the card you paid with. When it shows depends on your bank.`
         : decision.refund
           ? 'Your payment will be refunded in full. Our team is processing it.'
-          : 'Nothing was charged.';
+          : booking.cancellation_refund_status
+            ? 'Our team will be in touch with you about your refund.'
+            : 'Nothing was charged.';
       await notifyClient({
         bookingId: booking.id,
         type: 'booking_rejected',
@@ -291,7 +302,7 @@ async function sideEffects(p: {
 
 Reason: ${decision.patch.decline_reason ?? 'Not given'}
 Client: ${booking.client_email ?? 'unknown'}
-Refund: ${refundOutcome === 'refunded' ? `R${decision.refund?.amount} refunded automatically` : refundOutcome ? staffRefundLine(refundOutcome, decision.refund?.amount, booking.paystack_reference) : 'nothing was charged'}
+Refund: ${refundOutcome === 'refunded' ? `R${decision.refund?.amount} refunded automatically` : refundOutcome ? staffRefundLine(refundOutcome, decision.refund?.amount, booking.paystack_reference) : booking.cancellation_refund_status ? REFUND_ON_RECORD_LINE(booking.cancellation_refund_status) : 'nothing was charged'}
 
 Offer the client another creator (they can rebook) in ${baseUrl}/admin/service-bookings`,
       });
@@ -354,7 +365,7 @@ Offer the client another creator (they can rebook) in ${baseUrl}/admin/service-b
           case 'not_required':
             return 'No refund due: the booking was unpaid, or the cancellation fell inside the non-refundable window.';
           default:
-            return 'Review if a refund is needed.';
+            return booking.cancellation_refund_status ? REFUND_ON_RECORD_LINE(booking.cancellation_refund_status) : 'Review if a refund is needed.';
         }
       })();
 

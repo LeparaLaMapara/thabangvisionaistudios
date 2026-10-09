@@ -392,3 +392,29 @@ describe('transfer webhooks work with the stable reference and old in-flight one
     expect(tables.bookings[0]).toMatchObject({ status: 'completed', payout_status: 'failed' });
   });
 });
+
+describe('a refund already on record is never followed by an automatic one', () => {
+  it('a client cancel after a partial dispute refund sends nothing and keeps the record', async () => {
+    seed({ status: 'accepted', cancellation_refund_status: 'refunded', cancellation_refund_amount: 500 });
+    const r = await call(CLIENT, { action: 'cancel' });
+    expect(r.status).toBe(200);
+    expect(refundWithOutcome).not.toHaveBeenCalled();
+    expect(tables.bookings[0]).toMatchObject({ status: 'cancelled', cancellation_refund_status: 'refunded', cancellation_refund_amount: 500 });
+    expect(sendEmail).toHaveBeenCalledWith(expect.objectContaining({ text: expect.stringMatching(/refund was already on record/) }));
+  });
+
+  it('a creator decline over an unknown refund sends nothing and tells staff to check', async () => {
+    seed({ cancellation_refund_status: 'unknown' });
+    const r = await call(CREATOR, { action: 'decline' });
+    expect(r.status).toBe(200);
+    expect(refundWithOutcome).not.toHaveBeenCalled();
+    expect(tables.bookings[0].cancellation_refund_status).toBe('unknown');
+    expect(sendEmail).toHaveBeenCalledWith(expect.objectContaining({ text: expect.stringMatching(/refund was already on record for this booking \(unknown\)/) }));
+  });
+
+  it('the claim also compares the refund status read, so a refund recorded in between is not overwritten', async () => {
+    seed({ status: 'accepted', cancellation_refund_status: 'failed' });
+    await call(CLIENT, { action: 'cancel' });
+    expect(bookingUpdates()[0].filters).toEqual(expect.arrayContaining([['status', 'accepted'], ['cancellation_refund_status', 'failed']]));
+  });
+});

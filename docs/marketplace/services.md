@@ -133,16 +133,20 @@ An admin cancel writes the status change in the same update as the claim, and
 every admin status change is a compare-and-set on the status read. So an admin
 cancel and a client cancellation at the same moment cannot both refund: the
 second one's compare-and-set fails. The client's cancellation and the creator's
-decline already claim this way (their status change writes `pending`) and now
-record their outcome through the same helper.
+decline claim this way too: their status change writes `pending` and also
+compares the refund status read. When a refund is already on record
+(`refunded`, `unknown`, `pending` or `manual_review`), for example a partial
+refund from a dispute before an admin put the booking back, a cancel or decline
+sends no automatic refund. It keeps the record and tells staff to check what has
+gone back and refund any balance by hand.
 
 **If the process dies between the claim and the record**, the booking stays
 `pending`. That already blocks every automatic refund and the creator payout,
-so nothing moves twice, but nothing tells anyone either: a person who sees a
-booking with the refund `pending` for more than a few minutes checks the
-provider's refunds for the payment reference and records what happened
-(`refunded` with the amount, or clears it back to `failed` if nothing was
-refunded).
+so nothing moves twice. The invariant sweep (`/api/cron/invariants`, check
+`service-refund-stuck`) reports any booking left `pending` for more than 15
+minutes as critical, and an admin cancel over one emails staff. A person checks
+the provider's refunds for the payment reference and records what happened
+(`refunded` with the amount, or `failed` if nothing was refunded).
 
 ### Never refund the client after the creator was paid
 
@@ -235,11 +239,13 @@ If the queue ever exceeds 1000 rows, the digest says so.
 The run works one payout at a time inside the daily maintenance cron
 (`maxDuration` = 60 s, with many steps and the digest after it). It stops
 **starting** new payouts once `PAYOUT_RUN_TIME_BUDGET_MS` (35 s) has passed
-since the cron started; anything not reached is counted and the digest says
-"N not processed this run (time budget)". They wait for the next run. The
-order of work is: payouts in flight with the provider, then fresh due payouts,
-then ones already known to be held or waiting for a person
-(`payout_last_error` set, or a refused transfer). A held payout records why in
+since the cron started; anything not reached is counted, the first 20 are
+named, and the digest says "N not processed this run (time budget)". They wait
+for the next run. The order of work is: payouts in flight with the provider,
+then fresh due payouts, then ones already known to be held or waiting for a
+person (`payout_last_error` set, or a refused transfer). Held bookings never
+leave the queue, so that last group is shuffled each run; a newer booking whose
+hold has cleared is not stuck behind the same oldest ones every day. A held payout records why in
 `payout_last_error` ("held: …", written only when it changes), so it does not
 use up the budget before fresh payouts are reached. One slow provider call can
 still run past the budget; the budget only stops new ones.

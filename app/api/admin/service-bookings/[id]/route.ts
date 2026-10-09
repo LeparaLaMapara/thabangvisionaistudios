@@ -211,6 +211,16 @@ export async function PATCH(
             : `An admin cancelled booking ${booking.reference}. It was paid by EFT or cash, so the refund of R${claimAmount} is made by hand. Record it once paid.`,
       });
     } catch { /* don't block */ }
+  } else if (refundResult === 'already_started') {
+    // No second refund was sent. Tell a person what is on record, so a refund
+    // left 'pending' (claimed, no outcome) or 'unknown' is not forgotten.
+    try {
+      await emailProvider.sendEmail({
+        to: STUDIO.bookingEmail,
+        subject: `[Action Required] Refund already on record — ${booking.reference}`,
+        text: `An admin cancelled booking ${booking.reference}. A refund was already on record (${refundStatusRead}), so no second refund was sent.\n\n${refundStatusRead === 'refunded' ? 'Check that the amount refunded is what the client should get back, and refund any balance by hand.' : `Its outcome is not settled: CHECK the payment provider's refunds for reference ${booking.paystack_reference}, then record what happened. Refund by hand ONLY if nothing went back.`}`,
+      });
+    } catch { /* don't block */ }
   } else if (refundResult === 'not_claimed') {
     try {
       await emailProvider.sendEmail({

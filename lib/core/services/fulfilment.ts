@@ -98,6 +98,18 @@ export interface ServiceBookingFacts {
   /** null on bookings made before migration 073: the default allowance applies. */
   revisionsIncluded: number | null;
   revisionsUsed: number | null;
+  /**
+   * bookings.cancellation_refund_status as read. A refund already recorded,
+   * started or left to a person is never followed by an automatic one (an
+   * admin may have refunded part of it through a dispute, then put the
+   * booking back): the record is kept and a person decides.
+   */
+  refundStatus?: string | null;
+}
+
+/** A refund already exists on record (or is a person's job): send no automatic one, and keep the record. */
+function refundOnRecord(b: ServiceBookingFacts): boolean {
+  return refundAlreadyStarted(b.refundStatus) || b.refundStatus === 'manual_review';
 }
 
 export type RefundStatus = 'pending' | 'not_required' | 'manual_review';
@@ -340,6 +352,9 @@ export function decideServiceTransition(input: {
       // The creator turned the request down: the client gets everything back.
       const paid = isPaid(booking);
       const amount = Math.max(0, Math.round(booking.total));
+      if (paid && refundOnRecord(booking)) {
+        return { ...base, patch: { declined_at: at, decline_reason: reason }, refund: null, refundStatus: null, notify: ['client'], alertAdmin: true };
+      }
       return {
         ...base,
         patch: {
@@ -426,6 +441,9 @@ export function decideServiceTransition(input: {
           code: 'already_delivered',
           message: 'The work has already been delivered, so this booking can no longer be cancelled. If something is wrong, raise a problem and our team will look at it.',
         };
+      }
+      if (isPaid(booking) && refundOnRecord(booking)) {
+        return { ...base, patch: { cancelled_at: at, cancellation_reason: reason }, refund: null, refundStatus: null, cancellation: null, notify: ['creator'], alertAdmin: true };
       }
       const quote = calculateServiceCancellationRefund({
         shootDate: booking.shootDate,

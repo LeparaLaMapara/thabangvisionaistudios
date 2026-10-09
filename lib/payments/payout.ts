@@ -413,7 +413,12 @@ export interface PayoutRunOptions {
   clock?: () => number;
   /** When the budget started, on `clock` (the cron passes its own start). Default: when this run starts. */
   startedAt?: number;
+  /** Random number in [0, 1) used to rotate the held group (tests pass a fixed one). Default Math.random. */
+  random?: () => number;
 }
+
+/** How many skipped bookings the staff summary names before it only counts. */
+const NOT_PROCESSED_NAMED = 20;
 
 type PayoutQueueRow = { id: string; reference: string; status: string; payout_status: string | null; completed_at: string | null; payout_due_at?: string | null; payout_last_error?: string | null };
 
@@ -423,7 +428,10 @@ type PayoutQueueRow = { id: string; reference: string; status: string; payout_st
  *   1  due and with no earlier problem on record: the payouts to send today;
  *   2  known to be held or waiting for a person (payout_last_error set, or a
  *      refused transfer): looked at again, but last, so they cannot use up
- *      the time budget before fresh payouts are reached.
+ *      the time budget before fresh payouts are reached. Held bookings never
+ *      leave the queue, so this group is shuffled each run: a newer one whose
+ *      hold has cleared (say the creator's bank account was validated) is not
+ *      stuck behind the same oldest rows every day.
  */
 function payoutPriority(row: PayoutQueueRow): number {
   if (row.payout_status === 'processing') return 0;
@@ -492,11 +500,17 @@ export async function runServicePayouts(
     summary.attention.push({ reference: 'payout queue', why: `${maxRows} or more bookings are in the payout queue; only the oldest ${maxRows} were checked this run` });
   }
 
-  // Array.prototype.sort is stable: the queue order holds within each group.
-  const ordered = rows
-    .map((row, i) => ({ row, i, p: payoutPriority(row) }))
-    .sort((a, b) => a.p - b.p || a.i - b.i)
-    .map((x) => x.row);
+  // Groups 0 and 1 keep the queue order (oldest first); group 2 is shuffled
+  // (Fisher-Yates) so the time budget reaches different held rows each run.
+  const random = opts.random ?? Math.random;
+  const group = (p: number) => rows.filter((row) => payoutPriority(row) === p);
+  const held = group(2);
+  for (let i = held.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(random() * (i + 1));
+    [held[i], held[j]] = [held[j], held[i]];
+  }
+  const ordered = [...group(0), ...group(1), ...held];
+  const skipped: string[] = [];
 
   for (const row of ordered) {
     if (row.payout_status !== 'processing') {
@@ -508,6 +522,7 @@ export async function runServicePayouts(
     }
     if (clock() - startedAt >= budgetMs) {
       summary.notProcessed += 1;
+      if (skipped.length < NOT_PROCESSED_NAMED) skipped.push(row.reference);
       continue;
     }
     summary.considered += 1;
@@ -526,6 +541,10 @@ export async function runServicePayouts(
       reference: 'payout run',
       why: `${summary.notProcessed} due payout${summary.notProcessed === 1 ? '' : 's'} not processed this run (time budget of ${Math.round(budgetMs / 1000)}s reached); they wait for the next run`,
     });
+    summary.attention.push(...skipped.map((reference) => ({ reference, why: 'not processed this run (time budget)' })));
+    if (summary.notProcessed > skipped.length) {
+      summary.attention.push({ reference: 'payout run', why: `and ${summary.notProcessed - skipped.length} more not named` });
+    }
   }
   return summary;
 }

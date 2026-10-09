@@ -155,7 +155,9 @@ export function normaliseIncludes(list: unknown): string[] {
   const out: string[] = [];
   for (const item of list) {
     if (typeof item !== 'string') continue;
-    const v = item.trim();
+    // One line per item: a newline inside an item (an AI draft) would split
+    // it in two in the one-per-line editor and look like an edit.
+    const v = item.replace(/\s+/g, ' ').trim();
     if (v && !out.includes(v)) out.push(v);
   }
   return out;
@@ -167,7 +169,7 @@ export function normaliseIncludes(list: unknown): string[] {
  * separator: a stored list goes out and comes back unchanged.
  */
 export function includesToText(list: readonly string[] | null | undefined): string {
-  return (list ?? []).join('\n');
+  return (list ?? []).map((v) => v.replace(/\s+/g, ' ').trim()).filter(Boolean).join('\n');
 }
 
 export function includesFromText(text: string): string[] {

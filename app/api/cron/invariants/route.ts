@@ -19,6 +19,7 @@ import {
 } from '@/lib/ops/checks';
 import { fingerprint, type Finding } from '@/lib/ops/types';
 import { gatherRentalPipelineFindings } from '@/lib/rental/reconcile-server';
+import { detectStuckServiceRefunds } from '@/lib/ops/service-refunds';
 
 /**
  * Invariant sweep.
@@ -212,6 +213,25 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     findings.push(...(await gatherRentalPipelineFindings(db, now)));
   } catch (err) {
     checkErrors['rental-pipeline'] = String(err);
+  }
+
+  // ── Service refunds claimed with no outcome (Phase 2) ─────────────────────
+  // 'pending' blocks automatic refunds and the payout; this is what tells a
+  // person (lib/payments/service-refunds.ts).
+  try {
+    const { data, error } = await db
+      .from('bookings')
+      .select('id, reference, updated_at, cancellation_refund_amount, cancellation_refund_error')
+      .eq('cancellation_refund_status', 'pending')
+      .limit(200);
+    if (error) throw new Error(error.message);
+    findings.push(...detectStuckServiceRefunds(
+      ((data ?? []) as { id: string; reference: string | null; updated_at: string | null; cancellation_refund_amount: number | null; cancellation_refund_error: string | null }[])
+        .map((r) => ({ id: r.id, reference: r.reference, updatedAt: r.updated_at, amount: r.cancellation_refund_amount, note: r.cancellation_refund_error })),
+      now,
+    ));
+  } catch (err) {
+    checkErrors['service-refunds'] = String(err);
   }
 
   // ── Growth checkpoints ────────────────────────────────────────────────────
