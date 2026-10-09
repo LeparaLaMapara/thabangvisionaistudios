@@ -17,6 +17,7 @@ import { paymentReference } from '@/lib/payments/eft';
 import { autoSendWelcomes, draftMissingWelcomes } from '@/lib/greetings/process';
 import { runOverdueLadder } from '@/lib/rental/workers';
 import { buildNotices } from '@/lib/core/rental/notifications';
+import { SupabaseAddressRetention, purgeDeliveryAddresses } from '@/lib/delivery/jobs';
 
 /**
  * Daily Maintenance — runs at 2am SAST (00:00 UTC)
@@ -710,6 +711,16 @@ Please contact the client and the creator. They are not paid out or refunded aut
     results.funnelPurge = error ? { error: error.message } : { before: cutoff };
   } catch (err) {
     results.funnelPurge = { error: String(err) };
+  }
+
+  // ─── 16. POPIA: delivery addresses past retention (R-41, D-46) ────────────
+  // Reduced to suburb level DELIVERY_POLICY.addressRetentionDays after the
+  // last leg using them closed. Never an address of an open shipment, one
+  // with an open incident, or one a live or paid quote still needs.
+  try {
+    results.deliveryAddressPurge = await purgeDeliveryAddresses(new SupabaseAddressRetention(supabase), now);
+  } catch (err) {
+    results.deliveryAddressPurge = { error: String(err) };
   }
 
   console.log('[daily-maintenance] Results:', JSON.stringify(results));

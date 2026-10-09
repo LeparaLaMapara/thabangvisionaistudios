@@ -1,5 +1,11 @@
 import { createAdminClient } from '@/lib/supabase/server';
 import { payments } from '@/lib/payments';
+import { DELIVERY_OPS } from '@/lib/constants';
+import type { DeliveryDeps } from '@/lib/core/delivery/repository';
+import { drainDeliveryInbox } from '@/lib/delivery/inbox';
+import { SupabaseDeliveryJobQueries, pollTrackedShipments, reconcileUncertainDispatches, remindReturnPickups } from '@/lib/delivery/jobs';
+import { SupabaseDeliveryInbox } from '@/lib/delivery/repos';
+import { deliveryDeps } from '@/lib/delivery/server';
 import { drainInbox } from './inbox';
 import { dispatchOutbox } from './notify';
 import { expireHolds, recoverMissedPayments, reviewScheduledPayouts, runOverdueLadder, runPayouts, runRefunds, runReminders } from './workers';
@@ -12,6 +18,14 @@ import { expireHolds, recoverMissedPayments, reviewScheduledPayouts, runOverdueL
  *
  * Each step is isolated: one failing never stops the others, and every step
  * is idempotent, so running the pass twice is harmless.
+ *
+ * Delivery (Phase 4): provider webhooks are the real-time source; this daily
+ * pass is the safety net. It retries stored provider events, reconciles
+ * dispatches whose outcome is unknown (lookup by our merchant reference,
+ * never a second courier), polls courier legs whose webhooks may have been
+ * missed, and queues return-pickup reminders, all before the outbox step so
+ * their notices go out in the same pass. Each delivery step is bounded
+ * (DELIVERY_OPS batch sizes).
  */
 export async function runRentalPipeline(): Promise<{ ok: boolean; steps: Record<string, unknown>; errors: Record<string, string> }> {
   const db = createAdminClient();
@@ -29,6 +43,17 @@ export async function runRentalPipeline(): Promise<{ ok: boolean; steps: Record<
   };
 
   await step('inbox', () => drainInbox(50));
+
+  // Delivery deps are built once, lazily: if that fails, only the delivery steps fail.
+  let delivery: Promise<DeliveryDeps> | null = null;
+  const deliveryOnce = (): Promise<DeliveryDeps> => (delivery ??= deliveryDeps());
+  const jobs = new SupabaseDeliveryJobQueries(db);
+  await step('delivery_inbox', async () =>
+    drainDeliveryInbox({ store: new SupabaseDeliveryInbox(db), useCases: await deliveryOnce() }, DELIVERY_OPS.inboxBatchSize, DELIVERY_OPS.inboxMaxRetries),
+  );
+  await step('delivery_reconcile', async () => reconcileUncertainDispatches(await deliveryOnce(), jobs));
+  await step('delivery_poll', async () => pollTrackedShipments(await deliveryOnce(), jobs));
+  await step('delivery_return_reminders', async () => remindReturnPickups(await deliveryOnce(), jobs));
   // Before releasing holds: a payment whose webhook never arrived confirms now.
   if (providerReady) await step('missed_payments', () => recoverMissedPayments(db));
   await step('holds', () => expireHolds(db));

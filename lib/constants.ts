@@ -791,6 +791,35 @@ export const DELIVERY_POLICY = {
   },
 } as const;
 
+// ─── Delivery operations (Phase 4: webhooks, daily jobs, admin, retention) ───
+// Operational limits, not business terms. Webhooks are the real-time source;
+// the daily pipeline pass is the safety net (CLAUDE.md: daily crons only).
+export const DELIVERY_OPS = {
+  // Largest webhook body accepted from a delivery provider (bytes). Larger
+  // requests are refused before anything is stored.
+  webhookMaxBodyBytes: 256 * 1024,
+  // Stored provider events retried per pipeline pass, and how many attempts
+  // before an event is dead-lettered for a person.
+  inboxBatchSize: 50,
+  inboxMaxRetries: 8,
+  // Shipments reconciled or polled per pipeline pass (bounded work).
+  jobBatchSize: 50,
+  // A dispatch claim older than this is presumed dead and is reconciled with
+  // the provider before anything else (matches the core's stale-claim rule).
+  staleClaimMinutes: 10,
+  // Return-pickup reminder: sent once when the pickup window starts within
+  // this many hours (the pass runs daily at 07:45 SAST).
+  returnReminderLeadHours: 36,
+  // Admin dashboard: how far back failed legs and dead-lettered events show.
+  failedLookbackDays: 30,
+  // Address retention purge (R-41, D-46): addresses handled per daily run.
+  // Retention itself is DELIVERY_POLICY.addressRetentionDays.
+  addressPurgeBatchSize: 200,
+  // Coordinates of a purged address are kept to this many decimals (about
+  // 1 km: suburb level), so history still shows the area, not the house.
+  purgedCoordinateDecimals: 2,
+} as const;
+
 // ─── Community listing review (spec §8.1–8.2) ───────────────────────────────
 // Rules live in lib/core/listings/review.ts and run on the server only.
 export const LISTING_POLICY = {
