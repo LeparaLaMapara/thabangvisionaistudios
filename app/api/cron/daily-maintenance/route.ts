@@ -285,17 +285,22 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   // no open dispute). One stable transfer reference per booking; anything
   // that may already have been sent is looked up with the provider first and
   // never re-sent under a new reference. lib/payments/payout.ts.
+  // Time budget: no new payout starts once PAYOUT_RUN_TIME_BUDGET_MS has
+  // passed since this cron started, so the steps below (maxDuration = 60 s)
+  // and this digest still run. Anything not reached is named in the digest
+  // and waits for tomorrow.
   try {
-    const run = await runServicePayouts({ db: supabase, now });
-    results.servicePayouts = { considered: run.considered, notDue: run.notDue, outcomes: run.outcomes, held: run.held.length, attention: run.attention.length };
+    const run = await runServicePayouts({ db: supabase, now }, undefined, undefined, { startedAt: now.getTime() });
+    const notProcessed = run.notProcessed ?? 0;
+    results.servicePayouts = { considered: run.considered, notDue: run.notDue, notProcessed, outcomes: run.outcomes, held: run.held.length, attention: run.attention.length };
     if (run.attention.length > 0 || run.held.length > 0) {
       const attention = run.attention.map((a) => `${a.reference}: ${a.why}`).join('\n');
       const held = run.held.map((h) => `${h.reference}: ${h.why}`).join('\n');
       await emailProvider.sendEmail({
         to: STUDIO.bookingEmail,
-        subject: `[Payouts] ${run.attention.length} need a person, ${run.held.length} held — ${STUDIO.name}`,
+        subject: `[Payouts] ${run.attention.length} need a person, ${run.held.length} held${notProcessed > 0 ? `, ${notProcessed} not processed this run (time budget)` : ''} — ${STUDIO.name}`,
         text: `Creator payouts that are due but were not sent today.
-
+${notProcessed > 0 ? `\n${notProcessed} due payout${notProcessed === 1 ? ' was' : 's were'} not processed this run (time budget); they are looked at again on the next run.\n` : ''}
 ${run.attention.length > 0 ? `NEED A PERSON (nothing was sent; do not re-send under a new reference without checking the provider dashboard):\n${attention}\n\n` : ''}${run.held.length > 0 ? `HELD BY A RULE (sent automatically once the rule clears):\n${held}` : ''}`,
       });
     }

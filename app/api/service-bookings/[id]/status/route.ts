@@ -5,7 +5,7 @@ import { createClient, createAdminClient } from '@/lib/supabase/server';
 import { email as emailProvider } from '@/lib/email';
 import { STUDIO } from '@/lib/constants';
 import { checkRateLimit } from '@/lib/auth';
-import { refundWithOutcome } from '@/lib/payments/routing';
+import { sendClaimedServiceRefund } from '@/lib/payments/service-refunds';
 import { logEvent } from '@/lib/data/events';
 import { notifyClient } from '@/lib/bookings/notify-client';
 import {
@@ -219,41 +219,24 @@ export async function PATCH(
  */
 type RefundOutcome = 'refunded' | 'failed' | 'manual_review' | 'unknown' | null;
 
-/** Prefix on cancellation_refund_error for an unknown outcome (also used when 073 is not applied). */
-const UNKNOWN_REFUND_NOTE = 'OUTCOME UNKNOWN, check the payment provider before refunding by hand';
-
+/**
+ * The status change above is the claim: it moved the booking out of 'paid' /
+ * 'accepted' with a compare-and-set and wrote cancellation_refund_status
+ * 'pending' in the same update, so a second request (or an admin cancel) can
+ * no longer claim this refund. The outcome is written only over that
+ * 'pending' (lib/payments/service-refunds.ts), never over a later record.
+ */
 async function settleRefund(id: string, booking: StatusBookingRow, decision: Extract<TransitionDecision, { ok: true }>): Promise<RefundOutcome> {
   if (!decision.refund || !booking.paystack_reference) return null;
-  const result = await refundWithOutcome({
+  const r = await sendClaimedServiceRefund(admin(), {
+    bookingId: id,
     reference: booking.paystack_reference,
     amountRands: decision.refund.amount,
+    total: Number(booking.total ?? 0),
     idempotencyKey: `service-${decision.action}:${id}`,
   });
-  const outcome: RefundOutcome =
-    result.outcome === 'refunded' ? 'refunded'
-      : result.outcome === 'manual' ? 'manual_review'
-        : result.outcome === 'unknown' ? 'unknown'
-          : 'failed';
-  const ok = result.outcome === 'refunded';
-  const full = decision.refund.amount >= Number(booking.total ?? 0);
-  const error = ok ? null : outcome === 'unknown' ? `${UNKNOWN_REFUND_NOTE}: ${result.message}` : result.message;
-  const patch: Record<string, unknown> = {
-    cancellation_refund_status: outcome,
-    cancellation_refunded_at: ok ? new Date().toISOString() : null,
-    cancellation_refund_error: error,
-    ...(ok && full ? { payment_status: 'refunded' } : {}),
-    updated_at: new Date().toISOString(),
-  };
-  const written = await updateServiceBooking(admin(), id, null, patch);
-  if (!written.ok && outcome === 'unknown' && /cancellation_refund_status/.test(written.error)) {
-    // Migration 073 not applied: 'unknown' is not allowed yet. 'pending' plus
-    // the note keeps it out of every automatic refund path all the same.
-    await updateServiceBooking(admin(), id, null, { ...patch, cancellation_refund_status: 'pending' });
-  } else if (!written.ok) {
-    console.error('[service-bookings/status] could not record refund outcome:', written.error);
-  }
-  if (!ok) console.error('[service-bookings/status] refund not completed:', outcome);
-  return outcome;
+  if (r.outcome !== 'refunded') console.error('[service-bookings/status] refund not completed:', r.outcome);
+  return r.outcome;
 }
 
 /** Staff wording for a refund that did not complete automatically. */

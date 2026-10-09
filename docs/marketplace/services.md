@@ -14,6 +14,7 @@ and work, e.g. a portrait shoot). Gear hire has separate rules
 | `app/api/service-bookings/[id]/deliver` | Creator delivers (link required) |
 | `app/api/cron/daily-maintenance` | Auto-approval, payouts, alerts |
 | `lib/payments/routing.ts` (`refundWithOutcome`) | Refunds with a classified result: refunded / rejected / unknown / manual |
+| `lib/payments/service-refunds.ts` | Claim a refund before the provider is called; record the outcome only over the claim |
 | `lib/migrations/073-service-fulfilment.sql` | Columns, `declined` status, history table, `unknown` refund outcome |
 
 ## The journey
@@ -97,9 +98,65 @@ Refunds on decline, client cancel and admin cancel go through
 `cancellation_refund_status` too: it sends **no** automatic refund when a refund
 is recorded as `refunded`, `unknown` or `pending` (`refundAlreadyStarted`), and
 answers `refund_status: 'already_started'`. This also covers a partial refund
-that succeeded (payment still `paid`). An admin cancel records its own refund
-outcome the same way, so cancelling twice does not refund twice, and emails the
-team on `unknown` or `failed`.
+that succeeded (payment still `paid`). When the refund is `manual_review` (a
+person is handling it) or `not_required` (a cancellation already decided
+nothing goes back), the cancel goes through without a refund, answers
+`refund_status: 'not_claimed'` and emails the team to decide. An admin cancel
+emails the team on `unknown`, `failed` or `manual_review`.
+
+The client's cancellation email from an admin cancel names an amount ("A
+refund of R… is being processed") only when the provider accepted the refund.
+Otherwise (refused, unknown, by hand, or already handled elsewhere) it says
+"Our team will be in touch with you about your refund", with no amount.
+
+### Refunds are claimed before any money moves
+
+The payment provider is not a lock: Paystack's refund call takes no
+idempotency key (the adapter drops the one we pass). Before this, two admin
+refunds that both read "no refund yet" both called Paystack: a double-clicked
+admin cancel refunded once, the second call was refused ("fully reversed") and
+wrote `failed` over `refunded`, and staff were emailed to refund by hand. Two
+concurrent partial dispute refunds of R500 on R1000 both went through.
+
+Now every service refund (`lib/payments/service-refunds.ts`) goes:
+
+1. **Claim**: one conditional update sets `cancellation_refund_status =
+   'pending'` (with the amount) only while the booking still has the status,
+   payout status and refund status that were read, and the refund status is
+   none or `failed`. Never over `manual_review`: that is a person's job.
+   Whoever loses sends nothing and gets a 409 (`BOOKING_CHANGED`).
+2. **Send** through `refundWithOutcome`.
+3. **Record** the outcome only over `pending` (compare-and-set), so a late or
+   repeated result never overwrites `refunded`, `unknown` or a person's record.
+
+An admin cancel writes the status change in the same update as the claim, and
+every admin status change is a compare-and-set on the status read. So an admin
+cancel and a client cancellation at the same moment cannot both refund: the
+second one's compare-and-set fails. The client's cancellation and the creator's
+decline already claim this way (their status change writes `pending`) and now
+record their outcome through the same helper.
+
+**If the process dies between the claim and the record**, the booking stays
+`pending`. That already blocks every automatic refund and the creator payout,
+so nothing moves twice, but nothing tells anyone either: a person who sees a
+booking with the refund `pending` for more than a few minutes checks the
+provider's refunds for the payment reference and records what happened
+(`refunded` with the amount, or clears it back to `failed` if nothing was
+refunded).
+
+### Never refund the client after the creator was paid
+
+An admin cancel or a dispute refund is refused with 409 `PAYOUT_ALREADY_SENT`
+when `payout_status` is `processing` or `paid`, or the booking is `paid_out`
+(`payoutAlreadySent`). A person decides: the creator was already paid. The
+claim also compares the payout status read, so a payout the daily run claims
+between the admin's read and write wins and the refund is not sent.
+
+The other way round, a booking with any refund recorded or started
+(`cancellation_refund_status` set to anything but `not_required`) is not paid
+out (`refund_recorded` in `checkServicePayoutEligibility`): the client has been
+or may be refunded and `creator_amount` is not adjusted, so a person decides
+the payout. The payout claim compares the refund status it read too.
 
 Before migration 073 the database does not allow `unknown`: it is stored as
 `pending` with "OUTCOME UNKNOWN, check the payment provider…" in
@@ -109,11 +166,14 @@ Yoco's refund call answers only success or failure, so a Yoco failure is
 treated as `unknown`.
 
 A refund from the admin dispute screen (`app/api/admin/disputes/[id]`) uses
-the same classification. It is refused when a refund is already recorded
-(`refunded`, `unknown` or `pending`), is capped at the booking total, and
-records its outcome on the booking. An unknown outcome leaves the dispute open
-and tells the admin to check the provider first. A refused one can be tried
-again, because nothing moved.
+the same classification and the same claim. It is refused when a refund is
+already recorded (`refunded`, `unknown` or `pending`: `REFUND_ALREADY_STARTED`),
+when a person is handling it (`manual_review` / `not_required`:
+`REFUND_NEEDS_A_PERSON`) and after the creator was paid
+(`PAYOUT_ALREADY_SENT`). It is capped at the booking total, and records its
+outcome on the booking. An unknown outcome leaves the dispute open and tells
+the admin to check the provider first. A refused one can be tried again,
+because nothing moved.
 
 ## Disputes
 
@@ -135,7 +195,8 @@ does not enforce the window yet (it is outside this change).
   only when every rule holds: booking completed and marked paid; the provider
   confirms the client's payment for at least the total; creator ID-verified;
   bank account validated (`banking_details.is_verified` with a recipient code);
-  no open dispute; due time reached.
+  no open dispute; no refund to the client recorded or under way; due time
+  reached.
 - Because the cron runs once a day (plan limit), a payout goes out on the first
   run after it falls due, so up to about a day after the 72 hours.
 - **We never promise when money reaches the bank.** Messages say when we send
@@ -171,6 +232,18 @@ and never reported. Now every due payout is reached, and the team's daily
 digest lists every booking that needs a person and every one held by a rule.
 If the queue ever exceeds 1000 rows, the digest says so.
 
+The run works one payout at a time inside the daily maintenance cron
+(`maxDuration` = 60 s, with many steps and the digest after it). It stops
+**starting** new payouts once `PAYOUT_RUN_TIME_BUDGET_MS` (35 s) has passed
+since the cron started; anything not reached is counted and the digest says
+"N not processed this run (time budget)". They wait for the next run. The
+order of work is: payouts in flight with the provider, then fresh due payouts,
+then ones already known to be held or waiting for a person
+(`payout_last_error` set, or a refused transfer). A held payout records why in
+`payout_last_error` ("held: …", written only when it changes), so it does not
+use up the budget before fresh payouts are reached. One slow provider call can
+still run past the budget; the budget only stops new ones.
+
 A stale `processing` payout under an old-scheme reference with retries
 (`payout_retry_count > 0`) also goes to a person; it used to be looked up and,
 when that one reference was not found, re-sent under the stable reference,
@@ -197,3 +270,7 @@ Apply 073 on dev first, run `073-service-fulfilment.test.sql`, then production.
 - The `unknown` refund outcome in 073 was not run on any Postgres (no local
   server could be started for the review fixes).
 - Email and notification wording has not been reviewed by the founder.
+- The refund claim and the payout time budget were tested with in-memory
+  fakes (two requests interleaved by hand, a fake clock), not against
+  Supabase: the claim relies on PostgREST applying the update's filters
+  atomically, which it does for a single-row update.

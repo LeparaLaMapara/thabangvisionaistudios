@@ -10,9 +10,10 @@ const tables: Record<string, Row[]> = {};
 function builder(table: string) {
   let op: 'select' | 'update' = 'select';
   let values: Row = {};
-  const filters: [string, unknown][] = [];
+  // [column, value] is eq; [column, value, 'is'] is IS (a missing column reads as null).
+  const filters: ([string, unknown] | [string, unknown, 'is'])[] = [];
   const rows = (): Row[] => (tables[table] ??= []);
-  const match = (r: Row) => filters.every(([k, v]) => r[k] === v);
+  const match = (r: Row) => filters.every((f) => (f.length === 3 ? (r[f[0]] ?? null) === f[1] : r[f[0]] === f[1]));
   const run = () => {
     if (op === 'update') {
       const hit = rows().filter(match);
@@ -25,6 +26,7 @@ function builder(table: string) {
     select: () => b,
     update: (v: Row) => { op = 'update'; values = v; return b; },
     eq: (k: string, v: unknown) => { filters.push([k, v]); return b; },
+    is: (k: string, v: unknown) => { filters.push([k, v, 'is']); return b; },
     in: () => b,
     maybeSingle: async () => ({ data: (run().data as Row[])[0] ?? null, error: null }),
     single: async () => { const d = run().data as Row[]; return d.length === 1 ? { data: d[0], error: null } : { data: null, error: { message: 'not one row' } }; },

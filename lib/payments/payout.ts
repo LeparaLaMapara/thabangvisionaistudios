@@ -19,6 +19,7 @@ import {
 } from '@/lib/core/services/payouts';
 import {
   countOpenServiceDisputes,
+  mentionsFulfilmentSchema,
   readServiceBooking,
   recordServiceBookingEvent,
   updateServiceBooking,
@@ -123,12 +124,17 @@ interface PayoutBookingRow {
   project_category: string | null;
   completed_at: string | null;
   updated_at: string | null;
+  cancellation_refund_status?: string | null;
   payout_due_at?: string | null;
   payout_claimed_at?: string | null;
+  payout_last_error?: string | null;
 }
 
-const BASE_COLUMNS = 'id, reference, paystack_reference, status, payment_status, payout_status, payout_reference, payout_retry_count, creator_id, creator_amount, total, project_category, completed_at, updated_at';
-const EXTRA_COLUMNS = 'payout_due_at, payout_claimed_at';
+const BASE_COLUMNS = 'id, reference, paystack_reference, status, payment_status, payout_status, payout_reference, payout_retry_count, creator_id, creator_amount, total, project_category, completed_at, updated_at, cancellation_refund_status';
+const EXTRA_COLUMNS = 'payout_due_at, payout_claimed_at, payout_last_error';
+
+/** Prefix on payout_last_error for a payout held by a rule. The daily run looks at these after fresh ones. */
+export const PAYOUT_HELD_NOTE = 'held: ';
 
 export interface PayoutDeps {
   db: SupabaseClient;
@@ -254,10 +260,18 @@ export async function triggerCreatorPayout(params: PayoutParams, deps: Partial<P
       openDisputes,
       completedAt: booking.completed_at,
       payoutDueAt: booking.payout_due_at ?? null,
+      refundStatus: booking.cancellation_refund_status ?? null,
     },
     now,
   );
   if (!eligibility.eligible) {
+    // Remember why it is held, so the daily run reaches fresh payouts first.
+    // Not for "not due yet" alone (nothing is wrong), and only when it changed.
+    const onlyNotDue = eligibility.reasons.length === 1 && eligibility.reasons[0] === 'not_due_yet';
+    const note = `${PAYOUT_HELD_NOTE}${eligibility.reasons.map((r) => PAYOUT_BLOCK_WORDS[r]).join('; ')}`.slice(0, 500);
+    if (!onlyNotDue && booking.payout_last_error !== undefined && booking.payout_last_error !== note) {
+      await updateServiceBooking(db, booking.id, null, { payout_last_error: note });
+    }
     return {
       success: false,
       outcome: 'blocked',
@@ -332,6 +346,9 @@ async function claim(db: SupabaseClient, booking: PayoutBookingRow, patch: Recor
     let q = db.from('bookings').update(values).eq('id', booking.id);
     q = booking.payout_status === null ? q.is('payout_status', null) : q.eq('payout_status', booking.payout_status);
     q = booking.payout_reference === null ? q.is('payout_reference', null) : q.eq('payout_reference', booking.payout_reference);
+    // A refund claimed meanwhile (admin cancel, dispute) wins: no payout over it.
+    const refund = booking.cancellation_refund_status ?? null;
+    q = refund === null ? q.is('cancellation_refund_status', null) : q.eq('cancellation_refund_status', refund);
     if (booking.updated_at) q = q.eq('updated_at', booking.updated_at);
     return q.select('id');
   };
@@ -367,6 +384,8 @@ async function escalate(db: SupabaseClient, booking: PayoutBookingRow, why: stri
 export interface ServicePayoutRunSummary {
   considered: number;
   notDue: number;
+  /** Due (or in flight) but not looked at because the run's time budget ran out. They wait for the next run. */
+  notProcessed: number;
   outcomes: Partial<Record<PayoutOutcome, number>>;
   /** Bookings a person must look at, with why. */
   attention: { reference: string; why: string }[];
@@ -378,8 +397,39 @@ export interface ServicePayoutRunSummary {
 const PAYOUT_QUEUE_PAGE = 50;
 /** Most rows one run reads. Past this a person is told; the rest wait a day. */
 const PAYOUT_QUEUE_MAX_ROWS = 1000;
+/**
+ * No new payout is started once this much time has passed. The daily
+ * maintenance cron has maxDuration = 60 s and many steps after the payouts
+ * (and the payout digest itself); a long queue of slow provider calls must not
+ * use all of it. The cron passes what is left of this budget from its own
+ * start; anything not reached is reported and waits for the next run.
+ */
+export const PAYOUT_RUN_TIME_BUDGET_MS = 35_000;
 
-type PayoutQueueRow = { id: string; reference: string; status: string; payout_status: string | null; completed_at: string | null; payout_due_at?: string | null };
+export interface PayoutRunOptions {
+  /** Stop starting new payouts after this many ms from the start of the run. Default PAYOUT_RUN_TIME_BUDGET_MS. */
+  timeBudgetMs?: number;
+  /** Milliseconds clock for the budget (tests pass a fake). Default Date.now. */
+  clock?: () => number;
+  /** When the budget started, on `clock` (the cron passes its own start). Default: when this run starts. */
+  startedAt?: number;
+}
+
+type PayoutQueueRow = { id: string; reference: string; status: string; payout_status: string | null; completed_at: string | null; payout_due_at?: string | null; payout_last_error?: string | null };
+
+/**
+ * Order of work within one run (stable: oldest first inside each group):
+ *   0  in flight with the provider ('processing'): money is moving, reconcile it;
+ *   1  due and with no earlier problem on record: the payouts to send today;
+ *   2  known to be held or waiting for a person (payout_last_error set, or a
+ *      refused transfer): looked at again, but last, so they cannot use up
+ *      the time budget before fresh payouts are reached.
+ */
+function payoutPriority(row: PayoutQueueRow): number {
+  if (row.payout_status === 'processing') return 0;
+  if (row.payout_status === 'failed' || (row.payout_last_error ?? null) !== null) return 2;
+  return 1;
+}
 
 /**
  * Send every creator payout that is due and allowed, and reconcile every one
@@ -392,10 +442,21 @@ type PayoutQueueRow = { id: string; reference: string; status: string; payout_st
  * (escalated) fill it every day, so newer payouts were never reached and never
  * reported. Every held and escalated booking is listed in the summary, which
  * the cron mails to staff.
+ *
+ * Rows are worked one at a time in payoutPriority order until the time budget
+ * runs out; the rest are counted in notProcessed and named in `attention`.
  */
-export async function runServicePayouts(deps: Partial<PayoutDeps> = {}, pageSize = PAYOUT_QUEUE_PAGE, maxRows = PAYOUT_QUEUE_MAX_ROWS): Promise<ServicePayoutRunSummary> {
+export async function runServicePayouts(
+  deps: Partial<PayoutDeps> = {},
+  pageSize = PAYOUT_QUEUE_PAGE,
+  maxRows = PAYOUT_QUEUE_MAX_ROWS,
+  opts: PayoutRunOptions = {},
+): Promise<ServicePayoutRunSummary> {
+  const clock = opts.clock ?? Date.now;
+  const startedAt = opts.startedAt ?? clock();
+  const budgetMs = opts.timeBudgetMs ?? PAYOUT_RUN_TIME_BUDGET_MS;
   const d: PayoutDeps = withDefaults(deps);
-  const summary: ServicePayoutRunSummary = { considered: 0, notDue: 0, outcomes: {}, attention: [], held: [] };
+  const summary: ServicePayoutRunSummary = { considered: 0, notDue: 0, notProcessed: 0, outcomes: {}, attention: [], held: [] };
 
   const select = (columns: string, from: number, to: number) => d.db
     .from('bookings')
@@ -406,15 +467,17 @@ export async function runServicePayouts(deps: Partial<PayoutDeps> = {}, pageSize
     .order('id', { ascending: true })
     .range(from, to);
 
+  const BASE = 'id, reference, status, payout_status, completed_at';
   const rows: PayoutQueueRow[] = [];
-  let withDue = true;
+  let withExtra = true;
   let truncated = false;
   for (let from = 0; ; from += pageSize) {
     const to = Math.min(from + pageSize, maxRows) - 1;
-    let res = await select(withDue ? 'id, reference, status, payout_status, completed_at, payout_due_at' : 'id, reference, status, payout_status, completed_at', from, to);
-    if (withDue && res.error && /payout_due_at/.test(res.error.message)) {
-      withDue = false;
-      res = await select('id, reference, status, payout_status, completed_at', from, to);
+    let res = await select(withExtra ? `${BASE}, payout_due_at, payout_last_error` : BASE, from, to);
+    if (withExtra && res.error && mentionsFulfilmentSchema(res.error.message)) {
+      // Before migration 073: no due time or last error on record.
+      withExtra = false;
+      res = await select(BASE, from, to);
     }
     if (res.error) throw new Error(`service payout queue: ${res.error.message}`);
     const page = (res.data ?? []) as unknown as PayoutQueueRow[];
@@ -429,13 +492,23 @@ export async function runServicePayouts(deps: Partial<PayoutDeps> = {}, pageSize
     summary.attention.push({ reference: 'payout queue', why: `${maxRows} or more bookings are in the payout queue; only the oldest ${maxRows} were checked this run` });
   }
 
-  for (const row of rows) {
+  // Array.prototype.sort is stable: the queue order holds within each group.
+  const ordered = rows
+    .map((row, i) => ({ row, i, p: payoutPriority(row) }))
+    .sort((a, b) => a.p - b.p || a.i - b.i)
+    .map((x) => x.row);
+
+  for (const row of ordered) {
     if (row.payout_status !== 'processing') {
       const due = row.payout_due_at ? new Date(row.payout_due_at) : row.completed_at ? payoutDueAt(row.completed_at) : null;
       if (!due || due.getTime() > d.now.getTime()) {
         summary.notDue += 1;
         continue;
       }
+    }
+    if (clock() - startedAt >= budgetMs) {
+      summary.notProcessed += 1;
+      continue;
     }
     summary.considered += 1;
     let r: PayoutResult;
@@ -447,6 +520,12 @@ export async function runServicePayouts(deps: Partial<PayoutDeps> = {}, pageSize
     summary.outcomes[r.outcome] = (summary.outcomes[r.outcome] ?? 0) + 1;
     if (r.outcome === 'escalated' || r.outcome === 'error') summary.attention.push({ reference: row.reference, why: r.error ?? r.outcome });
     if (r.outcome === 'blocked') summary.held.push({ reference: row.reference, why: r.error ?? 'blocked' });
+  }
+  if (summary.notProcessed > 0) {
+    summary.attention.push({
+      reference: 'payout run',
+      why: `${summary.notProcessed} due payout${summary.notProcessed === 1 ? '' : 's'} not processed this run (time budget of ${Math.round(budgetMs / 1000)}s reached); they wait for the next run`,
+    });
   }
   return summary;
 }

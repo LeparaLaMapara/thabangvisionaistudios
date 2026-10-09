@@ -120,6 +120,87 @@ export function refundAlreadyStarted(status: string | null | undefined): boolean
   return typeof status === 'string' && (REFUND_ALREADY_STARTED as readonly string[]).includes(status);
 }
 
+/**
+ * Whether an automatic refund may be claimed over this recorded state: none
+ * yet, or the provider refused the last attempt ('failed': nothing moved).
+ * Everything else is refused: 'refunded' / 'unknown' / 'pending' (money went
+ * back, may have, or is being sent), 'manual_review' (a person is handling it)
+ * and 'not_required' (a cancellation already decided nothing goes back).
+ */
+export function refundClaimable(status: string | null | undefined): boolean {
+  return status === null || status === undefined || status === 'failed';
+}
+
+/**
+ * The creator payout has been sent or is being sent (bookings.payout_status is
+ * pending | processing | paid | failed; 'paid_out' is the booking status once
+ * it is confirmed). Refunding the client then would pay out twice.
+ */
+export function payoutAlreadySent(b: { status: string | null; payoutStatus: string | null }): boolean {
+  return b.payoutStatus === 'processing' || b.payoutStatus === 'paid' || b.status === 'paid_out';
+}
+
+/**
+ * What the client is told about money when an admin cancels. An amount is
+ * promised only when the provider accepted the refund; anything else (refused,
+ * unclear, by hand, already handled elsewhere) gets "our team will be in
+ * touch", with no amount.
+ */
+export function adminCancelRefundLines(
+  paid: boolean,
+  refund: string | null,
+  total: number,
+): { short: string; long: string } {
+  if (!paid) return { short: '', long: '' };
+  if (refund === 'refunded') {
+    return {
+      short: 'A refund is being processed.',
+      long: `A refund of R${total} is being processed to your original payment method. When it shows depends on your bank.`,
+    };
+  }
+  return {
+    short: 'Our team will be in touch about your refund.',
+    long: 'Our team will be in touch with you about your refund.',
+  };
+}
+
+export type ServiceRefundRefusalCode = 'PAYOUT_ALREADY_SENT' | 'REFUND_ALREADY_STARTED' | 'REFUND_NEEDS_A_PERSON';
+
+/**
+ * Whether an admin refund (admin cancel, dispute resolution) may be started on
+ * a service booking. The caller then claims it with a compare-and-set on
+ * exactly the states read here (lib/payments/service-refunds.ts), so two
+ * admins, or an admin and the client, cannot both send one.
+ */
+export function checkServiceRefund(b: {
+  status: string | null;
+  payoutStatus: string | null;
+  refundStatus: string | null;
+}): { ok: true } | { ok: false; code: ServiceRefundRefusalCode; message: string } {
+  if (payoutAlreadySent(b)) {
+    return {
+      ok: false,
+      code: 'PAYOUT_ALREADY_SENT',
+      message: 'The creator has already been paid for this booking (or the payout is with the provider), so nothing is refunded automatically. A person decides: check the payout and the payment provider, and refund by hand if the client should get money back.',
+    };
+  }
+  if (refundAlreadyStarted(b.refundStatus)) {
+    return {
+      ok: false,
+      code: 'REFUND_ALREADY_STARTED',
+      message: `A refund is already recorded for this booking (${b.refundStatus}). Check the payment provider before refunding anything more.`,
+    };
+  }
+  if (!refundClaimable(b.refundStatus)) {
+    return {
+      ok: false,
+      code: 'REFUND_NEEDS_A_PERSON',
+      message: `The refund for this booking is marked '${b.refundStatus}', so it is not refunded automatically. A person decides and records it.`,
+    };
+  }
+  return { ok: true };
+}
+
 export interface RefundPlan {
   /** Whole rands to return to the client. */
   amount: number;
@@ -459,6 +540,12 @@ export interface ServicePayoutFacts {
   openDisputes: number | null;
   completedAt: string | null;
   payoutDueAt: string | null;
+  /**
+   * bookings.cancellation_refund_status. Any refund recorded or started
+   * (anything but null / 'not_required') holds the payout for a person: the
+   * client has been, or may be, refunded, and creator_amount is not adjusted.
+   */
+  refundStatus?: string | null;
 }
 
 export type ServicePayoutBlock =
@@ -473,6 +560,7 @@ export type ServicePayoutBlock =
   | 'open_dispute'
   | 'dispute_check_failed'
   | 'already_paid'
+  | 'refund_recorded'
   | 'no_completion_time'
   | 'not_due_yet';
 
@@ -492,6 +580,7 @@ export function checkServicePayoutEligibility(f: ServicePayoutFacts, now: Date):
   if (f.status !== 'completed') reasons.push('booking_not_completed');
   if (f.paymentStatus !== 'paid') reasons.push('payment_not_marked_paid');
   if (f.payoutStatus === 'paid') reasons.push('already_paid');
+  if (f.refundStatus !== null && f.refundStatus !== undefined && f.refundStatus !== 'not_required') reasons.push('refund_recorded');
 
   const amount = Number(f.creatorAmount ?? 0);
   const total = Number(f.total ?? 0);
@@ -525,6 +614,7 @@ export const PAYOUT_BLOCK_WORDS: Readonly<Record<ServicePayoutBlock, string>> = 
   open_dispute: 'a dispute is open',
   dispute_check_failed: 'disputes could not be checked',
   already_paid: 'already paid',
+  refund_recorded: 'a refund to the client is recorded or under way; a person decides the payout',
   no_completion_time: 'no completion time on record',
   not_due_yet: 'not due yet',
 };
