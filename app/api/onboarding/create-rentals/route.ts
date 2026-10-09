@@ -4,7 +4,7 @@ export const maxDuration = 60;
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth, checkNotSuspended, checkRateLimit } from '@/lib/auth';
 import { createAdminClient } from '@/lib/supabase/server';
-import { describeListing, type ListingDescriberOutput } from '@/lib/agents/agents/listing-describer';
+import { describeListing, listingDescriberAgent, type ListingDescriberOutput } from '@/lib/agents/agents/listing-describer';
 import {
   isLowConfidence,
   onboardingItemKey,
@@ -112,7 +112,13 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     for (const item of unique) {
       const facts = item.facts;
       let described: ListingDescriberOutput | null = null;
-      if (facts && !isLowConfidence(facts) && facts.brand && facts.model) {
+      // Each AI description counts against the same daily allowance as the
+      // listing suggest route; once it is used up, items are drafted from the
+      // photo identification and the rate heuristic alone.
+      if (
+        facts && !isLowConfidence(facts) && facts.brand && facts.model &&
+        (await checkRateLimit(`listing-describer:daily:${auth.user.id}`, listingDescriberAgent.rateLimit.free, 86_400_000))
+      ) {
         try {
           described = await describeListing(
             {

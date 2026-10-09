@@ -93,6 +93,17 @@ function LoginForm() {
     return () => { cancelled = true; };
   }, [next]);
 
+  // Coming Back from Google (or after leaving to another page), the browser
+  // may restore this page from its back/forward cache with every button still
+  // disabled. Re-enable them.
+  useEffect(() => {
+    const onShow = (e: PageTransitionEvent): void => {
+      if (e.persisted) setBusy(null);
+    };
+    window.addEventListener('pageshow', onShow);
+    return () => window.removeEventListener('pageshow', onShow);
+  }, []);
+
   // Move focus to the new heading when the step changes, so screen readers
   // announce where they are.
   const firstRender = useRef(true);

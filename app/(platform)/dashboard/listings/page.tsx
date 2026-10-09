@@ -635,14 +635,27 @@ export default function ListingsPage() {
     };
 
     try {
-      const res = await fetch('/api/listings', {
+      const send = () => fetch('/api/listings', {
         method: editingId ? 'PUT' : 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(editingId ? { ...payload, id: editingId } : payload),
       });
-      const body = await res.json().catch(() => null);
+      let res = await send();
+      let body = await res.json().catch(() => null);
+      // A 409 with no code means another change to this listing landed at the
+      // same moment (e.g. a confirm still in flight). The server reads the
+      // listing afresh on every request, so trying once more is safe.
+      if (editingId && res.status === 409 && !body?.code) {
+        res = await send();
+        body = await res.json().catch(() => null);
+      }
       if (!res.ok) {
-        fail(body?.error ?? 'Failed to save listing.', body?.field);
+        fail(
+          res.status === 409 && !body?.code
+            ? 'This listing was changed at the same time (another tab or action). Your edits are still here: press Save again.'
+            : body?.error ?? 'Failed to save listing.',
+          body?.field,
+        );
       } else {
         const saved = body as Listing;
         if (editingId) replaceListing(saved);
@@ -1030,7 +1043,7 @@ export default function ListingsPage() {
                 <button
                   type="button"
                   onClick={() => confirmAi(editing, pendingAi)}
-                  disabled={busyId === editing.id}
+                  disabled={busyId === editing.id || saving}
                   className="min-h-[44px] px-4 inline-flex items-center gap-2 bg-[#D4A843] text-black text-xs font-mono font-bold uppercase tracking-widest hover:opacity-90 disabled:opacity-50"
                 >
                   <Check className="w-3.5 h-3.5" aria-hidden="true" />
@@ -1052,7 +1065,7 @@ export default function ListingsPage() {
                     <button
                       type="button"
                       onClick={() => confirmAi(editing, [field])}
-                      disabled={busyId === editing.id}
+                      disabled={busyId === editing.id || saving}
                       aria-label={`${FIELD_LABELS[field]} looks right`}
                       className="flex-shrink-0 min-h-[44px] px-3 inline-flex items-center gap-1 border border-[#D4A843]/40 text-[#D4A843] hover:bg-[#D4A843]/10 transition-colors disabled:opacity-50"
                     >
@@ -1349,7 +1362,7 @@ export default function ListingsPage() {
           </details>
 
           <div className="flex flex-wrap gap-3">
-            <Button onClick={save} loading={saving} disabled={uploading || images.length === 0} className="min-h-[44px]">
+            <Button onClick={save} loading={saving} disabled={uploading || images.length === 0 || (editing !== null && busyId === editing.id)} className="min-h-[44px]">
               Save and continue
             </Button>
             <Button variant="outline" onClick={close} className="min-h-[44px]">
