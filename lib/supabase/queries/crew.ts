@@ -157,7 +157,7 @@ export async function getCrewBySpecializations(
     .select(CREW_COLUMNS)
     .eq('verification_status', 'verified')
     .eq('available_for_hire', true)
-    .overlaps('specializations', keywords)
+    .overlaps('specializations', specializationVariants(keywords))
     .order('crew_featured', { ascending: false })
     .order('created_at', { ascending: false })
     .limit(limit);
@@ -211,7 +211,7 @@ export async function getCrewBySpecializationsAndLocation(
     .select(CREW_COLUMNS)
     .eq('verification_status', 'verified')
     .eq('available_for_hire', true)
-    .overlaps('specializations', keywords)
+    .overlaps('specializations', specializationVariants(keywords))
     .ilike('location', `%${locationPattern}%`)
     .order('crew_featured', { ascending: false })
     .order('created_at', { ascending: false })
@@ -429,4 +429,13 @@ export function generateCrewSlug(name: string): string {
     .replace(/\s+/g, '-')
     .replace(/-+/g, '-')
     .trim();
+}
+
+/**
+ * Specialisations are stored lower-case (CREATOR_SPECIALIZATIONS); older
+ * profiles may hold other casing. The overlap match is case-sensitive, so
+ * both forms are sent.
+ */
+function specializationVariants(keywords: string[]): string[] {
+  return [...new Set(keywords.flatMap((k) => [k, k.toLowerCase()]))];
 }

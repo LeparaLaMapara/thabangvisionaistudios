@@ -40,7 +40,7 @@ export async function loadWelcomeContext(
   const meta = (user.user_metadata ?? {}) as Record<string, unknown>;
   const intentRaw = meta.intent;
   const intent: SignupActivity['intent'] =
-    intentRaw === 'rent' || intentRaw === 'hire' || intentRaw === 'supply' || intentRaw === 'browse' ? intentRaw : null;
+    intentRaw === 'rent' || intentRaw === 'hire' || intentRaw === 'list' || intentRaw === 'supply' || intentRaw === 'browse' ? intentRaw : null;
   const status = profile?.verification_status;
 
   const [cartItems, gearBookings, serviceBookings, ubunyeChats] = await Promise.all([
