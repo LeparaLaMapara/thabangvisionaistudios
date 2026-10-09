@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useEffect, useState } from 'react';
+import { Suspense, useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { motion } from 'framer-motion';
@@ -14,6 +14,7 @@ import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import ServiceBookingsList from './ServiceBookingsList';
 import type { EquipmentBooking, BookingStatus } from '@/types/booking';
 import { PaymentsOfflineNotice } from '@/components/booking/PaymentsOfflineNotice';
+import { CheckoutConfirmation, type OrderLineView } from './CheckoutConfirmation';
 
 const STATUS_VARIANT: Record<BookingStatus, 'default' | 'warning' | 'success' | 'info' | 'error'> = {
   pending: 'warning',
@@ -51,6 +52,20 @@ export default function BookingsPage() {
     }).finally(() => setLoading(false));
   }, []);
 
+  // After a gear checkout: show the gear tab, and re-read while the payment is confirmed.
+  const showEquipment = useCallback(() => {
+    setBookingType('equipment');
+    setActiveTab('upcoming');
+  }, []);
+  const refreshEquipment = useCallback(() => {
+    fetch('/api/bookings')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (Array.isArray(data)) setBookings(data);
+      })
+      .catch(() => undefined);
+  }, []);
+
   if (loading) {
     return <LoadingSpinner label="Loading bookings..." className="py-20" />;
   }
@@ -71,6 +86,11 @@ export default function BookingsPage() {
       <DashboardSubTabs tabs={ACTIVITY_TABS} />
       <Suspense fallback={null}>
         <PaymentsOfflineNotice />
+        <CheckoutConfirmation
+          bookings={bookings as unknown as OrderLineView[]}
+          onOrder={showEquipment}
+          onRefresh={refreshEquipment}
+        />
       </Suspense>
       <h2 className="text-lg font-display font-medium uppercase text-white mb-6">
         My Rentals

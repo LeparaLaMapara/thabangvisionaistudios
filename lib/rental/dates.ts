@@ -20,3 +20,32 @@ export function fromLocalYmd(value: string | null | undefined): Date | null {
   const date = new Date(y, m - 1, d);
   return date.getFullYear() === y && date.getMonth() === m - 1 && date.getDate() === d ? date : null;
 }
+
+/**
+ * The one date rule for a hire, shared by the gear page, the cart and the
+ * checkout: the return day comes after the pick-up day, and the hire is
+ * charged for the whole days in between (pick up 3 October, return
+ * 4 October = 1 day). The same count as checkout's daysBetween on
+ * YYYY-MM-DD dates.
+ */
+export function hireDays(start: Date, end: Date): number {
+  const a = Date.UTC(start.getFullYear(), start.getMonth(), start.getDate());
+  const b = Date.UTC(end.getFullYear(), end.getMonth(), end.getDate());
+  return Math.round((b - a) / 86_400_000);
+}
+
+export type HireRangeCheck =
+  | { ok: true; days: number }
+  | { ok: false; problem: 'incomplete' | 'same_day' | 'end_before_start' | 'too_long'; message: string };
+
+/** Whether a picked range is one the checkout will accept (dates only; notice and availability are separate). */
+export function checkHireRange(start: Date | null, end: Date | null, maxDays: number): HireRangeCheck {
+  if (!start || !end) return { ok: false, problem: 'incomplete', message: 'Choose a pick-up day, then a return day.' };
+  const days = hireDays(start, end);
+  if (days === 0) {
+    return { ok: false, problem: 'same_day', message: 'Choose a return day after the pick-up day. A one-day hire is returned the next day.' };
+  }
+  if (days < 0) return { ok: false, problem: 'end_before_start', message: 'The return day must come after the pick-up day.' };
+  if (days > maxDays) return { ok: false, problem: 'too_long', message: `A hire can be at most ${maxDays} days. Choose an earlier return day.` };
+  return { ok: true, days };
+}

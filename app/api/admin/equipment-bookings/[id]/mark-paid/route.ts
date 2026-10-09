@@ -6,6 +6,7 @@ import { createAdminClient } from '@/lib/supabase/server';
 import { manualReference, recordConfirmation } from '@/lib/payments/routing';
 import { loadNoticeBookings, sendGearNotice } from '@/lib/rental/notices';
 import { logEvent } from '@/lib/data/events';
+import { trackFunnel } from '@/lib/analytics/funnel';
 import { isMissingPipeline } from '@/lib/rental/repos';
 
 /**
@@ -33,7 +34,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const admin = createAdminClient();
   const { data: booking } = await admin
     .from('equipment_bookings')
-    .select('id, status, checkout_group_id, currency')
+    .select('id, user_id, status, checkout_group_id, currency')
     .eq('id', id)
     .maybeSingle();
   if (!booking) return NextResponse.json({ error: 'Booking not found' }, { status: 404 });
@@ -84,6 +85,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   });
 
   logEvent({ eventType: 'payment_complete', eventCategory: 'payment', userId: auth.user.id, metadata: { provider: 'manual', method, bookings: ids, amount } });
+  trackFunnel('payment_confirmed', { userId: (booking as { user_id?: string | null }).user_id ?? null, meta: { groupId: booking.checkout_group_id ?? id, source: 'manual', code: method } });
   await sendGearNotice('confirmed', await loadNoticeBookings(ids));
 
   return NextResponse.json({ ok: true, confirmed: ids.length, reference });

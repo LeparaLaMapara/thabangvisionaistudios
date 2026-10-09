@@ -5,6 +5,7 @@ import { requireAdmin } from '@/lib/auth';
 import { createAdminClient } from '@/lib/supabase/server';
 import { AGREEMENT_VERSION, handoverAgreement } from '@/lib/rental/agreement';
 import { logEvent } from '@/lib/data/events';
+import { trackFunnel } from '@/lib/analytics/funnel';
 import { isMissingPipeline, transitionBookings } from '@/lib/rental/repos';
 import { buildNotices } from '@/lib/core/rental/notifications';
 import { dispatchOutbox } from '@/lib/rental/notify';
@@ -215,6 +216,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   }
 
   logEvent({ eventType: 'gear_handed_over', eventCategory: 'booking', userId: booking.user_id, metadata: { bookingId: id, by: auth.user.id } });
+  trackFunnel('rental_collected', { userId: booking.user_id, meta: { bookingId: id } });
   await dispatchOutbox(10).catch(() => undefined);
   return NextResponse.json({ ok: true });
 }

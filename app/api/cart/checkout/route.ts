@@ -22,6 +22,7 @@ import { paymentReference } from '@/lib/payments/eft';
 import { loadNoticeBookings, sendGearNotice } from '@/lib/rental/notices';
 import { recordConsent, requiredConsents } from '@/lib/consent';
 import { clientIp } from '@/lib/http/clientIp';
+import { trackFunnel } from '@/lib/analytics/funnel';
 
 function daysBetween(start: string, end: string): number {
   return Math.ceil(
@@ -93,8 +94,14 @@ export async function POST(request: NextRequest) {
     .single();
 
   if (profile?.verification_status !== 'verified') {
+    const pending = profile?.verification_status === 'pending';
     return NextResponse.json(
-      { error: 'Identity verification is required to rent equipment.' },
+      {
+        error: pending
+          ? 'Your ID check is being reviewed. You can pay once it is approved.'
+          : 'Identity verification is required to rent equipment.',
+        code: pending ? 'ID_PENDING' : 'ID_REQUIRED',
+      },
       { status: 403 },
     );
   }
@@ -137,27 +144,13 @@ export async function POST(request: NextRequest) {
   };
 
   // The Terms, Privacy Policy and rental agreement must be accepted for every
-  // order, and the acceptance is recorded server-side against the current
-  // document versions (public.consent_records, migration 068). A ticked box in
-  // the browser alone is not evidence, so the order stops if the record fails.
+  // order. The acceptance is recorded server-side further down, once the order
+  // has passed the date, availability and eligibility checks: an order that
+  // is refused should not leave a consent record behind.
   if (acceptTerms !== true) {
     return NextResponse.json(
       { error: 'Please accept the Terms, Privacy Policy and rental agreement.', code: 'CONSENT_REQUIRED' },
       { status: 400 },
-    );
-  }
-  const consent = await recordConsent(supabase, {
-    userId: user.id,
-    purposes: requiredConsents('checkout'),
-    source: 'checkout',
-    ip: clientIp(request.headers),
-    userAgent: request.headers.get('user-agent'),
-  });
-  if (!consent.ok) {
-    console.error('[checkout] consent not recorded');
-    return NextResponse.json(
-      { error: 'Could not record your acceptance. Please try again.' },
-      { status: 503 },
     );
   }
 
@@ -333,6 +326,25 @@ export async function POST(request: NextRequest) {
   if (!eligibility.ok) {
     logEvent({ eventType: 'booking_blocked', eventCategory: 'booking', userId: user.id, metadata: { reason: eligibility.code, kind: 'gear', source: 'cart', tier: eligibility.assessment.tier.id, exposureCents: eligibility.exposureCents } });
     return NextResponse.json({ error: eligibility.message, code: eligibility.code, tier: eligibility.assessment.tier.id }, { status: 403 });
+  }
+
+  // Recorded server-side against the current document versions
+  // (public.consent_records, migration 068) before anything is reserved or
+  // charged. A ticked box in the browser alone is not evidence, so the order
+  // stops if the record fails.
+  const consent = await recordConsent(supabase, {
+    userId: user.id,
+    purposes: requiredConsents('checkout'),
+    source: 'checkout',
+    ip: clientIp(request.headers),
+    userAgent: request.headers.get('user-agent'),
+  });
+  if (!consent.ok) {
+    console.error('[checkout] consent not recorded');
+    return NextResponse.json(
+      { error: 'Could not record your acceptance. Please try again.' },
+      { status: 503 },
+    );
   }
 
   // Calculate pricing
@@ -538,7 +550,9 @@ export async function POST(request: NextRequest) {
       itemDescription: `${itemDescription} — ${dateLabel}`,
       email: user.email ?? undefined,
       returnUrl: `/dashboard/bookings?checkout=${checkoutGroupId}&payment=success`,
-      cancelUrl: `/dashboard/cart?payment=cancelled`,
+      // Back to the cart, which releases this unpaid hold and puts the items
+      // back (POST /api/cart/cancel), so the customer can try again.
+      cancelUrl: `/dashboard/cart?payment=cancelled&order=${checkoutGroupId}`,
       metadata: {
         customStr1: 'cart_checkout',
         customStr2: user.id,
@@ -592,6 +606,15 @@ export async function POST(request: NextRequest) {
     eventCategory: 'booking',
     userId: user.id,
     metadata: { kind: 'gear', source: 'cart', checkoutGroupId, items: bookings.length, amountDueNow, plan, fulfilment, paymentLink: Boolean(paymentUrl) },
+  });
+
+  // Funnel (spec §9.6): ids and counts only.
+  trackFunnel('rental_reserved', { userId: user.id, meta: { groupId: checkoutGroupId, items: bookings.length, source: 'cart' } });
+  if (paymentUrl) trackFunnel('payment_started', { userId: user.id, meta: { groupId: checkoutGroupId, source: 'cart' } });
+  snapshots.forEach((snap, i) => {
+    if (snap.ownership === 'community' && snap.owner_id) {
+      trackFunnel('listing_first_booking', { userId: snap.owner_id, meta: { rentalId: items[i].rental_id, groupId: checkoutGroupId } });
+    }
   });
 
   const paymentsOffline = offline;

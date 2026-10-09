@@ -8,6 +8,7 @@ import { paidOnlineForLine } from '@/lib/rental/cancellation';
 import { depositSettlement, lateFeeFor } from '@/lib/rental/late-fee';
 import { loadNoticeBookings, sendGearNotice } from '@/lib/rental/notices';
 import { logEvent } from '@/lib/data/events';
+import { trackFunnel } from '@/lib/analytics/funnel';
 import { RENTAL_POLICY } from '@/lib/constants';
 import { fromCents, toCents } from '@/lib/core/pricing/money';
 import { planDepositRefund, refundObligationKey } from '@/lib/core/rental/refunds';
@@ -178,6 +179,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   });
   if (back.result === 'missing_pipeline') return legacyTakeBack(id, auth.user.id, body);
   if (back.result === 'conflict') return NextResponse.json({ error: 'The booking changed while you were working. Reload and try again.' }, { status: 409 });
+  if (back.result === 'moved') trackFunnel('rental_returned', { userId: b.user_id, meta: { bookingId: id, groupId: b.checkout_group_id } });
 
   // Step 2a: disputed return. Nothing is settled, the gear stays off sale (T24).
   // A registered serial that cannot be confirmed means it may not be our unit.
@@ -347,6 +349,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     notices,
   });
   if (done.result === 'conflict') return NextResponse.json({ error: 'The booking changed while you were working. Reload and try again.' }, { status: 409 });
+  // Deposit settled and, for community gear, the owner payout scheduled.
+  if (done.result === 'moved') trackFunnel('rental_settled', { userId: b.user_id, meta: { bookingId: id, groupId: b.checkout_group_id, code: outcome } });
 
   // Submit the card refund now; if the provider is slow or down, the daily
   // pipeline reconciles and retries it (never twice, T13).
@@ -441,6 +445,8 @@ async function legacyTakeBack(id: string, adminId: string, body: TakeBackBody): 
   if (error) return NextResponse.json({ error: 'Could not record the return.' }, { status: 500 });
 
   logEvent({ eventType: body.dispute ? 'return_disputed' : 'gear_returned', eventCategory: 'booking', userId: b.user_id, metadata: { bookingId: id, lateFee: late.fee, damageFee, release, refundMethod } });
+  trackFunnel('rental_returned', { userId: b.user_id, meta: { bookingId: id, groupId: b.checkout_group_id, source: 'legacy' } });
+  if (!body.dispute) trackFunnel('rental_settled', { userId: b.user_id, meta: { bookingId: id, groupId: b.checkout_group_id, source: 'legacy' } });
   if (!body.dispute) {
     await sendGearNotice('settled', await loadNoticeBookings([id]), { depositBack: release, refundMethod, kept });
   }
