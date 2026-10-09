@@ -64,6 +64,11 @@ export function nextServicePayoutStep(
     if (!p.payoutReference) return { step: 'escalate', why: 'payout marked processing with no reference on record' };
     const at = p.claimedAt ? new Date(p.claimedAt).getTime() : NaN;
     if (!Number.isNaN(at) && now.getTime() - at < claimTimeoutMs) return { step: 'wait', why: 'a payout attempt is in progress' };
+    // Same rule as below: under the old scheme an earlier retry may have paid
+    // under a reference we no longer hold. Looking up only this one and then
+    // sending under the stable reference could pay twice.
+    const legacy = legacyRetriesEscalation(p);
+    if (legacy) return legacy;
     return { step: 'lookup', reference: p.payoutReference };
   }
 
@@ -77,12 +82,19 @@ export function nextServicePayoutStep(
     }
     return { step: 'send', reference: stable };
   }
-  if (!isStableServicePayoutReference(p.payoutReference) && p.attempts > 0) {
-    // The old scheme replaced the reference on every retry: earlier attempts
-    // may exist under references we no longer hold.
-    return { step: 'escalate', why: `legacy payout reference ${p.payoutReference} after ${p.attempts} retries; earlier attempts cannot be checked automatically` };
-  }
+  const legacy = legacyRetriesEscalation(p);
+  if (legacy) return legacy;
   return { step: 'lookup', reference: p.payoutReference };
+}
+
+/**
+ * The old scheme replaced the reference on every retry, so after any retry
+ * earlier attempts may exist under references we no longer hold: a person
+ * decides. Applies whatever the payout status (pending, failed or processing).
+ */
+function legacyRetriesEscalation(p: ServicePayoutState): ServicePayoutStep | null {
+  if (!p.payoutReference || isStableServicePayoutReference(p.payoutReference) || p.attempts <= 0) return null;
+  return { step: 'escalate', why: `legacy payout reference ${p.payoutReference} after ${p.attempts} retries; earlier attempts cannot be checked automatically` };
 }
 
 export type AfterLookup =

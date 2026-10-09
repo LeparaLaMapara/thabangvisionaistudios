@@ -5,7 +5,7 @@ import { createClient, createAdminClient } from '@/lib/supabase/server';
 import { email as emailProvider } from '@/lib/email';
 import { STUDIO } from '@/lib/constants';
 import { checkRateLimit } from '@/lib/auth';
-import { refundPayment } from '@/lib/payments/routing';
+import { refundWithOutcome } from '@/lib/payments/routing';
 import { logEvent } from '@/lib/data/events';
 import { notifyClient } from '@/lib/bookings/notify-client';
 import {
@@ -31,7 +31,8 @@ const admin = () => createAdminClient();
  * Body: `{ action, reason? }`, or the older `{ status, reason? }`.
  *   creator: accept | decline                       (from 'paid')
  *   client:  approve_delivery | request_revision    (from 'delivered')
- *            cancel                                 (from 'paid' or 'accepted')
+ *            cancel                                 (from 'paid' or 'accepted',
+ *                                                    never after a delivery)
  *
  * The rules live in lib/core/services/fulfilment.ts. Approving a delivery
  * records the client's acceptance and schedules the creator payout for
@@ -54,11 +55,12 @@ interface StatusBookingRow {
   paystack_reference: string | null;
   created_at: string | null;
   delivered_at: string | null;
+  delivery_url: string | null;
   revisions_included?: number | null;
   revisions_used?: number | null;
 }
 
-const BASE = 'id, client_id, client_email, creator_id, project_category, status, total, creator_amount, reference, payment_status, shoot_date, paystack_reference, created_at, delivered_at';
+const BASE = 'id, client_id, client_email, creator_id, project_category, status, total, creator_amount, reference, payment_status, shoot_date, paystack_reference, created_at, delivered_at, delivery_url';
 const EXTRA = 'revisions_included, revisions_used';
 
 const sast = (iso: string): string =>
@@ -135,6 +137,7 @@ export async function PATCH(
       createdAt: booking.created_at,
       shootDate: booking.shoot_date,
       deliveredAt: booking.delivered_at,
+      deliveryUrl: booking.delivery_url,
       revisionsIncluded: booking.revisions_included ?? null,
       revisionsUsed: booking.revisions_used ?? null,
     },
@@ -207,22 +210,62 @@ export async function PATCH(
   });
 }
 
-type RefundOutcome = 'refunded' | 'failed' | 'manual_review' | null;
+/**
+ * refunded      the provider accepted the refund
+ * failed        the provider refused it: nothing moved, a person refunds by hand
+ * unknown       no clear answer: it may have gone through. A person CHECKS the
+ *               provider before refunding by hand, or the client is paid twice
+ * manual_review paid by EFT or cash: refunded by hand
+ */
+type RefundOutcome = 'refunded' | 'failed' | 'manual_review' | 'unknown' | null;
+
+/** Prefix on cancellation_refund_error for an unknown outcome (also used when 073 is not applied). */
+const UNKNOWN_REFUND_NOTE = 'OUTCOME UNKNOWN, check the payment provider before refunding by hand';
 
 async function settleRefund(id: string, booking: StatusBookingRow, decision: Extract<TransitionDecision, { ok: true }>): Promise<RefundOutcome> {
   if (!decision.refund || !booking.paystack_reference) return null;
-  const result = await refundPayment(booking.paystack_reference, decision.refund.amount);
-  const outcome: RefundOutcome = result.success ? 'refunded' : result.manual ? 'manual_review' : 'failed';
-  const full = decision.refund.amount >= Number(booking.total ?? 0);
-  await updateServiceBooking(admin(), id, null, {
-    cancellation_refund_status: outcome,
-    cancellation_refunded_at: result.success ? new Date().toISOString() : null,
-    cancellation_refund_error: result.success ? null : (result.error ?? 'Refund failed'),
-    ...(result.success && full ? { payment_status: 'refunded' } : {}),
-    updated_at: new Date().toISOString(),
+  const result = await refundWithOutcome({
+    reference: booking.paystack_reference,
+    amountRands: decision.refund.amount,
+    idempotencyKey: `service-${decision.action}:${id}`,
   });
-  if (!result.success) console.error('[service-bookings/status] refund not completed:', result.error);
+  const outcome: RefundOutcome =
+    result.outcome === 'refunded' ? 'refunded'
+      : result.outcome === 'manual' ? 'manual_review'
+        : result.outcome === 'unknown' ? 'unknown'
+          : 'failed';
+  const ok = result.outcome === 'refunded';
+  const full = decision.refund.amount >= Number(booking.total ?? 0);
+  const error = ok ? null : outcome === 'unknown' ? `${UNKNOWN_REFUND_NOTE}: ${result.message}` : result.message;
+  const patch: Record<string, unknown> = {
+    cancellation_refund_status: outcome,
+    cancellation_refunded_at: ok ? new Date().toISOString() : null,
+    cancellation_refund_error: error,
+    ...(ok && full ? { payment_status: 'refunded' } : {}),
+    updated_at: new Date().toISOString(),
+  };
+  const written = await updateServiceBooking(admin(), id, null, patch);
+  if (!written.ok && outcome === 'unknown' && /cancellation_refund_status/.test(written.error)) {
+    // Migration 073 not applied: 'unknown' is not allowed yet. 'pending' plus
+    // the note keeps it out of every automatic refund path all the same.
+    await updateServiceBooking(admin(), id, null, { ...patch, cancellation_refund_status: 'pending' });
+  } else if (!written.ok) {
+    console.error('[service-bookings/status] could not record refund outcome:', written.error);
+  }
+  if (!ok) console.error('[service-bookings/status] refund not completed:', outcome);
   return outcome;
+}
+
+/** Staff wording for a refund that did not complete automatically. */
+function staffRefundLine(outcome: RefundOutcome, amount: number | undefined, reference: string | null): string {
+  switch (outcome) {
+    case 'manual_review':
+      return `ACTION NEEDED: paid by EFT or cash. Refund R${amount} by hand.`;
+    case 'unknown':
+      return `ACTION NEEDED: REFUND OUTCOME UNKNOWN for R${amount}. The payment provider did not answer clearly, so the refund MAY already have gone through. CHECK the provider first (its refunds for payment reference ${reference ?? 'unknown'}, or the dashboard). Refund by hand ONLY if no refund is there, then record it.`;
+    default:
+      return `ACTION NEEDED: AUTOMATIC REFUND FAILED (the provider refused it, nothing was refunded). Refund R${amount} by hand.`;
+  }
 }
 
 async function sideEffects(p: {
@@ -265,7 +308,7 @@ async function sideEffects(p: {
 
 Reason: ${decision.patch.decline_reason ?? 'Not given'}
 Client: ${booking.client_email ?? 'unknown'}
-Refund: ${refundOutcome === 'refunded' ? `R${decision.refund?.amount} refunded automatically` : refundOutcome === 'manual_review' ? 'paid by EFT or cash: REFUND BY HAND' : refundOutcome === 'failed' ? `AUTOMATIC REFUND FAILED: refund R${decision.refund?.amount} by hand` : 'nothing was charged'}
+Refund: ${refundOutcome === 'refunded' ? `R${decision.refund?.amount} refunded automatically` : refundOutcome ? staffRefundLine(refundOutcome, decision.refund?.amount, booking.paystack_reference) : 'nothing was charged'}
 
 Offer the client another creator (they can rebook) in ${baseUrl}/admin/service-bookings`,
       });
@@ -322,8 +365,7 @@ Offer the client another creator (they can rebook) in ${baseUrl}/admin/service-b
         switch (decision.refundStatus) {
           case 'pending':
             if (refundOutcome === 'refunded') return `Refunded automatically: R${q?.totalRefund} (${q?.refundPercent}% of the booking, ${q?.hoursBefore}h notice).`;
-            if (refundOutcome === 'manual_review') return `ACTION NEEDED: paid by EFT or cash. Refund R${q?.totalRefund} by hand.`;
-            return `ACTION NEEDED: automatic refund of R${q?.totalRefund} FAILED. Refund this client manually.`;
+            return staffRefundLine(refundOutcome ?? 'failed', q?.totalRefund, booking.paystack_reference);
           case 'manual_review':
             return 'ACTION NEEDED: no shoot date on record, so notice could not be measured. Assess this refund by hand.';
           case 'not_required':

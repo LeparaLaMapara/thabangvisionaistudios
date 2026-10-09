@@ -374,27 +374,61 @@ export interface ServicePayoutRunSummary {
   held: { reference: string; why: string }[];
 }
 
+/** Rows read from the payout queue per page. */
+const PAYOUT_QUEUE_PAGE = 50;
+/** Most rows one run reads. Past this a person is told; the rest wait a day. */
+const PAYOUT_QUEUE_MAX_ROWS = 1000;
+
+type PayoutQueueRow = { id: string; reference: string; status: string; payout_status: string | null; completed_at: string | null; payout_due_at?: string | null };
+
 /**
  * Send every creator payout that is due and allowed, and reconcile every one
  * already with the provider. Runs from the daily maintenance cron. Bookings
  * that are not yet due are skipped without asking the provider anything.
+ *
+ * The whole queue is read (page by page, up to PAYOUT_QUEUE_MAX_ROWS) before
+ * anything is processed. Reading only the oldest page let bookings that are
+ * held for good (no verified creator or bank account) or waiting for a person
+ * (escalated) fill it every day, so newer payouts were never reached and never
+ * reported. Every held and escalated booking is listed in the summary, which
+ * the cron mails to staff.
  */
-export async function runServicePayouts(deps: Partial<PayoutDeps> = {}, limit = 50): Promise<ServicePayoutRunSummary> {
+export async function runServicePayouts(deps: Partial<PayoutDeps> = {}, pageSize = PAYOUT_QUEUE_PAGE, maxRows = PAYOUT_QUEUE_MAX_ROWS): Promise<ServicePayoutRunSummary> {
   const d: PayoutDeps = withDefaults(deps);
   const summary: ServicePayoutRunSummary = { considered: 0, notDue: 0, outcomes: {}, attention: [], held: [] };
 
-  const select = (columns: string) => d.db
+  const select = (columns: string, from: number, to: number) => d.db
     .from('bookings')
     .select(columns)
     .not('creator_id', 'is', null)
     .or('payout_status.eq.processing,and(status.eq.completed,payment_status.eq.paid,or(payout_status.is.null,payout_status.in.(pending,failed)))')
     .order('completed_at', { ascending: true, nullsFirst: false })
-    .limit(limit);
-  let res = await select('id, reference, status, payout_status, completed_at, payout_due_at');
-  if (res.error && /payout_due_at/.test(res.error.message)) res = await select('id, reference, status, payout_status, completed_at');
-  if (res.error) throw new Error(`service payout queue: ${res.error.message}`);
+    .order('id', { ascending: true })
+    .range(from, to);
 
-  const rows = (res.data ?? []) as unknown as { id: string; reference: string; status: string; payout_status: string | null; completed_at: string | null; payout_due_at?: string | null }[];
+  const rows: PayoutQueueRow[] = [];
+  let withDue = true;
+  let truncated = false;
+  for (let from = 0; ; from += pageSize) {
+    const to = Math.min(from + pageSize, maxRows) - 1;
+    let res = await select(withDue ? 'id, reference, status, payout_status, completed_at, payout_due_at' : 'id, reference, status, payout_status, completed_at', from, to);
+    if (withDue && res.error && /payout_due_at/.test(res.error.message)) {
+      withDue = false;
+      res = await select('id, reference, status, payout_status, completed_at', from, to);
+    }
+    if (res.error) throw new Error(`service payout queue: ${res.error.message}`);
+    const page = (res.data ?? []) as unknown as PayoutQueueRow[];
+    rows.push(...page);
+    if (page.length < to - from + 1) break;
+    if (rows.length >= maxRows) {
+      truncated = true;
+      break;
+    }
+  }
+  if (truncated) {
+    summary.attention.push({ reference: 'payout queue', why: `${maxRows} or more bookings are in the payout queue; only the oldest ${maxRows} were checked this run` });
+  }
+
   for (const row of rows) {
     if (row.payout_status !== 'processing') {
       const due = row.payout_due_at ? new Date(row.payout_due_at) : row.completed_at ? payoutDueAt(row.completed_at) : null;

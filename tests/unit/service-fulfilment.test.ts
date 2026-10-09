@@ -6,7 +6,9 @@ import {
   canRaiseServiceDispute,
   checkServicePayoutEligibility,
   decideServiceTransition,
+  hasBeenDelivered,
   payoutDueAt,
+  refundAlreadyStarted,
   payoutTimingText,
   revisionPolicyText,
   revisionsAllowed,
@@ -168,6 +170,49 @@ describe('client cancellation reuses the published tiers', () => {
   it('cannot cancel once delivered: approve, ask for a revision or dispute instead', () => {
     expect(decide('cancel', 'client', { status: 'delivered' })).toMatchObject({ ok: false, code: 'wrong_status' });
   });
+
+  it('cannot cancel after a revision request sent a delivered booking back to accepted', () => {
+    // request_revision: delivered -> accepted, clears delivered_at, uses a round.
+    const revised = decide('request_revision', 'client', { status: 'delivered', deliveredAt: iso(-H), deliveryUrl: 'https://example.invalid/w' }, { reason: 'Brighter' });
+    expect(revised).toMatchObject({ ok: true, to: 'accepted', patch: { delivered_at: null, revisions_used: 1 } });
+    // Shoot date far ahead: before the fix this refunded 100% automatically.
+    const r = decide('cancel', 'client', { status: 'accepted', deliveredAt: null, revisionsUsed: 1, deliveryUrl: 'https://example.invalid/w', shootDate: '2026-12-20' });
+    expect(r).toMatchObject({ ok: false, code: 'already_delivered' });
+  });
+
+  it('any one durable delivery signal is enough to refuse the cancellation', () => {
+    for (const over of [
+      { deliveryUrl: 'https://example.invalid/w' },
+      { revisionsUsed: 1 },
+      { deliveredAt: iso(-H) },
+    ] satisfies Partial<ServiceBookingFacts>[]) {
+      expect(decide('cancel', 'client', { status: 'accepted', ...over })).toMatchObject({ ok: false, code: 'already_delivered' });
+    }
+  });
+
+  it('inside the cooling-off period too: delivered work is not cancelled for a refund', () => {
+    const r = decide('cancel', 'client', { status: 'accepted', createdAt: iso(-2 * 24 * H), revisionsUsed: 1, shootDate: null });
+    expect(r).toMatchObject({ ok: false, code: 'already_delivered' });
+  });
+
+  it('a booking never delivered can still be cancelled from accepted', () => {
+    expect(decide('cancel', 'client', { status: 'accepted', deliveryUrl: null, revisionsUsed: 0 })).toMatchObject({ ok: true, to: 'cancelled' });
+    expect(decide('cancel', 'client', { status: 'accepted', deliveryUrl: '  ', revisionsUsed: null })).toMatchObject({ ok: true, to: 'cancelled' });
+  });
+});
+
+describe('hasBeenDelivered / refundAlreadyStarted', () => {
+  it('reads the durable delivery signals', () => {
+    expect(hasBeenDelivered({ deliveredAt: null, deliveryUrl: null, revisionsUsed: 0 })).toBe(false);
+    expect(hasBeenDelivered({ deliveredAt: null, revisionsUsed: null })).toBe(false);
+    expect(hasBeenDelivered({ deliveredAt: null, deliveryUrl: 'https://x.invalid', revisionsUsed: 0 })).toBe(true);
+    expect(hasBeenDelivered({ deliveredAt: null, deliveryUrl: null, revisionsUsed: 2 })).toBe(true);
+  });
+
+  it('a refund recorded as made, possibly made or about to be made blocks another one', () => {
+    for (const s of ['refunded', 'unknown', 'pending']) expect(refundAlreadyStarted(s)).toBe(true);
+    for (const s of ['failed', 'manual_review', 'not_required', null, undefined]) expect(refundAlreadyStarted(s)).toBe(false);
+  });
 });
 
 describe('reading a request', () => {
@@ -293,7 +338,16 @@ describe('stable payout references', () => {
   it('a legacy reference is looked up; after retries under the old scheme a person decides', () => {
     expect(nextServicePayoutStep(state({ payoutStatus: 'failed', payoutReference: 'payout-BK-abc-lzx1', attempts: 0 }), NOW, opts)).toEqual({ step: 'lookup', reference: 'payout-BK-abc-lzx1' });
     expect(nextServicePayoutStep(state({ payoutStatus: 'failed', payoutReference: 'payout-BK-abc-lzx1', attempts: 1 }), NOW, opts)).toMatchObject({ step: 'escalate' });
-    expect(nextServicePayoutStep(state({ payoutStatus: 'processing', payoutReference: 'payout-BK-abc-lzx1', claimedAt: iso(-48 * H), attempts: 2 }), NOW, opts)).toEqual({ step: 'lookup', reference: 'payout-BK-abc-lzx1' });
+    // Same rule while 'processing': an earlier retry may have paid under a
+    // reference we no longer hold. (Previously this looked up only the last
+    // reference and, if not found, sent under the stable one.)
+    expect(nextServicePayoutStep(state({ payoutStatus: 'processing', payoutReference: 'payout-BK-abc-lzx1', claimedAt: iso(-48 * H), attempts: 2 }), NOW, opts)).toMatchObject({ step: 'escalate' });
+    // No retries under the old scheme: the one reference is all there is, so a lookup is safe.
+    expect(nextServicePayoutStep(state({ payoutStatus: 'processing', payoutReference: 'payout-BK-abc-lzx1', claimedAt: iso(-48 * H), attempts: 0 }), NOW, opts)).toEqual({ step: 'lookup', reference: 'payout-BK-abc-lzx1' });
+    // A claim still in progress is left alone either way.
+    expect(nextServicePayoutStep(state({ payoutStatus: 'processing', payoutReference: 'payout-BK-abc-lzx1', claimedAt: iso(-60_000), attempts: 2 }), NOW, opts)).toMatchObject({ step: 'wait' });
+    // The stable reference is never escalated for retries alone.
+    expect(nextServicePayoutStep(state({ payoutStatus: 'processing', payoutReference: servicePayoutReference(BOOKING_ID), claimedAt: iso(-48 * H), attempts: 2 }), NOW, opts)).toMatchObject({ step: 'lookup' });
   });
 
   it('stops after the attempt limit and when already paid', () => {

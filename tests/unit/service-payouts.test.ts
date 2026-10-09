@@ -21,6 +21,9 @@ function fakeDb(tables: Record<string, Row[]>, opts: { failDisputes?: boolean } 
     let op: 'select' | 'update' | 'insert' = 'select';
     let values: Row = {};
     let head = false;
+    // limit / range slice the result like PostgREST does, so a queue that
+    // reads only one page can be caught leaving rows behind.
+    let window: [number, number] | null = null;
     const filters: [string, string, unknown][] = [];
     const rows = (): Row[] => (tables[table] ??= []);
     const match = (r: Row): boolean => filters.every(([kind, k, v]) => {
@@ -42,7 +45,8 @@ function fakeDb(tables: Record<string, Row[]>, opts: { failDisputes?: boolean } 
         writes.push({ table, op, values, filters: [...filters] });
         hit.forEach((r) => Object.assign(r, values));
       }
-      return { data: head ? null : hit.map((r) => ({ ...r })), error: null, count: hit.length };
+      const page = window ? hit.slice(window[0], window[1] + 1) : hit;
+      return { data: head ? null : page.map((r) => ({ ...r })), error: null, count: hit.length };
     };
     const b = {
       select: (_c?: string, o?: { head?: boolean }) => { head = Boolean(o?.head); return b; },
@@ -55,7 +59,8 @@ function fakeDb(tables: Record<string, Row[]>, opts: { failDisputes?: boolean } 
       not: () => b,
       or: () => b,
       order: () => b,
-      limit: () => b,
+      limit: (n: number) => { window = [0, n - 1]; return b; },
+      range: (a: number, z: number) => { window = [a, z]; return b; },
       maybeSingle: async () => { const r = run(); return { data: (r.data as Row[] | null)?.[0] ?? null, error: r.error }; },
       single: async () => { const r = run(); return { data: (r.data as Row[] | null)?.[0] ?? null, error: r.error }; },
       then: (res: (v: unknown) => unknown, rej?: (e: unknown) => unknown) => Promise.resolve(run()).then(res, rej),
@@ -225,6 +230,18 @@ describe('reconcile before any resend', () => {
     expect(r).toMatchObject({ outcome: 'sent', payoutReference: STABLE });
   });
 
+  it('the same holds for a stale "processing" payout under an old reference after retries', async () => {
+    // Before: looked up only this reference, found nothing, and sent under the
+    // stable one, while an earlier attempt under another reference may have paid.
+    const w = world({ payout_status: 'processing', payout_reference: 'payout-BK-test-lzx9', payout_retry_count: 2, payout_claimed_at: new Date(NOW.getTime() - 48 * H).toISOString() });
+    const t = port({ ok: true, value: null });
+    const r = await triggerCreatorPayout({ bookingId: ID }, { db: w.db, transfers: t.p, verifyCharge: confirmed, now: NOW });
+    expect(r.outcome).toBe('escalated');
+    expect(t.verifyTransfer).not.toHaveBeenCalled();
+    expect(t.transfer).not.toHaveBeenCalled();
+    expect(String(w.tables.bookings[0].payout_last_error)).toMatch(/needs a person/);
+  });
+
   it('an old reference after retries under the old scheme goes to a person without any provider call', async () => {
     const w = world({ payout_status: 'failed', payout_reference: 'payout-BK-test-lzx9', payout_retry_count: 2 });
     const t = port({ ok: true, value: null });
@@ -268,5 +285,55 @@ describe('the daily run', () => {
     expect(s).toMatchObject({ considered: 1, notDue: 1, outcomes: { sent: 1 } });
     expect(t.transfer).toHaveBeenCalledTimes(1);
     expect(confirmed).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('the daily run reaches every due payout (the queue used to stall)', () => {
+  const idN = (n: number) => `9b2f1c3e-0000-4000-8000-${String(n).padStart(12, '0')}`;
+  const ago = (hours: number) => new Date(NOW.getTime() - hours * H).toISOString();
+
+  function queue() {
+    const rows: Row[] = [];
+    // Oldest first: five held for good (creator never verified)...
+    for (let i = 0; i < 5; i++) {
+      rows.push(booking({ id: idN(100 + i), reference: `BK-held-${i}`, creator_id: 'creator-unverified', completed_at: ago(500 - i), payout_due_at: ago(400 - i) }));
+    }
+    // ...two waiting for a person (old-scheme reference after retries)...
+    for (let i = 0; i < 2; i++) {
+      rows.push(booking({ id: idN(200 + i), reference: `BK-stuck-${i}`, payout_status: 'failed', payout_reference: `payout-BK-stuck-${i}-x`, payout_retry_count: 2, completed_at: ago(300 - i), payout_due_at: ago(200 - i) }));
+    }
+    // ...and the newest due one, which a single page of the oldest rows never reached.
+    rows.push(booking({ id: idN(300), reference: 'BK-due', completed_at: ago(80), payout_due_at: ago(8) }));
+    return fakeDb({
+      bookings: rows,
+      profiles: [{ id: 'creator-1', verification_status: 'verified' }, { id: 'creator-unverified', verification_status: 'pending' }],
+      banking_details: [
+        { user_id: 'creator-1', is_verified: true, paystack_recipient_code: 'RCP_1' },
+        { user_id: 'creator-unverified', is_verified: true, paystack_recipient_code: 'RCP_2' },
+      ],
+      disputes: [],
+      notifications: [],
+      service_booking_events: [],
+    });
+  }
+
+  it('pays the newer due booking even when held and escalated ones fill the first pages, and reports them all', async () => {
+    const w = queue();
+    const t = port({ ok: true, value: null });
+    const s = await runServicePayouts({ db: w.db, transfers: t.p, verifyCharge: confirmed, now: NOW }, 3);
+    expect(t.transfer).toHaveBeenCalledTimes(1);
+    expect(t.transfer).toHaveBeenCalledWith(expect.objectContaining({ reference: servicePayoutReference(idN(300)) }));
+    expect(s.outcomes).toMatchObject({ sent: 1, blocked: 5, escalated: 2 });
+    expect(s.held.map((h) => h.reference)).toEqual(['BK-held-0', 'BK-held-1', 'BK-held-2', 'BK-held-3', 'BK-held-4']);
+    expect(s.held[0].why).toMatch(/ID check/);
+    expect(s.attention.map((a) => a.reference)).toEqual(['BK-stuck-0', 'BK-stuck-1']);
+  });
+
+  it('says so when the queue is longer than one run reads', async () => {
+    const w = queue();
+    const t = port({ ok: true, value: null });
+    const s = await runServicePayouts({ db: w.db, transfers: t.p, verifyCharge: confirmed, now: NOW }, 3, 6);
+    expect(s.considered).toBe(6);
+    expect(s.attention.some((a) => a.reference === 'payout queue' && /6 or more/.test(a.why))).toBe(true);
   });
 });

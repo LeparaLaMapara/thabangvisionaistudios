@@ -13,7 +13,8 @@ and work, e.g. a portrait shoot). Gear hire has separate rules
 | `app/api/service-bookings/[id]/status` | Accept, decline, approve, request revision, cancel |
 | `app/api/service-bookings/[id]/deliver` | Creator delivers (link required) |
 | `app/api/cron/daily-maintenance` | Auto-approval, payouts, alerts |
-| `lib/migrations/073-service-fulfilment.sql` | Columns, `declined` status, history table |
+| `lib/payments/routing.ts` (`refundWithOutcome`) | Refunds with a classified result: refunded / rejected / unknown / manual |
+| `lib/migrations/073-service-fulfilment.sql` | Columns, `declined` status, history table, `unknown` refund outcome |
 
 ## The journey
 
@@ -38,7 +39,7 @@ pending ──client pays──▶ paid ──creator accepts──▶ accepted 
 | approve_delivery | client | delivered | completed | Records `accepted_by_client_at`; schedules the payout; pays nothing now |
 | request_revision | client | delivered | accepted | Needs a reason; at most `revisions_included` times |
 | auto_approve | system | delivered | completed | After `autoApproveDeliveryAfterDays` (7) with no answer |
-| cancel | client | paid, accepted | cancelled | Refund by the published tiers |
+| cancel | client | paid, accepted | cancelled | Refund by the published tiers. Refused (`already_delivered`) once the work has been delivered, even after a revision request put it back to `accepted` |
 
 Anything else is refused with a 400. Every write is a compare-and-set on the
 status that was read; a lost race returns 409. Each change is appended to
@@ -67,9 +68,49 @@ record these; the default allowance applies to them.
   (`STUDIO.booking.cancellationTiers`, 7-day cooling-off) decide the refund.
   No shoot date on record means a person assesses it.
 - **After delivery** the client cannot cancel: they approve, ask for a
-  revision, or raise a problem.
+  revision, or raise a problem. This holds after a revision request too,
+  although that moves the booking back to `accepted`: once the work has been
+  delivered at least once, cancel is refused with code `already_delivered`
+  (`hasBeenDelivered`: a `delivery_url` on record, which a revision request
+  does not clear, or `revisions_used > 0`, or a current `delivered_at`). The
+  client dashboard hides the Cancel button in that case. Before this, such a
+  booking could be cancelled for up to a 100% automatic refund (shoot date far
+  off, or inside the cooling-off period).
 - A creator who must withdraw after accepting contacts the team (admin
-  cancel refunds in full).
+  cancel refunds in full, unless a refund is already recorded: see below).
+
+### Refund outcomes
+
+Refunds on decline, client cancel and admin cancel go through
+`refundWithOutcome`, which records one of these in
+`bookings.cancellation_refund_status`:
+
+| Outcome | Meaning | Staff told |
+| --- | --- | --- |
+| `refunded` | The provider accepted the refund | Nothing to do |
+| `failed` | The provider refused it (4xx): nothing moved | Refund by hand |
+| `unknown` | No clear answer (timeout, network error, 5xx): it **may** have gone through | **Check** the provider (refunds for the payment reference, or the dashboard) and refund by hand only if none is there |
+| `manual_review` | Paid by EFT or cash, or no shoot date to measure notice | Refund / assess by hand |
+
+`payment_status` becomes `refunded` only on a confirmed full refund, so after an
+`unknown` it stays `paid`. An admin cancel therefore checks
+`cancellation_refund_status` too: it sends **no** automatic refund when a refund
+is recorded as `refunded`, `unknown` or `pending` (`refundAlreadyStarted`), and
+answers `refund_status: 'already_started'`. This also covers a partial refund
+that succeeded (payment still `paid`). An admin cancel records its own refund
+outcome the same way, so cancelling twice does not refund twice, and emails the
+team on `unknown` or `failed`.
+
+Before migration 073 the database does not allow `unknown`: it is stored as
+`pending` with "OUTCOME UNKNOWN, check the payment provider…" in
+`cancellation_refund_error`, which blocks a repeat automatic refund the same way.
+
+Yoco's refund call answers only success or failure, so a Yoco failure is
+treated as `unknown`.
+
+The admin dispute resolution route (`app/api/admin/disputes/[id]`) still
+refunds service bookings through the older `refundPayment` without these
+checks; it is outside this change.
 
 ## Disputes
 
@@ -119,8 +160,18 @@ does not enforce the window yet (it is outside this change).
 - A reversal after a recorded success re-opens the booking (`completed`, payout
   `failed`) and alerts the team.
 
-The daily run emails the team a digest of payouts that need a person and those
-held by a rule.
+The daily run reads the **whole** payout queue (pages of 50, up to 1000
+bookings) before processing it. It used to read only the 50 oldest rows, so
+bookings held for good (creator not verified, no validated account) or waiting
+for a person could fill that page every day: newer due payouts were never sent
+and never reported. Now every due payout is reached, and the team's daily
+digest lists every booking that needs a person and every one held by a rule.
+If the queue ever exceeds 1000 rows, the digest says so.
+
+A stale `processing` payout under an old-scheme reference with retries
+(`payout_retry_count > 0`) also goes to a person; it used to be looked up and,
+when that one reference was not found, re-sent under the stable reference,
+although an earlier attempt under a reference we no longer hold may have paid.
 
 ## Before migration 073 is applied
 
@@ -137,6 +188,9 @@ Apply 073 on dev first, run `073-service-fulfilment.test.sql`, then production.
   confirming in test mode (see `docs/payments/`).
 - Migration 073 was checked on a local Postgres stub with a stand-in `bookings`
   table, not on the Supabase dev or production projects.
-- The refund path (`refundPayment`) is the existing one; full refunds on decline
-  were tested with a fake only.
+- The refund path (`refundWithOutcome` over the Paystack payment adapter) was
+  tested with fakes only. Paystack's refund response fields and its answer to
+  a refund it will not make still need confirming in test mode.
+- The `unknown` refund outcome in 073 was not run on any Postgres (no local
+  server could be started for the review fixes).
 - Email and notification wording has not been reviewed by the founder.

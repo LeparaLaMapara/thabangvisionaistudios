@@ -5,8 +5,8 @@ import { requireAdmin, rateLimitAdmin } from '@/lib/auth';
 import { createAdminClient } from '@/lib/supabase/server';
 import { email as emailProvider } from '@/lib/email';
 import { STUDIO } from '@/lib/constants';
-import { refundPayment } from '@/lib/payments/routing';
-import { payoutDueAt } from '@/lib/core/services/fulfilment';
+import { refundWithOutcome } from '@/lib/payments/routing';
+import { payoutDueAt, refundAlreadyStarted } from '@/lib/core/services/fulfilment';
 import { mentionsFulfilmentSchema, recordServiceBookingEvent, withoutFulfilmentColumns } from '@/lib/supabase/queries/service-bookings';
 
 // ─── PATCH — Admin update booking (assign creator, cancel, add notes) ───────
@@ -29,7 +29,7 @@ export async function PATCH(
   // Fetch booking
   const { data: booking, error: fetchError } = await supabase
     .from('bookings')
-    .select('id, reference, client_id, client_email, creator_id, project_category, status, total, payment_status, paystack_reference')
+    .select('id, reference, client_id, client_email, creator_id, project_category, status, total, payment_status, paystack_reference, cancellation_refund_status')
     .eq('id', id)
     .single();
 
@@ -40,6 +40,8 @@ export async function PATCH(
   const update: Record<string, unknown> = {
     updated_at: new Date().toISOString(),
   };
+  /** What happened to the refund on an admin cancel, for the response. */
+  let refundResult: 'refunded' | 'failed' | 'unknown' | 'manual_review' | 'already_started' | null = null;
 
   // Assign creator
   if (creator_id) {
@@ -64,17 +66,36 @@ export async function PATCH(
       update.cancelled_at = new Date().toISOString();
       update.cancellation_reason = cancellation_reason || 'Cancelled by admin';
 
-      // Trigger refund if paid
+      // Refund the full total if paid, unless a refund is already recorded as
+      // made or possibly made (a client cancellation, a creator decline, or an
+      // earlier admin cancel). Refunding again could pay the client twice.
       if (booking.payment_status === 'paid' && booking.paystack_reference) {
-        try {
-          const result = await refundPayment(booking.paystack_reference);
-          if (result.success) {
+        if (refundAlreadyStarted(booking.cancellation_refund_status)) {
+          refundResult = 'already_started';
+        } else {
+          const amount = Math.round(Number(booking.total ?? 0));
+          const result = await refundWithOutcome({
+            reference: booking.paystack_reference,
+            amountRands: amount,
+            idempotencyKey: `service-admin-cancel:${id}`,
+          });
+          refundResult = result.outcome === 'refunded' ? 'refunded'
+            : result.outcome === 'unknown' ? 'unknown'
+              : result.outcome === 'manual' ? 'manual_review'
+                : 'failed';
+          update.cancellation_refund_status = refundResult;
+          update.cancellation_refund_amount = amount;
+          update.cancellation_refund_percent = 100;
+          if (result.outcome === 'refunded') {
             update.payment_status = 'refunded';
+            update.cancellation_refunded_at = new Date().toISOString();
+            update.cancellation_refund_error = null;
           } else {
-            console.error('[admin/service-bookings] Refund failed:', result.error);
+            update.cancellation_refund_error = result.outcome === 'unknown'
+              ? `OUTCOME UNKNOWN, check the payment provider before refunding by hand: ${result.message}`
+              : result.message;
+            console.error('[admin/service-bookings] refund not completed:', refundResult);
           }
-        } catch (err) {
-          console.error('[admin/service-bookings] Refund error:', err);
         }
       }
 
@@ -116,6 +137,15 @@ export async function PATCH(
     .from('bookings')
     .update(update)
     .eq('id', id);
+  // Before migration 073 'unknown' is not an allowed refund status: 'pending'
+  // (with the note in cancellation_refund_error) blocks a repeat refund too.
+  if (updateError && update.cancellation_refund_status === 'unknown' && /cancellation_refund_status/.test(updateError.message)) {
+    update.cancellation_refund_status = 'pending';
+    ({ error: updateError } = await supabase
+      .from('bookings')
+      .update(update)
+      .eq('id', id));
+  }
   // Before migration 073 the payout timing columns do not exist yet.
   if (updateError && mentionsFulfilmentSchema(updateError.message)) {
     ({ error: updateError } = await supabase
@@ -126,7 +156,30 @@ export async function PATCH(
 
   if (updateError) {
     console.error('[admin/service-bookings] Update error:', updateError.message);
-    return NextResponse.json({ error: 'Failed to update booking' }, { status: 500 });
+    if (refundResult === 'refunded' || refundResult === 'unknown') {
+      // Money moved (or may have) but could not be recorded: say so loudly so
+      // nobody cancels again and refunds twice.
+      try {
+        await emailProvider.sendEmail({
+          to: STUDIO.bookingEmail,
+          subject: `[Action Required] Refund not recorded — ${booking.reference}`,
+          text: `An admin cancelled booking ${booking.reference} and a refund of R${booking.total} was ${refundResult === 'refunded' ? 'sent' : 'attempted with no clear answer (it may have gone through)'}, but the booking could not be updated.\n\nCheck the payment provider for reference ${booking.paystack_reference} and record the refund on the booking by hand. Do NOT cancel it again from the admin panel until it is recorded.`,
+        });
+      } catch { /* logged above */ }
+    }
+    return NextResponse.json({ error: 'Failed to update booking', refund_status: refundResult }, { status: 500 });
+  }
+
+  if (refundResult === 'unknown' || refundResult === 'failed') {
+    try {
+      await emailProvider.sendEmail({
+        to: STUDIO.bookingEmail,
+        subject: `[Action Required] Refund ${refundResult === 'unknown' ? 'outcome unknown' : 'failed'} — ${booking.reference}`,
+        text: refundResult === 'unknown'
+          ? `An admin cancelled booking ${booking.reference}. The refund of R${booking.total} got no clear answer from the payment provider, so it MAY already have gone through.\n\nCHECK the provider first (its refunds for payment reference ${booking.paystack_reference}, or the dashboard). Refund by hand ONLY if no refund is there, then record it. Cancelling again will not send another refund.`
+          : `An admin cancelled booking ${booking.reference}. The payment provider refused the refund of R${booking.total}; nothing was refunded. Refund it by hand and record it.`,
+      });
+    } catch { /* don't block */ }
   }
 
   if (status && status !== booking.status) {
@@ -136,5 +189,5 @@ export async function PATCH(
     });
   }
 
-  return NextResponse.json({ success: true });
+  return NextResponse.json({ success: true, ...(refundResult ? { refund_status: refundResult } : {}) });
 }

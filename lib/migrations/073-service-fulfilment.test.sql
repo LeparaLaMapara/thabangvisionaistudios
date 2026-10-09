@@ -20,6 +20,8 @@
 --   5. a signed-in user cannot write history
 --   6. history cannot be rewritten, even by the server
 --   7. notifications accept 'gig_revision_requested' and still accept old types
+--   8. cancellation_refund_status accepts 'unknown' and every earlier value,
+--      and still refuses anything else
 
 begin;
 
@@ -178,6 +180,23 @@ begin
   exception when check_violation then null;
   end;
   raise notice 'PASS 7: gig_revision_requested is allowed, old types still are, unknown ones are not';
+end $$;
+
+-- 8. Refund outcomes
+do $$
+declare
+  s text;
+begin
+  foreach s in array array['pending', 'refunded', 'failed', 'manual_review', 'not_required', 'unknown'] loop
+    update public.bookings set cancellation_refund_status = s where id = '00000000-0000-4000-8000-0000000730b1';
+  end loop;
+  update public.bookings set cancellation_refund_status = null where id = '00000000-0000-4000-8000-0000000730b1';
+  begin
+    update public.bookings set cancellation_refund_status = 'maybe' where id = '00000000-0000-4000-8000-0000000730b1';
+    raise exception 'FAIL 8: an unknown refund status was accepted';
+  exception when check_violation then null;
+  end;
+  raise notice 'PASS 8: unknown is a valid refund outcome, earlier ones still are, others are refused';
 end $$;
 
 rollback;
