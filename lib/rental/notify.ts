@@ -63,6 +63,44 @@ export function rentalNoticeText(kind: RentalNoticeKind, data: OutboxMessage['da
       return { title: 'Dispute opened', body: `A dispute was opened on your booking. A member of our team will review it.` };
     case 'dispute_resolved':
       return { title: 'Dispute resolved', body: `The dispute on your booking has been resolved. The outcome is on your booking.` };
+    // Phase 4 delivery notices. Never a courier name, ETA or address we were not given,
+    // and never the full delivery address (spec §4.17, §4.19).
+    case 'delivery_quote_ready':
+      return { title: 'Delivery quote ready', body: `Your delivery quote is ${amount}. It is held for a short time; the final price is confirmed before you pay.` };
+    case 'delivery_booked':
+      return { title: 'Delivery booked', body: `Your delivery is booked. We will update you when the gear is collected.` };
+    case 'delivery_courier_assigned':
+      return { title: 'Driver assigned', body: `A driver has been assigned to your delivery.` };
+    case 'delivery_courier_at_pickup':
+      return { title: 'Driver at pickup', body: `The driver has arrived to collect your gear.` };
+    case 'delivery_collected':
+      return { title: 'Gear collected', body: `The driver has collected your gear.` };
+    case 'delivery_in_transit':
+      return { title: 'Gear on the way', body: `Your gear is on the way.` };
+    case 'delivery_delivered':
+      return {
+        title: 'Please confirm your delivery',
+        body: `The driver reports your gear delivered. Please check every item and accessory and confirm receipt, or report a problem, on your booking.`,
+      };
+    case 'delivery_attempt_failed':
+      return { title: 'Delivery attempt failed', body: `The driver could not complete the delivery. We will contact you to arrange the next step.` };
+    case 'delivery_return_reminder':
+      return { title: 'Return pickup reminder', body: `Your return pickup is coming up. Please have all items and accessories packed and ready.` };
+    case 'delivery_return_courier_assigned':
+      return { title: 'Return driver assigned', body: `A driver has been assigned to collect your return.` };
+    case 'delivery_return_collected':
+      return {
+        title: 'Return collected',
+        body: `The driver has collected your return. Your deposit is settled only after the gear is received and inspected.`,
+      };
+    case 'delivery_returned_for_inspection':
+      return { title: 'Gear received back', body: `Your returned gear has arrived and is waiting for inspection.` };
+    case 'delivery_incident':
+      return { title: 'Delivery issue reported', body: `An issue was recorded on your delivery. Our team is looking into it and will contact you. Nothing has been decided yet.` };
+    case 'delivery_cancelled':
+      return { title: 'Delivery cancelled', body: `Your delivery was cancelled. Any refund due is shown on your booking.` };
+    case 'delivery_fee_refund':
+      return { title: 'Delivery fee refund', body: `We will refund ${amount} of your delivery fee. It is not complete until the payment provider processes it.` };
     case 'staff_alert':
       return {
         title: 'Rental needs attention',

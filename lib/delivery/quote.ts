@@ -73,19 +73,28 @@ function dispatchPoints(): Array<{ name: string; coords: Coordinates }> {
   ];
 }
 
+/** The own-vehicle price in integer cents (Phase 4 manual adapter). */
+export interface OwnVehicleQuoteCents {
+  distanceKm: number;
+  fromLocation: string;
+  distanceFeeCents: number;
+  sizeSurchargeCents: number;
+  feeCents: number;
+  minimumApplied: boolean;
+}
+
 /**
- * Prices a delivery from the customer's address and the size of their order.
- *
- * Returns either a quote or the reason one cannot be given, so the caller can
- * say something useful instead of failing silently. Pure, so the same function
- * runs in the cart to show a live figure and on the server to charge it — the
- * customer can never be charged a number the server did not calculate itself.
+ * The own-vehicle formula in cents: rate per km of one-way road distance
+ * (the round trip is already in the rate), a size surcharge past the items
+ * included, and a minimum. `origin` defaults to the nearest dispatch point;
+ * the manual adapter passes the leg's actual start (spec Phase 4 section 4.14:
+ * quote from the approved origin).
  */
-export function quoteDelivery(params: {
+export function quoteOwnVehicleCents(params: {
   destination: Coordinates | null | undefined;
-  /** Total number of items in the order. */
   itemCount: number;
-}): DeliveryQuote | DeliveryUnavailable {
+  origin?: { name: string; coords: Coordinates } | null;
+}): OwnVehicleQuoteCents | DeliveryUnavailable {
   const config = STUDIO.fulfilment.delivery;
 
   if (!config.enabled) return { reason: 'disabled' };
@@ -101,8 +110,8 @@ export function quoteDelivery(params: {
     return { reason: 'no_coordinates' };
   }
 
-  // Measure from whichever of our locations is closest.
-  const nearest = dispatchPoints()
+  // Measure from the given origin, or from whichever of our locations is closest.
+  const nearest = (params.origin ? [params.origin] : dispatchPoints())
     .map((p) => ({ ...p, straightLineKm: haversineKm(p.coords, dest) }))
     .sort((a, b) => a.straightLineKm - b.straightLineKm)[0];
 
@@ -112,21 +121,47 @@ export function quoteDelivery(params: {
     return { reason: 'out_of_range', distanceKm, maxRadiusKm: config.maxRadiusKm };
   }
 
-  const distanceFee = Math.round(distanceKm * config.ratePerKm * 100) / 100;
-
+  const distanceFeeCents = Math.round(distanceKm * config.ratePerKm * 100);
   const extraItems = Math.max(0, Math.ceil(params.itemCount) - config.itemsIncluded);
-  const sizeSurcharge = Math.round(extraItems * config.surchargePerExtraItem * 100) / 100;
-
-  const calculated = Math.round((distanceFee + sizeSurcharge) * 100) / 100;
-  const fee = Math.max(config.minimumFee, calculated);
+  const sizeSurchargeCents = Math.round(extraItems * config.surchargePerExtraItem * 100);
+  const calculated = distanceFeeCents + sizeSurchargeCents;
+  const feeCents = Math.max(Math.round(config.minimumFee * 100), calculated);
 
   return {
     distanceKm,
     fromLocation: nearest.name,
-    distanceFee,
-    sizeSurcharge,
-    fee,
-    minimumApplied: fee > calculated,
+    distanceFeeCents,
+    sizeSurchargeCents,
+    feeCents,
+    minimumApplied: feeCents > calculated,
+  };
+}
+
+/**
+ * Prices a delivery from the customer's address and the size of their order.
+ *
+ * Returns either a quote or the reason one cannot be given, so the caller can
+ * say something useful instead of failing silently. Pure, so the same function
+ * runs in the cart to show a live figure and on the server to charge it — the
+ * customer can never be charged a number the server did not calculate itself.
+ *
+ * A thin rands wrapper over quoteOwnVehicleCents, kept for the cart page and
+ * checkout (unchanged behaviour).
+ */
+export function quoteDelivery(params: {
+  destination: Coordinates | null | undefined;
+  /** Total number of items in the order. */
+  itemCount: number;
+}): DeliveryQuote | DeliveryUnavailable {
+  const q = quoteOwnVehicleCents(params);
+  if (!('feeCents' in q)) return q;
+  return {
+    distanceKm: q.distanceKm,
+    fromLocation: q.fromLocation,
+    distanceFee: q.distanceFeeCents / 100,
+    sizeSurcharge: q.sizeSurchargeCents / 100,
+    fee: q.feeCents / 100,
+    minimumApplied: q.minimumApplied,
   };
 }
 
