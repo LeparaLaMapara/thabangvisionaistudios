@@ -5,7 +5,8 @@ import { requireAdmin, rateLimitAdmin } from '@/lib/auth';
 import { createAdminClient } from '@/lib/supabase/server';
 import { isManualReference, refundPayment } from '@/lib/payments/routing';
 import { paidOnlineForLine } from '@/lib/rental/cancellation';
-import { depositSettlement, lateFeeFor } from '@/lib/rental/late-fee';
+import { depositSettlement, lateFeeAfterDelivery, lateFeeFor } from '@/lib/rental/late-fee';
+import { NO_DELIVERY_HOLD, deliverySettlement, settlementHoldMessage, usesPhase4Delivery } from '@/lib/rental/delivery-settlement';
 import { loadNoticeBookings, sendGearNotice } from '@/lib/rental/notices';
 import { logEvent } from '@/lib/data/events';
 import { trackFunnel } from '@/lib/analytics/funnel';
@@ -48,6 +49,13 @@ async function load(id: string): Promise<Row | null> {
   return (data as Row | null) ?? null;
 }
 
+/** The moment the renter gave the gear back: a return pickup's collection, if earlier than now. */
+function handedBackAt(now: Date, returnCollectedAt: string | null): Date {
+  if (!returnCollectedAt) return now;
+  const t = new Date(returnCollectedAt);
+  return Number.isNaN(t.getTime()) || t.getTime() > now.getTime() ? now : t;
+}
+
 /** Whether the deposit went through a payment provider, so it can go back to the card. */
 function depositOnCard(b: Row): boolean {
   if (!b.payfast_payment_id || isManualReference(b.payfast_payment_id)) return false;
@@ -66,7 +74,17 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   const b = await load(id);
   if (!b) return NextResponse.json({ error: 'Booking not found' }, { status: 404 });
   const deposit = Number(b.deposit_amount ?? 0);
-  const late = lateFeeFor({ endDate: b.end_date, returnedAt: new Date(), quantity: b.quantity, deposit });
+  // Phase 4 (R-40): a delivery incident holds settlement; a provider-caused
+  // delay on the return delivery stops the automatic late fee.
+  let delivery = NO_DELIVERY_HOLD;
+  let deliveryUnknown = false;
+  try {
+    delivery = await deliverySettlement({ bookingGroupId: b.checkout_group_id, bookingId: id });
+  } catch {
+    deliveryUnknown = true;
+  }
+  // A return pickup that took the gear from the renter is when they gave it back (D-49).
+  const late = lateFeeAfterDelivery({ endDate: b.end_date, returnedAt: handedBackAt(new Date(), delivery.returnCollectedAt), quantity: b.quantity, deposit }, delivery);
   const [notice] = await loadNoticeBookings([id]);
   const { data: serialRow } = await createAdminClient().from('equipment_bookings').select('smart_rentals(serial_number)').eq('id', id).maybeSingle();
   const serialRental = serialRow ? ((Array.isArray(serialRow.smart_rentals) ? serialRow.smart_rentals[0] : serialRow.smart_rentals) as { serial_number?: string | null } | null) : null;
@@ -74,6 +92,8 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     has_serial: Boolean(serialRental?.serial_number?.trim()),
     id: b.id, status: b.status, title: notice?.title ?? 'Equipment', end_date: b.end_date, quantity: b.quantity ?? 1,
     deposit, late_fee: late.fee, days_late: late.daysLate, deposit_on_card: depositOnCard(b),
+    late_fee_waived_for_delivery: late.waivedForDelivery,
+    delivery_hold: deliveryUnknown ? 'Could not check the delivery records just now.' : delivery.allowed ? null : settlementHoldMessage(delivery.reasons),
   });
 }
 
@@ -139,11 +159,27 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     platform_share_cents?: number | null; ownership?: string | null; owner_id?: string | null;
   };
 
+  // Phase 4 delivery (R-39, R-40), read before anything changes: whether the
+  // order earns its delivery fee per leg, whether an open delivery incident or
+  // an uninspected courier return holds settlement (D17, D29), and whether a
+  // provider-caused delay stops the automatic late fee (D19).
+  let delivery = NO_DELIVERY_HOLD;
+  let phase4Delivery = false;
+  try {
+    [delivery, phase4Delivery] = await Promise.all([
+      deliverySettlement({ bookingGroupId: b.checkout_group_id, bookingId: id }),
+      usesPhase4Delivery(db, b.checkout_group_id),
+    ]);
+  } catch {
+    return NextResponse.json({ error: 'Could not check the delivery records just now. Nothing was changed; try again in a moment.' }, { status: 503 });
+  }
+
   const now = new Date();
   const iso = now.toISOString();
   const depositRands = Number(b.deposit_amount ?? 0);
   const depositCents = snap.deposit_cents ?? toCents(depositRands);
-  const late = lateFeeFor({ endDate: b.end_date, returnedAt: now, quantity: b.quantity, deposit: depositRands });
+  // A return pickup that took the gear from the renter is when they gave it back (D-49).
+  const late = lateFeeAfterDelivery({ endDate: b.end_date, returnedAt: handedBackAt(now, delivery.returnCollectedAt), quantity: b.quantity, deposit: depositRands }, delivery);
   const lateFeeCents = toCents(late.fee);
   const damageCents = Math.min(toCents(damageFee), depositCents);
 
@@ -157,6 +193,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     missing_components: missing,
     functional_check: body.functionalCheck ?? 'not_tested',
     days_late: late.daysLate,
+    late_fee_waived_for_delivery: late.waivedForDelivery,
     photos,
     at: iso,
   };
@@ -215,6 +252,12 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   }
 
   // Step 2b: settle the deposit under the documented rules (no evidence, no deduction).
+  // A delivery hold (open incident, return delivery not yet received and
+  // inspected) stops here: the gear is recorded as back, nothing is settled,
+  // and the deposit is not released (D17, D29).
+  if (!delivery.allowed) {
+    return NextResponse.json({ error: settlementHoldMessage(delivery.reasons), code: 'DELIVERY_SETTLEMENT_HELD', reasons: delivery.reasons, recorded: true }, { status: 409 });
+  }
   const onCard = depositOnCard(b);
   let charge: { totalCents: number; remainderCents: number };
   try {
@@ -290,11 +333,16 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     // The order's delivery fee is stored on one line (whichever line that is,
     // even a cancelled one). It is earned once per order, when the first line
     // completes; the journal key makes a second completion a no-op.
-    let deliveryCents: number;
-    try {
-      deliveryCents = await groupDeliveryCents(db, b);
-    } catch {
-      return NextResponse.json({ error: 'Could not load the order just now. The return is recorded; finish the inspection again in a moment.' }, { status: 503 });
+    // R-39: an order with Phase 4 delivery earns its fee per leg (the delivery
+    // use cases post `delivery:{group}:{leg}`); the order-level journal would
+    // earn it a second time.
+    let deliveryCents = 0;
+    if (!phase4Delivery) {
+      try {
+        deliveryCents = await groupDeliveryCents(db, b);
+      } catch {
+        return NextResponse.json({ error: 'Could not load the order just now. The return is recorded; finish the inspection again in a moment.' }, { status: 503 });
+      }
     }
     if (deliveryCents > 0) journals.push(deliveryEarned({ bookingGroupId: groupId, deliveryCents }));
   }

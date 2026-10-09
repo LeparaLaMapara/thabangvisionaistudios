@@ -8,6 +8,8 @@ import { ESCALATION_LADDER, dueEscalations, returnDueAt, type EscalationStage } 
 import { buildNotices, sastDate, type OutboxMessage } from '@/lib/core/rental/notifications';
 import { paymentPort, payoutPort } from '@/lib/payments/ports';
 import { trackFunnel } from '@/lib/analytics/funnel';
+import { afterRentalPayment } from '@/lib/delivery/after-payment';
+import { deliverySettlement, returnCollectedAt } from './delivery-settlement';
 import { SupabasePayouts, SupabaseRefunds, SupabaseRentalPayments, isMissingPipeline, transitionBookings } from './repos';
 
 type Admin = ReturnType<typeof createAdminClient>;
@@ -130,6 +132,16 @@ export async function evaluatePayout(
   if (bookingErr || disputesErr || refundsErr || disputes == null) {
     return { eligible: false, reasons: ['could_not_check_blockers'] };
   }
+  // Phase 4 (R-40, D17, D29): an open delivery incident, or a return delivery
+  // not yet received and inspected, holds the owner payout.
+  let deliveryHoldReasons: string[] = [];
+  try {
+    const groupId = (booking as { checkout_group_id?: string | null } | null)?.checkout_group_id ?? null;
+    const hold = await deliverySettlement({ bookingGroupId: groupId, bookingId: p.booking_id });
+    deliveryHoldReasons = hold.allowed ? [] : hold.reasons;
+  } catch {
+    return { eligible: false, reasons: ['could_not_check_blockers'] };
+  }
   const b = booking as {
     status: string; completed_at: string | null; inspection_outcome: string | null; return_reviewed_at: string | null; checkout_group_id: string | null;
     payfast_payment_id: string | null; payment_plan: string | null; balance_due: number | null;
@@ -161,6 +173,7 @@ export async function evaluatePayout(
       depositSettled,
       payoutAlreadyStarted: !['scheduled', 'held'].includes((payoutRow as { state?: string } | null)?.state ?? 'scheduled'),
       completedAt: b?.completed_at ?? null,
+      deliveryHoldReasons,
     },
     now,
     RENTAL_POLICY.ownerPayoutDelayHours,
@@ -200,9 +213,28 @@ export async function runOverdueLadder(db: Admin = createAdminClient(), clock: C
   const today = sastDate(now);
   let markedOverdue = 0;
 
+  /**
+   * Phase 4 (D-49): a return pickup that took the gear from the renter ends
+   * the renter's lateness at that moment. Collected in time: never marked
+   * overdue. Collected at all: no further escalation (the gear is on its way
+   * back to us). A lookup that fails escalates as before (notices only).
+   */
+  const collectedFor = async (ids: string[]): Promise<Map<string, string>> => {
+    try {
+      return await returnCollectedAt(db, ids);
+    } catch (err) {
+      console.error('[overdue] return pickup lookup failed:', err instanceof Error ? err.message : 'unknown');
+      return new Map();
+    }
+  };
+
   const { data: late } = await db.from('equipment_bookings').select('id, end_date').eq('status', 'active').lt('end_date', today);
-  for (const b of (late ?? []) as { id: string; end_date: string }[]) {
+  const lateRows = (late ?? []) as { id: string; end_date: string }[];
+  const collectedLate = await collectedFor(lateRows.map((b) => b.id));
+  for (const b of lateRows) {
     if (returnDueAt(b.end_date).getTime() > now.getTime()) continue;
+    const handedBack = collectedLate.get(b.id);
+    if (handedBack && new Date(handedBack).getTime() <= returnDueAt(b.end_date).getTime()) continue;
     const r = await transitionBookings(db, { ids: [b.id], from: ['active'], to: 'overdue', actor: 'system', actorId: null, reason: 'return time passed' });
     if (r.result === 'missing_pipeline') {
       await db.from('equipment_bookings').update({ status: 'overdue', updated_at: now.toISOString() }).eq('id', b.id).eq('status', 'active');
@@ -221,9 +253,12 @@ export async function runOverdueLadder(db: Admin = createAdminClient(), clock: C
   }
   const doneBy = new Map<string, EscalationStage[]>();
   for (const d of (done ?? []) as { booking_id: string; stage: EscalationStage }[]) doneBy.set(d.booking_id, [...(doneBy.get(d.booking_id) ?? []), d.stage]);
+  const collected = await collectedFor(rows.map((r) => r.id));
 
   let escalations = 0;
   for (const b of rows) {
+    // The return pickup has the gear: it is on its way back, nothing to chase.
+    if (collected.has(b.id)) continue;
     const due = returnDueAt(b.end_date);
     for (const stage of dueEscalations(due, now, doneBy.get(b.id) ?? [])) {
       const hours = Math.floor((now.getTime() - due.getTime()) / 3_600_000);
@@ -325,9 +360,11 @@ export async function recoverMissedPayments(
       },
       { repo, clock, lateAllowed: (i) => lateConfirmationAllowed(db, i) },
     );
-    if (outcome === 'confirmed' || outcome === 'confirmed_late') {
+    if (outcome === 'confirmed' || outcome === 'confirmed_late' || outcome === 'duplicate') {
       const intent = await repo.getIntent(row.reference).catch(() => null);
-      if (intent) trackFunnel('payment_confirmed', { userId: intent.userId, meta: { groupId: intent.checkoutGroupId, source: 'recovery' } });
+      if (intent && outcome !== 'duplicate') trackFunnel('payment_confirmed', { userId: intent.userId, meta: { groupId: intent.checkoutGroupId, source: 'recovery' } });
+      // Phase 4: book the order's delivery legs (idempotent; never throws).
+      if (intent) await afterRentalPayment(intent.checkoutGroupId, 'recovery');
     }
     out[outcome] = (out[outcome] ?? 0) + 1;
   }

@@ -91,6 +91,8 @@ export default function AdminBookingsPage() {
   } | null>(null);
   const [cancelReason, setCancelReason] = useState('');
   const [cancelRefund, setCancelRefund] = useState('');
+  // Delivery legs that already reached the renter keep their fee unless staff refund it (D-53).
+  const [cancelRefundDelivery, setCancelRefundDelivery] = useState(false);
   const [cancelError, setCancelError] = useState<string | null>(null);
   const [cancelLoading, setCancelLoading] = useState(false);
 
@@ -98,6 +100,7 @@ export default function AdminBookingsPage() {
     setCancelTarget({ id: b.id, title: b.rental_title, paid: Boolean(b.payfast_payment_id) });
     setCancelReason('');
     setCancelRefund('');
+    setCancelRefundDelivery(false);
     setCancelError(null);
   };
 
@@ -140,7 +143,7 @@ export default function AdminBookingsPage() {
   /** PATCH a status change. Returns the server's error message, or null on success. */
   const updateBookingStatus = async (
     id: string,
-    body: { status: string; reason: string; refundCents?: number },
+    body: { status: string; reason: string; refundCents?: number; refundDeliveryFee?: boolean },
   ): Promise<string | null> => {
     try {
       const res = await fetch(`/api/admin/equipment-bookings/${id}`, {
@@ -180,6 +183,7 @@ export default function AdminBookingsPage() {
       status: 'cancelled',
       reason: cancelReason.trim(),
       ...(refundCents !== undefined ? { refundCents } : {}),
+      ...(cancelRefundDelivery ? { refundDeliveryFee: true } : {}),
     });
     setCancelLoading(false);
     if (err) {
@@ -602,6 +606,21 @@ export default function AdminBookingsPage() {
                 <span className="block text-xs text-neutral-400">
                   A card payment is refunded through the payment provider (initiated, not instant). A manual EFT or cash
                   payment is flagged for staff to pay back by hand.
+                </span>
+              </label>
+            )}
+
+            {cancelTarget.paid && (
+              <label className="flex items-start gap-3 min-h-[44px] cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={cancelRefundDelivery}
+                  onChange={(e) => setCancelRefundDelivery(e.target.checked)}
+                  className="mt-1 h-5 w-5 accent-[#D4A843]"
+                />
+                <span className="text-xs text-neutral-300">
+                  Also refund the delivery fee of a delivery that already reached the renter (or is lost, damaged or under
+                  review). Without this it is kept. Deliveries not yet on the way are always cancelled and refunded.
                 </span>
               </label>
             )}

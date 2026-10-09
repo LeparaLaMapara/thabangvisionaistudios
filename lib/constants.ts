@@ -723,6 +723,165 @@ export const RENTAL_POLICY = {
   payoutAutoApprove: false,
 } as const;
 
+// ─── DELIVERY POLICY (Phase 4, spec §4.2, §4.6–4.8, §4.13) ───────────────────
+// Read by the pure delivery core (lib/core/delivery/*) and the adapters in
+// lib/delivery/*. Amounts in integer cents. Values marked FOUNDER DECISION
+// are safe defaults until the founder approves a value (decision register
+// D-37 to D-42). Nothing here can loosen the rental rules in RENTAL_POLICY:
+// first hire collected in person, any item over the high-value threshold
+// collected in person, trust-tier limits.
+export const DELIVERY_POLICY = {
+  // FOUNDER DECISION (D-37): the highest single-item replacement value an
+  // automated (third-party) courier may carry. 0 = automated courier delivery
+  // is OFF for every item. Our own vehicle (manual adapter) is not affected:
+  // it follows the existing own-vehicle rules.
+  automatedDeliveryMaxItemValueCents: 0,
+  // FOUNDER DECISION (D-38): what we add to a courier's price for a leg. The
+  // customer pays provider cost + this fee, and the two are stored apart.
+  // Delivery money is never part of the owner's 80% hire share.
+  platformFeeCents: 0,
+  // How long a customer delivery quote can be paid. Shorter than the provider
+  // quote is fine; the customer price can never outlive the provider price.
+  quoteTtlMinutes: 30,
+  // Hand-to-hand only: never leave rented gear unattended (spec §4.11).
+  requireHandToHand: true,
+  // A courier must have ALL of these verified for our account, or it is not
+  // offered, whatever its price (spec §4.6 item 3, §4.10).
+  requiredCourierCapabilities: ['pickupConfirmation', 'proofOfDelivery', 'noLeaveAtDoor', 'idempotentCreate'] as const,
+  // Ordering among providers that pass every safety gate (spec §4.6 items
+  // 6–8). Reliability is a 0–100 score from operations history; unknown
+  // providers score 0. Edit here, never in code.
+  providerPreferences: {
+    rankBy: ['reliability', 'speed', 'price'] as const,
+    reliability: { manual: 80 } as Record<string, number>,
+  },
+  // FOUNDER DECISION (D-39): a renter who cancels after a courier is booked
+  // pays the courier's cancellation fee at cost, capped at the delivery fee
+  // they paid. Cancellations by us or the provider are refunded in full.
+  passOnProviderCancellationFee: true,
+  // A provider invoice within this many cents of the quote counts as matched.
+  reconciliationToleranceCents: 0,
+  // At most this many dispatch attempts per leg before a person takes over.
+  maxDispatchAttemptsPerLeg: 3,
+  // FOUNDER DECISION (D-48): a delivered outbound leg that the renter neither
+  // accepts nor reports a problem with within this many hours of the recorded
+  // delivery is deemed accepted by the system (custody event
+  // `deemed_accepted`): the outbound fee is earned and the address can follow
+  // retention. Never over a reported exception or an open incident, and never
+  // for a return leg's inspection. The renter is reminded first
+  // (deemedAcceptanceReminderLeadHours before).
+  deemedAcceptanceHours: 48,
+  deemedAcceptanceReminderLeadHours: 24,
+  // Delivery addresses and driver contact details are deleted (or reduced to
+  // suburb level) this many days after the leg closes (POPIA purpose limit).
+  addressRetentionDays: 180,
+  // What a driver is told is in the parcel: generic, never the brand or value
+  // (spec §4.10: no unnecessary equipment values to drivers).
+  driverLabel: 'Camera equipment',
+  // Battery content is not recorded per listing yet, so every parcel is
+  // declared as containing lithium-ion batteries (a courier that refuses them
+  // then says so, instead of carrying them unknowingly).
+  assumeLithiumBatteries: true,
+  // Our own vehicle and staff (the manual adapter).
+  ownFleet: {
+    // FOUNDER DECISION (D-40): no goods-in-transit cover is verified for our
+    // own vehicle. Own-vehicle delivery is live today on the existing rules;
+    // shipments record coverage_verified = false.
+    verifiedTransitCover: false,
+  },
+  // FOUNDER DECISION (D-41): a verified goods-in-transit policy. Until a
+  // policy reference is set and the founder confirms the wording covers
+  // rented and community-owned camera gear in transit (spec §4.13), every
+  // courier is "not covered" and therefore excluded.
+  insurance: {
+    verifiedPolicyRef: null as string | null,
+    coveredProviders: [] as readonly string[],
+    maxItemValueCents: 0,
+  },
+} as const;
+
+// ─── Delivery operations (Phase 4: webhooks, daily jobs, admin, retention) ───
+// Operational limits, not business terms. Webhooks are the real-time source;
+// the daily pipeline pass is the safety net (CLAUDE.md: daily crons only).
+export const DELIVERY_OPS = {
+  // Largest webhook body accepted from a delivery provider (bytes). Larger
+  // requests are refused before anything is stored.
+  webhookMaxBodyBytes: 256 * 1024,
+  // Stored provider events retried per pipeline pass, and how many attempts
+  // before an event is dead-lettered for a person.
+  inboxBatchSize: 50,
+  inboxMaxRetries: 8,
+  // Shipments reconciled or polled per pipeline pass (bounded work).
+  jobBatchSize: 50,
+  // A dispatch claim older than this is presumed dead and is reconciled with
+  // the provider before anything else (matches the core's stale-claim rule).
+  staleClaimMinutes: 10,
+  // Return-pickup reminder: sent once when the pickup window starts within
+  // this many hours (the pass runs daily at 07:45 SAST).
+  returnReminderLeadHours: 36,
+  // Admin dashboard: how far back failed legs and dead-lettered events show.
+  failedLookbackDays: 30,
+  // Address retention purge (R-41, D-46): addresses handled per daily run.
+  // Retention itself is DELIVERY_POLICY.addressRetentionDays.
+  addressPurgeBatchSize: 200,
+  // Coordinates of a purged address are kept to this many decimals (about
+  // 1 km: suburb level), so history still shows the area, not the house.
+  purgedCoordinateDecimals: 2,
+  // The daily pipeline runs the delivery steps AFTER the money steps; together
+  // they get at most this long (the cron has 60 s), so a slow courier API can
+  // never starve the payment, refund and payout steps or the outbox. Work left
+  // over waits for the next pass or "Run delivery jobs now".
+  pipelineStepsBudgetMs: 20_000,
+  // Ubunye's delivery quote tools store an (advisory) quote per call: limit
+  // how many one person can ask for.
+  ubunyeQuoteRateLimit: { max: 10, windowMs: 60 * 60_000 },
+  // Renter acceptance requests (POST /api/delivery/accept) per person per minute.
+  acceptRateLimit: { max: 20, windowMs: 60_000 },
+} as const;
+
+// ─── Delivery at checkout (Phase 4 customer flow) ────────────────────────────
+// Additive block for the cart, checkout and booking screens. The delivery
+// rules themselves live in DELIVERY_POLICY above; this holds only what the
+// customer flow needs: delivery windows, the server-side address check and
+// copy limits. Prices never come from here (they come from stored quotes).
+export const DELIVERY_CHECKOUT = {
+  // Windows a renter can choose, in SAST, on the first hire day (delivery)
+  // and the last hire day (return pickup). Our own vehicle works to a
+  // scheduled window; there is no on-demand option.
+  windows: [
+    { id: 'morning', label: '08:00 to 12:00', start: '08:00', end: '12:00' },
+    { id: 'afternoon', label: '12:00 to 17:00', start: '12:00', end: '17:00' },
+  ],
+  // South African Standard Time (no daylight saving).
+  utcOffset: '+02:00',
+  // The same zone for showing times to people (quote expiry, windows), whatever the browser's zone.
+  timeZone: 'Africa/Johannesburg',
+  // A position the browser reports is only a hint. Farther than this from the
+  // server-verified address, it is logged as a mismatch; it never sets a price.
+  hintToleranceKm: 2,
+  // Server-side address verification (AddressPort, lib/delivery/address.ts).
+  // ADDRESS_PROVIDER=nominatim (default) or none (delivery then falls back to
+  // collection with a clear message).
+  address: {
+    nominatimUrl: 'https://nominatim.openstreetmap.org/search',
+    // OSMF Nominatim usage policy: at most 1 request per second, identified
+    // by a real User-Agent with contact details, results cached, no
+    // autocomplete. One lookup per "Get quote" press, never per keystroke.
+    minIntervalMs: 1100,
+    timeoutMs: 5000,
+    cacheTtlMs: 24 * 60 * 60 * 1000,
+    cacheMaxEntries: 500,
+    countryCode: 'za',
+    attribution: 'Address check: © OpenStreetMap contributors',
+    minLength: 10,
+    maxLength: 300,
+  },
+  contact: {
+    maxNameLength: 80,
+    maxInstructionsLength: 300,
+  },
+} as const;
+
 // ─── Community listing review (spec §8.1–8.2) ───────────────────────────────
 // Rules live in lib/core/listings/review.ts and run on the server only.
 export const LISTING_POLICY = {

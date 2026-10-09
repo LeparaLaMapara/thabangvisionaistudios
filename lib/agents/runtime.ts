@@ -17,6 +17,7 @@ import { isRagEnabled, searchSimilar, formatRetrievalContext } from '@/lib/rag';
 import { UBUNYE_AGENTS } from '@/lib/agents/registry';
 import { createSearchTools } from '@/lib/agents/tools/search';
 import { createBookingTools } from '@/lib/agents/tools/booking';
+import { createDeliveryTools } from '@/lib/agents/tools/delivery';
 import { buildAssistantPrompt } from '@/lib/agents/agents/assistant';
 import { buildBookingPrompt } from '@/lib/agents/agents/booking';
 import { createConversation, logChatMessage, hashIp, conversationBelongsTo } from '@/lib/data/chat-history';
@@ -76,9 +77,11 @@ function resolveLimit(
 function getToolsForAgent(agentId: string, supabase: any, isAuthenticated: boolean, flags: UbunyeFlagsSnapshot, hasPreSelectedCreator = false, conversationId: string | null = null): Record<string, any> {
   switch (agentId) {
     case 'assistant':
-      return createSearchTools(supabase, flags);
+      // Delivery tools are read-only (plus reporting an issue); each checks sign-in itself.
+      return { ...createSearchTools(supabase, flags), ...createDeliveryTools(supabase, isAuthenticated) };
     case 'booking': {
-      const tools = createBookingTools(supabase, isAuthenticated, flags, conversationId);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const tools: Record<string, any> = { ...createBookingTools(supabase, isAuthenticated, flags, conversationId), ...createDeliveryTools(supabase, isAuthenticated) };
       // Remove search tools when creator is already selected — no searching needed
       if (hasPreSelectedCreator) {
         delete tools.search_creators;

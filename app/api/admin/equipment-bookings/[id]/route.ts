@@ -6,13 +6,13 @@ import { createAdminClient } from '@/lib/supabase/server';
 import { checkTransition, isBookingStatus } from '@/lib/core/rental/state';
 import { disputeMoney, refundObligationKey } from '@/lib/core/rental/refunds';
 import { personSettlement } from '@/lib/core/rental/ledger';
-import { toCents } from '@/lib/core/pricing/money';
 import { buildNotices } from '@/lib/core/rental/notifications';
 import { isManualReference } from '@/lib/payments/routing';
 import { isMissingPipeline, transitionBookings } from '@/lib/rental/repos';
 import { dispatchOutbox } from '@/lib/rental/notify';
 import { chargeOfBooking } from '@/lib/rental/charges';
 import { logEvent } from '@/lib/data/events';
+import { deliveryCancellationPlan, heldForStaffCancel, settleAfterLineCancelled, type DeliveryCancellationPlan } from '@/lib/rental/delivery-settlement';
 
 /**
  * Admin status changes for a gear booking (spec §7.3, §7.15).
@@ -24,6 +24,29 @@ import { logEvent } from '@/lib/data/events';
  *   active/overdue → returned  Take-back checklist (inspection, deposit)
  * Cancelling a paid booking needs the refund amount, which becomes one
  * refund obligation capped at the original charge.
+ *
+ * Phase 4 delivery (same rules as the renter's cancellation in
+ * app/api/bookings/[id]): the delivery fee is never part of the staff refund
+ * or of what the line releases here. When the order's last line goes, its
+ * live legs are cancelled through the delivery core (fee refunded once, in
+ * full, as a platform cancellation) and any paid quote no leg was made from
+ * is refunded. A leg actually in motion (the gear with a courier or our
+ * driver) must be closed in the delivery console first (409
+ * DELIVERY_UNDER_WAY), and nothing changes. Staff are not held back by legs
+ * that already reached the renter or are lost, damaged or under review
+ * (review fix round 2, finding 3): the booking is cancelled and those legs
+ * are left as they are and logged. Their fee is kept (D-39/D-52: the gear
+ * reached the renter) unless staff tick "refund the delivery fee"
+ * (`refundDeliveryFee: true`), which refunds it once through the core. The
+ * renter's own cancellation keeps the stricter rule (any leg past the
+ * cancellable states blocks it).
+ *
+ * Review fix round 3, finding 2: when the renter may still have the gear (an
+ * outbound leg delivered, damaged or under review, and nothing on its way
+ * back yet), a scheduled return pickup is NOT cancelled with the order (it is
+ * how the gear comes back), and staff are alerted
+ * (`delivery_gear_with_renter_after_cancel`): the cancelled booking is no
+ * longer on the overdue ladder (D-57).
  */
 
 const NEEDS_OWN_SCREEN: Record<string, string> = {
@@ -46,7 +69,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   const limited = await rateLimitAdmin(auth.user.id);
   if (limited) return limited;
 
-  let body: { status?: string; reason?: string; refundCents?: number };
+  let body: { status?: string; reason?: string; refundCents?: number; refundDeliveryFee?: boolean };
   try {
     body = await request.json();
   } catch {
@@ -95,6 +118,23 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   if (check.alreadyDone) return NextResponse.json(booking);
   if (!reason) return NextResponse.json({ error: 'Give a reason; it is kept in the booking history.' }, { status: 400 });
 
+  // Phase 4 delivery on this order: read before anything changes, fail closed.
+  let deliveryPlan: DeliveryCancellationPlan | null = null;
+  if (to === 'cancelled') {
+    try {
+      deliveryPlan = await deliveryCancellationPlan(db, { bookingGroupId: booking.checkout_group_id, bookingId: id });
+    } catch {
+      return NextResponse.json({ error: 'Could not check the delivery records just now. Nothing was changed; try again.' }, { status: 503 });
+    }
+    // Staff rule: only a leg actually in motion blocks (absent on an older plan: the stricter rule).
+    if (deliveryPlan.inMotion ?? deliveryPlan.tooLate) {
+      return NextResponse.json(
+        { error: 'A delivery leg on this order is on its way right now. Close it in the delivery console first, then cancel the booking.', code: 'DELIVERY_UNDER_WAY' },
+        { status: 409 },
+      );
+    }
+  }
+
   const paidOnProvider = Boolean(booking.payfast_payment_id) && !isManualReference(booking.payfast_payment_id as string);
   const refunds: unknown[] = [];
   const journals: unknown[] = [];
@@ -107,9 +147,10 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     if (paidOnProvider) {
       // Release what this line held in the ledger, refund or not: the refund
       // becomes refunds_payable (deposit first), the rest a cancellation fee.
-      let held: Awaited<ReturnType<typeof heldForLine>>;
+      let held: Awaited<ReturnType<typeof heldForStaffCancel>>;
       try {
-        held = await heldForLine(db, booking);
+        // Phase 4: the delivery fee is not this line's to release (its legs settle it once).
+        held = await heldForStaffCancel(db, booking, deliveryPlan?.phase4 ?? false);
       } catch {
         return NextResponse.json({ error: 'Could not check what this booking holds just now. Nothing was changed; try again.' }, { status: 503 });
       }
@@ -192,37 +233,48 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   }
   if (moved.result === 'conflict') return NextResponse.json({ error: 'The booking changed; reload and try again.' }, { status: 409 });
 
-  logEvent({ eventType: 'admin_booking_transition', eventCategory: 'admin', userId: auth.user.id, metadata: { bookingId: id, from: booking.status, to } });
+  // The order's last line went: its delivery legs (and any unused paid quote) go too, refunded once.
+  // Read again AFTER the commit: a concurrent cancellation of the order's other line may have
+  // made this the last one (finding 6); settling is idempotent per leg and quote.
+  let deliveryRefundCents = 0;
+  let keptLegs = 0;
+  let returnLegsKept = 0;
+  let gearWithRenter = false;
+  if (deliveryPlan) {
+    keptLegs = deliveryPlan.keptShipmentIds?.length ?? 0;
+    returnLegsKept = deliveryPlan.returnKeptShipmentIds?.length ?? 0;
+    gearWithRenter = deliveryPlan.gearWithRenter === true;
+    deliveryRefundCents = await settleAfterLineCancelled(
+      db,
+      {
+        before: deliveryPlan,
+        bookingGroupId: booking.checkout_group_id,
+        bookingId: id,
+        caller: { kind: 'staff', userId: auth.user.id },
+        reason: `booking cancelled by staff: ${reason}`,
+        refundKeptLegs: body.refundDeliveryFee === true,
+      },
+      deliveryCancellationPlan,
+    );
+  }
+  logEvent({
+    eventType: 'admin_booking_transition',
+    eventCategory: 'admin',
+    userId: auth.user.id,
+    metadata: {
+      bookingId: id,
+      from: booking.status,
+      to,
+      deliveryRefundCents,
+      deliveryLegsLeft: keptLegs,
+      deliveryReturnLegsKept: returnLegsKept,
+      deliveryGearWithRenter: gearWithRenter,
+      deliveryFeeRefundAsked: body.refundDeliveryFee === true,
+    },
+  });
   await dispatchOutbox(10).catch(() => undefined);
   const { data: updated, error } = await db.from('equipment_bookings').select().eq('id', id).maybeSingle();
   if (error && !isMissingPipeline(error)) return NextResponse.json({ error: 'Updated, but could not reload the booking.' }, { status: 200 });
   return NextResponse.json(updated);
 }
 
-/**
- * What this line holds in the ledger, for orders paid through the provider
- * (a paid payment intent): its hire and deposit, plus the order's delivery fee
- * when this is the last line still open and no line has earned it yet.
- * Null when the order is outside the ledger (manual payment, pre-070).
- */
-async function heldForLine(
-  db: ReturnType<typeof createAdminClient>,
-  booking: { id: string; checkout_group_id: string | null },
-): Promise<{ hireCents: number; depositCents: number } | null> {
-  if (!booking.checkout_group_id) return null;
-  const { data: intent, error: intentErr } = await db.from('rental_payment_intents').select('state').eq('checkout_group_id', booking.checkout_group_id).maybeSingle();
-  // A failed lookup must not read as "outside the ledger" (no journal would be posted).
-  if (intentErr) throw new Error(`heldForLine: intent lookup failed: ${intentErr.message}`);
-  if ((intent as { state?: string } | null)?.state !== 'paid') return null;
-  const { data: lines, error: linesErr } = await db
-    .from('equipment_bookings')
-    .select('id, status, hire_cents, deposit_cents, delivery_fee')
-    .eq('checkout_group_id', booking.checkout_group_id);
-  if (linesErr) throw new Error(`heldForLine: order lookup failed: ${linesErr.message}`);
-  const rows = (lines ?? []) as { id: string; status: string; hire_cents: number | null; deposit_cents: number | null; delivery_fee: number | null }[];
-  const me = rows.find((r) => r.id === booking.id);
-  if (!me || me.hire_cents == null) return null;
-  const othersOpen = rows.some((r) => r.id !== booking.id && r.status !== 'cancelled');
-  const delivery = othersOpen ? 0 : rows.reduce((sum, r) => sum + toCents(Number(r.delivery_fee ?? 0)), 0);
-  return { hireCents: me.hire_cents + delivery, depositCents: me.deposit_cents ?? 0 };
-}

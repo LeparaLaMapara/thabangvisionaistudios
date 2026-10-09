@@ -8,6 +8,7 @@ import { loadNoticeBookings, sendGearNotice } from '@/lib/rental/notices';
 import { logEvent } from '@/lib/data/events';
 import { trackFunnel } from '@/lib/analytics/funnel';
 import { isMissingPipeline } from '@/lib/rental/repos';
+import { afterRentalPayment } from '@/lib/delivery/after-payment';
 
 /**
  * Record a payment taken by hand (EFT, cash, or a card link sent on WhatsApp)
@@ -87,6 +88,10 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   logEvent({ eventType: 'payment_complete', eventCategory: 'payment', userId: auth.user.id, metadata: { provider: 'manual', method, bookings: ids, amount } });
   trackFunnel('payment_confirmed', { userId: (booking as { user_id?: string | null }).user_id ?? null, meta: { groupId: booking.checkout_group_id ?? id, source: 'manual', code: method } });
   await sendGearNotice('confirmed', await loadNoticeBookings(ids));
+  // Phase 4: an order with delivery. A payment taken by hand is not verified
+  // by the provider, so nothing is dispatched automatically; the hook tells
+  // the ops queue that a person must arrange the delivery. Never fails this route.
+  if (booking.checkout_group_id) await afterRentalPayment(booking.checkout_group_id, 'manual');
 
   return NextResponse.json({ ok: true, confirmed: ids.length, reference });
 }

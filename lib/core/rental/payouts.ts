@@ -85,6 +85,12 @@ export interface PayoutEligibilityFacts {
   /** A payout for this booking already succeeded or is in flight. */
   payoutAlreadyStarted: boolean;
   completedAt: string | null;
+  /**
+   * Phase 4: why delivery holds this line's settlement (checkRentalSettlement:
+   * an open delivery incident, a return delivery not yet received and
+   * inspected). Empty or absent = no delivery hold.
+   */
+  deliveryHoldReasons?: readonly string[];
 }
 
 export type PayoutEligibility =
@@ -102,6 +108,7 @@ export function checkPayoutEligibility(f: PayoutEligibilityFacts, now: Date, del
   if (f.openPayoutBlockingDisputes > 0) reasons.push('open_dispute');
   if (!f.depositSettled) reasons.push('deposit_not_settled');
   if (f.payoutAlreadyStarted) reasons.push('payout_already_started');
+  for (const r of f.deliveryHoldReasons ?? []) reasons.push(`delivery_${r}`);
 
   const dueAt = f.completedAt ? new Date(new Date(f.completedAt).getTime() + delayHours * 3_600_000) : null;
   if (!dueAt) reasons.push('no_completion_time');

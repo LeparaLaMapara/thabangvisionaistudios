@@ -25,6 +25,23 @@ export const RENTAL_NOTICE_KINDS = [
   'dispute_resolved',
   'late_payment_refund',
   'staff_alert',
+  // Phase 4 delivery notices (spec §4.19). Sent only from real events: a
+  // verified provider update, a staff action or a renter confirmation.
+  'delivery_quote_ready',
+  'delivery_booked',
+  'delivery_courier_assigned',
+  'delivery_courier_at_pickup',
+  'delivery_collected',
+  'delivery_in_transit',
+  'delivery_delivered',
+  'delivery_attempt_failed',
+  'delivery_return_reminder',
+  'delivery_return_courier_assigned',
+  'delivery_return_collected',
+  'delivery_returned_for_inspection',
+  'delivery_incident',
+  'delivery_cancelled',
+  'delivery_fee_refund',
 ] as const;
 
 export type RentalNoticeKind = (typeof RENTAL_NOTICE_KINDS)[number];
@@ -50,6 +67,21 @@ export const NOTICE_CHANNELS: Record<RentalNoticeKind, readonly NoticeChannel[]>
   dispute_resolved: ['in_app', 'email'],
   late_payment_refund: ['in_app', 'email'],
   staff_alert: ['in_app'],
+  delivery_quote_ready: ['in_app'],
+  delivery_booked: ['in_app', 'email'],
+  delivery_courier_assigned: ['in_app'],
+  delivery_courier_at_pickup: ['in_app'],
+  delivery_collected: ['in_app'],
+  delivery_in_transit: ['in_app'],
+  delivery_delivered: ['in_app', 'email', 'sms'],
+  delivery_attempt_failed: ['in_app', 'email', 'sms'],
+  delivery_return_reminder: ['in_app', 'email', 'sms'],
+  delivery_return_courier_assigned: ['in_app'],
+  delivery_return_collected: ['in_app', 'email'],
+  delivery_returned_for_inspection: ['in_app', 'email'],
+  delivery_incident: ['in_app', 'email'],
+  delivery_cancelled: ['in_app', 'email'],
+  delivery_fee_refund: ['in_app', 'email'],
 };
 
 export interface OutboxMessage {

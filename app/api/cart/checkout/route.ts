@@ -7,7 +7,12 @@ import { checkRateLimit, checkNotSuspended } from '@/lib/auth';
 import { STUDIO } from '@/lib/constants';
 import { getCartItems, clearCart } from '@/lib/supabase/queries/cart';
 import { calculateCartPricing, calculateCartPricingPerItem, splitAcrossLines } from '@/lib/cart/pricing';
-import { quoteDelivery, isDeliveryQuote } from '@/lib/delivery/quote';
+import { quoteOwnVehicleCents } from '@/lib/delivery/quote';
+import { addressPort, compareHint, verifyAddress, type AddressInput } from '@/lib/delivery/address';
+import { SupabaseQuoteLinks, cartLinesForDelivery, deliveryLines, priceCheckoutDelivery, publicQuote } from '@/lib/delivery/checkout';
+import { deliveryDeps } from '@/lib/delivery/server';
+import { inServiceArea } from '@/lib/core/delivery/policy';
+import type { CustomerDeliveryQuote } from '@/lib/core/delivery/quote';
 import { checkAvailability, availabilityMessage } from '@/lib/rental/availability';
 import { recordUnmetDemandAsync } from '@/lib/demand/record';
 import { meetsLeadTime, leadTimeMessage } from '@/lib/rental/leadTime';
@@ -129,6 +134,9 @@ export async function POST(request: NextRequest) {
     delivery_address,
     delivery_lat,
     delivery_lng,
+    delivery_quote_id,
+    return_quote_id,
+    delivery_approved_cents,
     acceptTerms,
   } = body as {
     start_date: string;
@@ -137,9 +145,16 @@ export async function POST(request: NextRequest) {
     fulfilment_method?: string;
     payment_plan?: string;
     payment_method?: string;
-    delivery_address?: string;
+    /** Legacy (before migration 076): the typed address, verified again here. */
+    delivery_address?: string | Partial<AddressInput>;
+    /** A browser map position: a hint only, never used for the price. */
     delivery_lat?: number;
     delivery_lng?: number;
+    /** Stored delivery quotes (POST /api/delivery/quote): the only source of a delivery price. */
+    delivery_quote_id?: string;
+    return_quote_id?: string;
+    /** The delivery total the customer approved, in cents. Compared, never charged (D08). */
+    delivery_approved_cents?: number;
     acceptTerms?: boolean;
   };
 
@@ -155,9 +170,10 @@ export async function POST(request: NextRequest) {
   }
 
   // ── Fulfilment ────────────────────────────────────────────────────────────
-  // Never trust a fee sent by the client. We take the address and recalculate
-  // the delivery charge here with the same pure function the cart used, so a
-  // customer can only ever be charged a number this server worked out.
+  // Never trust a fee or a position sent by the client. The delivery price is
+  // a stored quote worked out from a server-verified address (Phase 4), or,
+  // before migration 076, the own-vehicle formula on an address this server
+  // geocoded itself. The browser's coordinates are only ever a hint.
   const fulfilment: 'collection' | 'delivery' =
     fulfilment_method === 'delivery' ? 'delivery' : 'collection';
 
@@ -189,9 +205,11 @@ export async function POST(request: NextRequest) {
         { status: 400 },
       );
     }
-    if (typeof delivery_address !== 'string' || delivery_address.trim().length < 10) {
+    const hasQuote = typeof delivery_quote_id === 'string' && delivery_quote_id.length > 0;
+    const hasAddress = (typeof delivery_address === 'string' && delivery_address.trim().length >= 10) || (typeof delivery_address === 'object' && delivery_address !== null);
+    if (!hasQuote && !hasAddress) {
       return NextResponse.json(
-        { error: 'A delivery address is required.' },
+        { error: 'Get a delivery quote for your address first.', code: 'DELIVERY_QUOTE_REQUIRED' },
         { status: 400 },
       );
     }
@@ -366,26 +384,87 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Invalid pricing calculation.' }, { status: 500 });
   }
 
-  // Now that we know the order size, price the delivery.
-  if (fulfilment === 'delivery') {
-    const quote = quoteDelivery({
-      destination:
-        typeof delivery_lat === 'number' && typeof delivery_lng === 'number'
-          ? { lat: delivery_lat, lng: delivery_lng }
-          : null,
-      itemCount: pricing.itemCount,
-    });
+  // Same idempotency key → same order id → the database refuses a second copy (T06).
+  const checkoutGroupId = checkoutGroupIdFor(user.id, request.headers.get('idempotency-key'));
 
-    if (!isDeliveryQuote(quote)) {
-      const message =
-        quote.reason === 'out_of_range'
-          ? `That address is about ${quote.distanceKm}km away, beyond our ${quote.maxRadiusKm}km delivery radius. Please choose collection, or contact us for a delivery quote.`
-          : 'We could not locate that address precisely enough to price delivery. Please pick it from the suggestions, or choose collection.';
-      return NextResponse.json({ error: message }, { status: 400 });
+  // Now that we know the order size, price the delivery on the server.
+  let deliveryCents = 0;
+  let deliveryQuotes: CustomerDeliveryQuote[] = [];
+  let deliveryPoint: { formattedAddress: string; lat: number; lng: number } | null = null;
+  let quoteLinks: SupabaseQuoteLinks | null = null;
+  if (fulfilment === 'delivery') {
+    let phase4: boolean;
+    try {
+      quoteLinks = new SupabaseQuoteLinks();
+      phase4 = await quoteLinks.available();
+    } catch {
+      return NextResponse.json({ error: 'Could not price delivery just now. Please try again.' }, { status: 503 });
     }
 
-    deliveryFee = quote.fee;
-    deliveryDistanceKm = quote.distanceKm;
+    if (phase4) {
+      // The stored, expiring quotes (spec §4.7). The browser's approved total
+      // is compared, never charged; an expired quote is re-quoted and a
+      // changed total comes back for the customer's approval (D07, D08).
+      const quoteIds = [delivery_quote_id, return_quote_id].filter((v): v is string => typeof v === 'string' && v.length > 0);
+      if (quoteIds.length === 0) {
+        return NextResponse.json({ error: 'Get a delivery quote for your address first.', code: 'DELIVERY_QUOTE_REQUIRED' }, { status: 400 });
+      }
+      const approved = typeof delivery_approved_cents === 'number' && Number.isSafeInteger(delivery_approved_cents) && delivery_approved_cents >= 0 ? delivery_approved_cents : null;
+      const cartLines = cartLinesForDelivery(items, { start: start_date ?? null, end: end_date ?? null });
+      if (!cartLines) return NextResponse.json({ error: 'Choose dates for each item first.', code: 'INVALID_DATES' }, { status: 400 });
+      try {
+        const deps = await deliveryDeps();
+        const priced = await priceCheckoutDelivery({ renterId: user.id, quoteIds, approvedCents: approved, lines: deliveryLines(cartLines), bookingGroupId: checkoutGroupId }, deps);
+        if (!priced.ok) {
+          return NextResponse.json(
+            { error: priced.message, code: priced.code, delivery_total_cents: priced.amountCents ?? null, quotes: (priced.quotes ?? []).map(publicQuote) },
+            { status: priced.status },
+          );
+        }
+        const outbound = priced.quotes.find((q) => q.leg === 'outbound');
+        const point = outbound ? await deps.addresses.getPoint(outbound.destinationAddressId) : null;
+        if (!point || point.userId !== user.id) {
+          return NextResponse.json({ error: 'That delivery quote is not valid. Please get a new quote.', code: 'DELIVERY_QUOTE_INVALID' }, { status: 400 });
+        }
+        deliveryCents = priced.amountCents;
+        deliveryQuotes = priced.quotes;
+        deliveryPoint = point;
+      } catch (err) {
+        console.error('[cart/checkout] delivery pricing failed:', err instanceof Error ? err.message : 'unknown error');
+        return NextResponse.json({ error: 'Could not price delivery just now. Please try again.' }, { status: 503 });
+      }
+    } else {
+      // Before migration 076: verify the typed address here (never the
+      // browser's coordinates) and apply the own-vehicle formula to it.
+      const input: Partial<AddressInput> | null = typeof delivery_address === 'string' ? { street: delivery_address } : (delivery_address ?? null);
+      const verified = await verifyAddress(input, addressPort());
+      if (!verified.ok) {
+        return NextResponse.json({ error: verified.message, code: verified.code }, { status: verified.code === 'ADDRESS_CHECK_UNAVAILABLE' ? 503 : 400 });
+      }
+      if (!inServiceArea(verified.address)) {
+        return NextResponse.json({ error: `We deliver in ${STUDIO.serviceArea.summary} only. ${STUDIO.serviceArea.outsideProvinceNote}`, code: 'out_of_area' }, { status: 400 });
+      }
+      const q = quoteOwnVehicleCents({ destination: verified.address, itemCount: pricing.itemCount });
+      if (!('feeCents' in q)) {
+        const message =
+          q.reason === 'out_of_range'
+            ? `That address is about ${q.distanceKm}km away, beyond our ${q.maxRadiusKm}km delivery radius. Please choose collection, or contact us for a delivery quote.`
+            : 'Delivery is not available at the moment. Please choose collection.';
+        return NextResponse.json({ error: message }, { status: 400 });
+      }
+      deliveryCents = q.feeCents;
+      deliveryPoint = verified.address;
+    }
+
+    // The browser's position, if it sent one, is only compared (and logged when it disagrees).
+    const hint = compareHint(deliveryPoint, { lat: delivery_lat, lng: delivery_lng });
+    if (hint.provided && !hint.withinTolerance) {
+      logEvent({ eventType: 'delivery_hint_mismatch', eventCategory: 'security', userId: user.id, metadata: { distanceKm: hint.distanceKm, source: 'checkout' } });
+    }
+    deliveryFee = deliveryCents / 100;
+    // Distance from our site, recorded for staff on the legacy columns (from the verified point).
+    const measured = quoteOwnVehicleCents({ destination: deliveryPoint, itemCount: pricing.itemCount });
+    deliveryDistanceKm = 'distanceKm' in measured ? measured.distanceKm : null;
   }
 
   // What the customer pays right now.
@@ -402,8 +481,6 @@ export async function POST(request: NextRequest) {
 
   // Create bookings with shared checkout_group_id
   const adminClient = createAdminClient();
-  // Same idempotency key → same order id → the database refuses a second copy (T06).
-  const checkoutGroupId = checkoutGroupIdFor(user.id, request.headers.get('idempotency-key'));
   const currency = items[0]?.rental.currency ?? STUDIO.currency.code;
   // Who owns each item decides the owner/platform split and the payout. Read
   // it on the server (the cart projection does not carry it), and refuse to
@@ -465,9 +542,10 @@ export async function POST(request: NextRequest) {
       // the group to avoid multiplying them by the number of items.
       ...(item.rental_id === items[0]?.rental_id
         ? {
-            delivery_address: fulfilment === 'delivery' ? String(delivery_address).trim() : null,
-            delivery_lat: fulfilment === 'delivery' ? delivery_lat : null,
-            delivery_lng: fulfilment === 'delivery' ? delivery_lng : null,
+            // Legacy columns, kept for staff screens: the VERIFIED address and point.
+            delivery_address: fulfilment === 'delivery' && deliveryPoint ? deliveryPoint.formattedAddress : null,
+            delivery_lat: fulfilment === 'delivery' && deliveryPoint ? deliveryPoint.lat : null,
+            delivery_lng: fulfilment === 'delivery' && deliveryPoint ? deliveryPoint.lng : null,
             delivery_distance_km: deliveryDistanceKm,
             delivery_fee: fulfilment === 'delivery' ? deliveryFee : null,
             balance_due: balanceDue > 0 ? balanceDue : null,
@@ -487,7 +565,7 @@ export async function POST(request: NextRequest) {
           provider: process.env.PAYMENT_PROVIDER ?? 'paystack',
           expectedAmountCents: toCents(amountDueNow),
           depositCents: toCents(pricing.totalDeposit),
-          deliveryCents: toCents(deliveryFee),
+          deliveryCents,
         }
       : null,
     effectiveHoldMinutes(),
@@ -509,6 +587,21 @@ export async function POST(request: NextRequest) {
       await releaseUnpaidReservation(adminClient, checkoutGroupId);
       if (!recheck) return NextResponse.json({ error: 'Could not check your rental limit just now. Please try again.' }, { status: 503 });
       return NextResponse.json({ error: recheck.message, code: recheck.code, tier: recheck.assessment.tier.id }, { status: 403 });
+    }
+    // Tie the delivery quotes to this order, so the verified payment can book
+    // the delivery (lib/delivery/after-payment.ts). A quote another order
+    // already holds is refused: the order is released and re-quoted.
+    if (deliveryQuotes.length > 0 && quoteLinks) {
+      let linked = true;
+      try {
+        for (const q of deliveryQuotes) linked = linked && (await quoteLinks.linkToGroup(q.id, checkoutGroupId));
+      } catch {
+        linked = false;
+      }
+      if (!linked) {
+        await releaseUnpaidReservation(adminClient, checkoutGroupId);
+        return NextResponse.json({ error: 'Your delivery quote could not be used. Please get a new quote and try again.', code: 'DELIVERY_QUOTE_INVALID' }, { status: 409 });
+      }
     }
   } else if (reservation.code === 'insufficient_stock' || reservation.code === 'listing_unavailable') {
     const title = items.find((i) => i.rental_id === reservation.rentalId)?.rental.title ?? 'An item in your cart';

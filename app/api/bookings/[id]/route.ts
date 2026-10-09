@@ -22,6 +22,7 @@ import { SupabaseRefunds, isMissingPipeline, transitionBookings } from '@/lib/re
 import { dispatchOutbox } from '@/lib/rental/notify';
 import { chargeOfBooking } from '@/lib/rental/charges';
 import { paymentReference } from '@/lib/payments/eft';
+import { deliveryCancellationPlan, settleAfterLineCancelled, type DeliveryCancellationPlan } from '@/lib/rental/delivery-settlement';
 
 type BookingForQuote = {
   id: string;
@@ -42,6 +43,8 @@ type BookingForQuote = {
  */
 async function quoteCancellation(
   booking: BookingForQuote,
+  /** Phase 4 delivery: the fee is refunded per leg by cancelDelivery (D-39), never with the hire. */
+  phase4Delivery = false,
 ): Promise<ReturnType<typeof calculateCancellationRefund>> {
   let discountPercent = 0;
   let deliveryFee = 0;
@@ -56,7 +59,7 @@ async function quoteCancellation(
       lines.reduce((sum, l) => sum + (Number(l.quantity) || 1), 0),
     );
     const othersActive = lines.some((l) => l.id !== booking.id && l.status !== 'cancelled');
-    if (!othersActive) {
+    if (!othersActive && !phase4Delivery) {
       deliveryFee = lines.reduce((sum, l) => sum + Number(l.delivery_fee ?? 0), 0);
     }
   }
@@ -127,9 +130,22 @@ export async function GET(
   }
 
   // Let the client show what a cancellation would return before confirming it.
+  let deliveryPlan: DeliveryCancellationPlan | null = null;
+  if (isCancellableStatus(data.status)) {
+    try {
+      deliveryPlan = await deliveryCancellationPlan(createAdminClient(), { bookingGroupId: data.checkout_group_id ?? null, bookingId: data.id });
+    } catch {
+      deliveryPlan = null;
+    }
+  }
   const cancellation = isCancellableStatus(data.status)
-    ? await quoteCancellation(data as BookingForQuote)
+    ? await quoteCancellation(data as BookingForQuote, deliveryPlan?.phase4 ?? false)
     : null;
+  // Phase 4 delivery on this order: what cancelling returns of the delivery fee (D-39).
+  const deliveryCancellation =
+    deliveryPlan?.phase4 && deliveryPlan.lastLine
+      ? { refund_cents: deliveryPlan.feeCents, courier_booked: deliveryPlan.courierBooked, too_late: deliveryPlan.tooLate }
+      : null;
 
   // The page names the booking by what was rented, not "Equipment".
   const { data: rental } = await supabase
@@ -156,7 +172,7 @@ export async function GET(
     paymentInfo = { method: data.payment_method, reference: paymentReference(orderId), amountDue: Number(amountDue ?? 0) };
   }
 
-  return NextResponse.json({ ...data, rental_title: rental?.title ?? null, cancellation, payment_info: paymentInfo });
+  return NextResponse.json({ ...data, rental_title: rental?.title ?? null, cancellation, delivery_cancellation: deliveryCancellation, payment_info: paymentInfo });
 }
 
 export async function PUT(
@@ -213,6 +229,7 @@ export async function PUT(
   if (notes !== undefined) update.notes = notes?.trim() || null;
 
   let quote: ReturnType<typeof calculateCancellationRefund> | null = null;
+  let deliveryPlan: DeliveryCancellationPlan | null = null;
 
   if (status === 'cancelled') {
     if (booking.status === 'cancelled') {
@@ -228,7 +245,16 @@ export async function PUT(
       );
     }
 
-    quote = await quoteCancellation(booking);
+    // Phase 4 delivery (D-39): read before anything changes, fail closed.
+    try {
+      deliveryPlan = await deliveryCancellationPlan(createAdminClient(), { bookingGroupId: booking.checkout_group_id, bookingId: booking.id });
+    } catch {
+      return NextResponse.json({ error: 'Could not cancel just now. Nothing was changed; please try again.' }, { status: 503 });
+    }
+    if (deliveryPlan.tooLate) {
+      return NextResponse.json({ error: 'Your gear is already on its way, so this booking cannot be cancelled online. Please contact us.', code: 'DELIVERY_UNDER_WAY' }, { status: 409 });
+    }
+    quote = await quoteCancellation(booking, deliveryPlan.phase4);
 
     update.status = 'cancelled';
     update.cancelled_at = new Date().toISOString();
@@ -243,7 +269,7 @@ export async function PUT(
   }
 
   if (quote && status === 'cancelled') {
-    const viaPipeline = await cancelThroughPipeline(booking, user.id, quote, update);
+    const viaPipeline = await cancelThroughPipeline(booking, user.id, quote, update, deliveryPlan);
     if (viaPipeline) return viaPipeline;
   }
 
@@ -314,6 +340,7 @@ async function cancelThroughPipeline(
   userId: string,
   quote: ReturnType<typeof calculateCancellationRefund>,
   update: Record<string, unknown>,
+  deliveryPlan: DeliveryCancellationPlan | null = null,
 ): Promise<NextResponse | null> {
   const db = createAdminClient();
   const reference = booking.payfast_payment_id;
@@ -420,12 +447,31 @@ async function cancelThroughPipeline(
       refundStatus = outcome === 'submitted' ? 'initiated' : outcome === 'escalated' ? 'failed' : 'pending';
     }
   }
+  // Phase 4 delivery: the last line went, so its delivery legs go too. The fee
+  // is refunded in full unless a courier was already booked, when the
+  // courier's cancellation fee is passed on at cost, capped at the fee (D-39).
+  // A paid quote no leg was made from is refunded too. Sent now like the hire
+  // refund; the daily pipeline retries it if the provider is slow (never twice).
+  // The booking is already cancelled; a leg that cannot be cancelled goes to
+  // the ops queue, never back to the customer as an error. The order is read
+  // again now that this line is cancelled: a concurrent cancellation of its
+  // other line may have made this the last one (review fix round 2, finding 6).
+  let legRefundCents = 0;
+  if (deliveryPlan) {
+    legRefundCents = await settleAfterLineCancelled(
+      db,
+      { before: deliveryPlan, bookingGroupId: booking.checkout_group_id, bookingId: booking.id, caller: { kind: 'renter', userId }, reason: 'booking cancelled by the customer' },
+      deliveryCancellationPlan,
+    );
+    if (legRefundCents > 0 && refundStatus === 'not_required') refundStatus = 'pending';
+  }
   await dispatchOutbox(10).catch(() => undefined);
 
   const { data } = await db.from('equipment_bookings').select('*').eq('id', booking.id).maybeSingle();
   return NextResponse.json({
     ...(data ?? {}),
     cancellation: quote,
+    delivery_refund_cents: legRefundCents,
     refund_status: refundStatus,
     message:
       refundStatus === 'initiated'
