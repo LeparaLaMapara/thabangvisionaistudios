@@ -7,10 +7,12 @@ import { manualSkillChoices, skillChoices, type SelectableSkill } from '@/lib/on
 
 interface StepSkillsDetectionProps {
   analyses: SceneAnalysisResult[];
+  /** The creator went on without a usable analysis: always offer the full list. */
+  manualSkills?: boolean;
   onComplete: (skills: SkillDetectionResult) => void;
 }
 
-export default function StepSkillsDetection({ analyses, onComplete }: StepSkillsDetectionProps) {
+export default function StepSkillsDetection({ analyses, manualSkills = false, onComplete }: StepSkillsDetectionProps) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [skills, setSkills] = useState<SelectableSkill[]>([]);
@@ -33,7 +35,7 @@ export default function StepSkillsDetection({ analyses, onComplete }: StepSkills
       if (!res.ok) throw new Error(data.error || 'Skills detection failed.');
 
       // Mapped platform skills (e.g. wedding_photography), or the manual list.
-      const choices = skillChoices(data.data as SkillDetectionResult);
+      const choices = skillChoices(data.data as SkillDetectionResult, manualSkills);
       setSkills(choices.skills);
       setManual(choices.manual);
     } catch {
@@ -43,7 +45,7 @@ export default function StepSkillsDetection({ analyses, onComplete }: StepSkills
     } finally {
       setLoading(false);
     }
-  }, [analyses]);
+  }, [analyses, manualSkills]);
 
   useEffect(() => {
     detectSkills();

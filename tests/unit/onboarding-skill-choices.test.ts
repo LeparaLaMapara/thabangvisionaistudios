@@ -46,3 +46,20 @@ describe('skillChoices', () => {
     expect(manualSkillChoices()[0].name).toBe(CREATOR_SPECIALIZATIONS[0].label);
   });
 });
+
+// Codex review on PR #63.
+describe('when the analysis request itself fails, or only one photo was usable', () => {
+  it('a failed request (no photo got a result) lets the creator go on', () => {
+    expect(analysisUnavailable([photo(null), photo(null)], false, true)).toBe(true);
+    expect(analysisUnavailable([photo(null), photo(null)], true, true)).toBe(false);
+  });
+
+  it('going on without a usable analysis offers the whole list, with detected skills ticked', () => {
+    const first = CREATOR_SPECIALIZATIONS[0].value;
+    const result = { platformSkills: [{ id: first, label: 'x', percentage: 100 }] } as never;
+    const r = skillChoices(result, true);
+    expect(r.manual).toBe(true);
+    expect(r.skills).toHaveLength(CREATOR_SPECIALIZATIONS.length);
+    expect(r.skills.filter((s) => s.selected).map((s) => s.id)).toEqual([first]);
+  });
+});

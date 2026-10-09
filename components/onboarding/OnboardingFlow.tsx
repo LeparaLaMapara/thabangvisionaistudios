@@ -22,6 +22,8 @@ const STEP_LABELS = ['Portfolio', 'Skills', 'Bio & Review', 'Gear'];
 
 interface OnboardingData {
   analyses: SceneAnalysisResult[];
+  /** The creator went on without a usable AI analysis: choose skills from the full list. */
+  manualSkills: boolean;
   skills: SkillDetectionResult | null;
   bio: string | null;
   gear: unknown[];
@@ -34,6 +36,7 @@ export default function OnboardingFlow() {
   const [error, setError] = useState<string | null>(null);
   const [data, setData] = useState<OnboardingData>({
     analyses: [],
+    manualSkills: false,
     skills: null,
     bio: null,
     gear: [],
@@ -89,8 +92,8 @@ export default function OnboardingFlow() {
       .upsert(progressData, { onConflict: 'creator_id' });
   }, []);
 
-  const handlePortfolioComplete = useCallback(async (analyses: SceneAnalysisResult[]) => {
-    setData(prev => ({ ...prev, analyses }));
+  const handlePortfolioComplete = useCallback(async (analyses: SceneAnalysisResult[], opts?: { manualSkills?: boolean }) => {
+    setData(prev => ({ ...prev, analyses, manualSkills: opts?.manualSkills === true }));
     await saveProgress(1);
     setStep(2);
   }, [saveProgress]);
@@ -247,6 +250,7 @@ export default function OnboardingFlow() {
               {step === 2 && (
                 <StepSkillsDetection
                   analyses={data.analyses}
+                  manualSkills={data.manualSkills}
                   onComplete={handleSkillsComplete}
                 />
               )}

@@ -32,11 +32,13 @@ const usable = (a: SceneAnalysisResult | null | undefined): a is SceneAnalysisRe
  * Every uploaded photo has been through analysis, yet fewer than two came
  * back usable: the AI could not help. The creator may continue anyway.
  */
-export function analysisUnavailable(items: readonly PortfolioItemState[], analyzing: boolean): boolean {
+export function analysisUnavailable(items: readonly PortfolioItemState[], analyzing: boolean, requestFailed = false): boolean {
   if (analyzing) return false;
   const uploaded = items.filter((i) => i.url && !i.uploading && !i.error);
   if (uploaded.length < 2 || items.some((i) => i.uploading)) return false;
-  if (!uploaded.every((i) => i.analysis)) return false;
+  // The analysis request itself failed (429, 500, network): no photo has a
+  // result and none will arrive without a retry, so the creator may go on.
+  if (!uploaded.every((i) => i.analysis)) return requestFailed;
   return uploaded.filter((i) => usable(i.analysis)).length < 2;
 }
 
@@ -54,10 +56,17 @@ export function manualSkillChoices(): SelectableSkill[] {
 
 /**
  * The skills to offer. Detected platform skills (ticked) when there are any;
- * otherwise, or when detection failed, the manual list.
+ * otherwise, when detection failed, or when the creator went on without a
+ * usable analysis (`forceManual`), the manual list.
  */
-export function skillChoices(result: SkillDetectionResult | null): { skills: SelectableSkill[]; manual: boolean } {
+export function skillChoices(result: SkillDetectionResult | null, forceManual = false): { skills: SelectableSkill[]; manual: boolean } {
   const detected = result?.platformSkills ?? [];
+  if (forceManual) {
+    // The creator went on without a usable analysis: offer the whole list,
+    // with anything the AI did detect ticked, so no kind of work is missing.
+    const ticked = new Set(detected.map((s) => s.id));
+    return { skills: manualSkillChoices().map((s) => ({ ...s, selected: ticked.has(s.id) })), manual: true };
+  }
   if (detected.length > 0) {
     return { skills: detected.map((s) => ({ id: s.id, name: s.label, percentage: s.percentage, selected: true })), manual: false };
   }

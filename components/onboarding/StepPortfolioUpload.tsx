@@ -28,7 +28,7 @@ interface PortfolioItem {
 }
 
 interface StepPortfolioUploadProps {
-  onComplete: (analyses: SceneAnalysisResult[]) => void;
+  onComplete: (analyses: SceneAnalysisResult[], opts?: { manualSkills?: boolean }) => void;
 }
 
 export default function StepPortfolioUpload({ onComplete }: StepPortfolioUploadProps) {
@@ -38,6 +38,7 @@ export default function StepPortfolioUpload({ onComplete }: StepPortfolioUploadP
   const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const autoAnalyzeTriggered = useRef(false);
+  const [analysisRequestFailed, setAnalysisRequestFailed] = useState(false);
 
   const validAnalyses = items
     .map(i => i.analysis)
@@ -145,6 +146,7 @@ export default function StepPortfolioUpload({ onComplete }: StepPortfolioUploadP
 
     setAnalyzing(true);
     setError(null);
+    setAnalysisRequestFailed(false);
     setAnalyzeProgress({ current: 0, total: uploadedUrls.length });
 
     try {
@@ -176,6 +178,7 @@ export default function StepPortfolioUpload({ onComplete }: StepPortfolioUploadP
       setAnalyzeProgress({ current: uploadedUrls.length, total: uploadedUrls.length });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Analysis failed. Try again.');
+      setAnalysisRequestFailed(true);
     } finally {
       setAnalyzing(false);
     }
@@ -238,10 +241,10 @@ export default function StepPortfolioUpload({ onComplete }: StepPortfolioUploadP
 
   // The photos were analysed but the AI could not read them (down, or out of
   // quota): carry on, and choose the skills by hand on the next step.
-  const aiUnavailable = !canProceed && analysisUnavailable(items, analyzing);
+  const aiUnavailable = !canProceed && analysisUnavailable(items, analyzing, analysisRequestFailed);
   const handleProceedWithoutAnalysis = () => {
     if (!aiUnavailable) return;
-    onComplete(analysesForUploaded(items));
+    onComplete(analysesForUploaded(items), { manualSkills: true });
   };
 
   const uploadedCount = items.filter(i => i.url && !i.uploading && !i.error).length;
