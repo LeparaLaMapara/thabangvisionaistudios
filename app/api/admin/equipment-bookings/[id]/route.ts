@@ -40,6 +40,13 @@ import { deliveryCancellationPlan, heldForStaffCancel, settleAfterLineCancelled,
  * (`refundDeliveryFee: true`), which refunds it once through the core. The
  * renter's own cancellation keeps the stricter rule (any leg past the
  * cancellable states blocks it).
+ *
+ * Review fix round 3, finding 2: when the renter may still have the gear (an
+ * outbound leg delivered, damaged or under review, and nothing on its way
+ * back yet), a scheduled return pickup is NOT cancelled with the order (it is
+ * how the gear comes back), and staff are alerted
+ * (`delivery_gear_with_renter_after_cancel`): the cancelled booking is no
+ * longer on the overdue ladder (D-57).
  */
 
 const NEEDS_OWN_SCREEN: Record<string, string> = {
@@ -231,8 +238,12 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   // made this the last one (finding 6); settling is idempotent per leg and quote.
   let deliveryRefundCents = 0;
   let keptLegs = 0;
+  let returnLegsKept = 0;
+  let gearWithRenter = false;
   if (deliveryPlan) {
     keptLegs = deliveryPlan.keptShipmentIds?.length ?? 0;
+    returnLegsKept = deliveryPlan.returnKeptShipmentIds?.length ?? 0;
+    gearWithRenter = deliveryPlan.gearWithRenter === true;
     deliveryRefundCents = await settleAfterLineCancelled(
       db,
       {
@@ -250,7 +261,16 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     eventType: 'admin_booking_transition',
     eventCategory: 'admin',
     userId: auth.user.id,
-    metadata: { bookingId: id, from: booking.status, to, deliveryRefundCents, deliveryLegsLeft: keptLegs, deliveryFeeRefundAsked: body.refundDeliveryFee === true },
+    metadata: {
+      bookingId: id,
+      from: booking.status,
+      to,
+      deliveryRefundCents,
+      deliveryLegsLeft: keptLegs,
+      deliveryReturnLegsKept: returnLegsKept,
+      deliveryGearWithRenter: gearWithRenter,
+      deliveryFeeRefundAsked: body.refundDeliveryFee === true,
+    },
   });
   await dispatchOutbox(10).catch(() => undefined);
   const { data: updated, error } = await db.from('equipment_bookings').select().eq('id', id).maybeSingle();

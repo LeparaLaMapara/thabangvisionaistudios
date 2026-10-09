@@ -12,7 +12,7 @@ import {
   type SettlementCheck,
 } from '@/lib/core/delivery/use-cases';
 import { POSSESSION_ENDING_ACTORS } from '@/lib/core/delivery/custody';
-import { CANCELLABLE_STATES, FINAL_DELIVERY_STATES, IN_COURIER_CUSTODY } from '@/lib/core/delivery/state';
+import { CANCELLABLE_STATES, FINAL_DELIVERY_STATES, IN_COURIER_CUSTODY, type DeliveryState } from '@/lib/core/delivery/state';
 import { buildNotices } from '@/lib/core/rental/notifications';
 import { toCents } from '@/lib/core/pricing/money';
 import { isMissingPipeline } from './repos';
@@ -59,6 +59,13 @@ export async function usesPhase4Delivery(db: Admin, bookingGroupId: string | nul
   }
   return (ships.data ?? []).length > 0 || (quotes.data ?? []).length > 0;
 }
+
+/**
+ * Outbound states in which the gear reached the renter, or may have (a
+ * damaged delivery, a review). `lost` is not one: the renter never had it.
+ * Mirrored in SQL by delivery_cancelled_orders_to_settle (076).
+ */
+export const GEAR_WITH_RENTER_STATES: readonly DeliveryState[] = ['delivered', 'damaged', 'incident_under_review'];
 
 /** Nothing about delivery stands in the way. */
 export const NO_DELIVERY_HOLD: SettlementCheck = { allowed: true, reasons: [], lateFeeAutoCharge: true, returnCollectedAt: null };
@@ -173,6 +180,20 @@ export interface DeliveryCancellationPlan {
   onlineQuoteIds?: string[];
   /** The delivery cents of the order's verified (paid) payment intent, or null when it is not paid online. */
   paidDeliveryCents?: number | null;
+  /**
+   * The gear may still be with the renter (review fix round 3, finding 2): an
+   * outbound leg reached them (delivered, damaged or under review) and no
+   * return leg has brought it back or is being reviewed. The order's
+   * cancellation then alerts staff (`delivery_gear_with_renter_after_cancel`):
+   * the cancelled booking is no longer on the overdue ladder.
+   */
+  gearWithRenter?: boolean;
+  /**
+   * Return legs that could be cancelled but are KEPT because the gear is with
+   * the renter (finding 2): the pickup is how the gear comes back. Never in
+   * `shipmentIds`, never refunded with the order; staff decide.
+   */
+  returnKeptShipmentIds?: string[];
 }
 
 /**
@@ -210,9 +231,13 @@ export async function deliveryCancellationPlan(
   const r = repo ?? new (await import('@/lib/delivery/repos')).SupabaseDeliveryRepository(db);
   const all = await r.listShipments(input.bookingGroupId);
   const live = all.filter((s) => !FINAL_DELIVERY_STATES.includes(s.status));
-  const cancellable = live.filter((s) => CANCELLABLE_STATES.includes(s.status));
   const moving = live.filter((s) => IN_COURIER_CUSTODY.includes(s.status));
   const kept = live.filter((s) => !CANCELLABLE_STATES.includes(s.status) && !IN_COURIER_CUSTODY.includes(s.status));
+  // Finding 2 (round 3): the renter may still have the gear. Its return pickup is
+  // not cancelled with the order: it is how the gear comes back.
+  const gearWithRenter = kept.some((s) => s.leg === 'outbound' && GEAR_WITH_RENTER_STATES.includes(s.status)) && !kept.some((s) => s.leg === 'return');
+  const returnKept = gearWithRenter ? live.filter((s) => s.leg === 'return' && CANCELLABLE_STATES.includes(s.status)) : [];
+  const cancellable = live.filter((s) => CANCELLABLE_STATES.includes(s.status) && !returnKept.includes(s));
   const used = new Set(all.map((s) => s.quoteId));
   const [paidQ, openQ, orderQ, intentQ] = await Promise.all([
     // A paid quote with no leg made from it (after-payment prepare refused it):
@@ -246,6 +271,8 @@ export async function deliveryCancellationPlan(
     unmarkedQuoteIds: unmarked.map((q) => q.id),
     onlineQuoteIds: ((orderQ.data ?? []) as QuoteRow[]).filter((q) => !isManualPaymentReference(q.paid_reference)).map((q) => q.id),
     paidDeliveryCents,
+    // Present only when the renter may still have the gear (absent reads as false / none).
+    ...(gearWithRenter ? { gearWithRenter, returnKeptShipmentIds: returnKept.map((s) => s.id) } : {}),
   };
 }
 
@@ -272,6 +299,14 @@ export async function deliveryCancellationPlan(
  *  - finding 6: callers pass the plan read AFTER their cancellation
  *    committed; everything here is idempotent per leg and quote, so two
  *    concurrent cancellations (or the daily sweep) settle once.
+ *
+ * Review fix round 3:
+ *  - finding 2 (D-57): when the renter may still have the gear, the plan
+ *    keeps the return pickup out of `shipmentIds` and staff are alerted
+ *    (`delivery_gear_with_renter_after_cancel`, once per order).
+ *  - finding 3 (D-58): under the legacy rules, a paid quote no leg was made
+ *    from is consumed and the order is held out of the daily sweep, which
+ *    would otherwise refund what was left to staff.
  */
 export async function settleOrderDeliveryOnCancel(
   db: Admin,
@@ -293,7 +328,8 @@ export async function settleOrderDeliveryOnCancel(
   const unused = plan.unusedPaidQuoteIds ?? [];
   const unmarked = plan.unmarkedQuoteIds ?? [];
   const kept = input.refundKeptLegs && input.caller.kind === 'staff' ? (plan.keptShipmentIds ?? []) : [];
-  if (!plan.phase4 || !plan.lastLine || (plan.shipmentIds.length === 0 && unused.length === 0 && unmarked.length === 0 && kept.length === 0)) return 0;
+  const gear = plan.gearWithRenter === true;
+  if (!plan.phase4 || !plan.lastLine || (plan.shipmentIds.length === 0 && unused.length === 0 && unmarked.length === 0 && kept.length === 0 && !gear)) return 0;
   const legacyMoney = input.phase4AtCancel === false;
   const alert = (what: string, reference: string) =>
     buildNotices({ kind: 'staff_alert', userId: 'staff', bookingIds: [input.bookingId], discriminator: `delivery:${what}:${reference}`, data: { what, reference } });
@@ -315,10 +351,25 @@ export async function settleOrderDeliveryOnCancel(
   let refunded = 0;
   try {
     const deps = await (hooks.deps ?? (async () => (await import('@/lib/delivery/server')).deliveryDeps()))();
+    if (gear) {
+      // Round 3, finding 2: the booking is cancelled (off the overdue ladder) but the
+      // renter may still have the gear; its return pickup was kept. A person follows up.
+      const ref = input.bookingGroupId ?? input.bookingId;
+      await deps.repo.post([], alert('delivery_gear_with_renter_after_cancel', ref));
+    }
     if (legacyMoney) {
       // The hire refund already carried the line's delivery fee: never refund it again.
       for (const quoteId of unmarked) await deps.repo.setQuoteStatus(quoteId, ['active', 'expired'], 'superseded');
-      if (plan.shipmentIds.length > 0 || unused.length > 0) await deps.repo.post([], alert('delivery_legacy_cancel_has_phase4_delivery', input.bookingId));
+      if (plan.shipmentIds.length > 0 || unused.length > 0) {
+        // Round 3, finding 3: what is left goes to staff, and stays theirs. A paid
+        // quote no leg was made from is settled (consumed: never dispatched, never
+        // refunded again), and the order is held out of the daily sweep, which
+        // would otherwise refund the legs and quotes as a platform cancellation.
+        for (const quoteId of unused) await deps.repo.setQuoteStatus(quoteId, ['paid'], 'consumed');
+        const group = input.bookingGroupId ?? (plan.shipmentIds[0] ? (await deps.repo.getShipment(plan.shipmentIds[0]))?.bookingGroupId : null) ?? (unused[0] ? (await deps.repo.getQuote(unused[0]))?.bookingGroupId : null) ?? null;
+        if (group) await noteCancelledOrder(db, group, 'legacy_cancel');
+        await deps.repo.post([], alert('delivery_legacy_cancel_has_phase4_delivery', input.bookingId));
+      }
       return 0;
     }
     for (const shipmentId of plan.shipmentIds) {
@@ -352,6 +403,22 @@ export async function settleOrderDeliveryOnCancel(
     await db.rpc('outbox_enqueue', { p_notices: alert('delivery_cancel_error', input.bookingId) });
   }
   return refunded;
+}
+
+/**
+ * Record, for the daily sweep (076 `delivery_note_cancelled_order`), that it
+ * looked at a fully cancelled order (`hold` null: the order moves to the back
+ * of the next run's queue, round 3 finding 5) or that the order is left to
+ * staff (`hold` set: the sweep skips it, finding 3). Never throws: a missed
+ * note only costs a place in the queue.
+ */
+async function noteCancelledOrder(db: Admin, bookingGroupId: string, hold: string | null): Promise<void> {
+  try {
+    const { error } = await db.rpc('delivery_note_cancelled_order', { p_group: bookingGroupId, p_hold: hold });
+    if (error && !isMissingPipeline(error)) console.error('[delivery] could not note the cancelled order:', error.message);
+  } catch (err) {
+    console.error('[delivery] could not note the cancelled order:', err instanceof Error ? err.message : 'unknown error');
+  }
 }
 
 /**
@@ -445,6 +512,10 @@ export async function settleAfterLineCancelled(
  * Quotes nobody marked paid are left to staff here (the cancellation itself
  * settles those; the sweep does not know which money rules it used). Bounded
  * by `limit` orders per run and the pipeline deadline. Empty before 076.
+ * Round 3: the database leaves out orders held for staff (D-58) and return
+ * pickups kept because the renter has the gear (D-57), and lists orders never
+ * tried before the least recently tried; each order is noted before it is
+ * tried, so a leg the provider keeps refusing never clogs the batch (D-59).
  */
 export async function sweepCancelledOrderDelivery(
   db: Admin,
@@ -467,6 +538,10 @@ export async function sweepCancelledOrderDelivery(
   for (const groupId of groups) {
     if (opts.deadline !== undefined && Date.now() > opts.deadline) break;
     checked += 1;
+    // Round 3, finding 5: noted BEFORE trying, so an order whose leg the provider
+    // refuses to cancel (or that crashes the run) goes to the back of the next run's
+    // queue instead of holding its place at the head every day.
+    await noteCancelledOrder(db, groupId, null);
     try {
       const { data: lines, error } = await db.from('equipment_bookings').select('id, status').eq('checkout_group_id', groupId);
       if (error) throw new Error(error.message);

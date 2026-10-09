@@ -42,7 +42,10 @@
 --      delivery_open_incident, delivery_save_reconciliation, delivery_post,
 --      claim_delivery_provider_events, delivery_insert_fee_refund,
 --      delivery_refund_quote, delivery_redact_address,
---      delivery_list_awaiting_acceptance, delivery_cancelled_orders_to_settle.
+--      delivery_list_awaiting_acceptance, delivery_cancelled_orders_to_settle,
+--      delivery_note_cancelled_order (round 3; with its server-only table
+--      delivery_cancelled_order_notes), and 070's refund_obligations_cap
+--      replaced in place (round 3).
 --
 -- REVIEW FIXES (2026-10-09, before 076 was applied anywhere)
 --   - Every delivery-fee refund obligation is capped at what is LEFT of the
@@ -79,6 +82,25 @@
 --   - delivery_cancelled_orders_to_settle: orders whose every line is
 --     cancelled but that still hold a cancellable leg or an unused paid quote
 --     (the daily safety net for two cancellations racing).
+--
+-- REVIEW FIXES, ROUND 3 (2026-10-09, still before 076 was applied anywhere)
+--   - delivery_cancelled_order_notes (server only) + delivery_note_cancelled_order:
+--     the daily cancelled-order sweep records each order it tried, and orders
+--     the legacy cancel path left to staff are held out of it.
+--   - delivery_cancelled_orders_to_settle: never lists a held order or a
+--     return pickup kept because the renter may still have the gear (an
+--     outbound leg delivered, damaged or under review, nothing on its way
+--     back); orders it never tried come first, then the least recently tried,
+--     so legs a provider refuses to cancel never clog the batch.
+--   - delivery_list_awaiting_acceptance: leaves out a leg whose fee was
+--     refunded or whose booking lines are all cancelled.
+--   - refund_obligations_cap (070's trigger function, replaced in place): an
+--     obligation on an order's own charge (its reference or provider
+--     transaction id matches a paid intent, and it is not money that arrived
+--     apart) is also capped at what is left of the ORDER's charge, under the
+--     same per-reference and per-order locks as delivery_insert_fee_refund.
+--     Every other row is capped exactly as before. Re-running 070 after 076
+--     restores the old body: re-run 076 after it.
 --
 -- SAFETY
 --   Additive and re-runnable (IF NOT EXISTS / CREATE OR REPLACE / DROP … IF
@@ -670,6 +692,72 @@ begin
 end;
 $$;
 
+-- Round 3: 070's cap trigger, made order-wide (replaced in place; the trigger
+-- itself, its timing and the function's ACL are unchanged). Before, it summed
+-- only the obligation's own transaction_reference, so a hire, deposit or staff
+-- refund filed under the provider's transaction id did not see a delivery-fee
+-- obligation filed under the intent reference (risk R-57). Now an obligation
+-- on an order's OWN charge (its reference or transaction id matches a paid
+-- intent, and it is not money that arrived apart, from_unallocated) is also
+-- capped at what is left of that order's charge, counting every obligation on
+-- the order exactly as delivery_insert_fee_refund does, under the same
+-- per-reference and per-order advisory locks (taken in the same order, so the
+-- two never deadlock). The original per-reference check still runs for every
+-- row, so a row with no matching paid intent is capped exactly as before.
+create or replace function public.refund_obligations_cap() returns trigger
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $$
+declare
+  v_sum bigint;
+  v_order bigint;
+  v_intent public.rental_payment_intents;
+  v_refs text[];
+begin
+  -- A re-insert of an existing obligation is a no-op (ON CONFLICT DO NOTHING); don't count it twice.
+  if tg_op = 'INSERT' and exists (select 1 from public.refund_obligations where obligation_key = new.obligation_key) then
+    return new;
+  end if;
+  if not new.from_unallocated then
+    select * into v_intent
+      from public.rental_payment_intents
+     where (reference = new.transaction_reference or provider_transaction_id = new.transaction_reference)
+       and state in ('paid', 'refund_due', 'refunded')
+     order by (reference = new.transaction_reference) desc
+     limit 1;
+  end if;
+  if v_intent.id is null then
+    perform pg_advisory_xact_lock(hashtext('refund:' || new.transaction_reference));
+  else
+    v_refs := array_remove(array[v_intent.reference, v_intent.provider_transaction_id, new.transaction_reference], null);
+    perform pg_advisory_xact_lock(hashtext('refund:' || x.r)) from (select distinct unnest(v_refs) as r order by 1) x;
+    perform pg_advisory_xact_lock(hashtext('refund-order:' || v_intent.checkout_group_id::text));
+    select coalesce(sum(o.amount_cents), 0) into v_order
+      from public.refund_obligations o
+     where (o.transaction_reference = any (v_refs)
+            or (o.booking_group_id = v_intent.checkout_group_id and not o.from_unallocated))
+       and o.id <> new.id;
+    if v_order + new.amount_cents > v_intent.expected_amount_cents then
+      raise exception 'refunds would exceed the order''s charge (% + % > %)', v_order, new.amount_cents, v_intent.expected_amount_cents
+        using errcode = '23514';
+    end if;
+  end if;
+  -- Unchanged from 070. Failed obligations still count: the provider can report a
+  -- failed refund processed later, so it holds its share of the charge until a
+  -- person resolves it. Reopening the same obligation excludes itself (id <> new.id).
+  select coalesce(sum(amount_cents), 0) into v_sum
+    from public.refund_obligations
+   where transaction_reference = new.transaction_reference
+     and id <> new.id;
+  if v_sum + new.amount_cents > new.charged_cents then
+    raise exception 'refunds would exceed the original charge (% + % > %)', v_sum, new.amount_cents, new.charged_cents
+      using errcode = '23514';
+  end if;
+  return new;
+end;
+$$;
+
 -- Post journals and enqueue notices together (idempotent by key).
 create or replace function public.delivery_post(p_journals jsonb, p_notices jsonb) returns void
 language plpgsql
@@ -879,7 +967,8 @@ $$;
 
 -- Delivered outbound legs not yet accepted that the daily job may remind and
 -- then deem accepted (D-48): never one with a renter exception on any item or
--- an open incident on the leg (a person decides those). Filtered BEFORE the
+-- an open incident on the leg (a person decides those), nor (round 3) one
+-- whose fee was refunded or whose booking is cancelled. Filtered BEFORE the
 -- limit, oldest delivery first, so such legs never fill the batch and starve
 -- the rest (review fix round 2).
 create or replace function public.delivery_list_awaiting_acceptance(p_delivered_before timestamptz, p_limit integer) returns setof uuid
@@ -896,15 +985,67 @@ as $$
      and s.delivered_at < p_delivered_before
      and not exists (select 1 from public.delivery_custody_events c where c.shipment_id = s.id and c.kind = 'renter_reported_exception')
      and not exists (select 1 from public.delivery_incidents i where i.shipment_id = s.id and i.status in ('open', 'investigating'))
+     -- Round 3: never a leg whose fee was refunded or whose booking lines are all cancelled.
+     and not exists (select 1 from public.delivery_quotes q where q.id = s.quote_id and q.status = 'refunded')
+     and exists (select 1 from jsonb_array_elements(s.items) it
+                   join public.equipment_bookings b on b.id::text = it ->> 'bookingId'
+                  where b.status <> 'cancelled')
    order by s.delivered_at, s.id
    limit greatest(coalesce(p_limit, 0), 0);
+$$;
+
+-- What the daily cancelled-order sweep knows about an order (review fix round
+-- 3): when it last tried to settle it (it orders by this, so an order whose
+-- leg a provider refuses to cancel goes to the back of the queue instead of
+-- filling the batch every day), and whether a person must settle it instead
+-- (staff_hold, e.g. 'legacy_cancel': the cancellation used the legacy money
+-- rules and refunded the delivery fee with the hire). Server only. To release
+-- a hold after settling the order by hand, delete its row.
+create table if not exists public.delivery_cancelled_order_notes (
+  booking_group_id uuid primary key,
+  attempts integer not null default 0 check (attempts >= 0),
+  last_attempt_at timestamptz,
+  staff_hold text,
+  held_at timestamptz,
+  updated_at timestamptz not null default now()
+);
+alter table public.delivery_cancelled_order_notes enable row level security;
+revoke all on public.delivery_cancelled_order_notes from public, anon, authenticated;
+grant select, insert, update, delete on public.delivery_cancelled_order_notes to service_role;
+
+-- p_hold null: one more sweep attempt, now. p_hold set: hold the order for
+-- staff (a later attempt note never clears it).
+create or replace function public.delivery_note_cancelled_order(p_group uuid, p_hold text) returns void
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $$
+begin
+  if p_group is null then
+    return;
+  end if;
+  insert into public.delivery_cancelled_order_notes as n (booking_group_id, attempts, last_attempt_at, staff_hold, held_at)
+  values (p_group, case when p_hold is null then 1 else 0 end, case when p_hold is null then now() end,
+          nullif(p_hold, ''), case when nullif(p_hold, '') is not null then now() end)
+  on conflict (booking_group_id) do update
+     set attempts = n.attempts + case when p_hold is null then 1 else 0 end,
+         last_attempt_at = case when p_hold is null then now() else n.last_attempt_at end,
+         staff_hold = coalesce(n.staff_hold, excluded.staff_hold),
+         held_at = coalesce(n.held_at, excluded.held_at),
+         updated_at = now();
+end;
 $$;
 
 -- Orders whose every line is cancelled but that still hold a cancellable leg
 -- (nothing has moved) or a paid quote no leg was made from: two cancellations
 -- of the order's last lines raced, or the settlement after a cancellation
 -- failed. The daily pipeline settles them through the delivery core (review
--- fix round 2). Oldest first, bounded.
+-- fix round 2). Bounded.
+-- Round 3: never an order held for staff, never a return pickup kept because
+-- the renter may still have the gear (an outbound leg delivered, damaged or
+-- under review and no return leg delivered, lost, damaged or under review:
+-- the same rule as deliveryCancellationPlan in lib/rental/delivery-settlement.ts);
+-- orders never tried first, then the least recently tried, then the oldest.
 create or replace function public.delivery_cancelled_orders_to_settle(p_limit integer) returns setof uuid
 language sql
 stable
@@ -916,6 +1057,13 @@ as $$
       select s.booking_group_id, s.updated_at as since
         from public.delivery_shipments s
        where s.status in ('requested', 'quoted', 'prepared', 'booking', 'scheduled', 'courier_assigned', 'courier_at_pickup')
+         and not (s.leg = 'return'
+                  and exists (select 1 from public.delivery_shipments o
+                               where o.booking_group_id = s.booking_group_id and o.leg = 'outbound'
+                                 and o.status in ('delivered', 'damaged', 'incident_under_review'))
+                  and not exists (select 1 from public.delivery_shipments r
+                                   where r.booking_group_id = s.booking_group_id and r.leg = 'return'
+                                     and r.status in ('delivered', 'lost', 'damaged', 'incident_under_review')))
       union all
       select q.booking_group_id, q.updated_at
         from public.delivery_quotes q
@@ -923,10 +1071,12 @@ as $$
          and q.booking_group_id is not null
          and not exists (select 1 from public.delivery_shipments s2 where s2.quote_id = q.id)
     ) g
+    left join public.delivery_cancelled_order_notes n on n.booking_group_id = g.booking_group_id
    where exists (select 1 from public.equipment_bookings b where b.checkout_group_id = g.booking_group_id)
      and not exists (select 1 from public.equipment_bookings b where b.checkout_group_id = g.booking_group_id and b.status <> 'cancelled')
-   group by g.booking_group_id
-   order by min(g.since), g.booking_group_id
+     and n.staff_hold is null
+   group by g.booking_group_id, n.last_attempt_at
+   order by n.last_attempt_at nulls first, min(g.since), g.booking_group_id
    limit greatest(coalesce(p_limit, 0), 0);
 $$;
 
@@ -1148,7 +1298,8 @@ begin
     'public.delivery_refund_quote(jsonb)',
     'public.delivery_redact_address(uuid, jsonb, timestamptz)',
     'public.delivery_list_awaiting_acceptance(timestamptz, integer)',
-    'public.delivery_cancelled_orders_to_settle(integer)'
+    'public.delivery_cancelled_orders_to_settle(integer)',
+    'public.delivery_note_cancelled_order(uuid, text)'
   ] loop
     execute format('revoke all on function %s from public, anon, authenticated', f);
     execute format('grant execute on function %s to service_role', f);
@@ -1164,6 +1315,8 @@ commit;
 --   drop policy if exists "Renter reads delivery events" on public.delivery_events;
 --   drop function if exists public.delivery_owns_all(uuid, uuid[]), public.delivery_owns_any(uuid, uuid[]),
 --     public.delivery_is_renter(uuid);
+--   drop function if exists public.delivery_note_cancelled_order(uuid, text);   -- round 3
+--   drop table if exists public.delivery_cancelled_order_notes;                -- round 3
 --   drop function if exists public.delivery_cancelled_orders_to_settle(integer),
 --     public.delivery_list_awaiting_acceptance(timestamptz, integer);   -- round 2
 --   drop function if exists public.delivery_redact_address(uuid, jsonb, timestamptz), public.delivery_refund_quote(jsonb),
@@ -1180,6 +1333,32 @@ commit;
 --   -- The added ledger accounts and rental_delivery_* notification types may stay (harmless).
 --   -- To remove them, re-create ledger_lines_account_check / notifications_type_check without them,
 --   -- ONLY if no ledger line or notification uses them.
+--   -- Round 3: put back 070's per-reference cap trigger body (the trigger itself is untouched):
+--   create or replace function public.refund_obligations_cap() returns trigger
+--   language plpgsql
+--   security definer
+--   set search_path = public, pg_temp
+--   as $fn$
+--   declare
+--     v_sum bigint;
+--   begin
+--     if tg_op = 'INSERT' and exists (select 1 from public.refund_obligations where obligation_key = new.obligation_key) then
+--       return new;
+--     end if;
+--     perform pg_advisory_xact_lock(hashtext('refund:' || new.transaction_reference));
+--     select coalesce(sum(amount_cents), 0) into v_sum
+--       from public.refund_obligations
+--      where transaction_reference = new.transaction_reference
+--        and id <> new.id;
+--     if v_sum + new.amount_cents > new.charged_cents then
+--       raise exception 'refunds would exceed the original charge (% + % > %)', v_sum, new.amount_cents, new.charged_cents
+--         using errcode = '23514';
+--     end if;
+--     return new;
+--   end;
+--   $fn$;
+--   (Rolling back ONLY the round 3 trigger change is safe at any time: it only
+--   ever refused rows, never changed one.)
 --   commit;
 -- Once a delivery fee or courier cost is in the ledger, do NOT drop these tables:
 -- custody events and delivery journals are part of the financial and evidential record.

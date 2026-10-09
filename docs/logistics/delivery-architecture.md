@@ -116,6 +116,15 @@ it records `coverage_verified = false` (D-40).
     `refunds_payable`); `deliveryCancelled` would release unearned hire a
     second time. Both journals share the key `delivery-cancel:{shipment}`, so
     a leg's fee is refunded in the ledger once;
+  - a fee NOT yet earned on a leg that stays open after the refund (a staff
+    refund on a delivered leg, or one lost, damaged or under review) could
+    still be earned later (the renter accepts, deemed acceptance, a review
+    closed as delivered). Its refund posts `deliveryEarned` and then
+    `deliveryEarnedRefund` (the same net effect as `deliveryCancelled`), so
+    any later earn of that leg dedupes on `delivery:{group}:{leg}`; every
+    earn site also skips a fee whose quote is `refunded`, and deemed
+    acceptance skips such a leg (and a leg whose booking lines are all
+    cancelled) entirely (review fix round 3, D-56);
   - a fee paid by hand (`manual:` reference, D-50) never entered the ledger:
     no delivery journals are posted for it and its refund is made by a person;
   - the legacy `deliveryEarned({ bookingGroupId })` keeps its old key
@@ -200,7 +209,8 @@ Per physical item (booking line + listing), append-only:
   per item on the booking page ("Received" / "Report a problem"). With no
   answer, the daily pipeline reminds them once and then records
   `deemed_accepted` (D-48): it earns the outbound fee and lets the address
-  follow retention, and is never used for a return leg's inspection.
+  follow retention, and is never used for a return leg's inspection, a leg
+  whose fee was refunded or a leg whose booking is cancelled (D-56).
 - Each item has its own chain (D28): an exception on a lens does not affect
   the camera.
 - Every event names the shipment, the order and the booking line (D14).

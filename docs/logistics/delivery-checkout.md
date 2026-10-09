@@ -216,7 +216,14 @@ legs are cancelled through the core as a platform cancellation):
   lost, damaged or under review, are left as they are and logged
   (`deliveryLegsLeft`); their fee is kept (D-39/D-52) unless staff send
   `refundDeliveryFee: true`, which refunds it once through
-  `refundDeliveryFee` (an earned fee is reversed out of income);
+  `refundDeliveryFee` (an earned fee is reversed out of income; a fee not yet
+  earned can never be earned afterwards, D-56). When the renter may still
+  have the gear (an outbound leg delivered, damaged or under review, and no
+  return leg delivered or under review), a scheduled return pickup is NOT
+  cancelled with the order: it is how the gear comes back
+  (`returnKeptShipmentIds`, `deliveryReturnLegsKept` in the log), and staff
+  get `delivery_gear_with_renter_after_cancel`, because the cancelled
+  booking is off the overdue ladder (round 3, finding 2, D-57);
 - cancelling one line while others remain leaves the delivery as it is. The
   order is read AGAIN after the line's cancellation commits
   (`settleAfterLineCancelled`): two cancellations of the last two lines at
@@ -224,6 +231,10 @@ legs are cancelled through the core as a platform cancellation):
   cancelled, and settling is idempotent per leg and quote, so the fee is
   refunded once (round 2, finding 6). The daily step
   `delivery_cancelled_orders` catches anything left (a failed settlement).
+  What a legacy-rules cancellation left to staff (a leg, or a paid quote no
+  leg was made from) stays theirs: the quote is `consumed` and the order is
+  held out of the sweep (`delivery_note_cancelled_order(…, 'legacy_cancel')`,
+  round 3, finding 3, D-58).
 
 The booking page's confirmation shows the delivery refund.
 
@@ -298,5 +309,11 @@ delivery, earned-fee refunds and ledger balances, closing a review as
 delivered, the last-line race and the daily sweep, hand-paid quotes on a
 replay, who ends the renter's possession, the studio day) and
 `076-delivery.test.sql` 14 and 19–21; every fix was mutation-checked.
+Review fixes round 3: `tests/unit/delivery-review3-fixes.test.ts` (a fee
+refunded before it was earned is never earned by deemed acceptance, the
+renter's acceptance or closing a review; the return pickup kept when the
+renter has the gear; the legacy cancel path and the sweep; sweep attempts)
+and `076-delivery.test.sql` 22–24 (sweep holds, kept return pickups and
+attempt order; the deemed-acceptance list; the order-wide 070 cap trigger).
 `tests/e2e/delivery-checkout.spec.ts` covers what runs without a database
 (no always-skipped placeholders).

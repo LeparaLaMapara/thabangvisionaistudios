@@ -29,7 +29,7 @@ import { deliveryEventDedupeKey } from './inbox';
  *  - deemDeliveryAcceptances: a delivered outbound leg the renter has not
  *    confirmed is reminded once, then deemed accepted after
  *    DELIVERY_POLICY.deemedAcceptanceHours (D-48), never over an exception
- *    or an open incident.
+ *    or an open incident, a refunded fee or a cancelled booking (D-56).
  *  - purgeDeliveryAddresses: purpose-based retention of delivery addresses
  *    (D-46); addresses of open shipments are never touched (re-checked in
  *    the database at the moment of writing).
@@ -203,7 +203,7 @@ export async function remindReturnPickups(
  * acceptance each have one dedupe key per leg).
  */
 export async function deemDeliveryAcceptances(
-  deps: Pick<DeliveryDeps, 'repo' | 'clock'>,
+  deps: Pick<DeliveryDeps, 'repo' | 'clock' | 'bookings'>,
   q: Pick<DeliveryJobQueries, 'listAwaitingAcceptance'>,
   limit: number = DELIVERY_OPS.jobBatchSize,
   deadline?: number,
