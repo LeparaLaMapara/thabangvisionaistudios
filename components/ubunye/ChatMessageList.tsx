@@ -2,7 +2,7 @@
 
 import { useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { LogIn, UserPlus, ArrowUpRight } from 'lucide-react';
+import { LogIn, UserPlus, ArrowUpRight, RotateCcw } from 'lucide-react';
 import ReactMarkdown, { type Components } from 'react-markdown';
 import Link from 'next/link';
 import type { UIMessage } from 'ai';
@@ -70,6 +70,8 @@ interface ChatMessageListProps {
   isAuthenticated: boolean;
   mdComponents: Components;
   onSend: (text: string) => void;
+  /** Re-sends the last message after a failed request. Omit to hide the button. */
+  onRetry?: () => void;
 }
 
 export function ChatMessageList({
@@ -81,6 +83,7 @@ export function ChatMessageList({
   isAuthenticated,
   mdComponents,
   onSend,
+  onRetry,
 }: ChatMessageListProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -103,7 +106,16 @@ export function ChatMessageList({
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       transition={{ duration: 0.3 }}
-      className="flex-1 overflow-y-auto py-6 space-y-4 md:space-y-6 scrollbar-thin scrollbar-thumb-neutral-800 scrollbar-track-transparent"
+      // A chat transcript: screen readers announce new messages as they land.
+      // aria-busy holds the announcement until a streamed reply is complete,
+      // instead of reading it out token by token.
+      role="log"
+      aria-live="polite"
+      aria-relevant="additions"
+      aria-label="Conversation with Ubunye"
+      aria-busy={isLoading}
+      tabIndex={0}
+      className="flex-1 overflow-y-auto focus-visible:outline focus-visible:outline-1 focus-visible:outline-[#D4A843]/40 py-6 space-y-4 md:space-y-6 scrollbar-thin scrollbar-thumb-neutral-800 scrollbar-track-transparent"
     >
       {messages.map((msg, msgIndex) => {
         const text = getMessageText(msg);
@@ -142,8 +154,8 @@ export function ChatMessageList({
 
             {pendingTools.length > 0 && (
               <div className="flex items-center gap-2 pt-1">
-                <div className="w-3 h-3 border-2 border-[#D4A843]/30 border-t-[#D4A843] rounded-full animate-spin" />
-                <span className="text-[12px] text-[#D4A843]/70 font-mono">
+                <div aria-hidden="true" className="w-3 h-3 border-2 border-[#D4A843]/30 border-t-[#D4A843] rounded-full animate-spin" />
+                <span className="text-[12px] text-[#D4A843] font-mono">
                   {pendingTools[0].label}...
                 </span>
               </div>
@@ -174,16 +186,16 @@ export function ChatMessageList({
             <div className="flex gap-2 mt-3 pl-4">
               <Link
                 href="/login"
-                className="flex items-center gap-1.5 px-4 py-2 bg-[#D4A843] text-black text-xs font-mono font-bold uppercase tracking-widest hover:opacity-80 transition-opacity"
+                className="flex items-center gap-1.5 min-h-[44px] px-4 py-2 bg-[#D4A843] text-black text-xs font-mono font-bold uppercase tracking-widest hover:opacity-80 transition-opacity"
               >
-                <LogIn className="w-3.5 h-3.5" />
+                <LogIn className="w-3.5 h-3.5" aria-hidden="true" />
                 Sign In
               </Link>
               <Link
                 href="/register"
-                className="flex items-center gap-1.5 px-4 py-2 border border-neutral-700 text-neutral-400 text-xs font-mono font-bold uppercase tracking-widest hover:border-[#D4A843]/50 hover:text-[#D4A843] transition-colors"
+                className="flex items-center gap-1.5 min-h-[44px] px-4 py-2 border border-neutral-700 text-neutral-400 text-xs font-mono font-bold uppercase tracking-widest hover:border-[#D4A843]/50 hover:text-[#D4A843] transition-colors"
               >
-                <UserPlus className="w-3.5 h-3.5" />
+                <UserPlus className="w-3.5 h-3.5" aria-hidden="true" />
                 Create Account
               </Link>
             </div>
@@ -191,9 +203,9 @@ export function ChatMessageList({
             <div className="flex gap-2 mt-3 pl-4">
               <Link
                 href="/pricing"
-                className="flex items-center gap-1.5 px-4 py-2 bg-[#D4A843] text-black text-xs font-mono font-bold uppercase tracking-widest hover:opacity-80 transition-opacity"
+                className="flex items-center gap-1.5 min-h-[44px] px-4 py-2 bg-[#D4A843] text-black text-xs font-mono font-bold uppercase tracking-widest hover:opacity-80 transition-opacity"
               >
-                <ArrowUpRight className="w-3.5 h-3.5" />
+                <ArrowUpRight className="w-3.5 h-3.5" aria-hidden="true" />
                 Upgrade Plan
               </Link>
             </div>
@@ -212,7 +224,8 @@ export function ChatMessageList({
             <span className="text-xs font-medium tracking-wide text-[#D4A843]">
               Ubunye
             </span>
-            <div className="flex items-center gap-1 pt-1">
+            <div className="flex items-center gap-1 pt-1" role="status">
+              <span className="sr-only">Ubunye is replying…</span>
               <span className="typing-dot" style={{ animationDelay: '0ms' }} />
               <span className="typing-dot" style={{ animationDelay: '160ms' }} />
               <span className="typing-dot" style={{ animationDelay: '320ms' }} />
@@ -226,13 +239,25 @@ export function ChatMessageList({
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           className="space-y-1"
+          role="alert"
         >
           <span className="text-xs font-medium tracking-wide text-[#D4A843]">
             Ubunye
           </span>
           <div className="text-[15px] text-neutral-400 leading-relaxed">
-            I&apos;m experiencing connectivity issues. Please try again.
+            I couldn&apos;t get a reply through. Your message is safe — try sending it again.
           </div>
+          {onRetry && (
+            <button
+              type="button"
+              onClick={onRetry}
+              disabled={isLoading}
+              className="mt-2 inline-flex items-center gap-2 min-h-[44px] px-4 border border-[#D4A843]/40 text-[#D4A843] text-xs font-mono font-bold uppercase tracking-widest hover:bg-[#D4A843]/10 transition-colors disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#D4A843]"
+            >
+              <RotateCcw className="w-3.5 h-3.5" aria-hidden="true" />
+              Retry
+            </button>
+          )}
           {/* A dead end here used to be a dead end for the booking too: the
               only link to the booking form lived in this assistant's system
               prompt, so a customer who got this message had nowhere to go. */}

@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import { Inter, Space_Grotesk, Space_Mono, Orbitron } from 'next/font/google';
+import { Inter, Space_Grotesk, Space_Mono } from 'next/font/google';
 import './globals.css';
 
 import { Analytics } from '@vercel/analytics/next';
@@ -33,12 +33,8 @@ const spaceMono = Space_Mono({
   display:  'swap',
 });
 
-const orbitron = Orbitron({
-  subsets:  ['latin'],
-  weight:   ['400', '500', '600', '700', '800', '900'],
-  variable: '--font-orbitron',
-  display:  'swap',
-});
+// Orbitron (six weights) was loaded here but nothing used --font-orbitron;
+// removed so no page ships its @font-face rules or preloads.
 
 export const metadata: Metadata = {
   title: {
@@ -135,7 +131,6 @@ export default async function RootLayout({
           inter.variable,
           spaceGrotesk.variable,
           spaceMono.variable,
-          orbitron.variable,
           'font-sans antialiased',
         ].join(' ')}
       >
@@ -149,7 +144,7 @@ export default async function RootLayout({
         />
         <a
           href="#main"
-          className="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-[100] focus:bg-[#D4A843] focus:text-[#050505] focus:px-4 focus:py-3 focus:text-sm focus:font-bold"
+          className="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-[1000] focus:bg-[#D4A843] focus:text-[#050505] focus:px-4 focus:py-3 focus:text-sm focus:font-bold"
         >
           Skip to content
         </a>

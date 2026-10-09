@@ -15,7 +15,8 @@ export default async function ImmersiveLayout({
   return (
     <div className="flex flex-col min-h-screen bg-[#030305] text-white">
       <Header navigation={navigation} />
-      <main className="flex-grow">
+      {/* id="main" is the target of the root layout's skip link. */}
+      <main id="main" tabIndex={-1} className="flex-grow outline-none">
         {children}
       </main>
     </div>
