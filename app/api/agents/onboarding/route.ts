@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth, checkNotSuspended, checkRateLimit } from '@/lib/auth';
 import { identifyGear } from '@/lib/agents/tools';
+import { isOwnImageUrl } from '@/app/api/listings/_lib/images';
 
 // ─── POST /api/agents/onboarding ────────────────────────────────────────────
 
@@ -37,14 +38,11 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       );
     }
 
-    // Basic URL validation
-    try {
-      const parsed = new URL(imageUrl);
-      if (!['https:', 'http:'].includes(parsed.protocol)) {
-        return NextResponse.json({ error: 'Invalid image URL protocol.' }, { status: 400 });
-      }
-    } catch {
-      return NextResponse.json({ error: 'Invalid image URL.' }, { status: 400 });
+    // The server fetches this image (identifyGear), so only photos uploaded to
+    // our own storage account are accepted: an arbitrary URL would let anyone
+    // make the server fetch internal or third-party addresses.
+    if (typeof imageUrl !== 'string' || !isOwnImageUrl(imageUrl)) {
+      return NextResponse.json({ error: 'Upload the photo first, then try again.' }, { status: 400 });
     }
 
     switch (action) {

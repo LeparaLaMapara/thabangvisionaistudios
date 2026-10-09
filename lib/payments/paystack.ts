@@ -172,6 +172,10 @@ export const paystack: PaymentProvider = {
         item_description: params.itemDescription,
         cancel_url: resolveUrl(params.cancelUrl),
         ...flattenMetadata(params.metadata),
+        // Paystack sends a customer who abandons the payment page to
+        // metadata.cancel_action (https://paystack.com/docs/payments/metadata/).
+        // cancel_url alone was ignored, so a cancel landed on the return URL.
+        cancel_action: resolveUrl(params.cancelUrl),
       },
     });
 
@@ -194,6 +198,10 @@ export const paystack: PaymentProvider = {
         interval: params.interval,
         cancel_url: resolveUrl(params.cancelUrl),
         ...flattenMetadata(params.metadata),
+        // Paystack sends a customer who abandons the payment page to
+        // metadata.cancel_action (https://paystack.com/docs/payments/metadata/).
+        // cancel_url alone was ignored, so a cancel landed on the return URL.
+        cancel_action: resolveUrl(params.cancelUrl),
       },
     });
 

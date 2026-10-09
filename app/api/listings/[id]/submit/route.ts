@@ -4,7 +4,8 @@ export const maxDuration = 60;
 
 import { NextRequest, NextResponse } from 'next/server';
 import { checkNotSuspended, checkRateLimit, requireAuth } from '@/lib/auth';
-import { decideSubmission, type ListingOwnerFacts } from '@/lib/core/listings/review';
+import { decideSubmission, listingFieldsComplete, type ListingOwnerFacts } from '@/lib/core/listings/review';
+import { trackFunnel } from '@/lib/analytics/funnel';
 import {
   adminClient,
   forOwner,
@@ -68,7 +69,18 @@ export async function POST(
       return NextResponse.json({ error: 'Could not check your account. Please try again.' }, { status: 503 });
     }
 
-    const decision = decideSubmission(toReviewInput(row), owner);
+    const reviewInput = toReviewInput(row);
+    const decision = decideSubmission(reviewInput, owner);
+
+    // Funnel (spec 9.6): "draft complete" is recorded when the owner presses
+    // Submit on a draft whose own part is done (every required field, the
+    // declarations, every AI suggestion checked), whether or not the owner's
+    // ID check or payout account still block it. Reports count distinct
+    // listings, so a second attempt does not count twice.
+    if ((row.listing_status === 'draft' || row.listing_status === 'rejected') && listingFieldsComplete(reviewInput)) {
+      trackFunnel('listing_draft_complete', { userId: auth.user.id, meta: { listingId: row.id } });
+    }
+
     if (!decision.ok) {
       return NextResponse.json(
         {
@@ -137,6 +149,18 @@ export async function POST(
       return NextResponse.json({ error: 'The listing changed while it was being submitted; reload and try again.' }, { status: 409 });
     }
 
+    trackFunnel('listing_submitted', {
+      userId: auth.user.id,
+      meta: {
+        listingId: row.id,
+        reviewed: decision.to === 'pending_review',
+        codes: decision.review.reasons.map((r) => r.code),
+      },
+    });
+    if (decision.to === 'published') {
+      trackFunnel('listing_published', { userId: auth.user.id, meta: { listingId: row.id, source: 'auto' } });
+    }
+
     const listing = await loadOwnListing(admin, row.id, auth.user.id);
 
     return NextResponse.json({
@@ -148,6 +172,7 @@ export async function POST(
           : 'Submitted. A person will review your listing before it goes live.',
       // Shown to the owner so they know why a review is needed.
       review_reasons: decision.review.reasons.map((r) => r.message),
+      review_reason_codes: decision.review.reasons.map((r) => r.code),
     });
   } catch (err) {
     console.error('[listings/submit] error:', err);

@@ -2,7 +2,6 @@ export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
 import { checkNotSuspended, checkRateLimit, requireAuth } from '@/lib/auth';
-import { STUDIO } from '@/lib/constants';
 import {
   buildAttestations,
   checkListingTransition,
@@ -28,11 +27,11 @@ import {
   loadOwnListing,
   locationOf,
   OWNER_LISTING_COLUMNS,
-  savePrivate,
   savePrivateIfUnchanged,
   type Admin,
   type OwnerListingRow,
 } from '@/app/api/listings/_lib/server';
+import { insertDraft } from '@/app/api/listings/_lib/drafts';
 import { isOwnImageUrl, metadataFreeGallery, metadataFreeImageUrl } from '@/app/api/listings/_lib/images';
 
 /**
@@ -40,8 +39,9 @@ import { isOwnImageUrl, metadataFreeGallery, metadataFreeImageUrl } from '@/app/
  *
  *   GET     the caller's own listings (all statuses)
  *   POST    create a DRAFT. Never public on create, whatever the browser sends.
- *   PUT     edit (default), or { action: 'confirm_ai_fields', fields } or
- *           { action: 'unpublish' }
+ *   PUT     edit (default), or { action: 'confirm_ai_fields', fields },
+ *           { action: 'attest', attestations } (the three owner declarations,
+ *           given at the submit step) or { action: 'unpublish' }
  *   DELETE  soft delete
  *
  * Going live is POST /api/listings/[id]/submit. Status, deposit, owner and
@@ -49,19 +49,6 @@ import { isOwnImageUrl, metadataFreeGallery, metadataFreeImageUrl } from '@/app/
  * declarations in listing_private); is_published is derived from
  * listing_status by the database (migration 072).
  */
-
-function slugify(text: string): string {
-  return text
-    .toLowerCase()
-    .trim()
-    .replace(/[^\w\s-]/g, '')
-    .replace(/[\s_]+/g, '-')
-    .replace(/-+/g, '-');
-}
-
-function uniqueSlug(title: string): string {
-  return `${slugify(title)}-${Date.now().toString(36)}`;
-}
 
 /** A gallery as comparable strings: a photo swapped under the same URL (or id) is a change. */
 function galleryKeys(gallery: { url: string; public_id: string }[] | null | undefined): string[] {
@@ -208,59 +195,39 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     const now = new Date();
     const attestations = input.attestations !== undefined ? buildAttestations(input.attestations, now) : null;
-    const aiFields = input.ai_suggested_fields.length > 0 ? markAiSuggested(null, input.ai_suggested_fields, now) : null;
-    const gallery = metadataFreeGallery(input.gallery);
 
     // Drafts may be saved before the ID check; submission enforces it.
-    const { data, error } = await admin
-      .from('smart_rentals')
-      .insert({
+    const id = await insertDraft(
+      admin,
+      auth.user.id,
+      {
         title: input.title,
-        slug: uniqueSlug(input.title),
         description: input.description,
         category: input.category,
-        sub_category: input.condition,
+        condition: input.condition,
         brand: input.brand,
         model: input.model,
         price_per_day: input.price_per_day,
         price_per_week: input.price_per_week ?? null,
         replacement_value: input.replacement_value,
-        deposit_amount: depositForListing(input.replacement_value),
         rental_includes: input.rental_includes ?? [],
         serial_number: input.serial_number,
-        currency: STUDIO.currency.code,
+        location: input.location,
+        gallery: metadataFreeGallery(input.gallery),
         // Always one of the gallery photos (parseListingInput), served metadata-free.
         thumbnail_url: input.thumbnail_url ? metadataFreeImageUrl(input.thumbnail_url) : null,
         cover_public_id: input.cover_public_id,
-        gallery,
-        metadata: listingMetadata(null, input.location),
-        owner_type: 'community',
-        owner_id: auth.user.id,
-        listing_status: 'draft',
-        is_published: false,
-        is_available: true,
-        is_ai_generated: input.ai_suggested_fields.length > 0,
-        quantity: 1,
-        ranking_score: 0,
-      })
-      .select('id')
-      .single();
-    if (error) throw error;
+      },
+      {
+        source: 'dashboard',
+        aiSuggested: input.ai_suggested_fields,
+        attestations: attestations?.ok ? attestations.value : null,
+        replacementValueEvidence: input.replacement_value_evidence,
+        now,
+      },
+    );
 
-    try {
-      await savePrivate(admin, data.id as string, {
-        ai_fields: aiFields,
-        owner_attestations: attestations?.ok ? attestations.value : null,
-        replacement_value_evidence: input.replacement_value_evidence,
-      });
-    } catch (privErr) {
-      // Without its private row the AI flags would be lost; do not keep a
-      // half-saved draft. Nothing can reference a row created a moment ago.
-      await admin.from('smart_rentals').delete().eq('id', data.id).eq('owner_id', auth.user.id);
-      throw privErr;
-    }
-
-    return ownListingResponse(admin, data.id as string, auth.user.id, { status: 201 });
+    return ownListingResponse(admin, id, auth.user.id, { status: 201 });
   } catch (err) {
     console.error('[listings] POST error:', err);
     return NextResponse.json({ error: 'Failed to create listing.' }, { status: 500 });
@@ -286,7 +253,7 @@ export async function PUT(request: NextRequest): Promise<NextResponse> {
   if (!id) return NextResponse.json({ error: 'Listing ID is required.' }, { status: 400 });
 
   const action = typeof b.action === 'string' ? b.action : 'update';
-  if (!['update', 'confirm_ai_fields', 'unpublish'].includes(action)) {
+  if (!['update', 'confirm_ai_fields', 'attest', 'unpublish'].includes(action)) {
     return NextResponse.json({ error: 'Unknown action.' }, { status: 400 });
   }
 
@@ -335,6 +302,28 @@ export async function PUT(request: NextRequest): Promise<NextResponse> {
         { ai_fields: confirmAiFields(row.ai_fields, fields, now) },
         row.private_updated_at,
       );
+      if (!written) return NextResponse.json({ error: 'The listing changed; reload and try again.' }, { status: 409 });
+      return ownListingResponse(admin, row.id, auth.user.id);
+    }
+
+    // ── The owner declarations, given at the submit step ──
+    // Stored like an edit's declarations, but nothing else changes. Only on
+    // a listing that can be submitted; all three must be ticked.
+    if (action === 'attest') {
+      if (row.listing_status !== 'draft' && row.listing_status !== 'rejected') {
+        return NextResponse.json(
+          { error: 'Only a draft, or a listing that was not approved, can be submitted.' },
+          { status: 409 },
+        );
+      }
+      const built = buildAttestations(b.attestations, now);
+      if (!built.ok) {
+        return NextResponse.json(
+          { error: 'Tick all three declarations to submit.', field: 'attestations', missing: built.missing },
+          { status: 400 },
+        );
+      }
+      const written = await savePrivateIfUnchanged(admin, row.id, { owner_attestations: built.value }, row.private_updated_at);
       if (!written) return NextResponse.json({ error: 'The listing changed; reload and try again.' }, { status: 409 });
       return ownListingResponse(admin, row.id, auth.user.id);
     }

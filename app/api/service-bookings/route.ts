@@ -12,6 +12,7 @@ import { logEvent } from '@/lib/data/events';
 import { validateBookingRequest } from '@/lib/bookings/validate';
 import { quoteHourly, quotePackage, splitServiceBooking } from '@/lib/bookings/pricing';
 import { getBookablePackage } from '@/lib/bookings/packages';
+import { checkBookableCreator, CREATOR_NOT_BOOKABLE_MESSAGE } from '@/lib/bookings/creator';
 import { reportUnpaidRequest, PAYMENTS_OFF_MESSAGE } from '@/lib/payments/offline';
 import { revisionPolicyText } from '@/lib/core/services/fulfilment';
 import { mentionsFulfilmentSchema, withoutFulfilmentColumns } from '@/lib/supabase/queries/service-bookings';
@@ -77,6 +78,25 @@ export async function POST(request: NextRequest) {
   // Prevent self-booking (creator cannot be the client — prevents self-payout exploit)
   if (creator_id && creator_id === user.id) {
     return NextResponse.json({ error: 'Cannot book yourself as creator' }, { status: 400 });
+  }
+
+  // A named creator (chosen in the form, or the one a package names) must be
+  // bookable: ID verified, available for hire, not suspended. The Ubunye
+  // path already checks this (lib/agent/offers.ts); this route did not. The
+  // read fails closed. No creator named means our team assigns one.
+  if (creator_id) {
+    if (typeof creator_id !== 'string') {
+      return NextResponse.json({ error: CREATOR_NOT_BOOKABLE_MESSAGE, code: 'creator_not_bookable' }, { status: 400 });
+    }
+    try {
+      const creator = await checkBookableCreator(admin(), creator_id);
+      if (!creator.ok) {
+        return NextResponse.json({ error: CREATOR_NOT_BOOKABLE_MESSAGE, code: 'creator_not_bookable' }, { status: 409 });
+      }
+    } catch (err) {
+      console.error('[service-bookings] creator check failed:', err);
+      return NextResponse.json({ error: 'Could not check the creator just now. Please try again.' }, { status: 503 });
+    }
   }
 
   // Validation lives in lib/bookings/validate.ts so it can be tested. It was

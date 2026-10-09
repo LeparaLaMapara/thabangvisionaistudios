@@ -703,6 +703,15 @@ Please contact the client and the creator. They are not paid out or refunded aut
     results.welcomes = { error: String(err) };
   }
 
+  // ─── 15. Funnel metrics past their retention (spec §9.6) ─────────────────
+  try {
+    const cutoff = new Date(now.getTime() - STUDIO.analytics.funnelRetentionDays * 86_400_000).toISOString();
+    const { error } = await supabase.from('platform_events').delete().eq('event_category', 'funnel').lt('created_at', cutoff);
+    results.funnelPurge = error ? { error: error.message } : { before: cutoff };
+  } catch (err) {
+    results.funnelPurge = { error: String(err) };
+  }
+
   console.log('[daily-maintenance] Results:', JSON.stringify(results));
 
   return NextResponse.json({

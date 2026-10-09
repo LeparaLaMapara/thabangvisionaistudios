@@ -1,140 +1,70 @@
 'use client';
 
-import { useMemo, useState, useCallback, useEffect, useRef } from 'react';
-import { motion } from 'framer-motion';
+import { useMemo } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { ArrowUpRight } from 'lucide-react';
-import type { SmartRental } from '@/lib/supabase/queries/smartRentals';
+import { useRouter } from 'next/navigation';
+import { ArrowUpRight, RotateCcw } from 'lucide-react';
 import { PLACEHOLDER_IMAGES, RENTAL_CATEGORIES, STUDIO } from '@/lib/constants';
 import { collectionPoint } from '@/lib/rental/collection-point';
 
-// ─── Image shimmer skeleton ───────────────────────────────────────────────────
-function ImageSkeleton(): React.ReactElement {
-  return (
-    <div className="absolute inset-0 bg-neutral-900 animate-pulse">
-      <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent animate-[shimmer_1.5s_infinite]" />
-    </div>
-  );
-}
-
-// ─── Sequential reveal hook ───────────────────────────────────────────────────
-// Tracks which images have loaded and reveals cards one by one in order.
-function useSequentialReveal(total: number): {
-  onImageLoaded: (index: number) => void;
-  isRevealed: (index: number) => boolean;
-} {
-  const [revealedCount, setRevealedCount] = useState(0);
-  const loadedRef = useRef<Set<number>>(new Set());
-
-  const tryRevealNext = useCallback(() => {
-    setRevealedCount(prev => {
-      let next = prev;
-      while (loadedRef.current.has(next)) {
-        next++;
-      }
-      return next;
-    });
-  }, []);
-
-  const onImageLoaded = useCallback((index: number) => {
-    loadedRef.current.add(index);
-    tryRevealNext();
-  }, [tryRevealNext]);
-
-  // Re-check the queue after each reveal in case later cards already loaded
-  useEffect(() => {
-    if (revealedCount < total && loadedRef.current.has(revealedCount)) {
-      const timer = setTimeout(tryRevealNext, 150);
-      return () => clearTimeout(timer);
-    }
-  }, [revealedCount, total, tryRevealNext]);
-
-  const isRevealed = useCallback(
-    (index: number) => index < revealedCount,
-    [revealedCount],
-  );
-
-  return { onImageLoaded, isRevealed };
-}
-
-// ─── Category card: fades in only when it is next in the sequence ─────────────
+// ─── Category card ────────────────────────────────────────────────────────────
+// Cards used to stay at opacity 0 until their image -- and every image before
+// it -- fired onLoad. One broken image left the rest of the grid invisible
+// (but still focusable), so cards now render straight away over a dark
+// placeholder and the image fills in when it arrives.
 function CategoryCard({
   cat,
   meta,
   index,
   count,
-  revealed,
-  onImageReady,
 }: {
   cat: string;
-  meta: { label: string; subtitle: string; description: string; fallbackImage: string };
+  meta: CategoryMeta;
   index: number;
   count: number | undefined;
-  revealed: boolean;
-  onImageReady: () => void;
 }): React.ReactElement {
-  const onLoad = useCallback(() => onImageReady(), [onImageReady]);
-
   return (
     <div className="relative h-[450px] overflow-hidden bg-[#0A0A0B]">
-      {/* Skeleton shown while waiting for this card's turn */}
-      {!revealed && <ImageSkeleton />}
-
-      {/* Hidden preload image that fires onLoad when ready */}
-      <Image
-        src={meta.fallbackImage}
-        alt={meta.label}
-        fill
-        sizes="(max-width: 768px) 100vw, (max-width: 1024px) 50vw, 33vw"
-        className="object-cover opacity-0 pointer-events-none absolute"
-        onLoad={onLoad}
-      />
-
-      {/* Full card fades in when revealed */}
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={revealed ? { opacity: 1 } : { opacity: 0 }}
-        transition={{ duration: 0.6, ease: 'easeOut' }}
-        className="absolute inset-0 group cursor-pointer"
+      <Link
+        href={`/rentals/${cat}`}
+        className="group block w-full h-full relative"
       >
-        <Link href={`/rentals/${cat}`} className="block w-full h-full relative">
-          <div className="absolute inset-0 z-10 bg-black/20 md:bg-black/40 dark:bg-black/30 dark:md:bg-black/60 group-hover:bg-black/20 dark:group-hover:bg-black/30 transition-colors duration-500" />
+        <div className="absolute inset-0 bg-neutral-900" aria-hidden="true" />
+        <Image
+          src={meta.fallbackImage}
+          alt=""
+          fill
+          sizes="(max-width: 768px) 100vw, (max-width: 1024px) 50vw, 33vw"
+          className="object-cover grayscale-0 md:grayscale md:group-hover:grayscale-0 md:group-focus-visible:grayscale-0 scale-100 group-hover:scale-105 transition-all duration-700 ease-out"
+        />
+        <div className="absolute inset-0 z-10 bg-black/30 md:bg-black/60 group-hover:bg-black/30 group-focus-visible:bg-black/30 transition-colors duration-500" />
 
-          <Image
-            src={meta.fallbackImage}
-            alt={meta.label}
-            fill
-            sizes="(max-width: 768px) 100vw, (max-width: 1024px) 50vw, 33vw"
-            className="object-cover grayscale-0 md:grayscale md:group-hover:grayscale-0 scale-100 group-hover:scale-105 transition-all duration-700 ease-out"
-              />
-
-          <div className="absolute inset-0 z-20 flex flex-col justify-between p-8">
-            <div className="flex justify-between items-start">
-              <span className="text-xs font-mono text-white/70 group-hover:text-white transition-colors">
-                0{index + 1}
-              </span>
-              <ArrowUpRight className="text-white opacity-0 -translate-y-2 group-hover:translate-y-0 group-hover:opacity-100 transition-all duration-500 w-5 h-5" />
-            </div>
-            <div className="transform translate-y-4 group-hover:translate-y-0 transition-transform duration-500">
-              <h3 className="text-2xl font-display font-medium tracking-wide text-white uppercase mb-2">
-                {meta.label}
-              </h3>
-              <p className="text-xs font-mono text-white/60 uppercase tracking-widest mb-4">
-                {meta.subtitle}
-                {count != null && (
-                  <span className="ml-2 text-white/40">
-                    | {count} item{count !== 1 ? 's' : ''}
-                  </span>
-                )}
-              </p>
-              <p className="text-sm text-neutral-300 opacity-0 group-hover:opacity-100 transition-opacity duration-500 delay-100 leading-relaxed border-t border-white/20 pt-4">
-                {meta.description}
-              </p>
-            </div>
+        <div className="absolute inset-0 z-20 flex flex-col justify-between p-8">
+          <div className="flex justify-between items-start">
+            <span className="text-xs font-mono text-white/80 group-hover:text-white transition-colors" aria-hidden="true">
+              0{index + 1}
+            </span>
+            <ArrowUpRight aria-hidden="true" className="text-white opacity-0 -translate-y-2 group-hover:translate-y-0 group-hover:opacity-100 transition-all duration-500 w-5 h-5" />
           </div>
-        </Link>
-      </motion.div>
+          <div className="transform translate-y-4 group-hover:translate-y-0 transition-transform duration-500">
+            <h2 className="text-2xl font-display font-medium tracking-wide text-white uppercase mb-2">
+              {meta.label}
+            </h2>
+            <p className="text-xs font-mono text-white/80 uppercase tracking-widest mb-4">
+              {meta.subtitle}
+              {count != null && (
+                <span className="ml-2 text-white/70">
+                  | {count} item{count !== 1 ? 's' : ''}
+                </span>
+              )}
+            </p>
+            <p className="text-sm text-neutral-300 opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100 transition-opacity duration-500 delay-100 leading-relaxed border-t border-white/20 pt-4">
+              {meta.description}
+            </p>
+          </div>
+        </div>
+      </Link>
     </div>
   );
 }
@@ -165,87 +95,94 @@ function getCategoryMeta(slug: string): CategoryMeta {
   );
 }
 
+const HIDDEN_CATEGORIES = new Set(['crew-services']);
+
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export default function SmartRentalsClient({ rentals }: { rentals: SmartRental[] }) {
-  // Derive unique categories from live DB data. Order preserved by first occurrence.
+export default function SmartRentalsClient({
+  categories: counted,
+  loadFailed = false,
+}: {
+  /** Live categories with item counts, best-ranked first. */
+  categories: { category: string; count: number }[];
+  /** True when the stock could not be read; the page then falls back to the fixed category list. */
+  loadFailed?: boolean;
+}) {
+  const router = useRouter();
+
+  // Live categories when we have them. If the stock read failed, still offer
+  // the fixed category list (without counts) so the page is never a dead end.
   const categories = useMemo(() => {
-    const seen = new Set<string>();
-    const out: string[] = [];
-    for (const r of rentals) {
-      if (r.category && r.category !== 'crew-services' && !seen.has(r.category)) {
-        seen.add(r.category);
-        out.push(r.category);
-      }
+    if (loadFailed) {
+      return RENTAL_CATEGORIES
+        .filter(c => !HIDDEN_CATEGORIES.has(c.value))
+        .map(c => ({ category: c.value as string, count: undefined as number | undefined }));
     }
-    return out;
-  }, [rentals]);
-
-  // Item count per category
-  const categoryCount = useMemo(() => {
-    const map: Record<string, number> = {};
-    for (const r of rentals) {
-      if (r.category) {
-        map[r.category] = (map[r.category] ?? 0) + 1;
-      }
-    }
-    return map;
-  }, [rentals]);
-
-  // Sequential reveal: cards appear one by one in order as images finish loading
-  const { onImageLoaded, isRevealed } = useSequentialReveal(categories.length);
+    return counted
+      .filter(c => !HIDDEN_CATEGORIES.has(c.category))
+      .map(c => ({ category: c.category, count: c.count as number | undefined }));
+  }, [counted, loadFailed]);
 
   return (
-    <div className="min-h-screen bg-[#050505] pt-32 pb-20 transition-colors duration-500">
+    <div className="min-h-screen bg-[#050505] pt-32 pb-20">
 
       {/* ── Header ── */}
       <div className="container mx-auto px-6 mb-24">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.8 }}
-        >
-          <div className="border-l border-black/20 dark:border-white/20 pl-4 md:pl-16 py-4 min-w-0">
-            <h1 className="text-5xl md:text-8xl font-display font-medium text-black dark:text-white tracking-tight leading-[0.9] mb-8 uppercase break-words hyphens-auto">
+        {/* No fade-in on the heading: it is the page's largest paint (LCP),
+            and an 0.8s opacity animation pushed that back. */}
+        <div>
+          <div className="border-l border-white/20 pl-4 md:pl-16 py-4 min-w-0">
+            <h1 className="text-5xl md:text-8xl font-display font-medium text-white tracking-tight leading-[0.9] mb-8 uppercase break-words hyphens-auto">
               Professional Gear <br />
-              <span className="text-neutral-400 dark:text-neutral-400">For Every Shoot</span>
+              <span className="text-neutral-400">For Every Shoot</span>
             </h1>
-            <p className="max-w-2xl text-lg text-neutral-400 dark:text-neutral-300 font-light leading-relaxed">
+            <p className="max-w-2xl text-lg text-neutral-300 font-light leading-relaxed">
               All gear is ours and is checked before every hire. Book at least {Math.round(STUDIO.rental.minLeadTimeHours / 24)} days ahead. Collect at {collectionPoint()}. After your first hire we can also deliver within {STUDIO.fulfilment.delivery.maxRadiusKm} km.
             </p>
           </div>
-        </motion.div>
+        </div>
       </div>
 
       {/* ── Category Grid ── */}
-      <section className="relative bg-neutral-50 dark:bg-[#050505] border-t border-black/5 dark:border-white/5">
-        <div className="absolute inset-0 bg-[linear-gradient(to_right,#00000005_1px,transparent_1px),linear-gradient(to_bottom,#00000005_1px,transparent_1px)] dark:bg-[linear-gradient(to_right,#ffffff05_1px,transparent_1px),linear-gradient(to_bottom,#ffffff05_1px,transparent_1px)] bg-[size:4rem_4rem] pointer-events-none" />
+      <section aria-label="Equipment categories" className="relative bg-[#050505] border-t border-white/5">
+        <div className="absolute inset-0 bg-[linear-gradient(to_right,#ffffff05_1px,transparent_1px),linear-gradient(to_bottom,#ffffff05_1px,transparent_1px)] bg-[size:4rem_4rem] pointer-events-none" />
 
         <div className="container mx-auto px-6 py-12 relative z-10">
+
+          {loadFailed && (
+            <div role="status" className="mb-8 flex flex-col sm:flex-row sm:items-center gap-3 border border-[#D4A843]/30 bg-[#D4A843]/5 px-4 py-3">
+              <p className="text-sm text-neutral-300 flex-1">
+                We couldn&apos;t load live stock just now, so item counts are missing. You can still browse every category.
+              </p>
+              <button
+                type="button"
+                onClick={() => router.refresh()}
+                className="inline-flex items-center justify-center gap-2 min-h-[44px] px-4 border border-[#D4A843]/40 text-[#D4A843] text-xs font-mono font-bold uppercase tracking-widest hover:bg-[#D4A843]/10 transition-colors"
+              >
+                <RotateCcw className="w-3.5 h-3.5" aria-hidden="true" />
+                Try again
+              </button>
+            </div>
+          )}
 
           {categories.length === 0 ? (
             /* Empty state. No published rentals yet. */
             <div className="py-32 text-center">
-              <p className="text-neutral-400 dark:text-neutral-400 font-mono text-sm uppercase tracking-widest">
-                Professional Equipment for Every Production
+              <p className="text-neutral-400 font-mono text-sm uppercase tracking-widest">
+                No equipment is listed for hire right now.
               </p>
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-px bg-neutral-200 dark:bg-white/10 border border-neutral-200 dark:border-white/10">
-
-              {/* Category cards revealed sequentially in order */}
-              {categories.map((cat, index) => (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-px bg-white/10 border border-white/10">
+              {categories.map(({ category, count }, index) => (
                 <CategoryCard
-                  key={cat}
-                  cat={cat}
-                  meta={getCategoryMeta(cat)}
+                  key={category}
+                  cat={category}
+                  meta={getCategoryMeta(category)}
                   index={index}
-                  count={categoryCount[cat]}
-                  revealed={isRevealed(index)}
-                  onImageReady={() => onImageLoaded(index)}
+                  count={count}
                 />
               ))}
-
             </div>
           )}
         </div>

@@ -27,6 +27,7 @@ const ADMIN_LINKS = [
   { label: 'Users', href: '/admin/users' },
   { label: 'Welcomes', href: '/admin/welcomes' },
   { label: 'Outreach', href: '/admin/outreach' },
+  { label: 'Funnel', href: '/admin/funnel' },
   { label: 'Flags', href: '/admin/flags' },
 ];
 

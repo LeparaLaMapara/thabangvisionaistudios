@@ -13,7 +13,7 @@ export type SignupMethod = 'google' | 'email';
 
 /** What a new person has done since signing up. Counts, not content. */
 export interface SignupActivity {
-  intent: 'rent' | 'hire' | 'supply' | 'browse' | null;
+  intent: 'rent' | 'hire' | 'list' | 'supply' | 'browse' | null;
   emailConfirmed: boolean;
   verification: 'none' | 'pending' | 'verified' | 'rejected';
   cartItems: number;
@@ -65,7 +65,8 @@ export function describeActivity(a: SignupActivity): string[] {
       {
         rent: 'Said they want to rent gear',
         hire: 'Said they want to book a photographer or videographer',
-        supply: 'Said they want to offer their gear or services',
+        list: 'Said they want to list their gear',
+        supply: 'Said they want to offer their services',
         browse: 'Said they are just looking around',
       }[a.intent],
     );
@@ -83,8 +84,11 @@ export function describeActivity(a: SignupActivity): string[] {
 
 /** The one next step that suits what they came for. */
 export function nextStepFor(a: SignupActivity): string {
+  if (a.intent === 'list') {
+    return `To list your gear, add a photo at ${STUDIO.meta.url}/dashboard/listings and check the details we suggest. We check your ID once before anything goes live.`;
+  }
   if (a.intent === 'supply') {
-    return `To offer your gear or services, finish the short setup at ${STUDIO.meta.url}/onboarding. We check your ID once before anything goes live.`;
+    return `To offer your services, finish the short setup at ${STUDIO.meta.url}/onboarding. We check your ID once before anything goes live.`;
   }
   if (a.intent === 'hire') {
     return `To book a photographer or videographer, pick a package at ${STUDIO.meta.url}/studio. You see the full price before you pay.`;

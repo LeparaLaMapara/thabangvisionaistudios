@@ -28,7 +28,10 @@ vi.mock('next/navigation', () => ({
   },
 }));
 
-vi.mock('@/lib/supabase/queries/smartRentals', () => ({ getPublishedRentalsByCategory: async () => [] }));
+vi.mock('@/lib/supabase/queries/smartRentals', () => ({
+  getPublishedRentalsByCategory: async () => [],
+  fetchPublishedRentalsByCategory: async () => ({ rentals: [], failed: false, hasMore: false }),
+}));
 vi.mock('@/lib/supabase/queries/productionCategories', () => ({ getCategoryBySlug: async () => null }));
 vi.mock('@/lib/supabase/queries/smartProductions', () => ({
   getStudioProductionsByType: async () => [],

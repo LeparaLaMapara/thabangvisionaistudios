@@ -16,11 +16,16 @@ export async function POST(): Promise<NextResponse> {
     const admin = createAdminClient();
     const now = new Date().toISOString();
 
+    // available_for_hire is NOT switched on here. Finishing onboarding is not
+    // a check: a creator becomes bookable once their ID is verified (the
+    // admin approval turns it on, migration 033) and they keep it on from
+    // the profile page, which also requires a payout account and a complete
+    // portfolio. Booking routes re-check verified, available and not
+    // suspended (lib/bookings/creator.ts).
     const { error: profileErr } = await admin
       .from('profiles')
       .update({
         onboarding_completed_at: now,
-        available_for_hire: true,
         updated_at: now,
       })
       .eq('id', user.id);

@@ -3,7 +3,6 @@ import { notFound, redirect } from 'next/navigation';
 import { getRentalBySlug, getRelatedRentals, getRentalOwner } from '@/lib/supabase/queries/smartRentals';
 import RentalDetailView from './RentalDetailView';
 import { AskUbunyeButton } from '@/components/ubunye/AskUbunyeButton';
-import { ExitIntentModal } from '@/components/engagement/ExitIntentModal';
 import { onlinePaymentsOpen } from '@/lib/payments/status';
 
 export const revalidate = 60;
@@ -36,6 +35,8 @@ export default async function RentalDetailPage({
     redirect('/studio');
   }
 
+  // Same call as generateMetadata; getRentalBySlug is cache()-wrapped, so this
+  // reuses that result instead of querying again.
   const rental = await getRentalBySlug(slug);
 
   if (!rental) notFound();
@@ -59,12 +60,10 @@ export default async function RentalDetailPage({
         prompt={`Tell me more about the ${rental.title} and what it's best for`}
         label="Questions about this gear?"
       />
-      <ExitIntentModal
-        prompt={`I'm interested in renting the ${rental.title}. Can you help me with availability and pricing?`}
-        heading="Need help with this rental?"
-        body="Ask our AI assistant about availability, pricing and accessories that work with it."
-        ctaLabel="Ask about this gear"
-      />
+      {/* No exit-intent modal here: this page is the start of a booking, and a
+          pop-up on the way to the date picker is an interruption, not help
+          (spec 9.5, no unnecessary modal chains). The Ask Ubunye button above
+          already offers the same route. */}
     </>
   );
 }

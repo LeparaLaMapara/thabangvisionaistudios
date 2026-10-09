@@ -9,6 +9,7 @@ import type {
   RentalPaymentRepository,
 } from '@/lib/core/ports';
 import type { OrderLinesState } from '@/lib/core/rental/payments';
+import { trackFunnel } from '@/lib/analytics/funnel';
 
 /**
  * Supabase adapters for the rental money ports. Every state change goes
@@ -271,6 +272,13 @@ export class SupabasePayouts implements PayoutRepository {
       p_notices: notices,
     });
     if (error) throw rpcError('payout_transition', error);
+    if (data === true && to === 'success') {
+      // Funnel (spec §9.6): an owner was paid. Never affects the payout.
+      void this.get(id).then(
+        (p) => { if (p) trackFunnel('owner_first_payout', { userId: p.ownerId, meta: { bookingId: p.bookingId } }); },
+        () => undefined,
+      );
+    }
     return data === true;
   }
 }

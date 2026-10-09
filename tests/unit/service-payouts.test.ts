@@ -326,7 +326,8 @@ describe('the daily run reaches every due payout (the queue used to stall)', () 
     expect(s.outcomes).toMatchObject({ sent: 1, blocked: 5, escalated: 2 });
     expect(s.held.map((h) => h.reference)).toEqual(['BK-held-0', 'BK-held-1', 'BK-held-2', 'BK-held-3', 'BK-held-4']);
     expect(s.held[0].why).toMatch(/ID check/);
-    expect(s.attention.map((a) => a.reference)).toEqual(['BK-stuck-0', 'BK-stuck-1']);
+    // Held and escalated rows are worked in a shuffled order (fair to the time budget).
+    expect(s.attention.map((a) => a.reference).sort()).toEqual(['BK-stuck-0', 'BK-stuck-1']);
   });
 
   it('says so when the queue is longer than one run reads', async () => {

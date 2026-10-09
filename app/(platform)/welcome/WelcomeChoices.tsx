@@ -1,13 +1,14 @@
 'use client';
 
 import { useState } from 'react';
-import { Camera, Users, Briefcase, ArrowRight } from 'lucide-react';
+import { Camera, Users, Briefcase, Package, ArrowRight } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { WELCOME_CHOICES, type WelcomeIntent, type SavedIntent } from '@/lib/welcome';
 
 const ICONS: Record<WelcomeIntent, typeof Camera> = {
   rent: Camera,
   hire: Users,
+  list: Package,
   supply: Briefcase,
 };
 

@@ -51,7 +51,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   logEvent({
     eventType: 'whatsapp_message_received',
     eventCategory: 'whatsapp',
-    metadata: { from: message.from, profileName: message.profileName },
+    // No phone number or name: platform_events is analytics, not a contact
+    // record (a hash of a phone number is easily reversed, so none is kept).
+    metadata: {},
   });
 
   try {
@@ -98,7 +100,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     logEvent({
       eventType: 'whatsapp_message_sent',
       eventCategory: 'whatsapp',
-      metadata: { to: message.from, tier },
+      metadata: { tier },
     });
 
     // Twilio expects TwiML or 200 OK

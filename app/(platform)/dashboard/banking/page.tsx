@@ -3,6 +3,8 @@
 import { motion } from 'framer-motion';
 import BankingDetails from '@/components/dashboard/BankingDetails';
 import { DashboardSubTabs, ACCOUNT_TABS_CREATOR } from '@/components/dashboard/DashboardSubTabs';
+import { RENTAL_POLICY } from '@/lib/constants';
+import { formatRand } from '@/lib/format/money';
 
 export default function BankingPage() {
   return (
@@ -21,6 +23,11 @@ export default function BankingPage() {
         </h2>
         <p className="text-xs font-mono text-neutral-400 mt-2">
           Add your banking details to receive payouts from gear rentals and gigs.
+        </p>
+        <p className="text-xs font-mono text-neutral-400 mt-2">
+          Renting gear? A bank account in your own name, checked by our payment provider, raises the gear you can
+          hire at a time from {formatRand(RENTAL_POLICY.trustTierLimitsCents.contactable / 100)} to{' '}
+          {formatRand(RENTAL_POLICY.trustTierLimitsCents.verified / 100)}, together with your ID check.
         </p>
       </div>
 

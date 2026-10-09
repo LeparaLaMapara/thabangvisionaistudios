@@ -59,6 +59,9 @@ export default function UbunyeStudioClient({ context }: UbunyeStudioClientProps)
   const [limitMessage, setLimitMessage] = useState<string | null>(null);
   const guestCountRef = useRef(0);
   const isAuthenticatedRef = useRef(false);
+  // The last text handed to the model. If the request fails it goes back into
+  // the input box, so a dropped connection never eats what the customer typed.
+  const lastSentRef = useRef('');
 
   // Keep refs in sync
   useEffect(() => { guestCountRef.current = guestMessageCount; }, [guestMessageCount]);
@@ -97,14 +100,18 @@ export default function UbunyeStudioClient({ context }: UbunyeStudioClientProps)
     messages,
     setMessages,
     sendMessage,
+    regenerate,
+    clearError,
     status,
     error,
   } = useChat({
     transport: transportRef.current,
-    onFinish: () => {
-      if (isAuthenticatedRef.current) setDailyUsed(prev => prev + 1);
+    onFinish: ({ isError, isAbort }) => {
+      if (isAuthenticatedRef.current && !isError && !isAbort) setDailyUsed(prev => prev + 1);
     },
     onError: (err) => {
+      const failedText = lastSentRef.current;
+      if (failedText) setInput(prev => prev || failedText);
       const msg = err?.message;
       if (msg?.includes('limit_reached')) {
         try {
@@ -293,13 +300,15 @@ export default function UbunyeStudioClient({ context }: UbunyeStudioClientProps)
   }, [handleAuthUser]);
 
   // ─── Send message helper ──
-  const doSend = useCallback(async (text: string) => {
-    if (!text.trim() || limitReached || isLoading) return;
+  /** Resolves true when the message was handed to the model, false when it was held back. */
+  const doSend = useCallback(async (text: string): Promise<boolean> => {
+    if (!text.trim() || limitReached || isLoading) return false;
     if (!isAuthenticated && guestMessageCount >= GUEST_LIMIT) {
       setLimitMessage(`You've used your ${GUEST_LIMIT} free messages. Sign in to continue chatting with Ubunye.`);
       setLimitReached(true);
-      return;
+      return false;
     }
+    lastSentRef.current = text;
 
     // Create chat session on first message
     if (!conversationIdRef.current) {
@@ -321,19 +330,37 @@ export default function UbunyeStudioClient({ context }: UbunyeStudioClientProps)
     }
 
     trackGuestMessage();
-    sendMessage({ text });
+    void sendMessage({ text });
+    return true;
   }, [limitReached, isLoading, isAuthenticated, guestMessageCount, trackGuestMessage, sendMessage]);
 
   // ─── Form submit ──
+  // Clear the box straight away so it feels instant, but put the text back if
+  // the message was held back (limit, still loading) -- a failed request is
+  // handled the same way in onError above.
   const handleSubmit = useCallback((e: React.FormEvent) => {
     e.preventDefault();
-    doSend(input);
+    const text = input;
+    if (!text.trim()) return;
     setInput('');
+    void doSend(text).then(sent => {
+      if (!sent) setInput(prev => prev || text);
+    });
   }, [input, doSend]);
+
+  // ─── Retry after a failed request ──
+  // regenerate() re-sends the conversation up to the last user message, so
+  // the customer does not have to retype it.
+  const handleRetry = useCallback(() => {
+    if (isLoading || limitReached) return;
+    if (input === lastSentRef.current) setInput('');
+    clearError();
+    void regenerate();
+  }, [isLoading, limitReached, input, clearError, regenerate]);
 
   // ─── Quick action ──
   const sendQuickAction = useCallback((text: string) => {
-    doSend(text);
+    void doSend(text);
   }, [doSend]);
 
   // ─── Auto-send from ?prompt query param ──
@@ -350,7 +377,7 @@ export default function UbunyeStudioClient({ context }: UbunyeStudioClientProps)
     const promptParam = searchParams.get('prompt');
     if (promptParam && !promptSentRef.current && !isLoading && messages.length === 0) {
       promptSentRef.current = true;
-      doSend(promptParam);
+      void doSend(promptParam);
       router.replace('/ubunye-ai-studio', { scroll: false });
     }
   }, [searchParams, doSend, isLoading, messages.length, router]);
@@ -364,7 +391,9 @@ export default function UbunyeStudioClient({ context }: UbunyeStudioClientProps)
     : dailyLimit === -1 ? -1 : Math.max(0, dailyLimit - dailyUsed);
 
   return (
-    <div className="bg-[#050505] text-white" style={{ paddingTop: HEADER_HEIGHT, height: '100vh' }}>
+    // h-dvh, not 100vh: on iOS Safari 100vh includes the area under the
+    // browser toolbar, which pushed the input bar off the bottom of the screen.
+    <div className="bg-[#050505] text-white h-dvh" style={{ paddingTop: HEADER_HEIGHT }}>
       <div className={`flex flex-col h-full w-full mx-auto px-4 md:px-6 ${hasMessages ? 'max-w-[680px]' : 'max-w-[780px]'}`}>
 
         {/* ── Landing state ── */}
@@ -376,14 +405,9 @@ export default function UbunyeStudioClient({ context }: UbunyeStudioClientProps)
               exit={{ opacity: 0, scale: 0.98, transition: { duration: 0.25 } }}
               className="flex-1 flex flex-col pt-6 md:pt-10 overflow-y-auto scrollbar-thin scrollbar-thumb-neutral-800 scrollbar-track-transparent"
             >
-              {/* Compact hero: sphere + greeting */}
-              <motion.div
-                custom={0}
-                initial="hidden"
-                animate="visible"
-                variants={fadeUp}
-                className="flex flex-col items-center mb-6 md:mb-8"
-              >
+              {/* Compact hero: sphere + greeting. Painted at once (no fade):
+                  the heading is the page's largest paint on most phones. */}
+              <div className="flex flex-col items-center mb-6 md:mb-8">
                 <div className="w-[80px] h-[80px] md:w-[120px] md:h-[120px] mb-4 md:mb-5">
                   <GoldenSphere className="w-full h-full" state={orbState} />
                 </div>
@@ -393,7 +417,7 @@ export default function UbunyeStudioClient({ context }: UbunyeStudioClientProps)
                 <h1 className="text-lg md:text-2xl font-medium text-neutral-200 text-center">
                   What can I help you <span className="text-[#D4A843]">create?</span>
                 </h1>
-              </motion.div>
+              </div>
 
               {/* Quick action cards */}
               <motion.div
@@ -445,7 +469,7 @@ export default function UbunyeStudioClient({ context }: UbunyeStudioClientProps)
                           >
                             {gear.thumbnail_url && (
                               <div className="w-full h-20 mb-2 overflow-hidden bg-neutral-900">
-                                <img src={gear.thumbnail_url} alt={gear.title} className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity" />
+                                <img src={gear.thumbnail_url} alt="" className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity" />
                               </div>
                             )}
                             <span className="text-xs text-neutral-300 block truncate">{gear.title}</span>
@@ -511,7 +535,7 @@ export default function UbunyeStudioClient({ context }: UbunyeStudioClientProps)
                       <button
                         key={prompt}
                         onClick={() => sendQuickAction(prompt)}
-                        className="px-2.5 py-1 text-xs text-neutral-400 border border-neutral-800/50 hover:text-[#D4A843]/80 hover:border-[#D4A843]/20 transition-all duration-200 truncate max-w-[220px]"
+                        className="min-h-[44px] px-3 py-2 text-xs text-neutral-400 border border-neutral-800/50 hover:text-[#D4A843]/80 hover:border-[#D4A843]/20 transition-all duration-200 truncate max-w-[220px]"
                       >
                         &ldquo;{prompt}&rdquo;
                       </button>
@@ -550,7 +574,8 @@ export default function UbunyeStudioClient({ context }: UbunyeStudioClientProps)
             limitMessage={limitMessage}
             isAuthenticated={isAuthenticated}
             mdComponents={mdComponents}
-            onSend={doSend}
+            onSend={sendQuickAction}
+            onRetry={handleRetry}
           />
         )}
 

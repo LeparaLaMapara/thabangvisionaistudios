@@ -60,6 +60,16 @@ Statuses: CONFIRMED · NEEDS_VERIFICATION · BLOCKED · REQUIRES_LEGAL_REVIEW ·
 | D-30 | Ubunye for signed-out visitors | REQUIRES_FOUNDER_APPROVAL | 5 messages per guest (browser count), and at most 60 a day per network address across everyone on it. Signed-out visitors cannot prepare bookings | `STUDIO.ai.guestNetworkDailyMessages`, agent `rateLimit.guest` |
 | D-31 | Listing photos published before the photo-copy change keep their original upload, which can contain GPS location | REQUIRES_FOUNDER_APPROVAL | New submissions are re-uploaded from a metadata-stripped copy and the listing points at the copy. Originals are not deleted, because the server cannot prove who uploaded an asset. Closing it fully needs a provider-side setting (strict transformations) or a one-off clean-up by a person | `app/api/listings/_lib/images.ts`, `docs/marketplace/listings.md` |
 
+## Phase 3 decisions (2026-10-09)
+
+| # | Question | Status | What the code does now | Where encoded |
+|---|---|---|---|---|
+| D-32 | Phone verification is required before a first hire, but phone checks only work when the SMS gateway is configured (`SMS_PROVIDER=smsgate` and `SMSGATE_*`) | BLOCKER: REQUIRES_FOUNDER_APPROVAL (configure SMS, or change the rule) | The rule is unchanged. Without SMS, nobody reaches the tier needed to rent. The checklist and the profile phone step say so and give the contact details | `lib/core/rental/trust.ts`, `app/api/phone/send`, `components/profile/PhoneCheck.tsx` |
+| D-33 | Creators set an `hourly_rate`, but service bookings are charged the category rate from `PRODUCTION_SERVICES` | REQUIRES_FOUNDER_APPROVAL | Unchanged: clients pay the category rate. What a creator shows as their rate is not what a client pays | `lib/supabase/queries/service-bookings.ts` `getHourlyRate`, `app/api/service-bookings/route.ts` |
+| D-34 | Terms acceptance at sign-up: an explicit "I agree, continue" button (no checkbox) | REQUIRES_LEGAL_REVIEW | One tap records acceptance of the current Terms and Privacy versions; nothing is recorded without it. Checkout still requires its own acceptance | `components/consent/OnboardingAcceptance.tsx`, `app/auth/callback/route.ts` |
+| D-35 | A creator becomes available for hire with a saved payout account; gear listings need a validated one | REQUIRES_FOUNDER_APPROVAL | Unchanged rules, now shown on the creator's checklist | `app/(platform)/dashboard/profile/page.tsx`, `lib/creators/bookable.ts` |
+| D-36 | How long funnel metrics are kept | REQUIRES_FOUNDER_APPROVAL (default 180 days) | Funnel events (ids and codes only) are deleted after `STUDIO.analytics.funnelRetentionDays` by the daily job | `lib/constants.ts`, `app/api/cron/daily-maintenance/route.ts` |
+
 Superseded by Phase 1 (no longer enforced at checkout):
 
 - `STUDIO.rental.protection.trustTiers` (the R5k/R20k/R60k ladder by clean returns) is replaced by `RENTAL_POLICY.trustTierLimitsCents` (R2k/R10k/R25k/R80k).

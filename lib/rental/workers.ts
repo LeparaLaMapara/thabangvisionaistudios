@@ -7,6 +7,7 @@ import { checkPayoutEligibility } from '@/lib/core/rental/payouts';
 import { ESCALATION_LADDER, dueEscalations, returnDueAt, type EscalationStage } from '@/lib/core/rental/overdue';
 import { buildNotices, sastDate, type OutboxMessage } from '@/lib/core/rental/notifications';
 import { paymentPort, payoutPort } from '@/lib/payments/ports';
+import { trackFunnel } from '@/lib/analytics/funnel';
 import { SupabasePayouts, SupabaseRefunds, SupabaseRentalPayments, isMissingPipeline, transitionBookings } from './repos';
 
 type Admin = ReturnType<typeof createAdminClient>;
@@ -324,6 +325,10 @@ export async function recoverMissedPayments(
       },
       { repo, clock, lateAllowed: (i) => lateConfirmationAllowed(db, i) },
     );
+    if (outcome === 'confirmed' || outcome === 'confirmed_late') {
+      const intent = await repo.getIntent(row.reference).catch(() => null);
+      if (intent) trackFunnel('payment_confirmed', { userId: intent.userId, meta: { groupId: intent.checkoutGroupId, source: 'recovery' } });
+    }
     out[outcome] = (out[outcome] ?? 0) + 1;
   }
   return out;

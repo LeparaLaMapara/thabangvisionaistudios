@@ -2,9 +2,10 @@
  * Community listing review rules (spec §8.1–8.2). Pure: no Supabase, Next.js
  * or provider imports. The server loads the facts, these functions decide.
  *
- * Journey: photo → AI suggests details (untrusted until the owner confirms)
- * → owner reviews/corrects → day rate → replacement value → location →
- * owner declarations → submit → a person reviews where required → published.
+ * Journey: photo → AI suggests details and a rate (untrusted until the owner
+ * confirms; lib/core/listings/suggest.ts) → owner reviews/corrects, enters
+ * the replacement value and location → owner declarations at the submit
+ * step → submit → a person reviews where required → published.
  *
  *            submit (review needed)            admin approve
  *   draft ─────────────────────► pending_review ───────────► published
@@ -464,6 +465,54 @@ export function decideSubmission(listing: ListingForReview, owner: ListingOwnerF
     return { ok: false, reasons: [{ code: 'wrong_status', message: transition.message }] };
   }
   return { ok: true, to, review };
+}
+
+/** What submitting would say now, for the owner to see before pressing Submit. */
+export interface SubmissionPrecheck {
+  canSubmit: boolean;
+  /** The listing's status does not allow a submission (e.g. it is live). */
+  statusBlock: SubmitBlock | null;
+  /** ID check, payout account, suspension: about the owner, not this listing. */
+  ownerBlocks: SubmitBlock[];
+  /** Fields, declarations and AI suggestions on this listing. */
+  listingBlocks: SubmitBlock[];
+  /** Whether a person will review it before it goes live, and why. */
+  review: ReviewDecision;
+  /** What a submission now would do, or null while something blocks it. */
+  outcome: 'pending_review' | 'published' | null;
+}
+
+/**
+ * The submit decision, split up for display. Same rules as
+ * decideSubmission (it is what decides `canSubmit` and `outcome`); nothing is
+ * relaxed. Read-only.
+ */
+export function precheckSubmission(listing: ListingForReview, owner: ListingOwnerFacts): SubmissionPrecheck {
+  const decision = decideSubmission(listing, owner);
+  const submittable = isListingStatus(listing.listing_status) && SUBMITTABLE_FROM.includes(listing.listing_status);
+  return {
+    canSubmit: decision.ok,
+    statusBlock: submittable
+      ? null
+      : {
+          code: 'wrong_status',
+          message: `A listing that is ${String(listing.listing_status).replace(/_/g, ' ')} cannot be submitted.`,
+        },
+    ownerBlocks: ownerBlocks(owner),
+    listingBlocks: listingBlocks(listing),
+    review: needsAdminReview(owner, listing),
+    outcome: decision.ok ? decision.to : null,
+  };
+}
+
+/**
+ * True when the owner has done everything on the listing itself: every
+ * required field, the declarations and every AI suggestion checked. (The
+ * owner-side checks, ID and payout account, are not part of it.) Used for
+ * the `listing_draft_complete` funnel stage.
+ */
+export function listingFieldsComplete(listing: ListingForReview): boolean {
+  return listingBlocks(listing).length === 0;
 }
 
 // ── Disputes ────────────────────────────────────────────────────────────────

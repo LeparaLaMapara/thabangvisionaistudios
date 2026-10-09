@@ -227,6 +227,9 @@ export const STUDIO = {
       { minHoursBefore: 0, refundPercent: 0 },
     ],
     maxCartItems: 10,
+    // Most units of one item in a single cart line or booking. Read by the
+    // gear page, the cart, /api/cart and /api/rentals/eligibility.
+    maxQuantityPerItem: 5,
     bulkDiscount: [
       { minItems: 1, maxItems: 2, discountPercent: 0 },
       { minItems: 3, maxItems: 4, discountPercent: 10 },
@@ -426,6 +429,12 @@ export const STUDIO = {
     // Higher than one guest's allowance because many people can share one
     // address (mobile carriers, offices, campuses); it caps cost, not people.
     guestNetworkDailyMessages: 60,
+  },
+
+  // Customer funnel metrics (spec §9.6): ids and codes only, kept this long,
+  // then deleted by the daily maintenance job.
+  analytics: {
+    funnelRetentionDays: 180,
   },
 
   booking: {
@@ -738,6 +747,45 @@ export const LISTING_POLICY = {
   reviewNotesMaxLength: 2000,
 } as const;
 
+// Starting-point rates the listing flow pre-fills after a photo is
+// recognised (lib/core/listings/suggest.ts). Rands. A suggestion only: it is
+// marked AI-suggested and the owner must confirm or change it before the
+// listing can be submitted. No replacement value is ever suggested here.
+export const LISTING_SUGGESTED_RATES = {
+  dayRateByCategory: {
+    'cameras-optics': 650,
+    'lighting-power': 400,
+    audio: 350,
+    'grip-motion': 450,
+    'specialized-solutions': 300,
+  } as Record<string, number>,
+  defaultDayRate: 400,
+  // Condition vocabulary as stored in smart_rentals.sub_category.
+  conditionMultiplier: {
+    new: 1.1,
+    'like-new': 1.0,
+    good: 0.9,
+    fair: 0.75,
+  } as Record<string, number>,
+  defaultConditionMultiplier: 0.9,
+  // SA market norm: a week's hire is billed as 5 days.
+  weekBilledAsDays: 5,
+} as const;
+
+// Creator specialisations (profiles.specializations), stored lower-case.
+// Search and the profile page use this list; onboarding maps detected skills
+// onto it (lib/creators/specializations.ts).
+export const CREATOR_SPECIALIZATIONS = [
+  { value: 'photography', label: 'Photography' },
+  { value: 'cinematography', label: 'Cinematography' },
+  { value: 'editing', label: 'Editing' },
+  { value: 'sound', label: 'Sound' },
+  { value: 'directing', label: 'Directing' },
+  { value: 'lighting', label: 'Lighting' },
+  { value: 'producing', label: 'Producing' },
+] as const;
+export type CreatorSpecialization = (typeof CREATOR_SPECIALIZATIONS)[number]['value'];
+
 export const RENTAL_CATEGORY_VALUES = RENTAL_CATEGORIES.map(c => c.value);
 export type RentalCategorySlug = (typeof RENTAL_CATEGORIES)[number]['value'];
 
@@ -1014,3 +1062,8 @@ export const UBUNYE_EXAMPLE_PROMPTS: readonly string[] = [
   'Find an editor for a 5-minute corporate promo.',
   'What lighting setup works best for product photography?',
 ] as const;
+// ─── FUNNEL (spec §9.6) ──────────────────────────────────────────────────────
+// Where a browser may say a funnel step happened (POST /api/funnel). Anything
+// else is refused, so the funnel tables only hold known page names.
+export const FUNNEL_CLIENT_SURFACES = ['gear_page'] as const;
+export type FunnelClientSurface = (typeof FUNNEL_CLIENT_SURFACES)[number];
