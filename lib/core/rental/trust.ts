@@ -83,8 +83,42 @@ export interface TrustAssessment {
   /** Booking may proceed only after a member of staff approves it. */
   requiresManualApproval: boolean;
   /** What would unlock the next tier, for honest "how to raise your limit" text. */
-  next: { tier: TrustTierRule; missing: string[] } | null;
+  next: { tier: TrustTierRule; missing: string[]; items: TrustRequirement[] } | null;
 }
+
+/**
+ * Machine codes for what a renter still needs, so a screen can link each one
+ * to the place it is fixed. `missing` keeps the same requirements as text.
+ */
+export type TrustRequirementCode =
+  | 'verify_email'
+  | 'verify_phone'
+  | 'verify_id'
+  | 'validate_bank'
+  | 'clean_returns'
+  | 'history_days'
+  | 'clean_return_value';
+
+export interface TrustRequirement {
+  code: TrustRequirementCode;
+  label: string;
+}
+
+export const TRUST_REQUIREMENT_CODES: readonly TrustRequirementCode[] = [
+  'verify_email',
+  'verify_phone',
+  'verify_id',
+  'validate_bank',
+  'clean_returns',
+  'history_days',
+  'clean_return_value',
+];
+
+const nextTier = (id: TrustTierId, items: TrustRequirement[]): NonNullable<TrustAssessment['next']> => ({
+  tier: tier(id),
+  missing: items.map((i) => i.label),
+  items,
+});
 
 const tier = (id: TrustTierId): TrustTierRule => {
   const t = TRUST_TIERS.find((x) => x.id === id);
@@ -103,29 +137,29 @@ function historyDays(facts: RenterFacts, now: Date): number {
 
 /** The tier a renter's facts earn, ignoring holds. */
 export function earnedTier(facts: RenterFacts, now: Date): { tier: TrustTierRule; next: TrustAssessment['next'] } {
-  const missingContactable: string[] = [];
-  if (!facts.emailVerified) missingContactable.push('verify your email address');
-  if (!facts.phoneVerified) missingContactable.push('verify your phone number');
-  if (missingContactable.length) return { tier: tier('none'), next: { tier: tier('contactable'), missing: missingContactable } };
+  const missingContactable: TrustRequirement[] = [];
+  if (!facts.emailVerified) missingContactable.push({ code: 'verify_email', label: 'verify your email address' });
+  if (!facts.phoneVerified) missingContactable.push({ code: 'verify_phone', label: 'verify your phone number' });
+  if (missingContactable.length) return { tier: tier('none'), next: nextTier('contactable', missingContactable) };
 
-  const missingVerified: string[] = [];
-  if (!facts.identityApproved) missingVerified.push('complete identity verification (ID and selfie)');
-  if (!facts.bankValidated) missingVerified.push('add a bank account in your own name');
-  if (missingVerified.length) return { tier: tier('contactable'), next: { tier: tier('verified'), missing: missingVerified } };
+  const missingVerified: TrustRequirement[] = [];
+  if (!facts.identityApproved) missingVerified.push({ code: 'verify_id', label: 'complete identity verification (ID and selfie)' });
+  if (!facts.bankValidated) missingVerified.push({ code: 'validate_bank', label: 'add a bank account in your own name' });
+  if (missingVerified.length) return { tier: tier('contactable'), next: nextTier('verified', missingVerified) };
 
   const days = historyDays(facts, now);
   const p = TRUST_THRESHOLDS.proven;
-  const missingProven: string[] = [];
-  if (facts.cleanReturns < p.cleanReturns) missingProven.push(`return ${p.cleanReturns - facts.cleanReturns} hire on time and in good condition`);
-  if (days < p.historyDays) missingProven.push(`${p.historyDays} days in good standing after your first clean return`);
-  if (missingProven.length) return { tier: tier('verified'), next: { tier: tier('proven'), missing: missingProven } };
+  const missingProven: TrustRequirement[] = [];
+  if (facts.cleanReturns < p.cleanReturns) missingProven.push({ code: 'clean_returns', label: `return ${p.cleanReturns - facts.cleanReturns} hire on time and in good condition` });
+  if (days < p.historyDays) missingProven.push({ code: 'history_days', label: `${p.historyDays} days in good standing after your first clean return` });
+  if (missingProven.length) return { tier: tier('verified'), next: nextTier('proven', missingProven) };
 
   const t = TRUST_THRESHOLDS.trusted;
-  const missingTrusted: string[] = [];
-  if (facts.cleanReturns < t.cleanReturns) missingTrusted.push(`${t.cleanReturns - facts.cleanReturns} more clean returns`);
-  if (facts.cleanReturnValueCents < t.cleanReturnValueCents) missingTrusted.push('more gear value returned clean');
-  if (days < t.historyDays) missingTrusted.push(`${t.historyDays} days in good standing`);
-  if (missingTrusted.length) return { tier: tier('proven'), next: { tier: tier('trusted'), missing: missingTrusted } };
+  const missingTrusted: TrustRequirement[] = [];
+  if (facts.cleanReturns < t.cleanReturns) missingTrusted.push({ code: 'clean_returns', label: `${t.cleanReturns - facts.cleanReturns} more clean returns` });
+  if (facts.cleanReturnValueCents < t.cleanReturnValueCents) missingTrusted.push({ code: 'clean_return_value', label: 'more gear value returned clean' });
+  if (days < t.historyDays) missingTrusted.push({ code: 'history_days', label: `${t.historyDays} days in good standing` });
+  if (missingTrusted.length) return { tier: tier('proven'), next: nextTier('trusted', missingTrusted) };
 
   return { tier: tier('trusted'), next: null };
 }

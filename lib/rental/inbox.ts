@@ -6,6 +6,7 @@ import { recordConfirmation } from '@/lib/payments/routing';
 import { handleServiceTransferEvent } from '@/lib/payments/service-transfers';
 import { eventDedupeKey } from '@/lib/core/rental/payments';
 import { processChargeEvent, processRefundEvent, processTransferEvent } from '@/lib/core/rental/use-cases';
+import { trackFunnel } from '@/lib/analytics/funnel';
 import { systemClock } from '@/lib/core/ports';
 import { SupabasePayouts, SupabaseRefunds, SupabaseRentalPayments, isMissingPipeline } from './repos';
 
@@ -148,7 +149,7 @@ export async function processPaystackEvent(p: ParsedPaystackEvent): Promise<stri
     const intent = p.reference ? await repo.getIntent(p.reference) : null;
     if (intent) {
       if (p.amountCents === null || !p.dataId) return 'invalid_charge_payload';
-      return processChargeEvent(
+      const outcome = await processChargeEvent(
         {
           kind: p.event,
           reference: p.reference as string,
@@ -159,6 +160,10 @@ export async function processPaystackEvent(p: ParsedPaystackEvent): Promise<stri
         },
         { repo, clock: systemClock, lateAllowed: (i) => lateConfirmationAllowed(createAdminClient(), i) },
       );
+      if (outcome === 'confirmed' || outcome === 'confirmed_late') {
+        trackFunnel('payment_confirmed', { userId: intent.userId, meta: { groupId: intent.checkoutGroupId, source: 'webhook' } });
+      }
+      return outcome;
     }
     // Everything without a rental intent keeps its existing (now guarded) path.
     const webhook = legacyWebhook(p);

@@ -1,30 +1,64 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Image from 'next/image';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
-import { Trash2, Minus, Plus, ShoppingCart, ArrowRight, AlertTriangle } from 'lucide-react';
+import { Trash2, Minus, Plus, ShoppingCart, ArrowRight, AlertTriangle, CalendarDays, RotateCw, CheckCircle2 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
-import { DateRangePicker, type DateRange } from '@/components/ui/DateRangePicker';
 import { useCart } from '@/providers/CartProvider';
 import { calculateItemPrice, calculateIncludedVat, depositPerUnit } from '@/lib/cart/pricing';
 import { TermsAcceptance } from '@/components/consent/TermsAcceptance';
 import { quoteDelivery, isDeliveryQuote } from '@/lib/delivery/quote';
 import AddressAutocomplete, { type AddressResult } from '@/components/ui/AddressAutocomplete';
-import { STUDIO } from '@/lib/constants';
+import { RENTAL_POLICY, STUDIO } from '@/lib/constants';
 import { DashboardSubTabs, ACTIVITY_TABS } from '@/components/dashboard/DashboardSubTabs';
 import type { CartItemWithRental } from '@/types/cart';
 import { isPaymentUrl } from '@/lib/payments/hosts';
 import { formatRand } from '@/lib/format/money';
 import { usePaymentsOpen } from '@/lib/payments/usePaymentsOpen';
 import { PaymentsNotOpenNote } from '@/components/booking/PaymentsNotOpenNote';
+import { RenterChecklist, useRenterReadiness } from '@/components/booking/BookingWidget';
 import { collectionPoint } from '@/lib/rental/collection-point';
+import { fromLocalYmd, hireDays } from '@/lib/rental/dates';
 
-function daysBetween(start: Date, end: Date): number {
-  return Math.max(1, Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)));
+const MAX_QTY = 5;
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** A cart date ("2026-10-03", or an older timestamp) as the local calendar day. */
+function cartDay(value: string | null): Date | null {
+  return value ? fromLocalYmd(value.slice(0, 10)) : null;
 }
+
+/** The gear page with this item's dates, where its dates are changed. */
+function editDatesHref(item: CartItemWithRental): string {
+  const base = `/rentals/${encodeURIComponent(item.rental.category)}/${encodeURIComponent(item.rental.slug)}`;
+  const q = new URLSearchParams();
+  if (item.start_date && item.end_date) {
+    q.set('start', item.start_date.slice(0, 10));
+    q.set('end', item.end_date.slice(0, 10));
+  }
+  if (item.quantity > 1) q.set('qty', String(item.quantity));
+  const qs = q.toString();
+  return qs ? `${base}?${qs}` : base;
+}
+
+const fmtDay = (d: Date): string => d.toLocaleDateString('en-ZA', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
+
+type CheckoutError = {
+  message: string;
+  action?: { href: string; label: string } | { onClick: () => void; label: string };
+};
+
+type CancelState =
+  | { kind: 'none' }
+  | { kind: 'releasing' }
+  | { kind: 'released'; restored: number }
+  | { kind: 'already_paid'; bookingId: string | null }
+  | { kind: 'hold_kept'; bookingId: string | null }
+  | { kind: 'failed' }
+  | { kind: 'generic' };
 
 export default function CartPage() {
   const router = useRouter();
@@ -36,74 +70,126 @@ export default function CartPage() {
 
   const [items, setItems] = useState<CartItemWithRental[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadFailed, setLoadFailed] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<CheckoutError | null>(null);
   const [notes, setNotes] = useState('');
   const [acceptTerms, setAcceptTerms] = useState(false);
+  // The current documents were already accepted (GET /api/consent).
+  const [acceptedBefore, setAcceptedBefore] = useState(false);
   const [fulfilment, setFulfilment] = useState<'collection' | 'delivery'>('collection');
   const [payNow, setPayNow] = useState<'full' | 'deposit_only'>('full');
   // While card payment is off: EFT to the business account, or cash when collecting.
   const [payBy, setPayBy] = useState<'eft' | 'cash'>('eft');
   const [address, setAddress] = useState<AddressResult | null>(null);
-  const [itemDates, setItemDates] = useState<Map<string, DateRange>>(new Map());
+  const [cartVersion, setCartVersion] = useState(0);
+  const [cancel, setCancel] = useState<CancelState>(() =>
+    searchParams.get('payment') === 'cancelled' ? (UUID.test(searchParams.get('order') ?? '') ? { kind: 'releasing' } : { kind: 'generic' }) : { kind: 'none' },
+  );
 
-  const paymentCancelled = searchParams.get('payment') === 'cancelled';
-
-  const today = useMemo(() => {
-    const d = new Date();
-    d.setHours(0, 0, 0, 0);
-    return d;
-  }, []);
-
-  useEffect(() => {
-    async function fetchCart() {
-      try {
-        const res = await fetch('/api/cart');
-        if (res.ok) {
-          const data = await res.json();
-          const cartItems: CartItemWithRental[] = data.items ?? [];
-          setItems(cartItems);
-
-          const dates = new Map<string, DateRange>();
-          for (const item of cartItems) {
-            dates.set(item.id, {
-              start: item.start_date ? new Date(item.start_date) : null,
-              end: item.end_date ? new Date(item.end_date) : null,
-            });
-          }
-          setItemDates(dates);
-        }
-      } catch {
-        setError('Failed to load cart.');
-      } finally {
-        setLoading(false);
-      }
+  const fetchCart = useCallback(async () => {
+    setLoading(true);
+    setLoadFailed(false);
+    try {
+      const res = await fetch('/api/cart');
+      if (!res.ok) throw new Error(String(res.status));
+      const data = await res.json();
+      setItems((data.items ?? []) as CartItemWithRental[]);
+    } catch {
+      setLoadFailed(true);
+    } finally {
+      setLoading(false);
     }
-    fetchCart();
   }, []);
 
-  const allDatesSet = useMemo(() => {
-    if (items.length === 0) return false;
-    return items.every((item) => {
-      const d = itemDates.get(item.id);
-      return d?.start && d?.end;
-    });
-  }, [items, itemDates]);
+  // Back from the payment page without paying: release the unpaid hold and
+  // put the items back (POST /api/cart/cancel), then show the cart.
+  const cancelStarted = useRef(false);
+  const releaseCancelledOrder = useCallback(async (order: string) => {
+    setCancel({ kind: 'releasing' });
+    try {
+      const res = await fetch('/api/cart/cancel', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ checkout_group_id: order }),
+      });
+      const data = await res.json().catch(() => ({}));
+      let settled = true;
+      if (res.ok && data.released) setCancel({ kind: 'released', restored: Number(data.restored ?? 0) });
+      else if (data.code === 'ALREADY_PAID') setCancel({ kind: 'already_paid', bookingId: data.booking_id ?? null });
+      else if (data.code === 'HOLD_KEPT') setCancel({ kind: 'hold_kept', bookingId: data.booking_id ?? null });
+      else {
+        settled = false;
+        setCancel({ kind: 'failed' });
+      }
+      // Done once: a reload of this page must not put removed items back.
+      if (settled) router.replace('/dashboard/cart', { scroll: false });
+    } catch {
+      setCancel({ kind: 'failed' });
+    }
+    await fetchCart();
+    setCartVersion((v) => v + 1);
+    void refresh();
+  }, [fetchCart, refresh, router]);
+
+  const cancelledOrder = searchParams.get('payment') === 'cancelled' ? searchParams.get('order') : null;
+  useEffect(() => {
+    if (cancelledOrder && UUID.test(cancelledOrder)) {
+      if (cancelStarted.current) return;
+      cancelStarted.current = true;
+      void releaseCancelledOrder(cancelledOrder);
+      return;
+    }
+    void fetchCart();
+  }, [cancelledOrder, fetchCart, releaseCancelledOrder]);
+
+  // Returning customers who already accepted the current Terms, Privacy
+  // Policy and rental agreement are not asked to tick again on every try.
+  // The checkout still requires and records the acceptance for this order.
+  useEffect(() => {
+    let active = true;
+    fetch('/api/consent?context=checkout')
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data: { missing?: unknown[] } | null) => {
+        if (active && data && Array.isArray(data.missing) && data.missing.length === 0) {
+          setAcceptedBefore(true);
+          setAcceptTerms(true);
+        }
+      })
+      .catch(() => undefined);
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  // What the renter still needs before paying (the checkout re-checks all of it).
+  const { readiness, reload: reloadReadiness } = useRenterReadiness(
+    !loading && items.length > 0 ? `v=${cartVersion}` : null,
+  );
+  const deliveryBlocked = !!readiness?.collectionRequired;
+  useEffect(() => {
+    if (deliveryBlocked) setFulfilment('collection');
+  }, [deliveryBlocked]);
+
+  const lines = useMemo(
+    () =>
+      items.map((item) => {
+        const start = cartDay(item.start_date);
+        const end = cartDay(item.end_date);
+        const days = start && end ? hireDays(start, end) : 0;
+        return { item, start, end, days, valid: !!start && !!end && days > 0 && days <= STUDIO.rental.maxBookingDays };
+      }),
+    [items],
+  );
+  const allDatesSet = lines.length > 0 && lines.every((l) => l.valid);
 
   const pricing = useMemo(() => {
-    if (items.length === 0 || !allDatesSet) return null;
+    if (lines.length === 0 || !allDatesSet) return null;
 
-    const totalItemCount = items.reduce((sum, item) => sum + item.quantity, 0);
+    const totalItemCount = lines.reduce((sum, l) => sum + l.item.quantity, 0);
 
-    const pricingItems = items.map((item) => {
-      const dates = itemDates.get(item.id)!;
-      const days = daysBetween(dates.start!, dates.end!);
-      const unitPrice = calculateItemPrice(
-        item.rental.price_per_day,
-        item.rental.price_per_week,
-        days,
-      );
-
+    const pricingItems = lines.map(({ item, days }) => {
+      const unitPrice = calculateItemPrice(item.rental.price_per_day, item.rental.price_per_week, days);
       return {
         rental_id: item.rental_id,
         title: item.rental.title,
@@ -139,7 +225,7 @@ export default function CartPage() {
       vatAmount: calculateIncludedVat(subtotal - bulkDiscountAmount),
       grandTotal: subtotal - bulkDiscountAmount + totalDeposit,
     };
-  }, [items, itemDates, allDatesSet]);
+  }, [lines, allDatesSet]);
 
   // Same pure function the server uses to charge, so the figure shown here is
   // the figure billed. The server recalculates it regardless.
@@ -173,54 +259,73 @@ export default function CartPage() {
   const fulfilmentReady =
     fulfilment === 'collection' || (delivery !== null && isDeliveryQuote(delivery));
 
-  const handleDateChange = async (itemId: string, range: DateRange) => {
-    setItemDates((prev) => new Map(prev).set(itemId, range));
+  const handleQuantityChange = async (itemId: string, newQty: number) => {
+    if (newQty < 1 || newQty > MAX_QTY) return;
+    const before = items;
+    setItems((prev) => prev.map((item) => (item.id === itemId ? { ...item, quantity: newQty } : item)));
     setError(null);
-
-    if (range.start && range.end) {
-      const startStr = range.start.toISOString().split('T')[0];
-      const endStr = range.end.toISOString().split('T')[0];
-
-      await fetch('/api/cart', {
+    try {
+      const res = await fetch('/api/cart', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ item_id: itemId, start_date: startStr, end_date: endStr }),
+        body: JSON.stringify({ item_id: itemId, quantity: newQty }),
       });
+      if (!res.ok) throw new Error(String(res.status));
+      setCartVersion((v) => v + 1);
+    } catch {
+      setItems(before);
+      setError({ message: 'Could not change the quantity. Please try again.' });
     }
   };
 
-  const handleQuantityChange = async (itemId: string, newQty: number) => {
-    if (newQty < 1 || newQty > 5) return;
-
-    setItems((prev) =>
-      prev.map((item) => (item.id === itemId ? { ...item, quantity: newQty } : item)),
-    );
-
-    await fetch('/api/cart', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ item_id: itemId, quantity: newQty }),
-    });
-  };
-
   const handleRemove = async (itemId: string) => {
+    const before = items;
     setItems((prev) => prev.filter((item) => item.id !== itemId));
-    setItemDates((prev) => {
-      const next = new Map(prev);
-      next.delete(itemId);
-      return next;
-    });
-    await fetch(`/api/cart?item_id=${itemId}`, { method: 'DELETE' });
-    refresh();
+    setError(null);
+    try {
+      const res = await fetch(`/api/cart?item_id=${encodeURIComponent(itemId)}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error(String(res.status));
+      setCartVersion((v) => v + 1);
+    } catch {
+      setItems(before);
+      setError({ message: 'Could not remove that item. Please try again.' });
+    }
+    void refresh();
   };
 
   // One key per checkout attempt: a double click or a retry after a timeout
   // reaches the server as the same order, which it places only once.
   const checkoutKey = useRef<string>(crypto.randomUUID());
 
+  /** A refusal from the checkout, with the step that fixes it. */
+  const explain = (status: number, data: { error?: string; code?: string }): CheckoutError => {
+    const message = data.error ?? 'Checkout failed.';
+    const first = items[0];
+    switch (data.code) {
+      case 'ID_REQUIRED':
+        return { message, action: { href: `/dashboard/verification?redirect=${encodeURIComponent('/dashboard/cart')}`, label: 'Do the ID check' } };
+      case 'ID_PENDING':
+        return { message, action: { href: '/dashboard/verification', label: 'See your ID check' } };
+      case 'collection_only':
+        return { message, action: { onClick: () => { setFulfilment('collection'); setError(null); }, label: 'Switch to Collect' } };
+      case 'not_eligible': {
+        const fix = readiness?.missing.find((m) => m.href && m.status === 'missing');
+        return { message, action: fix?.href ? { href: fix.href, label: fix.label } : { href: '/contact', label: 'Contact us' } };
+      }
+      case 'trust_limit':
+      case 'account_hold':
+        return { message, action: { href: '/contact', label: 'Contact us' } };
+      case 'UNAVAILABLE':
+        return { message, action: first ? { href: editDatesHref(first), label: 'Choose other dates' } : undefined };
+      default:
+        if (status === 409 && first) return { message, action: { href: editDatesHref(first), label: 'Choose other dates' } };
+        return { message };
+    }
+  };
+
   const handleCheckout = async () => {
     if (!allDatesSet) {
-      setError('Please select rental dates for all items.');
+      setError({ message: 'Choose dates for each item on its page first.' });
       return;
     }
 
@@ -254,7 +359,7 @@ export default function CartPage() {
         }),
       });
 
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
 
       if (!res.ok) {
         if (data.code === 'DUPLICATE_REQUEST' && data.checkout_group_id) {
@@ -262,7 +367,8 @@ export default function CartPage() {
           router.push(`/dashboard/bookings?checkout=${data.checkout_group_id}`);
           return;
         }
-        setError(data.error ?? 'Checkout failed.');
+        setError(explain(res.status, data));
+        if (res.status === 403) reloadReadiness();
         setSubmitting(false);
         return;
       }
@@ -276,7 +382,7 @@ export default function CartPage() {
           await refresh();
           window.location.href = data.payment_url;
         } catch {
-          setError('Invalid payment URL received. Please try again.');
+          setError({ message: 'Invalid payment URL received. Please try again.' });
           setSubmitting(false);
         }
         return;
@@ -290,15 +396,103 @@ export default function CartPage() {
           : `/dashboard/bookings?checkout=${data.checkout_group_id}`,
       );
     } catch {
-      setError('Something went wrong. Please try again.');
+      setError({ message: 'Something went wrong. Please try again.' });
       setSubmitting(false);
     }
   };
 
+  const cancelBanner = (() => {
+    switch (cancel.kind) {
+      case 'releasing':
+        return <div role="status" className="p-3 border border-white/10 text-neutral-400 text-xs font-mono">Payment was cancelled. Releasing your dates…</div>;
+      case 'released':
+        return (
+          <div role="status" className="flex items-start gap-2 p-3 bg-yellow-500/10 border border-yellow-500/20 text-yellow-400 text-xs font-mono">
+            <AlertTriangle className="w-4 h-4 flex-shrink-0" aria-hidden="true" />
+            <span>
+              Payment was cancelled and nothing was charged. We released the hold on your dates and put
+              {cancel.restored === 1 ? ' the item' : ' the items'} back in your cart. The dates are held again only when you check out.
+            </span>
+          </div>
+        );
+      case 'already_paid':
+        return (
+          <div role="status" className="flex items-start gap-2 p-3 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-mono">
+            <CheckCircle2 className="w-4 h-4 flex-shrink-0" aria-hidden="true" />
+            <span>
+              That order is already paid.{' '}
+              <Link href={cancel.bookingId ? `/dashboard/bookings/${cancel.bookingId}` : '/dashboard/bookings'} className="underline underline-offset-4">
+                See your booking
+              </Link>
+            </span>
+          </div>
+        );
+      case 'hold_kept':
+        return (
+          <div role="status" className="flex items-start gap-2 p-3 bg-yellow-500/10 border border-yellow-500/20 text-yellow-400 text-xs font-mono">
+            <AlertTriangle className="w-4 h-4 flex-shrink-0" aria-hidden="true" />
+            <span>
+              Payment was cancelled and nothing was charged. Your booking is still waiting for payment and keeps the dates for now.{' '}
+              <Link href={cancel.bookingId ? `/dashboard/bookings/${cancel.bookingId}` : '/dashboard/bookings'} className="underline underline-offset-4">
+                Open it to cancel it
+              </Link>{' '}
+              before booking again.
+            </span>
+          </div>
+        );
+      case 'failed':
+        return (
+          <div role="alert" className="flex items-center justify-between gap-2 p-3 bg-red-500/10 border border-red-500/20 text-red-400 text-xs font-mono">
+            <span>Payment was cancelled, but we could not release your dates just now.</span>
+            {cancelledOrder && (
+              <button
+                type="button"
+                onClick={() => void releaseCancelledOrder(cancelledOrder)}
+                className="min-h-[44px] px-3 inline-flex items-center gap-1.5 uppercase tracking-widest text-[#D4A843]"
+              >
+                <RotateCw className="w-3 h-3" aria-hidden="true" /> Retry
+              </button>
+            )}
+          </div>
+        );
+      case 'generic':
+        return (
+          <div role="status" className="flex items-start gap-2 p-3 bg-yellow-500/10 border border-yellow-500/20 text-yellow-400 text-xs font-mono">
+            <AlertTriangle className="w-4 h-4 flex-shrink-0" aria-hidden="true" />
+            <span>
+              Payment was cancelled and nothing was charged. An unpaid booking is released when its hold runs out; see{' '}
+              <Link href="/dashboard/bookings" className="underline underline-offset-4">My Rentals</Link>.
+            </span>
+          </div>
+        );
+      default:
+        return null;
+    }
+  })();
+
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-20">
-        <div className="w-6 h-6 border-2 border-neutral-600 border-t-white rounded-full animate-spin" />
+      <div className="space-y-4">
+        {cancelBanner}
+        <div className="flex items-center justify-center py-20" role="status" aria-label="Loading your cart">
+          <div className="w-6 h-6 border-2 border-neutral-600 border-t-white rounded-full animate-spin" />
+        </div>
+      </div>
+    );
+  }
+
+  if (loadFailed) {
+    return (
+      <div className="text-center py-20 space-y-4">
+        {cancelBanner}
+        <p role="alert" className="text-sm font-mono text-red-400">We could not load your cart.</p>
+        <button
+          type="button"
+          onClick={() => void fetchCart()}
+          className="min-h-[44px] inline-flex items-center gap-2 px-4 border border-white/10 text-xs font-mono uppercase tracking-widest text-[#D4A843]"
+        >
+          <RotateCw className="w-3 h-3" aria-hidden="true" /> Retry
+        </button>
       </div>
     );
   }
@@ -306,17 +500,21 @@ export default function CartPage() {
   if (items.length === 0) {
     return (
       <div className="text-center py-20 space-y-4">
-        <ShoppingCart className="w-12 h-12 mx-auto text-neutral-400" />
+        {cancelBanner}
+        <ShoppingCart className="w-12 h-12 mx-auto text-neutral-400" aria-hidden="true" />
         <p className="text-sm font-mono text-neutral-400">Your cart is empty</p>
         <Link
           href="/rentals"
-          className="inline-flex items-center gap-2 text-xs font-mono font-bold uppercase tracking-widest text-[#D4A843] hover:underline"
+          className="inline-flex items-center gap-2 min-h-[44px] text-xs font-mono font-bold uppercase tracking-widest text-[#D4A843] hover:underline"
         >
-          Browse Equipment <ArrowRight className="w-3 h-3" />
+          Browse Equipment <ArrowRight className="w-3 h-3" aria-hidden="true" />
         </Link>
       </div>
     );
   }
+
+  const blockedByChecks = !!readiness && !readiness.ok;
+  const docs = STUDIO.legal.documents;
 
   return (
     <div className="space-y-8">
@@ -330,32 +528,35 @@ export default function CartPage() {
         </h2>
       </div>
 
-      {paymentCancelled && (
-        <div className="flex items-center gap-2 p-3 bg-yellow-500/10 border border-yellow-500/20 text-yellow-400 text-xs font-mono">
-          <AlertTriangle className="w-4 h-4 flex-shrink-0" />
-          Payment was cancelled. Your cart items have been restored.
-        </div>
-      )}
+      {cancelBanner}
 
       {error && (
-        <div className="p-3 bg-red-500/10 border border-red-500/20 text-red-400 text-xs font-mono">
-          {error}
+        <div role="alert" className="p-3 bg-red-500/10 border border-red-500/20 text-red-400 text-xs font-mono space-y-1">
+          <p>{error.message}</p>
+          {error.action &&
+            ('href' in error.action ? (
+              <Link href={error.action.href} className="inline-flex items-center min-h-[44px] underline underline-offset-4 text-[#D4A843]">
+                {error.action.label}
+              </Link>
+            ) : (
+              <button type="button" onClick={error.action.onClick} className="inline-flex items-center min-h-[44px] underline underline-offset-4 text-[#D4A843]">
+                {error.action.label}
+              </button>
+            ))}
         </div>
       )}
 
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_360px] gap-8">
-        {/* Cart Items with per-item date pickers */}
-        <div className="space-y-3">
-          {items.map((item) => {
-            const dates = itemDates.get(item.id) ?? { start: null, end: null };
-            const hasDates = !!dates.start && !!dates.end;
-            const days = hasDates ? daysBetween(dates.start!, dates.end!) : 0;
-            const itemTotal = hasDates
+        {/* Cart items. Dates were chosen on each item's page and are changed there. */}
+        <ul className="space-y-3" aria-label="Items in your cart">
+          {lines.map(({ item, start, end, days, valid }) => {
+            const itemTotal = valid
               ? calculateItemPrice(item.rental.price_per_day, item.rental.price_per_week, days) * item.quantity
               : 0;
+            const gearHref = editDatesHref(item);
 
             return (
-              <motion.div
+              <motion.li
                 key={item.id}
                 layout
                 initial={{ opacity: 0, y: 4 }}
@@ -384,7 +585,7 @@ export default function CartPage() {
                   {/* Details */}
                   <div className="flex-1 min-w-0">
                     <Link
-                      href={`/rentals/${item.rental.slug}`}
+                      href={`/rentals/${encodeURIComponent(item.rental.category)}/${encodeURIComponent(item.rental.slug)}`}
                       className="text-sm font-mono font-medium text-white hover:text-[#D4A843] transition-colors truncate block"
                     >
                       {item.rental.title}
@@ -398,21 +599,25 @@ export default function CartPage() {
                     </p>
 
                     {/* Quantity controls */}
-                    <div className="flex items-center gap-2 mt-2">
+                    <div className="flex items-center gap-1 mt-2" role="group" aria-label={`Quantity of ${item.rental.title}`}>
                       <button
+                        type="button"
                         onClick={() => handleQuantityChange(item.id, item.quantity - 1)}
                         disabled={item.quantity <= 1}
-                        className="w-6 h-6 flex items-center justify-center border border-white/10 text-neutral-400 hover:text-white hover:border-white/30 disabled:opacity-30 transition-colors"
+                        aria-label={`One fewer ${item.rental.title}`}
+                        className="w-11 h-11 flex items-center justify-center border border-white/10 text-neutral-400 hover:text-white hover:border-white/30 disabled:opacity-30 transition-colors"
                       >
-                        <Minus className="w-3 h-3" />
+                        <Minus className="w-3 h-3" aria-hidden="true" />
                       </button>
-                      <span className="text-xs font-mono text-white w-6 text-center">{item.quantity}</span>
+                      <span className="text-xs font-mono text-white w-8 text-center" aria-live="polite">{item.quantity}</span>
                       <button
+                        type="button"
                         onClick={() => handleQuantityChange(item.id, item.quantity + 1)}
-                        disabled={item.quantity >= 5}
-                        className="w-6 h-6 flex items-center justify-center border border-white/10 text-neutral-400 hover:text-white hover:border-white/30 disabled:opacity-30 transition-colors"
+                        disabled={item.quantity >= MAX_QTY}
+                        aria-label={`One more ${item.rental.title}`}
+                        className="w-11 h-11 flex items-center justify-center border border-white/10 text-neutral-400 hover:text-white hover:border-white/30 disabled:opacity-30 transition-colors"
                       >
-                        <Plus className="w-3 h-3" />
+                        <Plus className="w-3 h-3" aria-hidden="true" />
                       </button>
                     </div>
                   </div>
@@ -420,12 +625,14 @@ export default function CartPage() {
                   {/* Remove + Item total */}
                   <div className="flex flex-col items-end justify-between">
                     <button
+                      type="button"
                       onClick={() => handleRemove(item.id)}
-                      className="text-neutral-400 hover:text-red-400 transition-colors"
+                      aria-label={`Remove ${item.rental.title} from your cart`}
+                      className="w-11 h-11 flex items-center justify-center text-neutral-400 hover:text-red-400 transition-colors"
                     >
-                      <Trash2 className="w-4 h-4" />
+                      <Trash2 className="w-4 h-4" aria-hidden="true" />
                     </button>
-                    {hasDates && (
+                    {valid && (
                       <p className="text-xs font-mono font-bold text-white">
                         {formatRand(itemTotal)}
                       </p>
@@ -433,25 +640,36 @@ export default function CartPage() {
                   </div>
                 </div>
 
-                {/* Per-item date picker */}
-                <div className="border-t border-white/5 pt-3">
-                  <DateRangePicker
-                    value={dates}
-                    onChange={(range) => handleDateChange(item.id, range)}
-                    minDate={today}
-                    label="Rental dates"
-                  />
-                  {hasDates && (
-                    <p className="text-xs font-mono text-neutral-400 mt-1.5">
-                      {days} day{days !== 1 ? 's' : ''}
-                      {days >= 7 ? ` (${Math.floor(days / 7)}w ${days % 7}d)` : ''}
+                {/* Dates, read-only: chosen once, on the item's page */}
+                <div className="border-t border-white/5 pt-3 flex flex-wrap items-center justify-between gap-2">
+                  <p className="text-xs font-mono text-neutral-300 flex items-center gap-2">
+                    <CalendarDays className="w-3.5 h-3.5 text-neutral-400" aria-hidden="true" />
+                    {start && end ? (
+                      <span>
+                        {fmtDay(start)} to {fmtDay(end)}
+                        {valid ? ` · ${days} day${days !== 1 ? 's' : ''}` : ''}
+                      </span>
+                    ) : (
+                      <span className="text-amber-400">No dates chosen yet</span>
+                    )}
+                  </p>
+                  <Link
+                    href={gearHref}
+                    aria-label={`${start && end ? 'Edit dates' : 'Choose dates'} for ${item.rental.title}`}
+                    className="min-h-[44px] inline-flex items-center text-xs font-mono uppercase tracking-widest text-[#D4A843] underline underline-offset-4"
+                  >
+                    {start && end ? 'Edit dates' : 'Choose dates'}
+                  </Link>
+                  {start && end && !valid && (
+                    <p className="w-full text-xs font-mono text-amber-400">
+                      These dates cannot be booked as they are. Choose a return day after the pick-up day, at most {STUDIO.rental.maxBookingDays} days later.
                     </p>
                   )}
                 </div>
-              </motion.div>
+              </motion.li>
             );
           })}
-        </div>
+        </ul>
 
         {/* Sidebar: Pricing + Checkout */}
         <div className="space-y-5 lg:sticky lg:top-28 self-start">
@@ -539,7 +757,7 @@ export default function CartPage() {
           {!allDatesSet && items.length > 0 && (
             <div className="border border-white/10 bg-[#0A0A0B] p-5">
               <p className="text-xs font-mono text-neutral-400 text-center">
-                Select rental dates for each item to see pricing
+                Choose dates for each item on its page (Edit dates) to see the price.
               </p>
             </div>
           )}
@@ -547,26 +765,49 @@ export default function CartPage() {
           {/* How the customer gets the gear */}
           {items.length > 0 && (
             <div className="border border-white/10 bg-[#0A0A0B] p-5 space-y-4">
-              <p className="text-xs font-mono uppercase tracking-widest text-neutral-400">
+              <p id="fulfilment-label" className="text-xs font-mono uppercase tracking-widest text-neutral-400">
                 How would you like to receive your gear?
               </p>
 
-              <div className="grid grid-cols-2 gap-3">
-                {(['collection', 'delivery'] as const).map((method) => (
-                  <button
-                    key={method}
-                    type="button"
-                    onClick={() => setFulfilment(method)}
-                    className={`min-h-[44px] border px-4 py-3 text-xs font-mono uppercase tracking-widest transition-colors ${
-                      fulfilment === method
-                        ? 'border-[#D4A843] text-[#D4A843]'
-                        : 'border-white/10 text-neutral-400 hover:border-white/30'
-                    }`}
-                  >
-                    {method === 'collection' ? 'Collect' : 'Deliver'}
-                  </button>
-                ))}
+              <div className="grid grid-cols-2 gap-3" role="group" aria-labelledby="fulfilment-label">
+                {(['collection', 'delivery'] as const).map((method) => {
+                  const disabled = method === 'delivery' && (deliveryBlocked || !STUDIO.fulfilment.delivery.enabled);
+                  return (
+                    <button
+                      key={method}
+                      type="button"
+                      onClick={() => setFulfilment(method)}
+                      disabled={disabled}
+                      aria-pressed={fulfilment === method}
+                      aria-describedby={disabled ? 'delivery-reason' : undefined}
+                      className={`min-h-[44px] border px-4 py-3 text-xs font-mono uppercase tracking-widest transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
+                        fulfilment === method
+                          ? 'border-[#D4A843] text-[#D4A843]'
+                          : 'border-white/10 text-neutral-400 hover:border-white/30'
+                      }`}
+                    >
+                      {method === 'collection' ? 'Collect' : 'Deliver'}
+                    </button>
+                  );
+                })}
               </div>
+
+              {(deliveryBlocked || !STUDIO.fulfilment.delivery.enabled) && (
+                <p id="delivery-reason" className="text-xs font-mono text-neutral-400 leading-relaxed">
+                  {!STUDIO.fulfilment.delivery.enabled
+                    ? 'Delivery is not available at the moment.'
+                    : [
+                        readiness?.collectionReasons.includes('first_hire')
+                          ? 'Your first hire is collected in person so we can check the gear with you. Delivery opens after your first clean return.'
+                          : null,
+                        readiness?.collectionReasons.includes('high_value_item')
+                          ? `Items worth more than ${formatRand(Math.round(RENTAL_POLICY.highValueCollectionThresholdCents / 100))} are always collected in person.`
+                          : null,
+                      ]
+                        .filter(Boolean)
+                        .join(' ')}
+                </p>
+              )}
 
               {fulfilment === 'collection' ? (
                 <div className="space-y-3">
@@ -576,10 +817,10 @@ export default function CartPage() {
                   </p>
 
                   {paymentsOpen === false && (
-                    <div className="space-y-2">
-                      <p className="text-xs font-mono uppercase tracking-widest text-neutral-400">
+                    <fieldset className="space-y-2">
+                      <legend className="text-xs font-mono uppercase tracking-widest text-neutral-400">
                         How you pay
-                      </p>
+                      </legend>
                       {(
                         [
                           ['eft', `Pay by EFT within ${STUDIO.bank.payWithinHours} hours`],
@@ -588,7 +829,7 @@ export default function CartPage() {
                       ).map(([method, label]) => (
                         <label
                           key={method}
-                          className="flex items-start gap-3 text-xs font-mono text-neutral-400 cursor-pointer min-h-[44px] items-center"
+                          className="flex gap-3 text-xs font-mono text-neutral-400 cursor-pointer min-h-[44px] items-center"
                         >
                           <input
                             type="radio"
@@ -600,14 +841,14 @@ export default function CartPage() {
                           <span>{label}</span>
                         </label>
                       ))}
-                    </div>
+                    </fieldset>
                   )}
 
                   {paymentsOpen !== false && STUDIO.fulfilment.collection.allowBalanceOnCollection && (
-                    <div className="space-y-2">
-                      <p className="text-xs font-mono uppercase tracking-widest text-neutral-400">
+                    <fieldset className="space-y-2">
+                      <legend className="text-xs font-mono uppercase tracking-widest text-neutral-400">
                         Payment
-                      </p>
+                      </legend>
                       {(
                         [
                           ['full', 'Pay everything now'],
@@ -616,7 +857,7 @@ export default function CartPage() {
                       ).map(([plan, label]) => (
                         <label
                           key={plan}
-                          className="flex items-start gap-3 text-xs font-mono text-neutral-400 cursor-pointer min-h-[44px] items-center"
+                          className="flex gap-3 text-xs font-mono text-neutral-400 cursor-pointer min-h-[44px] items-center"
                         >
                           <input
                             type="radio"
@@ -628,15 +869,14 @@ export default function CartPage() {
                           <span>{label}</span>
                         </label>
                       ))}
-                    </div>
+                    </fieldset>
                   )}
                 </div>
               ) : (
                 <div className="space-y-3">
                   <p className="text-xs font-mono text-neutral-400 leading-relaxed">
                     We deliver in our own vehicle. The fee is worked out from the distance
-                    and the size of your order, and shown below before you book. Your first
-                    hire is collected in person.
+                    and the size of your order, and shown below before you book.
                   </p>
 
                   <AddressAutocomplete onSelect={setAddress} />
@@ -660,39 +900,70 @@ export default function CartPage() {
             </div>
           )}
 
+          {/* Everything the renter needs, before the button that commits */}
+          {readiness && (!readiness.ok || readiness.requiresManualApproval) && (
+            <RenterChecklist readiness={readiness} back="/dashboard/cart" />
+          )}
+
           {/* Notes */}
-          <textarea
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-            placeholder="Pickup/delivery notes (optional)"
-            maxLength={500}
-            rows={2}
-            className="w-full bg-transparent border border-white/10 p-3 text-xs font-mono text-white placeholder:text-neutral-400 focus:border-[#D4A843]/50 focus:outline-none resize-none"
-          />
+          <div>
+            <label htmlFor="cart-notes" className="block text-xs font-mono uppercase tracking-widest text-neutral-400 mb-2">
+              Notes for collection or delivery (optional)
+            </label>
+            <textarea
+              id="cart-notes"
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              placeholder="For example, who is collecting or a gate code"
+              maxLength={500}
+              rows={2}
+              className="w-full bg-transparent border border-white/10 p-3 text-xs font-mono text-white placeholder:text-neutral-400 focus:border-[#D4A843]/50 focus:outline-none resize-none"
+            />
+          </div>
 
           {/* Payment truth, above the button that commits */}
           <PaymentsNotOpenNote open={paymentsOpen} />
 
-          {/* Required acceptance, recorded by the checkout route */}
-          <TermsAcceptance checked={acceptTerms} onChange={setAcceptTerms} includeRentalAgreement />
+          {/* Required acceptance, recorded by the checkout route for this order */}
+          {acceptedBefore ? (
+            <p className="text-xs font-mono text-neutral-300 leading-relaxed min-h-[44px] py-2">
+              You accepted the{' '}
+              <a href={docs.terms.href} target="_blank" rel="noopener noreferrer" className="text-[#D4A843] underline underline-offset-2">
+                {docs.terms.label}
+              </a>
+              ,{' '}
+              <a href={docs.privacy.href} target="_blank" rel="noopener noreferrer" className="text-[#D4A843] underline underline-offset-2">
+                {docs.privacy.label}
+              </a>{' '}
+              and{' '}
+              <a href={docs.rentalAgreement.href} target="_blank" rel="noopener noreferrer" className="text-[#D4A843] underline underline-offset-2">
+                {docs.rentalAgreement.label.toLowerCase()}
+              </a>{' '}
+              (version {docs.terms.version}). Placing this order confirms they apply to this hire.
+            </p>
+          ) : (
+            <TermsAcceptance checked={acceptTerms} onChange={setAcceptTerms} includeRentalAgreement />
+          )}
 
           {/* Checkout button */}
           <Button
             onClick={handleCheckout}
             loading={submitting}
-            disabled={!allDatesSet || items.length === 0 || !fulfilmentReady || !acceptTerms}
+            disabled={!allDatesSet || items.length === 0 || !fulfilmentReady || !acceptTerms || blockedByChecks}
             className="w-full"
             size="lg"
           >
             {!pricing
-              ? 'Select Dates to Checkout'
-              : !fulfilmentReady
-                ? 'Enter a delivery address'
-                : paymentsOpen === false
-                  ? fulfilment === 'collection' && payBy === 'cash'
-                    ? `Reserve, pay ${formatRand(totals?.dueNow ?? pricing.grandTotal)} cash on collection`
-                    : `Book and pay by EFT, ${formatRand(totals?.dueNow ?? pricing.grandTotal)}`
-                  : `Checkout, ${formatRand(totals?.dueNow ?? pricing.grandTotal)}`}
+              ? 'Choose dates to check out'
+              : blockedByChecks
+                ? 'Finish the steps above to pay'
+                : !fulfilmentReady
+                  ? 'Enter a delivery address'
+                  : paymentsOpen === false
+                    ? fulfilment === 'collection' && payBy === 'cash'
+                      ? `Reserve, pay ${formatRand(totals?.dueNow ?? pricing.grandTotal)} cash on collection`
+                      : `Book and pay by EFT, ${formatRand(totals?.dueNow ?? pricing.grandTotal)}`
+                    : `Checkout, ${formatRand(totals?.dueNow ?? pricing.grandTotal)}`}
           </Button>
 
           <p className="text-xs font-mono text-neutral-400 text-center">
