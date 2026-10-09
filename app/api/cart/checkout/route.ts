@@ -234,7 +234,8 @@ export async function POST(request: NextRequest) {
         ` for ${item.rental.title}`,
       );
       if (err) {
-        return NextResponse.json({ error: err }, { status: 400 });
+        // The cart sends the renter to this item's Edit dates.
+        return NextResponse.json({ error: err, code: 'INVALID_DATES', rental_id: item.rental_id }, { status: 400 });
       }
     }
   } else {
@@ -246,10 +247,13 @@ export async function POST(request: NextRequest) {
 
   // Check availability for all items
   const unavailableItems: string[] = [];
+  // The first item that cannot be had, so the cart can open its dates.
+  let unavailableRentalId: string | null = null;
 
   for (const item of items) {
     if (!item.rental.is_available) {
       unavailableItems.push(item.rental.title);
+      unavailableRentalId ??= item.rental_id;
       continue;
     }
 
@@ -282,6 +286,7 @@ export async function POST(request: NextRequest) {
 
     if (!availability.available) {
       unavailableItems.push(availabilityMessage(item.rental.title, availability));
+      unavailableRentalId ??= item.rental_id;
 
       // The strongest buying signal the platform ever sees: someone got as far
       // as checkout and was refused. Not awaited — research must never add
@@ -302,7 +307,7 @@ export async function POST(request: NextRequest) {
 
   if (unavailableItems.length > 0) {
     return NextResponse.json(
-      { error: unavailableItems.join(' ') },
+      { error: unavailableItems.join(' '), code: 'UNAVAILABLE', rental_id: unavailableRentalId },
       { status: 409 },
     );
   }
@@ -507,7 +512,7 @@ export async function POST(request: NextRequest) {
     }
   } else if (reservation.code === 'insufficient_stock' || reservation.code === 'listing_unavailable') {
     const title = items.find((i) => i.rental_id === reservation.rentalId)?.rental.title ?? 'An item in your cart';
-    return NextResponse.json({ error: `${title} was just booked by someone else for those dates.`, code: 'UNAVAILABLE' }, { status: 409 });
+    return NextResponse.json({ error: `${title} was just booked by someone else for those dates.`, code: 'UNAVAILABLE', rental_id: reservation.rentalId ?? null }, { status: 409 });
   } else if (reservation.code === 'duplicate_order') {
     return NextResponse.json({ error: 'This order was already placed.', code: 'DUPLICATE_REQUEST', checkout_group_id: checkoutGroupId }, { status: 409 });
   } else if (reservation.code === 'missing_pipeline') {
@@ -611,11 +616,33 @@ export async function POST(request: NextRequest) {
   // Funnel (spec §9.6): ids and counts only.
   trackFunnel('rental_reserved', { userId: user.id, meta: { groupId: checkoutGroupId, items: bookings.length, source: 'cart' } });
   if (paymentUrl) trackFunnel('payment_started', { userId: user.id, meta: { groupId: checkoutGroupId, source: 'cart' } });
+  // An owner's FIRST booking: only while none of their community gear has a
+  // booking that reached payment (anything past pending, never cancelled
+  // unpaid). One small read per owner in this order; analytics never fails a
+  // checkout, so any error just skips the event.
+  const firstLineByOwner = new Map<string, string>();
   snapshots.forEach((snap, i) => {
-    if (snap.ownership === 'community' && snap.owner_id) {
-      trackFunnel('listing_first_booking', { userId: snap.owner_id, meta: { rentalId: items[i].rental_id, groupId: checkoutGroupId } });
+    if (snap.ownership === 'community' && snap.owner_id && !firstLineByOwner.has(snap.owner_id)) {
+      firstLineByOwner.set(snap.owner_id, items[i].rental_id);
     }
   });
+  await Promise.all(
+    [...firstLineByOwner].map(async ([ownerId, rentalId]) => {
+      try {
+        const { data: earlier, error: earlierError } = await adminClient
+          .from('equipment_bookings')
+          .select('id')
+          .eq('owner_id', ownerId)
+          .eq('ownership', 'community')
+          .or('status.not.in.(pending,cancelled),payfast_payment_id.not.is.null')
+          .limit(1);
+        if (earlierError || (earlier ?? []).length > 0) return;
+        trackFunnel('listing_first_booking', { userId: ownerId, meta: { rentalId, groupId: checkoutGroupId } });
+      } catch {
+        /* analytics only */
+      }
+    }),
+  );
 
   const paymentsOffline = offline;
   const reference = paymentReference(checkoutGroupId);

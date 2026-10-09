@@ -54,7 +54,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'rental_id is required.' }, { status: 400 });
   }
 
-  const qty = typeof quantity === 'number' ? Math.max(1, Math.min(5, Math.floor(quantity))) : 1;
+  const qty = typeof quantity === 'number' ? Math.max(1, Math.min(STUDIO.rental.maxQuantityPerItem, Math.floor(quantity))) : 1;
 
   if ((start_date && !end_date) || (!start_date && end_date)) {
     return NextResponse.json(
@@ -63,9 +63,14 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  // Check cart size limit
+  // Check cart size limit. Changing the dates or quantity of an item already
+  // in the cart (the gear page posts it again) does not add a line, so a full
+  // cart only refuses new items.
   const currentCount = await getCartItemCount(user.id);
-  if (currentCount >= STUDIO.rental.maxCartItems) {
+  if (
+    currentCount >= STUDIO.rental.maxCartItems &&
+    !(await getCartItems(user.id)).some((i) => i.rental_id === rental_id)
+  ) {
     return NextResponse.json(
       { error: `Cart is full. Maximum ${STUDIO.rental.maxCartItems} items allowed.` },
       { status: 400 },
@@ -115,7 +120,7 @@ export async function PATCH(request: NextRequest) {
   let item = null;
 
   if (typeof quantity === 'number') {
-    const qty = Math.max(1, Math.min(5, Math.floor(quantity)));
+    const qty = Math.max(1, Math.min(STUDIO.rental.maxQuantityPerItem, Math.floor(quantity)));
     item = await updateCartQuantity(user.id, item_id, qty);
   }
 

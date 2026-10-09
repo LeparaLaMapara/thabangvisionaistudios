@@ -7,6 +7,9 @@ import { clientIp } from '@/lib/http/clientIp';
 import { hashIp } from '@/lib/data/chat-history';
 import { CLIENT_FUNNEL_STAGES, isFunnelStage } from '@/lib/core/analytics/funnel';
 import { trackFunnel } from '@/lib/analytics/funnel';
+import { FUNNEL_CLIENT_SURFACES } from '@/lib/constants';
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /**
  * The two funnel stages a browser reports itself (spec §9.6): viewing a
@@ -28,6 +31,18 @@ export async function POST(request: NextRequest) {
   }
   if (!isFunnelStage(body.stage) || !CLIENT_FUNNEL_STAGES.includes(body.stage)) {
     return NextResponse.json({ error: 'Unknown stage.' }, { status: 400 });
+  }
+  // A listing id is a UUID and a surface is one of ours; anything else is
+  // refused rather than stored.
+  if (body.rentalId !== undefined && body.rentalId !== null && !(typeof body.rentalId === 'string' && UUID.test(body.rentalId))) {
+    return NextResponse.json({ error: 'Unknown listing.' }, { status: 400 });
+  }
+  if (
+    body.surface !== undefined &&
+    body.surface !== null &&
+    !(typeof body.surface === 'string' && (FUNNEL_CLIENT_SURFACES as readonly string[]).includes(body.surface))
+  ) {
+    return NextResponse.json({ error: 'Unknown surface.' }, { status: 400 });
   }
   let userId: string | null = null;
   try {

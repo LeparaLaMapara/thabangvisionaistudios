@@ -23,6 +23,8 @@ const releaseUnpaidReservation = vi.fn(async () => undefined);
 type CheckoutParams = { cancelUrl: string; returnUrl: string };
 const createCheckout = vi.fn<(params: CheckoutParams) => Promise<{ paymentUrl: string }>>(async () => ({ paymentUrl: 'https://checkout.paystack.com/abc' }));
 const trackFunnel = vi.fn();
+/** The owner's earlier community-gear bookings that reached payment (read by the first-booking funnel). */
+let ownerEarlierBookings: { id: string }[] = [];
 
 function chain(result: unknown): unknown {
   const fn = function () {};
@@ -44,7 +46,14 @@ vi.mock('@/lib/supabase/server', () => ({
     from: () => ({ select: () => ({ eq: () => ({ single: async () => ({ data: { verification_status: verification } }) }) }) }),
   }),
   createAdminClient: () => ({
-    from: (table: string) => chain(table === 'smart_rentals' ? { data: [{ id: 'r1', owner_type: 'community', owner_id: 'owner-9' }], error: null } : { data: [], error: null }),
+    from: (table: string) =>
+      chain(
+        table === 'smart_rentals'
+          ? { data: [{ id: 'r1', owner_type: 'community', owner_id: 'owner-9' }], error: null }
+          : table === 'equipment_bookings'
+            ? { data: ownerEarlierBookings, error: null }
+            : { data: [], error: null },
+      ),
   }),
 }));
 vi.mock('@/lib/auth', () => ({ checkNotSuspended: async () => ({ suspended: false }), checkRateLimit: async () => true }));
@@ -95,6 +104,7 @@ describe('cart checkout: consent after eligibility, codes, cancel return', () =>
   beforeEach(() => {
     verification = 'verified';
     available = true;
+    ownerEarlierBookings = [];
     eligibility = { ok: true, collectionRequired: false, collectionReasons: [], requiresManualApproval: false, assessment: { tier: { id: 'contactable' } } };
     for (const m of [recordConsent, checkRenterEligibility, reserveOrder, releaseUnpaidReservation, createCheckout, trackFunnel]) m.mockClear();
   });
@@ -155,5 +165,21 @@ describe('cart checkout: consent after eligibility, codes, cancel return', () =>
     for (const [, p] of trackFunnel.mock.calls) {
       expect(JSON.stringify(p)).not.toMatch(/amount|price|email/i);
     }
+  });
+
+  it("an owner whose gear already had a paid booking: no second 'first booking'", async () => {
+    ownerEarlierBookings = [{ id: 'earlier-paid' }];
+    const res = await checkout();
+    expect(res.status).toBe(201);
+    const stages = trackFunnel.mock.calls.map((c) => c[0]);
+    expect(stages).toContain('rental_reserved');
+    expect(stages).not.toContain('listing_first_booking');
+  });
+
+  it('an unavailable item: 409 names the item, so the cart opens its dates', async () => {
+    available = false;
+    const res = await checkout();
+    expect(res.status).toBe(409);
+    expect(await res.json()).toMatchObject({ code: 'UNAVAILABLE', rental_id: 'r1' });
   });
 });

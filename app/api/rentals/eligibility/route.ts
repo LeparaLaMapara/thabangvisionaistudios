@@ -3,6 +3,7 @@ export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient, createAdminClient } from '@/lib/supabase/server';
 import { checkRateLimit } from '@/lib/auth';
+import { STUDIO } from '@/lib/constants';
 import { sms } from '@/lib/sms';
 import { getCartItems } from '@/lib/supabase/queries/cart';
 import { rentalReadiness, trustLineForRental, trustLinesFromCart } from '@/lib/rental/eligibility-server';
@@ -16,6 +17,7 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
  *
  *   ?rental_id=&quantity=&start=&end=   one listing (the gear page)
  *   (no rental_id)                      the renter's cart, with its dates
+ *                                       (&start=&end= for lines without dates)
  *   &delivery=1                         check delivery as well as collection
  *
  * Read-only and advisory: POST /api/cart/checkout re-checks everything. Only
@@ -41,7 +43,7 @@ export async function GET(request: NextRequest) {
   const end = params.get('end') ?? params.get('end_date');
   const delivery = params.get('delivery') === '1' || params.get('delivery') === 'true';
   const quantityRaw = Number(params.get('quantity') ?? '1');
-  const quantity = Number.isFinite(quantityRaw) ? Math.max(1, Math.min(5, Math.floor(quantityRaw))) : 1;
+  const quantity = Number.isFinite(quantityRaw) ? Math.max(1, Math.min(STUDIO.rental.maxQuantityPerItem, Math.floor(quantityRaw))) : 1;
 
   if (rentalId !== null && !UUID.test(rentalId)) {
     return NextResponse.json({ error: 'Unknown listing.' }, { status: 400 });
@@ -58,7 +60,9 @@ export async function GET(request: NextRequest) {
       if (!line) return NextResponse.json({ error: 'Listing not found.' }, { status: 404 });
       lines = [line];
     } else {
-      lines = trustLinesFromCart(await getCartItems(user.id));
+      // Undated cart lines take the dates asked about, as the checkout gives
+      // them the dates it is sent, so this answers what the checkout would.
+      lines = trustLinesFromCart(await getCartItems(user.id), start && end ? { startDate: start, endDate: end } : undefined);
     }
     const readiness = await rentalReadiness(admin, user, lines, delivery, sms.isConfigured());
     return NextResponse.json(readiness, { headers: { 'Cache-Control': 'no-store' } });

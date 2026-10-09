@@ -227,6 +227,9 @@ export const STUDIO = {
       { minHoursBefore: 0, refundPercent: 0 },
     ],
     maxCartItems: 10,
+    // Most units of one item in a single cart line or booking. Read by the
+    // gear page, the cart, /api/cart and /api/rentals/eligibility.
+    maxQuantityPerItem: 5,
     bulkDiscount: [
       { minItems: 1, maxItems: 2, discountPercent: 0 },
       { minItems: 3, maxItems: 4, discountPercent: 10 },
@@ -1059,3 +1062,8 @@ export const UBUNYE_EXAMPLE_PROMPTS: readonly string[] = [
   'Find an editor for a 5-minute corporate promo.',
   'What lighting setup works best for product photography?',
 ] as const;
+// ─── FUNNEL (spec §9.6) ──────────────────────────────────────────────────────
+// Where a browser may say a funnel step happened (POST /api/funnel). Anything
+// else is refused, so the funnel tables only hold known page names.
+export const FUNNEL_CLIENT_SURFACES = ['gear_page'] as const;
+export type FunnelClientSurface = (typeof FUNNEL_CLIENT_SURFACES)[number];

@@ -1,8 +1,9 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
-import { CheckCircle2, Clock } from 'lucide-react';
+import { useSearchParams } from 'next/navigation';
+import Link from 'next/link';
+import { CheckCircle2, Clock, RotateCw } from 'lucide-react';
 import { STUDIO } from '@/lib/constants';
 import { collectionPoint } from '@/lib/rental/collection-point';
 
@@ -35,10 +36,9 @@ export function CheckoutConfirmation({
   onRefresh: () => void;
 }) {
   const params = useSearchParams();
-  const router = useRouter();
   const [waitedLong, setWaitedLong] = useState(false);
-  const [releasing, setReleasing] = useState(false);
-  const [releaseNote, setReleaseNote] = useState<string | null>(null);
+  // Bumped by "Check again" to start another round of looking.
+  const [round, setRound] = useState(0);
   const order = params.get('checkout');
   const paid = params.get('payment') === 'success';
   const valid = !!order && UUID.test(order);
@@ -69,41 +69,21 @@ export function CheckoutConfirmation({
       onRefresh();
     }, 5_000);
     return () => clearInterval(timer);
-  }, [valid, paid, confirmed, onRefresh]);
+  }, [valid, paid, confirmed, onRefresh, round]);
 
   if (!valid) return null;
 
-  // The payment page also sends people here when they cancel. If nothing is
-  // confirmed after a while, let them release the dates and go back to the
-  // cart (POST /api/cart/cancel refuses a paid order; a late payment is
-  // still handled by the payment pipeline).
-  const releaseAndReturn = async () => {
-    setReleasing(true);
-    setReleaseNote(null);
-    try {
-      const res = await fetch('/api/cart/cancel', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ checkout_group_id: order }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (res.ok && data.released) {
-        router.push('/dashboard/cart');
-        return;
-      }
-      if (data.code === 'ALREADY_PAID') {
-        onRefresh();
-        setReleaseNote('This order is paid. It shows as confirmed in a moment.');
-      } else if (data.code === 'HOLD_KEPT') {
-        setReleaseNote('Open the booking below to cancel it before booking again.');
-      } else {
-        setReleaseNote('Could not release the dates just now. Please try again.');
-      }
-    } catch {
-      setReleaseNote('Could not release the dates just now. Please try again.');
-    }
-    setReleasing(false);
+  // This page is where the payment provider sends people who PAID. It never
+  // offers to release the dates: a customer who paid could lose a paid
+  // booking, or pay twice. Releasing belongs to the payment=cancelled return
+  // (the cart). Here a slow confirmation only gets "check again".
+  const checkAgain = () => {
+    tries.current = 0;
+    setWaitedLong(false);
+    onRefresh();
+    setRound((r) => r + 1);
   };
+  const bookingHref = lines[0] ? `/dashboard/bookings/${lines[0].id}` : '/dashboard/bookings';
 
   return (
     <section
@@ -134,17 +114,23 @@ export function CheckoutConfirmation({
           {!confirmed && paid && waitedLong && (
             <div className="space-y-1">
               <p className="text-xs font-mono text-neutral-400">
-                Still not confirmed. If you cancelled on the payment page, nothing was charged: release these dates and go back to your cart.
+                Your payment is still being confirmed. Your dates stay held while it is, and the booking shows as confirmed as soon as the payment provider tells us.
               </p>
-              <button
-                type="button"
-                onClick={() => void releaseAndReturn()}
-                disabled={releasing}
-                className="min-h-[44px] text-xs font-mono uppercase tracking-widest text-[#D4A843] underline underline-offset-4 disabled:opacity-50"
-              >
-                {releasing ? 'Releasing…' : 'I cancelled: back to my cart'}
-              </button>
-              {releaseNote && <p className="text-xs font-mono text-neutral-400">{releaseNote}</p>}
+              <div className="flex flex-wrap items-center gap-x-4">
+                <button
+                  type="button"
+                  onClick={checkAgain}
+                  className="min-h-[44px] inline-flex items-center gap-1.5 text-xs font-mono uppercase tracking-widest text-[#D4A843] underline underline-offset-4"
+                >
+                  <RotateCw className="w-3 h-3" aria-hidden="true" /> Check again
+                </button>
+                <Link
+                  href={bookingHref}
+                  className="min-h-[44px] inline-flex items-center text-xs font-mono uppercase tracking-widest text-[#D4A843] underline underline-offset-4"
+                >
+                  See your booking
+                </Link>
+              </div>
             </div>
           )}
         </div>

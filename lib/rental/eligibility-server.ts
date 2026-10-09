@@ -425,7 +425,12 @@ export async function rentalReadiness(
   return buildReadiness({ facts, verificationStatus, holdings, lines, delivery, now, phoneChecksAvailable });
 }
 
-/** One listing as an order line for the trust check, valued on the server. Null if it is not listed. */
+/**
+ * One listing as an order line for the trust check, valued on the server.
+ * Null if it is not listed: deleted and unpublished (draft, in review,
+ * archived) listings read the same, so nothing about them leaks.
+ * is_published is kept equal to listing_status = 'published' (migration 072).
+ */
 export async function trustLineForRental(
   admin: Admin,
   rentalId: string,
@@ -437,6 +442,7 @@ export async function trustLineForRental(
     .from('smart_rentals')
     .select('id, replacement_value, deposit_amount')
     .eq('id', rentalId)
+    .eq('is_published', true)
     .is('deleted_at', null)
     .maybeSingle();
   if (error) throw new Error('could not load listing');
@@ -448,7 +454,11 @@ export async function trustLineForRental(
   };
 }
 
-/** Cart lines as order lines, valued as the checkout values them (each line keeps its own dates). */
+/**
+ * Cart lines as order lines, valued as the checkout values them (each line
+ * keeps its own dates). A line without dates takes `fallback` when given,
+ * as the checkout gives undated lines the dates it is sent.
+ */
 export function trustLinesFromCart(
   items: readonly {
     quantity: number;
@@ -456,10 +466,15 @@ export function trustLinesFromCart(
     end_date: string | null;
     rental: { replacement_value?: number | null; deposit_amount?: number | null };
   }[],
+  fallback?: { startDate: string; endDate: string },
 ): OrderLineForTrust[] {
   return items.map((item) => ({
     unitReplacementValueCents: toCents(itemValue(item.rental)),
     quantity: item.quantity,
-    ...(item.start_date && item.end_date ? { startDate: item.start_date, endDate: item.end_date } : {}),
+    ...(item.start_date && item.end_date
+      ? { startDate: item.start_date, endDate: item.end_date }
+      : fallback
+        ? { startDate: fallback.startDate, endDate: fallback.endDate }
+        : {}),
   }));
 }
