@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
-import { safeNextPath } from '@/lib/auth/redirect';
+import { checkConsents, requiredConsents } from '@/lib/consent';
+import { afterSignInPath, cleanNextPath, type ConsentState } from '@/lib/auth/next-path';
 import { homeFor } from '@/lib/welcome';
 
 /**
@@ -10,11 +11,16 @@ import { homeFor } from '@/lib/welcome';
  * old test site because www.thabangvision.com was missing from its allowed
  * return addresses, and this route failed silently. It now logs why a sign-in
  * failed and returns people to the page they were on (`?next=`).
+ *
+ * Anyone without a current acceptance of the Terms and Privacy Policy on
+ * record goes to /welcome first (one tap records it), then on to `next`.
+ * Before this, Google and email-link sign-ins with a `?next=` skipped
+ * /welcome and were never asked.
  */
 export async function GET(request: Request): Promise<NextResponse> {
   const { searchParams, origin } = new URL(request.url);
   const code = searchParams.get('code');
-  const next = safeNextPath(searchParams.get('next'), '');
+  const next = cleanNextPath(searchParams.get('next'));
 
   if (code) {
     const supabase = await createClient();
@@ -23,23 +29,35 @@ export async function GET(request: Request): Promise<NextResponse> {
     if (!error) {
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
-        if (user.app_metadata?.role === 'admin') {
-          return NextResponse.redirect(new URL('/admin', origin));
+        const isAdmin = user.app_metadata?.role === 'admin';
+        if (isAdmin) {
+          return NextResponse.redirect(new URL(afterSignInPath({ isAdmin, consent: 'ok', next }), origin));
         }
 
-        // They were on their way somewhere (a gear page, a booking): go there.
-        if (next) return NextResponse.redirect(new URL(next, origin));
+        const check = await checkConsents(supabase, user.id, requiredConsents('onboarding'));
+        const consent: ConsentState =
+          check.status === 'ok' ? 'ok' : check.status === 'missing' ? 'missing' : 'unknown';
+        if (check.status === 'unavailable') {
+          // Let them through (as /welcome does); checkout checks again.
+          console.error('[auth/callback] consent store unavailable:', check.error);
+        }
 
-        // Otherwise: what they said they came to do. Someone who has not
-        // said yet is asked once (/welcome) instead of being put through
+        // They were on their way somewhere (a gear page, a booking): go
+        // there. Otherwise: what they said they came to do. Someone who has
+        // not said yet is asked once (/welcome) instead of being put through
         // creator onboarding.
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('onboarding_completed_at')
-          .eq('id', user.id)
-          .single();
-        const home = homeFor(user.user_metadata?.intent, !!profile?.onboarding_completed_at);
-        return NextResponse.redirect(new URL(home, origin));
+        let fallback = next;
+        if (!fallback) {
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('onboarding_completed_at')
+            .eq('id', user.id)
+            .single();
+          fallback = homeFor(user.user_metadata?.intent, !!profile?.onboarding_completed_at);
+        }
+
+        const destination = afterSignInPath({ isAdmin, consent, next, fallback });
+        return NextResponse.redirect(new URL(destination, origin));
       }
 
       return NextResponse.redirect(new URL('/dashboard', origin));
@@ -51,9 +69,9 @@ export async function GET(request: Request): Promise<NextResponse> {
     console.error('[auth/callback] no code in the return:', reason ?? 'no reason given');
   }
 
-  // Back to the login page with a plain message, keeping where they were going.
+  // Back to the sign-in page with a plain message, keeping where they were going.
   const back = new URL('/login', origin);
   back.searchParams.set('error', 'auth');
-  if (next) back.searchParams.set('redirect', next);
+  if (next) back.searchParams.set('next', next);
   return NextResponse.redirect(back);
 }

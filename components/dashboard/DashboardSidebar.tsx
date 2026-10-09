@@ -4,7 +4,10 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 
 interface DashboardSidebarProps {
+  /** Offers gear or services (verified, and not a renter-only account): sees the studio tools and payouts. */
   isCreator: boolean;
+  /** ID check done. Defaults to isCreator for callers that only pass that. */
+  isVerified?: boolean;
 }
 
 interface NavItem {
@@ -16,52 +19,51 @@ interface NavItem {
 interface NavGroup {
   title: string;
   items: NavItem[];
-  creatorOnly?: boolean;
-  hideForCreator?: boolean;
 }
 
-const NAV_GROUPS: NavGroup[] = [
-  {
-    title: 'Activity',
-    items: [
-      { href: '/dashboard', label: 'Overview', exact: true },
-      { href: '/dashboard/bookings', label: 'Rentals' },
-      { href: '/dashboard/creator-requests', label: 'Hires' },
-      { href: '/dashboard/disputes', label: 'Disputes' },
-      { href: '/dashboard/cart', label: 'Cart' },
-    ],
-  },
-  {
-    title: 'Studio',
-    creatorOnly: true,
-    items: [
-      { href: '/dashboard/portfolio', label: 'Portfolio' },
-      { href: '/dashboard/gigs', label: 'Gigs' },
-      { href: '/dashboard/listings', label: 'Listings' },
-      { href: '/dashboard/orders', label: 'Orders' },
-      { href: '/dashboard/pricing', label: 'Pricing Guide' },
-    ],
-  },
-  {
-    title: 'Account',
-    items: [
-      { href: '/dashboard/profile', label: 'Profile' },
-      { href: '/dashboard/banking', label: 'Payouts' },
-      { href: '/dashboard/notifications', label: 'Notifications' },
-    ],
-  },
-  {
-    title: 'Account',
-    hideForCreator: true,
-    items: [
-      { href: '/dashboard/profile', label: 'Profile' },
-      { href: '/dashboard/notifications', label: 'Notifications' },
-      { href: '/dashboard/verification', label: 'Get Verified' },
-    ],
-  },
-];
+const ACTIVITY: NavGroup = {
+  title: 'Activity',
+  items: [
+    { href: '/dashboard', label: 'Overview', exact: true },
+    { href: '/dashboard/bookings', label: 'Rentals' },
+    { href: '/dashboard/creator-requests', label: 'Hires' },
+    { href: '/dashboard/disputes', label: 'Disputes' },
+    { href: '/dashboard/cart', label: 'Cart' },
+  ],
+};
 
-export function DashboardSidebar({ isCreator }: DashboardSidebarProps) {
+const STUDIO_TOOLS: NavGroup = {
+  title: 'Studio',
+  items: [
+    { href: '/dashboard/portfolio', label: 'Portfolio' },
+    { href: '/dashboard/gigs', label: 'Gigs' },
+    { href: '/dashboard/listings', label: 'Listings' },
+    { href: '/dashboard/orders', label: 'Orders' },
+    { href: '/dashboard/pricing', label: 'Pricing Guide' },
+  ],
+};
+
+/**
+ * The groups a person sees. One "Account" group for everyone (there used to
+ * be two for anyone not verified): payouts only for creators, "Get verified"
+ * until the ID check is done, and a way in to offering gear or services for
+ * a verified renter.
+ */
+export function sidebarGroups(isCreator: boolean, isVerified: boolean): NavGroup[] {
+  const account: NavItem[] = [{ href: '/dashboard/profile', label: 'Profile' }];
+  if (isCreator) account.push({ href: '/dashboard/banking', label: 'Payouts' });
+  account.push({ href: '/dashboard/notifications', label: 'Notifications' });
+  if (!isVerified) account.push({ href: '/dashboard/verification', label: 'Get Verified' });
+  if (isVerified && !isCreator) account.push({ href: '/onboarding', label: 'Offer gear or services' });
+
+  return [
+    ACTIVITY,
+    ...(isCreator ? [STUDIO_TOOLS] : []),
+    { title: 'Account', items: account },
+  ];
+}
+
+export function DashboardSidebar({ isCreator, isVerified = isCreator }: DashboardSidebarProps) {
   const pathname = usePathname();
 
   const isActive = (href: string, exact?: boolean) => {
@@ -69,17 +71,12 @@ export function DashboardSidebar({ isCreator }: DashboardSidebarProps) {
     return pathname === href || pathname.startsWith(href + '/');
   };
 
-  const groups = NAV_GROUPS.filter((g) => {
-    if (g.creatorOnly && !isCreator) return false;
-    if (g.hideForCreator && isCreator) return false;
-    // For creator: show creator Account group (with Payouts); for regular: show regular Account group (with Get Verified)
-    return true;
-  });
+  const groups = sidebarGroups(isCreator, isVerified);
 
   return (
     <nav className="space-y-6">
       {groups.map((group) => (
-        <div key={group.title + (group.creatorOnly ? '-creator' : group.hideForCreator ? '-unverified' : '')}>
+        <div key={group.title}>
           <p className="text-xs font-mono uppercase tracking-[0.3em] text-neutral-400 mb-2 px-3">
             {group.title}
           </p>

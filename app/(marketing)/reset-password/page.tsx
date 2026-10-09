@@ -6,9 +6,16 @@ import { motion } from 'framer-motion';
 import { createClient } from '@/lib/supabase/client';
 import { STUDIO } from '@/lib/constants';
 
+const ERROR_ID = 'reset-error';
+
+/**
+ * Set a new password from the reset email. One password field with a
+ * "Show" toggle instead of a second "confirm" field (spec 9.1: no
+ * unnecessary password confirmation).
+ */
 export default function ResetPasswordPage() {
   const [password, setPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
@@ -20,8 +27,9 @@ export default function ResetPasswordPage() {
     // The @supabase/ssr client automatically picks up the token from the URL
     // and establishes a session. We verify that a recovery session exists.
     const supabase = createClient();
+    let timeout: ReturnType<typeof setTimeout> | undefined;
 
-    supabase.auth.onAuthStateChange((event) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
       if (event === 'PASSWORD_RECOVERY') {
         setReady(true);
       }
@@ -33,12 +41,16 @@ export default function ResetPasswordPage() {
         setReady(true);
       } else {
         // Give the auth state change listener a moment to fire
-        const timeout = setTimeout(() => {
+        timeout = setTimeout(() => {
           setTokenError(true);
         }, 3000);
-        return () => clearTimeout(timeout);
       }
     });
+
+    return () => {
+      subscription.unsubscribe();
+      if (timeout) clearTimeout(timeout);
+    };
   }, []);
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -46,23 +58,14 @@ export default function ResetPasswordPage() {
     setError(null);
 
     if (password.length < STUDIO.platform.minPasswordLength) {
-      setError(
-        `Password must be at least ${STUDIO.platform.minPasswordLength} characters.`,
-      );
-      return;
-    }
-
-    if (password !== confirmPassword) {
-      setError('Passwords do not match.');
+      setError(`Password must be at least ${STUDIO.platform.minPasswordLength} characters.`);
       return;
     }
 
     setLoading(true);
 
     const supabase = createClient();
-    const { error: updateError } = await supabase.auth.updateUser({
-      password,
-    });
+    const { error: updateError } = await supabase.auth.updateUser({ password });
 
     if (updateError) {
       setError(updateError.message);
@@ -73,17 +76,20 @@ export default function ResetPasswordPage() {
     }
   };
 
-  // Show spinner while waiting for token exchange
+  const primary =
+    'w-full min-h-[44px] bg-[#D4A843] text-black py-3.5 text-xs font-mono font-bold uppercase tracking-widest hover:opacity-80 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2';
+
+  // Waiting for the token exchange
   if (!ready && !tokenError) {
     return (
-      <div className="flex items-center justify-center py-40">
-        <div className="w-5 h-5 border-2 border-black/20 dark:border-white/20 border-t-black dark:border-t-white rounded-full animate-spin" />
+      <div className="flex items-center justify-center py-40" role="status" aria-label="Checking your reset link">
+        <div className="w-5 h-5 border-2 border-white/20 border-t-white rounded-full animate-spin" />
       </div>
     );
   }
 
   return (
-    <div className="flex items-center justify-center px-6 py-24">
+    <div className="flex items-center justify-center px-4 sm:px-6 py-16 sm:py-24">
       <motion.div
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
@@ -92,114 +98,90 @@ export default function ResetPasswordPage() {
       >
         {/* Header */}
         <div className="mb-10">
-          <p className="text-xs font-mono uppercase tracking-[0.2em] text-neutral-400 dark:text-neutral-400 mb-3">
+          <p className="text-xs font-mono uppercase tracking-[0.2em] text-neutral-400 mb-3">
             {STUDIO.shortName.toUpperCase()}
           </p>
-          <h1 className="text-3xl font-display font-medium uppercase tracking-tight text-black dark:text-white">
+          <h1 className="text-3xl font-display font-medium uppercase tracking-tight text-white">
             Set New Password
           </h1>
-          <div className="w-8 h-px bg-black dark:bg-white mt-5" />
+          <div className="w-8 h-px bg-[#D4A843] mt-5" />
         </div>
 
         {/* Card */}
-        <div className="bg-neutral-50 dark:bg-[#0A0A0B] border border-black/10 dark:border-white/10 p-8">
+        <div className="bg-[#0A0A0B] border border-white/10 p-6 sm:p-8">
           {tokenError && !ready ? (
             /* Invalid or expired token */
             <div className="space-y-5">
-              <div className="bg-red-500/10 border border-red-500/30 px-4 py-3">
-                <p className="text-xs text-red-600 dark:text-red-400 font-mono leading-relaxed">
-                  This password reset link is invalid or has expired. Please request a new one.
+              <div role="alert" className="bg-red-500/10 border border-red-500/30 px-4 py-3">
+                <p className="text-xs text-red-400 font-mono leading-relaxed">
+                  This password reset link is invalid or has expired. Request a new one, or sign in
+                  with an email code instead.
                 </p>
               </div>
-              <Link
-                href="/login"
-                className="w-full bg-black dark:bg-white text-white dark:text-black py-3.5 text-xs font-mono font-bold uppercase tracking-widest hover:opacity-80 transition-opacity flex items-center justify-center gap-2"
-              >
+              <Link href="/login" className={primary}>
                 Back to Sign In
               </Link>
             </div>
           ) : success ? (
             /* Password updated successfully */
             <div className="space-y-5">
-              <div className="bg-emerald-500/10 border border-emerald-500/30 px-4 py-3">
-                <p className="text-xs text-emerald-600 dark:text-emerald-400 font-mono leading-relaxed">
-                  Your password has been updated successfully.
+              <div role="status" className="bg-emerald-500/10 border border-emerald-500/30 px-4 py-3">
+                <p className="text-xs text-emerald-400 font-mono leading-relaxed">
+                  Your password has been updated.
                 </p>
               </div>
-              <Link
-                href="/login"
-                className="w-full bg-black dark:bg-white text-white dark:text-black py-3.5 text-xs font-mono font-bold uppercase tracking-widest hover:opacity-80 transition-opacity flex items-center justify-center gap-2"
-              >
-                Sign In
+              <Link href="/dashboard" className={primary}>
+                Continue
               </Link>
             </div>
           ) : (
             /* Reset password form */
             <form onSubmit={handleSubmit} noValidate className="space-y-5">
-              {/* New Password */}
               <div>
-                <label
-                  htmlFor="password"
-                  className="block text-xs font-bold uppercase tracking-widest text-neutral-400 mb-2"
-                >
-                  New Password
-                </label>
+                <div className="flex items-end justify-between mb-2">
+                  <label
+                    htmlFor="password"
+                    className="block text-xs font-bold uppercase tracking-widest text-neutral-400"
+                  >
+                    New Password
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword((v) => !v)}
+                    aria-controls="password"
+                    aria-pressed={showPassword}
+                    className="min-h-[44px] min-w-[44px] -my-3 text-xs font-mono uppercase tracking-widest text-neutral-400 hover:text-white transition-colors"
+                  >
+                    {showPassword ? 'Hide' : 'Show'}
+                  </button>
+                </div>
                 <input
                   id="password"
-                  type="password"
+                  type={showPassword ? 'text' : 'password'}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required
                   autoComplete="new-password"
-                  placeholder={`Min ${STUDIO.platform.minPasswordLength} characters`}
-                  className="w-full bg-white dark:bg-neutral-900 border border-black/10 dark:border-white/10 text-black dark:text-white px-4 py-3 text-sm font-mono placeholder:text-neutral-300 dark:placeholder:text-neutral-400 focus:outline-none focus:border-black dark:focus:border-white transition-colors"
+                  minLength={STUDIO.platform.minPasswordLength}
+                  aria-invalid={error ? true : undefined}
+                  aria-describedby={error ? `${ERROR_ID} password-hint` : 'password-hint'}
+                  className={`w-full bg-neutral-900 border ${error ? 'border-red-500/70' : 'border-white/10'} text-white px-4 py-3 min-h-[44px] text-base md:text-sm font-mono placeholder:text-neutral-400 focus:outline-none focus:border-[#D4A843] transition-colors`}
                 />
+                <p id="password-hint" className="text-xs font-mono text-neutral-400 mt-2">
+                  At least {STUDIO.platform.minPasswordLength} characters.
+                </p>
               </div>
 
-              {/* Confirm Password */}
-              <div>
-                <label
-                  htmlFor="confirmPassword"
-                  className="block text-xs font-bold uppercase tracking-widest text-neutral-400 mb-2"
-                >
-                  Confirm Password
-                </label>
-                <input
-                  id="confirmPassword"
-                  type="password"
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  required
-                  autoComplete="new-password"
-                  placeholder="Repeat password"
-                  className="w-full bg-white dark:bg-neutral-900 border border-black/10 dark:border-white/10 text-black dark:text-white px-4 py-3 text-sm font-mono placeholder:text-neutral-300 dark:placeholder:text-neutral-400 focus:outline-none focus:border-black dark:focus:border-white transition-colors"
-                />
-              </div>
-
-              {/* Error */}
               {error && (
-                <motion.div
-                  initial={{ opacity: 0, height: 0 }}
-                  animate={{ opacity: 1, height: 'auto' }}
-                  className="overflow-hidden"
-                >
-                  <div className="bg-red-500/10 border border-red-500/30 px-4 py-3">
-                    <p className="text-xs text-red-600 dark:text-red-400 font-mono leading-relaxed">
-                      {error}
-                    </p>
-                  </div>
-                </motion.div>
+                <div id={ERROR_ID} role="alert" className="bg-red-500/10 border border-red-500/30 px-4 py-3">
+                  <p className="text-xs text-red-400 font-mono leading-relaxed">{error}</p>
+                </div>
               )}
 
-              {/* Submit */}
-              <button
-                type="submit"
-                disabled={loading}
-                className="w-full bg-black dark:bg-white text-white dark:text-black py-3.5 text-xs font-mono font-bold uppercase tracking-widest hover:opacity-80 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-              >
+              <button type="submit" disabled={loading} aria-busy={loading} className={primary}>
                 {loading ? (
                   <>
-                    <span className="w-3.5 h-3.5 border-2 border-white/40 dark:border-black/40 border-t-white dark:border-t-black rounded-full animate-spin" />
+                    <span aria-hidden="true" className="w-3.5 h-3.5 border-2 border-black/40 border-t-black rounded-full animate-spin" />
                     Updating...
                   </>
                 ) : (
@@ -211,11 +193,11 @@ export default function ResetPasswordPage() {
         </div>
 
         {/* Footer */}
-        <p className="text-center text-xs font-mono uppercase tracking-[0.2em] text-neutral-400 dark:text-neutral-400 mt-6">
+        <p className="text-center text-xs font-mono uppercase tracking-[0.2em] text-neutral-400 mt-6">
           Remember your password?{' '}
           <Link
             href="/login"
-            className="text-black dark:text-white underline underline-offset-2 hover:opacity-70 transition-opacity"
+            className="inline-flex items-center min-h-[44px] text-white underline underline-offset-2 hover:opacity-70 transition-opacity"
           >
             Sign In
           </Link>
