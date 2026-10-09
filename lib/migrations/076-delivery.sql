@@ -41,7 +41,8 @@
 --      delivery_apply_transition, delivery_mark_quote_paid,
 --      delivery_open_incident, delivery_save_reconciliation, delivery_post,
 --      claim_delivery_provider_events, delivery_insert_fee_refund,
---      delivery_refund_quote, delivery_redact_address.
+--      delivery_refund_quote, delivery_redact_address,
+--      delivery_list_awaiting_acceptance, delivery_cancelled_orders_to_settle.
 --
 -- REVIEW FIXES (2026-10-09, before 076 was applied anywhere)
 --   - Every delivery-fee refund obligation is capped at what is LEFT of the
@@ -62,6 +63,22 @@
 --   Provider configuration stays in code/env (lib/delivery/ports.ts,
 --   DELIVERY_POLICY), reviewed like any other change; there is no
 --   delivery_provider_config table.
+--
+-- REVIEW FIXES, ROUND 2 (2026-10-09, still before 076 was applied anywhere)
+--   - delivery_insert_fee_refund caps a delivery-fee refund at what is left of
+--     the ORDER's charge: every obligation on the order counts, whichever
+--     reference it was filed under (the intent reference for delivery fees,
+--     the provider's transaction id for hire, deposit and staff refunds) and
+--     whatever its reason. Before, hire and staff refunds on the transaction
+--     id were invisible to the cap.
+--   - Custody gains the staff decision 'staff_confirmed_received' (closing a
+--     review as delivered records that the renter has the gear).
+--   - delivery_list_awaiting_acceptance: delivered, unaccepted outbound legs
+--     that CAN be deemed accepted (no renter exception, no open incident),
+--     oldest first, so legs waiting for a person never fill the daily batch.
+--   - delivery_cancelled_orders_to_settle: orders whose every line is
+--     cancelled but that still hold a cancellable leg or an unused paid quote
+--     (the daily safety net for two cancellations racing).
 --
 -- SAFETY
 --   Additive and re-runnable (IF NOT EXISTS / CREATE OR REPLACE / DROP … IF
@@ -255,9 +272,9 @@ create table if not exists public.delivery_custody_events (
   rental_id uuid not null,
   serial_number text,
   kind text not null constraint delivery_custody_events_kind_check check (kind in ('handed_to_courier', 'collected_by_courier',
-    'delivered_to_renter', 'renter_accepted', 'renter_reported_exception', 'deemed_accepted', 'handed_to_return_courier',
-    'received_by_owner', 'inspected')),
-  -- 'system' records only deemed_accepted (D-48).
+    'delivered_to_renter', 'renter_accepted', 'renter_reported_exception', 'deemed_accepted', 'staff_confirmed_received',
+    'handed_to_return_courier', 'received_by_owner', 'inspected')),
+  -- 'system' records only deemed_accepted (D-48); staff_confirmed_received is a staff decision with its reason in condition.
   actor_kind text not null constraint delivery_custody_events_actor_kind_check check (actor_kind in ('owner', 'thabangvision_staff', 'courier', 'renter', 'system')),
   -- A user id, or the provider id for a courier.
   actor_id text,
@@ -275,7 +292,7 @@ create index if not exists idx_delivery_custody_shipment on public.delivery_cust
 alter table public.delivery_custody_events drop constraint if exists delivery_custody_events_kind_check;
 alter table public.delivery_custody_events add constraint delivery_custody_events_kind_check check (kind in ('handed_to_courier',
   'collected_by_courier', 'delivered_to_renter', 'renter_accepted', 'renter_reported_exception', 'deemed_accepted',
-  'handed_to_return_courier', 'received_by_owner', 'inspected'));
+  'staff_confirmed_received', 'handed_to_return_courier', 'received_by_owner', 'inspected'));
 alter table public.delivery_custody_events drop constraint if exists delivery_custody_events_actor_kind_check;
 alter table public.delivery_custody_events add constraint delivery_custody_events_actor_kind_check
   check (actor_kind in ('owner', 'thabangvision_staff', 'courier', 'renter', 'system'));
@@ -571,15 +588,22 @@ begin
 end;
 $$;
 
--- A delivery-fee refund obligation, capped at what is LEFT of the original
+-- A delivery-fee refund obligation, capped at what is LEFT of the ORDER's
 -- charge: the paid intent's expected amount less every obligation already on
--- that transaction (any reason: a staff cancellation, a hire refund, another
--- leg). The obligation is never larger than the refund asked for, and never
--- takes the total above the charge. A reference with no verified charge on
--- record (no paid intent) gets NO provider refund: staff are alerted to
--- refund it by hand. A cut-down or skipped refund alerts staff too (the
--- ledger journal then shows more refunds_payable than the obligation, which
--- a person reconciles). Returns the cents the obligation holds (0 = none).
+-- that order, whatever its reason (a staff cancellation, a hire or deposit
+-- refund, another leg) and whichever reference it was filed under. Delivery
+-- fees are filed under the intent's reference; hire, deposit and staff
+-- refunds under the provider's transaction id (equipment_bookings.
+-- payfast_payment_id = intent.provider_transaction_id). Both references and
+-- the order's own obligations (booking_group_id, except money that arrived
+-- apart from the charge: from_unallocated) are summed, each obligation once
+-- (review fix round 2). The obligation is never larger than the refund asked
+-- for, and never takes the order's total above the charge. A reference with
+-- no verified charge on record (no paid intent) gets NO provider refund:
+-- staff are alerted to refund it by hand. A cut-down or skipped refund alerts
+-- staff too (the ledger journal then shows more refunds_payable than the
+-- obligation, which a person reconciles). Returns the cents the obligation
+-- holds (0 = none).
 create or replace function public.delivery_insert_fee_refund(p_refund jsonb, p_group uuid, p_evidence jsonb) returns integer
 language plpgsql
 security definer
@@ -589,8 +613,10 @@ declare
   v_key text := p_refund ->> 'key';
   v_ref text := p_refund ->> 'paidReference';
   v_want integer := (p_refund ->> 'amountCents')::int;
+  v_intent public.rental_payment_intents;
   v_charged integer;
   v_provider text;
+  v_refs text[];
   v_already bigint;
   v_amount integer;
   v_alert text;
@@ -602,15 +628,25 @@ begin
   if exists (select 1 from public.refund_obligations where obligation_key = v_key) then
     return 0;
   end if;
-  select expected_amount_cents, provider into v_charged, v_provider
+  select * into v_intent
     from public.rental_payment_intents
-   where reference = v_ref and state in ('paid', 'refund_due', 'refunded');
+   where (reference = v_ref or provider_transaction_id = v_ref) and state in ('paid', 'refund_due', 'refunded')
+   order by (reference = v_ref) desc
+   limit 1;
+  v_charged := v_intent.expected_amount_cents;
+  v_provider := v_intent.provider;
   if v_charged is null then
     v_alert := 'delivery_refund_unverified_charge';
     v_amount := 0;
   else
-    perform pg_advisory_xact_lock(hashtext('refund:' || v_ref));
-    select coalesce(sum(amount_cents), 0) into v_already from public.refund_obligations where transaction_reference = v_ref;
+    v_refs := array_remove(array[v_intent.reference, v_intent.provider_transaction_id, v_ref], null);
+    -- The same per-reference locks the 070 cap trigger takes, in a fixed order, plus one per order.
+    perform pg_advisory_xact_lock(hashtext('refund:' || x.r)) from (select distinct unnest(v_refs) as r order by 1) x;
+    perform pg_advisory_xact_lock(hashtext('refund-order:' || v_intent.checkout_group_id::text));
+    select coalesce(sum(o.amount_cents), 0) into v_already
+      from public.refund_obligations o
+     where o.transaction_reference = any (v_refs)
+        or (o.booking_group_id = v_intent.checkout_group_id and not o.from_unallocated);
     v_amount := least(v_want, greatest(v_charged - v_already, 0))::int;
     if v_amount < v_want then
       v_alert := 'delivery_refund_capped';
@@ -628,7 +664,7 @@ begin
   insert into public.refund_obligations (obligation_key, reason, amount_cents, charged_cents, transaction_reference, provider,
     user_id, booking_group_id, booking_ids, evidence)
   values (v_key, 'cancellation', v_amount, v_charged, v_ref, coalesce(v_provider, 'paystack'), (p_refund ->> 'userId')::uuid,
-          p_group, coalesce(array(select jsonb_array_elements_text(p_refund -> 'bookingIds'))::uuid[], '{}'), p_evidence)
+          coalesce(p_group, v_intent.checkout_group_id), coalesce(array(select jsonb_array_elements_text(p_refund -> 'bookingIds'))::uuid[], '{}'), p_evidence)
   on conflict (obligation_key) do nothing;
   return v_amount;
 end;
@@ -839,6 +875,59 @@ begin
                or (q.status = 'paid' and not exists (select 1 from public.delivery_shipments s2 where s2.quote_id = q.id))));
   return found;
 end;
+$$;
+
+-- Delivered outbound legs not yet accepted that the daily job may remind and
+-- then deem accepted (D-48): never one with a renter exception on any item or
+-- an open incident on the leg (a person decides those). Filtered BEFORE the
+-- limit, oldest delivery first, so such legs never fill the batch and starve
+-- the rest (review fix round 2).
+create or replace function public.delivery_list_awaiting_acceptance(p_delivered_before timestamptz, p_limit integer) returns setof uuid
+language sql
+stable
+security definer
+set search_path = public, pg_temp
+as $$
+  select s.id
+    from public.delivery_shipments s
+   where s.leg = 'outbound'
+     and s.status = 'delivered'
+     and s.accepted_at is null
+     and s.delivered_at < p_delivered_before
+     and not exists (select 1 from public.delivery_custody_events c where c.shipment_id = s.id and c.kind = 'renter_reported_exception')
+     and not exists (select 1 from public.delivery_incidents i where i.shipment_id = s.id and i.status in ('open', 'investigating'))
+   order by s.delivered_at, s.id
+   limit greatest(coalesce(p_limit, 0), 0);
+$$;
+
+-- Orders whose every line is cancelled but that still hold a cancellable leg
+-- (nothing has moved) or a paid quote no leg was made from: two cancellations
+-- of the order's last lines raced, or the settlement after a cancellation
+-- failed. The daily pipeline settles them through the delivery core (review
+-- fix round 2). Oldest first, bounded.
+create or replace function public.delivery_cancelled_orders_to_settle(p_limit integer) returns setof uuid
+language sql
+stable
+security definer
+set search_path = public, pg_temp
+as $$
+  select g.booking_group_id
+    from (
+      select s.booking_group_id, s.updated_at as since
+        from public.delivery_shipments s
+       where s.status in ('requested', 'quoted', 'prepared', 'booking', 'scheduled', 'courier_assigned', 'courier_at_pickup')
+      union all
+      select q.booking_group_id, q.updated_at
+        from public.delivery_quotes q
+       where q.status = 'paid'
+         and q.booking_group_id is not null
+         and not exists (select 1 from public.delivery_shipments s2 where s2.quote_id = q.id)
+    ) g
+   where exists (select 1 from public.equipment_bookings b where b.checkout_group_id = g.booking_group_id)
+     and not exists (select 1 from public.equipment_bookings b where b.checkout_group_id = g.booking_group_id and b.status <> 'cancelled')
+   group by g.booking_group_id
+   order by min(g.since), g.booking_group_id
+   limit greatest(coalesce(p_limit, 0), 0);
 $$;
 
 -- An incident outside a state change, with its notices. Returns false on a duplicate.
@@ -1057,7 +1146,9 @@ begin
     'public.claim_delivery_provider_events(integer, integer)',
     'public.delivery_insert_fee_refund(jsonb, uuid, jsonb)',
     'public.delivery_refund_quote(jsonb)',
-    'public.delivery_redact_address(uuid, jsonb, timestamptz)'
+    'public.delivery_redact_address(uuid, jsonb, timestamptz)',
+    'public.delivery_list_awaiting_acceptance(timestamptz, integer)',
+    'public.delivery_cancelled_orders_to_settle(integer)'
   ] loop
     execute format('revoke all on function %s from public, anon, authenticated', f);
     execute format('grant execute on function %s to service_role', f);
@@ -1073,6 +1164,8 @@ commit;
 --   drop policy if exists "Renter reads delivery events" on public.delivery_events;
 --   drop function if exists public.delivery_owns_all(uuid, uuid[]), public.delivery_owns_any(uuid, uuid[]),
 --     public.delivery_is_renter(uuid);
+--   drop function if exists public.delivery_cancelled_orders_to_settle(integer),
+--     public.delivery_list_awaiting_acceptance(timestamptz, integer);   -- round 2
 --   drop function if exists public.delivery_redact_address(uuid, jsonb, timestamptz), public.delivery_refund_quote(jsonb),
 --     public.delivery_insert_fee_refund(jsonb, uuid, jsonb);
 --   drop function if exists public.claim_delivery_provider_events(integer, integer),

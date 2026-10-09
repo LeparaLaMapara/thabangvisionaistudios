@@ -114,21 +114,29 @@ and `duplicate`), missed-payment recovery (`lib/rental/workers.ts`) and the
 manual mark-paid route.
 
 1. Only when the order's payment intent is `paid` (verified by the provider).
-2. `markDeliveryQuotesPaid` with the intent's delivery cents (a mismatch marks
+   Only the quotes that payment covered take part: a quote paid by hand
+   (`manual:` reference, e.g. a return pickup staff confirmed) is left out, so
+   a replay never raises a false amount mismatch (review fix round 2).
+2. An order whose every line is cancelled stops here with a staff alert
+   (`delivery_after_payment_order_cancelled`) and NO refund: its cancellation
+   settled the delivery money (round 2, finding 1). `markDeliveryQuotesPaid`
+   refuses such an order too (`order_cancelled`), except for the
+   cancellation's own settlement, which marks the quotes only to refund them.
+3. `markDeliveryQuotesPaid` with the intent's delivery cents (a mismatch marks
    nothing and alerts staff).
-3. For each leg, outbound first: `prepareDelivery` (eligibility checked again
+4. For each leg, outbound first: `prepareDelivery` (eligibility checked again
    on today's facts) then `commitDelivery` as `system`. For our own vehicle,
    commit creates the staff task (`delivery_manual_tasks`).
-4. Replays are harmless: paid quotes stay paid, prepare returns the live leg,
+5. Replays are harmless: paid quotes stay paid, prepare returns the live leg,
    commit says `already_dispatched`. A replayed webhook therefore also
    finishes a dispatch an earlier run could not. A quote that was refunded (its
    leg cancelled or refused) is skipped: it is never dispatched again.
-5. A paid leg that cannot be prepared for a lasting reason (no longer
+6. A paid leg that cannot be prepared for a lasting reason (no longer
    eligible, the booking changed, the provider is gone) has its fee refunded
    at once: `refundUnusedDeliveryQuote` moves the quote to `refunded` with the
    journal and a refund obligation capped at what is left of the charge
    (D-52, replaces F-6).
-6. It never throws and never changes the payment outcome. Failures become
+7. It never throws and never changes the payment outcome. Failures become
    staff alerts (`delivery_*` in the ops queue): payment not verified,
    prepare refused (for example the renter is now on hold), commit refused.
 
@@ -176,10 +184,9 @@ after payment like the outbound leg.
 
 When the renter cancels the last line of an order with delivery
 (`PUT /api/bookings/[id]`), or staff cancel it
-(`PATCH /api/admin/equipment-bookings/[id]`, same rules: the delivery fee is
-never part of what the line releases or what staff can refund, live legs are
-cancelled through the core as a platform cancellation, a leg on its way is
-refused with `DELIVERY_UNDER_WAY` until it is closed in the console):
+(`PATCH /api/admin/equipment-bookings/[id]`, same money rules: the delivery
+fee is never part of what the line releases or what staff can refund, live
+legs are cancelled through the core as a platform cancellation):
 
 - the hire and deposit refund no longer include the legacy `delivery_fee`;
 - each live leg is cancelled with `cancelDelivery` as the renter: the fee is
@@ -191,10 +198,32 @@ refused with `DELIVERY_UNDER_WAY` until it is closed in the console):
   (`refundUnusedDeliveryQuote`), once;
 - the paid quote is then `refunded` (or `consumed` when a pass-on fee was
   kept), so a later payment replay never dispatches it;
-- if a leg is already past the cancellable states (the gear is on its way),
-  the booking cannot be cancelled online (`409 DELIVERY_UNDER_WAY`), and
-  nothing changes;
-- cancelling one line while others remain leaves the delivery as it is.
+- linked quotes nobody marked paid (the after-payment step never finished)
+  follow the same Phase 4 rules: on an order paid online they are marked and
+  refunded once with the order; on an unpaid order they are superseded. Any
+  linked quote (not superseded) makes the order a Phase 4 order, so the hire
+  refund never carries the legacy fee for it (round 2, finding 1). If the
+  order was cancelled under the legacy rules (its fee refunded with the hire)
+  and a quote turns up linked afterwards, the quote is only superseded;
+- **the renter** (strict): if a leg is past the cancellable states (on its
+  way, or already delivered, lost, damaged or under review), the booking
+  cannot be cancelled online (`409 DELIVERY_UNDER_WAY`), and nothing changes;
+- **staff** (round 2, finding 3, D-53): only a leg actually in motion (the
+  gear with a courier or our driver: collected, in transit, at the drop-off,
+  a failed attempt, returning to the sender) blocks them
+  (`409 DELIVERY_UNDER_WAY`; a booked courier on a scheduled leg is cancelled
+  at the provider first, as before). Legs that reached the renter, or are
+  lost, damaged or under review, are left as they are and logged
+  (`deliveryLegsLeft`); their fee is kept (D-39/D-52) unless staff send
+  `refundDeliveryFee: true`, which refunds it once through
+  `refundDeliveryFee` (an earned fee is reversed out of income);
+- cancelling one line while others remain leaves the delivery as it is. The
+  order is read AGAIN after the line's cancellation commits
+  (`settleAfterLineCancelled`): two cancellations of the last two lines at
+  the same moment each saw the other open, but both now see the order fully
+  cancelled, and settling is idempotent per leg and quote, so the fee is
+  refunded once (round 2, finding 6). The daily step
+  `delivery_cancelled_orders` catches anything left (a failed settlement).
 
 The booking page's confirmation shows the delivery refund.
 
@@ -202,8 +231,9 @@ The booking page's confirmation shows the delivery refund.
 
 `lib/rental/delivery-settlement.ts`:
 
-- **R-39** `usesPhase4Delivery`: an order with shipment legs or a paid
-  delivery quote earns its delivery fee per leg (core `deliveryEarned({ leg })`).
+- **R-39** `usesPhase4Delivery`: an order with shipment legs or ANY linked
+  delivery quote that was not superseded (an unmarked `active` one included,
+  round 2) earns its delivery fee per leg (core `deliveryEarned({ leg })`).
   Take-back and the gear dispute settlement no longer post the order-level
   `deliveryEarned({ bookingGroupId })` for such orders, and the dispute does
   not refund the legacy fee either. Orders without Phase 4 delivery are
@@ -218,7 +248,9 @@ The booking page's confirmation shows the delivery refund.
     unattributed one holds settlement while open and never waives the fee
     by itself (D-51);
   - the late fee runs to when a return pickup took the gear, not to when it
-    reached us (`returnCollectedAt`, D-49);
+    reached us (`returnCollectedAt`, D-49). Only the courier's own
+    confirmation or our staff's record counts; a renter recording their own
+    handover is kept as evidence but never stops the clock (round 2);
   - the gear dispute settlement is held the same way;
   - owner payout eligibility (`evaluatePayout`) adds `delivery_<reason>` hold
     reasons (`checkPayoutEligibility.deliveryHoldReasons`).
@@ -259,5 +291,12 @@ attribution and late fees, the missing-table probe against real PostgREST
 answer shapes, unused paid quotes, stale quotes, units, incident scope,
 closing reviews, hand-paid dispatch, return-pickup requests, overdue ladder,
 pipeline order, purge, advisory quotes, webhook body limit); the HIGH ones were
-mutation-checked. `tests/e2e/delivery-checkout.spec.ts` covers what runs
-without a database (no always-skipped placeholders).
+mutation-checked. Review fixes round 2: `tests/unit/delivery-review2-*.test.ts`
+(no double fee refund through a payment replay after a cancellation, the
+order-wide refund cap in `chargeOfBooking`, staff cancellation after
+delivery, earned-fee refunds and ledger balances, closing a review as
+delivered, the last-line race and the daily sweep, hand-paid quotes on a
+replay, who ends the renter's possession, the studio day) and
+`076-delivery.test.sql` 14 and 19–21; every fix was mutation-checked.
+`tests/e2e/delivery-checkout.spec.ts` covers what runs without a database
+(no always-skipped placeholders).

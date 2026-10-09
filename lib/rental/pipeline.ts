@@ -6,6 +6,7 @@ import { drainDeliveryInbox } from '@/lib/delivery/inbox';
 import { SupabaseDeliveryJobQueries, deemDeliveryAcceptances, pollTrackedShipments, reconcileUncertainDispatches, remindReturnPickups } from '@/lib/delivery/jobs';
 import { SupabaseDeliveryInbox } from '@/lib/delivery/repos';
 import { deliveryDeps } from '@/lib/delivery/server';
+import { sweepCancelledOrderDelivery } from './delivery-settlement';
 import { drainInbox } from './inbox';
 import { dispatchOutbox } from './notify';
 import { expireHolds, recoverMissedPayments, reviewScheduledPayouts, runOverdueLadder, runPayouts, runRefunds, runReminders } from './workers';
@@ -24,8 +25,10 @@ import { expireHolds, recoverMissedPayments, reviewScheduledPayouts, runOverdueL
  * pass is the safety net. It retries stored provider events, reconciles
  * dispatches whose outcome is unknown (lookup by our merchant reference,
  * never a second courier), polls courier legs whose webhooks may have been
- * missed, reminds and then deems acceptance of delivered legs (D-48), and
- * queues return-pickup reminders. These run AFTER the money steps (a slow
+ * missed, reminds and then deems acceptance of delivered legs (D-48),
+ * queues return-pickup reminders, and settles the delivery of orders whose
+ * every line is cancelled but that still hold a live cancellable leg or a
+ * paid unused quote (two cancellations raced; review fix round 2, finding 6). These run AFTER the money steps (a slow
  * courier API must never starve payments, refunds or payouts of the cron's
  * time) and share DELIVERY_OPS.pipelineStepsBudgetMs: once it is spent the
  * remaining delivery work waits for the next pass (or "Run delivery jobs
@@ -81,6 +84,9 @@ export async function runRentalPipeline(
   await deliveryStep('delivery_poll', async () => pollTrackedShipments(await deliveryOnce(), jobs, DELIVERY_OPS.jobBatchSize, deadline));
   await deliveryStep('delivery_acceptance', async () => deemDeliveryAcceptances(await deliveryOnce(), jobs, DELIVERY_OPS.jobBatchSize, deadline));
   await deliveryStep('delivery_return_reminders', async () => remindReturnPickups(await deliveryOnce(), jobs));
+  await deliveryStep('delivery_cancelled_orders', async () =>
+    sweepCancelledOrderDelivery(db, { limit: DELIVERY_OPS.jobBatchSize, deadline }, { deps: deliveryOnce }),
+  );
 
   await step('outbox', () => dispatchOutbox(200));
 

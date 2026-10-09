@@ -22,7 +22,7 @@ import { SupabaseRefunds, isMissingPipeline, transitionBookings } from '@/lib/re
 import { dispatchOutbox } from '@/lib/rental/notify';
 import { chargeOfBooking } from '@/lib/rental/charges';
 import { paymentReference } from '@/lib/payments/eft';
-import { deliveryCancellationPlan, settleOrderDeliveryOnCancel, type DeliveryCancellationPlan } from '@/lib/rental/delivery-settlement';
+import { deliveryCancellationPlan, settleAfterLineCancelled, type DeliveryCancellationPlan } from '@/lib/rental/delivery-settlement';
 
 type BookingForQuote = {
   id: string;
@@ -453,10 +453,16 @@ async function cancelThroughPipeline(
   // A paid quote no leg was made from is refunded too. Sent now like the hire
   // refund; the daily pipeline retries it if the provider is slow (never twice).
   // The booking is already cancelled; a leg that cannot be cancelled goes to
-  // the ops queue, never back to the customer as an error.
+  // the ops queue, never back to the customer as an error. The order is read
+  // again now that this line is cancelled: a concurrent cancellation of its
+  // other line may have made this the last one (review fix round 2, finding 6).
   let legRefundCents = 0;
   if (deliveryPlan) {
-    legRefundCents = await settleOrderDeliveryOnCancel(db, { plan: deliveryPlan, caller: { kind: 'renter', userId }, bookingId: booking.id, reason: 'booking cancelled by the customer' });
+    legRefundCents = await settleAfterLineCancelled(
+      db,
+      { before: deliveryPlan, bookingGroupId: booking.checkout_group_id, bookingId: booking.id, caller: { kind: 'renter', userId }, reason: 'booking cancelled by the customer' },
+      deliveryCancellationPlan,
+    );
     if (legRefundCents > 0 && refundStatus === 'not_required') refundStatus = 'pending';
   }
   await dispatchOutbox(10).catch(() => undefined);

@@ -45,6 +45,7 @@ vi.mock('@/lib/delivery/jobs', () => ({
   deemDeliveryAcceptances: rec('delivery_acceptance'),
   remindReturnPickups: rec('delivery_return_reminders'),
 }));
+vi.mock('@/lib/rental/delivery-settlement', () => ({ sweepCancelledOrderDelivery: rec('delivery_cancelled_orders') }));
 
 const { runRentalPipeline } = await import('@/lib/rental/pipeline');
 const { DELIVERY_OPS } = await import('@/lib/constants');

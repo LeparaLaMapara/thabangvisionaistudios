@@ -22,6 +22,15 @@
  *    for earning the outbound fee, settlement and address retention, never
  *    for a return leg (it is an outbound-only event) and never over an
  *    exception the renter reported.
+ *  - Staff decision (review fix round 2, finding 5): when staff close a review
+ *    on an outbound leg as delivered, they record `staff_confirmed_received`
+ *    with the reason (e.g. the renter confirmed by phone that the reported
+ *    problem was resolved). It is the only event that settles an item a renter
+ *    reported an exception on as received.
+ *  - Only a courier or our staff end the renter's possession on a return
+ *    (`collected_by_courier`, or `handed_to_return_courier` recorded by staff):
+ *    a renter's own record of handing gear over is evidence, never the return
+ *    time for late fees (finding 8, see `endsRenterPossession`).
  */
 
 import type { ShipmentLeg } from './state';
@@ -37,6 +46,7 @@ export const CUSTODY_EVENT_KINDS = [
   'renter_accepted',
   'renter_reported_exception',
   'deemed_accepted',
+  'staff_confirmed_received',
   'handed_to_return_courier',
   'received_by_owner',
   'inspected',
@@ -92,6 +102,7 @@ const RULES: Record<CustodyEventKind, { leg: ShipmentLeg; actors: readonly Custo
   renter_accepted: { leg: 'outbound', actors: ['renter'], stage: 3 },
   renter_reported_exception: { leg: 'outbound', actors: ['renter', 'thabangvision_staff'], stage: 3 },
   deemed_accepted: { leg: 'outbound', actors: ['system'], stage: 3 },
+  staff_confirmed_received: { leg: 'outbound', actors: ['thabangvision_staff'], stage: 3 },
   handed_to_return_courier: { leg: 'return', actors: ['renter', 'thabangvision_staff'], stage: 1 },
   received_by_owner: { leg: 'return', actors: ['owner', 'thabangvision_staff'], stage: 3 },
   inspected: { leg: 'return', actors: ['thabangvision_staff'], stage: 4 },
@@ -198,6 +209,10 @@ export function checkCustodyEvent(e: CustodyEvent, ctx: ShipmentCustodyContext, 
   if (e.kind === 'renter_reported_exception' && e.discrepancies.filter((d) => d.trim()).length === 0) {
     return { ok: false, code: 'exception_needs_detail', message: 'Say what is wrong or missing.' };
   }
+  // A staff decision always says why (kept with the item's chain).
+  if (e.kind === 'staff_confirmed_received' && !(e.condition && e.condition.trim().length >= 3)) {
+    return { ok: false, code: 'evidence_required', message: 'Record why staff confirm the renter received this item.' };
+  }
   if (e.kind === 'inspected' && !(e.condition && e.condition.trim())) {
     return { ok: false, code: 'evidence_required', message: 'Record the condition found at inspection.' };
   }
@@ -225,6 +240,8 @@ export type ItemReceipt = 'not_sent' | 'with_courier' | 'awaiting_renter' | 'acc
  */
 export function outboundReceipt(chain: readonly CustodyEvent[]): ItemReceipt {
   const kinds = new Set(chain.map((c) => c.kind));
+  // Staff decided, after the renter's exception, that the item was received.
+  if (kinds.has('staff_confirmed_received')) return 'accepted';
   if (kinds.has('renter_reported_exception')) return 'exception';
   if (kinds.has('renter_accepted') || kinds.has('deemed_accepted')) return 'accepted';
   if (kinds.has('delivered_to_renter')) return 'awaiting_renter';
@@ -242,7 +259,21 @@ export function returnProgress(chain: readonly CustodyEvent[]): ReturnProgress {
   return 'with_renter';
 }
 
-/** Every item on the leg was accepted by the renter with no exception. */
+/**
+ * Whether this custody event ends the renter's possession on a return leg
+ * (D-49): the courier's own confirmation, or our staff recording the handover.
+ * A renter recording `handed_to_return_courier` themselves is kept as
+ * evidence but never moves the return time (no self-serve late-fee stop).
+ */
+export function endsRenterPossession(e: Pick<CustodyEvent, 'kind' | 'actor'>): boolean {
+  if (e.kind !== 'collected_by_courier' && e.kind !== 'handed_to_return_courier') return false;
+  return e.actor.kind === 'courier' || e.actor.kind === 'thabangvision_staff';
+}
+
+/** The custody actor kinds that may end the renter's possession on a return (for database filters). */
+export const POSSESSION_ENDING_ACTORS: readonly CustodyActorKind[] = ['courier', 'thabangvision_staff'];
+
+/** Every item on the leg was accepted by the renter (or staff decided it was received) with no open exception. */
 export function allAccepted(items: readonly { bookingId: string; rentalId: string }[], events: readonly CustodyEvent[]): boolean {
   const chains = chainsByItem(events);
   return items.length > 0 && items.every((i) => outboundReceipt(chains.get(`${i.bookingId}:${i.rentalId}`) ?? []) === 'accepted');

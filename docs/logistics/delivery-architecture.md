@@ -102,10 +102,20 @@ it records `coverage_verified = false` (D-40).
     booked; invoices adjust it (`reconcileDelivery`);
   - `deliveryCancelled` → refund owed (`refunds_payable`) and anything kept
     (a provider cancellation fee passed on at cost, D-39) as `delivery_income`.
-    The refund obligation is capped in SQL at what is LEFT of the original
-    charge (charge less every obligation already on it), so a leg's refund can
-    never take the total above what was charged; with no verified charge on
-    record nothing goes to the provider and staff are alerted;
+    The refund obligation is capped in SQL at what is LEFT of the ORDER's
+    charge: the charge less every obligation already on the order, whatever
+    its reason and whichever reference it was filed under (delivery fees
+    under the intent reference, hire, deposit and staff refunds under the
+    provider's transaction id; review fix round 2). A leg's refund can never
+    take the order above what was charged; with no verified charge on record
+    nothing goes to the provider and staff are alerted. `chargeOfBooking`
+    (hire and staff refunds) counts the delivery refunds the same way;
+  - a fee already EARNED (`acceptedAt` set) that is refunded after all (a
+    review closed as failed with a refund, a staff refund on a delivered leg)
+    reverses the income instead (`deliveryEarnedRefund`: `delivery_income` →
+    `refunds_payable`); `deliveryCancelled` would release unearned hire a
+    second time. Both journals share the key `delivery-cancel:{shipment}`, so
+    a leg's fee is refunded in the ledger once;
   - a fee paid by hand (`manual:` reference, D-50) never entered the ledger:
     no delivery journals are posted for it and its refund is made by a person;
   - the legacy `deliveryEarned({ bookingGroupId })` keeps its old key
@@ -180,7 +190,8 @@ Per physical item (booking line + listing), append-only:
 | renter_accepted | outbound | **only the booking's renter** | in-app acceptance (authenticated, `POST /api/delivery/accept`) |
 | renter_reported_exception | outbound | the renter, or staff for them | what is wrong (opens an incident) |
 | deemed_accepted | outbound | the system only (D-48) | no answer within `deemedAcceptanceHours` of a recorded delivery, after a reminder; never over an exception or open incident |
-| handed_to_return_courier | return | the renter, or staff | photo |
+| staff_confirmed_received | outbound | staff only, closing a review as delivered | the reason (in `condition`); settles an item with a renter exception as received |
+| handed_to_return_courier | return | the renter, or staff | photo; only staff's record (or the courier's `collected_by_courier`) ends the renter's possession for late fees (`endsRenterPossession`) |
 | received_by_owner | return | the item's owner, or staff | photo |
 | inspected | return | staff | condition |
 
@@ -235,7 +246,10 @@ settlement only for those lines. `providerCaused` is set only by staff or a
 provider's own event (a provider reporting the parcel lost); a renter, owner
 or Ubunye report starts unattributed (D-51). A leg left under review, lost,
 damaged or returning to the sender is closed by staff to a final state with
-a reason (`closeDeliveryReview`; optionally refunding the fee on a leg that
+a reason (`closeDeliveryReview`; closing an outbound leg as delivered needs
+the staff decision that the renter has the gear (`confirmReceived`): it
+records `staff_confirmed_received` per item, sets `acceptedAt` and earns the
+fee once; optionally refunding the fee on a leg that
 failed).
 
 ## Data and access (migration 076)

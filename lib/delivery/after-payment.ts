@@ -3,6 +3,7 @@ import type { CustomerDeliveryQuote } from '@/lib/core/delivery/quote';
 import type { DeliveryDeps } from '@/lib/core/delivery/repository';
 import {
   commitDelivery,
+  isManualPaymentReference,
   markDeliveryQuotesPaid,
   markDeliveryQuotesPaidByStaff,
   prepareDelivery,
@@ -32,12 +33,23 @@ import type { QuoteLinkStore } from './checkout';
  * at once (refundUnusedDeliveryQuote: obligation capped at the charge), so the
  * money is never left stuck on a delivery that will not run. A quote already
  * refunded, or used by a leg that was cancelled, is never dispatched again.
+ *
+ * Review fix round 2:
+ *  - finding 1: an order whose every line is cancelled stops here with a
+ *    staff alert and NO refund. Its cancellation settled the delivery money
+ *    (Phase 4 rules: the legs and paid or charged quotes; legacy rules: the
+ *    line's delivery fee with the hire). Refunding again on a replay would pay
+ *    the fee back twice.
+ *  - finding 7: a quote paid BY HAND (a `manual:` reference, e.g. a return
+ *    pickup staff confirmed) was never part of the online payment: it is left
+ *    out of the amount check, so a replay does not raise a false mismatch.
  */
 
 export type AfterPaymentOutcome =
   | { outcome: 'no_delivery' }
   | { outcome: 'payment_not_verified' }
   | { outcome: 'not_marked'; code: string }
+  | { outcome: 'order_cancelled' }
   | { outcome: 'done'; legs: { leg: string; result: string }[] }
   | { outcome: 'error'; message: string };
 
@@ -55,7 +67,15 @@ async function tellStaff(deps: Pick<DeliveryDeps, 'repo'>, what: string, referen
 }
 
 /** Quotes that were part of the order's payment (superseded ones never were). */
-const LIVE_QUOTE: readonly CustomerDeliveryQuote['status'][] = ['active', 'expired', 'paid', 'consumed', 'refunded'];
+export const LIVE_QUOTE: readonly CustomerDeliveryQuote['status'][] = ['active', 'expired', 'paid', 'consumed', 'refunded'];
+
+/**
+ * The order's quotes that its ONLINE (provider-verified) payment paid for:
+ * linked, not superseded, and not paid by hand (finding 7).
+ */
+export function onlinePaymentQuotes(quotes: readonly CustomerDeliveryQuote[]): CustomerDeliveryQuote[] {
+  return quotes.filter((q) => LIVE_QUOTE.includes(q.status) && !isManualPaymentReference(q.paidReference));
+}
 
 /** Prepare refusals that will not go away by retrying: the paid fee is owed back now. */
 const REFUND_ON: readonly string[] = ['not_eligible', 'provider_excluded', 'provider_unavailable', 'items_mismatch', 'booking_state', 'too_many_attempts', 'dates_mismatch'];
@@ -66,10 +86,15 @@ export async function dispatchDeliveryAfterPayment(
 ): Promise<AfterPaymentOutcome> {
   const groupId = input.bookingGroupId;
   try {
-    const quotes = (await deps.links.quotesForGroup(groupId)).filter((q) => LIVE_QUOTE.includes(q.status));
+    const quotes = onlinePaymentQuotes(await deps.links.quotesForGroup(groupId));
     if (quotes.length === 0) return { outcome: 'no_delivery' };
 
     const group = await deps.delivery.bookings.getGroup(groupId);
+    if (group && group.lines.length > 0 && group.lines.every((l) => l.status === 'cancelled')) {
+      // Cancelled before (or while) this ran: the cancellation settled the delivery fee.
+      await tellStaff(deps.delivery, 'delivery_after_payment_order_cancelled', groupId);
+      return { outcome: 'order_cancelled' };
+    }
     if (!group || !group.paymentVerified || !group.paymentReference || input.paidDeliveryCents === null) {
       // e.g. a payment recorded by hand: the provider never verified it, so no
       // automatic dispatch. A person arranges this delivery.

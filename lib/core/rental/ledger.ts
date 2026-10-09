@@ -365,6 +365,24 @@ export function deliveryCancelled(p: { shipmentId: string; bookingGroupId: strin
 }
 
 /**
+ * A delivery fee that was already EARNED (the leg was accepted or received,
+ * `deliveryEarned` moved it to delivery_income) is refunded after all, by a
+ * person's decision (closing a review, a staff cancellation with an explicit
+ * fee refund). The income is reversed into refunds_payable; unearned hire no
+ * longer holds it, so `deliveryCancelled` would count it twice. Same key as
+ * `deliveryCancelled` (`delivery-cancel:{shipment}`): one fee-refund journal
+ * per shipment, whichever form is posted first.
+ */
+export function deliveryEarnedRefund(p: { shipmentId: string; bookingGroupId: string; refundCents: number }): Journal {
+  assertCents(p.refundCents, 'refund');
+  if (p.refundCents <= 0) throw new RangeError('refund must be positive');
+  return journal(`delivery-cancel:${p.shipmentId}`, 'delivery_cancelled', p.bookingGroupId, 'Earned delivery fee refunded', [
+    dr('delivery_income', p.refundCents),
+    cr('refunds_payable', p.refundCents),
+  ]);
+}
+
+/**
  * Settles one booking line whose outcome a person decided: a staff
  * cancellation, or a resolved dispute. Every amount it held as a liability
  * (hire, deposit) is released. What goes back to the customer becomes

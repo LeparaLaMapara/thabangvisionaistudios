@@ -180,7 +180,21 @@ describe('deliveryCancellationPlan', () => {
     };
     const plan = await deliveryCancellationPlan(fake as never, { bookingGroupId: GROUP, bookingId: 'bk-1' }, w.repo);
     // The paid quote was used by the live leg: nothing unused to refund separately.
-    expect(plan).toEqual({ phase4: true, lastLine: true, shipmentIds: [shipmentId], tooLate: false, feeCents: quote.customerFeeCents, courierBooked: false, unusedPaidQuoteIds: [] });
+    expect(plan).toEqual({
+      phase4: true,
+      lastLine: true,
+      shipmentIds: [shipmentId],
+      tooLate: false,
+      feeCents: quote.customerFeeCents,
+      courierBooked: false,
+      unusedPaidQuoteIds: [],
+      // Review fix round 2: the staff rule, legs left as they are, and linked quotes nobody marked.
+      inMotion: false,
+      keptShipmentIds: [],
+      unmarkedQuoteIds: [],
+      onlineQuoteIds: [quote.id],
+      paidDeliveryCents: null,
+    });
     const notLast = await deliveryCancellationPlan(fake as never, { bookingGroupId: GROUP, bookingId: 'bk-2' }, w.repo);
     expect(notLast).toMatchObject({ phase4: true, lastLine: false, shipmentIds: [] });
   });
