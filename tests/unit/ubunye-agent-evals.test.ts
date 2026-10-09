@@ -10,7 +10,7 @@
  * report.
  */
 import { describe, it, expect, beforeEach } from 'vitest';
-import { commitAction, cancelPending, issueToken, prepareAction, type Execute, type Requote } from '@/lib/core/agent/use-cases';
+import { commitAction, cancelPending, describeAction, issueToken, prepareAction, UNCERTAIN_MESSAGE, type Execute, type Requote } from '@/lib/core/agent/use-cases';
 import { issueApprovalToken, verifyApprovalToken } from '@/lib/core/agent/approval';
 import { createBookingTools, proposalForModel } from '@/lib/agents/tools/booking';
 import { pendingProposalBlock } from '@/lib/agent/prompt';
@@ -30,7 +30,7 @@ const CONV = 'conv-1';
 describe('Ubunye agent evaluations (spec §8.11, in-memory, not live models)', () => {
   let clock: FakeClock;
   let deps: ReturnType<typeof agentDepsFor>;
-  let executed: { kind: string; payload: Record<string, unknown>; user: string }[];
+  let executed: { kind: string; payload: Record<string, unknown>; user: string; approved: number }[];
   let price: number;
   let available: boolean;
   let execute: Execute;
@@ -43,8 +43,8 @@ describe('Ubunye agent evaluations (spec §8.11, in-memory, not live models)', (
     price = 450_000;
     available = true;
     requote = async () => (available ? { ok: true, amountCents: price } : { ok: false, message: 'Sony FX3 is already booked for those dates.' });
-    execute = async (kind, payload, user) => {
-      executed.push({ kind, payload, user });
+    execute = async (kind, payload, user, approved) => {
+      executed.push({ kind, payload, user, approved });
       return { ok: true, result: { next: '/dashboard/cart' } };
     };
   });
@@ -330,5 +330,54 @@ describe('Ubunye agent evaluations (spec §8.11, in-memory, not live models)', (
     const prompt = bookingPrompt();
     expect(prompt).toMatch(/Never claim something is booked, reserved, paid or refunded unless the system says so/);
     expect(prompt).toMatch(/confirmed once payment is received/);
+  });
+  // ── Follow-up review fixes ──────────────────────────────────────────────────
+
+  it('E37 the booking step receives the approved amount, so it can refuse a price that moved after the claim', async () => {
+    const p = await prepare(ALICE, 450_000);
+    await commit(p.actionId, await tokenFor(p.actionId));
+    expect(executed[0].approved).toBe(450_000);
+  });
+
+  it('E38 loading the approval card is read-only: a second card does not invalidate the first token', async () => {
+    const p = await prepare();
+    const token = await tokenFor(p.actionId);
+    const view = await describeAction(deps, { actionId: p.actionId, userId: ALICE });
+    expect(view).toMatchObject({ ok: true, state: 'prepared' });
+    await describeAction(deps, { actionId: p.actionId, userId: ALICE });
+    expect(await commit(p.actionId, token)).toMatchObject({ ok: true });
+  });
+
+  it('E39 another person cannot read a proposal summary', async () => {
+    const p = await prepare();
+    expect(await describeAction(deps, { actionId: p.actionId, userId: BOB })).toMatchObject({ ok: false, code: 'not_found' });
+  });
+
+  it('E40 an expired proposal reads as expired on the card', async () => {
+    const p = await prepare();
+    clock.advanceMinutes(16);
+    expect(await describeAction(deps, { actionId: p.actionId, userId: ALICE })).toMatchObject({ ok: true, state: 'expired' });
+  });
+
+  it('E41 a booking that succeeded is reported as done even if recording the outcome fails', async () => {
+    const p = await prepare();
+    const token = await tokenFor(p.actionId);
+    deps.repo.finish = async () => {
+      throw new Error('db down');
+    };
+    expect(await commit(p.actionId, token)).toMatchObject({ ok: true });
+    expect(executed).toHaveLength(1);
+    expect(deps.repo.rows.get(p.actionId)?.state).toBe('committing');
+    expect(await commit(p.actionId, token)).toMatchObject({ ok: false, code: 'already_used' });
+  });
+
+  it('E42 an exception part-way through does not claim that nothing happened', async () => {
+    execute = async () => {
+      throw new Error('timeout');
+    };
+    const p = await prepare();
+    const out = await commit(p.actionId, await tokenFor(p.actionId));
+    expect(out).toMatchObject({ ok: false, message: UNCERTAIN_MESSAGE });
+    expect(UNCERTAIN_MESSAGE).not.toMatch(/nothing was charged/i);
   });
 });

@@ -41,6 +41,6 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     return NextResponse.json({ ok: true, ...out.result });
   } catch (err) {
     console.error('[agent-actions] commit failed:', err instanceof Error ? err.message : 'unknown');
-    return NextResponse.json({ error: 'Could not complete this just now. Nothing was charged.' }, { status: 503 });
+    return NextResponse.json({ error: 'Could not complete this just now. Check your cart and bookings before trying again.' }, { status: 503 });
   }
 }

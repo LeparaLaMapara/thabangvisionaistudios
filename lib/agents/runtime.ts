@@ -3,6 +3,7 @@ export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
 import { convertToModelMessages, stepCountIs } from 'ai';
 import { checkRateLimit } from '@/lib/auth';
+import { STUDIO } from '@/lib/constants';
 import { getModelId, routeQuery } from '@/lib/ai';
 import { logTokenUsage } from '@/lib/ai/tracked';
 import { streamWithFallback } from '@/lib/ai/resilient-stream';
@@ -200,10 +201,12 @@ export async function executeAgent(
         { status: 429 },
       );
     }
-    // The daily guest allowance is counted on the server, per network
-    // address. The browser's own count (sessionMessageCount) is only a hint
-    // for the UI: it was trivially reset, so it no longer decides anything.
-    const withinDaily = await checkRateLimit(`ai-guest-day:${hashIp(ip)}`, guestLimit, 24 * 60 * 60_000);
+    // The browser's count (sessionMessageCount) gives one guest their
+    // allowance, but it is easily reset. The server also counts per network
+    // address, with a higher ceiling because many people can share one
+    // address (mobile carriers, offices): it caps cost without locking out a
+    // whole network after five messages.
+    const withinDaily = await checkRateLimit(`ai-guest-day:${hashIp(ip)}`, Math.max(guestLimit, STUDIO.ai.guestNetworkDailyMessages), 24 * 60 * 60_000);
     if (!withinDaily || sessionMessageCount >= guestLimit) {
       return NextResponse.json(
         { error: 'limit_reached', limit: guestLimit, plan: 'guest' },

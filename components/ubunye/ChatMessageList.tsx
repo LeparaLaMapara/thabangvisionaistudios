@@ -88,6 +88,16 @@ export function ChatMessageList({
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, isLoading]);
 
+  // One card per proposal: when a later message mentions the same proposal
+  // (get_pending_proposal), only the latest mention shows the card.
+  const cardAt = new Map<string, number>();
+  if (isAuthenticated) {
+    messages.forEach((m, i) => {
+      const id = m.role === 'assistant' ? getProposalId(m) : null;
+      if (id) cardAt.set(id, i);
+    });
+  }
+
   return (
     <motion.div
       initial={{ opacity: 0 }}
@@ -101,7 +111,8 @@ export function ChatMessageList({
         const pendingTools = isAssistant ? getToolStates(msg) : [];
         const isLastAssistant = isAssistant && msgIndex === messages.length - 1;
         const completedTool = isLastAssistant && pendingTools.length === 0 ? getLastCompletedTool(msg) : null;
-        const proposalId = isAssistant && isAuthenticated ? getProposalId(msg) : null;
+        const mentioned = isAssistant && isAuthenticated ? getProposalId(msg) : null;
+        const proposalId = mentioned && cardAt.get(mentioned) === msgIndex ? mentioned : null;
 
         return (
           <motion.div

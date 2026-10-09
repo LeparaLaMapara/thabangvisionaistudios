@@ -21,6 +21,11 @@ import {
 /** What the approval screen shows (spec §8.7). Amounts in integer cents. */
 export interface ApprovalSummary {
   title: string;
+  /**
+   * Who and what, looked up by the server (creator name, location, what is
+   * delivered, item make). Optional: proposals stored before it existed have none.
+   */
+  details?: string[];
   /** e.g. "Fri 10 Oct to Sun 12 Oct (3 days)" or "6 hours, Sat 18 Oct". */
   period: string;
   lines: { label: string; amountCents: number }[];
@@ -58,8 +63,12 @@ export interface AgentActionRepository {
 /** Recomputes the server price for an action's payload (never trusts the model's numbers). */
 export type Requote = (kind: AgentActionKind, payload: Record<string, unknown>) => Promise<{ ok: true; amountCents: number } | { ok: false; message: string }>;
 
-/** Performs the approved action through the same business use case the website uses. */
-export type Execute = (kind: AgentActionKind, payload: Record<string, unknown>, userId: string) => Promise<{ ok: true; result: Record<string, unknown> } | { ok: false; message: string }>;
+/**
+ * Performs the approved action through the same business use case the website
+ * uses. It receives the amount the person approved and must refuse when its
+ * own price differs (the price can move between the claim and the booking).
+ */
+export type Execute = (kind: AgentActionKind, payload: Record<string, unknown>, userId: string, approvedAmountCents: number) => Promise<{ ok: true; result: Record<string, unknown> } | { ok: false; message: string }>;
 
 export interface AgentDeps {
   repo: AgentActionRepository;
@@ -95,8 +104,23 @@ export async function prepareAction(
 }
 
 /**
- * Called by the approval screen (the signed-in person's own browser session),
- * never by the model. Each call invalidates earlier tokens for the action.
+ * What the approval card shows. Read-only: loading or re-rendering a card (or
+ * two cards for the same proposal) never touches the token.
+ */
+export async function describeAction(
+  deps: Pick<AgentDeps, 'repo' | 'clock'>,
+  p: { actionId: string; userId: string },
+): Promise<{ ok: true; summary: ApprovalSummary; expiresAt: string; state: AgentActionState | 'expired' } | { ok: false; code: 'not_found'; message: string }> {
+  const a = await deps.repo.get(p.actionId);
+  if (!a || a.userId !== p.userId) return { ok: false, code: 'not_found', message: 'That proposal does not exist.' };
+  const expired = a.state === 'prepared' && new Date(a.expiresAt).getTime() <= deps.clock.now().getTime();
+  return { ok: true, summary: a.summary, expiresAt: a.expiresAt, state: expired ? 'expired' : a.state };
+}
+
+/**
+ * Called by the approval screen only when the person presses Approve (their
+ * own browser session), never by the model. Each call invalidates earlier
+ * tokens for the action, so the card asks for one immediately before it commits.
  */
 export async function issueToken(
   deps: AgentDeps,
@@ -115,6 +139,9 @@ export async function issueToken(
   const token = issueApprovalToken({ aid: a.id, sub: p.userId, kind: a.kind, amt: a.amountCents, ver: a.quoteVersion, exp, nonce }, deps.signer);
   return { ok: true, token, summary: a.summary, expiresAt: a.expiresAt };
 }
+
+/** Shown when the booking step failed part-way: the person should look before retrying. */
+export const UNCERTAIN_MESSAGE = 'Something went wrong while completing this. Check your cart and bookings before asking Ubunye again.';
 
 export type CommitOutcome =
   | { ok: true; result: Record<string, unknown> }
@@ -159,14 +186,22 @@ export async function commitAction(
   const claimed = await deps.repo.claim(p.actionId, p.userId, deps.hash(t.claims.nonce), now);
   if (!claimed) return { ok: false, code: 'already_used', message: 'This proposal was already used.', status: 409 };
 
-  const done = await deps.execute((action as AgentActionRecord).kind, (action as AgentActionRecord).payload, p.userId).catch(
-    (err: unknown) => ({ ok: false as const, message: err instanceof Error ? 'Something went wrong. Nothing was charged; ask Ubunye again.' : 'Something went wrong.' }),
+  const a = action as AgentActionRecord;
+  // A thrown error means we do not know how far the booking step got, so the
+  // message does not claim nothing happened.
+  const done = await deps.execute(a.kind, a.payload, p.userId, a.amountCents).catch(
+    () => ({ ok: false as const, thrown: true, message: UNCERTAIN_MESSAGE }),
   );
+  // Recording the outcome must not turn a completed booking into an error
+  // (the person would retry and book twice). If it fails, the row stays in
+  // 'committing', which no token can claim again; see docs/ai/ubunye-agent.md.
+  const record = (state: 'committed' | 'failed', result: Record<string, unknown>) =>
+    deps.repo.finish(p.actionId, state, result).catch(() => undefined);
   if (!done.ok) {
-    await deps.repo.finish(p.actionId, 'failed', { message: done.message });
+    await record('failed', { message: done.message, ...('thrown' in done ? { uncertain: true } : {}) });
     return { ok: false, code: 'failed', message: done.message, status: 409 };
   }
-  await deps.repo.finish(p.actionId, 'committed', done.result);
+  await record('committed', done.result);
   return { ok: true, result: done.result };
 }
 

@@ -60,6 +60,8 @@ export interface GearPayload {
 interface RentalRow {
   id: string;
   title: string;
+  brand: string | null;
+  model: string | null;
   quantity: number | null;
   is_available: boolean | null;
   price_per_day: number;
@@ -71,7 +73,7 @@ interface RentalRow {
 async function loadRental(id: string): Promise<RentalRow | null> {
   const { data, error } = await admin()
     .from('smart_rentals')
-    .select('id, title, quantity, is_available, price_per_day, price_per_week, deposit_amount, replacement_value')
+    .select('id, title, brand, model, quantity, is_available, price_per_day, price_per_week, deposit_amount, replacement_value')
     .eq('id', id)
     .eq('is_published', true)
     .is('deleted_at', null)
@@ -136,6 +138,10 @@ export async function prepareGear(
     payload,
     summary: {
       title: payload.quantity > 1 ? `${c.rental.title} × ${payload.quantity}` : c.rental.title,
+      details: [
+        ...(c.rental.brand || c.rental.model ? [`Make: ${clip([c.rental.brand, c.rental.model].filter(Boolean).join(' '), 80)}`] : []),
+        `Quantity: ${payload.quantity}`,
+      ],
       period: `${payload.start_date} to ${payload.end_date} (${price.days} day${price.days === 1 ? '' : 's'})`,
       lines: [{ label: 'Hire', amountCents: price.hireCents }],
       depositCents: price.depositCents,
@@ -161,18 +167,24 @@ export interface ServicePayload {
 }
 
 /** A named creator must exist, be ID-verified and be taking bookings. */
-async function checkCreator(creatorId: string | null): Promise<{ ok: true } | { ok: false; message: string }> {
-  if (!creatorId) return { ok: true };
-  const { data, error } = await admin().from('profiles').select('verification_status, available_for_hire, is_suspended').eq('id', creatorId).maybeSingle();
+async function checkCreator(creatorId: string | null): Promise<{ ok: true; name: string | null } | { ok: false; message: string }> {
+  if (!creatorId) return { ok: true, name: null };
+  const { data, error } = await admin().from('profiles').select('display_name, verification_status, available_for_hire, is_suspended').eq('id', creatorId).maybeSingle();
   if (error) throw new Error('creator lookup failed');
-  const c = data as { verification_status?: string | null; available_for_hire?: boolean | null; is_suspended?: boolean | null } | null;
+  const c = data as { display_name?: string | null; verification_status?: string | null; available_for_hire?: boolean | null; is_suspended?: boolean | null } | null;
   if (!c || c.verification_status !== 'verified' || c.available_for_hire === false || c.is_suspended) {
     return { ok: false, message: 'That creator cannot be booked right now. Suggest another creator or let our team assign one.' };
   }
-  return { ok: true };
+  return { ok: true, name: c.display_name ? clip(c.display_name, 80) : null };
 }
 
-async function quoteService(p: ServicePayload): Promise<{ ok: true; subtotal: number; vat: number; total: number; category: string; hours: number; creatorId: string | null } | { ok: false; message: string }> {
+/** One line of user-typed text for the approval card (React escapes it; this keeps it short). */
+function clip(v: string, max: number): string {
+  const t = v.replace(/\s+/g, ' ').trim();
+  return t.length > max ? `${t.slice(0, max - 1)}…` : t;
+}
+
+async function quoteService(p: ServicePayload): Promise<{ ok: true; subtotal: number; vat: number; total: number; category: string; hours: number; creatorId: string | null; creatorName: string | null; packageTitle: string | null } | { ok: false; message: string }> {
   const pkg = p.package_id ? await getBookablePackage(admin(), p.package_id) : null;
   if (p.package_id && !pkg) return { ok: false, message: 'That package is not available to book.' };
   const category = pkg ? pkg.title : p.project_category;
@@ -185,7 +197,7 @@ async function quoteService(p: ServicePayload): Promise<{ ok: true; subtotal: nu
   const q = pkg
     ? quotePackage(pkg.price, pkg.priceUnit, hours, STUDIO.booking.vatRate)
     : quoteHourly(getHourlyRate(category), hours, STUDIO.booking.vatRate);
-  return { ok: true, subtotal: q.subtotal, vat: q.vat, total: q.total, category, hours, creatorId: pkg?.creatorId ?? p.creator_id };
+  return { ok: true, subtotal: q.subtotal, vat: q.vat, total: q.total, category, hours, creatorId: pkg?.creatorId ?? p.creator_id, creatorName: creator.name, packageTitle: pkg?.title ?? null };
 }
 
 export async function prepareService(
@@ -211,7 +223,15 @@ export async function prepareService(
     ok: true,
     payload: { ...payload, project_category: q.category, duration_hours: q.hours, creator_id: q.creatorId },
     summary: {
-      title: q.category,
+      title: q.packageTitle ? `Package: ${q.packageTitle}` : `${q.category} (hourly rate)`,
+      // Looked up by the server, so the person sees who they are hiring and
+      // what they get, not only the model's wording.
+      details: [
+        `Creator: ${q.creatorId ? q.creatorName ?? 'Verified creator' : 'Assigned by our team'}`,
+        ...(payload.location ? [`Where: ${clip(payload.location, 120)}`] : []),
+        `You receive: ${clip(payload.deliverables, 200)}`,
+        `Brief: ${clip(payload.project_description, 240)}`,
+      ],
       period: `${q.hours} hour${q.hours === 1 ? '' : 's'}${payload.preferred_dates ? `, ${payload.preferred_dates}` : ''}`,
       lines: [
         { label: 'Service', amountCents: toCents(q.subtotal) },
@@ -240,11 +260,12 @@ export const requote: Requote = async (kind: AgentActionKind, payload: Record<st
 };
 
 export function executorFor(user: { id: string; email?: string | null; email_confirmed_at?: string | null }, conversationId: string | null): Execute {
-  return async (kind, payload) => {
+  return async (kind, payload, _userId, approvedAmountCents) => {
     if (kind === 'gear_booking') {
       const p = payload as unknown as GearPayload;
       const c = await checkGear(p, new Date());
       if (!c.ok) return c;
+      if (priceGear(c.rental, p).totalCents !== approvedAmountCents) return { ok: false, message: PRICE_MOVED };
       const eligibility = await checkRenterEligibility(admin(), user, [{ unitReplacementValueCents: toCents(itemValue(c.rental)), quantity: p.quantity, startDate: p.start_date, endDate: p.end_date }], false);
       if (!eligibility.ok) return { ok: false, message: eligibility.message };
       const item = await addToCart(user.id, p.rental_id, p.quantity, p.start_date, p.end_date);
@@ -252,9 +273,11 @@ export function executorFor(user: { id: string; email?: string | null; email_con
       logEvent({ eventType: 'cart_added', eventCategory: 'booking', userId: user.id, metadata: { rental_id: p.rental_id, start_date: p.start_date, end_date: p.end_date, qty: p.quantity, source: 'ubunye_approved' } });
       return { ok: true, result: { next: '/dashboard/cart', message: `${c.rental.title} is in your cart. Pay at checkout to hold it.` } };
     }
-    return createServiceBooking(user, payload as unknown as ServicePayload, conversationId);
+    return createServiceBooking(user, payload as unknown as ServicePayload, conversationId, approvedAmountCents);
   };
 }
+
+const PRICE_MOVED = 'The price changed since you approved it, so nothing was booked. Ask Ubunye for a fresh quote.';
 
 /** An ISO date from the client becomes the shoot date; free text ("first week of March") stays null, as on /book. */
 function toShootDate(value: unknown): string | null {
@@ -268,9 +291,11 @@ async function createServiceBooking(
   user: { id: string; email?: string | null },
   p: ServicePayload,
   conversationId: string | null,
+  approvedAmountCents: number,
 ): Promise<{ ok: true; result: Record<string, unknown> } | { ok: false; message: string }> {
   const q = await quoteService(p);
   if (!q.ok) return q;
+  if (toCents(q.total) !== approvedAmountCents) return { ok: false, message: PRICE_MOVED };
   const { platformAmount, creatorAmount } = splitServiceBooking({ subtotal: q.subtotal }, STUDIO.booking.platformCommission);
   const reference = `BK-${nanoid(10)}`;
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL || STUDIO.meta.url;

@@ -422,6 +422,10 @@ export const STUDIO = {
       'gpt-4o': { input: 45, output: 270 },   // $2.50/$15 per 1M
       'gemini-3.6-flash': { input: 1.35, output: 5.4 }, // $0.075/$0.30 per 1M
     } as Record<string, { input: number; output: number }>,
+    // Signed-out messages per network address per day, across everyone on it.
+    // Higher than one guest's allowance because many people can share one
+    // address (mobile carriers, offices, campuses); it caps cost, not people.
+    guestNetworkDailyMessages: 60,
   },
 
   booking: {

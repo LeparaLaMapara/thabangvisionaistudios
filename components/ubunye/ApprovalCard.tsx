@@ -6,13 +6,15 @@ import Link from 'next/link';
 /**
  * The human approval screen for a Ubunye proposal (spec §8.7). It loads the
  * proposal from the server (never from the chat text), shows exactly what
- * would be booked and paid, and only a press of Approve here commits it. The
- * single-use approval token is fetched by this component and sent straight
- * back to the server; the AI never sees it.
+ * would be booked and paid, and only a press of Approve here commits it.
+ * Loading is read-only; the single-use approval token is requested only when
+ * Approve is pressed and sent straight back to the server, so the AI never
+ * sees it and a second card for the same proposal cannot invalidate this one.
  */
 
 interface Summary {
   title: string;
+  details?: string[];
   period: string;
   lines: { label: string; amountCents: number }[];
   depositCents: number;
@@ -24,11 +26,18 @@ interface Summary {
 
 type State =
   | { kind: 'loading' }
-  | { kind: 'ready'; summary: Summary; token: string; expiresAt: string }
+  | { kind: 'ready'; summary: Summary }
   | { kind: 'working'; summary: Summary }
   | { kind: 'done'; message: string; next: string | null }
   | { kind: 'declined' }
   | { kind: 'closed'; message: string };
+
+function closedMessage(state: unknown): string {
+  if (state === 'committed' || state === 'committing') return 'This proposal was already approved.';
+  if (state === 'cancelled') return 'Declined. Nothing was booked or charged.';
+  if (state === 'superseded') return 'Ubunye replaced this with a newer proposal.';
+  return 'This proposal is no longer waiting for approval. Ask Ubunye for a fresh quote.';
+}
 
 const rands = (cents: number): string =>
   `R${(cents / 100).toLocaleString('en-ZA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -47,7 +56,11 @@ export function ApprovalCard({ proposalId }: { proposalId: string }) {
           setState({ kind: 'closed', message: body.error ?? 'This proposal is no longer waiting for approval.' });
           return;
         }
-        setState({ kind: 'ready', summary: body.summary as Summary, token: body.token as string, expiresAt: body.expires_at as string });
+        if (body.state !== 'prepared') {
+          setState({ kind: 'closed', message: closedMessage(body.state) });
+          return;
+        }
+        setState({ kind: 'ready', summary: body.summary as Summary });
       } catch {
         if (!cancelled) setState({ kind: 'closed', message: 'Could not load this proposal. Ask Ubunye again.' });
       }
@@ -59,9 +72,16 @@ export function ApprovalCard({ proposalId }: { proposalId: string }) {
 
   async function approve(): Promise<void> {
     if (state.kind !== 'ready') return;
-    const { summary, token } = state;
+    const { summary } = state;
     setState({ kind: 'working', summary });
     try {
+      const issued = await fetch(`/api/agent-actions/${encodeURIComponent(proposalId)}`, { method: 'POST', cache: 'no-store' });
+      const grant = await issued.json().catch(() => ({}));
+      if (!issued.ok || typeof grant.token !== 'string') {
+        setState({ kind: 'closed', message: grant.error ?? 'This proposal is no longer waiting for approval. Nothing was booked.' });
+        return;
+      }
+      const token: string = grant.token;
       const res = await fetch(`/api/agent-actions/${encodeURIComponent(proposalId)}/commit`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -69,12 +89,12 @@ export function ApprovalCard({ proposalId }: { proposalId: string }) {
       });
       const body = await res.json().catch(() => ({}));
       if (!res.ok) {
-        setState({ kind: 'closed', message: body.error ?? 'This could not be completed. Nothing was charged.' });
+        setState({ kind: 'closed', message: body.error ?? 'This could not be completed. Check your cart and bookings before asking again.' });
         return;
       }
       setState({ kind: 'done', message: body.message ?? 'Done.', next: typeof body.next === 'string' && body.next.startsWith('/') ? body.next : null });
     } catch {
-      setState({ kind: 'closed', message: 'Something went wrong. Nothing was charged; ask Ubunye again.' });
+      setState({ kind: 'closed', message: 'Something went wrong. Check your cart and bookings before asking Ubunye again.' });
     }
   }
 
@@ -107,6 +127,11 @@ export function ApprovalCard({ proposalId }: { proposalId: string }) {
       <p className="font-mono text-[11px] uppercase tracking-wider text-[#D4A843]">Approval needed</p>
       <p className="mt-1 font-display text-lg text-neutral-100">{s.title}</p>
       <p className="text-neutral-400">{s.period}</p>
+      {s.details && s.details.length > 0 && (
+        <ul className="mt-2 space-y-0.5 text-[13px] text-neutral-300">
+          {s.details.map((d) => <li key={d}>{d}</li>)}
+        </ul>
+      )}
       <dl className="mt-3 space-y-1 font-mono text-[13px]">
         {s.lines.map((l) => (
           <div key={l.label} className="flex justify-between"><dt>{l.label}</dt><dd>{rands(l.amountCents)}</dd></div>
