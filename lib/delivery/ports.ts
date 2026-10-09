@@ -3,6 +3,8 @@ import { NO_DELIVERY_CAPABILITIES } from '@/lib/core/delivery/capabilities';
 import type { DeliveryInsurancePort, DeliveryPort } from '@/lib/core/delivery/port';
 import type { DeliveryProviderRegistry } from '@/lib/core/delivery/repository';
 import { MANUAL_PROVIDER_ID, createManualDeliveryAdapter, type ManualTaskStore } from './manual';
+import { UBER_DIRECT_PROVIDER_ID, createUberDirectAdapter, uberDirectConfigFromEnv } from './uber-direct';
+import { WUMDROP_PROVIDER_ID, createWumdropAdapter, wumdropConfigFromEnv } from './wumdrop';
 
 /**
  * The delivery providers in use, chosen by configuration (spec Phase 4 §4.15).
@@ -17,6 +19,9 @@ import { MANUAL_PROVIDER_ID, createManualDeliveryAdapter, type ManualTaskStore }
  *   DELIVERY_ALLOW_SANDBOX           "true" lets sandbox adapters be offered;
  *                                    ignored on the production deployment.
  *
+ * Couriers (uber_direct, wumdrop) are stricter: off unless explicitly enabled,
+ * and production needs a recorded approval. See gatedCourierFactory below.
+ *
  * An id with no adapter gets the refuse-everything adapter: no capabilities,
  * every call rejected. It is therefore excluded by the risk gate with a
  * reason, never sent anywhere unexpected.
@@ -25,10 +30,10 @@ import { MANUAL_PROVIDER_ID, createManualDeliveryAdapter, type ManualTaskStore }
 type Env = Record<string, string | undefined>;
 export type DeliveryAdapterFactory = (mode: 'sandbox' | 'production') => DeliveryPort;
 
-/** A provider we have no adapter for: refuses everything. */
-export function refusingDeliveryAdapter(providerId: string): DeliveryPort {
+/** A provider we have no adapter for (or one switched off): refuses everything. */
+export function refusingDeliveryAdapter(providerId: string, why = 'is not supported'): DeliveryPort {
   const no = (): Promise<{ ok: false; kind: 'rejected'; message: string }> =>
-    Promise.resolve({ ok: false, kind: 'rejected', message: `delivery provider ${providerId} is not supported` });
+    Promise.resolve({ ok: false, kind: 'rejected', message: `delivery provider ${providerId} ${why}` });
   return {
     providerId,
     kind: 'courier',
@@ -92,9 +97,47 @@ export function policyInsurance(policy: { verifiedPolicyRef: string | null; cove
 
 export const deliveryInsurance: DeliveryInsurancePort = policyInsurance();
 
+/**
+ * Third-party couriers are OFF unless switched on explicitly. A courier is
+ * built only when ALL of these hold; otherwise the refuse-everything adapter
+ * stands in (no capabilities, so the risk gate excludes it with a reason):
+ *
+ *   - its id is listed in DELIVERY_PROVIDERS;
+ *   - DELIVERY_PROVIDER_<ID>_ENABLED=true (explicit: the registry's "on by
+ *     default" applies to our own fleet only);
+ *   - sandbox mode: not on the production deployment (VERCEL_ENV), and offered
+ *     to customers only with DELIVERY_ALLOW_SANDBOX=true (buildDeliveryRegistry);
+ *   - production mode: DELIVERY_PROVIDER_<ID>_PRODUCTION_APPROVED=true, set
+ *     only after the founder's approval and a verified transit-cover policy.
+ *
+ * Even then the core still requires the delivery_courier flag, a non-zero
+ * DELIVERY_POLICY.automatedDeliveryMaxItemValueCents, verified cover in
+ * DELIVERY_POLICY.insurance and the custody capabilities (policy.ts).
+ */
+export function gatedCourierFactory(providerId: string, env: Env, build: DeliveryAdapterFactory): DeliveryAdapterFactory {
+  return (mode) => {
+    const k = envKey(providerId);
+    if ((env[`DELIVERY_PROVIDER_${k}_ENABLED`] ?? '').toLowerCase() !== 'true') return refusingDeliveryAdapter(providerId, 'is not enabled');
+    if (mode === 'sandbox' && env.VERCEL_ENV === 'production') return refusingDeliveryAdapter(providerId, 'sandbox is not allowed on the production deployment');
+    if (mode === 'production' && (env[`DELIVERY_PROVIDER_${k}_PRODUCTION_APPROVED`] ?? '').toLowerCase() !== 'true') {
+      return refusingDeliveryAdapter(providerId, 'is not approved for production');
+    }
+    return build(mode);
+  };
+}
+
+/** The courier adapters we have, each behind the explicit switch above. */
+export function courierFactories(env: Env): Record<string, DeliveryAdapterFactory> {
+  return {
+    [UBER_DIRECT_PROVIDER_ID]: gatedCourierFactory(UBER_DIRECT_PROVIDER_ID, env, (mode) => createUberDirectAdapter(uberDirectConfigFromEnv(env, mode))),
+    [WUMDROP_PROVIDER_ID]: gatedCourierFactory(WUMDROP_PROVIDER_ID, env, (mode) => createWumdropAdapter(wumdropConfigFromEnv(env, mode))),
+  };
+}
+
 /** The registry for this deployment. The manual adapter's tasks live in Supabase. */
 export function deliveryProviders(taskStore: ManualTaskStore, env: Env = process.env): DeliveryProviderRegistry {
   return buildDeliveryRegistry(env, {
     [MANUAL_PROVIDER_ID]: () => createManualDeliveryAdapter(taskStore),
+    ...courierFactories(env),
   });
 }
