@@ -38,6 +38,7 @@ describe('filterNavSync', () => {
       voice_onboarding: false,
       ai_rate_suggestions: false,
       ai_portfolio_tagging: false,
+      delivery_courier: false,
     });
     expect(result.map((i) => i.href)).toEqual(['/rentals', '/pricing']);
   });
@@ -50,6 +51,7 @@ describe('filterNavSync', () => {
       voice_onboarding: false,
       ai_rate_suggestions: false,
       ai_portfolio_tagging: false,
+      delivery_courier: false,
     });
     expect(result.map((i) => i.href)).toEqual([
       '/rentals',
@@ -71,6 +73,7 @@ describe('filterNavSync', () => {
       voice_onboarding: false,
       ai_rate_suggestions: false,
       ai_portfolio_tagging: false,
+      delivery_courier: false,
     });
     expect(result.map((i) => i.href)).toEqual([
       '/rentals',
@@ -87,6 +90,7 @@ describe('filterNavSync', () => {
       voice_onboarding: false,
       ai_rate_suggestions: false,
       ai_portfolio_tagging: false,
+      delivery_courier: false,
     });
     expect(nav).toEqual(original);
   });

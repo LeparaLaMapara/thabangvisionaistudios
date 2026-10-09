@@ -1,4 +1,5 @@
 import { assertCents } from '@/lib/core/pricing/money';
+import type { ShipmentLeg } from '@/lib/core/delivery/state';
 
 /**
  * Append-only, double-entry ledger for gear hire (spec §4.3). Pure.
@@ -35,6 +36,10 @@ export const LEDGER_ACCOUNTS = {
   cancellation_income: 'revenue',
   provider_fees: 'expense',
   chargebacks: 'expense',
+  // Phase 4 (migration 076): what couriers charge us, and what we owe them
+  // until their invoice is paid. Never mixed with the customer's delivery fee.
+  courier_costs: 'expense',
+  delivery_payable: 'liability',
 } as const;
 
 export type LedgerAccount = keyof typeof LEDGER_ACCOUNTS;
@@ -66,7 +71,9 @@ export type JournalKind =
   | 'payout_completed'
   | 'payout_reversed'
   | 'chargeback'
-  | 'adjustment';
+  | 'adjustment'
+  | 'courier_cost'
+  | 'delivery_cancelled';
 
 const dr = (account: LedgerAccount, cents: number): LedgerLine => ({ account, debitCents: cents, creditCents: 0 });
 const cr = (account: LedgerAccount, cents: number): LedgerLine => ({ account, debitCents: 0, creditCents: cents });
@@ -295,14 +302,65 @@ export function reconcileClosedGroup(params: {
 }
 
 /**
- * The order's delivery fee becomes income once the order is delivered and a
- * line completes. One journal per order (keyed by the order), so it is
- * recognised exactly once whichever line completes first (spec §4.3).
+ * A delivery fee becomes income.
+ *
+ * With `leg` (Phase 4): one journal per order AND leg, keyed
+ * `delivery:{group}:{leg}`, so the outbound and return legs are recognised
+ * separately, each exactly once, when that leg is done (outbound: every item
+ * accepted by the renter; return: received back).
+ *
+ * Without `leg` (the pre-Phase-4 own-vehicle fee, one fee per order covering
+ * the round trip): the key stays `delivery:{group}`, exactly as before, so
+ * orders already part-way through (one line earned under the old key) are
+ * still recognised once. Mapping the legacy call to the outbound leg would
+ * give those orders a second, differently keyed journal. The two forms are
+ * for different money (a legacy order fee vs Phase-4 leg quotes) and an order
+ * uses one or the other, never both.
  */
-export function deliveryEarned(p: { bookingGroupId: string; deliveryCents: number }): Journal {
-  return journal(`delivery:${p.bookingGroupId}`, 'hire_earned', p.bookingGroupId, 'Delivery fee earned', [
+export function deliveryEarned(p: { bookingGroupId: string; deliveryCents: number; leg?: ShipmentLeg }): Journal {
+  const key = p.leg ? `delivery:${p.bookingGroupId}:${p.leg}` : `delivery:${p.bookingGroupId}`;
+  return journal(key, 'hire_earned', p.bookingGroupId, p.leg ? `Delivery fee earned (${p.leg} leg)` : 'Delivery fee earned', [
     dr('unearned_hire', p.deliveryCents),
     cr('delivery_income', p.deliveryCents),
+  ]);
+}
+
+/**
+ * What a courier charges us for a shipment: an expense owed to the provider
+ * until its invoice is paid. `what` separates legitimate repeats (the job,
+ * a cancellation fee, an invoice adjustment). Own-fleet legs post none.
+ */
+export function courierCost(p: { shipmentId: string; bookingGroupId: string | null; amountCents: number; what: string }): Journal {
+  return journal(`courier-cost:${p.shipmentId}:${p.what}`, 'courier_cost', p.bookingGroupId, `Courier cost (${p.what})`, [
+    dr('courier_costs', p.amountCents),
+    cr('delivery_payable', p.amountCents),
+  ]);
+}
+
+/** The provider's invoice came in BELOW what we accrued: reduce the cost and the payable. */
+export function courierCostReduction(p: { shipmentId: string; bookingGroupId: string | null; amountCents: number; what: string }): Journal {
+  return journal(`courier-cost:${p.shipmentId}:${p.what}`, 'courier_cost', p.bookingGroupId, `Courier cost reduced (${p.what})`, [
+    dr('delivery_payable', p.amountCents),
+    cr('courier_costs', p.amountCents),
+  ]);
+}
+
+/**
+ * A paid delivery leg that will not happen (cancelled, or dispatch failed):
+ * the customer's fee leaves unearned hire. What goes back becomes
+ * refunds_payable; anything kept (a provider cancellation fee passed on at
+ * cost, D-39) is delivery income. One journal per shipment.
+ */
+export function deliveryCancelled(p: { shipmentId: string; bookingGroupId: string; customerFeeCents: number; refundCents: number }): Journal {
+  for (const [label, v] of [['customer fee', p.customerFeeCents], ['refund', p.refundCents]] as const) {
+    assertCents(v, label);
+    if (v < 0) throw new RangeError(`${label} cannot be negative`);
+  }
+  if (p.refundCents > p.customerFeeCents) throw new RangeError('cannot refund more delivery fee than was paid');
+  return journal(`delivery-cancel:${p.shipmentId}`, 'delivery_cancelled', p.bookingGroupId, 'Delivery leg cancelled', [
+    dr('unearned_hire', p.customerFeeCents),
+    cr('refunds_payable', p.refundCents),
+    cr('delivery_income', p.customerFeeCents - p.refundCents),
   ]);
 }
 

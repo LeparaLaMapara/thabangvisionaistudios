@@ -723,6 +723,74 @@ export const RENTAL_POLICY = {
   payoutAutoApprove: false,
 } as const;
 
+// ─── DELIVERY POLICY (Phase 4, spec §4.2, §4.6–4.8, §4.13) ───────────────────
+// Read by the pure delivery core (lib/core/delivery/*) and the adapters in
+// lib/delivery/*. Amounts in integer cents. Values marked FOUNDER DECISION
+// are safe defaults until the founder approves a value (decision register
+// D-37 to D-42). Nothing here can loosen the rental rules in RENTAL_POLICY:
+// first hire collected in person, any item over the high-value threshold
+// collected in person, trust-tier limits.
+export const DELIVERY_POLICY = {
+  // FOUNDER DECISION (D-37): the highest single-item replacement value an
+  // automated (third-party) courier may carry. 0 = automated courier delivery
+  // is OFF for every item. Our own vehicle (manual adapter) is not affected:
+  // it follows the existing own-vehicle rules.
+  automatedDeliveryMaxItemValueCents: 0,
+  // FOUNDER DECISION (D-38): what we add to a courier's price for a leg. The
+  // customer pays provider cost + this fee, and the two are stored apart.
+  // Delivery money is never part of the owner's 80% hire share.
+  platformFeeCents: 0,
+  // How long a customer delivery quote can be paid. Shorter than the provider
+  // quote is fine; the customer price can never outlive the provider price.
+  quoteTtlMinutes: 30,
+  // Hand-to-hand only: never leave rented gear unattended (spec §4.11).
+  requireHandToHand: true,
+  // A courier must have ALL of these verified for our account, or it is not
+  // offered, whatever its price (spec §4.6 item 3, §4.10).
+  requiredCourierCapabilities: ['pickupConfirmation', 'proofOfDelivery', 'noLeaveAtDoor', 'idempotentCreate'] as const,
+  // Ordering among providers that pass every safety gate (spec §4.6 items
+  // 6–8). Reliability is a 0–100 score from operations history; unknown
+  // providers score 0. Edit here, never in code.
+  providerPreferences: {
+    rankBy: ['reliability', 'speed', 'price'] as const,
+    reliability: { manual: 80 } as Record<string, number>,
+  },
+  // FOUNDER DECISION (D-39): a renter who cancels after a courier is booked
+  // pays the courier's cancellation fee at cost, capped at the delivery fee
+  // they paid. Cancellations by us or the provider are refunded in full.
+  passOnProviderCancellationFee: true,
+  // A provider invoice within this many cents of the quote counts as matched.
+  reconciliationToleranceCents: 0,
+  // At most this many dispatch attempts per leg before a person takes over.
+  maxDispatchAttemptsPerLeg: 3,
+  // Delivery addresses and driver contact details are deleted (or reduced to
+  // suburb level) this many days after the leg closes (POPIA purpose limit).
+  addressRetentionDays: 180,
+  // What a driver is told is in the parcel: generic, never the brand or value
+  // (spec §4.10: no unnecessary equipment values to drivers).
+  driverLabel: 'Camera equipment',
+  // Battery content is not recorded per listing yet, so every parcel is
+  // declared as containing lithium-ion batteries (a courier that refuses them
+  // then says so, instead of carrying them unknowingly).
+  assumeLithiumBatteries: true,
+  // Our own vehicle and staff (the manual adapter).
+  ownFleet: {
+    // FOUNDER DECISION (D-40): no goods-in-transit cover is verified for our
+    // own vehicle. Own-vehicle delivery is live today on the existing rules;
+    // shipments record coverage_verified = false.
+    verifiedTransitCover: false,
+  },
+  // FOUNDER DECISION (D-41): a verified goods-in-transit policy. Until a
+  // policy reference is set and the founder confirms the wording covers
+  // rented and community-owned camera gear in transit (spec §4.13), every
+  // courier is "not covered" and therefore excluded.
+  insurance: {
+    verifiedPolicyRef: null as string | null,
+    coveredProviders: [] as readonly string[],
+    maxItemValueCents: 0,
+  },
+} as const;
+
 // ─── Community listing review (spec §8.1–8.2) ───────────────────────────────
 // Rules live in lib/core/listings/review.ts and run on the server only.
 export const LISTING_POLICY = {

@@ -8,6 +8,10 @@ export const FEATURE_KEYS = [
   'voice_onboarding',
   'ai_rate_suggestions',
   'ai_portfolio_tagging',
+  // Phase 4: automated third-party courier delivery. Off by default; turning it
+  // on still needs verified cover and a non-zero
+  // DELIVERY_POLICY.automatedDeliveryMaxItemValueCents (lib/core/delivery/policy.ts).
+  'delivery_courier',
 ] as const;
 
 export type FeatureKey = typeof FEATURE_KEYS[number];
@@ -16,6 +20,7 @@ const FLAG_DEFAULTS: Partial<Record<FeatureKey, boolean>> = {
   smart_productions: true,
   ai_rate_suggestions: true,
   ai_portfolio_tagging: true,
+  delivery_courier: false,
 };
 
 export interface FeatureFlag {

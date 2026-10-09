@@ -21,6 +21,8 @@ export interface DeliveryPoint {
   suburb: string | null;
   city: string | null;
   postalCode: string | null;
+  /** Province as verified server-side (service-area check). Optional so older callers still compile. */
+  province?: string | null;
   /** First name (or business name) and phone for the driver only: no ID numbers, no surnames needed. */
   contactName: string;
   contactPhone: string;
@@ -47,8 +49,8 @@ export interface DeliveryWindow {
 }
 
 export interface ServiceabilityRequest {
-  from: Pick<DeliveryPoint, 'lat' | 'lng' | 'suburb' | 'city' | 'postalCode'>;
-  to: Pick<DeliveryPoint, 'lat' | 'lng' | 'suburb' | 'city' | 'postalCode'>;
+  from: Pick<DeliveryPoint, 'lat' | 'lng' | 'suburb' | 'city' | 'postalCode' | 'province'>;
+  to: Pick<DeliveryPoint, 'lat' | 'lng' | 'suburb' | 'city' | 'postalCode' | 'province'>;
   window: DeliveryWindow;
   items: readonly ParcelItem[];
 }
@@ -105,6 +107,9 @@ export type ProviderDeliveryState =
   | 'return_to_sender'
   | 'cancelled'
   | 'failed'
+  /** The provider reports the parcel lost or damaged in its care (opens an incident). */
+  | 'lost'
+  | 'damaged'
   | 'unknown';
 
 export interface ProviderDelivery {
@@ -128,6 +133,14 @@ export interface TrackingResult {
 
 export interface DeliveryPort {
   readonly providerId: string;
+  /**
+   * 'courier': a third party carries the gear (insurance and custody gates
+   * apply, we owe the provider). 'own_fleet': our own vehicle and staff (the
+   * manual adapter). Omitted means 'courier' (the stricter rules).
+   */
+  readonly kind?: 'courier' | 'own_fleet';
+  /** 'sandbox' adapters are never offered to customers unless explicitly allowed. Omitted means 'production'. */
+  readonly mode?: 'sandbox' | 'production';
   /** Verified for our account (see capabilities.ts). */
   readonly capabilities: DeliveryCapabilities;
   checkServiceability(r: ServiceabilityRequest): Promise<ProviderCallResult<ServiceabilityResult>>;

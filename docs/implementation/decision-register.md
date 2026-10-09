@@ -70,6 +70,22 @@ Statuses: CONFIRMED · NEEDS_VERIFICATION · BLOCKED · REQUIRES_LEGAL_REVIEW ·
 | D-35 | A creator becomes available for hire with a saved payout account; gear listings need a validated one | REQUIRES_FOUNDER_APPROVAL | Unchanged rules, now shown on the creator's checklist | `app/(platform)/dashboard/profile/page.tsx`, `lib/creators/bookable.ts` |
 | D-36 | How long funnel metrics are kept | REQUIRES_FOUNDER_APPROVAL (default 180 days) | Funnel events (ids and codes only) are deleted after `STUDIO.analytics.funnelRetentionDays` by the daily job | `lib/constants.ts`, `app/api/cron/daily-maintenance/route.ts` |
 
+## Phase 4 decisions (2026-10-09, delivery core)
+
+| # | Question | Status | What the code does now | Where encoded |
+|---|---|---|---|---|
+| D-37 | Highest single-item replacement value an automated (third-party) courier may carry | REQUIRES_FOUNDER_APPROVAL | **0: automated courier delivery is off for every item.** Own-vehicle delivery is unaffected and follows the existing rules (first hire and items over R50,000 collected in person, trust limits) | `DELIVERY_POLICY.automatedDeliveryMaxItemValueCents`, `lib/core/delivery/policy.ts` |
+| D-38 | Platform fee added to a courier's price per leg | REQUIRES_FOUNDER_APPROVAL | 0. Customer fee = provider cost + this fee, stored apart. Own fleet: the own-vehicle formula is the customer price (no fee). Never part of the owner's 80% share | `DELIVERY_POLICY.platformFeeCents`, `lib/core/delivery/quote.ts` |
+| D-39 | Who pays a courier's cancellation fee | REQUIRES_FOUNDER_APPROVAL | Renter cancels after a courier is booked: the provider's fee is passed on at cost, capped at the delivery fee paid. We or the provider cancel, or dispatch fails: full refund of the delivery fee, we absorb any fee | `DELIVERY_POLICY.passOnProviderCancellationFee`, `cancelDelivery` |
+| D-40 | Goods-in-transit cover for our own vehicle | REQUIRES_FOUNDER_APPROVAL | None verified. Own-vehicle delivery continues as before; each own-fleet shipment records `coverage_verified = false` | `DELIVERY_POLICY.ownFleet.verifiedTransitCover`, `lib/delivery/manual.ts` |
+| D-41 | A verified goods-in-transit policy for couriers (rented and community-owned camera gear, theft and damage in transit, loading, both legs, subcontracted drivers) | BLOCKER for courier delivery: REQUIRES_FOUNDER_APPROVAL + written insurer confirmation | No policy: every courier is "not covered" and excluded, whatever its price | `DELIVERY_POLICY.insurance`, `policyInsurance()` in `lib/delivery/ports.ts` |
+| D-42 | When the rental period (and the renter's custody) starts and ends with delivery | REQUIRES_FOUNDER_APPROVAL | Unchanged: the period is the booked dates (date-based), as for collection. Custody events are recorded but do not move the period. The hire becomes active through the existing handover flow | `docs/logistics/delivery-architecture.md` |
+| D-43 | Who confirms receipt of a delivery | REQUIRES_FOUNDER_APPROVAL | Only the booking's renter, signed in, accepts each item. Staff can record an exception for them, never an acceptance. PIN and signature capture are not built | `lib/core/delivery/custody.ts` |
+| D-44 | Return by courier of gear that had to be collected in person (first hire, items over R50,000) | REQUIRES_FOUNDER_APPROVAL | Not offered: the return leg applies the same rules | `checkDeliveryEligibility` |
+| D-45 | When a Phase 4 delivery fee is earned | REQUIRES_FOUNDER_APPROVAL (accounting) | Per leg: outbound when the renter accepts every item; return when every item is received back. With an exception, a person decides. Pre-Phase-4 own-vehicle fees are unchanged (earned when the hire completes, key `delivery:{group}`) | `deliveryEarned`, `confirmHandover` |
+| D-46 | How long delivery addresses and driver contact details are kept | REQUIRES_FOUNDER_APPROVAL + legal review (POPIA) | 180 days after the leg closes (constant only; the purge job is not built, R-41) | `DELIVERY_POLICY.addressRetentionDays` |
+| D-47 | How couriers are paid (provider balance, bank, monthly invoice) | REQUIRES_FOUNDER_APPROVAL | Courier costs are booked as `courier_costs` against `delivery_payable`; paying the provider is not booked yet | `courierCost` in `lib/core/rental/ledger.ts` |
+
 Superseded by Phase 1 (no longer enforced at checkout):
 
 - `STUDIO.rental.protection.trustTiers` (the R5k/R20k/R60k ladder by clean returns) is replaced by `RENTAL_POLICY.trustTierLimitsCents` (R2k/R10k/R25k/R80k).
