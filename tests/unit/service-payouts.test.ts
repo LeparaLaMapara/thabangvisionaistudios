@@ -338,3 +338,29 @@ describe('the daily run reaches every due payout (the queue used to stall)', () 
     expect(s.attention.some((a) => a.reference === 'payout queue' && /6 or more/.test(a.why))).toBe(true);
   });
 });
+
+// Found by the local journey tests: after payment the webhook stores the
+// provider's numeric transaction id in paystack_reference. Verifying that id
+// fails ("Transaction reference not found"), so every creator payout was held.
+describe('creator payout: the payment is verified by our own reference', () => {
+  it('verifies BK-<ref>, not the transaction id the webhook stored, and sends', async () => {
+    const w = world({ reference: 'BK-abc123', paystack_reference: '5012345678' });
+    const t = port({ ok: true, value: null });
+    const seen: string[] = [];
+    const verify = vi.fn(async (ref: string) => {
+      seen.push(ref);
+      return ref === 'BK-abc123' ? { success: true, amount: 3000 } : { success: false, amount: 0 };
+    });
+    const r = await triggerCreatorPayout({ bookingId: ID }, { db: w.db, transfers: t.p, verifyCharge: verify, now: NOW });
+    expect(seen).toEqual(['BK-abc123']);
+    expect(r.outcome).toBe('sent');
+    expect(t.transfer).toHaveBeenCalledTimes(1);
+  });
+
+  it('falls back to paystack_reference only when a booking has no reference of its own', async () => {
+    const w = world({ reference: null, paystack_reference: 'legacy-ref' });
+    const seen: string[] = [];
+    await triggerCreatorPayout({ bookingId: ID }, { db: w.db, transfers: port({ ok: true, value: null }).p, verifyCharge: async (ref: string) => { seen.push(ref); return { success: true, amount: 3000 }; }, now: NOW });
+    expect(seen).toEqual(['legacy-ref']);
+  });
+});

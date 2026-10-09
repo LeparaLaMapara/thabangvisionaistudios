@@ -228,7 +228,13 @@ export async function triggerCreatorPayout(params: PayoutParams, deps: Partial<P
   }
 
   // ── Before any money moves: every rule must hold. ─────────────────────────
-  const paymentRef = booking.paystack_reference || booking.reference;
+  // Verify by OUR reference (BK-...): it is what the checkout sent the
+  // provider, and what its verify endpoint looks up. paystack_reference is
+  // overwritten by the payment webhook (lib/payments/fulfil.ts) with the
+  // provider's numeric transaction id, which verify answers "not found" for,
+  // so every service payout was held as "the payment provider does not
+  // confirm the payment" (found by the local journey tests).
+  const paymentRef = booking.reference || booking.paystack_reference;
   let confirmation: { success: boolean; amount: number } | null = null;
   try {
     confirmation = paymentRef ? await d.verifyCharge(paymentRef) : null;
