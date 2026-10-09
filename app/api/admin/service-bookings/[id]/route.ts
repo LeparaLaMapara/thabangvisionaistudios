@@ -6,6 +6,8 @@ import { createAdminClient } from '@/lib/supabase/server';
 import { email as emailProvider } from '@/lib/email';
 import { STUDIO } from '@/lib/constants';
 import { refundPayment } from '@/lib/payments/routing';
+import { payoutDueAt } from '@/lib/core/services/fulfilment';
+import { mentionsFulfilmentSchema, recordServiceBookingEvent, withoutFulfilmentColumns } from '@/lib/supabase/queries/service-bookings';
 
 // ─── PATCH — Admin update booking (assign creator, cancel, add notes) ───────
 
@@ -95,7 +97,14 @@ export async function PATCH(
     }
 
     if (status === 'completed') {
-      update.completed_at = new Date().toISOString();
+      // An admin completing a booking (e.g. resolving a dispute for the
+      // creator) starts the same payout clock as a client approval. The
+      // payout is sent by the daily job once due; nothing is paid here.
+      const at = new Date();
+      const due = payoutDueAt(at).toISOString();
+      update.completed_at = at.toISOString();
+      update.payout_due_at = due;
+      update.dispute_window_ends_at = due;
     }
   }
 
@@ -103,14 +112,28 @@ export async function PATCH(
     update.admin_notes = admin_notes;
   }
 
-  const { error: updateError } = await supabase
+  let { error: updateError } = await supabase
     .from('bookings')
     .update(update)
     .eq('id', id);
+  // Before migration 073 the payout timing columns do not exist yet.
+  if (updateError && mentionsFulfilmentSchema(updateError.message)) {
+    ({ error: updateError } = await supabase
+      .from('bookings')
+      .update(withoutFulfilmentColumns(update))
+      .eq('id', id));
+  }
 
   if (updateError) {
     console.error('[admin/service-bookings] Update error:', updateError.message);
     return NextResponse.json({ error: 'Failed to update booking' }, { status: 500 });
+  }
+
+  if (status && status !== booking.status) {
+    await recordServiceBookingEvent(supabase, {
+      bookingId: id, event: 'admin_status', from: booking.status, to: String(status), actor: 'admin', actorId: auth.user.id,
+      reason: typeof cancellation_reason === 'string' ? cancellation_reason : null,
+    });
   }
 
   return NextResponse.json({ success: true });

@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { ShootTimeline } from '@/components/booking/ShootTimeline';
+import { payoutTimingText, revisionsAllowed } from '@/lib/core/services/fulfilment';
 
 interface ServiceGig {
   id: string;
@@ -26,6 +27,9 @@ interface ServiceGig {
   delivered_at?: string | null;
   completed_at: string | null;
   shoot_date?: string | null;
+  revisions_included?: number | null;
+  revisions_used?: number | null;
+  payout_due_at?: string | null;
 }
 
 const STATUS_COLORS: Record<string, string> = {
@@ -35,6 +39,8 @@ const STATUS_COLORS: Record<string, string> = {
   completed: 'text-green-400 border-green-500/30',
   paid_out: 'text-purple-400 border-purple-500/30',
   cancelled: 'text-red-400 border-red-500/30',
+  declined: 'text-red-400 border-red-500/30',
+  disputed: 'text-orange-400 border-orange-500/30',
 };
 
 const STATUS_LABELS: Record<string, string> = {
@@ -44,6 +50,8 @@ const STATUS_LABELS: Record<string, string> = {
   completed: 'Completed',
   paid_out: 'Paid Out',
   cancelled: 'Cancelled',
+  declined: 'Declined',
+  disputed: 'Disputed — payout on hold',
 };
 
 const PAYOUT_LABELS: Record<string, string> = {
@@ -59,21 +67,30 @@ export default function ServiceGigsList({ gigs }: { gigs: ServiceGig[] }) {
   const [deliveryUrl, setDeliveryUrl] = useState('');
   const [deliveryMessage, setDeliveryMessage] = useState('');
   const [deliveryError, setDeliveryError] = useState('');
+  const [actionError, setActionError] = useState<{ id: string; message: string } | null>(null);
 
   const actionable = gigs.filter((g) => g.status === 'paid');
-  const active = gigs.filter((g) => ['accepted', 'delivered'].includes(g.status));
+  const active = gigs.filter((g) => ['accepted', 'delivered', 'disputed'].includes(g.status));
   const completed = gigs.filter((g) => ['completed', 'paid_out'].includes(g.status));
 
-  async function handleAction(gigId: string, status: 'accepted' | 'cancelled') {
+  async function handleAction(gigId: string, action: 'accept' | 'decline', reason?: string) {
     setUpdating(gigId);
+    setActionError(null);
     try {
       const res = await fetch(`/api/service-bookings/${gigId}/status`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status }),
+        body: JSON.stringify({ action, reason: reason ?? null }),
       });
-      if (res.ok) window.location.reload();
-    } catch { /* ignore */ }
+      if (res.ok) {
+        window.location.reload();
+        return;
+      }
+      const data = await res.json().catch(() => ({}));
+      setActionError({ id: gigId, message: data.error || 'Could not update this gig. Please try again.' });
+    } catch {
+      setActionError({ id: gigId, message: 'Something went wrong. Please try again.' });
+    }
     setUpdating(null);
   }
 
@@ -125,7 +142,7 @@ export default function ServiceGigsList({ gigs }: { gigs: ServiceGig[] }) {
           </h3>
           <div className="space-y-3">
             {actionable.map((gig) => (
-              <GigCard key={gig.id} gig={gig} updating={updating} onAction={handleAction} showActions />
+              <GigCard key={gig.id} gig={gig} updating={updating} onAction={handleAction} actionError={actionError?.id === gig.id ? actionError.message : null} showActions />
             ))}
           </div>
         </section>
@@ -182,6 +199,7 @@ function GigCard({
   gig,
   updating,
   onAction,
+  actionError = null,
   showActions = false,
   showDeliver = false,
   deliveringId,
@@ -196,7 +214,8 @@ function GigCard({
 }: {
   gig: ServiceGig;
   updating: string | null;
-  onAction: (id: string, status: 'accepted' | 'cancelled') => void;
+  onAction: (id: string, action: 'accept' | 'decline', reason?: string) => void;
+  actionError?: string | null;
   showActions?: boolean;
   showDeliver?: boolean;
   deliveringId?: string | null;
@@ -264,6 +283,28 @@ function GigCard({
       )}
       {checkInError && <p className="mt-2 text-xs text-red-400">{checkInError}</p>}
 
+      {/* Revisions */}
+      {['accepted', 'delivered'].includes(gig.status) && (gig.revisions_used ?? 0) > 0 && (
+        <p className="mt-3 text-xs text-yellow-400">
+          Revision {gig.revisions_used} of {revisionsAllowed(gig.revisions_included)} requested
+          {gig.status === 'accepted' ? ' — deliver the revised work below.' : '.'}
+        </p>
+      )}
+
+      {/* When the payout is due (when we send it, never when the bank shows it) */}
+      {gig.status === 'completed' && gig.payout_status !== 'paid' && gig.payout_due_at && (
+        <p className="mt-3 text-xs text-neutral-400">
+          Payout due to be sent{' '}
+          {new Date(gig.payout_due_at).toLocaleString('en-ZA', { timeZone: 'Africa/Johannesburg', dateStyle: 'medium', timeStyle: 'short' })}.{' '}
+          {payoutTimingText()}
+        </p>
+      )}
+      {gig.status === 'disputed' && (
+        <p className="mt-3 text-xs text-orange-400">
+          The client raised a problem. Your payout is on hold until our team resolves it; we will contact you.
+        </p>
+      )}
+
       {/* Payout status for completed gigs */}
       {['completed', 'paid_out'].includes(gig.status) && (
         <div className="mt-3 text-xs">
@@ -286,7 +327,7 @@ function GigCard({
       {showActions && (
         <div className="mt-4 flex gap-3">
           <button
-            onClick={() => onAction(gig.id, 'accepted')}
+            onClick={() => onAction(gig.id, 'accept')}
             disabled={updating === gig.id}
             className="rounded-lg bg-[#D4A843] px-4 py-2 text-sm font-medium text-black hover:bg-[#c49a3a] disabled:opacity-50"
           >
@@ -294,9 +335,9 @@ function GigCard({
           </button>
           <button
             onClick={() => {
-              if (confirm('Are you sure you want to decline this gig?')) {
-                onAction(gig.id, 'cancelled');
-              }
+              if (!confirm('Decline this gig? The client is refunded in full and we offer them another creator.')) return;
+              const reason = prompt('Optional: why can you not take it? (shared with our team)') ?? '';
+              onAction(gig.id, 'decline', reason);
             }}
             disabled={updating === gig.id}
             className="rounded-lg border border-red-600/30 px-4 py-2 text-sm text-red-400 hover:bg-red-600/10 disabled:opacity-50"
@@ -305,6 +346,8 @@ function GigCard({
           </button>
         </div>
       )}
+
+      {actionError && <p className="mt-2 text-xs text-red-400">{actionError}</p>}
 
       {/* Deliver button for accepted gigs */}
       {showDeliver && !isDelivering && (

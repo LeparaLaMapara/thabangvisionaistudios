@@ -7,6 +7,8 @@ import {
   type BillingInterval,
   type PendingSubscriptionRow,
 } from '@/lib/payments/subscriptions';
+import { recordServiceBookingEvent } from '@/lib/supabase/queries/service-bookings';
+import { logEvent } from '@/lib/data/events';
 
 /**
  * What happens once a payment provider tells us, with a verified signature,
@@ -327,10 +329,34 @@ export async function handlePaymentFailed(webhook: WebhookResult) {
   if (paymentType === 'cart_checkout' || paymentType === 'equipment_booking') {
     return;
   } else if (paymentType === 'service_booking') {
-    await supabase
+    // Same rule for service bookings. This used to write payment_status
+    // 'failed', which bookings_payment_status_check does not allow (only
+    // unpaid / paid / refunded), so the write was refused and the attempt was
+    // lost; had it succeeded it would have cancelled a booking that may yet be
+    // paid, or already was. Now the booking is left as it is (an unpaid one
+    // is closed by the daily job after 72 hours) and the failed attempt is
+    // recorded in the booking's history.
+    const { data: booking } = await supabase
       .from('bookings')
-      .update({ status: 'cancelled', payment_status: 'failed', updated_at: new Date().toISOString() })
-      .eq('reference', paymentId);
+      .select('id, status, payment_status')
+      .eq('reference', paymentId)
+      .maybeSingle();
+    if (booking) {
+      await recordServiceBookingEvent(supabase, {
+        bookingId: booking.id,
+        event: 'payment_failed',
+        from: booking.status,
+        to: booking.status,
+        actor: 'system',
+        actorId: null,
+        reason: `provider ${webhook.providerPaymentId || 'unknown'}${booking.payment_status === 'paid' ? ' (booking already paid; ignored)' : ''}`,
+      });
+    }
+    logEvent({
+      eventType: 'service_payment_failed',
+      eventCategory: 'payment',
+      metadata: { reference: paymentId, provider_payment_id: webhook.providerPaymentId, booking_found: Boolean(booking) },
+    });
   } else if (paymentType === 'subscription') {
     // Only a still-pending attempt is cancelled; a failed charge event can
     // never cancel an active subscription.

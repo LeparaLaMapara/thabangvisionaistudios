@@ -5,27 +5,64 @@ import { createClient, createAdminClient } from '@/lib/supabase/server';
 import { email as emailProvider } from '@/lib/email';
 import { STUDIO } from '@/lib/constants';
 import { checkRateLimit } from '@/lib/auth';
-import { triggerCreatorPayout } from '@/lib/payments/payout';
 import { refundPayment } from '@/lib/payments/routing';
-import { calculateServiceCancellationRefund } from '@/lib/rental/cancellation';
 import { logEvent } from '@/lib/data/events';
+import { notifyClient } from '@/lib/bookings/notify-client';
+import {
+  decideServiceTransition,
+  payoutTimingText,
+  serviceActionFromRequest,
+  type TransitionDecision,
+} from '@/lib/core/services/fulfilment';
+import {
+  readServiceBooking,
+  recordServiceBookingEvent,
+  updateServiceBooking,
+} from '@/lib/supabase/queries/service-bookings';
 
 // Writes that touch money or status go through the service role, after the
 // route has checked who the user is and that the record is theirs. The users'
 // own sessions may only read these tables (see the RLS migration of 2026-09-27).
 const admin = () => createAdminClient();
 
-// Allowed status transitions per role
-const CREATOR_TRANSITIONS: Record<string, string[]> = {
-  paid: ['accepted'],
-  accepted: ['delivered'],
-};
+/**
+ * PATCH /api/service-bookings/[id]/status
+ *
+ * Body: `{ action, reason? }`, or the older `{ status, reason? }`.
+ *   creator: accept | decline                       (from 'paid')
+ *   client:  approve_delivery | request_revision    (from 'delivered')
+ *            cancel                                 (from 'paid' or 'accepted')
+ *
+ * The rules live in lib/core/services/fulfilment.ts. Approving a delivery
+ * records the client's acceptance and schedules the creator payout for
+ * STUDIO.booking.payoutDelayHours later; it never pays on the spot. Payouts
+ * are sent by the daily maintenance job (or an admin) once due and allowed.
+ */
 
-const CLIENT_TRANSITIONS: Record<string, string[]> = {
-  delivered: ['completed'],
-  paid: ['cancelled'],
-  accepted: ['cancelled'],
-};
+interface StatusBookingRow {
+  id: string;
+  client_id: string;
+  client_email: string | null;
+  creator_id: string | null;
+  project_category: string;
+  status: string;
+  total: number;
+  creator_amount: number | null;
+  reference: string;
+  payment_status: string | null;
+  shoot_date: string | null;
+  paystack_reference: string | null;
+  created_at: string | null;
+  delivered_at: string | null;
+  revisions_included?: number | null;
+  revisions_used?: number | null;
+}
+
+const BASE = 'id, client_id, client_email, creator_id, project_category, status, total, creator_amount, reference, payment_status, shoot_date, paystack_reference, created_at, delivered_at';
+const EXTRA = 'revisions_included, revisions_used';
+
+const sast = (iso: string): string =>
+  new Date(iso).toLocaleString('en-ZA', { timeZone: 'Africa/Johannesburg', dateStyle: 'medium', timeStyle: 'short' });
 
 export async function PATCH(
   request: NextRequest,
@@ -45,21 +82,20 @@ export async function PATCH(
     return NextResponse.json({ error: 'Too many requests' }, { status: 429 });
   }
 
-  const body = await request.json();
-  const { status } = body;
-
-  if (!status || typeof status !== 'string') {
-    return NextResponse.json({ error: 'Status is required' }, { status: 400 });
+  let body: { status?: unknown; action?: unknown; reason?: unknown };
+  try {
+    body = (await request.json()) as typeof body;
+  } catch {
+    return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
+  }
+  if (!body || typeof body !== 'object') {
+    return NextResponse.json({ error: 'Status or action is required' }, { status: 400 });
   }
 
-  // Fetch booking
-  const { data: booking, error: fetchError } = await supabase
-    .from('bookings')
-    .select('id, client_id, client_email, creator_id, project_category, status, total, creator_amount, reference, payment_status, shoot_date, paystack_reference, created_at')
-    .eq('id', id)
-    .single();
-
-  if (fetchError || !booking) {
+  // Read with the user's own session: RLS shows them only bookings they are party to.
+  const read = await readServiceBooking<StatusBookingRow>(supabase, id, BASE, EXTRA);
+  const booking = read.data;
+  if (read.error || !booking) {
     return NextResponse.json({ error: 'Booking not found' }, { status: 404 });
   }
 
@@ -69,200 +105,225 @@ export async function PATCH(
   if (!isCreator && !isClient) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
-
-  // Block users who are both creator and client (should not happen, but prevents self-payout exploit)
+  // Prevents a self-payout loop. Should not happen: booking yourself is refused.
   if (isCreator && isClient) {
     return NextResponse.json({ error: 'Cannot update status on self-assigned bookings' }, { status: 403 });
   }
 
-  // Validate transitions based on role
-  if (isCreator) {
-    const allowed = CREATOR_TRANSITIONS[booking.status];
-    if (!allowed || !allowed.includes(status)) {
-      return NextResponse.json(
-        { error: `Creators cannot transition from '${booking.status}' to '${status}'` },
-        { status: 400 },
-      );
-    }
+  const role = isCreator ? 'creator' : 'client';
+  if (body.status === 'delivered' || body.action === 'deliver') {
+    return NextResponse.json({ error: 'Submit the delivery link through the deliver step' }, { status: 400 });
   }
-
-  if (isClient) {
-    const allowed = CLIENT_TRANSITIONS[booking.status];
-    if (!allowed || !allowed.includes(status)) {
-      return NextResponse.json(
-        { error: `Cannot transition from '${booking.status}' to '${status}'` },
-        { status: 400 },
-      );
-    }
-  }
-
-  // Build update
-  const update: Record<string, unknown> = {
-    status,
-    updated_at: new Date().toISOString(),
-  };
-
-  if (status === 'accepted') update.accepted_at = new Date().toISOString();
-  if (status === 'delivered') update.delivered_at = new Date().toISOString();
-  if (status === 'completed') update.completed_at = new Date().toISOString();
-  // Price the cancellation before writing, so the record and the refund agree.
-  let cancellationQuote: ReturnType<typeof calculateServiceCancellationRefund> = null;
-
-  if (status === 'cancelled') {
-    update.cancelled_at = new Date().toISOString();
-    update.cancellation_reason = body.reason || null;
-
-    const isPaid = booking.payment_status === 'paid' && Boolean(booking.paystack_reference);
-
-    cancellationQuote = calculateServiceCancellationRefund({
-      shootDate: (booking as { shoot_date?: string | null }).shoot_date,
-      total: Number(booking.total ?? 0),
-      bookedAt: (booking as { created_at?: string | null }).created_at,
-    });
-
-    if (!isPaid) {
-      update.cancellation_refund_status = 'not_required';
-    } else if (!cancellationQuote) {
-      // No shoot date on record, so notice cannot be measured. Bookings made
-      // before migration 040, or through the assistant with a free-text date.
-      update.cancellation_refund_status = 'manual_review';
-    } else {
-      update.cancellation_refund_percent = cancellationQuote.refundPercent;
-      update.cancellation_refund_amount = cancellationQuote.totalRefund;
-      update.cancellation_refund_status =
-        cancellationQuote.totalRefund > 0 ? 'pending' : 'not_required';
-    }
-  }
-
-  const { error: updateError } = await admin()
-    .from('bookings')
-    .update(update)
-    .eq('id', id);
-
-  if (updateError) {
-    console.error('[service-bookings/status] Update error:', updateError.message);
-    return NextResponse.json({ error: 'Failed to update booking' }, { status: 500 });
-  }
-
-  // Money moves only after the cancellation is safely recorded, so we can never
-  // refund a booking we failed to cancel.
-  let refundOutcome: 'refunded' | 'failed' | null = null;
-
-  if (status === 'cancelled' && update.cancellation_refund_status === 'pending' && cancellationQuote) {
-    const result = await refundPayment(
-      booking.paystack_reference as string,
-      cancellationQuote.totalRefund,
+  const action = serviceActionFromRequest(role, body);
+  if (!action) {
+    return NextResponse.json(
+      { error: `A ${role} cannot set '${String(body.action ?? body.status ?? '')}' on a booking that is '${booking.status}'` },
+      { status: 400 },
     );
-    refundOutcome = result.success ? 'refunded' : 'failed';
-
-    await admin()
-      .from('bookings')
-      .update({
-        cancellation_refund_status: refundOutcome,
-        cancellation_refunded_at: result.success ? new Date().toISOString() : null,
-        cancellation_refund_error: result.success ? null : (result.error ?? 'Refund failed'),
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', id);
-
-    if (!result.success) {
-      console.error('[service-bookings/status] refund failed:', result.error);
-    }
   }
 
-  logEvent({
-    eventType: `booking_${status}`,
-    eventCategory: 'booking',
-    userId: user.id,
-    metadata: { bookingId: id, reference: booking.reference, from: booking.status, to: status, role: isCreator ? 'creator' : 'client' },
+  const reason = typeof body.reason === 'string' ? body.reason : null;
+  const now = new Date();
+  const decision = decideServiceTransition({
+    action,
+    actor: role,
+    booking: {
+      status: booking.status,
+      paymentStatus: booking.payment_status,
+      paymentReference: booking.paystack_reference,
+      total: Number(booking.total ?? 0),
+      createdAt: booking.created_at,
+      shootDate: booking.shoot_date,
+      deliveredAt: booking.delivered_at,
+      revisionsIncluded: booking.revisions_included ?? null,
+      revisionsUsed: booking.revisions_used ?? null,
+    },
+    now,
+    reason,
   });
 
-  // ─── Side effects ────────────────────────────────────────────────────────
+  if (!decision.ok) {
+    return NextResponse.json({ error: decision.message, code: decision.code }, { status: 400 });
+  }
+
+  // ── Write: compare-and-set on the status we read ─────────────────────────
+  let writtenStatus: string = decision.to;
+  const patch: Record<string, unknown> = { ...decision.patch, status: decision.to, updated_at: now.toISOString() };
+  let result = await updateServiceBooking(admin(), id, decision.from, patch);
+
+  if (!result.ok && decision.to === 'declined' && /bookings_status_check/.test(result.error)) {
+    // Migration 073 not applied yet: 'declined' is not a valid status there.
+    // Record the decline as a cancellation so the client is still refunded.
+    writtenStatus = 'cancelled';
+    result = await updateServiceBooking(admin(), id, decision.from, {
+      ...patch,
+      status: 'cancelled',
+      cancelled_at: now.toISOString(),
+      cancellation_reason: `Declined by creator${decision.patch.decline_reason ? `: ${decision.patch.decline_reason}` : ''}`,
+    });
+  }
+
+  if (!result.ok) {
+    console.error('[service-bookings/status] Update error:', result.error);
+    return NextResponse.json({ error: 'Failed to update booking' }, { status: 500 });
+  }
+  if (!result.updated) {
+    return NextResponse.json({ error: 'This booking was changed by someone else. Refresh and try again.' }, { status: 409 });
+  }
+
+  await recordServiceBookingEvent(admin(), {
+    bookingId: id,
+    event: action,
+    from: decision.from,
+    to: writtenStatus,
+    actor: role,
+    actorId: user.id,
+    reason: (decision.patch.decline_reason as string | null | undefined) ?? (decision.patch.cancellation_reason as string | null | undefined) ?? (action === 'request_revision' ? reason : null),
+  });
+
+  // ── Money: only after the status change is safely recorded ──────────────
+  const refundOutcome = await settleRefund(id, booking, decision);
+
+  logEvent({
+    eventType: `booking_${action}`,
+    eventCategory: 'booking',
+    userId: user.id,
+    metadata: { bookingId: id, reference: booking.reference, from: decision.from, to: writtenStatus, role },
+  });
+
+  // ── Tell people. Never blocks the response. ──────────────────────────────
   try {
-    if (status === 'accepted' && isCreator) {
-      await admin().from('notifications').insert({
-        user_id: booking.client_id,
+    await sideEffects({ booking, decision, writtenStatus, reason, refundOutcome });
+  } catch { /* notification failure shouldn't block */ }
+
+  return NextResponse.json({
+    success: true,
+    status: writtenStatus,
+    action,
+    ...(decision.patch.payout_due_at ? { payout_due_at: decision.patch.payout_due_at } : {}),
+    ...(action === 'cancel' || action === 'decline'
+      ? { cancellation: decision.cancellation, refund_status: refundOutcome ?? decision.refundStatus ?? null }
+      : {}),
+  });
+}
+
+type RefundOutcome = 'refunded' | 'failed' | 'manual_review' | null;
+
+async function settleRefund(id: string, booking: StatusBookingRow, decision: Extract<TransitionDecision, { ok: true }>): Promise<RefundOutcome> {
+  if (!decision.refund || !booking.paystack_reference) return null;
+  const result = await refundPayment(booking.paystack_reference, decision.refund.amount);
+  const outcome: RefundOutcome = result.success ? 'refunded' : result.manual ? 'manual_review' : 'failed';
+  const full = decision.refund.amount >= Number(booking.total ?? 0);
+  await updateServiceBooking(admin(), id, null, {
+    cancellation_refund_status: outcome,
+    cancellation_refunded_at: result.success ? new Date().toISOString() : null,
+    cancellation_refund_error: result.success ? null : (result.error ?? 'Refund failed'),
+    ...(result.success && full ? { payment_status: 'refunded' } : {}),
+    updated_at: new Date().toISOString(),
+  });
+  if (!result.success) console.error('[service-bookings/status] refund not completed:', result.error);
+  return outcome;
+}
+
+async function sideEffects(p: {
+  booking: StatusBookingRow;
+  decision: Extract<TransitionDecision, { ok: true }>;
+  writtenStatus: string;
+  reason: string | null;
+  refundOutcome: RefundOutcome;
+}): Promise<void> {
+  const { booking, decision, refundOutcome } = p;
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || STUDIO.meta.url;
+
+  switch (decision.action) {
+    case 'accept': {
+      await notifyClient({
+        bookingId: booking.id,
         type: 'booking_accepted',
         title: 'Creator Accepted Your Booking',
-        body: `Your ${booking.project_category} booking (${booking.reference}) has been accepted!`,
-        link: '/dashboard/bookings',
+        body: `Your ${booking.project_category} booking (${booking.reference}) has been accepted by the creator. We'll be in touch with next steps.`,
       });
-
-      await emailProvider.sendEmail({
-        to: booking.client_email,
-        subject: `Booking Accepted — ${STUDIO.name}`,
-        text: `Great news! Your ${booking.project_category} booking (${booking.reference}) has been accepted by the creator.\n\nWe'll be in touch with next steps.\n\nThank you,\n${STUDIO.name}`,
-      });
+      return;
     }
 
-    if (status === 'delivered' && isCreator) {
+    case 'decline': {
+      const refundLine = refundOutcome === 'refunded'
+        ? `Your payment of R${decision.refund?.amount} is being refunded in full to the card you paid with. When it shows depends on your bank.`
+        : decision.refund
+          ? 'Your payment will be refunded in full. Our team is processing it.'
+          : 'Nothing was charged.';
+      await notifyClient({
+        bookingId: booking.id,
+        type: 'booking_rejected',
+        title: 'Your creator could not take this booking',
+        body: `The creator could not take your ${booking.project_category} booking (${booking.reference}). ${refundLine} We will contact you to offer another creator if you would like one.`,
+      });
+      await emailProvider.sendEmail({
+        to: STUDIO.bookingEmail,
+        subject: `[Action Required] Creator declined — ${booking.reference}`,
+        text: `The creator declined ${booking.project_category} booking ${booking.reference}.
+
+Reason: ${decision.patch.decline_reason ?? 'Not given'}
+Client: ${booking.client_email ?? 'unknown'}
+Refund: ${refundOutcome === 'refunded' ? `R${decision.refund?.amount} refunded automatically` : refundOutcome === 'manual_review' ? 'paid by EFT or cash: REFUND BY HAND' : refundOutcome === 'failed' ? `AUTOMATIC REFUND FAILED: refund R${decision.refund?.amount} by hand` : 'nothing was charged'}
+
+Offer the client another creator (they can rebook) in ${baseUrl}/admin/service-bookings`,
+      });
+      return;
+    }
+
+    case 'approve_delivery': {
+      if (!booking.creator_id) return;
+      const due = decision.patch.payout_due_at as string;
       await admin().from('notifications').insert({
-        user_id: booking.client_id,
-        type: 'booking_delivered',
-        title: 'Work Delivered — Review Required',
-        body: `Your ${booking.project_category} booking (${booking.reference}) has been delivered! Please review and approve.`,
-        link: '/dashboard/bookings',
+        user_id: booking.creator_id,
+        type: 'booking_completed',
+        title: 'Client Approved Your Work',
+        body: `Your ${booking.project_category} gig (${booking.reference}) was approved. Your payout of R${booking.creator_amount} is due to be sent on ${sast(due)}, as long as no problem is raised before then. When it reaches your account depends on your bank.`,
+        link: '/dashboard/gigs',
       });
-
-      await emailProvider.sendEmail({
-        to: booking.client_email,
-        subject: `Delivery Ready — ${STUDIO.name}`,
-        text: `Your ${booking.project_category} booking (${booking.reference}) has been delivered by the creator.\n\nPlease log in to review the deliverables and approve the work.\n\nIf you don't respond within 7 days, the delivery will be auto-approved.\n\nThank you,\n${STUDIO.name}`,
-      });
+      return;
     }
 
-    if (status === 'completed' && isClient) {
-      // Auto-trigger payout
-      if (booking.creator_id && booking.payment_status === 'paid') {
-        const payoutResult = await triggerCreatorPayout({
-          bookingId: booking.id,
-          reference: booking.reference,
-          creatorId: booking.creator_id,
-          creatorAmount: booking.creator_amount,
-          projectCategory: booking.project_category,
+    case 'request_revision': {
+      if (!booking.creator_id) return;
+      const what = p.reason ?? '';
+      await admin().from('notifications').insert({
+        user_id: booking.creator_id,
+        type: 'gig_revision_requested',
+        title: 'Revision requested',
+        body: `The client asked for changes on ${booking.project_category} (${booking.reference}): "${what.slice(0, 300)}". Deliver the revised work from your gigs dashboard.`,
+        link: '/dashboard/gigs',
+      });
+      const { data: creator } = await admin().auth.admin.getUserById(booking.creator_id);
+      if (creator?.user?.email) {
+        await emailProvider.sendEmail({
+          to: creator.user.email,
+          subject: `Revision requested — ${booking.reference} — ${STUDIO.name}`,
+          text: `The client asked for changes on your ${booking.project_category} gig (${booking.reference}):\n\n${what}\n\nPlease deliver the revised work from ${baseUrl}/dashboard/gigs.\n\n${payoutTimingText()}\n\n${STUDIO.name}`,
         });
-
-        if (!payoutResult.success) {
-          // Payout failed — notify admin for manual intervention
-          console.error('[auto-payout] Failed:', payoutResult.error);
-          await emailProvider.sendEmail({
-            to: STUDIO.bookingEmail,
-            subject: `Auto-payout failed: ${booking.reference}`,
-            text: `Auto-payout failed for booking ${booking.reference}.\n\nCreator amount: R${booking.creator_amount}\nReason: ${payoutResult.error}\n\nPlease trigger manually from admin dashboard.`,
-          });
-        }
       }
+      return;
+    }
 
-      // Notify creator
+    case 'cancel': {
       if (booking.creator_id) {
         await admin().from('notifications').insert({
           user_id: booking.creator_id,
-          type: 'booking_completed',
-          title: 'Client Approved Your Work',
-          body: `Your ${booking.project_category} gig (${booking.reference}) has been approved! Payout of R${booking.creator_amount} is being processed.`,
-          link: '/dashboard/gigs',
-        });
-      }
-    }
-
-    if (status === 'cancelled') {
-      const notifyUserId = isClient ? booking.creator_id : booking.client_id;
-      if (notifyUserId) {
-        await admin().from('notifications').insert({
-          user_id: notifyUserId,
           type: 'booking_cancelled',
           title: 'Booking Cancelled',
           body: `The ${booking.project_category} booking (${booking.reference}) has been cancelled.`,
-          link: '/dashboard/bookings',
+          link: '/dashboard/gigs',
         });
       }
 
+      const q = decision.cancellation;
       const refundLine = (() => {
-        switch (update.cancellation_refund_status) {
+        switch (decision.refundStatus) {
           case 'pending':
-            return refundOutcome === 'failed'
-              ? `ACTION NEEDED: automatic refund of R${cancellationQuote?.totalRefund} FAILED. Refund this client manually.`
-              : `Refunded automatically: R${cancellationQuote?.totalRefund} (${cancellationQuote?.refundPercent}% of the booking, ${cancellationQuote?.hoursBefore}h notice).`;
+            if (refundOutcome === 'refunded') return `Refunded automatically: R${q?.totalRefund} (${q?.refundPercent}% of the booking, ${q?.hoursBefore}h notice).`;
+            if (refundOutcome === 'manual_review') return `ACTION NEEDED: paid by EFT or cash. Refund R${q?.totalRefund} by hand.`;
+            return `ACTION NEEDED: automatic refund of R${q?.totalRefund} FAILED. Refund this client manually.`;
           case 'manual_review':
             return 'ACTION NEEDED: no shoot date on record, so notice could not be measured. Assess this refund by hand.';
           case 'not_required':
@@ -278,22 +339,15 @@ export async function PATCH(
         text: `Booking ${booking.reference} has been cancelled.
 
 Total paid: R${booking.total}
-Cancelled by: ${isClient ? 'Client' : 'Creator'}
-Reason: ${body.reason || 'Not provided'}
+Cancelled by: Client
+Reason: ${decision.patch.cancellation_reason ?? 'Not provided'}
 
 ${refundLine}`,
       });
+      return;
     }
-  } catch { /* notification failure shouldn't block */ }
 
-  return NextResponse.json({
-    success: true,
-    status,
-    ...(status === 'cancelled'
-      ? {
-          cancellation: cancellationQuote,
-          refund_status: refundOutcome ?? update.cancellation_refund_status ?? null,
-        }
-      : {}),
-  });
+    default:
+      return;
+  }
 }

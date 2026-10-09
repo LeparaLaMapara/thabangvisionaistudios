@@ -1,99 +1,120 @@
 import { createAdminClient } from '@/lib/supabase/server';
+import { email as emailProvider } from '@/lib/email';
+import { STUDIO } from '@/lib/constants';
+import { recordServiceBookingEvent, updateServiceBooking } from '@/lib/supabase/queries/service-bookings';
 
 /**
  * Transfer events for creator payouts on SERVICE bookings (the `bookings`
- * table). Moved here unchanged from the Paystack webhook route so the
- * payment inbox can call it; gear owner payouts use owner_payouts instead
- * (lib/core/rental/payouts.ts).
+ * table), called from the payment inbox. Gear owner payouts use
+ * owner_payouts instead (lib/core/rental/payouts.ts).
+ *
+ * Matched on bookings.payout_reference, which holds either the stable
+ * reference (`tvsp_<booking id>`, lib/core/services/payouts.ts) or, for
+ * transfers sent before it existed, an older `payout-<ref>-<time>` one. Both
+ * resolve the same way, so transfers still in flight under an old reference
+ * finish normally.
+ *
+ * - success: paid (and the booking paid_out, if it was completed). Repeats are no-ops.
+ * - failed: marked failed, never re-sent here; the daily run looks the
+ *   reference up before anything is sent again, and a person is told.
+ * - reversed: money came back. If we had recorded it paid, the booking goes
+ *   back to completed with the payout failed, and a person is told.
  */
 
 export async function handleServiceTransferEvent(event: string, reference: string): Promise<void> {
-  if (event === 'transfer.success') await handleTransferSuccess({ reference });
-  else if (event === 'transfer.failed' || event === 'transfer.reversed') await handleTransferFailed({ reference });
+  if (!reference) return;
+  if (event === 'transfer.success') await handleTransferSuccess(reference);
+  else if (event === 'transfer.failed' || event === 'transfer.reversed') await handleTransferProblem(reference, event === 'transfer.reversed' ? 'reversed' : 'failed');
 }
 
-async function handleTransferSuccess(raw: Record<string, unknown>) {
-  const reference = (raw.reference as string) || '';
-  if (!reference) return;
+interface PayoutRow {
+  id: string;
+  reference: string;
+  status: string | null;
+  payout_status: string | null;
+  creator_id: string | null;
+  creator_amount: number | null;
+  project_category: string | null;
+}
 
-  console.log(`[paystack-webhook] TRANSFER SUCCESS: ref=${reference}`);
-
-  const supabase = createAdminClient();
-
-  // Idempotency: skip if already paid out
-  const { data: existing } = await supabase
+async function findByReference(reference: string): Promise<PayoutRow | null> {
+  const { data, error } = await createAdminClient()
     .from('bookings')
-    .select('id, payout_status')
+    .select('id, reference, status, payout_status, creator_id, creator_amount, project_category')
     .eq('payout_reference', reference)
-    .single();
+    .maybeSingle();
+  if (error) {
+    // Thrown so the inbox keeps the event and processes it again later.
+    throw new Error(`service transfer lookup failed: ${error.message}`);
+  }
+  return (data as PayoutRow | null) ?? null;
+}
 
-  if (existing?.payout_status === 'paid') {
+async function handleTransferSuccess(reference: string): Promise<void> {
+  console.log(`[paystack-webhook] TRANSFER SUCCESS: ref=${reference}`);
+  const booking = await findByReference(reference);
+  if (!booking) return;
+  if (booking.payout_status === 'paid') {
     console.log(`[paystack-webhook] Transfer already processed: ref=${reference}`);
     return;
   }
 
+  const supabase = createAdminClient();
   const now = new Date().toISOString();
-
-  const { data: booking, error: updateError } = await supabase
-    .from('bookings')
-    .update({
-      payout_status: 'paid',
-      status: 'paid_out',
-      paid_out_at: now,
-      updated_at: now,
-    })
-    .eq('payout_reference', reference)
-    .select('id, reference, creator_id, creator_amount, project_category')
-    .single();
-
-  if (updateError) {
-    console.error('[paystack-webhook] Transfer success update failed:', updateError.message);
-    return;
+  const patch: Record<string, unknown> = { payout_status: 'paid', paid_out_at: now, payout_last_error: null, updated_at: now };
+  if (booking.status === 'completed') patch.status = 'paid_out';
+  const r = await updateServiceBooking(supabase, booking.id, null, patch);
+  if (!r.ok) {
+    throw new Error(`transfer success update failed: ${r.error}`);
   }
+  await recordServiceBookingEvent(supabase, {
+    bookingId: booking.id, event: 'payout_confirmed', from: booking.status, to: (patch.status as string | undefined) ?? booking.status, actor: 'system', actorId: null, reason: reference,
+  });
 
-  // Notify creator
-  if (booking?.creator_id) {
+  if (booking.creator_id) {
     try {
       await supabase.from('notifications').insert({
         user_id: booking.creator_id,
         type: 'payout_complete',
         title: 'Payout Complete',
-        body: `R${booking.creator_amount} has been transferred to your bank account for ${booking.project_category} (${booking.reference}).`,
+        body: `The provider confirms your payout of R${booking.creator_amount} for ${booking.project_category} (${booking.reference}) was sent. When it shows in your account depends on your bank.`,
         link: '/dashboard/gigs',
       });
     } catch { /* don't block */ }
   }
 }
 
-async function handleTransferFailed(raw: Record<string, unknown>) {
-  const reference = (raw.reference as string) || '';
-  if (!reference) return;
-
-  console.error(`[paystack-webhook] TRANSFER FAILED: ref=${reference}`);
+async function handleTransferProblem(reference: string, what: 'failed' | 'reversed'): Promise<void> {
+  console.error(`[paystack-webhook] TRANSFER ${what.toUpperCase()}: ref=${reference}`);
+  const booking = await findByReference(reference);
+  if (!booking) return;
 
   const supabase = createAdminClient();
+  const now = new Date().toISOString();
 
-  // Idempotency: skip if already paid (success arrived first) or already marked failed
-  const { data: existing } = await supabase
-    .from('bookings')
-    .select('id, payout_status')
-    .eq('payout_reference', reference)
-    .single();
-
-  if (existing?.payout_status === 'paid' || existing?.payout_status === 'failed') {
-    console.log(`[paystack-webhook] Transfer already processed (${existing.payout_status}): ref=${reference}`);
+  if (booking.payout_status === 'paid' && what === 'failed') {
+    // A late failure after success is ignored: success is final unless reversed.
+    console.log(`[paystack-webhook] Ignoring failure after success: ref=${reference}`);
+    return;
+  }
+  if (booking.payout_status === 'failed') {
+    console.log(`[paystack-webhook] Transfer already marked failed: ref=${reference}`);
     return;
   }
 
-  const { error } = await supabase
-    .from('bookings')
-    .update({
-      payout_status: 'failed',
-      updated_at: new Date().toISOString(),
-    })
-    .eq('payout_reference', reference);
+  const patch: Record<string, unknown> = { payout_status: 'failed', payout_last_error: `provider reported the transfer ${what}`, updated_at: now };
+  if (booking.status === 'paid_out') patch.status = 'completed';
+  const r = await updateServiceBooking(supabase, booking.id, null, patch);
+  if (!r.ok) throw new Error(`transfer ${what} update failed: ${r.error}`);
+  await recordServiceBookingEvent(supabase, {
+    bookingId: booking.id, event: `payout_${what}`, from: booking.status, to: (patch.status as string | undefined) ?? booking.status, actor: 'system', actorId: null, reason: reference,
+  });
 
-  if (error) {
-    console.error('[paystack-webhook] Transfer failed update error:', error.message);
-  }
+  try {
+    await emailProvider.sendEmail({
+      to: STUDIO.bookingEmail,
+      subject: `[Action] Creator payout ${what} — ${booking.reference}`,
+      text: `The payment provider reports the creator payout for ${booking.reference} (R${booking.creator_amount}) as ${what}.\n\nTransfer reference: ${reference}\n\nIt will NOT be re-sent automatically under a new reference. Check the transfer in the provider dashboard (for example, a wrong or closed bank account), then pay the creator by hand and record it in admin.`,
+    });
+  } catch { /* don't block */ }
 }

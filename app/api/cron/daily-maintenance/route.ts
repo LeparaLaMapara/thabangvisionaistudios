@@ -4,7 +4,9 @@ export const maxDuration = 60;
 import { NextRequest, NextResponse } from 'next/server';
 import { validateCronAuth } from '@/lib/cron/auth';
 import { createAdminClient } from '@/lib/supabase/server';
-import { triggerCreatorPayout } from '@/lib/payments/payout';
+import { runServicePayouts } from '@/lib/payments/payout';
+import { decideServiceTransition } from '@/lib/core/services/fulfilment';
+import { recordServiceBookingEvent, updateServiceBooking } from '@/lib/supabase/queries/service-bookings';
 import { email as emailProvider } from '@/lib/email';
 import { STUDIO } from '@/lib/constants';
 import { autoPublishCreatorProductions } from '@/lib/supabase/queries/smartProductions';
@@ -20,9 +22,11 @@ import { buildNotices } from '@/lib/core/rental/notifications';
  * Daily Maintenance — runs at 2am SAST (00:00 UTC)
  *
  * 1. Cancel unpaid bookings older than 72 hours
- * 2. Auto-approve delivered bookings past 7-day window + trigger payouts
- * 3. Retry failed payouts (max 3 attempts, 6h+ apart)
- * 4. Check for stuck payouts (processing > 24 hours)
+ * 2. Auto-approve deliveries unanswered for STUDIO.booking.autoApproveDeliveryAfterDays
+ *    (records completion and the payout due time; never pays on the spot)
+ * 3. Creator payouts: send those due and allowed, reconcile those in flight
+ *    (stable reference, lookup before any resend), alert on the rest
+ * 3b. Alert on payouts still processing after 24 hours
  * 5. Auto-complete stale accepted bookings (30+ days)
  * 6. Expire stale crew requests
  * 7. Auto-reassign unresponsive creators (48h with no acknowledgement)
@@ -205,107 +209,101 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     results.cancelledUnpaidError = String(err);
   }
 
-  // ─── 2. Auto-approve delivered bookings > 7 days ──────────────────────────
+  // ─── 2. Auto-approve deliveries nobody answered ───────────────────────────
+  // After STUDIO.booking.autoApproveDeliveryAfterDays with no approval,
+  // revision request or dispute, the delivery counts as approved. This only
+  // records completion and schedules the payout (payoutDelayHours later); it
+  // never pays on the spot. Rules: lib/core/services/fulfilment.ts.
   try {
-    const approvalCutoff = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString();
-    const { data: autoApproved } = await supabase
+    const approvalCutoff = new Date(
+      now.getTime() - STUDIO.booking.autoApproveDeliveryAfterDays * 24 * 60 * 60 * 1000,
+    ).toISOString();
+    const { data: delivered, error } = await supabase
       .from('bookings')
-      .update({
-        status: 'completed',
-        completed_at: now.toISOString(),
-        updated_at: now.toISOString(),
-      })
+      .select('id, reference, status, delivered_at, creator_id, creator_amount, project_category, payment_status, paystack_reference, total, created_at, shoot_date')
       .eq('status', 'delivered')
-      .lt('delivered_at', approvalCutoff)
-      .select('id, reference, creator_id, creator_amount, project_category, payment_status');
+      .lt('delivered_at', approvalCutoff);
+    if (error) throw new Error(error.message);
 
-    results.autoApproved = autoApproved?.length ?? 0;
-
-    // Trigger payouts for auto-approved bookings
-    if (autoApproved && autoApproved.length > 0) {
-      let payoutSuccesses = 0;
-      let payoutFailures = 0;
-
-      for (const booking of autoApproved) {
-        if (booking.creator_id && booking.payment_status === 'paid') {
-          const payoutResult = await triggerCreatorPayout({
-            bookingId: booking.id,
-            reference: booking.reference,
-            creatorId: booking.creator_id,
-            creatorAmount: booking.creator_amount,
-            projectCategory: booking.project_category,
+    let approved = 0;
+    for (const b of delivered ?? []) {
+      const decision = decideServiceTransition({
+        action: 'auto_approve',
+        actor: 'system',
+        booking: {
+          status: b.status,
+          paymentStatus: b.payment_status,
+          paymentReference: b.paystack_reference,
+          total: Number(b.total ?? 0),
+          createdAt: b.created_at,
+          shootDate: b.shoot_date,
+          deliveredAt: b.delivered_at,
+          revisionsIncluded: null,
+          revisionsUsed: null,
+        },
+        now,
+      });
+      if (!decision.ok) continue;
+      const r = await updateServiceBooking(supabase, b.id, decision.from, {
+        ...decision.patch,
+        status: decision.to,
+        updated_at: now.toISOString(),
+      });
+      if (!r.ok || !r.updated) continue;
+      approved++;
+      await recordServiceBookingEvent(supabase, {
+        bookingId: b.id, event: 'auto_approve', from: decision.from, to: decision.to, actor: 'system', actorId: null,
+        reason: `no response within ${STUDIO.booking.autoApproveDeliveryAfterDays} days of delivery`,
+      });
+      const due = new Date(String(decision.patch.payout_due_at)).toLocaleString('en-ZA', { timeZone: 'Africa/Johannesburg', dateStyle: 'medium', timeStyle: 'short' });
+      await notifyClient({
+        bookingId: b.id,
+        type: 'booking_completed',
+        title: 'Your booking is complete',
+        body: `We did not hear back within ${STUDIO.booking.autoApproveDeliveryAfterDays} days of delivery, so ${b.reference} has been approved. If something is wrong, raise it before ${due}.`,
+      });
+      if (b.creator_id) {
+        try {
+          await supabase.from('notifications').insert({
+            user_id: b.creator_id,
+            type: 'booking_completed',
+            title: 'Gig approved',
+            body: `${b.project_category} (${b.reference}) was approved automatically. Your payout of R${b.creator_amount} is due to be sent on ${due}, as long as no problem is raised before then. When it reaches your account depends on your bank.`,
+            link: '/dashboard/gigs',
           });
-          if (payoutResult.success) payoutSuccesses++;
-          else payoutFailures++;
-        }
+        } catch { /* don't block */ }
       }
-
-      results.autoPayouts = { success: payoutSuccesses, failed: payoutFailures };
     }
+    results.autoApproved = approved;
   } catch (err) {
     results.autoApprovedError = String(err);
   }
 
-  // ─── 3. Retry failed payouts (max 3 attempts, 6h+ apart) ─────────────────
+  // ─── 3. Creator payouts: send what is due, reconcile what is in flight ────
+  // Sends each payout once its due time has passed and every rule holds (paid
+  // and provider-confirmed, creator verified with a validated bank account,
+  // no open dispute). One stable transfer reference per booking; anything
+  // that may already have been sent is looked up with the provider first and
+  // never re-sent under a new reference. lib/payments/payout.ts.
   try {
-    const retryCutoff = new Date(now.getTime() - 6 * 60 * 60 * 1000).toISOString();
-    const { data: failedPayouts } = await supabase
-      .from('bookings')
-      .select('id, reference, creator_id, creator_amount, project_category, payout_retry_count')
-      .eq('payout_status', 'failed')
-      .eq('payment_status', 'paid')
-      .lt('updated_at', retryCutoff);
+    const run = await runServicePayouts({ db: supabase, now });
+    results.servicePayouts = { considered: run.considered, notDue: run.notDue, outcomes: run.outcomes, held: run.held.length, attention: run.attention.length };
+    if (run.attention.length > 0 || run.held.length > 0) {
+      const attention = run.attention.map((a) => `${a.reference}: ${a.why}`).join('\n');
+      const held = run.held.map((h) => `${h.reference}: ${h.why}`).join('\n');
+      await emailProvider.sendEmail({
+        to: STUDIO.bookingEmail,
+        subject: `[Payouts] ${run.attention.length} need a person, ${run.held.length} held — ${STUDIO.name}`,
+        text: `Creator payouts that are due but were not sent today.
 
-    let retrySuccesses = 0;
-    let retryFailures = 0;
-    let retryExhausted = 0;
-
-    if (failedPayouts && failedPayouts.length > 0) {
-      for (const booking of failedPayouts) {
-        const retryCount = booking.payout_retry_count ?? 0;
-
-        if (retryCount >= 3) {
-          retryExhausted++;
-          continue;
-        }
-
-        // Increment retry count before attempting
-        await supabase
-          .from('bookings')
-          .update({ payout_retry_count: retryCount + 1, updated_at: now.toISOString() })
-          .eq('id', booking.id);
-
-        const payoutResult = await triggerCreatorPayout({
-          bookingId: booking.id,
-          reference: booking.reference,
-          creatorId: booking.creator_id,
-          creatorAmount: booking.creator_amount,
-          projectCategory: booking.project_category,
-        });
-
-        if (payoutResult.success) {
-          retrySuccesses++;
-        } else {
-          retryFailures++;
-
-          // Final attempt failed — alert admin
-          if (retryCount + 1 >= 3) {
-            await emailProvider.sendEmail({
-              to: STUDIO.bookingEmail,
-              subject: `[Critical] Payout permanently failed — ${booking.reference}`,
-              text: `Payout for booking ${booking.reference} (R${booking.creator_amount}) has failed after 3 attempts.\n\nPlease process this payout manually via the Paystack dashboard.\n\nBooking ID: ${booking.id}`,
-            });
-          }
-        }
-      }
+${run.attention.length > 0 ? `NEED A PERSON (nothing was sent; do not re-send under a new reference without checking the provider dashboard):\n${attention}\n\n` : ''}${run.held.length > 0 ? `HELD BY A RULE (sent automatically once the rule clears):\n${held}` : ''}`,
+      });
     }
-
-    results.payoutRetries = { success: retrySuccesses, failed: retryFailures, exhausted: retryExhausted };
   } catch (err) {
-    results.payoutRetriesError = String(err);
+    results.servicePayoutsError = String(err);
   }
 
-  // ─── 4. Check for stuck payouts (processing > 24 hours) ──────────────────
+  // ─── 3b. Payouts still with the provider after 24 hours ───────────────────
   try {
     const stuckCutoff = new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString();
     const { data: stuck } = await supabase
@@ -317,11 +315,11 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     results.stuckPayouts = stuck?.length ?? 0;
 
     if (stuck && stuck.length > 0) {
-      const stuckList = stuck.map(s => `${s.reference}: R${s.creator_amount}`).join('\n');
+      const stuckList = stuck.map(s => `${s.reference}: R${s.creator_amount} (transfer ${s.payout_reference})`).join('\n');
       await emailProvider.sendEmail({
         to: STUDIO.bookingEmail,
-        subject: `[Alert] ${stuck.length} stuck payout(s) — ${STUDIO.name}`,
-        text: `The following payouts have been in "processing" status for over 24 hours:\n\n${stuckList}\n\nPlease check Paystack dashboard and resolve manually.`,
+        subject: `[Alert] ${stuck.length} payout(s) still processing — ${STUDIO.name}`,
+        text: `These payouts have been with the payment provider for over 24 hours. Each was looked up by its transfer reference today and is still not final:\n\n${stuckList}\n\nCheck them in the provider dashboard. Do not send them again under a new reference.`,
       });
     }
   } catch (err) {
