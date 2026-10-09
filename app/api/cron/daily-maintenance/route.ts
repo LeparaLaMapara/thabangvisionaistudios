@@ -388,15 +388,25 @@ Please contact the client and the creator. They are not paid out or refunded aut
 
     if (unresponsive && unresponsive.length > 0) {
       for (const booking of unresponsive) {
-        // Unassign creator from booking
-        await supabase
+        // Unassign the creator only while the booking is still paid and
+        // unanswered (compare-and-set): a creator who accepts or declines
+        // between the read above and this write keeps that answer.
+        const { data: moved, error: moveError } = await supabase
           .from('bookings')
           .update({
             creator_id: null,
             status: 'pending_reassignment',
             updated_at: now.toISOString(),
           })
-          .eq('id', booking.id);
+          .eq('id', booking.id)
+          .eq('status', 'paid')
+          .is('accepted_at', null)
+          .select('id');
+        if (moveError || !moved || moved.length === 0) {
+          // Someone else changed it first: no emails, no notices.
+          if (moveError) console.error('[daily-maintenance] reassignment update failed:', moveError.message);
+          continue;
+        }
 
         // Notify admin for manual reassignment
         await emailProvider.sendEmail({

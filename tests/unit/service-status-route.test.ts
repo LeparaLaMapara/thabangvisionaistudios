@@ -57,21 +57,28 @@ const client = {
   },
 };
 
+type RefundAttempt = import('@/lib/payments/routing').RefundAttempt;
 const refundPayment = vi.fn<(ref: string, amount?: number) => Promise<{ success: boolean; error?: string }>>(async () => ({ success: true }));
+const refundWithOutcome = vi.fn<(p: { reference: string; amountRands: number; idempotencyKey: string }) => Promise<RefundAttempt>>(async () => ({ outcome: 'refunded', providerRefundId: 'rf_1' }));
 const sendEmail = vi.fn(async () => undefined);
 const notifyClient = vi.fn(async () => undefined);
 const triggerCreatorPayout = vi.fn(async () => ({ success: true, outcome: 'sent' }));
 
 vi.mock('@/lib/supabase/server', () => ({ createClient: async () => client, createAdminClient: () => client }));
-vi.mock('@/lib/auth', () => ({ checkRateLimit: async () => true }));
+vi.mock('@/lib/auth', () => ({
+  checkRateLimit: async () => true,
+  requireAdmin: async () => ({ error: null, user: { id: 'admin-1' } }),
+  rateLimitAdmin: async () => null,
+}));
 vi.mock('@/lib/email', () => ({ email: { sendEmail } }));
-vi.mock('@/lib/payments/routing', () => ({ refundPayment }));
+vi.mock('@/lib/payments/routing', () => ({ refundPayment, refundWithOutcome }));
 vi.mock('@/lib/data/events', () => ({ logEvent: () => undefined }));
 vi.mock('@/lib/bookings/notify-client', () => ({ notifyClient }));
 // Approving work must never pay on the spot: fail loudly if anything tries.
 vi.mock('@/lib/payments/payout', () => ({ triggerCreatorPayout }));
 
 const { PATCH } = await import('@/app/api/service-bookings/[id]/status/route');
+const { PATCH: ADMIN_PATCH } = await import('@/app/api/admin/service-bookings/[id]/route');
 
 const CLIENT = { id: 'client-1', email: 'client@example.invalid' };
 const CREATOR = { id: 'creator-1', email: 'creator@example.invalid' };
@@ -84,7 +91,7 @@ function seed(over: Row = {}) {
     id: ID, reference: 'BK-test', client_id: CLIENT.id, client_email: CLIENT.email, creator_id: CREATOR.id,
     project_category: 'Portrait Photography', status: 'paid', total: 3000, creator_amount: 2550,
     payment_status: 'paid', shoot_date: '2099-01-01', paystack_reference: 'BK-test', created_at: '2026-09-01T00:00:00.000Z',
-    delivered_at: null, revisions_included: 1, revisions_used: 0,
+    delivered_at: null, delivery_url: null, revisions_included: 1, revisions_used: 0, cancellation_refund_status: null,
     ...over,
   }];
 }
@@ -100,6 +107,7 @@ const bookingUpdates = () => writes.filter((w) => w.table === 'bookings' && w.op
 
 beforeEach(() => {
   refundPayment.mockClear();
+  refundWithOutcome.mockClear();
   sendEmail.mockClear();
   notifyClient.mockClear();
   triggerCreatorPayout.mockClear();
@@ -112,7 +120,7 @@ describe('creator decline (the Decline button used to fail with a 400)', () => {
     const r = await call(CREATOR, { status: 'cancelled' });
     expect(r.status).toBe(200);
     expect(r.json).toMatchObject({ status: 'declined', action: 'decline', refund_status: 'refunded' });
-    expect(refundPayment).toHaveBeenCalledWith('BK-test', 3000);
+    expect(refundWithOutcome).toHaveBeenCalledWith(expect.objectContaining({ reference: 'BK-test', amountRands: 3000 }));
     expect(tables.bookings[0]).toMatchObject({ status: 'declined', payment_status: 'refunded', cancellation_refund_status: 'refunded' });
     // Compare-and-set on the status that was read.
     expect(bookingUpdates()[0].filters).toEqual(expect.arrayContaining([['id', ID], ['status', 'paid']]));
@@ -128,12 +136,12 @@ describe('creator decline (the Decline button used to fail with a 400)', () => {
     expect(r.status).toBe(200);
     expect(r.json.status).toBe('cancelled');
     expect(tables.bookings[0]).toMatchObject({ status: 'cancelled', cancellation_reason: 'Declined by creator: ill' });
-    expect(refundPayment).toHaveBeenCalledWith('BK-test', 3000);
+    expect(refundWithOutcome).toHaveBeenCalledWith(expect.objectContaining({ reference: 'BK-test', amountRands: 3000 }));
   });
 
-  it('a failed refund is flagged for a person, the decline still stands', async () => {
+  it('a refused refund is flagged for a person, the decline still stands', async () => {
     seed();
-    refundPayment.mockResolvedValueOnce({ success: false, error: 'provider down' });
+    refundWithOutcome.mockResolvedValueOnce({ outcome: 'rejected', message: 'Transaction has been fully reversed' });
     const r = await call(CREATOR, { action: 'decline' });
     expect(r.json).toMatchObject({ status: 'declined', refund_status: 'failed' });
     expect(tables.bookings[0]).toMatchObject({ status: 'declined', payment_status: 'paid', cancellation_refund_status: 'failed' });
@@ -144,7 +152,127 @@ describe('creator decline (the Decline button used to fail with a 400)', () => {
     seed({ status: 'accepted' });
     const r = await call(CREATOR, { action: 'decline' });
     expect(r.status).toBe(400);
-    expect(refundPayment).not.toHaveBeenCalled();
+    expect(refundWithOutcome).not.toHaveBeenCalled();
+  });
+
+  it('a timeout is an UNKNOWN outcome: recorded as unknown, payment left paid, staff told to CHECK first', async () => {
+    seed();
+    refundWithOutcome.mockResolvedValueOnce({ outcome: 'unknown', message: 'The operation was aborted due to timeout' });
+    const r = await call(CREATOR, { action: 'decline' });
+    expect(r.json).toMatchObject({ status: 'declined', refund_status: 'unknown' });
+    expect(tables.bookings[0]).toMatchObject({ status: 'declined', payment_status: 'paid', cancellation_refund_status: 'unknown' });
+    expect(String(tables.bookings[0].cancellation_refund_error)).toMatch(/OUTCOME UNKNOWN/);
+    const mail = sendEmail.mock.calls.map((c) => (c as unknown as [{ text: string }])[0].text).join('\n');
+    expect(mail).toMatch(/REFUND OUTCOME UNKNOWN/);
+    expect(mail).toMatch(/CHECK the provider first/);
+    expect(mail).not.toMatch(/AUTOMATIC REFUND FAILED/);
+  });
+
+  it('before migration 073 an unknown outcome is stored as pending (still blocks another refund)', async () => {
+    seed();
+    refundWithOutcome.mockResolvedValueOnce({ outcome: 'unknown', message: 'HTTP 502' });
+    // First booking write (the status change) succeeds; the outcome write hits the old check.
+    const realFrom = client.from;
+    let bookingUpdates = 0;
+    client.from = (t: string) => {
+      const b = realFrom(t);
+      if (t === 'bookings') {
+        const origUpdate = b.update;
+        b.update = (v: Row) => {
+          bookingUpdates++;
+          if (bookingUpdates === 2) failNextBookingUpdateWith = { message: 'new row for relation "bookings" violates check constraint "bookings_cancellation_refund_status_check"', code: '23514' };
+          return origUpdate(v);
+        };
+      }
+      return b;
+    };
+    const r = await call(CREATOR, { action: 'decline' });
+    client.from = realFrom;
+    expect(r.json).toMatchObject({ status: 'declined', refund_status: 'unknown' });
+    expect(tables.bookings[0]).toMatchObject({ cancellation_refund_status: 'pending', payment_status: 'paid' });
+    expect(String(tables.bookings[0].cancellation_refund_error)).toMatch(/OUTCOME UNKNOWN/);
+  });
+});
+
+describe('client cancellation after delivery (refunded up to 100% before the fix)', () => {
+  it('a booking sent back to accepted by a revision request cannot be cancelled; nothing is refunded', async () => {
+    seed({ status: 'delivered', delivered_at: '2026-10-08T00:00:00.000Z', delivery_url: 'https://example.invalid/work' });
+    expect((await call(CLIENT, { action: 'request_revision', reason: 'Warmer grade please' })).status).toBe(200);
+    expect(tables.bookings[0]).toMatchObject({ status: 'accepted', delivered_at: null, revisions_used: 1 });
+
+    const r = await call(CLIENT, { status: 'cancelled' });
+    expect(r.status).toBe(400);
+    expect(r.json.code).toBe('already_delivered');
+    expect(refundWithOutcome).not.toHaveBeenCalled();
+    expect(tables.bookings[0]).toMatchObject({ status: 'accepted', payment_status: 'paid' });
+  });
+
+  it('the delivery link alone (older rows without revisions_used) is enough', async () => {
+    seed({ status: 'accepted', delivery_url: 'https://example.invalid/work', revisions_used: undefined });
+    const r = await call(CLIENT, { action: 'cancel' });
+    expect(r.status).toBe(400);
+    expect(r.json.code).toBe('already_delivered');
+    expect(refundWithOutcome).not.toHaveBeenCalled();
+  });
+
+  it('a booking never delivered is still cancelled and refunded by the tiers', async () => {
+    seed({ status: 'accepted' });
+    const r = await call(CLIENT, { action: 'cancel' });
+    expect(r.status).toBe(200);
+    expect(r.json).toMatchObject({ status: 'cancelled', refund_status: 'refunded' });
+    expect(refundWithOutcome).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('admin cancel never refunds over a refund already made or possibly made', () => {
+  const adminCancel = async () => {
+    const req = new NextRequest('http://localhost/api/admin/service-bookings/b-1', { method: 'PATCH', body: JSON.stringify({ status: 'cancelled', cancellation_reason: 'ops' }) });
+    const res = await ADMIN_PATCH(req, { params: Promise.resolve({ id: ID }) });
+    return { status: res.status, json: (await res.json()) as Row };
+  };
+
+  it('after a client cancellation whose refund timed out, the admin cancel sends no second refund', async () => {
+    seed({ status: 'accepted' });
+    refundWithOutcome.mockResolvedValueOnce({ outcome: 'unknown', message: 'timeout' });
+    await call(CLIENT, { action: 'cancel' });
+    expect(tables.bookings[0]).toMatchObject({ status: 'cancelled', payment_status: 'paid', cancellation_refund_status: 'unknown' });
+    refundWithOutcome.mockClear();
+
+    const r = await adminCancel();
+    expect(r.status).toBe(200);
+    expect(r.json.refund_status).toBe('already_started');
+    expect(refundWithOutcome).not.toHaveBeenCalled();
+  });
+
+  it('nor after a partial refund that succeeded (payment_status stays paid)', async () => {
+    seed({ status: 'cancelled', cancellation_refund_status: 'refunded', cancellation_refund_amount: 1500 });
+    const r = await adminCancel();
+    expect(r.json.refund_status).toBe('already_started');
+    expect(refundWithOutcome).not.toHaveBeenCalled();
+  });
+
+  it('nor twice: an unknown admin refund is recorded, and the next admin cancel is refused', async () => {
+    seed({ status: 'accepted' });
+    refundWithOutcome.mockResolvedValueOnce({ outcome: 'unknown', message: 'HTTP 503' });
+    const first = await adminCancel();
+    expect(first.json.refund_status).toBe('unknown');
+    expect(tables.bookings[0]).toMatchObject({ status: 'cancelled', payment_status: 'paid', cancellation_refund_status: 'unknown' });
+    expect(sendEmail).toHaveBeenCalledWith(expect.objectContaining({ subject: expect.stringMatching(/outcome unknown/), text: expect.stringMatching(/CHECK the provider first/) }));
+
+    const second = await adminCancel();
+    expect(second.json.refund_status).toBe('already_started');
+    expect(refundWithOutcome).toHaveBeenCalledTimes(1);
+  });
+
+  it('refunds the full total when nothing was refunded yet, and after a refused attempt', async () => {
+    for (const prior of [null, 'failed']) {
+      seed({ status: 'accepted', cancellation_refund_status: prior });
+      refundWithOutcome.mockClear();
+      const r = await adminCancel();
+      expect(r.json.refund_status).toBe('refunded');
+      expect(refundWithOutcome).toHaveBeenCalledWith(expect.objectContaining({ reference: 'BK-test', amountRands: 3000 }));
+      expect(tables.bookings[0]).toMatchObject({ payment_status: 'refunded', cancellation_refund_status: 'refunded' });
+    }
   });
 });
 

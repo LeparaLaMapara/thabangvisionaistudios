@@ -24,8 +24,12 @@ import { calculateServiceCancellationRefund, type CancellationQuote } from '@/li
  *                                                                              paid_out
  *
  *   The client may cancel while paid or accepted (refund by the published
- *   cancellation tiers). A dispute (app/api/disputes) moves the booking to
- *   'disputed' and holds the payout until a person resolves it.
+ *   cancellation tiers), but only until the work has been delivered once. A
+ *   revision request sends the booking back to 'accepted'; that does not
+ *   re-open cancellation (see hasBeenDelivered). After a delivery a client
+ *   who is unhappy raises a problem instead. A dispute (app/api/disputes)
+ *   moves the booking to 'disputed' and holds the payout until a person
+ *   resolves it.
  */
 
 export const SERVICE_STATUSES = [
@@ -85,12 +89,36 @@ export interface ServiceBookingFacts {
   createdAt: string | null;
   shootDate: string | null;
   deliveredAt: string | null;
+  /**
+   * The delivery link on record. Written only by the deliver step and never
+   * cleared (a revision request clears delivered_at, not this), so it shows
+   * the work was delivered at least once.
+   */
+  deliveryUrl?: string | null;
   /** null on bookings made before migration 073: the default allowance applies. */
   revisionsIncluded: number | null;
   revisionsUsed: number | null;
 }
 
 export type RefundStatus = 'pending' | 'not_required' | 'manual_review';
+
+/**
+ * Recorded refund states (bookings.cancellation_refund_status) meaning money
+ * has gone back, or may have:
+ *   refunded  the provider accepted a refund
+ *   unknown   a refund call got no clear answer; it may have gone through
+ *   pending   a refund was about to be sent, and no outcome was recorded
+ *             (also used for 'unknown' before migration 073 allows it)
+ * No automatic refund is sent over one of these (e.g. an admin cancel after a
+ * client cancellation): a person checks the provider and refunds any balance
+ * by hand. 'failed' (the provider refused, nothing moved) and 'manual_review'
+ * are not in the list.
+ */
+export const REFUND_ALREADY_STARTED = ['refunded', 'unknown', 'pending'] as const;
+
+export function refundAlreadyStarted(status: string | null | undefined): boolean {
+  return typeof status === 'string' && (REFUND_ALREADY_STARTED as readonly string[]).includes(status);
+}
 
 export interface RefundPlan {
   /** Whole rands to return to the client. */
@@ -106,7 +134,8 @@ export type TransitionRefusal =
   | 'reason_required'
   | 'revisions_exhausted'
   | 'not_yet_due'
-  | 'delivery_required';
+  | 'delivery_required'
+  | 'already_delivered';
 
 export type TransitionDecision =
   | {
@@ -175,6 +204,19 @@ export function payoutTimingText(delayHours: number = STUDIO.booking.payoutDelay
 /** How approval works, in words, for the booking page. */
 export function approvalText(days: number = STUDIO.booking.autoApproveDeliveryAfterDays): string {
   return `After delivery you have ${days} days to approve the work, ask for a revision or raise a problem. If we hear nothing, it is approved automatically.`;
+}
+
+/**
+ * Whether the creator has delivered the work at least once. Any one durable
+ * signal is enough: the delivery link (kept after a revision request), a
+ * revision round used (only possible after a delivery), or a current delivery
+ * time. Used to refuse a client cancellation after delivery, which would
+ * otherwise refund the client for work already handed over.
+ */
+export function hasBeenDelivered(b: Pick<ServiceBookingFacts, 'deliveredAt' | 'deliveryUrl' | 'revisionsUsed'>): boolean {
+  if (b.deliveredAt) return true;
+  if (typeof b.deliveryUrl === 'string' && b.deliveryUrl.trim() !== '') return true;
+  return typeof b.revisionsUsed === 'number' && b.revisionsUsed > 0;
 }
 
 function isPaid(b: ServiceBookingFacts): boolean {
@@ -294,6 +336,16 @@ export function decideServiceTransition(input: {
     }
 
     case 'cancel': {
+      // After delivery the client cannot cancel (docs/marketplace/services.md):
+      // a revision request puts the booking back in 'accepted', but the work
+      // was handed over, so a problem goes to a person through a dispute.
+      if (hasBeenDelivered(booking)) {
+        return {
+          ok: false,
+          code: 'already_delivered',
+          message: 'The work has already been delivered, so this booking can no longer be cancelled. If something is wrong, raise a problem and our team will look at it.',
+        };
+      }
       const quote = calculateServiceCancellationRefund({
         shootDate: booking.shootDate,
         total: Number(booking.total ?? 0),

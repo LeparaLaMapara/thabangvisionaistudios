@@ -29,6 +29,12 @@
 --   5. notifications.type gains 'gig_revision_requested'. The existing list is
 --      read from the live constraint and extended, so types added by other
 --      migrations are kept whatever order they run in.
+--   6. bookings.cancellation_refund_status gains 'unknown': a refund call got
+--      no clear answer (timeout, network error, provider 5xx) and MAY have gone
+--      through. A person checks the provider before refunding by hand, and no
+--      automatic refund is sent over it. Before this, such a refund was
+--      recorded 'failed', staff were told to refund by hand, and the client
+--      could be refunded twice. The partial index from 047 now covers it.
 --
 -- SAFETY
 --   Additive and re-runnable (IF NOT EXISTS, DROP … IF EXISTS, guarded DO
@@ -191,14 +197,56 @@ begin
   );
 end $$;
 
+-- ── 6. Refund outcome: + 'unknown' ───────────────────────────────────────────
+-- The column comes from 047. If 047 is not applied there is nothing to extend
+-- (apply 047, then re-run this file).
+
+do $$
+begin
+  if not exists (
+    select 1 from information_schema.columns
+     where table_schema = 'public' and table_name = 'bookings' and column_name = 'cancellation_refund_status'
+  ) then
+    raise notice '073: bookings.cancellation_refund_status missing (047 not applied); refund outcome list not changed';
+    return;
+  end if;
+
+  alter table public.bookings drop constraint if exists bookings_cancellation_refund_status_check;
+  alter table public.bookings
+    add constraint bookings_cancellation_refund_status_check
+    check (
+      cancellation_refund_status is null
+      or cancellation_refund_status in ('pending', 'refunded', 'failed', 'manual_review', 'not_required', 'unknown')
+    );
+
+  comment on column public.bookings.cancellation_refund_status is
+    'pending | refunded | failed | manual_review | not_required | unknown. manual_review: paid by hand, or no shoot_date so notice cannot be measured. failed: the provider refused, nothing moved. unknown: no clear answer from the provider, the refund MAY have gone through; check the provider before refunding by hand.';
+
+  drop index if exists public.idx_bookings_refund_status;
+  create index if not exists idx_bookings_refund_status
+    on public.bookings (cancellation_refund_status)
+    where cancellation_refund_status in ('pending', 'failed', 'manual_review', 'unknown');
+end $$;
+
 commit;
 
 -- ── Rollback (manual; read first) ────────────────────────────────────────────
 -- Only before any booking has been declined: a 'declined' row violates the
--- restored status check. Move such rows to 'cancelled' first.
+-- restored status check. Move such rows to 'cancelled' first. Likewise an
+-- 'unknown' refund outcome goes back to 'pending' (which code before this
+-- migration also never refunds over automatically); keep the note in
+-- cancellation_refund_error so staff still check the provider first.
 --
 --   begin;
 --   update public.bookings set status = 'cancelled' where status = 'declined';
+--   update public.bookings set cancellation_refund_status = 'pending' where cancellation_refund_status = 'unknown';
+--   alter table public.bookings drop constraint if exists bookings_cancellation_refund_status_check;
+--   alter table public.bookings add constraint bookings_cancellation_refund_status_check check (
+--     cancellation_refund_status is null
+--     or cancellation_refund_status in ('pending', 'refunded', 'failed', 'manual_review', 'not_required'));
+--   drop index if exists public.idx_bookings_refund_status;
+--   create index if not exists idx_bookings_refund_status on public.bookings (cancellation_refund_status)
+--     where cancellation_refund_status in ('pending', 'failed', 'manual_review');
 --   alter table public.bookings drop constraint if exists bookings_status_check;
 --   alter table public.bookings add constraint bookings_status_check check (status = any (array[
 --     'pending', 'paid', 'accepted', 'delivered', 'completed',
