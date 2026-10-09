@@ -9,6 +9,7 @@ import { claimServiceRefund, sendClaimedServiceRefund } from '@/lib/payments/ser
 import { toCents } from '@/lib/core/pricing/money';
 import { disputeMoney, refundObligationKey, type DisputeResolution } from '@/lib/core/rental/refunds';
 import { deliveryEarned, personSettlement } from '@/lib/core/rental/ledger';
+import { deliverySettlement, settlementHoldMessage, usesPhase4Delivery } from '@/lib/rental/delivery-settlement';
 import { splitHire } from '@/lib/core/pricing/rental';
 import { payoutReference } from '@/lib/core/rental/payouts';
 import { buildNotices } from '@/lib/core/rental/notifications';
@@ -532,16 +533,30 @@ async function settleDisputedReturn(
   const hire = hireUnrecorded ? 0 : b.hire_cents ?? 0;
   const deposit = b.deposit_cents ?? toCents(Number(b.deposit_amount ?? 0));
 
+  // Phase 4 delivery (R-39, R-40): an open delivery incident, or a return
+  // delivery not yet received and inspected, holds the settlement (D17, D29);
+  // an order with delivery legs earns or refunds its fee per leg, never
+  // through the order-level journal below.
+  let phase4Delivery = false;
+  try {
+    const [hold, phase4] = await Promise.all([deliverySettlement({ bookingGroupId: b.checkout_group_id, bookingId: b.id }), usesPhase4Delivery(db, b.checkout_group_id)]);
+    if (!hold.allowed) return { error: settlementHoldMessage(hold.reasons), status: 409 };
+    phase4Delivery = phase4;
+  } catch {
+    return { error: 'Could not check the delivery records just now. Nothing was changed; try again.', status: 503 };
+  }
+
   // The order's delivery fee (stored on one of its lines). When this is the
   // only line the order still has, a full refund gives the delivery back too;
   // otherwise the delivery was used by the other lines and stays earned.
-  let delivery = toCents(Number(b.delivery_fee ?? 0));
+  // With Phase 4 delivery the legacy columns are not this route's to settle.
+  let delivery = phase4Delivery ? 0 : toCents(Number(b.delivery_fee ?? 0));
   let soleLine = true;
   if (b.checkout_group_id) {
     const { data: lines, error: linesErr } = await db.from('equipment_bookings').select('id, status, delivery_fee').eq('checkout_group_id', b.checkout_group_id);
     if (linesErr) return { error: 'Could not load the order just now. Nothing was changed; try again.', status: 503 };
     const rows = (lines ?? []) as { id: string; status: string; delivery_fee: number | null }[];
-    delivery = rows.reduce((sum, r) => sum + toCents(Number(r.delivery_fee ?? 0)), 0);
+    if (!phase4Delivery) delivery = rows.reduce((sum, r) => sum + toCents(Number(r.delivery_fee ?? 0)), 0);
     soleLine = !rows.some((r) => r.id !== b.id && r.status !== 'cancelled');
   }
   const refundDelivery = p.resolution === 'full_refund' && soleLine && delivery > 0;

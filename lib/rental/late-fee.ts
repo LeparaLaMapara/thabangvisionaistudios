@@ -32,3 +32,19 @@ export function depositSettlement(params: { deposit: number; lateFee: number; da
   const kept = Math.min(deposit, Math.max(0, params.lateFee) + Math.max(0, params.damageFee));
   return { release: Math.round((deposit - kept) * 100) / 100, kept: Math.round(kept * 100) / 100 };
 }
+
+/**
+ * The late fee once delivery is taken into account (spec §4.12, D19): no
+ * automatic late fee while a delay, no-show or failed collection on the
+ * return delivery was caused by the provider or is not yet attributed. A
+ * person can still decide a fee. `lateFeeAutoCharge` comes from
+ * checkRentalSettlement (lib/core/delivery/use-cases.ts).
+ */
+export function lateFeeAfterDelivery(
+  params: Parameters<typeof lateFeeFor>[0],
+  delivery: { lateFeeAutoCharge: boolean },
+): { daysLate: number; fee: number; waivedForDelivery: boolean } {
+  const late = lateFeeFor(params);
+  if (late.fee > 0 && !delivery.lateFeeAutoCharge) return { daysLate: late.daysLate, fee: 0, waivedForDelivery: true };
+  return { ...late, waivedForDelivery: false };
+}

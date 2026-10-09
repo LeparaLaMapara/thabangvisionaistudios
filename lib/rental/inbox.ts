@@ -7,6 +7,7 @@ import { handleServiceTransferEvent } from '@/lib/payments/service-transfers';
 import { eventDedupeKey } from '@/lib/core/rental/payments';
 import { processChargeEvent, processRefundEvent, processTransferEvent } from '@/lib/core/rental/use-cases';
 import { trackFunnel } from '@/lib/analytics/funnel';
+import { afterRentalPayment } from '@/lib/delivery/after-payment';
 import { systemClock } from '@/lib/core/ports';
 import { SupabasePayouts, SupabaseRefunds, SupabaseRentalPayments, isMissingPipeline } from './repos';
 
@@ -162,6 +163,13 @@ export async function processPaystackEvent(p: ParsedPaystackEvent): Promise<stri
       );
       if (outcome === 'confirmed' || outcome === 'confirmed_late') {
         trackFunnel('payment_confirmed', { userId: intent.userId, meta: { groupId: intent.checkoutGroupId, source: 'webhook' } });
+      }
+      // Phase 4: book the order's delivery legs once the payment is verified.
+      // A replay ('duplicate') runs it again, which is idempotent and finishes
+      // a dispatch an earlier run could not. It never throws or changes the
+      // payment outcome; failures go to the ops queue.
+      if (outcome === 'confirmed' || outcome === 'confirmed_late' || outcome === 'duplicate') {
+        await afterRentalPayment(intent.checkoutGroupId, 'webhook');
       }
       return outcome;
     }
