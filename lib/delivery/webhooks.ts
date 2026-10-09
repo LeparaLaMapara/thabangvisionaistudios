@@ -176,3 +176,35 @@ export function headerRecord(h: Headers): Record<string, string> {
   });
   return out;
 }
+
+/**
+ * Read a request body without ever holding more than `maxBytes` of it: a
+ * declared Content-Length over the limit is refused before reading, and the
+ * stream is cut off as soon as it passes the limit (a missing or false
+ * Content-Length cannot get a large body into memory). Null = too large.
+ */
+export async function readBodyWithin(request: Request, maxBytes: number): Promise<string | null> {
+  const declared = Number(request.headers.get('content-length') ?? Number.NaN);
+  if (Number.isFinite(declared) && declared > maxBytes) return null;
+  if (!request.body) return '';
+  const reader = request.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    total += value.byteLength;
+    if (total > maxBytes) {
+      await reader.cancel().catch(() => undefined);
+      return null;
+    }
+    chunks.push(value);
+  }
+  const all = new Uint8Array(total);
+  let at = 0;
+  for (const c of chunks) {
+    all.set(c, at);
+    at += c.byteLength;
+  }
+  return new TextDecoder().decode(all);
+}

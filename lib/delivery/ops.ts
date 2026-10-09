@@ -5,7 +5,9 @@ import type { DeliveryState, ShipmentLeg } from '@/lib/core/delivery/state';
 import type { DeliveryLineInput } from '@/lib/core/delivery/use-cases';
 import type { CustomerDeliveryQuote } from '@/lib/core/delivery/quote';
 import { buildNotices, type OutboxMessage } from '@/lib/core/rental/notifications';
+import { CLAIM_STALE_MS } from '@/lib/core/delivery/use-cases';
 import { isMissingPipeline } from '@/lib/rental/repos';
+import { isMissingTable } from './checkout';
 import type { createAdminClient } from '@/lib/supabase/server';
 
 /**
@@ -53,7 +55,13 @@ export interface OpsShipment {
   coverageVerified: boolean;
   createdAt: string;
   updatedAt: string;
-  intent: { state: string; attempts: number; lastError: string | null } | null;
+  intent: { state: string; attempts: number; lastError: string | null; claimedAt?: string | null } | null;
+}
+
+/** A dispatch claim older than the stale-claim limit: the worker died mid-call; a person reconciles it. */
+export function staleClaim(intent: OpsShipment['intent'], now: Date): boolean {
+  if (!intent || intent.state !== 'claimed') return false;
+  return !intent.claimedAt || now.getTime() - new Date(intent.claimedAt).getTime() > CLAIM_STALE_MS;
 }
 
 const s = (v: unknown): string | null => (v === null || v === undefined ? null : String(v));
@@ -102,8 +110,12 @@ export const OPS_QUEUES = [
 ] as const;
 export type OpsQueue = (typeof OPS_QUEUES)[number];
 
-/** Which queues a leg appears in. Pure. A return leg also shows under return pickups. */
-export function queuesFor(sh: Pick<OpsShipment, 'status' | 'leg' | 'acceptedAt' | 'intent'>): OpsQueue[] {
+/**
+ * Which queues a leg appears in. Pure. A return leg also shows under return
+ * pickups. A dispatch whose outcome is unknown, refused, or whose claim went
+ * stale (DELIVERY_OPS.staleClaimMinutes) needs a person: it is in `failed`.
+ */
+export function queuesFor(sh: Pick<OpsShipment, 'status' | 'leg' | 'acceptedAt' | 'intent'>, now: Date = new Date()): OpsQueue[] {
   const out: OpsQueue[] = [];
   switch (sh.status) {
     case 'requested':
@@ -140,26 +152,39 @@ export function queuesFor(sh: Pick<OpsShipment, 'status' | 'leg' | 'acceptedAt' 
     default:
       break;
   }
-  if (sh.intent && (sh.intent.state === 'unknown' || sh.intent.state === 'rejected') && !out.includes('failed') && sh.status !== 'cancelled') out.push('failed');
+  const attention = !!sh.intent && (sh.intent.state === 'unknown' || sh.intent.state === 'rejected' || staleClaim(sh.intent, now));
+  if (attention && !out.includes('failed') && sh.status !== 'cancelled') out.push('failed');
   const done = sh.status === 'cancelled' || sh.status === 'failed' || (sh.status === 'delivered' && !!sh.acceptedAt);
   if (sh.leg === 'return' && !done) out.push('return_pickups');
   return out;
 }
 
-export function bucketShipments(rows: readonly OpsShipment[]): Record<OpsQueue, OpsShipment[]> {
+export function bucketShipments(rows: readonly OpsShipment[], now: Date = new Date()): Record<OpsQueue, OpsShipment[]> {
   const out = Object.fromEntries(OPS_QUEUES.map((q) => [q, [] as OpsShipment[]])) as Record<OpsQueue, OpsShipment[]>;
   const seen = new Set<string>();
   for (const r of rows) {
     if (seen.has(r.id)) continue;
     seen.add(r.id);
-    for (const q of queuesFor(r)) out[q].push(r);
+    for (const q of queuesFor(r, now)) out[q].push(r);
   }
   return out;
+}
+
+/** A return pickup a renter asked for during the hire: staff confirm it after taking the payment by hand (F-3). */
+export interface OpsReturnRequest {
+  quoteId: string;
+  bookingGroupId: string | null;
+  renterId: string;
+  customerFeeCents: number;
+  requestedAt: string | null;
+  windowStart: string | null;
+  status: string;
 }
 
 export interface OpsPayload {
   pipeline: true;
   queues: Record<OpsQueue, OpsShipment[]>;
+  returnRequests: OpsReturnRequest[];
   incidents: Row[];
   providerFailures: { events: Row[]; dispatches: { shipmentId: string; state: string; attempts: number; lastError: string | null; updatedAt: string | null }[] };
   reconciliation: { awaitingInvoice: OpsShipment[]; recent: Row[] };
@@ -167,14 +192,16 @@ export interface OpsPayload {
 
 /** Everything the dashboard lists. Service role; addresses never selected. */
 export async function loadDeliveryOpsQueues(db: Admin, now: Date): Promise<OpsPayload | { pipeline: false; message: string }> {
-  const probe = await db.from('delivery_shipments').select('id', { head: true, count: 'exact' });
-  if (probe.error && isMissingPipeline(probe.error)) return { pipeline: false, message: 'Migration 076 (delivery) is not applied on this database yet.' };
+  // A GET probe: a HEAD on a missing table reads as success in postgrest-js (404, empty body).
+  const probe = await db.from('delivery_shipments').select('id').limit(1);
+  if (isMissingTable(probe)) return { pipeline: false, message: 'Migration 076 (delivery) is not applied on this database yet.' };
+  if (probe.error) throw new Error(`delivery ops queues: ${probe.error.message}`);
 
   const since = new Date(now.getTime() - DELIVERY_OPS.failedLookbackDays * 86_400_000).toISOString();
-  const [open, failed, intents, events, incidents, awaiting, recon] = await Promise.all([
+  const [open, failed, intents, events, incidents, awaiting, recon, requests] = await Promise.all([
     db.from('delivery_shipments').select(OPS_SHIPMENT_COLUMNS).not('status', 'in', '(cancelled,failed)').order('created_at').limit(500),
     db.from('delivery_shipments').select(OPS_SHIPMENT_COLUMNS).eq('status', 'failed').gte('updated_at', since).order('updated_at', { ascending: false }).limit(100),
-    db.from('delivery_dispatch_intents').select('shipment_id, state, attempts, last_error, updated_at').in('state', ['unknown', 'rejected', 'claimed', 'pending']).limit(500),
+    db.from('delivery_dispatch_intents').select('shipment_id, state, attempts, last_error, claimed_at, updated_at').in('state', ['unknown', 'rejected', 'claimed', 'pending']).limit(500),
     db
       .from('delivery_provider_events')
       .select('id, provider, event_type, merchant_reference, provider_reference, processing_status, retry_count, last_error, received_at, outcome')
@@ -190,22 +217,49 @@ export async function loadDeliveryOpsQueues(db: Admin, now: Date): Promise<OpsPa
       .limit(200),
     db.from('delivery_shipments').select(OPS_SHIPMENT_COLUMNS).eq('provider_kind', 'courier').is('provider_cost_cents', null).in('status', ['delivered', 'cancelled']).gt('accrued_cost_cents', 0).order('updated_at').limit(100),
     db.from('delivery_reconciliation').select('id, shipment_id, provider, provider_invoice_ref, quoted_cents, accrued_cents, invoiced_cents, difference_cents, status, checked_at, checked_by').order('checked_at', { ascending: false }).limit(50),
+    db
+      .from('delivery_quotes')
+      .select('id, renter_id, booking_ids, customer_fee_cents, requested_at, window_start, status')
+      .not('requested_at', 'is', null)
+      .is('booking_group_id', null)
+      .in('status', ['active', 'expired'])
+      .order('requested_at')
+      .limit(100),
   ]);
-  for (const r of [open, failed, intents, events, incidents, awaiting, recon]) if (r.error) throw new Error(`delivery ops queues: ${r.error.message}`);
+  for (const r of [open, failed, intents, events, incidents, awaiting, recon, requests]) if (r.error) throw new Error(`delivery ops queues: ${r.error.message}`);
+  // The order each request belongs to (advisory quotes carry their lines, not the order link).
+  const reqRows = (requests.data ?? []) as Row[];
+  const firstLines = [...new Set(reqRows.map((q) => ((q.booking_ids as string[] | null) ?? [])[0]).filter((x): x is string => !!x))];
+  const groupOf = new Map<string, string>();
+  if (firstLines.length > 0) {
+    const g = await db.from('equipment_bookings').select('id, checkout_group_id').in('id', firstLines);
+    if (g.error) throw new Error(`delivery ops queues: ${g.error.message}`);
+    for (const r of (g.data ?? []) as Row[]) if (r.checkout_group_id) groupOf.set(String(r.id), String(r.checkout_group_id));
+  }
+  const returnRequests: OpsReturnRequest[] = reqRows.map((q) => ({
+    quoteId: String(q.id),
+    bookingGroupId: groupOf.get(((q.booking_ids as string[] | null) ?? [])[0] ?? '') ?? null,
+    renterId: String(q.renter_id),
+    customerFeeCents: Number(q.customer_fee_cents ?? 0),
+    requestedAt: s(q.requested_at),
+    windowStart: s(q.window_start),
+    status: String(q.status),
+  }));
 
   const byShipment = new Map<string, OpsShipment['intent']>();
-  for (const i of (intents.data ?? []) as Row[]) byShipment.set(String(i.shipment_id), { state: String(i.state), attempts: Number(i.attempts ?? 0), lastError: s(i.last_error) });
+  for (const i of (intents.data ?? []) as Row[]) byShipment.set(String(i.shipment_id), { state: String(i.state), attempts: Number(i.attempts ?? 0), lastError: s(i.last_error), claimedAt: s(i.claimed_at) });
   const ships = [...((open.data ?? []) as Row[]), ...((failed.data ?? []) as Row[])].map((r) => toOpsShipment(r, byShipment.get(String(r.id)) ?? null));
 
   return {
     pipeline: true,
-    queues: bucketShipments(ships),
+    queues: bucketShipments(ships, now),
+    returnRequests,
     incidents: (incidents.data ?? []) as Row[],
     providerFailures: {
       events: (events.data ?? []) as Row[],
       dispatches: ((intents.data ?? []) as Row[])
-        .filter((i) => i.state === 'unknown' || i.state === 'rejected')
-        .map((i) => ({ shipmentId: String(i.shipment_id), state: String(i.state), attempts: Number(i.attempts ?? 0), lastError: s(i.last_error), updatedAt: s(i.updated_at) })),
+        .filter((i) => i.state === 'unknown' || i.state === 'rejected' || staleClaim({ state: String(i.state), attempts: 0, lastError: null, claimedAt: s(i.claimed_at) }, now))
+        .map((i) => ({ shipmentId: String(i.shipment_id), state: i.state === 'claimed' ? 'stale_claim' : String(i.state), attempts: Number(i.attempts ?? 0), lastError: s(i.last_error), updatedAt: s(i.updated_at) })),
     },
     reconciliation: { awaitingInvoice: ((awaiting.data ?? []) as Row[]).map((r) => toOpsShipment(r)), recent: (recon.data ?? []) as Row[] },
   };
@@ -281,8 +335,9 @@ export function isOwnStorageUrl(url: unknown, env: Env = process.env): url is st
   }
   if (u.protocol !== 'https:' || u.username || u.password) return false;
   if (u.hostname === 'res.cloudinary.com') {
+    // Only OUR cloud. Not configured: we cannot tell ours from anyone's, so refuse (fail closed).
     const cloud = env.CLOUDINARY_CLOUD_NAME ?? env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME;
-    return !cloud || u.pathname.startsWith(`/${cloud}/`);
+    return !!cloud && u.pathname.startsWith(`/${cloud}/`);
   }
   const supa = env.NEXT_PUBLIC_SUPABASE_URL;
   if (supa) {

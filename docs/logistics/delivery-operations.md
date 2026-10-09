@@ -31,7 +31,7 @@ inbox (`receiveDeliveryWebhook` in `lib/delivery/inbox.ts`).
 |---|---|---|
 | unknown provider id | 404 | no |
 | provider known, secret not configured | 503 | no |
-| body over `DELIVERY_OPS.webhookMaxBodyBytes` | 413 | no |
+| body over `DELIVERY_OPS.webhookMaxBodyBytes` (declared Content-Length checked before reading; the stream is cut off at the limit) | 413 | no |
 | signature fails (or `verify` throws) | 401 | **no (D11)** |
 | verified, not an event we use | 200 | no |
 | verified, stored | 200 | yes, once (unique dedupe key, D12) |
@@ -83,14 +83,19 @@ reference + state + provider timestamp.
 
 Each step is isolated (one failing never stops the others), bounded
 (`DELIVERY_OPS.inboxBatchSize`, `jobBatchSize`) and idempotent. They run
-after the payment inbox and before the outbox, so the notices they queue go
-out in the same pass.
+AFTER the money steps (payment inbox, missed payments, holds, refunds,
+payouts, overdue, reminders) and before the outbox, so a slow courier API can
+never starve payments of the cron's time, and the notices they queue go out in
+the same pass. Together they get `DELIVERY_OPS.pipelineStepsBudgetMs`: once it
+is spent, the remaining delivery work is deferred to the next pass (or "Run
+delivery jobs now").
 
 | Step | What it does | Never does |
 |---|---|---|
 | `delivery_inbox` | `drainDeliveryInbox`: retries stored provider events that are due | apply an event twice |
 | `delivery_reconcile` | dispatch intents left `unknown` (or a claim older than `staleClaimMinutes`): looks the job up at the provider by OUR merchant reference; found → recorded through `commitDelivery`; not found → staff alert | create a courier job on its own; book a second courier (D10) |
 | `delivery_poll` | courier legs on the move with a provider reference: reads the job and applies it through `recordProviderEvent` with the webhook's dedupe key | move a leg backwards (D13); poll our own fleet |
+| `delivery_acceptance` | delivered outbound legs not yet accepted: reminds the renter once (`delivery_delivered`, `deemedAcceptanceReminderLeadHours` before the deadline), then records `deemed_accepted` after `deemedAcceptanceHours` (D-48) | deem without an earlier reminder, over an exception or an open incident, or on a return leg |
 | `delivery_return_reminders` | `delivery_return_reminder` once per return leg whose pickup window starts within `returnReminderLeadHours` | remind twice (dedupe key per shipment) |
 
 Code: `lib/delivery/jobs.ts`. A dispatch the job could not find at the
@@ -106,10 +111,13 @@ Every endpoint requires an admin session (`requireAdmin`); POST is rate
 limited (`rateLimitAdmin(…, 'sensitive')`).
 
 Queues: awaiting dispatch, scheduled pickups, couriers assigned, in transit,
-delivered (waiting for the renter to accept), return pickups, failed jobs,
-missing/damaged, unresolved incidents, provider failures (dead-lettered
-webhooks, unknown or refused dispatches) and cost reconciliation (courier
-legs with no invoice yet, recent reconciliations).
+delivered (waiting for the renter to accept), return pickups, failed jobs
+(including a dispatch whose claim went stale: older than
+`DELIVERY_OPS.staleClaimMinutes`, the same constant the core uses),
+missing/damaged, paid by hand (orders paid by EFT/cash, and return pickups
+renters requested during the hire), unresolved incidents, provider failures
+(dead-lettered webhooks, unknown, refused or stale dispatches) and cost
+reconciliation (courier legs with no invoice yet, recent reconciliations).
 
 Actions, each through the use case as `{ kind: 'staff', userId }`:
 
@@ -117,15 +125,17 @@ Actions, each through the use case as `{ kind: 'staff', userId }`:
 |---|---|---|
 | `dispatch` | `commitDelivery` | approve and dispatch a prepared leg, or reconcile an unknown one |
 | `advance_manual` | `advanceManualDelivery` | own fleet only: driver assigned, at pickup, on the way, at drop-off, attempt failed |
-| `record_collection` | `confirmCollection` | photos must be https links to our storage; serial, accessories, condition |
+| `record_collection` | `confirmCollection` | photos must be https links to our storage (a Cloudinary link only for OUR configured cloud; with none configured, refused); serial, accessories, condition |
 | `record_handover` | `confirmHandover` | `delivered` (our driver), `exception` (opens an incident), `received`; never `accepted` (only the renter, D15) |
 | `record_inspection` | `recordReturnInspection` | condition required |
 | `report_incident` | `reportIncident` | nobody is accused; a lost/damaged/stolen report puts the leg under review |
 | `resolve_incident` | `resolveIncident` | liability is chosen by the person (or `undetermined`); moves no money |
-| `cancel` | `cancelDelivery` | unstarted legs only; refund and any provider fee passed on are worked out by the core |
+| `cancel` | `cancelDelivery` | unstarted legs only; refund and any provider fee passed on are worked out by the core; the quote becomes `refunded` |
+| `close_review` | `closeDeliveryReview` | a leg under review, lost, damaged or returning to the sender is closed to a final state with a reason (core transition rules, staff only); optional fee refund on a leg that failed |
+| `dispatch_manual_paid` | `dispatchAfterManualPayment` | an order paid by hand (its manual reference and the delivery total recorded at checkout), or a requested return pickup (method, reference, amount received); marks the quotes paid, then prepares and dispatches as staff. Never unpaid (D-50) |
 | `reschedule` | (own fleet only) | logged as a staff event on the leg; the window is saved on the leg and the driver task. Couriers: cancel and quote again (no adapter supports rescheduling) |
 | `reconcile_invoice` | `reconcileDelivery` | amount in integer cents |
-| `quote_leg` | `quoteDelivery` | quote a leg for the renter (e.g. a return pickup by phone); the renter gets `delivery_quote_ready` and pays through checkout |
+| `quote_leg` | `quoteDelivery` | quote a leg for the renter (e.g. a return pickup by phone); advisory (stored without the order link, so it never joins the order's checkout payment); the renter gets `delivery_quote_ready`; staff confirm it with `dispatch_manual_paid` once paid |
 | `requeue_event`, `run_jobs` | `drainDeliveryInbox`, the daily jobs | re-drive the inbox and reconciliation now |
 | `reveal_address` | — | one side of one shipment, for dispatch |
 
@@ -174,7 +184,7 @@ assistant agents (`getToolsForAgent`), described in their prompts:
 | Tool | Use case | Kind |
 |---|---|---|
 | `check_delivery_eligibility` | `checkDeliveryEligibility` | read-only |
-| `get_delivery_quote` | `quoteDelivery` | read-only (stores an expiring quote; charges nothing) |
+| `get_delivery_quote` | `quoteDelivery` | read-only (stores an expiring ADVISORY quote without the order link; charges nothing; rate limited by `DELIVERY_OPS.ubunyeQuoteRateLimit`) |
 | `get_delivery_status` | `getDeliveryStatus` | read-only; owners see only their items, no tracking link (D22) |
 | `get_return_pickup_options` | `quoteDelivery` (return leg) | read-only |
 | `report_delivery_issue` | `reportIncident` | state-changing, no money; rate limited; text sanitised |
@@ -183,6 +193,10 @@ The renter acts as `{ kind: 'agent', userId, approval: null }`; an owner as
 `{ kind: 'owner' }`; anyone else gets "not found". Quotes exist only for
 legs whose addresses are already on the order (a new outbound attempt, or
 the return the way the gear came); a first delivery is chosen at checkout.
+The answer says how to go on: a return pickup is requested on the booking
+page and our team arranges payment; a new outbound delivery is arranged by
+our team (there is no online payment for either on the booking page).
+Prices are formatted with the studio currency format.
 Answers carry a note forbidding invented prices, courier names, ETAs or
 locations and any claim of insurance.
 
@@ -212,7 +226,10 @@ Never purged while: any shipment using the address is open (anything but
 cancelled, failed, or delivered AND accepted/received — so lost, damaged,
 under review and delivered-but-unaccepted all keep it), the shipment has an
 open incident, a quote using it is still live, or a paid quote has not been
-dispatched. A kept address gets `retain_until` (tomorrow for open legs, end
+dispatched. A deemed acceptance (D-48) counts as accepted. The job decides,
+then the redaction itself (`delivery_redact_address`) re-checks all of this
+in the same UPDATE, so a leg made between the decision and the write keeps
+the address. A kept address gets `retain_until` (tomorrow for open legs, end
 of retention otherwise), so each run makes progress through a bounded batch.
 A purged address cannot be used for a new quote (`getPoint` refuses redacted
 addresses). Copies a courier holds are governed by the provider's terms.

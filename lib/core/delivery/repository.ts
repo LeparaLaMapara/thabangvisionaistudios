@@ -144,6 +144,22 @@ export interface ShipmentTransition {
 
 export type TransitionResult = 'applied' | 'conflict' | 'duplicate';
 
+/**
+ * A paid quote whose leg was never made (after-payment prepare refused it, or
+ * the order was cancelled first): the fee is owed back. Applied atomically:
+ * compare-and-set the quote from `paid` to `refunded` (only while no live
+ * shipment uses it), the journal, the refund obligation (capped at what is
+ * left of the charge) and the notices. A manual (hand-taken) payment gets no
+ * provider refund obligation; a person refunds it (staff alert in `notices`).
+ */
+export interface UnusedQuoteRefund {
+  quoteId: string;
+  bookingGroupId: string;
+  journals: Journal[];
+  notices: OutboxMessage[];
+  refund: { key: string; amountCents: number; paidReference: string; userId: string; bookingIds: string[] } | null;
+}
+
 export interface NewShipment extends Omit<Shipment, 'id' | 'createdAt' | 'status' | 'providerReference' | 'trackingReference' | 'trackingUrl' | 'courierName' | 'scheduledAt' | 'collectedAt' | 'deliveredAt' | 'acceptedAt' | 'lastProviderStateAt' | 'providerCostCents' | 'accruedCostCents'> {
   status: 'prepared';
 }
@@ -202,6 +218,8 @@ export interface DeliveryRepository {
   saveReconciliation(r: ReconciliationRecord, journals: Journal[], notices: OutboxMessage[], patch: ShipmentPatch): Promise<'inserted' | 'duplicate'>;
   /** Post journals and notices on their own (idempotent by key). */
   post(journals: Journal[], notices: OutboxMessage[]): Promise<void>;
+  /** See UnusedQuoteRefund. 'conflict' when the quote is not paid any more, or a live shipment uses it. */
+  refundUnusedQuote(r: UnusedQuoteRefund): Promise<'applied' | 'conflict'>;
 }
 
 /** What delivery needs to know about the hire. Read-only. */
@@ -228,6 +246,13 @@ export interface DeliveryBookingView {
   /** The order's payment was verified server-side (intent paid). */
   paymentVerified: boolean;
   paymentReference: string | null;
+  /**
+   * Set when every live line of the order was confirmed through the
+   * manual-payment path (confirm_manual_payment: a person recorded an EFT,
+   * cash or card-link payment). Staff, and only staff, may then dispatch the
+   * legs whose fee they marked paid (F-2, D-50). Never set by the browser.
+   */
+  manualPaymentReference?: string | null;
 }
 
 export interface DeliveryBookingPort {

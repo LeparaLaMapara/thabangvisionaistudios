@@ -90,7 +90,21 @@ below).
 Before migration 076 is applied the same screens work in "legacy" mode: the
 quote endpoint returns an own-vehicle price for the verified point without a
 stored quote, and the checkout verifies the typed address again and applies
-the same formula. No browser coordinates in either mode.
+the same formula. No browser coordinates in either mode. Whether 076 is
+applied is probed with a GET (`tableExists`): PostgREST answers a HEAD on a
+missing table with 404 and an empty body, which postgrest-js reports as
+success, so a HEAD probe would have sent every delivery checkout into the
+Phase 4 path and failed it (review finding 5).
+
+A stored quote records the lines it was priced for (listing, units, hire
+days). It is stale, and re-quoted at checkout, when the cart's items, units
+or dates differ; the window moves with the new leg day (the same slot).
+`prepareDelivery` refuses a quote whose snapshot no longer matches the
+booking (`dates_mismatch`). The own-vehicle price counts units (a line of 3
+tripods is 3 items), as the cart and the legacy route do.
+
+An unpaid order that is released (payment page failed, limit re-check) has its
+quotes unlinked so they never stay tied to an order that no longer exists.
 
 ## After payment (§4.8)
 
@@ -107,14 +121,25 @@ manual mark-paid route.
    commit creates the staff task (`delivery_manual_tasks`).
 4. Replays are harmless: paid quotes stay paid, prepare returns the live leg,
    commit says `already_dispatched`. A replayed webhook therefore also
-   finishes a dispatch an earlier run could not.
-5. It never throws and never changes the payment outcome. Failures become
+   finishes a dispatch an earlier run could not. A quote that was refunded (its
+   leg cancelled or refused) is skipped: it is never dispatched again.
+5. A paid leg that cannot be prepared for a lasting reason (no longer
+   eligible, the booking changed, the provider is gone) has its fee refunded
+   at once: `refundUnusedDeliveryQuote` moves the quote to `refunded` with the
+   journal and a refund obligation capped at what is left of the charge
+   (D-52, replaces F-6).
+6. It never throws and never changes the payment outcome. Failures become
    staff alerts (`delivery_*` in the ops queue): payment not verified,
    prepare refused (for example the renter is now on hold), commit refused.
 
 A payment recorded by hand (EFT/cash, mark-paid) is not provider-verified, so
 nothing is dispatched automatically; staff get
-`delivery_needs_staff_dispatch_payment_not_verified` (F-2).
+`delivery_needs_staff_dispatch_payment_not_verified` and dispatch it from the
+console ("Paid by hand": `dispatch_manual_paid`, D-50). The core checks the
+order was confirmed through the manual-payment path, the quotes are this
+renter's and on this order, and the delivery total recorded at checkout equals
+them; it marks them paid with the order's manual reference and prepares and
+dispatches as staff. Never unpaid.
 
 ## Customer views
 
@@ -124,20 +149,37 @@ state in plain words, the window, the fee paid, the driver or courier name
 a tracking link only when the provider gave an https link. No addresses.
 The booking page shows this in a Delivery panel.
 
+`POST /api/delivery/accept` (renter only, signed in): per delivered item,
+`accepted`, or `exception` with a kind (damaged, missing) and what is wrong.
+The core accepts only the booking's own renter (D15); an exception opens an
+incident and puts the leg under review. Idempotent. The booking page's
+Delivery panel shows "Received" / "Report a problem" for each item our driver
+or the courier recorded as delivered, and says that without an answer it
+counts as received after `DELIVERY_POLICY.deemedAcceptanceHours` (D-48).
+
 `POST /api/delivery/return-pickup` (during the hire): offered only when the
 gear went out by delivery (D-44: collected in person, returned in person) and
 no return leg exists. `quote` gives a stored quote from the same verified
-address; `approve` needs the exact stored price (D08) and re-quotes an expired
-one (D07). A free pickup is booked at once (`scheduleReturnPickup`). A paid
-pickup added during the hire has no online payment yet, so the approved
-request goes to staff (`delivery_return_pickup_requested`), who confirm it and
-take the fee before anything is dispatched (F-3). A return pickup bought at
-checkout is booked after payment like the outbound leg.
+address (advisory: stored without the order link, so it never joins the
+order's checkout payment); `approve` needs the exact stored price (D08) and
+re-quotes an expired one (D07). A free pickup is booked at once
+(`scheduleReturnPickup`). A paid pickup added during the hire has no online
+payment yet: the request is recorded ONCE on its quote (`requested_at`),
+staff are alerted once (`delivery_return_pickup_requested`), and the booking
+shows "Return pickup requested. Our team will contact you to arrange
+payment" and stops offering a new pickup while it is pending. Staff confirm
+it after taking the payment by hand ("Paid by hand" in the console:
+reference, amount; D-50, F-3). A return pickup bought at checkout is booked
+after payment like the outbound leg.
 
 ## Cancellation (D-39)
 
 When the renter cancels the last line of an order with delivery
-(`PUT /api/bookings/[id]`):
+(`PUT /api/bookings/[id]`), or staff cancel it
+(`PATCH /api/admin/equipment-bookings/[id]`, same rules: the delivery fee is
+never part of what the line releases or what staff can refund, live legs are
+cancelled through the core as a platform cancellation, a leg on its way is
+refused with `DELIVERY_UNDER_WAY` until it is closed in the console):
 
 - the hire and deposit refund no longer include the legacy `delivery_fee`;
 - each live leg is cancelled with `cancelDelivery` as the renter: the fee is
@@ -145,6 +187,10 @@ When the renter cancels the last line of an order with delivery
   courier's cancellation fee is passed on at cost, capped at the fee paid. Our
   own vehicle charges no cancellation fee. The refund obligation is submitted
   at once (the daily pipeline retries it);
+- a paid quote no leg was made from is refunded too
+  (`refundUnusedDeliveryQuote`), once;
+- the paid quote is then `refunded` (or `consumed` when a pass-on fee was
+  kept), so a later payment replay never dispatches it;
 - if a leg is already past the cancellable states (the gear is on its way),
   the booking cannot be cancelled online (`409 DELIVERY_UNDER_WAY`), and
   nothing changes;
@@ -167,8 +213,12 @@ The booking page's confirmation shows the delivery refund.
     delivery incident is open or a return delivery has not been received and
     inspected (`409 DELIVERY_SETTLEMENT_HELD`, D17, D29). A courier's
     collection never releases a deposit;
-  - a provider-caused or unattributed delay on the return stops the
-    automatic late fee (`lateFeeAfterDelivery`, D19); staff can still decide;
+  - a delay on the return that staff (or the provider) attributed to the
+    provider stops the automatic late fee (`lateFeeAfterDelivery`, D19); an
+    unattributed one holds settlement while open and never waives the fee
+    by itself (D-51);
+  - the late fee runs to when a return pickup took the gear, not to when it
+    reached us (`returnCollectedAt`, D-49);
   - the gear dispute settlement is held the same way;
   - owner payout eligibility (`evaluatePayout`) adds `delivery_<reason>` hold
     reasons (`checkPayoutEligibility.deliveryHoldReasons`).
@@ -179,17 +229,17 @@ The booking page's confirmation shows the delivery refund.
 - **F-1** Courier delivery stays off (D-37, D-41). The cart and booking pages
   say "our own vehicle"; courier options appear only when the flag, threshold
   and verified cover allow.
-- **F-2** Orders paid by hand: delivery is not dispatched automatically
-  (the core accepts only provider-verified payments). Either staff dispatch
-  these by hand, or the core is extended to accept a staff-recorded payment.
+- **F-2** Orders paid by hand: delivery is not dispatched automatically.
+  Staff dispatch them from the console after the payment is recorded (D-50).
 - **F-3** Online payment for a return pickup added during the hire (today a
-  staff-confirmed request).
+  request recorded once, confirmed by staff after a payment taken by hand,
+  D-50).
 - **F-4** Delivery windows (`DELIVERY_CHECKOUT.windows`): 08:00 to 12:00 and
   12:00 to 17:00 SAST, delivery on the first hire day, pickup on the last.
 - **F-5** The profile page's as-you-type address lookup against public
   Nominatim (usage policy).
-- **F-6** A paid delivery that fails final eligibility after payment is
-  alerted to staff; refunding that fee is a manual step today.
+- **F-6** A paid delivery that fails final eligibility after payment: its fee
+  is refunded at once (D-52; was a manual step).
 - **F-7** Address retention (D-46): rows are written without `retain_until`;
   the purge job is R-41.
 
@@ -203,4 +253,11 @@ unverified payment, mismatch, final eligibility, never throws, inbox hook),
 settlement (R-39 no double earn in take-back and dispute, R-40 holds,
 late fee, payout), cancellation (D-39 full refund, pass-on, cap, too late),
 customer views and return pickup. The money tests were mutation-checked.
-`tests/e2e/delivery-checkout.spec.ts` covers what runs without a database.
+Review fixes: `tests/unit/delivery-review-*.test.ts` (replayed payment after
+a cancellation, staff cancellation, renter acceptance and deemed acceptance,
+attribution and late fees, the missing-table probe against real PostgREST
+answer shapes, unused paid quotes, stale quotes, units, incident scope,
+closing reviews, hand-paid dispatch, return-pickup requests, overdue ladder,
+pipeline order, purge, advisory quotes, webhook body limit); the HIGH ones were
+mutation-checked. `tests/e2e/delivery-checkout.spec.ts` covers what runs
+without a database (no always-skipped placeholders).

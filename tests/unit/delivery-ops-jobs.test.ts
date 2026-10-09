@@ -45,6 +45,12 @@ function queries(w: World): DeliveryJobQueries {
         .filter((s) => s.leg === 'return' && ['scheduled', 'courier_assigned'].includes(s.status) && !!s.window.start && s.window.start >= from && s.window.start <= to)
         .slice(0, limit);
     },
+    async listAwaitingAcceptance(deliveredBefore, limit) {
+      return [...w.repo.shipments.values()]
+        .filter((s) => s.leg === 'outbound' && s.status === 'delivered' && !s.acceptedAt && !!s.deliveredAt && s.deliveredAt < deliveredBefore)
+        .slice(0, limit)
+        .map((s) => ({ shipmentId: s.id }));
+    },
   };
 }
 

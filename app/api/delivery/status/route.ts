@@ -6,6 +6,7 @@ import { checkRateLimit } from '@/lib/auth';
 import { getDeliveryStatus } from '@/lib/core/delivery/use-cases';
 import { deliveryDeps } from '@/lib/delivery/server';
 import { customerLegs, returnPickupOption } from '@/lib/delivery/customer-view';
+import { SupabaseQuoteLinks } from '@/lib/delivery/checkout';
 
 /**
  * Delivery status for one of the signed-in renter's bookings (spec §4.17):
@@ -37,11 +38,17 @@ export async function GET(request: NextRequest) {
     const status = await getDeliveryStatus({ caller: { kind: 'renter', userId: user.id }, bookingGroupId: groupId }, deps);
     if (!status.ok) return NextResponse.json({ error: 'Booking not found' }, { status: status.code === 'not_allowed' ? 403 : 404 });
     const [shipments, group] = await Promise.all([deps.repo.listShipments(groupId), deps.bookings.getGroup(groupId)]);
-    const option = returnPickupOption(shipments, (group?.lines ?? []).map((l) => l.status));
+    const pending = group ? await new SupabaseQuoteLinks().pendingReturnRequest(user.id, group.lines.map((l) => l.bookingId)) : null;
+    const option = returnPickupOption(shipments, (group?.lines ?? []).map((l) => l.status), pending);
+    // Item names for the confirm buttons (the renter's own booking lines, read with their session).
+    const rentalIds = [...new Set(status.legs.flatMap((l) => l.items.map((i) => i.rentalId)))];
+    const { data: rentals } = rentalIds.length ? await supabase.from('smart_rentals').select('id, title').in('id', rentalIds) : { data: [] };
+    const titles = new Map(((rentals ?? []) as { id: string; title: string | null }[]).map((r) => [r.id, r.title ?? '']));
     return NextResponse.json({
-      legs: customerLegs(status.legs, shipments),
+      legs: customerLegs(status.legs, shipments, titles),
       open_incidents: status.openIncidents,
       return_pickup: status.legs.length === 0 ? null : option,
+      return_pickup_requested: pending ? { fee_cents: pending.customerFeeCents } : null,
     });
   } catch (err) {
     console.error('[delivery/status] failed:', err instanceof Error ? err.message : 'unknown error');

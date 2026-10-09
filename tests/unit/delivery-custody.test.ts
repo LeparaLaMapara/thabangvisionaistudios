@@ -5,7 +5,7 @@
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_DELIVERY_POLICY } from '@/lib/core/delivery/policy';
 import { chainsByItem, outboundReceipt } from '@/lib/core/delivery/custody';
-import { lateFeeAutoChargeAllowed, newIncident } from '@/lib/core/delivery/incidents';
+import { lateFeeAutoChargeAllowed, newIncident, settlementBlockedByIncidents } from '@/lib/core/delivery/incidents';
 import {
   checkRentalSettlement,
   commitDelivery,
@@ -231,9 +231,13 @@ describe('incidents', () => {
     await resolveIncident({ caller: staff, incidentId: (r as { incidentId: string }).incidentId, resolution: 'rebooked next day', providerCaused: true, liability: 'provider' }, w.deps);
     check = await checkRentalSettlement({ bookingGroupId: GROUP, bookingId: 'bk-1' }, w.deps);
     expect(check.lateFeeAutoCharge).toBe(false);
-    // A failed attempt is unattributed until a person decides: also no automatic fee.
+    // A failed attempt is unattributed until a person decides. Review fix (item 4): an
+    // unattributed incident does not silently waive the fee; while open it HOLDS settlement
+    // for a person (settlementBlockedByIncidents), and only an attribution waives the fee.
     const failed = newIncident({ id: 'i', shipmentId: ret.id, bookingGroupId: GROUP, bookingIds: [], leg: 'return', kind: 'failed_attempt', reportedBy: { kind: 'provider', id: null }, description: 'x', providerCaused: null, now: new Date() });
-    expect(lateFeeAutoChargeAllowed([failed])).toEqual({ allowed: false, reason: 'delay_not_yet_attributed' });
+    expect(lateFeeAutoChargeAllowed([failed])).toEqual({ allowed: true, reason: null });
+    expect(settlementBlockedByIncidents([failed]).blocked).toBe(true);
+    expect(lateFeeAutoChargeAllowed([{ ...failed, providerCaused: true }])).toEqual({ allowed: false, reason: 'provider_caused_delay' });
     expect(lateFeeAutoChargeAllowed([{ ...failed, providerCaused: false }])).toEqual({ allowed: true, reason: null });
     // A delay on the OUTBOUND leg says nothing about the return.
     expect(lateFeeAutoChargeAllowed([{ ...failed, leg: 'outbound' }]).allowed).toBe(true);

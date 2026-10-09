@@ -166,12 +166,21 @@ describe('deliveryCancellationPlan', () => {
         const b: Record<string, unknown> = {};
         for (const m of ['select', 'eq', 'in', 'limit']) b[m] = () => b;
         b.then = (resolve: (v: unknown) => unknown) =>
-          Promise.resolve({ data: table === 'equipment_bookings' ? [{ id: 'bk-1', status: 'confirmed' }, { id: 'bk-2', status: 'cancelled' }] : [{ id: shipmentId }], error: null }).then(resolve);
+          Promise.resolve({
+            data:
+              table === 'equipment_bookings'
+                ? [{ id: 'bk-1', status: 'confirmed' }, { id: 'bk-2', status: 'cancelled' }]
+                : table === 'delivery_quotes'
+                  ? [{ id: quote.id, customer_fee_cents: quote.customerFeeCents }]
+                  : [{ id: shipmentId }],
+            error: null,
+          }).then(resolve);
         return b;
       },
     };
     const plan = await deliveryCancellationPlan(fake as never, { bookingGroupId: GROUP, bookingId: 'bk-1' }, w.repo);
-    expect(plan).toEqual({ phase4: true, lastLine: true, shipmentIds: [shipmentId], tooLate: false, feeCents: quote.customerFeeCents, courierBooked: false });
+    // The paid quote was used by the live leg: nothing unused to refund separately.
+    expect(plan).toEqual({ phase4: true, lastLine: true, shipmentIds: [shipmentId], tooLate: false, feeCents: quote.customerFeeCents, courierBooked: false, unusedPaidQuoteIds: [] });
     const notLast = await deliveryCancellationPlan(fake as never, { bookingGroupId: GROUP, bookingId: 'bk-2' }, w.repo);
     expect(notLast).toMatchObject({ phase4: true, lastLine: false, shipmentIds: [] });
   });

@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useId, useState } from 'react';
 import { Truck } from 'lucide-react';
 import { Card } from '@/components/ui/Card';
-import { DELIVERY_CHECKOUT } from '@/lib/constants';
+import { DELIVERY_CHECKOUT, DELIVERY_POLICY, STUDIO } from '@/lib/constants';
 import { formatRand } from '@/lib/format/money';
 
 /**
@@ -11,9 +11,24 @@ import { formatRand } from '@/lib/format/money';
  * window, and a tracking link only when the provider gave one. Nothing is
  * invented: no courier name, ETA or location unless one was recorded. During
  * the hire the renter can see, or ask for, the return pickup.
+ *
+ * Once an item is delivered, the renter confirms it here: "Received" or
+ * "Report a problem" (POST /api/delivery/accept). Only the renter can do this
+ * (D15); without an answer the item is deemed received after
+ * DELIVERY_POLICY.deemedAcceptanceHours (D-48).
  */
 
+interface LegItem {
+  booking_id: string;
+  rental_id: string;
+  title: string | null;
+  receipt: string;
+  can_confirm: boolean;
+}
+
 interface Leg {
+  shipment_id: string;
+  item_details?: LegItem[];
   leg: 'outbound' | 'return';
   status: string;
   status_label: string;
@@ -31,7 +46,16 @@ interface StatusResponse {
   legs: Leg[];
   open_incidents: number;
   return_pickup: { allowed: true } | { allowed: false; reason: string; message: string } | null;
+  return_pickup_requested?: { fee_cents: number } | null;
 }
+
+const RECEIPT_LABEL: Record<string, string> = {
+  not_sent: 'Not sent yet',
+  with_courier: 'On its way',
+  awaiting_renter: 'Delivered: please confirm',
+  accepted: 'Received',
+  exception: 'Problem reported',
+};
 
 interface PickupQuote {
   id: string;
@@ -43,7 +67,7 @@ interface PickupQuote {
 
 const rand = (c: number): string => formatRand(c / 100, { decimals: c % 100 !== 0 });
 const day = (iso: string | null): string | null =>
-  iso ? new Date(iso).toLocaleDateString('en-ZA', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'Africa/Johannesburg' }) : null;
+  iso ? new Date(iso).toLocaleDateString(STUDIO.currency.locale, { weekday: 'short', day: 'numeric', month: 'short', timeZone: DELIVERY_CHECKOUT.timeZone }) : null;
 
 export function DeliveryPanel({ bookingId }: { bookingId: string }) {
   const id = useId();
@@ -53,6 +77,10 @@ export function DeliveryPanel({ bookingId }: { bookingId: string }) {
   const [quote, setQuote] = useState<PickupQuote | null>(null);
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<string | null>(null);
+  // The item whose "Report a problem" form is open, and what the renter typed.
+  const [problemFor, setProblemFor] = useState<string | null>(null);
+  const [problemKind, setProblemKind] = useState<'damaged' | 'lost'>('damaged');
+  const [problemText, setProblemText] = useState('');
 
   const load = useCallback(() => {
     fetch(`/api/delivery/status?booking_id=${encodeURIComponent(bookingId)}`)
@@ -83,6 +111,33 @@ export function DeliveryPanel({ bookingId }: { bookingId: string }) {
     }
   };
 
+  const confirmItem = async (item: LegItem, outcome: 'accepted' | 'exception') => {
+    setBusy(true);
+    setNote(null);
+    try {
+      const res = await fetch('/api/delivery/accept', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          booking_id: bookingId,
+          items: [{ booking_id: item.booking_id, rental_id: item.rental_id, outcome, ...(outcome === 'exception' ? { kind: problemKind, detail: problemText } : {}) }],
+        }),
+      });
+      const body = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string; results?: { ok: boolean; message?: string }[] };
+      const first = body.results?.[0];
+      if (res.ok && first?.ok) {
+        setProblemFor(null);
+        setProblemText('');
+        setNote(outcome === 'accepted' ? 'Thank you. We have recorded that it arrived.' : 'Thank you. We have recorded the problem and will contact you. Nothing is charged while we check.');
+        load();
+      } else {
+        setNote(String(first?.message ?? body.error ?? 'We could not record that just now.'));
+      }
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const getPrice = async () => {
     const { res, body } = await post({ action: 'quote', window: windowId });
     if (res.ok && body.ok && body.quote) setQuote(body.quote as PickupQuote);
@@ -105,7 +160,8 @@ export function DeliveryPanel({ bookingId }: { bookingId: string }) {
     }
     if (body.requested) {
       setQuote(null);
-      setNote(`We have your request for a pickup at ${rand(quote.customer_fee_cents)}. We will confirm it, and how to pay, before your return day. Until then, plan to bring the gear back.`);
+      setNote(String(body.message ?? `Return pickup requested at ${rand(quote.customer_fee_cents)}. Our team will contact you to arrange payment.`));
+      load();
       return;
     }
     setNote(String(body.error ?? 'We could not arrange the pickup just now.'));
@@ -152,6 +208,74 @@ export function DeliveryPanel({ bookingId }: { bookingId: string }) {
               <p className="text-xs text-neutral-500">Live tracking: not available for this delivery. We message you when it moves.</p>
             )}
             {l.fee_cents > 0 && <p className="text-xs text-neutral-500">Fee paid: {rand(l.fee_cents)}</p>}
+            {(l.item_details ?? []).length > 0 && (
+              <ul className="mt-2 space-y-2">
+                {(l.item_details ?? []).map((it) => {
+                  const key = `${it.booking_id}:${it.rental_id}`;
+                  return (
+                    <li key={key} className="border border-white/10 p-3 space-y-2">
+                      <div className="flex flex-wrap justify-between gap-2 text-xs">
+                        <span className="text-neutral-200">{it.title || 'Item'}</span>
+                        <span className="text-neutral-400">{RECEIPT_LABEL[it.receipt] ?? it.receipt}</span>
+                      </div>
+                      {it.can_confirm && problemFor !== key && (
+                        <>
+                          <p className="text-xs text-neutral-500">
+                            Check it and confirm. If you do not answer, it counts as received {DELIVERY_POLICY.deemedAcceptanceHours} hours after delivery.
+                          </p>
+                          <div className="grid grid-cols-2 gap-2">
+                            <button type="button" disabled={busy} onClick={() => void confirmItem(it, 'accepted')} className="min-h-[44px] border border-[#D4A843] text-xs font-mono uppercase tracking-widest text-[#D4A843] disabled:opacity-40">
+                              Received
+                            </button>
+                            <button
+                              type="button"
+                              disabled={busy}
+                              onClick={() => {
+                                setProblemFor(key);
+                                setProblemText('');
+                              }}
+                              className="min-h-[44px] border border-white/20 text-xs font-mono uppercase tracking-widest text-neutral-200 disabled:opacity-40"
+                            >
+                              Report a problem
+                            </button>
+                          </div>
+                        </>
+                      )}
+                      {it.can_confirm && problemFor === key && (
+                        <div className="space-y-2">
+                          <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label="What is wrong">
+                            {(['damaged', 'lost'] as const).map((k) => (
+                              <label key={k} className={`flex items-center gap-2 min-h-[44px] px-3 border text-xs font-mono cursor-pointer ${problemKind === k ? 'border-[#D4A843] text-[#D4A843]' : 'border-white/10 text-neutral-400'}`}>
+                                <input type="radio" name={`${id}-${key}-kind`} className="accent-[#D4A843]" checked={problemKind === k} onChange={() => setProblemKind(k)} />
+                                {k === 'damaged' ? 'Damaged or wrong' : 'Missing'}
+                              </label>
+                            ))}
+                          </div>
+                          <label className="block text-xs font-mono text-neutral-400" htmlFor={`${id}-${key}-detail`}>
+                            What is wrong or missing?
+                          </label>
+                          <textarea
+                            id={`${id}-${key}-detail`}
+                            value={problemText}
+                            maxLength={500}
+                            onChange={(ev) => setProblemText(ev.target.value)}
+                            className="w-full min-h-[88px] bg-transparent border border-white/20 p-2 text-sm font-mono text-neutral-100"
+                          />
+                          <div className="grid grid-cols-2 gap-2">
+                            <button type="button" disabled={busy || problemText.trim().length < 3} onClick={() => void confirmItem(it, 'exception')} className="min-h-[44px] border border-[#D4A843] text-xs font-mono uppercase tracking-widest text-[#D4A843] disabled:opacity-40">
+                              Send
+                            </button>
+                            <button type="button" disabled={busy} onClick={() => setProblemFor(null)} className="min-h-[44px] border border-white/20 text-xs font-mono uppercase tracking-widest text-neutral-400 disabled:opacity-40">
+                              Back
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
           </div>
         ))}
 
@@ -161,8 +285,11 @@ export function DeliveryPanel({ bookingId }: { bookingId: string }) {
           </p>
         )}
 
-        {data.return_pickup && !data.return_pickup.allowed && data.return_pickup.reason === 'collected_in_person' && (
-          <p className="text-xs font-mono text-neutral-400">{data.return_pickup.message}</p>
+        {data.return_pickup && !data.return_pickup.allowed && (data.return_pickup.reason === 'collected_in_person' || data.return_pickup.reason === 'requested') && (
+          <p role="status" className="text-xs font-mono text-neutral-400">
+            {data.return_pickup.message}
+            {data.return_pickup.reason === 'requested' && data.return_pickup_requested ? ` Pickup price: ${rand(data.return_pickup_requested.fee_cents)}.` : ''}
+          </p>
         )}
 
         {data.return_pickup?.allowed && (

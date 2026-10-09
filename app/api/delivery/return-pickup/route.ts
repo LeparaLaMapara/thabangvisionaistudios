@@ -9,8 +9,8 @@ import { FINAL_DELIVERY_STATES } from '@/lib/core/delivery/state';
 import { quoteDelivery, scheduleReturnPickup } from '@/lib/core/delivery/use-cases';
 import { quoteIsLive } from '@/lib/core/delivery/quote';
 import { deliveryDeps } from '@/lib/delivery/server';
-import { isWindowId, legDate, publicQuote, windowFor } from '@/lib/delivery/checkout';
-import { returnPickupOption } from '@/lib/delivery/customer-view';
+import { SupabaseQuoteLinks, isWindowId, legDate, publicQuote, windowFor } from '@/lib/delivery/checkout';
+import { RETURN_REQUESTED_MESSAGE, returnPickupOption } from '@/lib/delivery/customer-view';
 
 /**
  * Arrange a return pickup during the hire (spec §4.12, §4.17). A separate leg
@@ -23,9 +23,16 @@ import { returnPickupOption } from '@/lib/delivery/customer-view';
  *       re-quoted and must be approved again (D07).
  *
  * A return pickup bought at checkout is booked after payment and shown on the
- * booking. One added during the hire has no online payment yet, so an
- * approved request goes to staff, who confirm it and how to pay before the
- * return day; nothing is dispatched unpaid. A free pickup is booked at once.
+ * booking. One added during the hire has no online payment yet (F-3), so an
+ * approved request is recorded ONCE on its quote and staff are alerted once;
+ * the booking then shows "requested" and stops offering a new pickup while it
+ * is pending. Staff confirm it after the payment is taken by hand (admin
+ * `dispatch_manual_paid`); nothing is dispatched unpaid. A free pickup is
+ * booked at once.
+ *
+ * These quotes are advisory: stored without the order link, so they never
+ * join the order's checkout payment (its delivery total must equal its linked
+ * quotes on every payment replay).
  */
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -56,9 +63,13 @@ export async function POST(request: NextRequest) {
 
   try {
     const deps = await deliveryDeps();
+    const links = new SupabaseQuoteLinks();
     const [group, shipments] = await Promise.all([deps.bookings.getGroup(groupId), deps.repo.listShipments(groupId)]);
     if (!group || group.renterId !== user.id) return NextResponse.json({ error: 'Booking not found' }, { status: 404 });
-    const option = returnPickupOption(shipments, group.lines.map((l) => l.status));
+    const pending = await links.pendingReturnRequest(user.id, group.lines.map((l) => l.bookingId));
+    // Asking again while a request is pending changes nothing and alerts nobody again.
+    if (pending && body.action === 'approve') return NextResponse.json({ ok: true, requested: true, already: true, message: RETURN_REQUESTED_MESSAGE, quote: publicQuote(pending) });
+    const option = returnPickupOption(shipments, group.lines.map((l) => l.status), pending);
     if (!option.allowed) return NextResponse.json({ error: option.message, code: option.reason }, { status: 409 });
     const outbound = shipments.find((s) => s.leg === 'outbound' && !FINAL_DELIVERY_STATES.includes(s.status));
     if (!outbound) return NextResponse.json({ error: 'Gear collected in person is returned in person.', code: 'collected_in_person' }, { status: 409 });
@@ -68,7 +79,7 @@ export async function POST(request: NextRequest) {
     const quoteFor = async (window: { start: string | null; end: string | null }) =>
       quoteDelivery(
         // The same verified address the gear went to, back to where it came from.
-        { caller, renterId: user.id, bookingGroupId: groupId, leg: 'return', originAddressId: outbound.destinationAddressId, destinationAddressId: outbound.originAddressId, lines, window },
+        { caller, renterId: user.id, bookingGroupId: groupId, leg: 'return', originAddressId: outbound.destinationAddressId, destinationAddressId: outbound.originAddressId, lines, window, link: false },
         deps,
       );
 
@@ -85,7 +96,9 @@ export async function POST(request: NextRequest) {
       const quoteId = typeof body.quote_id === 'string' ? body.quote_id : '';
       const approved = typeof body.approved_cents === 'number' && Number.isSafeInteger(body.approved_cents) ? body.approved_cents : null;
       const q = quoteId ? await deps.repo.getQuote(quoteId) : null;
-      if (!q || q.renterId !== user.id || q.leg !== 'return' || q.bookingGroupId !== groupId || q.status !== 'active') {
+      const onOrder = new Set(group.lines.map((l) => l.bookingId));
+      const forThisOrder = !!q && q.bookingIds.length > 0 && q.bookingIds.every((b) => onOrder.has(b)) && (q.bookingGroupId === null || q.bookingGroupId === groupId);
+      if (!q || q.renterId !== user.id || q.leg !== 'return' || !forThisOrder || q.status !== 'active') {
         return NextResponse.json({ error: 'That pickup quote is not valid. Please get a new quote.', code: 'DELIVERY_QUOTE_INVALID' }, { status: 400 });
       }
       if (!quoteIsLive(q, deps.clock.now())) {
@@ -104,11 +117,15 @@ export async function POST(request: NextRequest) {
         if (!r.ok) return NextResponse.json({ error: r.message, code: r.code }, { status: 409 });
         return NextResponse.json({ ok: true, scheduled: true });
       }
-      // No online payment for a pickup added during the hire yet: a person
-      // confirms it and takes the fee before anything is dispatched.
-      await deps.repo.post([], buildNotices({ kind: 'staff_alert', userId: 'staff', bookingIds: group.lines.map((l) => l.bookingId), discriminator: `delivery:return_pickup_requested:${q.id}`, data: { what: 'delivery_return_pickup_requested', reference: q.id, amountCents: q.customerFeeCents } }));
-      logEvent({ eventType: 'delivery_return_pickup_requested', eventCategory: 'booking', userId: user.id, metadata: { bookingGroupId: groupId, quoteId: q.id, feeCents: q.customerFeeCents } });
-      return NextResponse.json({ ok: true, requested: true, quote: publicQuote(q) });
+      // No online payment for a pickup added during the hire yet (F-3): the
+      // request is recorded once on the quote, and a person confirms it and
+      // takes the fee before anything is dispatched.
+      const recorded = await links.markRequested(q.id, deps.clock.now().toISOString());
+      if (recorded) {
+        await deps.repo.post([], buildNotices({ kind: 'staff_alert', userId: 'staff', bookingIds: group.lines.map((l) => l.bookingId), discriminator: `delivery:return_pickup_requested:${q.id}`, data: { what: 'delivery_return_pickup_requested', reference: q.id, amountCents: q.customerFeeCents, bookingGroupId: groupId } }));
+        logEvent({ eventType: 'delivery_return_pickup_requested', eventCategory: 'booking', userId: user.id, metadata: { bookingGroupId: groupId, quoteId: q.id, feeCents: q.customerFeeCents } });
+      }
+      return NextResponse.json({ ok: true, requested: true, already: !recorded, message: RETURN_REQUESTED_MESSAGE, quote: publicQuote(q) });
     }
 
     return NextResponse.json({ error: 'Unknown action.' }, { status: 400 });

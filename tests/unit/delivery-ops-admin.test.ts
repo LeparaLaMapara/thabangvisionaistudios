@@ -111,6 +111,8 @@ const { GROUP, LINES_FOR_QUOTE, OFFICE, RENTER, RENTER_HOME, STAFF, world } = aw
 
 const post = (body: Row) => POST(new NextRequest('http://localhost:3000/api/admin/delivery', { method: 'POST', body: JSON.stringify(body), headers: { 'content-type': 'application/json' } }));
 const CLOUD_PHOTO = 'https://res.cloudinary.com/demo/image/upload/v1/delivery/a.jpg';
+// Evidence must be in OUR cloud; with no cloud configured it is refused (fail closed, review item 19).
+vi.stubEnv('CLOUDINARY_CLOUD_NAME', 'demo');
 
 /** An own-fleet outbound leg, dispatched (scheduled). */
 async function ownFleetLeg() {

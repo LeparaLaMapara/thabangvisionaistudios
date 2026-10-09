@@ -55,6 +55,25 @@ vi.mock('@/lib/supabase/server', () => {
 vi.mock('@/lib/auth', () => ({ checkNotSuspended: async () => ({ suspended: false }), checkRateLimit: async () => true }));
 vi.mock('@/lib/data/events', () => ({ logEvent: vi.fn() }));
 vi.mock('@/lib/delivery/server', () => ({ deliveryDeps: async () => h.w.deps }));
+// The renter's pending pickup request lives on the quote (requested_at): read and set in the fake repo.
+vi.mock('@/lib/delivery/checkout', async (orig) => ({
+  ...(await orig<typeof import('@/lib/delivery/checkout')>()),
+  SupabaseQuoteLinks: class {
+    async pendingReturnRequest(renterId: string, bookingIds: readonly string[]) {
+      return (
+        [...h.w.repo.quotes.values()].find(
+          (q) => q.renterId === renterId && q.leg === 'return' && q.bookingGroupId === null && !!q.requestedAt && ['active', 'expired'].includes(q.status) && q.bookingIds.some((b) => bookingIds.includes(b)),
+        ) ?? null
+      );
+    }
+    async markRequested(quoteId: string, at: string) {
+      const q = h.w.repo.quotes.get(quoteId);
+      if (!q || q.requestedAt || q.status !== 'active') return false;
+      q.requestedAt = at;
+      return true;
+    }
+  },
+}));
 
 async function delivered(w: World) {
   const q = await quoteDelivery({ caller: { kind: 'renter', userId: RENTER }, renterId: RENTER, bookingGroupId: GROUP, leg: 'outbound', originAddressId: OFFICE, destinationAddressId: RENTER_HOME, lines: LINES_FOR_QUOTE, window: { start: '2026-10-20T06:00:00Z', end: '2026-10-20T10:00:00Z' } }, w.deps);
@@ -88,7 +107,9 @@ describe('return pickup during the hire', () => {
     expect(q.status).toBe(201);
     const quote = q.body.quote as { id: string; customer_fee_cents: number };
     const stored = h.w.repo.quotes.get(quote.id);
-    expect(stored).toMatchObject({ leg: 'return', originAddressId: RENTER_HOME, destinationAddressId: OFFICE, bookingGroupId: GROUP });
+    // Review fix (item 16): a mid-hire quote is advisory, stored without the order link, so it
+    // never joins the order's checkout payment; it carries the order's lines instead.
+    expect(stored).toMatchObject({ leg: 'return', originAddressId: RENTER_HOME, destinationAddressId: OFFICE, bookingGroupId: null, bookingIds: ['bk-1', 'bk-2'] });
 
     // D08: a different number is refused.
     expect(await pickup({ action: 'approve', quote_id: quote.id, approved_cents: quote.customer_fee_cents - 1 })).toMatchObject({ status: 409, body: { code: 'DELIVERY_PRICE_CHANGED' } });

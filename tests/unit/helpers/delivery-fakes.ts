@@ -42,6 +42,7 @@ import type {
   ShipmentPatch,
   ShipmentTransition,
   TransitionResult,
+  UnusedQuoteRefund,
 } from '@/lib/core/delivery/repository';
 import { InMemoryManualTaskStore, createManualDeliveryAdapter } from '@/lib/delivery/manual';
 
@@ -245,6 +246,19 @@ export class InMemoryDeliveryRepo implements DeliveryRepository {
   async post(journals: Journal[], notices: OutboxMessage[]): Promise<void> {
     for (const j of journals) this.postJournal(j);
     for (const n of notices) this.postNotice(n);
+  }
+
+  async refundUnusedQuote(r: UnusedQuoteRefund): Promise<'applied' | 'conflict'> {
+    // Same contract as delivery_refund_quote (076): CAS paid -> refunded while no live leg uses it.
+    const q = this.quotes.get(r.quoteId);
+    if (!q || q.status !== 'paid') return 'conflict';
+    if ([...this.shipments.values()].some((s) => s.quoteId === r.quoteId && s.status !== 'cancelled' && s.status !== 'failed')) return 'conflict';
+    for (const j of r.journals) if (!isBalanced(j)) throw new Error('unbalanced');
+    for (const j of r.journals) this.postJournal(j);
+    for (const n of r.notices) this.postNotice(n);
+    if (r.refund && !this.refunds.has(r.refund.key)) this.refunds.set(r.refund.key, { key: r.refund.key, amountCents: r.refund.amountCents, paidReference: r.refund.paidReference, userId: r.refund.userId });
+    q.status = 'refunded';
+    return 'applied';
   }
 
   /** Test helper: outbox kinds sent to a user. */

@@ -17,7 +17,20 @@ import { splitHire } from '@/lib/core/pricing/rental';
 import type { DeliveryWindow, ProviderQuote } from './port';
 import type { ShipmentLeg } from './state';
 
-export type QuoteStatus = 'active' | 'paid' | 'consumed' | 'expired' | 'superseded';
+/**
+ * `refunded`: the fee was paid but the leg will not run (cancelled, refused,
+ * or no longer eligible) and the fee is owed back. A refunded or consumed
+ * quote can never be dispatched again.
+ */
+export type QuoteStatus = 'active' | 'paid' | 'consumed' | 'expired' | 'superseded' | 'refunded';
+
+/** What the quote was priced for: each line's listing, units and hire dates (a quote is stale when these change). */
+export interface QuoteLineSnapshot {
+  rentalId: string;
+  quantity: number;
+  startDate: string;
+  endDate: string;
+}
 
 export interface CustomerDeliveryQuote {
   id: string;
@@ -47,6 +60,10 @@ export interface CustomerDeliveryQuote {
   status: QuoteStatus;
   /** Payment reference that captured this fee, once paid. */
   paidReference: string | null;
+  /** The lines (units and hire dates) the quote was priced for. Absent on quotes made before this was recorded. */
+  lines?: QuoteLineSnapshot[];
+  /** A renter asked for this leg during the hire and staff confirm it after payment (no online payment yet). */
+  requestedAt?: string | null;
   createdAt: string;
 }
 

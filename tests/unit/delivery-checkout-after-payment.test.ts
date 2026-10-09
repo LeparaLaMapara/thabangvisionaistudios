@@ -73,7 +73,8 @@ describe('after a verified payment', () => {
     const { totalCents } = await orderWithDelivery();
     w.trust.facts.set(RENTER, { ...cleanRenter, suspended: true });
     const r = await run(totalCents);
-    expect(r).toMatchObject({ outcome: 'done', legs: [{ leg: 'outbound', result: 'prepare_not_eligible' }] });
+    // Review fix (item 6): the paid fee is owed back at once (not left stuck on a leg that will not run).
+    expect(r).toMatchObject({ outcome: 'done', legs: [{ leg: 'outbound', result: 'refunded_not_eligible' }] });
     expect(w.tasks.tasks.size).toBe(0);
     expect(staffAlerts()).toContain('delivery_prepare_failed_not_eligible');
   });

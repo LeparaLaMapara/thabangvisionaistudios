@@ -53,11 +53,22 @@ type Row = Record<string, unknown>;
 
 type QueueId = 'awaiting_dispatch' | 'scheduled' | 'couriers_assigned' | 'in_transit' | 'delivered_awaiting_acceptance' | 'return_pickups' | 'failed' | 'missing_damaged';
 
+interface ReturnRequest {
+  quoteId: string;
+  bookingGroupId: string | null;
+  renterId: string;
+  customerFeeCents: number;
+  requestedAt: string | null;
+  windowStart: string | null;
+  status: string;
+}
+
 type OpsData =
   | { pipeline: false; message: string }
   | {
       pipeline: true;
       queues: Record<QueueId, Shipment[]>;
+      returnRequests: ReturnRequest[];
       incidents: Row[];
       providerFailures: { events: Row[]; dispatches: { shipmentId: string; state: string; attempts: number; lastError: string | null; updatedAt: string | null }[] };
       reconciliation: { awaitingInvoice: Shipment[]; recent: Row[] };
@@ -105,6 +116,7 @@ const QUEUE_TABS: { id: QueueId; label: string; hint: string }[] = [
   { id: 'missing_damaged', label: 'Missing / damaged', hint: 'Lost, damaged or under review. Nobody is blamed automatically; a person decides.' },
 ];
 const OTHER_TABS = [
+  { id: 'paid_by_hand', label: 'Paid by hand' },
   { id: 'incidents', label: 'Unresolved incidents' },
   { id: 'provider', label: 'Provider failures' },
   { id: 'reconciliation', label: 'Cost reconciliation' },
@@ -113,6 +125,15 @@ type TabId = QueueId | (typeof OTHER_TABS)[number]['id'];
 
 const MANUAL_STATES = ['courier_assigned', 'courier_at_pickup', 'in_transit', 'courier_at_dropoff', 'delivery_attempt_failed'] as const;
 const CANCELLABLE = ['requested', 'quoted', 'prepared', 'booking', 'scheduled', 'courier_assigned', 'courier_at_pickup'];
+const REVIEW_STATES = ['incident_under_review', 'lost', 'damaged', 'return_to_sender'];
+/** Where a review may end, per state (the core transition rules; the server checks again). */
+const REVIEW_ENDS: Record<string, readonly string[]> = {
+  incident_under_review: ['delivered', 'lost', 'damaged', 'failed'],
+  lost: ['failed'],
+  damaged: ['failed'],
+  return_to_sender: ['failed'],
+};
+const PAY_METHODS = ['eft', 'cash', 'card_link'] as const;
 const LIABILITY = ['undetermined', 'provider', 'renter', 'owner', 'platform', 'none'] as const;
 const INCIDENT_KINDS = ['lost', 'damaged', 'stolen', 'delayed', 'failed_attempt', 'driver_no_show'] as const;
 
@@ -183,6 +204,7 @@ export default function DeliveryOpsPage() {
   if (data && data.pipeline) {
     for (const q of QUEUE_TABS) counts[q.id] = data.queues[q.id]?.length ?? 0;
     counts.incidents = data.incidents.length;
+    counts.paid_by_hand = (data.returnRequests ?? []).length;
     counts.provider = data.providerFailures.events.length + data.providerFailures.dispatches.length;
     counts.reconciliation = data.reconciliation.awaitingInvoice.length;
   }
@@ -259,6 +281,21 @@ export default function DeliveryOpsPage() {
                 ))}
               </Section>
             ))}
+
+            {tab === 'paid_by_hand' && (
+              <Section
+                empty={false}
+                emptyText=""
+                hint="Deliveries paid by hand (EFT, cash, card link) are never dispatched automatically. Once the payment is in, dispatch here: the server checks the order is confirmed, the quotes are the renter's and the amount is exact, then prepares and dispatches each leg. Nothing unpaid is ever dispatched."
+              >
+                <ManualOrderForm busy={busy} act={act} />
+                {(data.returnRequests ?? []).length === 0 ? (
+                  <p className="p-4 text-xs text-neutral-400">No return pickups waiting for payment.</p>
+                ) : (
+                  (data.returnRequests ?? []).map((r) => <ReturnRequestRow key={r.quoteId} r={r} busy={busy} act={act} />)
+                )}
+              </Section>
+            )}
 
             {tab === 'incidents' && (
               <Section empty={data.incidents.length === 0} emptyText="No unresolved delivery incidents." hint="Resolving records what happened and who is liable, chosen by you. It moves no money: deposits and refunds are separate decisions.">
@@ -472,11 +509,25 @@ function ShipmentDetail({ s, busy, act }: { s: Shipment; busy: string | null; ac
             </select>
           </label>
         )}
-        {(['collection', 'handover', 'inspection', 'incident', 'reschedule', 'cancel'] as const)
-          .filter((f) => (f === 'reschedule' ? ownFleet : f === 'cancel' ? CANCELLABLE.includes(s.status) : f === 'inspection' ? s.leg === 'return' : true))
+        {(['collection', 'handover', 'inspection', 'incident', 'reschedule', 'close_review', 'cancel'] as const)
+          .filter((f) =>
+            f === 'reschedule' ? ownFleet : f === 'cancel' ? CANCELLABLE.includes(s.status) : f === 'inspection' ? s.leg === 'return' : f === 'close_review' ? REVIEW_STATES.includes(s.status) : true,
+          )
           .map((f) => (
             <Button key={f} variant={f === 'cancel' ? 'danger' : 'outline'} size="sm" className="min-h-[44px]" onClick={() => setForm(form === f ? null : f)} disabled={busy !== null}>
-              {f === 'collection' ? 'Record collection' : f === 'handover' ? 'Record handover' : f === 'inspection' ? 'Record inspection' : f === 'incident' ? 'Report incident' : f === 'reschedule' ? 'Reschedule' : 'Cancel leg'}
+              {f === 'collection'
+                ? 'Record collection'
+                : f === 'handover'
+                  ? 'Record handover'
+                  : f === 'inspection'
+                    ? 'Record inspection'
+                    : f === 'incident'
+                      ? 'Report incident'
+                      : f === 'reschedule'
+                        ? 'Reschedule'
+                        : f === 'close_review'
+                          ? 'Close review'
+                          : 'Cancel leg'}
             </Button>
           ))}
       </div>
@@ -503,6 +554,25 @@ function ShipmentDetail({ s, busy, act }: { s: Shipment; busy: string | null; ac
           submitLabel="Reschedule"
           busy={busy !== null}
           onSubmit={(v) => run({ action: 'reschedule', date: v.date }, `resched:${s.id}`)}
+          onCancel={() => setForm(null)}
+        />
+      )}
+      {form === 'close_review' && (
+        <SimpleForm
+          fields={[
+            { name: 'to', label: 'Close as', options: REVIEW_ENDS[s.status] ?? ['failed'] },
+            { name: 'reason', label: 'Reason (kept in the history)', multiline: true, min: 3 },
+            { name: 'refundFee', label: 'Refund the delivery fee (only when closing as failed)', options: ['no', 'yes'] },
+          ]}
+          submitLabel="Close review"
+          busy={busy !== null}
+          onSubmit={(v) =>
+            run(
+              { action: 'close_review', to: v.to, reason: v.reason, refundFee: v.refundFee === 'yes' },
+              `review:${s.id}`,
+              `Close this review as "${label(v.to)}"? Incidents are resolved separately.`,
+            )
+          }
           onCancel={() => setForm(null)}
         />
       )}
@@ -844,6 +914,85 @@ function SimpleForm({ fields, submitLabel, busy, danger, onSubmit, onCancel }: {
           Close
         </Button>
       </div>
+    </form>
+  );
+}
+
+// ─── Paid by hand (F-2, F-3) ────────────────────────────────────────────────
+
+/** An order paid by EFT/cash at checkout: dispatch its delivery after "Mark paid". */
+function ManualOrderForm({ busy, act }: { busy: string | null; act: Act }) {
+  const [group, setGroup] = useState('');
+  const valid = /^[0-9a-f-]{36}$/i.test(group.trim());
+  return (
+    <form
+      className="p-4 space-y-3"
+      onSubmit={(e) => {
+        e.preventDefault();
+        if (!valid) return;
+        act(
+          { action: 'dispatch_manual_paid', bookingGroupId: group.trim() },
+          'manual-order',
+          'Dispatch this order’s delivery? Only if its payment was recorded with Mark paid: the server checks the order, its delivery quotes and the delivery total recorded at checkout.',
+        );
+      }}
+    >
+      <p className="text-xs font-mono uppercase tracking-widest text-neutral-400">Order paid by hand at checkout</p>
+      <Field label="Order id (checkout group)">
+        <input className={inputClass} value={group} onChange={(e) => setGroup(e.target.value)} />
+      </Field>
+      <Button type="submit" variant="accent" size="sm" className="min-h-[44px]" loading={busy === 'manual-order'} disabled={!valid || busy !== null}>
+        Dispatch paid delivery
+      </Button>
+    </form>
+  );
+}
+
+/** A return pickup the renter requested during the hire: confirm it once the fee was paid by hand. */
+function ReturnRequestRow({ r, busy, act }: { r: ReturnRequest; busy: string | null; act: Act }) {
+  const [method, setMethod] = useState<(typeof PAY_METHODS)[number]>('eft');
+  const [reference, setReference] = useState('');
+  const [amount, setAmount] = useState('');
+  const cents = randsToCents(amount);
+  const valid = !!r.bookingGroupId && reference.trim().length >= 2 && cents !== null;
+  return (
+    <form
+      className="p-4 space-y-3"
+      onSubmit={(e) => {
+        e.preventDefault();
+        if (!valid || cents === null) return;
+        act(
+          { action: 'dispatch_manual_paid', bookingGroupId: r.bookingGroupId, quoteIds: [r.quoteId], method, reference: reference.trim(), receivedCents: cents },
+          `manual-req:${r.quoteId}`,
+          `Record ${money(cents)} received and book this return pickup?`,
+        );
+      }}
+    >
+      <div className="flex flex-wrap items-center gap-3">
+        <Badge variant="warning">return pickup requested</Badge>
+        <span className="text-xs font-mono text-neutral-400">order {short(r.bookingGroupId)}</span>
+      </div>
+      <Meta items={[['Price', money(r.customerFeeCents)], ['Requested', when(r.requestedAt)], ['Window', when(r.windowStart)], ['Renter', short(r.renterId)]]} />
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+        <Field label="Paid by">
+          <select className={inputClass} value={method} onChange={(e) => setMethod(e.target.value as (typeof PAY_METHODS)[number])}>
+            {PAY_METHODS.map((m) => (
+              <option key={m} value={m}>
+                {label(m)}
+              </option>
+            ))}
+          </select>
+        </Field>
+        <Field label="Payment reference">
+          <input className={inputClass} value={reference} onChange={(e) => setReference(e.target.value)} />
+        </Field>
+        <Field label="Amount received (R)">
+          <input className={inputClass} inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} />
+        </Field>
+      </div>
+      <Button type="submit" variant="accent" size="sm" className="min-h-[44px]" loading={busy === `manual-req:${r.quoteId}`} disabled={!valid || busy !== null}>
+        Confirm payment and book pickup
+      </Button>
     </form>
   );
 }

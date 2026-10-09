@@ -3,7 +3,7 @@ import type { ProviderCallResult } from '@/lib/core/ports';
 import type { ProviderDelivery } from '@/lib/core/delivery/port';
 import type { DeliveryDeps, Shipment } from '@/lib/core/delivery/repository';
 import { FINAL_DELIVERY_STATES, type DeliveryState } from '@/lib/core/delivery/state';
-import { commitDelivery, recordProviderEvent, type ProviderEventOutcome } from '@/lib/core/delivery/use-cases';
+import { commitDelivery, deemDeliveryAccepted, recordProviderEvent, type ProviderEventOutcome } from '@/lib/core/delivery/use-cases';
 import { buildNotices, type OutboxMessage } from '@/lib/core/rental/notifications';
 import { isMissingPipeline } from '@/lib/rental/repos';
 import type { createAdminClient } from '@/lib/supabase/server';
@@ -26,8 +26,17 @@ import { deliveryEventDedupeKey } from './inbox';
  *    same dedupe key as the webhook, so a missed webhook is applied once).
  *  - remindReturnPickups: `delivery_return_reminder` once per return leg
  *    whose pickup window starts soon.
+ *  - deemDeliveryAcceptances: a delivered outbound leg the renter has not
+ *    confirmed is reminded once, then deemed accepted after
+ *    DELIVERY_POLICY.deemedAcceptanceHours (D-48), never over an exception
+ *    or an open incident.
  *  - purgeDeliveryAddresses: purpose-based retention of delivery addresses
- *    (D-46); addresses of open shipments are never touched.
+ *    (D-46); addresses of open shipments are never touched (re-checked in
+ *    the database at the moment of writing).
+ *
+ * Each job takes an optional `deadline` (epoch ms): it stops taking new rows
+ * once the pipeline's delivery time budget is spent; the rest wait for the
+ * next pass.
  */
 
 type Admin = ReturnType<typeof createAdminClient>;
@@ -40,7 +49,11 @@ export interface DeliveryJobQueries {
   listTrackableShipments(limit: number): Promise<Pick<Shipment, 'id' | 'providerId' | 'providerReference' | 'merchantReference'>[]>;
   /** Return legs scheduled to be picked up between `from` and `to`. */
   listUpcomingReturnPickups(from: string, to: string, limit: number): Promise<Pick<Shipment, 'id' | 'renterId' | 'items'>[]>;
+  /** Outbound legs delivered before `deliveredBefore` and not yet accepted. */
+  listAwaitingAcceptance(deliveredBefore: string, limit: number): Promise<{ shipmentId: string }[]>;
 }
+
+const pastDeadline = (deadline?: number): boolean => deadline !== undefined && Date.now() > deadline;
 
 const TRACKABLE: readonly DeliveryState[] = ['scheduled', 'courier_assigned', 'courier_at_pickup', 'collected', 'in_transit', 'courier_at_dropoff', 'delivery_attempt_failed'];
 
@@ -64,12 +77,17 @@ export async function reconcileUncertainDispatches(
   deps: DeliveryDeps,
   q: Pick<DeliveryJobQueries, 'listUncertainDispatches'>,
   limit: number = DELIVERY_OPS.jobBatchSize,
+  deadline?: number,
 ): Promise<{ checked: number; outcomes: Record<string, number> }> {
   const now = deps.clock.now();
   const staleBefore = new Date(now.getTime() - DELIVERY_OPS.staleClaimMinutes * 60_000).toISOString();
   const rows = await q.listUncertainDispatches(staleBefore, limit);
   const outcomes: Record<string, number> = {};
   for (const { shipmentId } of rows) {
+    if (pastDeadline(deadline)) {
+      bump(outcomes, 'deferred');
+      continue;
+    }
     try {
       const s = await deps.repo.getShipment(shipmentId);
       if (!s || FINAL_DELIVERY_STATES.includes(s.status)) {
@@ -106,10 +124,15 @@ export async function pollTrackedShipments(
   deps: Pick<DeliveryDeps, 'repo' | 'clock' | 'newId' | 'providers'>,
   q: Pick<DeliveryJobQueries, 'listTrackableShipments'>,
   limit: number = DELIVERY_OPS.jobBatchSize,
+  deadline?: number,
 ): Promise<{ checked: number; outcomes: Record<string, ProviderEventOutcome | number> }> {
   const rows = await q.listTrackableShipments(limit);
   const outcomes: Record<string, number> = {};
   for (const s of rows) {
+    if (pastDeadline(deadline)) {
+      bump(outcomes, 'deferred');
+      continue;
+    }
     try {
       const port = deps.providers.get(s.providerId);
       if (!port || (port.kind ?? 'courier') !== 'courier' || !s.providerReference) {
@@ -166,6 +189,36 @@ export async function remindReturnPickups(
   }
   if (notices.length > 0) await deps.repo.post([], notices);
   return { reminded: rows.length };
+}
+
+/**
+ * D-48: remind, then deem accepted, the delivered outbound legs the renter has
+ * not confirmed. Bounded and idempotent (the reminder and the deemed
+ * acceptance each have one dedupe key per leg).
+ */
+export async function deemDeliveryAcceptances(
+  deps: Pick<DeliveryDeps, 'repo' | 'clock'>,
+  q: Pick<DeliveryJobQueries, 'listAwaitingAcceptance'>,
+  limit: number = DELIVERY_OPS.jobBatchSize,
+  deadline?: number,
+): Promise<{ checked: number; outcomes: Record<string, number> }> {
+  const now = deps.clock.now();
+  const remindAfterMs = (DELIVERY_POLICY.deemedAcceptanceHours - DELIVERY_POLICY.deemedAcceptanceReminderLeadHours) * 3_600_000;
+  const rows = await q.listAwaitingAcceptance(new Date(now.getTime() - remindAfterMs).toISOString(), limit);
+  const outcomes: Record<string, number> = {};
+  for (const { shipmentId } of rows) {
+    if (pastDeadline(deadline)) {
+      bump(outcomes, 'deferred');
+      continue;
+    }
+    try {
+      const r = await deemDeliveryAccepted({ caller: { kind: 'system' }, shipmentId }, deps);
+      bump(outcomes, r.ok ? r.outcome : r.code);
+    } catch {
+      bump(outcomes, 'error');
+    }
+  }
+  return { checked: rows.length, outcomes };
 }
 
 // ── Address retention (R-41, D-46) ───────────────────────────────────────────
@@ -330,6 +383,23 @@ export class SupabaseDeliveryJobQueries implements DeliveryJobQueries {
     }
     return ((data ?? []) as Row[]).map((r) => ({ id: String(r.id), renterId: String(r.renter_id), items: (r.items as Shipment['items'] | null) ?? [] }));
   }
+
+  async listAwaitingAcceptance(deliveredBefore: string, limit: number): Promise<{ shipmentId: string }[]> {
+    const { data, error } = await this.db
+      .from('delivery_shipments')
+      .select('id')
+      .eq('leg', 'outbound')
+      .eq('status', 'delivered')
+      .is('accepted_at', null)
+      .lt('delivered_at', deliveredBefore)
+      .order('delivered_at')
+      .limit(limit);
+    if (error) {
+      if (isMissingPipeline(error)) return [];
+      throw fail('listAwaitingAcceptance', error);
+    }
+    return ((data ?? []) as Row[]).map((r) => ({ shipmentId: String(r.id) }));
+  }
 }
 
 const ADDRESS_COLS = 'id, created_at, retain_until, lat, lng, suburb, city, province';
@@ -415,9 +485,12 @@ export class SupabaseAddressRetention implements AddressRetentionStore {
   }
 
   async redact(a: RetentionAddress, now: string): Promise<boolean> {
-    const { data, error } = await this.db.from('delivery_addresses').update(redactedAddressFields(a, now)).eq('id', a.id).is('redacted_at', null).select('id');
+    // The database re-checks, in the same UPDATE, that no live shipment, open
+    // incident, live quote or undispatched paid quote uses the address (a leg
+    // made after the decision above keeps it).
+    const { data, error } = await this.db.rpc('delivery_redact_address', { p_address: a.id, p_fields: redactedAddressFields(a, now), p_now: now });
     if (error) throw fail('delivery address redact', error);
-    return (data ?? []).length > 0;
+    return data === true;
   }
 
   async setRetainUntil(addressId: string, retainUntil: string): Promise<void> {

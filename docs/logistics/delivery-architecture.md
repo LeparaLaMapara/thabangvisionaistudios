@@ -101,7 +101,13 @@ it records `coverage_verified = false` (D-40).
   - `courierCost` → `courier_costs` / `delivery_payable` when a courier job is
     booked; invoices adjust it (`reconcileDelivery`);
   - `deliveryCancelled` → refund owed (`refunds_payable`) and anything kept
-    (a provider cancellation fee passed on at cost, D-39) as `delivery_income`;
+    (a provider cancellation fee passed on at cost, D-39) as `delivery_income`.
+    The refund obligation is capped in SQL at what is LEFT of the original
+    charge (charge less every obligation already on it), so a leg's refund can
+    never take the total above what was charged; with no verified charge on
+    record nothing goes to the provider and staff are alerted;
+  - a fee paid by hand (`manual:` reference, D-50) never entered the ledger:
+    no delivery journals are posted for it and its refund is made by a person;
   - the legacy `deliveryEarned({ bookingGroupId })` keeps its old key
     `delivery:{group}` for pre-Phase-4 own-vehicle orders (one fee per order).
     Mapping it to the outbound leg would give orders already part-way through a
@@ -111,10 +117,19 @@ it records `coverage_verified = false` (D-40).
 ## Dispatch: prepare, then commit
 
 `prepareDelivery` validates the booking, the renter, the items against the
-quote, eligibility (again, on today's facts), the provider gate and cover, and
-creates the shipment leg plus a durable **dispatch intent** with a stable
-merchant reference `tvd_{group}_{o|r}{attempt}` and idempotency key. It is
-idempotent: a live shipment for the same leg is returned.
+quote (the same listings, units and hire days the quote was priced for: its
+line snapshot), eligibility (again, on today's facts), the provider gate and
+cover, and creates the shipment leg plus a durable **dispatch intent** with a
+stable merchant reference `tvd_{group}_{o|r}{attempt}` and idempotency key. It
+is idempotent: a live shipment for the same leg is returned.
+
+A quote is dispatched at most once. Cancelling a paid leg, a refused
+dispatch and a provider cancellation all move its quote to `refunded` (or
+`consumed` when the fee was kept), and prepare refuses any quote a leg was
+already made from, so a payment replay (webhook duplicate, missed-payment
+recovery) can never send attempt 2 on an already-refunded fee. A re-attempt
+needs a new quote and its own payment. `delivery_create_shipment` also
+refuses, under a lock, a quote that is no longer `active` or `paid`.
 
 `commitDelivery` (server after a verified payment, or staff; never an agent):
 
@@ -162,14 +177,19 @@ Per physical item (booking line + listing), append-only:
 | handed_to_courier | outbound | the item's owner, or staff | photo |
 | collected_by_courier | both | courier (provider confirmation) or our staff driver | provider proof / photo |
 | delivered_to_renter | outbound | courier or our staff driver | provider proof / photo |
-| renter_accepted | outbound | **only the booking's renter** | in-app acceptance (authenticated) |
+| renter_accepted | outbound | **only the booking's renter** | in-app acceptance (authenticated, `POST /api/delivery/accept`) |
 | renter_reported_exception | outbound | the renter, or staff for them | what is wrong (opens an incident) |
+| deemed_accepted | outbound | the system only (D-48) | no answer within `deemedAcceptanceHours` of a recorded delivery, after a reminder; never over an exception or open incident |
 | handed_to_return_courier | return | the renter, or staff | photo |
 | received_by_owner | return | the item's owner, or staff | photo |
 | inspected | return | staff | condition |
 
 - A courier's "delivered" records the courier's side only; receipt is
-  certified by the renter's acceptance or exception (D15).
+  certified by the renter's acceptance or exception (D15). The renter answers
+  per item on the booking page ("Received" / "Report a problem"). With no
+  answer, the daily pipeline reminds them once and then records
+  `deemed_accepted` (D-48): it earns the outbound fee and lets the address
+  follow retention, and is never used for a return leg's inspection.
 - Each item has its own chain (D28): an exception on a lens does not affect
   the camera.
 - Every event names the shipment, the order and the booking line (D14).
@@ -192,9 +212,14 @@ timestamps.
 - Courier collection of a return does **not** end the renter's responsibility
   for settlement and does **not** release the deposit (D17): every item must be
   received back and inspected (`checkRentalSettlement`).
-- A delay, no-show or failed collection on the return leg that the provider
-  caused, or that is not yet attributed, means no automatic late fee (D19).
+- A delay, no-show or failed collection on the return leg that staff (or the
+  provider's own event) attributed to the provider means no automatic late
+  fee (D19). An unattributed one holds settlement for a person while open and
+  never waives the fee by itself (D-51).
 - Any open delivery incident on the line holds settlement (D29).
+- When a return pickup takes the gear from the renter, that moment is the
+  return time for the late fee and the overdue ladder stops chasing (D-49);
+  the deposit still waits for receipt and inspection.
 
 ## Incidents
 
@@ -203,6 +228,15 @@ Opened by provider events (lost, damaged, failed attempt), by a renter
 exception, or reported by the renter, the item's owner or staff. Each starts
 `open` with `liability = 'undetermined'`: no automatic theft accusation, no
 automatic deposit forfeiture. Only staff resolve one, with a reason.
+
+An incident covers the reporter's own lines: an owner's report only their
+items, the renter's the order's lines; staff may name lines. It holds
+settlement only for those lines. `providerCaused` is set only by staff or a
+provider's own event (a provider reporting the parcel lost); a renter, owner
+or Ubunye report starts unattributed (D-51). A leg left under review, lost,
+damaged or returning to the sender is closed by staff to a final state with
+a reason (`closeDeliveryReview`; optionally refunding the fee on a leg that
+failed).
 
 ## Data and access (migration 076)
 
@@ -214,9 +248,9 @@ so retries and failures keep their history; at most one live attempt per leg.
 | delivery_addresses | the person whose address it is. Never owners or other users (D21) |
 | delivery_quotes | the renter |
 | delivery_shipments | the renter and the owners of gear on it, **only** non-sensitive columns (no address ids, tracking link or money) (D22) |
-| delivery_events | the renter |
-| delivery_custody_events | the renter; an owner for their own items |
-| delivery_incidents | the renter; an owner for their own items |
+| delivery_events | the renter, without `actor_id` or staff `note` |
+| delivery_custody_events | the renter; an owner for their own items. Never `evidence` (photo links, e.g. taken at the renter's door) or `actor_id` |
+| delivery_incidents | the renter; an owner only when EVERY line on the incident is theirs. Never `evidence`, reporter/resolver ids or the resolution note |
 | delivery_proofs, delivery_dispatch_intents, delivery_provider_events, delivery_reconciliation, delivery_manual_tasks | server only |
 
 Every write goes through the server (service role); state changes go through

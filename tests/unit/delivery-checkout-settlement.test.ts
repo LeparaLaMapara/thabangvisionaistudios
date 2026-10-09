@@ -223,7 +223,9 @@ describe('late fee and payout guards', () => {
     expect(await checkRentalSettlement({ bookingGroupId: GROUP, bookingId: 'bk-1' }, w.deps)).toMatchObject({ allowed: false, lateFeeAutoCharge: true });
     await reportIncident({ caller: { kind: 'renter', userId: RENTER }, shipmentId: p.shipment.id, kind: 'delayed', description: 'Driver did not arrive' }, w.deps);
     const after = await checkRentalSettlement({ bookingGroupId: GROUP, bookingId: 'bk-1' }, w.deps);
-    expect(after).toMatchObject({ allowed: false, lateFeeAutoCharge: false });
+    // Review fix (item 4): the renter's own report is unattributed. It holds settlement for a
+    // person (open incident) and does NOT waive the late fee by itself.
+    expect(after).toMatchObject({ allowed: false, lateFeeAutoCharge: true });
     expect(after.reasons).toContain('open_delivery_incident');
   });
 });

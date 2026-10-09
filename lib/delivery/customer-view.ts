@@ -2,6 +2,7 @@ import type { BookingStatus } from '@/lib/core/rental/state';
 import type { Shipment } from '@/lib/core/delivery/repository';
 import { FINAL_DELIVERY_STATES, type DeliveryState, type ShipmentLeg } from '@/lib/core/delivery/state';
 import type { DeliveryStatusLeg } from '@/lib/core/delivery/use-cases';
+import type { CustomerDeliveryQuote } from '@/lib/core/delivery/quote';
 import { windowLabel } from './checkout';
 
 /**
@@ -59,7 +60,17 @@ export function safeTrackingUrl(url: string | null): string | null {
   }
 }
 
+/** One item on a leg, as the renter sees it. `can_confirm`: the renter can accept it or report a problem now. */
+export interface CustomerLegItem {
+  booking_id: string;
+  rental_id: string;
+  title: string | null;
+  receipt: string;
+  can_confirm: boolean;
+}
+
 export interface CustomerLeg {
+  shipment_id: string;
   leg: ShipmentLeg;
   status: DeliveryState;
   status_label: string;
@@ -74,12 +85,17 @@ export interface CustomerLeg {
   items: number;
   /** Own vehicle (our staff) or a courier. */
   by: 'our_vehicle' | 'courier';
+  item_details: CustomerLegItem[];
 }
 
-export function customerLegs(legs: readonly DeliveryStatusLeg[], shipments: readonly Shipment[]): CustomerLeg[] {
+/** Leg states in which a delivered item can be confirmed or reported by the renter (D15). */
+const CONFIRMABLE: readonly DeliveryState[] = ['courier_at_dropoff', 'delivered', 'delivery_attempt_failed', 'incident_under_review'];
+
+export function customerLegs(legs: readonly DeliveryStatusLeg[], shipments: readonly Shipment[], titles: ReadonlyMap<string, string> = new Map()): CustomerLeg[] {
   return legs.map((l) => {
     const s = shipments.find((x) => x.id === l.shipmentId);
     return {
+      shipment_id: l.shipmentId,
       leg: l.leg,
       status: l.status,
       status_label: deliveryStatusLabel(l.leg, l.status),
@@ -92,26 +108,45 @@ export function customerLegs(legs: readonly DeliveryStatusLeg[], shipments: read
       scheduled_at: l.scheduledAt,
       items: l.items.length,
       by: s?.providerKind === 'courier' ? 'courier' : 'our_vehicle',
+      item_details: l.items.map((i) => ({
+        booking_id: i.bookingId,
+        rental_id: i.rentalId,
+        title: titles.get(i.rentalId) ?? null,
+        receipt: i.receipt,
+        // Only once our driver or the courier recorded the delivery to the renter.
+        can_confirm: l.leg === 'outbound' && i.receipt === 'awaiting_renter' && CONFIRMABLE.includes(l.status),
+      })),
     };
   });
 }
 
 export type ReturnPickupOption =
   | { allowed: true }
-  | { allowed: false; reason: 'collected_in_person' | 'already_arranged' | 'not_during_hire'; message: string };
+  | { allowed: false; reason: 'collected_in_person' | 'already_arranged' | 'requested' | 'not_during_hire'; message: string };
 
 const DURING_HIRE: readonly BookingStatus[] = ['confirmed', 'active', 'overdue'];
+
+/** Said once a renter asked for a paid pickup during the hire (no online payment for it yet, F-3). */
+export const RETURN_REQUESTED_MESSAGE = 'Return pickup requested. Our team will contact you to arrange payment and confirm it. Until then, plan to bring the gear back.';
 
 /**
  * Whether the renter may arrange a return pickup now. D-44: gear that was
  * collected in person is returned in person; a return pickup is offered only
  * when the gear went out by delivery. One live return leg at a time.
  */
-export function returnPickupOption(shipments: readonly Pick<Shipment, 'leg' | 'status'>[], lineStatuses: readonly BookingStatus[]): ReturnPickupOption {
+export function returnPickupOption(
+  shipments: readonly Pick<Shipment, 'leg' | 'status'>[],
+  lineStatuses: readonly BookingStatus[],
+  /** A pickup the renter already asked for, waiting for our team to confirm it and the payment. */
+  pendingRequest: Pick<CustomerDeliveryQuote, 'customerFeeCents'> | null = null,
+): ReturnPickupOption {
   const delivered = shipments.some((s) => s.leg === 'outbound' && !FINAL_DELIVERY_STATES.includes(s.status));
   if (!delivered) return { allowed: false, reason: 'collected_in_person', message: 'Gear collected in person is returned in person.' };
   if (shipments.some((s) => s.leg === 'return' && !FINAL_DELIVERY_STATES.includes(s.status))) {
     return { allowed: false, reason: 'already_arranged', message: 'Your return pickup is already arranged.' };
+  }
+  if (pendingRequest) {
+    return { allowed: false, reason: 'requested', message: RETURN_REQUESTED_MESSAGE };
   }
   if (!lineStatuses.some((st) => DURING_HIRE.includes(st))) return { allowed: false, reason: 'not_during_hire', message: 'A return pickup can be arranged only during the hire.' };
   return { allowed: true };

@@ -261,7 +261,7 @@ export default function DeliveryOptions({
           ))}
           {selection.quotes[0]?.expires_at && (
             <p className="text-neutral-500">
-              Price held until {new Date(selection.quotes[0].expires_at).toLocaleTimeString('en-ZA', { hour: '2-digit', minute: '2-digit' })}. After that we check it again before you pay.
+              Price held until {new Date(selection.quotes[0].expires_at).toLocaleTimeString(STUDIO.currency.locale, { hour: '2-digit', minute: '2-digit', timeZone: DELIVERY_CHECKOUT.timeZone })} (SAST). After that we check it again before you pay.
             </p>
           )}
         </div>
