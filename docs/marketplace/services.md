@@ -108,9 +108,12 @@ Before migration 073 the database does not allow `unknown`: it is stored as
 Yoco's refund call answers only success or failure, so a Yoco failure is
 treated as `unknown`.
 
-The admin dispute resolution route (`app/api/admin/disputes/[id]`) still
-refunds service bookings through the older `refundPayment` without these
-checks; it is outside this change.
+A refund from the admin dispute screen (`app/api/admin/disputes/[id]`) uses
+the same classification. It is refused when a refund is already recorded
+(`refunded`, `unknown` or `pending`), is capped at the booking total, and
+records its outcome on the booking. An unknown outcome leaves the dispute open
+and tells the admin to check the provider first. A refused one can be tried
+again, because nothing moved.
 
 ## Disputes
 

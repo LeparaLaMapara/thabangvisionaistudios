@@ -3,7 +3,8 @@ export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin, rateLimitAdmin } from '@/lib/auth';
 import { createAdminClient } from '@/lib/supabase/server';
-import { isManualReference, refundPayment } from '@/lib/payments/routing';
+import { isManualReference, refundPayment, refundWithOutcome } from '@/lib/payments/routing';
+import { refundAlreadyStarted } from '@/lib/core/services/fulfilment';
 import { toCents } from '@/lib/core/pricing/money';
 import { disputeMoney, refundObligationKey, type DisputeResolution } from '@/lib/core/rental/refunds';
 import { deliveryEarned, personSettlement } from '@/lib/core/rental/ledger';
@@ -232,19 +233,53 @@ export async function PATCH(
       if (dispute.booking_id) {
         const { data: booking } = await supabase
           .from('bookings')
-          .select('paystack_reference, total')
+          .select('paystack_reference, total, cancellation_refund_status')
           .eq('id', dispute.booking_id)
           .single();
         paymentReference = booking?.paystack_reference ?? null;
 
         if (paymentReference) {
-          const refundAmount = resolution === 'partial_refund' ? resolution_amount : undefined;
-          const refundResult = await refundPayment(paymentReference, refundAmount ?? undefined);
-          if (!refundResult.success) {
+          // A refund already sent, or one whose outcome is unknown, is never
+          // sent again from here: a person checks the provider first.
+          if (refundAlreadyStarted(booking?.cancellation_refund_status)) {
             return NextResponse.json(
-              { error: `Refund failed: ${refundResult.error}` },
-              { status: 500 },
+              { error: `A refund is already recorded for this booking (${booking?.cancellation_refund_status}). Check the payment provider before refunding anything more, then resolve this dispute without a refund.`, code: 'REFUND_ALREADY_STARTED' },
+              { status: 409 },
             );
+          }
+          const total = Number(booking?.total ?? 0);
+          const amountRands = resolution === 'partial_refund' ? Number(resolution_amount) : total;
+          if (!Number.isFinite(amountRands) || amountRands <= 0 || amountRands > total) {
+            return NextResponse.json({ error: `The refund must be more than R0 and at most the booking total (R${total}).` }, { status: 400 });
+          }
+          const refund = await refundWithOutcome({ reference: paymentReference, amountRands, idempotencyKey: `service-dispute:${id}` });
+          const recorded = refund.outcome === 'refunded' ? 'refunded' : refund.outcome === 'unknown' ? 'unknown' : refund.outcome === 'manual' ? 'manual_review' : 'failed';
+          const patch: Record<string, unknown> = {
+            cancellation_refund_status: recorded,
+            cancellation_refund_amount: amountRands,
+            cancellation_refunded_at: refund.outcome === 'refunded' ? now : null,
+            cancellation_refund_error: refund.outcome === 'refunded' ? null : refund.message.slice(0, 300),
+            ...(refund.outcome === 'refunded' && amountRands >= total ? { payment_status: 'refunded' } : {}),
+            updated_at: now,
+          };
+          const { error: recErr } = await supabase.from('bookings').update(patch).eq('id', dispute.booking_id);
+          if (recErr && recorded === 'unknown' && /cancellation_refund_status/.test(recErr.message)) {
+            // Before migration 073 'unknown' is not allowed; 'pending' keeps it out of every automatic refund path.
+            await supabase.from('bookings').update({ ...patch, cancellation_refund_status: 'pending' }).eq('id', dispute.booking_id);
+          } else if (recErr) {
+            console.error('[admin/disputes] could not record the refund outcome:', recErr.message);
+          }
+          if (refund.outcome === 'unknown') {
+            return NextResponse.json(
+              { error: `The payment provider did not answer clearly, so the refund MAY have gone through. Check its refunds for reference ${paymentReference} before doing anything else. The dispute was left open.`, code: 'REFUND_OUTCOME_UNKNOWN' },
+              { status: 502 },
+            );
+          }
+          if (refund.outcome === 'rejected') {
+            return NextResponse.json({ error: `The payment provider refused the refund; nothing was refunded. ${refund.message}` }, { status: 502 });
+          }
+          if (refund.outcome === 'manual') {
+            update.resolution_notes = `${resolution_notes ?? ''}${resolution_notes ? ' | ' : ''}Refund R${amountRands} to be paid back by hand (manual payment).`;
           }
         }
       }
