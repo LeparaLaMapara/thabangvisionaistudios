@@ -15,6 +15,8 @@ type QueueItem = {
   brand: string | null;
   model: string | null;
   price_per_day: number | null;
+  price_per_week: number | null;
+  rental_includes: string[] | null;
   deposit_amount: number | null;
   replacement_value: number | null;
   serial_number: string | null;
@@ -191,15 +193,35 @@ export default function AdminListingsReviewPage() {
             return (
               <div key={item.id} className="border border-white/10 bg-neutral-950 p-5">
                 <div className="flex flex-col md:flex-row gap-5">
-                  <div className="flex gap-2 flex-wrap md:w-48 flex-shrink-0">
-                    {(item.gallery ?? (item.thumbnail_url ? [{ url: item.thumbnail_url, public_id: '' }] : []))
-                      .slice(0, 4)
-                      .map((g, i) => (
-                        <a key={g.url + i} href={g.url} target="_blank" rel="noopener noreferrer">
+                  <div className="md:w-48 flex-shrink-0 space-y-2">
+                    {/* The cover is what search results and cards show; review it first. */}
+                    <div>
+                      <p className="text-[10px] font-mono uppercase tracking-widest text-neutral-500 mb-1">Cover</p>
+                      {item.thumbnail_url ? (
+                        <a href={item.thumbnail_url} target="_blank" rel="noopener noreferrer">
                           {/* eslint-disable-next-line @next/next/no-img-element */}
-                          <img src={g.url} alt="" className="w-20 h-20 object-cover border border-white/10" />
+                          <img src={item.thumbnail_url} alt="Cover" className="w-full max-w-[12rem] aspect-square object-cover border border-[#D4A843]/40" />
                         </a>
-                      ))}
+                      ) : (
+                        <p className="text-xs font-mono text-neutral-500">No cover</p>
+                      )}
+                      {item.thumbnail_url && !(item.gallery ?? []).some((g) => g.url === item.thumbnail_url) && (
+                        <p className="text-xs font-mono text-red-400 mt-1">Cover is not one of the photos below.</p>
+                      )}
+                    </div>
+                    <div>
+                      <p className="text-[10px] font-mono uppercase tracking-widest text-neutral-500 mb-1">
+                        Photos ({(item.gallery ?? []).length})
+                      </p>
+                      <div className="flex gap-2 flex-wrap">
+                        {(item.gallery ?? []).map((g, i) => (
+                          <a key={g.url + i} href={g.url} target="_blank" rel="noopener noreferrer">
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img src={g.url} alt="" className="w-20 h-20 object-cover border border-white/10" />
+                          </a>
+                        ))}
+                      </div>
+                    </div>
                   </div>
 
                   <div className="flex-1 min-w-0 space-y-2 text-xs font-mono">
@@ -209,9 +231,12 @@ export default function AdminListingsReviewPage() {
                       {item.sub_category ? ` / ${item.sub_category}` : ''} / {item.metadata?.location ?? 'no location'}
                     </p>
                     <p className="text-neutral-300">
-                      Day rate {money(item.price_per_day)} / Replacement value {money(item.replacement_value)} / Deposit{' '}
-                      {money(item.deposit_amount)}
+                      Day rate {money(item.price_per_day)} / Week rate {money(item.price_per_week)} / Replacement value{' '}
+                      {money(item.replacement_value)} / Deposit {money(item.deposit_amount)}
                     </p>
+                    {item.rental_includes && item.rental_includes.length > 0 && (
+                      <p className="text-neutral-400">Included: {item.rental_includes.join(', ')}</p>
+                    )}
                     <p className="text-neutral-500">
                       Serial: {item.serial_number || 'not given'}
                       {item.replacement_value_evidence ? ` / Value evidence: ${item.replacement_value_evidence}` : ''}

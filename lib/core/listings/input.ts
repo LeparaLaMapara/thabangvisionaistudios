@@ -17,7 +17,7 @@ import {
 } from '@/lib/constants';
 import { fromCents, toCents } from '@/lib/core/pricing/money';
 import { depositFor } from '@/lib/core/pricing/rental';
-import { isAiSuggestibleField, type AiSuggestibleField } from './review';
+import { isAiSuggestibleField, weekRateProblem, type AiSuggestibleField } from './review';
 
 const LIMITS = {
   title: 140,
@@ -25,7 +25,10 @@ const LIMITS = {
   shortText: 80,
   location: 120,
   evidence: 500,
+  includesItems: 20,
 } as const;
+
+const DAYS_PER_WEEK = 7;
 
 export interface ListingImage {
   url: string;
@@ -42,13 +45,26 @@ export interface ListingInput {
   model: string | null;
   /** Rands. */
   price_per_day: number | null;
+  /**
+   * Rands. `undefined` when the body did not send it (an edit keeps the
+   * stored value); null clears it. Never more than 7 days at the day rate.
+   */
+  price_per_week: number | null | undefined;
   /** Rands. */
   replacement_value: number | null;
+  /** What comes with the hire. `undefined` when not sent (an edit keeps the stored list). */
+  rental_includes: string[] | undefined;
   serial_number: string | null;
   /** Owner-entered suburb and city. Never coordinates. */
   location: string | null;
   replacement_value_evidence: string | null;
+  /**
+   * The cover photo: always one of `gallery` (null when there is no
+   * gallery). Chosen by cover_public_id or thumbnail_url from the gallery;
+   * a cover that is not one of the listing's own photos is refused.
+   */
   thumbnail_url: string | null;
+  /** The cover's storage id, taken from the gallery entry, never from the browser on its own. */
   cover_public_id: string | null;
   gallery: ListingImage[] | null;
   /** Raw declaration ticks; turned into a record by buildAttestations(). */
@@ -124,6 +140,47 @@ function parseGallery(raw: unknown): { ok: true; value: ListingImage[] | null } 
   return { ok: true, value: out.length > 0 ? out : null };
 }
 
+function parseIncludes(raw: unknown): { ok: true; value: string[] | undefined } | { ok: false; error: string } {
+  if (raw === undefined) return { ok: true, value: undefined };
+  if (raw === null || raw === '') return { ok: true, value: [] };
+  if (!Array.isArray(raw)) return { ok: false, error: "What's included must be a list." };
+  const out: string[] = [];
+  for (const item of raw) {
+    if (typeof item !== 'string') return { ok: false, error: "Each item in what's included must be text." };
+    const v = item.trim();
+    if (!v) continue;
+    if (v.length > LIMITS.shortText) return { ok: false, error: `Each included item is limited to ${LIMITS.shortText} characters.` };
+    if (!out.includes(v)) out.push(v);
+  }
+  if (out.length > LIMITS.includesItems) return { ok: false, error: `At most ${LIMITS.includesItems} included items.` };
+  return { ok: true, value: out };
+}
+
+/**
+ * The cover photo, picked from the listing's own gallery: the entry whose
+ * storage id is `coverPublicId`, else the entry whose URL is `thumbnailUrl`,
+ * else the first photo. A requested cover that matches no photo is refused,
+ * so a cover can never be an image a reviewer was not shown.
+ */
+export function resolveCover(
+  gallery: ListingImage[] | null,
+  thumbnailUrl: unknown,
+  coverPublicId: unknown,
+): { ok: true; value: { thumbnail_url: string | null; cover_public_id: string | null } } | { ok: false } {
+  const wantedUrl = typeof thumbnailUrl === 'string' && thumbnailUrl ? thumbnailUrl : null;
+  const wantedId = typeof coverPublicId === 'string' && coverPublicId ? coverPublicId : null;
+  if (!gallery || gallery.length === 0) {
+    if (wantedUrl || wantedId) return { ok: false };
+    return { ok: true, value: { thumbnail_url: null, cover_public_id: null } };
+  }
+  let cover: ListingImage | undefined;
+  if (wantedId) cover = gallery.find((g) => g.public_id === wantedId);
+  if (!cover && wantedUrl) cover = gallery.find((g) => g.url === wantedUrl);
+  if (!cover && (wantedId || wantedUrl)) return { ok: false };
+  cover = cover ?? gallery[0];
+  return { ok: true, value: { thumbnail_url: cover.url, cover_public_id: cover.public_id || null } };
+}
+
 /**
  * Parses a create or edit body. `requireCategory` is true on create. Title is
  * always required (every save writes it). Amounts may be blank on a draft;
@@ -159,6 +216,19 @@ export function parseListingInput(body: unknown, opts: { requireCategory: boolea
   const replacement = parseRands(b.replacement_value, LISTING_POLICY.maxReplacementValueCents);
   if (!replacement.ok) return fail('replacement_value', 'Replacement value must be an amount above zero.');
 
+  const week = parseRands(b.price_per_week, LISTING_POLICY.maxPricePerDayCents * DAYS_PER_WEEK);
+  if (!week.ok) return fail('price_per_week', 'Week rate must be an amount above zero.');
+  const pricePerWeek = b.price_per_week === undefined ? undefined : week.value;
+  // Checked here when both are sent; an edit that sends only one is checked
+  // against the stored value by the route.
+  if (pricePerWeek != null && price.value !== null) {
+    const problem = weekRateProblem(price.value, pricePerWeek);
+    if (problem) return fail('price_per_week', problem);
+  }
+
+  const includes = parseIncludes(b.rental_includes);
+  if (!includes.ok) return fail('rental_includes', includes.error);
+
   const location = optionalText(b.location, LIMITS.location);
   if (!location.ok) return fail('location', `Location is limited to ${LIMITS.location} characters.`);
   if (location.value && looksLikeCoordinates(location.value)) {
@@ -174,8 +244,8 @@ export function parseListingInput(body: unknown, opts: { requireCategory: boolea
   const gallery = parseGallery(b.gallery);
   if (!gallery.ok) return fail('gallery', gallery.error);
 
-  const thumb = typeof b.thumbnail_url === 'string' && b.thumbnail_url ? b.thumbnail_url : null;
-  if (thumb && !isHttpsUrl(thumb)) return fail('thumbnail_url', 'Cover image needs a secure (https) URL.');
+  const cover = resolveCover(gallery.value, b.thumbnail_url, b.cover_public_id);
+  if (!cover.ok) return fail('thumbnail_url', "Choose the cover from this listing's own photos.");
 
   const aiSuggested = Array.isArray(b.ai_suggested_fields)
     ? Array.from(new Set(b.ai_suggested_fields.filter(isAiSuggestibleField)))
@@ -191,12 +261,14 @@ export function parseListingInput(body: unknown, opts: { requireCategory: boolea
       brand: brand.value,
       model: model.value,
       price_per_day: price.value,
+      price_per_week: pricePerWeek,
       replacement_value: replacement.value,
+      rental_includes: includes.value,
       serial_number: serial.value,
       location: location.value,
       replacement_value_evidence: evidence.value,
-      thumbnail_url: thumb ?? gallery.value?.[0]?.url ?? null,
-      cover_public_id: typeof b.cover_public_id === 'string' && b.cover_public_id ? b.cover_public_id : null,
+      thumbnail_url: cover.value.thumbnail_url,
+      cover_public_id: cover.value.cover_public_id,
       gallery: gallery.value,
       attestations: b.attestations,
       ai_suggested_fields: aiSuggested,

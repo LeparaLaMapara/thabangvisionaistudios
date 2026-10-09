@@ -49,11 +49,29 @@
 --     supabase_admin — same "trusted caller" rule as 067;
 --   * finally asserts is_published = (listing_status = 'published').
 --
--- BACKFILL
---   published rows (studio or community)  -> 'published'
+-- BACKFILL (public.listing_review_backfill_072(), section 2c; safe to re-run)
+--   published studio rows                 -> 'published'
+--   published community rows that were never submitted or reviewed under
+--   this flow (no listing_private row with submitted_at or reviewed_at)
+--                                         -> 'pending_review'  (TAKEN OFFLINE)
 --   everything else                       -> 'draft' (the column default)
---   The set_updated_at trigger is switched off for the backfill only, so
---   updated_at (sitemap lastmod) does not jump for every published listing.
+--   Community gear published before 072 went live with no review, usually no
+--   replacement value and so a zero deposit. Leaving it 'published' would
+--   let it be hired with no deposit and count towards the owner's
+--   "established" threshold (3 live listings), which lets their next listing
+--   skip review. Applying 072 therefore takes those listings OFFLINE until
+--   the owner adds a replacement value and the declarations and a person
+--   approves (or the owner edits and resubmits). FOUNDER DECISION: see
+--   docs/marketplace/listings.md, "Applying migration 072".
+--
+--   AI-drafted community rows (is_ai_generated) with no recorded AI flags
+--   get listing_private.ai_fields marking every field the onboarding AI
+--   fills in (title, brand, model, category, day rate, and week rate,
+--   description and what's included where set) as 'suggested', so the owner
+--   must confirm or edit them before submitting.
+--
+--   The set_updated_at trigger is switched off for the status backfill only,
+--   so updated_at (sitemap lastmod) does not jump for every listing.
 --
 -- NOT DONE HERE
 --   serial_number (062) is still returned by the public SELECT on published
@@ -149,33 +167,7 @@ create policy "Admins read listing_private"
   to authenticated
   using (public.is_admin());
 
--- ── 2. Backfill (before the trigger exists) ─────────────────────────────────
-
-do $$
-declare
-  has_updated_at_trigger boolean;
-begin
-  select exists (
-    select 1 from pg_trigger
-     where tgrelid = 'public.smart_rentals'::regclass
-       and tgname = 'set_updated_at'
-       and not tgisinternal
-  ) into has_updated_at_trigger;
-
-  if has_updated_at_trigger then
-    execute 'alter table public.smart_rentals disable trigger set_updated_at';
-  end if;
-
-  -- Only rows still at the default are touched, so a re-run is a no-op.
-  update public.smart_rentals
-     set listing_status = 'published'
-   where is_published = true
-     and listing_status = 'draft';
-
-  if has_updated_at_trigger then
-    execute 'alter table public.smart_rentals enable trigger set_updated_at';
-  end if;
-end $$;
+-- ── 2. Backfill: see 2c (it needs listing_private, filled by 2b) ───────────
 
 -- ── 2b. Move private columns from an earlier draft of 072, if present ──────
 
@@ -205,6 +197,104 @@ begin
       drop column if exists replacement_value_evidence;
   end if;
 end $$;
+
+-- ── 2c. Backfill (before the status trigger exists on a first run) ──────────
+--
+-- A function so 072-listing-review.test.sql can run the same code against
+-- fixtures. Idempotent: every step only touches rows not yet in their
+-- backfilled state, and a listing that has been submitted or reviewed under
+-- this flow is never taken offline by a re-run. Only the migration owner
+-- (postgres) can run it.
+
+create or replace function public.listing_review_backfill_072()
+returns void
+language plpgsql
+security invoker
+set search_path = public
+as $$
+declare
+  has_updated_at_trigger boolean;
+begin
+  select exists (
+    select 1 from pg_trigger
+     where tgrelid = 'public.smart_rentals'::regclass
+       and tgname = 'set_updated_at'
+       and not tgisinternal
+  ) into has_updated_at_trigger;
+
+  if has_updated_at_trigger then
+    execute 'alter table public.smart_rentals disable trigger set_updated_at';
+  end if;
+
+  -- (a) Status from the old public flag. Only rows still at the default.
+  update public.smart_rentals
+     set listing_status = 'published'
+   where is_published = true
+     and listing_status = 'draft';
+
+  -- (b) Community gear that went live without review: offline until a person
+  --     approves it. is_published is set here too because on a first run the
+  --     status trigger (section 3) does not exist yet.
+  update public.smart_rentals r
+     set listing_status = 'pending_review',
+         is_published = false
+   where coalesce(r.owner_type, 'studio') = 'community'
+     and r.listing_status = 'published'
+     and not exists (
+       select 1 from public.listing_private p
+        where p.rental_id = r.id
+          and (p.reviewed_at is not null or p.submitted_at is not null)
+     );
+
+  if has_updated_at_trigger then
+    execute 'alter table public.smart_rentals enable trigger set_updated_at';
+  end if;
+
+  -- (c) AI-drafted listings with no recorded AI flags: every field the
+  --     onboarding AI fills in is unconfirmed until the owner says otherwise.
+  insert into public.listing_private as lp (rental_id, ai_fields)
+  select r.id, f.ai_fields
+    from public.smart_rentals r
+    cross join lateral (
+      select jsonb_object_agg(
+               field,
+               jsonb_build_object('status', 'suggested', 'suggested_at', to_jsonb(coalesce(r.created_at, now())))
+             ) as ai_fields
+        from unnest(array_remove(array[
+               'title', 'brand', 'model', 'category', 'price_per_day',
+               case when r.price_per_week is not null then 'price_per_week' end,
+               case when nullif(btrim(coalesce(r.description, '')), '') is not null then 'description' end,
+               case when coalesce(cardinality(r.rental_includes), 0) > 0 then 'rental_includes' end
+             ], null)) as field
+    ) f
+   where r.is_ai_generated = true
+     and coalesce(r.owner_type, 'studio') = 'community'
+     and not exists (
+       select 1 from public.listing_private p
+        where p.rental_id = r.id and p.ai_fields is not null
+     )
+  on conflict (rental_id) do update
+     set ai_fields = excluded.ai_fields,
+         updated_at = now()
+   where lp.ai_fields is null;
+end;
+$$;
+
+revoke all on function public.listing_review_backfill_072() from public;
+do $$
+begin
+  if exists (select 1 from pg_roles where rolname = 'anon') then
+    execute 'revoke all on function public.listing_review_backfill_072() from anon';
+  end if;
+  if exists (select 1 from pg_roles where rolname = 'authenticated') then
+    execute 'revoke all on function public.listing_review_backfill_072() from authenticated';
+  end if;
+  if exists (select 1 from pg_roles where rolname = 'service_role') then
+    execute 'revoke all on function public.listing_review_backfill_072() from service_role';
+  end if;
+end $$;
+
+select public.listing_review_backfill_072();
 
 -- ── 3. Keep is_published and listing_status consistent ──────────────────────
 
@@ -325,9 +415,22 @@ commit;
 -- listing_private. Listings
 -- that were pending_review/rejected/suspended become plain unpublished rows.
 --
+-- Community listings the backfill took offline (2c b) stay offline after a
+-- rollback: is_published is not restored. To put one back exactly as before
+-- 072, set is_published = true on it by hand AFTER dropping the trigger
+-- below (there is no record of which rows they were other than
+-- listing_status = 'pending_review' with no listing_private.submitted_at, so
+-- list them before rolling back:
+--   select r.id from public.smart_rentals r
+--    where r.owner_type = 'community' and r.listing_status = 'pending_review'
+--      and not exists (select 1 from public.listing_private p
+--                       where p.rental_id = r.id and p.submitted_at is not null);
+-- ).
+--
 -- begin;
 -- drop trigger if exists smart_rentals_listing_status_guard on public.smart_rentals;
 -- drop function if exists public.smart_rentals_listing_status_guard();
+-- drop function if exists public.listing_review_backfill_072();
 -- drop index if exists public.idx_smart_rentals_review_queue;
 -- drop index if exists public.idx_smart_rentals_owner_status;
 -- alter table public.smart_rentals drop constraint if exists smart_rentals_listing_status_check;

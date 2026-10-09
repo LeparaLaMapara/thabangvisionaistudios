@@ -1,7 +1,7 @@
 export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
-import { checkRateLimit, requireAuth } from '@/lib/auth';
+import { checkNotSuspended, checkRateLimit, requireAuth } from '@/lib/auth';
 import { STUDIO } from '@/lib/constants';
 import {
   buildAttestations,
@@ -10,6 +10,7 @@ import {
   editNeedsResubmission,
   markAiSuggested,
   readAiFields,
+  weekRateProblem,
 } from '@/lib/core/listings/review';
 import {
   changedFields,
@@ -59,7 +60,12 @@ function uniqueSlug(title: string): string {
   return `${slugify(title)}-${Date.now().toString(36)}`;
 }
 
-/** Strings the edit can compare against the stored row to find what changed. */
+/** A gallery as comparable strings: a photo swapped under the same URL (or id) is a change. */
+function galleryKeys(gallery: { url: string; public_id: string }[] | null | undefined): string[] {
+  return (gallery ?? []).map((g) => `${g.url}|${g.public_id ?? ''}`);
+}
+
+/** The stored values the edit can compare against to find what changed. */
 function comparable(row: OwnerListingRow): Record<string, unknown> {
   return {
     title: row.title,
@@ -69,27 +75,42 @@ function comparable(row: OwnerListingRow): Record<string, unknown> {
     brand: row.brand,
     model: row.model,
     price_per_day: row.price_per_day,
+    price_per_week: row.price_per_week,
     replacement_value: row.replacement_value,
+    rental_includes: row.rental_includes ?? [],
     serial_number: row.serial_number,
     location: locationOf(row),
-    gallery: (row.gallery ?? []).map((g) => g.url),
+    gallery: galleryKeys(row.gallery),
+    thumbnail_url: row.thumbnail_url,
   };
 }
 
-function incoming(input: ListingInput, existingCategory: string | null): Record<string, unknown> {
+/**
+ * What the row will hold after this edit, in the same shape as comparable().
+ * Week rate and what's included keep their stored value when not sent.
+ */
+function incoming(input: ListingInput, row: OwnerListingRow): Record<string, unknown> {
   return {
     title: input.title,
     description: input.description,
-    category: input.category ?? existingCategory,
+    category: input.category ?? row.category,
     condition: input.condition,
     brand: input.brand,
     model: input.model,
     price_per_day: input.price_per_day,
+    price_per_week: weekRateAfterEdit(input, row),
     replacement_value: input.replacement_value,
+    rental_includes: input.rental_includes ?? row.rental_includes ?? [],
     serial_number: input.serial_number,
     location: input.location,
-    gallery: (metadataFreeGallery(input.gallery) ?? []).map((g) => g.url),
+    gallery: galleryKeys(metadataFreeGallery(input.gallery)),
+    thumbnail_url: input.thumbnail_url ? metadataFreeImageUrl(input.thumbnail_url) : null,
   };
+}
+
+function weekRateAfterEdit(input: ListingInput, row: OwnerListingRow): number | null {
+  if (input.price_per_week !== undefined) return input.price_per_week;
+  return row.price_per_week === null ? null : Number(row.price_per_week);
 }
 
 async function readJson(request: NextRequest): Promise<unknown> {
@@ -184,11 +205,14 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         brand: input.brand,
         model: input.model,
         price_per_day: input.price_per_day,
+        price_per_week: input.price_per_week ?? null,
         replacement_value: input.replacement_value,
         deposit_amount: depositForListing(input.replacement_value),
+        rental_includes: input.rental_includes ?? [],
         serial_number: input.serial_number,
         currency: STUDIO.currency.code,
-        thumbnail_url: input.thumbnail_url ? metadataFreeImageUrl(input.thumbnail_url) : (gallery?.[0]?.url ?? null),
+        // Always one of the gallery photos (parseListingInput), served metadata-free.
+        thumbnail_url: input.thumbnail_url ? metadataFreeImageUrl(input.thumbnail_url) : null,
         cover_public_id: input.cover_public_id,
         gallery,
         metadata: listingMetadata(null, input.location),
@@ -248,6 +272,18 @@ export async function PUT(request: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: 'Unknown action.' }, { status: 400 });
   }
 
+  // A suspended owner may still take a listing down, nothing else. Also
+  // clears an expired suspension, so the answer is current.
+  if (action !== 'unpublish') {
+    const suspension = await checkNotSuspended(auth.user.id);
+    if (suspension.suspended) {
+      return NextResponse.json(
+        { error: 'Your account is suspended. Contact support.', code: 'owner_suspended' },
+        { status: 403 },
+      );
+    }
+  }
+
   try {
     const admin = adminClient();
     const row = await loadOwnListing(admin, id, auth.user.id);
@@ -272,7 +308,7 @@ export async function PUT(request: NextRequest): Promise<NextResponse> {
       if (!check.ok) return NextResponse.json({ error: check.message, code: check.code }, { status: 409 });
       const { data, error } = await admin
         .from('smart_rentals')
-        .update({ listing_status: 'draft' })
+        .update({ listing_status: 'draft', updated_at: now.toISOString() })
         .eq('id', row.id)
         .eq('owner_id', auth.user.id)
         .eq('listing_status', row.listing_status)
@@ -288,7 +324,13 @@ export async function PUT(request: NextRequest): Promise<NextResponse> {
     if (!parsed.ok) return NextResponse.json({ error: parsed.error, field: parsed.field }, { status: 400 });
     const input = parsed.value;
 
-    const changed = changedFields(comparable(row), incoming(input, row.category));
+    // The week rate is charged for whole weeks of a long hire, so it is
+    // checked against the day rate the listing will have after this edit.
+    const weekRate = weekRateAfterEdit(input, row);
+    const weekProblem = weekRateProblem(input.price_per_day, weekRate);
+    if (weekProblem) return NextResponse.json({ error: weekProblem, field: 'price_per_week' }, { status: 400 });
+
+    const changed = changedFields(comparable(row), incoming(input, row));
 
     // A changed AI-suggested value is the owner's own value now.
     let aiFields = confirmAiFields(row.ai_fields, changed, now, 'owner_edited');
@@ -315,15 +357,30 @@ export async function PUT(request: NextRequest): Promise<NextResponse> {
       brand: input.brand,
       model: input.model,
       price_per_day: input.price_per_day,
+      price_per_week: weekRate,
       replacement_value: input.replacement_value,
       deposit_amount: depositForListing(input.replacement_value),
+      rental_includes: input.rental_includes ?? row.rental_includes ?? [],
       serial_number: input.serial_number,
-      thumbnail_url: input.thumbnail_url ? metadataFreeImageUrl(input.thumbnail_url) : (gallery?.[0]?.url ?? null),
+      // Always one of the gallery photos (parseListingInput), served metadata-free.
+      thumbnail_url: input.thumbnail_url ? metadataFreeImageUrl(input.thumbnail_url) : null,
       cover_public_id: input.cover_public_id,
       gallery,
       metadata: listingMetadata(row.metadata, input.location),
+      // Set here as well as by the set_updated_at trigger: submission
+      // compares it to spot an edit that landed while it was deciding.
+      updated_at: now.toISOString(),
       ...(backToDraft && { listing_status: 'draft' }),
     };
+
+    // Private row first, then the listing row (which moves updated_at). A
+    // submission that read the listing before this edit then fails its
+    // updated_at check (409) instead of publishing on half-old facts.
+    await savePrivate(admin, row.id, {
+      ai_fields: hasAiFields ? aiFields : null,
+      owner_attestations: attestations,
+      replacement_value_evidence: input.replacement_value_evidence,
+    });
 
     const { data, error } = await admin
       .from('smart_rentals')
@@ -334,14 +391,12 @@ export async function PUT(request: NextRequest): Promise<NextResponse> {
       .select('id')
       .maybeSingle();
 
-    if (error) throw error;
-    if (!data) return NextResponse.json({ error: 'The listing changed; reload and try again.' }, { status: 409 });
-
-    await savePrivate(admin, row.id, {
-      ai_fields: hasAiFields ? aiFields : null,
-      owner_attestations: attestations,
-      replacement_value_evidence: input.replacement_value_evidence,
-    });
+    if (error || !data) {
+      // The listing was not saved; put the private row back as it was.
+      await restorePrivate(admin, row);
+      if (error) throw error;
+      return NextResponse.json({ error: 'The listing changed; reload and try again.' }, { status: 409 });
+    }
 
     return ownListingResponse(admin, row.id, auth.user.id, {
       notice: backToDraft ? 'Your changes took this listing back to draft. Submit it again to go live.' : undefined,
@@ -349,6 +404,19 @@ export async function PUT(request: NextRequest): Promise<NextResponse> {
   } catch (err) {
     console.error('[listings] PUT error:', err);
     return NextResponse.json({ error: 'Failed to update listing.' }, { status: 500 });
+  }
+}
+
+/** Best effort: a failure is logged (listing id only); the caller's answer stands. */
+async function restorePrivate(admin: Admin, row: OwnerListingRow): Promise<void> {
+  try {
+    await savePrivate(admin, row.id, {
+      ai_fields: row.ai_fields,
+      owner_attestations: row.owner_attestations,
+      replacement_value_evidence: row.replacement_value_evidence,
+    });
+  } catch (err) {
+    console.error('[listings] PUT: private row not restored for listing', row.id, err);
   }
 }
 
