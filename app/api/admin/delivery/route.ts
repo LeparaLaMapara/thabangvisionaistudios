@@ -256,8 +256,13 @@ export async function POST(request: NextRequest) {
         // with a reason, through the core transition rules (staff only, reason required).
         if (!isId(body.shipmentId) || !REVIEW_TARGETS.includes(body.to as (typeof REVIEW_TARGETS)[number])) return NextResponse.json({ error: 'Choose the delivery and how the review ends.' }, { status: 400 });
         const reason = text(body.reason, 500);
-        const r = await closeDeliveryReview({ caller: staff, shipmentId: body.shipmentId, to: body.to as (typeof REVIEW_TARGETS)[number], reason, refundFee: body.refundFee === true }, await deliveryDeps());
-        audit({ shipmentId: body.shipmentId, to: String(body.to), refundFee: body.refundFee === true, outcome: r.ok ? r.outcome : r.code, refundCents: r.ok ? r.refundCents : null });
+        // Closing an outbound leg as delivered is a staff decision that the renter has the gear
+        // (confirmReceived): it records the decision per item and earns the fee once.
+        const r = await closeDeliveryReview(
+          { caller: staff, shipmentId: body.shipmentId, to: body.to as (typeof REVIEW_TARGETS)[number], reason, refundFee: body.refundFee === true, confirmReceived: body.confirmReceived === true },
+          await deliveryDeps(),
+        );
+        audit({ shipmentId: body.shipmentId, to: String(body.to), refundFee: body.refundFee === true, confirmReceived: body.confirmReceived === true, outcome: r.ok ? r.outcome : r.code, refundCents: r.ok ? r.refundCents : null });
         if (!r.ok) return refusal(r);
         await flush();
         return NextResponse.json(r);

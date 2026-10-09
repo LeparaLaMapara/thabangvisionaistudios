@@ -12,7 +12,7 @@ import { isMissingPipeline, transitionBookings } from '@/lib/rental/repos';
 import { dispatchOutbox } from '@/lib/rental/notify';
 import { chargeOfBooking } from '@/lib/rental/charges';
 import { logEvent } from '@/lib/data/events';
-import { deliveryCancellationPlan, heldForStaffCancel, settleOrderDeliveryOnCancel, type DeliveryCancellationPlan } from '@/lib/rental/delivery-settlement';
+import { deliveryCancellationPlan, heldForStaffCancel, settleAfterLineCancelled, type DeliveryCancellationPlan } from '@/lib/rental/delivery-settlement';
 
 /**
  * Admin status changes for a gear booking (spec §7.3, §7.15).
@@ -30,8 +30,16 @@ import { deliveryCancellationPlan, heldForStaffCancel, settleOrderDeliveryOnCanc
  * or of what the line releases here. When the order's last line goes, its
  * live legs are cancelled through the delivery core (fee refunded once, in
  * full, as a platform cancellation) and any paid quote no leg was made from
- * is refunded. A leg already on its way must be closed in the delivery
- * console first (409 DELIVERY_UNDER_WAY), and nothing changes.
+ * is refunded. A leg actually in motion (the gear with a courier or our
+ * driver) must be closed in the delivery console first (409
+ * DELIVERY_UNDER_WAY), and nothing changes. Staff are not held back by legs
+ * that already reached the renter or are lost, damaged or under review
+ * (review fix round 2, finding 3): the booking is cancelled and those legs
+ * are left as they are and logged. Their fee is kept (D-39/D-52: the gear
+ * reached the renter) unless staff tick "refund the delivery fee"
+ * (`refundDeliveryFee: true`), which refunds it once through the core. The
+ * renter's own cancellation keeps the stricter rule (any leg past the
+ * cancellable states blocks it).
  */
 
 const NEEDS_OWN_SCREEN: Record<string, string> = {
@@ -54,7 +62,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   const limited = await rateLimitAdmin(auth.user.id);
   if (limited) return limited;
 
-  let body: { status?: string; reason?: string; refundCents?: number };
+  let body: { status?: string; reason?: string; refundCents?: number; refundDeliveryFee?: boolean };
   try {
     body = await request.json();
   } catch {
@@ -111,9 +119,10 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     } catch {
       return NextResponse.json({ error: 'Could not check the delivery records just now. Nothing was changed; try again.' }, { status: 503 });
     }
-    if (deliveryPlan.tooLate) {
+    // Staff rule: only a leg actually in motion blocks (absent on an older plan: the stricter rule).
+    if (deliveryPlan.inMotion ?? deliveryPlan.tooLate) {
       return NextResponse.json(
-        { error: 'A delivery leg on this order is already on its way. Close or cancel it in the delivery console first, then cancel the booking.', code: 'DELIVERY_UNDER_WAY' },
+        { error: 'A delivery leg on this order is on its way right now. Close it in the delivery console first, then cancel the booking.', code: 'DELIVERY_UNDER_WAY' },
         { status: 409 },
       );
     }
@@ -218,11 +227,31 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   if (moved.result === 'conflict') return NextResponse.json({ error: 'The booking changed; reload and try again.' }, { status: 409 });
 
   // The order's last line went: its delivery legs (and any unused paid quote) go too, refunded once.
+  // Read again AFTER the commit: a concurrent cancellation of the order's other line may have
+  // made this the last one (finding 6); settling is idempotent per leg and quote.
   let deliveryRefundCents = 0;
+  let keptLegs = 0;
   if (deliveryPlan) {
-    deliveryRefundCents = await settleOrderDeliveryOnCancel(db, { plan: deliveryPlan, caller: { kind: 'staff', userId: auth.user.id }, bookingId: id, reason: `booking cancelled by staff: ${reason}` });
+    keptLegs = deliveryPlan.keptShipmentIds?.length ?? 0;
+    deliveryRefundCents = await settleAfterLineCancelled(
+      db,
+      {
+        before: deliveryPlan,
+        bookingGroupId: booking.checkout_group_id,
+        bookingId: id,
+        caller: { kind: 'staff', userId: auth.user.id },
+        reason: `booking cancelled by staff: ${reason}`,
+        refundKeptLegs: body.refundDeliveryFee === true,
+      },
+      deliveryCancellationPlan,
+    );
   }
-  logEvent({ eventType: 'admin_booking_transition', eventCategory: 'admin', userId: auth.user.id, metadata: { bookingId: id, from: booking.status, to, deliveryRefundCents } });
+  logEvent({
+    eventType: 'admin_booking_transition',
+    eventCategory: 'admin',
+    userId: auth.user.id,
+    metadata: { bookingId: id, from: booking.status, to, deliveryRefundCents, deliveryLegsLeft: keptLegs, deliveryFeeRefundAsked: body.refundDeliveryFee === true },
+  });
   await dispatchOutbox(10).catch(() => undefined);
   const { data: updated, error } = await db.from('equipment_bookings').select().eq('id', id).maybeSingle();
   if (error && !isMissingPipeline(error)) return NextResponse.json({ error: 'Updated, but could not reload the booking.' }, { status: 200 });

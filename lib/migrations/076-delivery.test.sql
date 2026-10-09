@@ -26,8 +26,10 @@
 --   12. clients cannot write delivery tables or execute delivery functions
 --   13. custody and incidents are readable by the renter and the item's owner only
 --   14. review fixes: a delivery-fee refund is capped at what is LEFT of the
---       charge (never above the charge in total); a payment with no verified
---       charge gets no provider refund (staff alert)
+--       ORDER's charge, counting hire and staff refunds filed under the
+--       provider's transaction id as production does (round 2); never above
+--       the charge in total; a payment with no verified charge gets no
+--       provider refund (staff alert)
 --   15. a paid quote with no leg is refunded once (delivery_refund_quote); a
 --       refunded quote cannot be made into a shipment
 --   16. the address purge refuses while a live shipment uses the address
@@ -35,6 +37,11 @@
 --   18. clients read events without actor/note, custody and incidents without
 --       evidence or staff ids; an owner reads an incident only when every line
 --       on it is theirs
+--   19. round 2: custody accepts the staff decision 'staff_confirmed_received'
+--   20. round 2: the deemed-acceptance list leaves out legs with a renter
+--       exception or an open incident, before the limit
+--   21. round 2: the cancelled-order sweep lists only fully cancelled orders
+--       that still hold a cancellable leg or an unused paid quote
 
 begin;
 
@@ -462,18 +469,24 @@ begin
   end;
   raise notice 'PASS 15: a paid quote with no leg is refunded once; a refunded quote is never dispatched';
 
-  -- 14. The cap is what is LEFT of the charge (300000 on p4-pay-1).
-  select coalesce(sum(amount_cents), 0) into n from public.refund_obligations where transaction_reference = 'p4-pay-1';
-  -- A staff refund takes the charge down to 8000 left.
-  insert into public.refund_obligations (obligation_key, reason, amount_cents, charged_cents, transaction_reference)
-  values ('refund:manual:staff-cancel:test', 'manual', 300000 - n - 8000, 300000, 'p4-pay-1');
+  -- 14. The cap is what is LEFT of the ORDER's charge (300000 on p4-pay-1). As in
+  -- production, the payment's provider transaction id is on the intent and on the
+  -- lines (payfast_payment_id), and hire, deposit and staff refunds are filed under
+  -- THAT id, while delivery-fee refunds are filed under the intent reference.
+  update public.rental_payment_intents set provider_transaction_id = 'p4-tx-1' where reference = 'p4-pay-1';
+  update public.equipment_bookings set payfast_payment_id = 'p4-tx-1' where checkout_group_id = grp;
+  select coalesce(sum(amount_cents), 0) into n from public.refund_obligations where transaction_reference in ('p4-pay-1', 'p4-tx-1') or booking_group_id = grp;
+  -- A hire refund (renter cancelled a line) and a staff refund take the order down to 8000 left.
+  insert into public.refund_obligations (obligation_key, reason, amount_cents, charged_cents, transaction_reference, booking_group_id, booking_ids)
+  values ('refund:cancellation:' || bk2, 'cancellation', 40000, 300000, 'p4-tx-1', grp, array[bk2]),
+         ('refund:manual:staff-cancel:test', 'manual', 300000 - n - 40000 - 8000, 300000, 'p4-tx-1', grp, array[bk1]);
   n := public.delivery_insert_fee_refund(jsonb_build_object('key', 'refund:cancellation:delivery-cap-1', 'amountCents', 12000, 'paidReference', 'p4-pay-1',
     'userId', renter, 'bookingIds', jsonb_build_array(bk1)), grp, '{}'::jsonb);
   if n <> 8000 or (select amount_cents from public.refund_obligations where obligation_key = 'refund:cancellation:delivery-cap-1') <> 8000 then
-    raise exception 'FAIL 14: the delivery refund was not capped at the remainder (got %)', n;
+    raise exception 'FAIL 14: the delivery refund was not capped at what is left of the order (got %; hire and staff refunds on the transaction id were not counted)', n;
   end if;
-  if (select sum(amount_cents) from public.refund_obligations where transaction_reference = 'p4-pay-1') <> 300000 then
-    raise exception 'FAIL 14: refunds on the charge do not add up to the charge';
+  if (select sum(amount_cents) from public.refund_obligations where transaction_reference in ('p4-pay-1', 'p4-tx-1')) <> 300000 then
+    raise exception 'FAIL 14: refunds on the order do not add up to the charge';
   end if;
   n := public.delivery_insert_fee_refund(jsonb_build_object('key', 'refund:cancellation:delivery-cap-2', 'amountCents', 12000, 'paidReference', 'p4-pay-1',
     'userId', renter, 'bookingIds', '[]'::jsonb), grp, '{}'::jsonb);
@@ -482,6 +495,12 @@ begin
   end if;
   if not exists (select 1 from public.notification_outbox where dedupe_key = 'staff_alert:in_app:staff:delivery:delivery_refund_capped:refund:cancellation:delivery-cap-2') then
     raise exception 'FAIL 14: no staff alert for a capped refund';
+  end if;
+  -- A delivery refund filed under the transaction id finds the same order and the same cap.
+  n := public.delivery_insert_fee_refund(jsonb_build_object('key', 'refund:cancellation:delivery-cap-tx', 'amountCents', 100, 'paidReference', 'p4-tx-1',
+    'userId', renter, 'bookingIds', '[]'::jsonb), grp, '{}'::jsonb);
+  if n <> 0 or exists (select 1 from public.refund_obligations where obligation_key = 'refund:cancellation:delivery-cap-tx') then
+    raise exception 'FAIL 14: a refund under the transaction id went above the order''s charge';
   end if;
   -- Through a transition too: the cap applies, and the transition still commits.
   res := public.delivery_apply_transition(jsonb_build_object(
@@ -589,6 +608,92 @@ begin
   raise notice 'PASS 18c: owner B sees only the incident on their own line';
 end $$;
 reset role;
+
+-- 19–21 (review fixes, round 2) run as the server.
+do $$
+declare
+  renter uuid := '00000000-0000-4000-8000-0000000760a1';
+  owner_a uuid := '00000000-0000-4000-8000-0000000760b1';
+  cam uuid := '00000000-0000-4000-8000-0000000760c1';
+  office uuid := '00000000-0000-4000-8000-0000000760f1';
+  home uuid := '00000000-0000-4000-8000-0000000760f2';
+  g_ok uuid := '00000000-0000-4000-8000-000000076201';
+  g_exc uuid := '00000000-0000-4000-8000-000000076202';
+  g_inc uuid := '00000000-0000-4000-8000-000000076203';
+  g_cx_leg uuid := '00000000-0000-4000-8000-000000076204';
+  g_cx_quote uuid := '00000000-0000-4000-8000-000000076205';
+  g_open uuid := '00000000-0000-4000-8000-000000076206';
+  g_cx_moving uuid := '00000000-0000-4000-8000-000000076207';
+  g uuid;
+  i integer := 0;
+  q uuid;
+  s uuid;
+  b uuid;
+  items jsonb;
+  ids uuid[];
+  st text;
+begin
+  -- One renter, one listing per order; each order gets its own quote, line and (maybe) leg.
+  foreach g in array array[g_ok, g_exc, g_inc, g_cx_leg, g_cx_quote, g_open, g_cx_moving] loop
+    q := gen_random_uuid();
+    b := gen_random_uuid();
+    i := i + 1;
+    st := case when g in (g_cx_leg, g_cx_quote, g_cx_moving) then 'cancelled' else 'confirmed' end;
+    insert into public.equipment_bookings (id, user_id, rental_id, start_date, end_date, total_price, status, checkout_group_id, owner_id)
+    values (b, renter, cam, date '2031-03-01' + i * 7, date '2031-03-02' + i * 7, 100, st, g, owner_a);
+    insert into public.delivery_quotes (id, renter_id, booking_group_id, leg, provider, provider_kind, quote_amount_cents, provider_cost_cents,
+      platform_fee_cents, customer_fee_cents, rental_ids, origin_address_id, destination_address_id, expires_at, status, paid_reference)
+    values (q, renter, g, 'outbound', 'manual', 'own_fleet', 5000, 5000, 0, 5000, array[cam], office, home, now() + interval '1 hour', 'paid', g::text);
+    if g = g_cx_quote then
+      continue; -- a paid quote no leg was made from
+    end if;
+    items := jsonb_build_array(jsonb_build_object('bookingId', b, 'rentalId', cam, 'ownerId', owner_a, 'serialNumber', null));
+    insert into public.delivery_shipments (booking_group_id, leg, attempt, renter_id, items, provider, provider_kind, quote_id, merchant_reference,
+      status, quote_amount_cents, customer_fee_cents, origin_address_id, destination_address_id, delivered_at, paid_reference)
+    values (g, 'outbound', 1, renter, items, 'manual', 'own_fleet', q, 'tvd_r2_' || replace(g::text, '-', ''),
+      case when g = g_cx_leg then 'scheduled' when g = g_open then 'prepared' when g = g_cx_moving then 'in_transit' else 'delivered' end,
+      -- The deemable leg is the NEWEST delivery: without the exclusion, older legs fill a batch of 1.
+      5000, 5000, office, home, now() - case when g = g_ok then interval '2 days' else interval '3 days' end, g::text)
+    returning id into s;
+    if g = g_exc then
+      insert into public.delivery_custody_events (shipment_id, booking_group_id, booking_id, rental_id, kind, actor_kind, actor_id, occurred_at, discrepancies, dedupe_key)
+      values (s, g, b, cam, 'renter_reported_exception', 'renter', renter::text, now() - interval '2 days', '["scratched"]', 'r2-exc:' || s);
+    elsif g = g_inc then
+      insert into public.delivery_incidents (id, shipment_id, booking_group_id, booking_ids, leg, kind, reported_by_kind, reported_by_id, description, dedupe_key)
+      values (gen_random_uuid(), s, g, array[b], 'outbound', 'delayed', 'owner', owner_a::text, 'late', 'r2-inc:' || s);
+    end if;
+  end loop;
+
+  -- 19. The staff decision is a custody kind (its reason in condition).
+  select id into s from public.delivery_shipments where booking_group_id = g_exc;
+  select id into b from public.equipment_bookings where checkout_group_id = g_exc;
+  insert into public.delivery_custody_events (shipment_id, booking_group_id, booking_id, rental_id, kind, actor_kind, actor_id, occurred_at, condition, dedupe_key)
+  values (s, g_exc, b, cam, 'staff_confirmed_received', 'thabangvision_staff', 'staff-1', now(), 'renter confirmed by phone', 'r2-staff-confirm:' || s);
+  raise notice 'PASS 19: custody records the staff decision staff_confirmed_received';
+
+  -- 20. Only the leg that can be deemed accepted is listed; a limit of 1 still finds it.
+  select array_agg(x) into ids from public.delivery_list_awaiting_acceptance(now(), 1) x;
+  if ids is null or array_length(ids, 1) <> 1 or ids[1] <> (select id from public.delivery_shipments where booking_group_id = g_ok) then
+    raise exception 'FAIL 20: awaiting-acceptance list was % (legs with an exception or open incident must not fill the batch)', ids;
+  end if;
+  select array_agg(x) into ids from public.delivery_list_awaiting_acceptance(now(), 50) x;
+  if (select id from public.delivery_shipments where booking_group_id = g_exc) = any (ids)
+     or (select id from public.delivery_shipments where booking_group_id = g_inc) = any (ids) then
+    raise exception 'FAIL 20: a leg with an exception or an open incident was listed for deemed acceptance';
+  end if;
+  raise notice 'PASS 20: legs with a renter exception or an open incident never fill the deemed-acceptance batch';
+
+  -- 21. Fully cancelled orders with a cancellable leg or an unused paid quote; never an open order,
+  -- never a cancelled order whose only leg is on the move (staff were alerted for it).
+  select array_agg(x) into ids from public.delivery_cancelled_orders_to_settle(50) x;
+  if not (g_cx_leg = any (ids)) or not (g_cx_quote = any (ids)) then
+    raise exception 'FAIL 21: a fully cancelled order with live delivery money was not listed (%)', ids;
+  end if;
+  if g_open = any (ids) or g_ok = any (ids) or g_cx_moving = any (ids) then
+    raise exception 'FAIL 21: an open order or a moving leg was listed (%)', ids;
+  end if;
+  raise notice 'PASS 21: the daily sweep lists only fully cancelled orders with a cancellable leg or an unused paid quote';
+end $$;
 
 select 'ALL 076 CHECKS PASSED' as result;
 rollback;

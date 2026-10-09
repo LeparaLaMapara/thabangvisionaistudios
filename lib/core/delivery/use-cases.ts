@@ -29,6 +29,7 @@ import {
   allInspected,
   chainsByItem,
   checkCustodyEvent,
+  endsRenterPossession,
   outboundReceipt,
   returnProgress,
   type AccessoryCheck,
@@ -329,11 +330,20 @@ export async function priceDeliveryForCheckout(
  * customer's price is fixed by the payment, so that is fine. The paid
  * delivery amount must equal the stored quotes (D08); otherwise nothing is
  * marked and staff are alerted.
+ *
+ * Refused for an order whose every line is cancelled (review fix round 2,
+ * finding 1): the cancellation settled its delivery money, and marking the
+ * quotes paid now would let a payment replay refund the fee a second time.
+ * The one exception is the cancellation's own settlement
+ * (`forCancelledOrderRefund`), which marks them only to refund them at once.
  */
 export async function markDeliveryQuotesPaid(
-  input: { paymentReference: string; bookingGroupId: string; renterId: string; quoteIds: readonly string[]; paidDeliveryCents: number },
-  deps: Pick<DeliveryDeps, 'repo'>,
-): Promise<{ ok: true; marked: number } | Refusal<'amount_mismatch' | 'quote_not_found' | 'wrong_renter'>> {
+  input: { paymentReference: string; bookingGroupId: string; renterId: string; quoteIds: readonly string[]; paidDeliveryCents: number; forCancelledOrderRefund?: boolean },
+  deps: Pick<DeliveryDeps, 'repo' | 'bookings'>,
+): Promise<{ ok: true; marked: number } | Refusal<'amount_mismatch' | 'quote_not_found' | 'wrong_renter' | 'order_cancelled'>> {
+  const group = await deps.bookings.getGroup(input.bookingGroupId);
+  const allCancelled = !!group && group.lines.length > 0 && group.lines.every((l) => l.status === 'cancelled');
+  if (allCancelled && !input.forCancelledOrderRefund) return refuse('order_cancelled', 'This order was cancelled; its delivery fee was settled with the cancellation.');
   const quotes = await Promise.all(input.quoteIds.map((id) => deps.repo.getQuote(id)));
   let total = 0;
   for (const q of quotes) {
@@ -659,6 +669,13 @@ export async function commitDelivery(input: { caller: DeliveryCaller; shipmentId
  * database at what is left of the original charge (076). A fee paid by hand
  * (manual reference) was never in the ledger and is not refunded through the
  * provider: staff are alerted to refund it.
+ *
+ * A fee already EARNED (`acceptedAt` set: every item accepted, deemed
+ * accepted, confirmed by staff or received back, and `deliveryEarned` posted)
+ * is no longer in unearned hire: its refund reverses the income
+ * (`deliveryEarnedRefund`) instead of releasing unearned hire a second time
+ * (review fix round 2, finding 4). Both journals share one key per shipment,
+ * so a leg's fee is refunded in the ledger once.
  */
 function withFeeRefund(t: ShipmentTransition, s: Shipment, refundCents: number): number {
   if (s.customerFeeCents <= 0 || !s.paidReference) return 0;
@@ -670,7 +687,12 @@ function withFeeRefund(t: ShipmentTransition, s: Shipment, refundCents: number):
     }
     return refund;
   }
-  t.journals.push(L.deliveryCancelled({ shipmentId: s.id, bookingGroupId: s.bookingGroupId, customerFeeCents: s.customerFeeCents, refundCents: refund }));
+  if (s.acceptedAt) {
+    // Earned: only what goes back moves (income → refunds payable); what is kept stays income.
+    if (refund > 0) t.journals.push(L.deliveryEarnedRefund({ shipmentId: s.id, bookingGroupId: s.bookingGroupId, refundCents: refund }));
+  } else {
+    t.journals.push(L.deliveryCancelled({ shipmentId: s.id, bookingGroupId: s.bookingGroupId, customerFeeCents: s.customerFeeCents, refundCents: refund }));
+  }
   if (refund > 0) {
     t.refund = { key: deliveryFeeRefundKey(s.id), amountCents: refund, paidReference: s.paidReference, userId: s.renterId, bookingIds: s.items.map((i) => i.bookingId) };
     t.notices.push(...legNotices({ kind: 'delivery_fee_refund', userIds: [s.renterId], shipment: s, discriminator: 'fee_refund', data: { amountCents: refund } }));
@@ -1160,7 +1182,9 @@ export async function checkRentalSettlement(input: { bookingGroupId: string; boo
     // The moment the last unit of this line left the renter on this leg (a leg on
     // its way back to the renter, return_to_sender, does not count).
     if (s.status === 'return_to_sender' || items.length === 0) continue;
-    const left = items.map((i) => chain.filter((c) => c.rentalId === i.rentalId && (c.kind === 'collected_by_courier' || c.kind === 'handed_to_return_courier')).map((c) => c.occurredAt).sort()[0] ?? null);
+    // Only a courier's own confirmation or our staff end the renter's possession;
+    // a renter's own "I handed it over" never stops the late fee (finding 8).
+    const left = items.map((i) => chain.filter((c) => c.rentalId === i.rentalId && endsRenterPossession(c)).map((c) => c.occurredAt).sort()[0] ?? null);
     if (left.every((x): x is string => x !== null)) {
       const at = [...left].sort().reverse()[0];
       if (!returnCollectedAt || at < returnCollectedAt) returnCollectedAt = at;
@@ -1427,7 +1451,8 @@ export async function cancelDelivery(
   if (r === 'conflict') return refuse('conflict', 'This delivery changed at the same time. Please try again.');
   // Close the intent so no later commit can book a courier for a cancelled leg.
   if (intent && intent.state !== 'succeeded' && intent.state !== 'rejected') await deps.repo.finishDispatch(intent.id, 'rejected', { lastError: 'cancelled' });
-  return { ok: true, refundCents: refund, providerFeeCents: providerFee, duplicate: r === 'duplicate' };
+  // A duplicate (a concurrent cancellation applied first) refunded nothing more.
+  return r === 'duplicate' ? { ok: true, refundCents: 0, providerFeeCents: 0, duplicate: true } : { ok: true, refundCents: refund, providerFeeCents: providerFee, duplicate: false };
 }
 
 /** Staff move an own-fleet (manual) leg along, e.g. "driver assigned", "on the way". */
@@ -1597,11 +1622,26 @@ const REVIEW_STATES: readonly DeliveryState[] = ['incident_under_review', 'lost'
  * rules: staff only, reason required). Moves no money unless staff ask for
  * the delivery fee to be refunded on a leg that failed (capped at the fee).
  * Incidents are resolved separately (resolveIncident).
+ *
+ * Closing an OUTBOUND leg as `delivered` is a staff decision that the renter
+ * has the gear (review fix round 2, finding 5): it needs `confirmReceived`,
+ * records `staff_confirmed_received` (with the reason) for every item not yet
+ * accepted, sets `acceptedAt` and earns the outbound fee once. Without that
+ * decision the leg would sit delivered-but-unaccepted for ever (deemed
+ * acceptance never runs over the renter's exception). If the renter does not
+ * have the gear, staff close the leg as lost, damaged or failed instead.
+ *
+ * A fee that was earned and is then refunded is reversed out of delivery
+ * income (withFeeRefund, finding 4); a fee already refunded (its quote
+ * `refunded`) is never refunded again.
  */
 export async function closeDeliveryReview(
-  input: { caller: DeliveryCaller; shipmentId: string; to: Extract<DeliveryState, 'delivered' | 'lost' | 'damaged' | 'failed'>; reason: string; refundFee?: boolean },
+  input: { caller: DeliveryCaller; shipmentId: string; to: Extract<DeliveryState, 'delivered' | 'lost' | 'damaged' | 'failed'>; reason: string; refundFee?: boolean; confirmReceived?: boolean },
   deps: Pick<DeliveryDeps, 'repo' | 'clock'>,
-): Promise<{ ok: true; outcome: 'closed' | 'duplicate'; refundCents: number } | Refusal<'not_allowed' | 'not_found' | 'reason_required' | 'not_under_review' | 'transition_not_allowed' | 'conflict'>> {
+): Promise<
+  | { ok: true; outcome: 'closed' | 'duplicate'; refundCents: number }
+  | Refusal<'not_allowed' | 'not_found' | 'reason_required' | 'not_under_review' | 'transition_not_allowed' | 'decision_required' | 'conflict'>
+> {
   if (input.caller.kind !== 'staff') return refuse('not_allowed', 'Only staff close a delivery review.');
   const reason = input.reason.trim();
   if (reason.length < 3) return refuse('reason_required', 'Record why the review is closed.');
@@ -1610,16 +1650,85 @@ export async function closeDeliveryReview(
   if (!REVIEW_STATES.includes(s.status)) return refuse('not_under_review', 'This delivery is not under review.');
   const check = checkDeliveryTransition(s.status, input.to, 'staff', reason);
   if (!check.ok) return refuse('transition_not_allowed', check.message);
+  const receivedDecision = input.to === 'delivered' && s.leg === 'outbound';
+  if (receivedDecision && input.confirmReceived !== true) {
+    return refuse('decision_required', 'Confirm that the renter has the gear, or close the delivery as lost, damaged or failed.');
+  }
   const now = deps.clock.now().toISOString();
   const t = emptyTransition(s, input.to, { source: 'staff', actorId: input.caller.userId, dedupeKey: `review-close:${s.id}:${s.status}:${input.to}`, providerState: null, occurredAt: now, note: reason.slice(0, 500) });
   let refundCents = 0;
+  if (receivedDecision) {
+    const chains = chainsByItem(await deps.repo.listCustody(s.id));
+    for (const i of s.items) {
+      if (outboundReceipt(chains.get(`${i.bookingId}:${i.rentalId}`) ?? []) === 'accepted') continue;
+      t.custody.push({
+        shipmentId: s.id,
+        bookingGroupId: s.bookingGroupId,
+        bookingId: i.bookingId,
+        rentalId: i.rentalId,
+        serialNumber: i.serialNumber,
+        kind: 'staff_confirmed_received',
+        actor: { kind: 'thabangvision_staff', id: input.caller.userId },
+        occurredAt: now,
+        evidence: [],
+        accessories: [],
+        serialConfirmed: false,
+        condition: reason.slice(0, 500),
+        discrepancies: [],
+        incidentId: null,
+        dedupeKey: `staff_confirmed_received:${s.id}:${i.bookingId}:${i.rentalId}`,
+      });
+    }
+    if (!s.acceptedAt) {
+      t.patch.acceptedAt = now;
+      if (!s.deliveredAt) t.patch.deliveredAt = now;
+      // Earned once: the journal is keyed per order and leg.
+      if (feeInLedger(s)) t.journals.push(L.deliveryEarned({ bookingGroupId: s.bookingGroupId, deliveryCents: s.customerFeeCents, leg: 'outbound' }));
+    }
+  }
   if (input.to === 'failed' && input.refundFee) {
-    refundCents = withFeeRefund(t, s, s.customerFeeCents);
-    if (s.paidReference) t.quoteStatus = { quoteId: s.quoteId, to: refundCents > 0 ? 'refunded' : 'consumed' };
+    const quote = await deps.repo.getQuote(s.quoteId);
+    if (quote?.status !== 'refunded') {
+      refundCents = withFeeRefund(t, s, s.customerFeeCents);
+      if (s.paidReference) t.quoteStatus = { quoteId: s.quoteId, to: refundCents > 0 ? 'refunded' : 'consumed' };
+    }
   }
   const r = await deps.repo.transitionShipment(t);
   if (r === 'conflict') return refuse('conflict', 'This delivery changed at the same time. Please reload.');
   return { ok: true, outcome: r === 'duplicate' ? 'duplicate' : 'closed', refundCents: r === 'duplicate' ? 0 : refundCents };
+}
+
+// ── Refunding the fee of a leg a cancellation leaves alone (finding 3) ──────
+
+/** Legs a staff cancellation leaves as they are: the gear reached the renter, or a person is reviewing the leg. */
+export const SETTLED_ELSEWHERE_STATES: readonly DeliveryState[] = ['delivered', 'lost', 'damaged', 'incident_under_review'];
+
+/**
+ * Staff explicitly refund the delivery fee of a leg that a cancellation does
+ * not touch: it was delivered, or it is lost, damaged or under review
+ * (D-39/D-52: an outbound leg that reached the renter keeps its fee unless
+ * staff decide otherwise, D-53). The leg's state does not change. One refund
+ * per leg: the quote moves to `refunded`, the journal and the obligation are
+ * keyed per shipment, and an earned fee is reversed out of income (finding 4).
+ */
+export async function refundDeliveryFee(
+  input: { caller: DeliveryCaller; shipmentId: string; reason: string },
+  deps: Pick<DeliveryDeps, 'repo' | 'clock'>,
+): Promise<{ ok: true; outcome: 'refunded' | 'already_refunded'; refundCents: number } | Refusal<'not_allowed' | 'not_found' | 'reason_required' | 'not_applicable' | 'conflict'>> {
+  if (input.caller.kind !== 'staff') return refuse('not_allowed', 'Only staff refund a delivery fee this way.');
+  const reason = input.reason.trim();
+  if (reason.length < 3) return refuse('reason_required', 'Record why the delivery fee is refunded.');
+  const s = await deps.repo.getShipment(input.shipmentId);
+  if (!s) return refuse('not_found', 'Delivery not found.');
+  if (!SETTLED_ELSEWHERE_STATES.includes(s.status)) return refuse('not_applicable', 'Cancel this delivery instead: the cancellation settles its fee.');
+  const quote = await deps.repo.getQuote(s.quoteId);
+  if (quote?.status === 'refunded') return { ok: true, outcome: 'already_refunded', refundCents: 0 };
+  const t = emptyTransition(s, s.status, { source: 'staff', actorId: input.caller.userId, dedupeKey: `fee-refund:${s.id}`, providerState: null, occurredAt: deps.clock.now().toISOString(), note: reason.slice(0, 500) });
+  const refundCents = withFeeRefund(t, s, s.customerFeeCents);
+  if (refundCents > 0 && s.paidReference) t.quoteStatus = { quoteId: s.quoteId, to: 'refunded' };
+  const r = await deps.repo.transitionShipment(t);
+  if (r === 'conflict') return refuse('conflict', 'This delivery changed at the same time. Please reload.');
+  return r === 'duplicate' ? { ok: true, outcome: 'already_refunded', refundCents: 0 } : { ok: true, outcome: 'refunded', refundCents };
 }
 
 // ── Payment taken by hand (F-2, F-3, D-50) ──────────────────────────────────

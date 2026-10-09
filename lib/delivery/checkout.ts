@@ -291,7 +291,19 @@ const sameSet = (a: readonly string[], b: readonly string[]): boolean => {
 
 const sum = (qs: readonly CustomerDeliveryQuote[]): number => qs.reduce((s, q) => s + q.customerFeeCents, 0);
 
-const sastDay = (iso: string): string => new Date(new Date(iso).getTime() + 2 * 3_600_000).toISOString().slice(0, 10);
+/** Milliseconds east of UTC for an offset like '+02:00' (DELIVERY_CHECKOUT.utcOffset). Throws on anything else. */
+export function utcOffsetMs(offset: string): number {
+  const m = /^([+-])(\d{2}):(\d{2})$/.exec(offset);
+  if (!m) throw new Error(`invalid UTC offset: ${offset}`);
+  return (m[1] === '-' ? -1 : 1) * (Number(m[2]) * 60 + Number(m[3])) * 60_000;
+}
+
+/** The calendar day of an instant in the studio's zone (finding 9: from the constant, never a hard-coded +2h). */
+export function studioDay(iso: string, offset: string = DELIVERY_CHECKOUT.utcOffset): string {
+  return new Date(new Date(iso).getTime() + utcOffsetMs(offset)).toISOString().slice(0, 10);
+}
+
+const sastDay = (iso: string): string => studioDay(iso);
 
 /**
  * Whether a stored quote still describes this cart: the same listings, units

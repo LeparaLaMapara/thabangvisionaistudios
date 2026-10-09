@@ -49,7 +49,13 @@ export interface DeliveryJobQueries {
   listTrackableShipments(limit: number): Promise<Pick<Shipment, 'id' | 'providerId' | 'providerReference' | 'merchantReference'>[]>;
   /** Return legs scheduled to be picked up between `from` and `to`. */
   listUpcomingReturnPickups(from: string, to: string, limit: number): Promise<Pick<Shipment, 'id' | 'renterId' | 'items'>[]>;
-  /** Outbound legs delivered before `deliveredBefore` and not yet accepted. */
+  /**
+   * Outbound legs delivered before `deliveredBefore` and not yet accepted,
+   * oldest first, EXCLUDING legs that can never be deemed accepted: a renter
+   * exception on any item, or an open incident on the leg (review fix round
+   * 2, finding 5). Those wait for a person, and must not fill the batch so
+   * that deemable legs behind them are never reached.
+   */
   listAwaitingAcceptance(deliveredBefore: string, limit: number): Promise<{ shipmentId: string }[]>;
 }
 
@@ -385,20 +391,13 @@ export class SupabaseDeliveryJobQueries implements DeliveryJobQueries {
   }
 
   async listAwaitingAcceptance(deliveredBefore: string, limit: number): Promise<{ shipmentId: string }[]> {
-    const { data, error } = await this.db
-      .from('delivery_shipments')
-      .select('id')
-      .eq('leg', 'outbound')
-      .eq('status', 'delivered')
-      .is('accepted_at', null)
-      .lt('delivered_at', deliveredBefore)
-      .order('delivered_at')
-      .limit(limit);
+    // In the database: the exclusion (exception / open incident) runs before the limit.
+    const { data, error } = await this.db.rpc('delivery_list_awaiting_acceptance', { p_delivered_before: deliveredBefore, p_limit: limit });
     if (error) {
       if (isMissingPipeline(error)) return [];
       throw fail('listAwaitingAcceptance', error);
     }
-    return ((data ?? []) as Row[]).map((r) => ({ shipmentId: String(r.id) }));
+    return ((data ?? []) as (string | Row)[]).map((r) => ({ shipmentId: typeof r === 'string' ? r : String(r.delivery_list_awaiting_acceptance ?? r.id) }));
   }
 }
 

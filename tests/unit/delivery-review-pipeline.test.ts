@@ -35,12 +35,13 @@ vi.mock('@/lib/delivery/jobs', () => ({
   deemDeliveryAcceptances: rec('delivery_acceptance'),
   remindReturnPickups: rec('delivery_return_reminders'),
 }));
+vi.mock('@/lib/rental/delivery-settlement', () => ({ sweepCancelledOrderDelivery: rec('delivery_cancelled_orders') }));
 
 const { runRentalPipeline } = await import('@/lib/rental/pipeline');
 const { DELIVERY_OPS } = await import('@/lib/constants');
 
 const MONEY = ['missed_payments', 'holds', 'refunds', 'payout_review', 'payouts'];
-const DELIVERY = ['delivery_inbox', 'delivery_reconcile', 'delivery_poll', 'delivery_acceptance', 'delivery_return_reminders'];
+const DELIVERY = ['delivery_inbox', 'delivery_reconcile', 'delivery_poll', 'delivery_acceptance', 'delivery_return_reminders', 'delivery_cancelled_orders'];
 
 beforeEach(() => {
   calls.order = [];

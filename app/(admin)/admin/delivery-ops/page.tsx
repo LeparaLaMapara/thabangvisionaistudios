@@ -563,12 +563,13 @@ function ShipmentDetail({ s, busy, act }: { s: Shipment; busy: string | null; ac
             { name: 'to', label: 'Close as', options: REVIEW_ENDS[s.status] ?? ['failed'] },
             { name: 'reason', label: 'Reason (kept in the history)', multiline: true, min: 3 },
             { name: 'refundFee', label: 'Refund the delivery fee (only when closing as failed)', options: ['no', 'yes'] },
+            { name: 'received', label: 'Closing a delivery as delivered: the renter has the gear (staff confirmed)', options: ['no', 'yes'] },
           ]}
           submitLabel="Close review"
           busy={busy !== null}
           onSubmit={(v) =>
             run(
-              { action: 'close_review', to: v.to, reason: v.reason, refundFee: v.refundFee === 'yes' },
+              { action: 'close_review', to: v.to, reason: v.reason, refundFee: v.refundFee === 'yes', confirmReceived: v.received === 'yes' },
               `review:${s.id}`,
               `Close this review as "${label(v.to)}"? Incidents are resolved separately.`,
             )
