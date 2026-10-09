@@ -15,6 +15,10 @@ create policy "072 test rows" on public.smart_rentals
   using (slug like '072-test-%')
   with check (slug like '072-test-%');
 
+-- RLS is on in Supabase; make sure it is on here too (rolled back), so the
+-- listing_private owner check really has to get past smart_rentals RLS.
+alter table public.smart_rentals enable row level security;
+
 do $$
 declare
   c1 uuid := gen_random_uuid();
@@ -51,12 +55,12 @@ begin
   end;
 
   -- 4. Status drives the public flag.
-  update public.smart_rentals set listing_status = 'pending_review', submitted_at = now() where id = c1;
+  update public.smart_rentals set listing_status = 'pending_review' where id = c1;
   select is_published into pub from public.smart_rentals where id = c1;
   if pub then raise exception 'FAIL: pending_review listing is public'; end if;
   raise notice 'PASS: pending_review is not public';
 
-  update public.smart_rentals set listing_status = 'published', reviewed_at = now() where id = c1;
+  update public.smart_rentals set listing_status = 'published' where id = c1;
   select is_published into pub from public.smart_rentals where id = c1;
   if not pub then raise exception 'FAIL: published status did not set is_published'; end if;
   raise notice 'PASS: published status sets is_published';
@@ -111,12 +115,91 @@ begin
     raise notice 'PASS: listing_* notification types added, existing types kept';
   end if;
 
+  -- 8b. Private fields are not on the public table.
+  select count(*) into n from information_schema.columns
+   where table_schema = 'public' and table_name = 'smart_rentals'
+     and column_name in ('review_notes', 'reviewed_by', 'reviewed_at', 'submitted_at',
+                         'ai_fields', 'owner_attestations', 'replacement_value_evidence');
+  if n > 0 then raise exception 'FAIL: % private columns are on smart_rentals', n; end if;
+  raise notice 'PASS: review/owner-only fields are not on smart_rentals';
+
   -- Seed a draft for the untrusted-caller checks below.
   insert into public.smart_rentals (id, slug, title, owner_type)
   values (c2, '072-test-c2-' || c2, 'Community lens', 'community');
 end $$;
 
--- 9. A signed-in client (not the server) cannot move a listing through review.
+-- Owner + stranger + a private row. The rental's slug is NOT covered by the
+-- test policy above, so on a real database the owner can only reach its
+-- listing_private row through caller_owns_rental().
+create temp table t072 (owner_id uuid, stranger_id uuid, rental_id uuid) on commit drop;
+grant select on t072 to authenticated, anon;
+do $$
+declare
+  o uuid := gen_random_uuid();
+  x uuid := gen_random_uuid();
+  r uuid := gen_random_uuid();
+begin
+  insert into auth.users (id, email) values (o, '072-owner@example.invalid'), (x, '072-stranger@example.invalid');
+  insert into public.smart_rentals (id, slug, title, owner_type, owner_id)
+  values (r, '072-priv-' || r, 'Private test camera', 'community', o);
+  insert into public.listing_private (rental_id, review_notes, owner_attestations, ai_fields)
+  values (r, 'note', '{"owns_or_authorised": true}', '{"title": {"status": "suggested"}}');
+  insert into t072 values (o, x, r);
+end $$;
+
+-- 11. listing_private: owner reads own, stranger and anon read nothing, admin reads all, no client writes.
+set local role authenticated;
+do $$
+declare
+  t record;
+  n integer;
+begin
+  select * into t from t072;
+
+  perform set_config('request.jwt.claims', json_build_object('sub', t.owner_id, 'role', 'authenticated')::text, true);
+  select count(*) into n from public.listing_private where rental_id = t.rental_id;
+  if n <> 1 then raise exception 'FAIL: owner cannot read own listing_private row (saw %)', n; end if;
+  raise notice 'PASS: owner reads own private row (draft, via caller_owns_rental)';
+
+  begin
+    update public.listing_private set review_notes = 'mine now' where rental_id = t.rental_id;
+    raise exception 'FAIL: owner updated listing_private';
+  exception when insufficient_privilege then
+    raise notice 'PASS: owner cannot write listing_private';
+  end;
+  begin
+    insert into public.listing_private (rental_id) values (gen_random_uuid());
+    raise exception 'FAIL: client inserted into listing_private';
+  exception when insufficient_privilege then
+    raise notice 'PASS: client cannot insert into listing_private';
+  end;
+
+  perform set_config('request.jwt.claims', json_build_object('sub', t.stranger_id, 'role', 'authenticated')::text, true);
+  select count(*) into n from public.listing_private where rental_id = t.rental_id;
+  if n <> 0 then raise exception 'FAIL: stranger read another owner''s private row'; end if;
+  raise notice 'PASS: stranger sees no private row';
+
+  perform set_config('request.jwt.claims',
+    json_build_object('sub', t.stranger_id, 'role', 'authenticated', 'app_metadata', json_build_object('role', 'admin'))::text, true);
+  select count(*) into n from public.listing_private where rental_id = t.rental_id;
+  if n <> 1 then raise exception 'FAIL: admin cannot read listing_private'; end if;
+  raise notice 'PASS: admin reads listing_private';
+
+  perform set_config('request.jwt.claims', '', true);
+end $$;
+reset role;
+
+set local role anon;
+do $$
+begin
+  perform 1 from public.listing_private limit 1;
+  raise exception 'FAIL: anon can select listing_private';
+exception when insufficient_privilege then
+  raise notice 'PASS: anon cannot read listing_private';
+end $$;
+reset role;
+
+-- 9. A signed-in client (not the server) cannot change listing_status.
 set local role authenticated;
 do $$
 declare
@@ -130,13 +213,6 @@ begin
     raise exception 'FAIL: a client changed listing_status';
   exception when insufficient_privilege then
     raise notice 'PASS: client cannot change listing_status';
-  end;
-
-  begin
-    update public.smart_rentals set reviewed_at = now() where id = c;
-    raise exception 'FAIL: a client wrote reviewed_at';
-  exception when insufficient_privilege then
-    raise notice 'PASS: client cannot write review fields';
   end;
 
   begin
@@ -157,11 +233,13 @@ declare
   pub boolean;
 begin
   select id into c from public.smart_rentals where slug like '072-test-c2-%';
-  update public.smart_rentals set listing_status = 'pending_review', submitted_at = now() where id = c;
-  update public.smart_rentals set listing_status = 'published', reviewed_at = now() where id = c;
+  update public.smart_rentals set listing_status = 'pending_review' where id = c;
+  update public.smart_rentals set listing_status = 'published' where id = c;
   select is_published into pub from public.smart_rentals where id = c;
   if not pub then raise exception 'FAIL: service_role approval did not publish'; end if;
-  raise notice 'PASS: service_role can submit and approve';
+  insert into public.listing_private (rental_id, reviewed_at, review_notes) values (c, now(), 'ok')
+  on conflict (rental_id) do update set reviewed_at = excluded.reviewed_at, review_notes = excluded.review_notes;
+  raise notice 'PASS: service_role can submit, approve and write listing_private';
 end $$;
 reset role;
 

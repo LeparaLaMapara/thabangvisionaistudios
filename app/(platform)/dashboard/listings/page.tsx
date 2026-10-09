@@ -702,7 +702,7 @@ export default function ListingsPage() {
             </div>
 
             <div>
-              <label className={LABEL_CLASS}>Serial number (private)</label>
+              <label className={LABEL_CLASS}>Serial number (not shown on the listing)</label>
               <input
                 type="text"
                 value={form.serial_number}

@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin, rateLimitAdmin } from '@/lib/auth';
 import { createAdminClient } from '@/lib/supabase/server';
 import { isRagEnabled, indexItem } from '@/lib/rag';
+import { adminRentalEditConflict } from '@/lib/core/listings/review';
 
 // ─── GET — List all rentals (admin) ─────────────────────────────────────────
 
@@ -82,6 +83,21 @@ export async function PUT(req: NextRequest) {
     }
 
     const supabase = createAdminClient();
+
+    // Community listings go live (or come down) through Listing review, not
+    // this generic editor (migration 072 refuses the flag flip anyway).
+    const { data: current, error: currentError } = await supabase
+      .from('smart_rentals')
+      .select('owner_type, is_published')
+      .eq('id', id)
+      .maybeSingle();
+    if (currentError) throw currentError;
+    if (!current) return NextResponse.json({ error: 'Rental not found.' }, { status: 404 });
+    const conflict = adminRentalEditConflict(current, updates);
+    if (conflict) {
+      return NextResponse.json({ error: conflict, code: 'use_listing_review', href: '/admin/listings' }, { status: 409 });
+    }
+
     const { data, error } = await supabase
       .from('smart_rentals')
       .update({ ...updates, updated_at: new Date().toISOString() })

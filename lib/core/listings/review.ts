@@ -442,6 +442,46 @@ export function decideSubmission(listing: ListingForReview, owner: ListingOwnerF
   return { ok: true, to, review };
 }
 
+// ── Disputes ────────────────────────────────────────────────────────────────
+
+/** `disputes.status` values that mean the dispute is not closed. */
+export const OPEN_DISPUTE_STATUSES = ['open', 'investigating', 'escalated'] as const;
+
+/**
+ * Open disputes against an owner's gear: hires whose status is `disputed`,
+ * plus hires with an open row in the `disputes` table. A hire counted by
+ * both is counted once.
+ */
+export function countOpenDisputes(
+  disputedBookingIds: readonly string[],
+  openDisputeBookingIds: readonly (string | null)[],
+): number {
+  const ids = new Set<string>(disputedBookingIds);
+  for (const id of openDisputeBookingIds) if (id) ids.add(id);
+  return ids.size;
+}
+
+// ── Generic admin edits (/admin/rentals) ────────────────────────────────────
+
+/**
+ * The generic rental editor must not publish, unpublish or re-status a
+ * community listing: that goes through review (/admin/listings), which
+ * re-checks the owner and records who decided. Returns the refusal message,
+ * or null when the edit is fine (studio rows, or a community edit that
+ * leaves is_published as it is).
+ */
+export function adminRentalEditConflict(
+  row: { owner_type: string | null; is_published: boolean | null },
+  updates: Record<string, unknown>,
+): string | null {
+  if ((row.owner_type ?? 'studio') !== 'community') return null;
+  const touchesStatus = 'listing_status' in updates;
+  const flipsPublic =
+    'is_published' in updates && updates.is_published !== undefined && Boolean(updates.is_published) !== Boolean(row.is_published);
+  if (!touchesStatus && !flipsPublic) return null;
+  return 'This is a community listing. Publish, reject or take it down in Listing review (/admin/listings), which re-checks the owner and records the decision.';
+}
+
 // ── Edits ───────────────────────────────────────────────────────────────────
 
 /**

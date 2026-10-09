@@ -5,9 +5,10 @@ import { checkNotSuspended, checkRateLimit, requireAuth } from '@/lib/auth';
 import { decideSubmission, type ListingOwnerFacts } from '@/lib/core/listings/review';
 import {
   adminClient,
+  forOwner,
   loadOwnerFacts,
   loadOwnListing,
-  OWNER_LISTING_COLUMNS,
+  savePrivate,
   toReviewInput,
 } from '@/app/api/listings/_lib/server';
 
@@ -70,21 +71,27 @@ export async function POST(
 
     const { data, error } = await admin
       .from('smart_rentals')
-      .update({
-        listing_status: decision.to,
-        submitted_at: new Date().toISOString(),
-      })
+      .update({ listing_status: decision.to })
       .eq('id', row.id)
       .eq('owner_id', auth.user.id)
       .eq('listing_status', row.listing_status) // nobody changed it since we read it
-      .select(OWNER_LISTING_COLUMNS)
+      .select('id')
       .maybeSingle();
 
     if (error) throw error;
     if (!data) return NextResponse.json({ error: 'The listing changed; reload and try again.' }, { status: 409 });
 
+    // The status change above is what counts; the submission time only
+    // orders the review queue, so a failure here is logged, not fatal.
+    try {
+      await savePrivate(admin, row.id, { submitted_at: new Date().toISOString() });
+    } catch (privErr) {
+      console.error('[listings/submit] submitted_at not recorded:', privErr);
+    }
+    const listing = await loadOwnListing(admin, row.id, auth.user.id);
+
     return NextResponse.json({
-      listing: data,
+      listing: listing ? forOwner(listing) : null,
       status: decision.to,
       message:
         decision.to === 'published'

@@ -16,6 +16,7 @@ import {
   type ListingDescriberOutput,
 } from '@/lib/agents/agents/listing-describer';
 import { markAiSuggested, type AiSuggestibleField } from '@/lib/core/listings/review';
+import { savePrivate } from '@/app/api/listings/_lib/server';
 
 const MIN_CONFIDENCE = 0.7;
 
@@ -218,7 +219,6 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
           is_published: false,
           is_available: true,
           is_ai_generated: true,
-          ai_fields: markAiSuggested(null, aiSuggested, new Date()),
           quantity: 1,
           ranking_score: 0,
         })
@@ -231,6 +231,17 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
           model: item.model,
           reason: error?.message ?? 'Insert failed',
         });
+        continue;
+      }
+
+      // The AI flags live in listing_private (migration 072). A draft whose
+      // flags could not be saved would look owner-confirmed, so it is removed.
+      try {
+        await savePrivate(supabase, data.id, { ai_fields: markAiSuggested(null, aiSuggested, new Date()) });
+      } catch (privErr) {
+        console.error('[create-rentals] AI flags not saved; draft removed:', privErr);
+        await supabase.from('smart_rentals').delete().eq('id', data.id).eq('owner_id', auth.user.id);
+        failed.push({ brand: item.brand, model: item.model, reason: 'Could not save the draft. Try again.' });
         continue;
       }
 

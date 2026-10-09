@@ -16,9 +16,12 @@ import {
 } from '@/lib/core/listings/review';
 import {
   adminClient,
+  flattenListing,
+  loadCommunityListing,
   loadOwnerFacts,
   notifyListingOwner,
   OWNER_LISTING_COLUMNS,
+  savePrivate,
   toReviewInput,
   type ListingNotificationType,
   type OwnerListingRow,
@@ -63,11 +66,14 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       .eq('owner_type', 'community')
       .eq('listing_status', statusParam)
       .is('deleted_at', null)
-      .order('submitted_at', { ascending: true, nullsFirst: false })
+      .order('created_at', { ascending: true })
       .limit(QUEUE_LIMIT);
     if (error) throw error;
 
-    const rows = (data ?? []) as unknown as OwnerListingRow[];
+    // Oldest submission first; never-submitted rows last.
+    const rows: OwnerListingRow[] = (data ?? [])
+      .map((r) => flattenListing(r))
+      .sort((a, b) => (a.submitted_at ?? '\uffff').localeCompare(b.submitted_at ?? '\uffff'));
     const ownerIds = Array.from(new Set(rows.map((r) => r.owner_id).filter((v): v is string => !!v)));
 
     const { data: profiles, error: profilesError } = ownerIds.length
@@ -113,7 +119,10 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
             }
           : null,
         unconfirmed_ai_fields: unconfirmedAiFields(row.ai_fields),
-        blockers: [...(facts ? ownerBlocks(facts) : []), ...listingBlocks(review)].map((b) => b.message),
+        blockers: [
+          ...(facts ? ownerBlocks(facts).map((b) => b.message) : ["Owner checks could not be loaded; approval will be refused until they can."]),
+          ...listingBlocks(review).map((b) => b.message),
+        ],
         review_reasons: others ? needsAdminReview(others, review).reasons.map((r) => r.message) : [],
         high_value_threshold_cents: LISTING_POLICY.reviewValueThresholdCents,
       };
@@ -154,15 +163,7 @@ export async function PATCH(request: NextRequest): Promise<NextResponse> {
 
   try {
     const admin = adminClient();
-    const { data: rowData, error: rowError } = await admin
-      .from('smart_rentals')
-      .select(OWNER_LISTING_COLUMNS)
-      .eq('id', id)
-      .eq('owner_type', 'community')
-      .is('deleted_at', null)
-      .maybeSingle();
-    if (rowError) throw rowError;
-    const row = rowData as unknown as OwnerListingRow | null;
+    const row = await loadCommunityListing(admin, id);
     if (!row || !row.owner_id) return NextResponse.json({ error: 'Listing not found.' }, { status: 404 });
 
     const transition = checkListingTransition(row.listing_status, action.to, 'admin', notes);
@@ -194,18 +195,26 @@ export async function PATCH(request: NextRequest): Promise<NextResponse> {
 
     const { data, error } = await admin
       .from('smart_rentals')
-      .update({
-        listing_status: action.to,
-        review_notes: notes || null,
-        reviewed_by: auth.user.id,
-        reviewed_at: new Date().toISOString(),
-      })
+      .update({ listing_status: action.to })
       .eq('id', row.id)
       .eq('listing_status', row.listing_status) // nobody else decided it meanwhile
-      .select(OWNER_LISTING_COLUMNS)
+      .select('id')
       .maybeSingle();
     if (error) throw error;
     if (!data) return NextResponse.json({ error: 'The listing changed; reload the queue.' }, { status: 409 });
+
+    // Who decided, when and why: listing_private (not public).
+    let warning: string | undefined;
+    try {
+      await savePrivate(admin, row.id, {
+        review_notes: notes || null,
+        reviewed_by: auth.user.id,
+        reviewed_at: new Date().toISOString(),
+      });
+    } catch (privErr) {
+      console.error('[admin/listings/review] review record not written:', privErr);
+      warning = 'The decision was saved, but the reviewer note and time were not recorded.';
+    }
 
     if (action.notify) {
       const title = row.title;
@@ -224,7 +233,8 @@ export async function PATCH(request: NextRequest): Promise<NextResponse> {
       await notifyListingOwner(admin, row.owner_id, action.notify, m.title, m.body);
     }
 
-    return NextResponse.json({ listing: data });
+    const listing = await loadCommunityListing(admin, row.id);
+    return NextResponse.json({ listing, ...(warning && { warning }) });
   } catch (err) {
     console.error('[admin/listings/review] PATCH error:', err);
     return NextResponse.json({ error: 'Failed to record the review.' }, { status: 500 });

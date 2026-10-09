@@ -1,7 +1,10 @@
 import { describe, it, expect } from 'vitest';
 import { LISTING_POLICY, RENTAL_POLICY } from '@/lib/constants';
 import {
+  adminRentalEditConflict,
   attestationsComplete,
+  countOpenDisputes,
+  OPEN_DISPUTE_STATUSES,
   buildAttestations,
   canSubmit,
   checkListingTransition,
@@ -306,5 +309,23 @@ describe('edits to a live or queued listing', () => {
 
   it('leaves drafts as drafts', () => {
     expect(editNeedsResubmission('draft', ['title'])).toBe(false);
+  });
+});
+
+describe('open disputes and generic admin edits', () => {
+  it('counts a hire once whether it is disputed, has an open dispute row, or both', () => {
+    expect(countOpenDisputes([], [])).toBe(0);
+    expect(countOpenDisputes(['b1'], ['b1', 'b2', null])).toBe(2);
+    expect(OPEN_DISPUTE_STATUSES).toEqual(['open', 'investigating', 'escalated']);
+  });
+
+  it('refuses publish/unpublish/status changes of community rows outside review', () => {
+    const community = { owner_type: 'community', is_published: false };
+    expect(adminRentalEditConflict(community, { is_published: true })).toMatch(/\/admin\/listings/);
+    expect(adminRentalEditConflict({ ...community, is_published: true }, { is_published: false })).not.toBeNull();
+    expect(adminRentalEditConflict(community, { listing_status: 'published' })).not.toBeNull();
+    expect(adminRentalEditConflict(community, { is_published: false, title: 'x' })).toBeNull();
+    expect(adminRentalEditConflict({ owner_type: 'studio', is_published: false }, { is_published: true })).toBeNull();
+    expect(adminRentalEditConflict({ owner_type: null, is_published: false }, { is_published: true })).toBeNull();
   });
 });

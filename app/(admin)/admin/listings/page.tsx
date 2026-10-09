@@ -138,6 +138,7 @@ export default function AdminListingsReviewPage() {
         setError(`${body?.error ?? 'Failed.'}${reasons}`);
       } else {
         setItems((prev) => prev.filter((i) => i.id !== item.id));
+        if (typeof body?.warning === 'string') setError(body.warning);
       }
     } catch {
       setError('Failed to record the review.');

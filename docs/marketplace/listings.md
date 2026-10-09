@@ -8,7 +8,7 @@ platform checks on the way, and what it does **not** check.
 1. **Photo.** The owner uploads photos (Cloudinary, from the browser).
 2. **AI suggests details.** Onboarding (`/api/onboarding/create-rentals`)
    guesses brand, model, category, title, description, what's included and a
-   day/week rate. Every guessed field is recorded in `smart_rentals.ai_fields`
+   day/week rate. Every guessed field is recorded in `listing_private.ai_fields`
    as `suggested`. Suggested values are **untrusted**.
 3. **Owner reviews and corrects.** In `/dashboard/listings` each unconfirmed
    field shows an "AI suggested" marker. The owner either edits it (recorded
@@ -18,8 +18,9 @@ platform checks on the way, and what it does **not** check.
    what it would cost to replace the item, and the suburb and city where it
    is kept. The renter deposit is worked out on the server from the
    replacement value (`RENTAL_POLICY.depositRateBps`); the browser cannot set
-   it. A serial number can be stored privately for theft reports.
-5. **Owner declarations.** Three ticks, stored in `owner_attestations` with
+   it. A serial number can be recorded for theft reports; it is not shown on
+   the listing page, but see Known gaps (it is still readable via the API).
+5. **Owner declarations.** Three ticks, stored in `listing_private.owner_attestations` with
    the Terms version and time set by the server: owns it or has the legal
    right to rent it out; it is in the condition described and works; the
    location is accurate.
@@ -48,7 +49,7 @@ platform checks on the way, and what it does **not** check.
 - it would be the owner's first live listing;
 - replacement value is above `LISTING_POLICY.reviewValueThresholdCents`
   (currently the high-value collection threshold, R50,000) or missing;
-- the owner has an open disputed hire, is suspended, or has a rejected or
+- the owner has an open dispute (see below), is suspended, or has a rejected or
   suspended listing;
 - it is a resubmission after a rejection;
 - the owner is not yet *established*: fewer than
@@ -78,8 +79,8 @@ keep it live.
 
 **Database guard (072):** `is_published` is derived from `listing_status`. A
 community row cannot be made public by setting `is_published` directly, and
-only the server (service role) or SQL editor can change `listing_status` or
-the review fields. The studio admin "publish" toggle still works for studio
+only the server (service role) or SQL editor can change `listing_status`;
+review fields are in `listing_private`, which clients cannot write. The studio admin "publish" toggle still works for studio
 rows; for community rows use the review page.
 
 ## Location and photos
@@ -93,6 +94,44 @@ rows; for community rows use the review page.
   upload still contains whatever the phone wrote** and is reachable by anyone
   who knows its untransformed URL. Stripping at upload (an upload preset with
   an incoming transformation) would close this; not done here.
+
+## Where the data lives
+
+- `smart_rentals.listing_status` is public on purpose: it drives
+  `is_published`, and says nothing private.
+- Everything about the review and the owner's statements is in
+  **`listing_private`** (one row per listing, `rental_id` primary key):
+  `review_notes`, `reviewed_by`, `reviewed_at`, `submitted_at`, `ai_fields`,
+  `owner_attestations`, `replacement_value_evidence`.
+  - RLS: the owner can read their own rows (through the SECURITY DEFINER
+    helper `caller_owns_rental()`, so drafts work even though
+    `smart_rentals` hides them from the owner); admins (`is_admin()`) can
+    read all; `anon` has no access.
+  - No client role can insert, update or delete. The server writes with the
+    service role (`savePrivate()` in `app/api/listings/_lib/server.ts`).
+  - The owner's dashboard gets the private fields except `reviewed_by`.
+- If saving the private row fails when a draft is created (owner form or
+  onboarding), the draft is removed, so AI-suggested values can never look
+  owner-confirmed.
+
+## /admin/rentals and community listings
+
+The generic rental editor (`PUT /api/admin/rentals`) refuses, with **409**
+`use_listing_review`, any change that would publish or unpublish a community
+listing or set its `listing_status`. Those decisions go through
+`/admin/listings`, which re-checks the owner and records who decided. Other
+edits to community rows, and the publish toggle for studio gear, work as
+before.
+
+## Open disputes
+
+`needsAdminReview` counts an owner's open disputes as the number of distinct
+hires of their gear that either have `equipment_bookings.status =
+'disputed'` or have a `disputes` row with status `open`, `investigating` or
+`escalated` (joined by `equipment_booking_id`, in two steps because that
+column has no foreign key). If any of these lookups errors, or returns fewer
+rows than it counted, loading the owner's facts fails: submission answers
+503 and approval is refused. Nothing is decided on partial facts.
 
 ## What is NOT verified
 
@@ -111,12 +150,13 @@ validated, and (where shown) a person reviewed the listing before it went live.
 
 ## Known gaps
 
-- The public SELECT policy on `smart_rentals` returns every column of a
-  published row, including `serial_number`, `owner_attestations` and
-  `review_notes`. `getRentalBySlug()` selects `*`, so a column-level revoke
-  would break the detail page; switch it to explicit columns first, then
-  revoke.
-- "Open disputes" counts hires of the owner's gear with status `disputed`; it
-  does not read the separate `disputes` table.
+- **`serial_number` is still public (follow-up, not this change).** It has
+  been on `smart_rentals` since migration 062, and the public SELECT policy
+  returns every column of a published row, so anyone with the anon key can
+  read it. `getRentalBySlug()` (`lib/supabase/queries/smartRentals.ts`)
+  selects `*`, so revoking the column would break the public detail page.
+  Fix: give `getRentalBySlug()` (and any other public `select('*')` on
+  `smart_rentals`) an explicit column list, then `REVOKE SELECT
+  (serial_number)` from `anon`/`authenticated`.
 - The established-owner thresholds (3 live listings, 5 completed hires) are a
   conservative placeholder pending a founder decision.

@@ -20,9 +20,13 @@ import {
 } from '@/lib/core/listings/input';
 import {
   adminClient,
+  flattenListing,
+  forOwner,
   loadOwnListing,
   locationOf,
   OWNER_LISTING_COLUMNS,
+  savePrivate,
+  type Admin,
   type OwnerListingRow,
 } from '@/app/api/listings/_lib/server';
 import { metadataFreeGallery, metadataFreeImageUrl } from '@/app/api/listings/_lib/images';
@@ -37,7 +41,8 @@ import { metadataFreeGallery, metadataFreeImageUrl } from '@/app/api/listings/_l
  *   DELETE  soft delete
  *
  * Going live is POST /api/listings/[id]/submit. Status, deposit, owner and
- * review fields are set here on the server; is_published is derived from
+ * review fields are set here on the server (review notes, AI flags and
+ * declarations in listing_private); is_published is derived from
  * listing_status by the database (migration 072).
  */
 
@@ -111,11 +116,26 @@ export async function GET(): Promise<NextResponse> {
       .order('created_at', { ascending: false });
 
     if (error) throw error;
-    return NextResponse.json(data ?? []);
+    return NextResponse.json((data ?? []).map((r) => forOwner(flattenListing(r))));
   } catch (err) {
     console.error('[listings] GET error:', err);
     return NextResponse.json({ error: 'Failed to fetch listings.' }, { status: 500 });
   }
+}
+
+/** Re-reads the caller's listing (with its private row) for the response. */
+async function ownListingResponse(
+  admin: Admin,
+  id: string,
+  ownerId: string,
+  init?: { status?: number; notice?: string },
+): Promise<NextResponse> {
+  const row = await loadOwnListing(admin, id, ownerId);
+  if (!row) return NextResponse.json({ error: 'Listing not found or not owned by you.' }, { status: 404 });
+  return NextResponse.json(
+    { ...forOwner(row), ...(init?.notice && { notice: init.notice }) },
+    { status: init?.status ?? 200 },
+  );
 }
 
 // ─── POST — create a draft ──────────────────────────────────────────────────
@@ -167,7 +187,6 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         replacement_value: input.replacement_value,
         deposit_amount: depositForListing(input.replacement_value),
         serial_number: input.serial_number,
-        replacement_value_evidence: input.replacement_value_evidence,
         currency: STUDIO.currency.code,
         thumbnail_url: input.thumbnail_url ? metadataFreeImageUrl(input.thumbnail_url) : (gallery?.[0]?.url ?? null),
         cover_public_id: input.cover_public_id,
@@ -179,16 +198,27 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         is_published: false,
         is_available: true,
         is_ai_generated: input.ai_suggested_fields.length > 0,
-        ai_fields: aiFields,
-        owner_attestations: attestations?.ok ? attestations.value : null,
         quantity: 1,
         ranking_score: 0,
       })
-      .select(OWNER_LISTING_COLUMNS)
+      .select('id')
       .single();
-
     if (error) throw error;
-    return NextResponse.json(data, { status: 201 });
+
+    try {
+      await savePrivate(admin, data.id as string, {
+        ai_fields: aiFields,
+        owner_attestations: attestations?.ok ? attestations.value : null,
+        replacement_value_evidence: input.replacement_value_evidence,
+      });
+    } catch (privErr) {
+      // Without its private row the AI flags would be lost; do not keep a
+      // half-saved draft. Nothing can reference a row created a moment ago.
+      await admin.from('smart_rentals').delete().eq('id', data.id).eq('owner_id', auth.user.id);
+      throw privErr;
+    }
+
+    return ownListingResponse(admin, data.id as string, auth.user.id, { status: 201 });
   } catch (err) {
     console.error('[listings] POST error:', err);
     return NextResponse.json({ error: 'Failed to create listing.' }, { status: 500 });
@@ -232,15 +262,8 @@ export async function PUT(request: NextRequest): Promise<NextResponse> {
     if (action === 'confirm_ai_fields') {
       const fields = Array.isArray(b.fields) ? b.fields : [];
       if (fields.length === 0) return NextResponse.json({ error: 'Say which fields to confirm.' }, { status: 400 });
-      const { data, error } = await admin
-        .from('smart_rentals')
-        .update({ ai_fields: confirmAiFields(row.ai_fields, fields, now) })
-        .eq('id', row.id)
-        .eq('owner_id', auth.user.id)
-        .select(OWNER_LISTING_COLUMNS)
-        .single();
-      if (error) throw error;
-      return NextResponse.json(data);
+      await savePrivate(admin, row.id, { ai_fields: confirmAiFields(row.ai_fields, fields, now) });
+      return ownListingResponse(admin, row.id, auth.user.id);
     }
 
     // ── Take a live listing down ──
@@ -253,11 +276,11 @@ export async function PUT(request: NextRequest): Promise<NextResponse> {
         .eq('id', row.id)
         .eq('owner_id', auth.user.id)
         .eq('listing_status', row.listing_status)
-        .select(OWNER_LISTING_COLUMNS)
+        .select('id')
         .maybeSingle();
       if (error) throw error;
       if (!data) return NextResponse.json({ error: 'The listing changed; reload and try again.' }, { status: 409 });
-      return NextResponse.json(data);
+      return ownListingResponse(admin, row.id, auth.user.id);
     }
 
     // ── Edit ──
@@ -295,13 +318,10 @@ export async function PUT(request: NextRequest): Promise<NextResponse> {
       replacement_value: input.replacement_value,
       deposit_amount: depositForListing(input.replacement_value),
       serial_number: input.serial_number,
-      replacement_value_evidence: input.replacement_value_evidence,
       thumbnail_url: input.thumbnail_url ? metadataFreeImageUrl(input.thumbnail_url) : (gallery?.[0]?.url ?? null),
       cover_public_id: input.cover_public_id,
       gallery,
       metadata: listingMetadata(row.metadata, input.location),
-      ai_fields: hasAiFields ? aiFields : null,
-      owner_attestations: attestations,
       ...(backToDraft && { listing_status: 'draft' }),
     };
 
@@ -311,17 +331,20 @@ export async function PUT(request: NextRequest): Promise<NextResponse> {
       .eq('id', row.id)
       .eq('owner_id', auth.user.id)
       .eq('listing_status', row.listing_status)
-      .select(OWNER_LISTING_COLUMNS)
+      .select('id')
       .maybeSingle();
 
     if (error) throw error;
     if (!data) return NextResponse.json({ error: 'The listing changed; reload and try again.' }, { status: 409 });
 
-    return NextResponse.json({
-      ...(data as unknown as Record<string, unknown>),
-      ...(backToDraft && {
-        notice: 'Your changes took this listing back to draft. Submit it again to go live.',
-      }),
+    await savePrivate(admin, row.id, {
+      ai_fields: hasAiFields ? aiFields : null,
+      owner_attestations: attestations,
+      replacement_value_evidence: input.replacement_value_evidence,
+    });
+
+    return ownListingResponse(admin, row.id, auth.user.id, {
+      notice: backToDraft ? 'Your changes took this listing back to draft. Submit it again to go live.' : undefined,
     });
   } catch (err) {
     console.error('[listings] PUT error:', err);
