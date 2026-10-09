@@ -2,7 +2,7 @@ import { createAdminClient } from '@/lib/supabase/server';
 import { lateConfirmationAllowed } from '@/lib/rental/eligibility-server';
 import { RENTAL_POLICY } from '@/lib/constants';
 import { systemClock, type Clock, type PaymentPort, type PayoutPort } from '@/lib/core/ports';
-import { processChargeEvent, submitPayout, submitRefund } from '@/lib/core/rental/use-cases';
+import { processChargeEvent, submitPayout, submitRefund, type ChargeOutcome } from '@/lib/core/rental/use-cases';
 import { checkPayoutEligibility } from '@/lib/core/rental/payouts';
 import { ESCALATION_LADDER, dueEscalations, returnDueAt, type EscalationStage } from '@/lib/core/rental/overdue';
 import { buildNotices, sastDate, type OutboxMessage } from '@/lib/core/rental/notifications';
@@ -349,24 +349,71 @@ export async function recoverMissedPayments(
       out[`status_${v.value.status || 'unknown'}`] = (out[`status_${v.value.status || 'unknown'}`] ?? 0) + 1;
       continue;
     }
-    const outcome = await processChargeEvent(
-      {
-        kind: 'charge.success',
-        reference: row.reference,
-        providerTransactionId: v.value.providerTransactionId,
-        amountCents: v.value.amountCents,
-        currency: v.value.currency,
-        metadataUserId: null,
-      },
-      { repo, clock, lateAllowed: (i) => lateConfirmationAllowed(db, i) },
-    );
-    if (outcome === 'confirmed' || outcome === 'confirmed_late' || outcome === 'duplicate') {
-      const intent = await repo.getIntent(row.reference).catch(() => null);
-      if (intent && outcome !== 'duplicate') trackFunnel('payment_confirmed', { userId: intent.userId, meta: { groupId: intent.checkoutGroupId, source: 'recovery' } });
-      // Phase 4: book the order's delivery legs (idempotent; never throws).
-      if (intent) await afterRentalPayment(intent.checkoutGroupId, 'recovery');
-    }
+    const outcome = await confirmVerifiedCharge(db, row.reference, v.value, clock, 'recovery', repo);
     out[outcome] = (out[outcome] ?? 0) + 1;
   }
   return out;
+}
+
+/**
+ * Confirm an order from a charge the PROVIDER reported as successful (never
+ * from anything the browser says), through the same use case as a webhook:
+ * a webhook arriving later is then just a duplicate. Shared by the
+ * missed-webhook recovery and the payment return page (confirmPaymentOnReturn).
+ */
+export async function confirmVerifiedCharge(
+  db: Admin,
+  reference: string,
+  charge: { amountCents: number; currency: string; providerTransactionId: string },
+  clock: Clock,
+  source: 'recovery' | 'return',
+  repo: SupabaseRentalPayments = new SupabaseRentalPayments(db),
+): Promise<ChargeOutcome> {
+  const outcome = await processChargeEvent(
+    {
+      kind: 'charge.success',
+      reference,
+      providerTransactionId: charge.providerTransactionId,
+      amountCents: charge.amountCents,
+      currency: charge.currency,
+      metadataUserId: null,
+    },
+    { repo, clock, lateAllowed: (i) => lateConfirmationAllowed(db, i) },
+  );
+  if (outcome === 'confirmed' || outcome === 'confirmed_late' || outcome === 'duplicate') {
+    const intent = await repo.getIntent(reference).catch(() => null);
+    if (intent && outcome !== 'duplicate') trackFunnel('payment_confirmed', { userId: intent.userId, meta: { groupId: intent.checkoutGroupId, source } });
+    // Phase 4: book the order's delivery legs (idempotent; never throws).
+    if (intent) await afterRentalPayment(intent.checkoutGroupId, source === 'return' ? 'recovery' : source);
+  }
+  return outcome;
+}
+
+/** What the payment return page learns from asking the provider. */
+export type ReturnCheck =
+  | { state: 'paid'; outcome: ChargeOutcome }
+  | { state: 'not_paid' | 'pending' | 'unknown' | 'already_settled' };
+
+/**
+ * The renter is back from the payment page saying they paid. Ask the
+ * provider (server to server) for this one order, so a lost or slow webhook
+ * does not leave a paid order "being confirmed" until the daily recovery
+ * pass (and its dates unprotected once the hold lapses).
+ */
+export async function confirmPaymentOnReturn(
+  db: Admin,
+  intent: { reference: string; provider: string; state: string },
+  payments: PaymentPort = paymentPort,
+  clock: Clock = systemClock,
+): Promise<ReturnCheck> {
+  if (!['initiated', 'failed', 'expired'].includes(intent.state)) return { state: 'already_settled' };
+  // Only the provider that took the payment can say whether it did.
+  if (intent.provider !== payments.provider) return { state: 'unknown' };
+  const v = await payments.verifyCharge(intent.reference);
+  if (!v.ok) return { state: v.kind === 'rejected' ? 'not_paid' : 'unknown' };
+  if (v.value.status !== 'success') {
+    return { state: ['failed', 'abandoned', 'reversed'].includes(v.value.status) ? 'not_paid' : 'pending' };
+  }
+  const outcome = await confirmVerifiedCharge(db, intent.reference, v.value, clock, 'return');
+  return { state: 'paid', outcome };
 }
