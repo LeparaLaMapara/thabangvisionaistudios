@@ -239,6 +239,8 @@ export interface ListingForReview {
   title: string | null;
   category: string | null;
   price_per_day: number | null;
+  /** Rands. Optional: charged for whole weeks of a 7+ day hire when set. */
+  price_per_week?: number | null;
   replacement_value: number | null;
   location: string | null;
   ai_fields: unknown;
@@ -259,7 +261,7 @@ export interface ListingOwnerFacts {
   rejectedListings: number;
   /** The owner's listings currently suspended. */
   suspendedListings: number;
-  /** Hires of this owner's gear that completed. */
+  /** Hires of this owner's gear, by someone other than the owner, that completed. */
   completedRentals: number;
 }
 
@@ -275,6 +277,7 @@ export type SubmitBlockCode =
   | 'missing_replacement_value'
   | 'missing_location'
   | 'missing_attestations'
+  | 'invalid_week_rate'
   | 'unconfirmed_ai_fields';
 
 export interface SubmitBlock {
@@ -288,6 +291,25 @@ const SUBMITTABLE_FROM: readonly ListingStatus[] = ['draft', 'rejected'];
 
 function positive(n: number | null | undefined): boolean {
   return typeof n === 'number' && Number.isFinite(n) && n > 0;
+}
+
+const DAYS_PER_WEEK = 7;
+
+/**
+ * Why a week rate cannot stand next to this day rate, or null when it can.
+ * A hire of 7+ days is charged the week rate for each whole week
+ * (lib/core/pricing/rental.ts hireCents), so a week rate above seven days at
+ * the day rate would charge a renter more for booking a week than for seven
+ * single days. No week rate (null) is always fine. Amounts in rands.
+ */
+export function weekRateProblem(dayRands: number | null | undefined, weekRands: number | null | undefined): string | null {
+  if (weekRands === null || weekRands === undefined) return null;
+  if (!positive(weekRands)) return 'Week rate must be an amount above zero.';
+  if (!positive(dayRands)) return 'Set a day rate before a week rate.';
+  if (toCents(weekRands) > DAYS_PER_WEEK * toCents(dayRands as number)) {
+    return 'Week rate cannot be more than 7 days at the day rate. Lower the week rate or clear it.';
+  }
+  return null;
 }
 
 /** The owner-side conditions every publish needs, including an admin approval. */
@@ -314,6 +336,8 @@ export function listingBlocks(listing: ListingForReview): SubmitBlock[] {
   if (!listing.title || !listing.title.trim()) reasons.push({ code: 'missing_title', message: 'Add a title.' });
   if (!listing.category || !listing.category.trim()) reasons.push({ code: 'missing_category', message: 'Choose a category.' });
   if (!positive(listing.price_per_day)) reasons.push({ code: 'missing_price', message: 'Set a day rate above zero.' });
+  const weekProblem = positive(listing.price_per_day) ? weekRateProblem(listing.price_per_day, listing.price_per_week) : null;
+  if (weekProblem) reasons.push({ code: 'invalid_week_rate', message: weekProblem });
   if (!positive(listing.replacement_value)) {
     reasons.push({ code: 'missing_replacement_value', message: 'Set what it would cost to replace this item.' });
   }
@@ -487,17 +511,23 @@ export function adminRentalEditConflict(
 /**
  * Changing any of these on a live or queued listing takes it back to draft:
  * what a reviewer (or the auto-publish rule) looked at is no longer what a
- * renter would see. Day rate and description edits keep it live.
+ * renter would see. The cover photo (thumbnail_url) is what search results
+ * and cards show, so it counts like the gallery. Day rate and description
+ * edits keep it live.
  */
 export const MATERIAL_FIELDS = [
   'title',
   'category',
+  'condition',
   'brand',
   'model',
+  'price_per_week',
   'replacement_value',
+  'rental_includes',
   'serial_number',
   'location',
   'gallery',
+  'thumbnail_url',
 ] as const;
 
 export function editNeedsResubmission(status: unknown, changedFields: readonly string[]): boolean {

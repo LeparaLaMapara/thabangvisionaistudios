@@ -243,5 +243,90 @@ begin
 end $$;
 reset role;
 
+-- 12. The backfill (2c), re-run against rows shaped like pre-072 data.
+do $$
+declare
+  legacy uuid := gen_random_uuid();      -- community, live before 072, never reviewed
+  reviewed uuid := gen_random_uuid();    -- community, approved under 072
+  submitted uuid := gen_random_uuid();   -- community, auto-published under 072
+  studio uuid := gen_random_uuid();      -- studio gear, live
+  ai_draft uuid := gen_random_uuid();    -- AI draft whose flags were never recorded
+  ai_flagged uuid := gen_random_uuid();  -- AI draft with flags already recorded
+  st text;
+  pub boolean;
+  flags jsonb;
+  flags_after jsonb;
+  n integer;
+begin
+  insert into public.smart_rentals (id, slug, title, owner_type, listing_status) values
+    (legacy, '072-bf-legacy-' || legacy, 'Legacy camera', 'community', 'published'),
+    (reviewed, '072-bf-reviewed-' || reviewed, 'Reviewed camera', 'community', 'published'),
+    (submitted, '072-bf-submitted-' || submitted, 'Submitted camera', 'community', 'published'),
+    (studio, '072-bf-studio-' || studio, 'Studio camera', 'studio', 'published');
+  insert into public.listing_private (rental_id, reviewed_at) values (reviewed, now());
+  insert into public.listing_private (rental_id, submitted_at) values (submitted, now());
+  insert into public.smart_rentals
+    (id, slug, title, owner_type, is_ai_generated, price_per_day, price_per_week, description, rental_includes)
+  values
+    (ai_draft, '072-bf-ai-' || ai_draft, 'AI camera', 'community', true, 400, 2000, 'Guessed words', '{}'),
+    (ai_flagged, '072-bf-aif-' || ai_flagged, 'AI camera 2', 'community', true, 400, null, null, '{}');
+  insert into public.listing_private (rental_id, ai_fields)
+  values (ai_flagged, '{"title": {"status": "confirmed", "suggested_at": "x"}}');
+
+  perform public.listing_review_backfill_072();
+
+  select listing_status, is_published into st, pub from public.smart_rentals where id = legacy;
+  if st <> 'pending_review' or pub then
+    raise exception 'FAIL: never-reviewed community listing stayed live (status %, published %)', st, pub;
+  end if;
+  raise notice 'PASS: community listing live before 072 is taken offline for review';
+
+  select count(*) into n from public.smart_rentals
+   where id in (reviewed, submitted, studio) and listing_status = 'published' and is_published;
+  if n <> 3 then raise exception 'FAIL: reviewed/submitted/studio listings were taken offline (% of 3 live)', n; end if;
+  raise notice 'PASS: reviewed, submitted and studio listings stay live';
+
+  select ai_fields into flags from public.listing_private where rental_id = ai_draft;
+  if flags is null then raise exception 'FAIL: AI draft got no ai_fields'; end if;
+  select count(*) into n from jsonb_each(flags) e where e.value ->> 'status' = 'suggested';
+  if n <> 7 or not (flags ?& array['title', 'brand', 'model', 'category', 'price_per_day', 'price_per_week', 'description'])
+     or flags ? 'rental_includes' then
+    raise exception 'FAIL: AI draft flags wrong: %', flags;
+  end if;
+  raise notice 'PASS: AI draft without flags has its AI fields marked unconfirmed';
+
+  select ai_fields into flags_after from public.listing_private where rental_id = ai_flagged;
+  if flags_after <> '{"title": {"status": "confirmed", "suggested_at": "x"}}'::jsonb then
+    raise exception 'FAIL: recorded AI flags were overwritten: %', flags_after;
+  end if;
+  raise notice 'PASS: recorded AI flags are left alone';
+
+  -- Re-run: nothing changes.
+  perform public.listing_review_backfill_072();
+  select listing_status into st from public.smart_rentals where id = legacy;
+  select count(*) into n from public.smart_rentals
+   where id in (reviewed, submitted, studio) and listing_status = 'published';
+  select ai_fields into flags_after from public.listing_private where rental_id = ai_draft;
+  if st <> 'pending_review' or n <> 3 or flags_after <> flags then
+    raise exception 'FAIL: second backfill run changed something';
+  end if;
+  raise notice 'PASS: backfill is idempotent';
+
+  select count(*) into n from public.smart_rentals
+   where coalesce(is_published, false) <> (listing_status = 'published');
+  if n > 0 then raise exception 'FAIL: % rows disagree after the backfill', n; end if;
+  raise notice 'PASS: is_published still matches listing_status after the backfill';
+end $$;
+
+set local role authenticated;
+do $$
+begin
+  perform public.listing_review_backfill_072();
+  raise exception 'FAIL: a client ran the backfill';
+exception when insufficient_privilege then
+  raise notice 'PASS: clients cannot run the backfill';
+end $$;
+reset role;
+
 select 'ALL 072 CHECKS PASSED' as result;
 rollback;

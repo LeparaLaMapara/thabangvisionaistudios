@@ -71,7 +71,9 @@ type ListingForm = {
   brand: string;
   model: string;
   price_per_day: string;
+  price_per_week: string;
   replacement_value: string;
+  rental_includes: string;
   serial_number: string;
   replacement_value_evidence: string;
   condition: string;
@@ -87,7 +89,9 @@ const EMPTY_FORM: ListingForm = {
   brand: '',
   model: '',
   price_per_day: '',
+  price_per_week: '',
   replacement_value: '',
+  rental_includes: '',
   serial_number: '',
   replacement_value_evidence: '',
   condition: '',
@@ -260,7 +264,9 @@ export default function ListingsPage() {
       brand: listing.brand ?? '',
       model: listing.model ?? '',
       price_per_day: listing.price_per_day?.toString() ?? '',
+      price_per_week: listing.price_per_week?.toString() ?? '',
       replacement_value: listing.replacement_value?.toString() ?? '',
+      rental_includes: (listing.rental_includes ?? []).join(', '),
       serial_number: listing.serial_number ?? '',
       replacement_value_evidence: listing.replacement_value_evidence ?? '',
       condition: listing.sub_category ?? '',
@@ -350,7 +356,12 @@ export default function ListingsPage() {
       brand: form.brand.trim() || null,
       model: form.model.trim() || null,
       price_per_day: form.price_per_day || null,
+      price_per_week: form.price_per_week || null,
       replacement_value: form.replacement_value || null,
+      rental_includes: form.rental_includes
+        .split(/[,\n]/)
+        .map((v) => v.trim())
+        .filter(Boolean),
       serial_number: form.serial_number.trim() || null,
       replacement_value_evidence: form.replacement_value_evidence.trim() || null,
       condition: form.condition || null,
@@ -661,6 +672,37 @@ export default function ListingsPage() {
                 value={form.price_per_day}
                 onChange={(e) => setForm((f) => ({ ...f, price_per_day: e.target.value }))}
                 placeholder="e.g. 500"
+                className={INPUT_CLASS}
+              />
+            </div>
+
+            <div>
+              <label className={LABEL_CLASS}>
+                Week rate ({STUDIO.currency.code}, optional) {isAi('price_per_week') && <AiMark />}
+              </label>
+              <input
+                type="number"
+                min="1"
+                step="1"
+                value={form.price_per_week}
+                onChange={(e) => setForm((f) => ({ ...f, price_per_week: e.target.value }))}
+                placeholder="Charged per full week of a hire"
+                className={INPUT_CLASS}
+              />
+              <p className="mt-1 text-xs font-mono text-neutral-500">
+                Charged for each full 7 days. Cannot be more than 7 days at the day rate. Leave blank to charge the day rate.
+              </p>
+            </div>
+
+            <div>
+              <label className={LABEL_CLASS}>
+                What&rsquo;s included (optional) {isAi('rental_includes') && <AiMark />}
+              </label>
+              <input
+                type="text"
+                value={form.rental_includes}
+                onChange={(e) => setForm((f) => ({ ...f, rental_includes: e.target.value }))}
+                placeholder="e.g. 2 batteries, charger, strap"
                 className={INPUT_CLASS}
               />
             </div>

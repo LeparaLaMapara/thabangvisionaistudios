@@ -1,4 +1,6 @@
 export const dynamic = 'force-dynamic';
+// Submitting copies the listing's photos (see cleanListingImages).
+export const maxDuration = 60;
 
 import { NextRequest, NextResponse } from 'next/server';
 import { checkNotSuspended, checkRateLimit, requireAuth } from '@/lib/auth';
@@ -11,6 +13,7 @@ import {
   savePrivate,
   toReviewInput,
 } from '@/app/api/listings/_lib/server';
+import { cleanListingImages, discardUploadedImages, type CleanImagesResult } from '@/app/api/listings/_lib/images';
 
 /**
  * POST /api/listings/[id]/submit — the owner asks for their listing to go live.
@@ -20,6 +23,14 @@ import {
  * Result: 422 with reasons, or the listing moves to `pending_review` (a
  * person looks at it) or, for an established owner, straight to `published`.
  * Every fact is read on the server; the request body is ignored.
+ *
+ * Before the status changes, every photo is replaced by a metadata-free copy
+ * (cleanListingImages), so nothing that goes in front of a reviewer or a
+ * renter can lead back to an original upload with GPS in it.
+ *
+ * The final update is conditional on the listing's updated_at being the one
+ * read at the start: an edit that lands while this request is deciding makes
+ * it answer 409 rather than publish on facts it never checked.
  */
 export async function POST(
   _request: NextRequest,
@@ -69,17 +80,47 @@ export async function POST(
       );
     }
 
+    let photos: CleanImagesResult;
+    try {
+      photos = await cleanListingImages(row);
+    } catch (err) {
+      console.error('[listings/submit] photo copy failed for listing', row.id, err);
+      photos = { ok: false, reason: 'upload_failed' };
+    }
+    if (!photos.ok) {
+      if (photos.reason === 'unsupported_image') {
+        const reason = {
+          code: 'unsupported_image',
+          message: 'Upload your photos again through the listing form, then submit.',
+        };
+        return NextResponse.json({ error: reason.message, code: 'cannot_submit', reasons: [reason] }, { status: 422 });
+      }
+      console.error('[listings/submit] photos not prepared for listing', row.id, photos.reason);
+      return NextResponse.json({ error: 'Could not prepare your photos. Please try again.' }, { status: 503 });
+    }
+
     const { data, error } = await admin
       .from('smart_rentals')
-      .update({ listing_status: decision.to })
+      .update({
+        listing_status: decision.to,
+        ...(photos.changed && {
+          gallery: photos.gallery,
+          thumbnail_url: photos.thumbnail_url,
+          cover_public_id: photos.cover_public_id,
+        }),
+      })
       .eq('id', row.id)
       .eq('owner_id', auth.user.id)
-      .eq('listing_status', row.listing_status) // nobody changed it since we read it
+      .eq('listing_status', row.listing_status) // nobody changed its status since we read it
+      .eq('updated_at', row.updated_at) // nor edited it (PUT moves updated_at)
       .select('id')
       .maybeSingle();
 
-    if (error) throw error;
-    if (!data) return NextResponse.json({ error: 'The listing changed; reload and try again.' }, { status: 409 });
+    if (error || !data) {
+      await discardUploadedImages(photos.uploaded);
+      if (error) throw error;
+      return NextResponse.json({ error: 'The listing changed while it was being submitted; reload and try again.' }, { status: 409 });
+    }
 
     // The status change above is what counts; the submission time only
     // orders the review queue, so a failure here is logged, not fatal.

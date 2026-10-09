@@ -17,6 +17,7 @@ import {
 } from '@/lib/agents/agents/listing-describer';
 import { markAiSuggested, type AiSuggestibleField } from '@/lib/core/listings/review';
 import { savePrivate } from '@/app/api/listings/_lib/server';
+import { metadataFreeImageUrl } from '@/app/api/listings/_lib/images';
 
 const MIN_CONFIDENCE = 0.7;
 
@@ -90,6 +91,15 @@ function estimateDailyRate(category: string, condition: string): number {
   const categoryBase = base[category] ?? 400;
   const mult = conditionMultiplier[condition] ?? 0.9;
   return Math.round(categoryBase * mult);
+}
+
+function httpsUrl(v: unknown): boolean {
+  if (typeof v !== 'string' || !v) return false;
+  try {
+    return new URL(v).protocol === 'https:';
+  } catch {
+    return false;
+  }
 }
 
 export async function POST(req: NextRequest): Promise<NextResponse> {
@@ -179,6 +189,10 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       const pricePerDay = estimateDailyRate(item.category, condition);
       const pricePerWeek = Math.round(pricePerDay * 5); // SA market norm: 7 days billed as 5
 
+      // The photo becomes the listing's one gallery image and its cover, so
+      // the cover is always one of the photos a reviewer sees.
+      const photoUrl = httpsUrl(item.thumbnailUrl) ? metadataFreeImageUrl(item.thumbnailUrl as string) : null;
+
       // Everything below except the owner and location was guessed by the AI
       // (vision for brand/model/category, the describer for the words, a
       // heuristic for the rates). Each stays untrusted until the owner
@@ -205,7 +219,8 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
           price_per_week: pricePerWeek,
           deposit_amount: null,
           currency: STUDIO.currency.code,
-          thumbnail_url: item.thumbnailUrl ?? null,
+          thumbnail_url: photoUrl,
+          gallery: photoUrl ? [{ url: photoUrl, public_id: '' }] : [],
           rental_includes: rentalIncludes,
           metadata: {
             ai_generated: true,

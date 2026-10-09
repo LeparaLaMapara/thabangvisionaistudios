@@ -135,6 +135,7 @@ export function toReviewInput(row: OwnerListingRow): ListingForReview {
     title: row.title,
     category: row.category,
     price_per_day: row.price_per_day === null ? null : Number(row.price_per_day),
+    price_per_week: row.price_per_week === null || row.price_per_week === undefined ? null : Number(row.price_per_week),
     replacement_value: row.replacement_value === null ? null : Number(row.replacement_value),
     location: locationOf(row),
     ai_fields: row.ai_fields,
@@ -230,11 +231,14 @@ export async function loadOwnerFacts(admin: Admin, ownerId: string, excludeListi
     admin.from('profiles').select('verification_status, is_suspended').eq('id', ownerId).maybeSingle(),
     admin.from('banking_details').select('is_verified').eq('user_id', ownerId).maybeSingle(),
     listingsQuery,
+    // An owner hiring their own gear is not a track record: those hires
+    // (renter = owner) are left out of the count.
     admin
       .from('equipment_bookings')
       .select('id, smart_rentals!inner(owner_id)', { count: 'exact', head: true })
       .eq('status', 'completed')
-      .eq('smart_rentals.owner_id', ownerId),
+      .eq('smart_rentals.owner_id', ownerId)
+      .neq('user_id', ownerId),
     admin
       .from('equipment_bookings')
       .select('id, smart_rentals!inner(owner_id)', { count: 'exact' })
