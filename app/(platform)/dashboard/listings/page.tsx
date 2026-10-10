@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { OwnerHires } from './OwnerHires';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
 import {
@@ -1404,6 +1405,9 @@ export default function ListingsPage() {
           onRetry={() => loadPrecheck(submitting.id)}
         />
       )}
+
+      {/* Hires of this owner's gear and their payouts (renters' details never shown) */}
+      {mode === 'list' && <OwnerHires />}
 
       {/* ── Listings ─────────────────────────────────────────────────────── */}
       {listings.length === 0 && mode === 'list' ? (
