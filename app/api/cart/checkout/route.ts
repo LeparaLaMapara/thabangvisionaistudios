@@ -571,7 +571,19 @@ export async function POST(request: NextRequest) {
             balance_due: balanceDue > 0 ? balanceDue : null,
             amount_due: amountDueNow,
           }
-        : {}),
+        : fulfilment === 'delivery' && deliveryPoint
+          ? {
+              // Every delivered line names where it goes (041's
+              // delivery_needs_address CHECK refused a multi-item delivery
+              // order before: only the first line carried an address). The
+              // fee stays on the first line only (0 here), so every sum of
+              // delivery_fee over the order is unchanged.
+              delivery_address: deliveryPoint.formattedAddress,
+              delivery_lat: deliveryPoint.lat,
+              delivery_lng: deliveryPoint.lng,
+              delivery_fee: 0,
+            }
+          : {}),
     };
   });
 
