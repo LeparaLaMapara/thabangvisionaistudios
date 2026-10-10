@@ -3,6 +3,7 @@ import { email as emailProvider } from '@/lib/email';
 import { sms } from '@/lib/sms';
 import { STUDIO } from '@/lib/constants';
 import { formatRand } from '@/lib/format/money';
+import { collectionPointWithCity } from '@/lib/rental/collection-point';
 import type { NotifyPort } from '@/lib/core/ports';
 import type { OutboxMessage, RentalNoticeKind } from '@/lib/core/rental/notifications';
 import { isMissingPipeline } from './repos';
@@ -25,10 +26,20 @@ export function rentalNoticeText(kind: RentalNoticeKind, data: OutboxMessage['da
   switch (kind) {
     case 'payment_received':
       return { title: 'Payment received', body: `We received your payment of ${amount}. Your booking is confirmed.` };
+    // Collection details are in the message itself: the checkout page tells the
+    // renter "you get a message with the collection details".
     case 'booking_confirmed':
-      return { title: 'Booking confirmed', body: `Your gear hire is confirmed. Bring your ID when you collect; we check it at handover.` };
+      return data.delivery === true
+        ? { title: 'Booking confirmed', body: `Your gear hire is confirmed. Delivery updates are on your booking. Have the ID you verified with ready when the gear arrives.` }
+        : {
+            title: 'Booking confirmed',
+            body: `Your gear hire is confirmed. Collect it on your start date at ${collectionPointWithCity()} (${STUDIO.hours.weekday}, ${STUDIO.hours.weekend}). Bring the ID you verified with; we check it and the gear with you at handover.`,
+          };
     case 'collection_reminder':
-      return { title: 'Collection today', body: `Your gear is ready for collection today. Please bring the ID you verified with.` };
+      return {
+        title: 'Collection today',
+        body: `Your gear is ready for collection today at ${collectionPointWithCity()} (${STUDIO.hours.weekday}, ${STUDIO.hours.weekend}). Please bring the ID you verified with.`,
+      };
     case 'handover_completed':
       return { title: 'Gear handed over', body: `Your hire has started. The condition photos and agreement are saved on your booking.` };
     case 'return_reminder':

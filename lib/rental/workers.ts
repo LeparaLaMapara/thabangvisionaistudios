@@ -281,18 +281,21 @@ export async function runReminders(db: Admin = createAdminClient(), clock: Clock
   const today = sastDate(now);
   const tomorrow = sastDate(new Date(now.getTime() + 86_400_000));
   const [{ data: collecting }, { data: returning }] = await Promise.all([
-    db.from('equipment_bookings').select('id, user_id').eq('status', 'confirmed').eq('start_date', today),
+    // Delivered orders get the delivery notices instead: "ready for
+    // collection" would send them to the counter for gear on its way to them.
+    db.from('equipment_bookings').select('id, user_id, fulfilment_method').eq('status', 'confirmed').eq('start_date', today),
     db.from('equipment_bookings').select('id, user_id').eq('status', 'active').eq('end_date', tomorrow),
   ]);
   const notices: OutboxMessage[] = [];
-  for (const b of (collecting ?? []) as { id: string; user_id: string }[]) {
+  const toCollect = ((collecting ?? []) as { id: string; user_id: string; fulfilment_method?: string | null }[]).filter((b) => b.fulfilment_method !== 'delivery');
+  for (const b of toCollect) {
     notices.push(...buildNotices({ kind: 'collection_reminder', userId: b.user_id, bookingIds: [b.id], discriminator: `${b.id}:${today}` }));
   }
   for (const b of (returning ?? []) as { id: string; user_id: string }[]) {
     notices.push(...buildNotices({ kind: 'return_reminder', userId: b.user_id, bookingIds: [b.id], discriminator: `${b.id}:${tomorrow}` }));
   }
   await enqueue(db, notices);
-  return { collection: (collecting ?? []).length, returns: (returning ?? []).length };
+  return { collection: toCollect.length, returns: (returning ?? []).length };
 }
 
 /**
