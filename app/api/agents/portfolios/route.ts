@@ -3,6 +3,8 @@ import { requireAuth, checkNotSuspended, checkRateLimit } from '@/lib/auth';
 import { createAdminClient, createClient } from '@/lib/supabase/server';
 import { analyzeScene, detectSkills } from '@/lib/agents/tools';
 import type { SceneAnalysisResult } from '@/lib/agents/types';
+import { isOwnImageUrl } from '@/app/api/listings/_lib/images';
+import { STUDIO } from '@/lib/constants';
 
 // ─── POST /api/agents/portfolios ────────────────────────────────────────────
 
@@ -47,19 +49,22 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
           );
         }
 
-        // Validate all URLs
+        if (imageUrls.length > STUDIO.security.portfolioAnalyzeMaxImages) {
+          return NextResponse.json(
+            { error: `Analyze at most ${STUDIO.security.portfolioAnalyzeMaxImages} photos at a time.` },
+            { status: 400 },
+          );
+        }
+
+        // The server fetches each image, so only photos uploaded to our own
+        // storage account are accepted (https, our cloud, /image/upload/).
+        // Anything else let any signed-in user make the server request
+        // internal addresses (security INJ-2). The fetch itself is also
+        // guarded (lib/security/safe-fetch.ts).
         for (const url of imageUrls) {
-          try {
-            const parsed = new URL(url);
-            if (!['https:', 'http:'].includes(parsed.protocol)) {
-              return NextResponse.json(
-                { error: `Invalid URL protocol: ${url}` },
-                { status: 400 },
-              );
-            }
-          } catch {
+          if (typeof url !== 'string' || !isOwnImageUrl(url)) {
             return NextResponse.json(
-              { error: `Invalid URL: ${url}` },
+              { error: 'Upload the photos first, then try again.' },
               { status: 400 },
             );
           }

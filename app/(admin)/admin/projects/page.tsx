@@ -18,6 +18,7 @@ import {
   smartProductionFolder,
   type CloudinaryAsset,
 } from '@/lib/cloudinary/upload';
+import { dropzoneAccept, uploadAccept } from '@/lib/storage/upload-policy';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -472,14 +473,14 @@ export default function AdminProjectsPage() {
   // ── Dropzone hooks ───────────────────────────────────────────────────────────
 
   const thumbDropzone = useDropzone({
-    accept:   { 'image/*': [] },
+    accept:   dropzoneAccept('image', true),
     multiple: false,
     disabled: thumbUploading,
     onDrop:   (accepted) => { if (accepted[0]) void doThumbnailUpload(accepted[0]); },
   });
 
   const galDropzone = useDropzone({
-    accept:   { 'image/*': [], 'video/*': [] },
+    accept:   dropzoneAccept('media', true),
     multiple: true,
     disabled: galUploading,
     onDrop:   (accepted) => { void doGalleryUpload(accepted); },
@@ -1072,7 +1073,7 @@ export default function AdminProjectsPage() {
                       <input
                         ref={thumbInputRef}
                         type="file"
-                        accept="image/*"
+                        accept={uploadAccept('image', true)}
                         className="hidden"
                         disabled={thumbUploading}
                         onChange={handleThumbnailChange}
@@ -1216,7 +1217,7 @@ export default function AdminProjectsPage() {
                     <input
                       ref={galInputRef}
                       type="file"
-                      accept="image/*,video/*"
+                      accept={uploadAccept('media', true)}
                       multiple
                       className="hidden"
                       disabled={galUploading}

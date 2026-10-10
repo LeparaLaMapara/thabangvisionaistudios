@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { uploadFile } from '@/lib/cloudinary/upload';
 import type { PressArticle } from '@/lib/supabase/queries/press';
+import { dropzoneAccept } from '@/lib/storage/upload-policy';
 
 // ─── Cloudinary folder ────────────────────────────────────────────────────────
 
@@ -142,7 +143,7 @@ export default function AdminPressPage() {
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
-    accept: { 'image/*': [] },
+    accept: dropzoneAccept('image', true),
     multiple: false,
   });
 

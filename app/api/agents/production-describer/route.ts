@@ -7,6 +7,7 @@ import { generateText } from 'ai';
 import { anthropic } from '@ai-sdk/anthropic';
 import { requireAdmin, rateLimitAdmin } from '@/lib/auth';
 import { trackedCompletion } from '@/lib/ai/tracked';
+import { BlockedUrlError, fetchImageAsBase64Safe } from '@/lib/security/safe-fetch';
 import {
   productionDescriberAgent,
   buildVisionPrompt,
@@ -19,12 +20,6 @@ import {
 } from '@/lib/agents/agents/production-describer';
 
 const GEMMA_MODEL = 'gemma-4-31b-it';
-
-async function fetchImageAsBase64(url: string): Promise<string> {
-  const response = await fetch(url);
-  const buffer = await response.arrayBuffer();
-  return Buffer.from(buffer).toString('base64');
-}
 
 export async function POST(req: NextRequest): Promise<NextResponse> {
   const auth = await requireAdmin();
@@ -54,8 +49,18 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       year: year ?? null,
     };
 
-    // Step 1: Gemma Vision analyzes the cover image
-    const imageData = await fetchImageAsBase64(input.imageUrl);
+    // Step 1: Gemma Vision analyzes the cover image. The URL is typed by an
+    // admin, so it goes through the guarded fetch (https, public addresses
+    // only, redirects re-checked; security INJ-4).
+    let imageData: string;
+    try {
+      imageData = await fetchImageAsBase64Safe(input.imageUrl);
+    } catch (fetchErr) {
+      if (fetchErr instanceof BlockedUrlError) {
+        return NextResponse.json({ error: 'That image URL cannot be used.' }, { status: 400 });
+      }
+      throw fetchErr;
+    }
 
     const vision = await trackedCompletion<VisionAnalysis>({
       agentId: 'production-describer:vision',

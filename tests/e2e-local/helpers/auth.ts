@@ -126,7 +126,8 @@ export async function signInWithPassword(page: Page, account: Account, next?: st
 
 /** A fresh browser context with the local options (see playwright.config.ts). */
 export async function newContext(browser: Browser): Promise<BrowserContext> {
-  return browser.newContext({ baseURL: APP, bypassCSP: true });
+  // extraHTTPHeaders: see playwright.config.ts (CSRF, security AUTH-4).
+  return browser.newContext({ baseURL: APP, bypassCSP: true, extraHTTPHeaders: { Referer: `${new URL(APP).origin}/` } });
 }
 
 /** A fresh browser context signed in as the account. */

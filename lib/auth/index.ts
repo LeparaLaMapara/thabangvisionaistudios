@@ -72,6 +72,9 @@ export async function checkNotSuspended(userId: string): Promise<{
         suspension_expires_at: null,
       })
       .eq('id', userId);
+    // The Auth ban set at suspension ended with it; lift it explicitly too.
+    const { liftBan } = await import('@/lib/auth/sessions');
+    await liftBan(userId);
     return { suspended: false };
   }
 

@@ -18,6 +18,9 @@ function getConfig() {
   return { cloudName, apiKey, apiSecret };
 }
 
+/** Parameters besides folder and timestamp that may ever be signed. */
+const SIGNABLE_EXTRA = ['allowed_formats'] as const;
+
 function sign(params: Record<string, string>, secret: string): string {
   const toSign =
     Object.entries(params)
@@ -166,18 +169,18 @@ export const cloudinary: StorageProvider = {
     extraParams?: Record<string, string>,
   ): Promise<SignedUploadParams> {
     const { cloudName, apiKey, apiSecret } = getConfig();
-    const timestamp = Math.round(Date.now() / 1000).toString();
 
-    // Only include parameters that Cloudinary expects in the signature.
-    // Exclude non-signable params like resource_type (it's a URL path segment).
-    const NON_SIGNABLE = new Set(['resource_type', 'api_key', 'file', 'type']);
+    // Only an allowlist is ever signed (security INJ-5): the folder the
+    // SERVER chose, a timestamp, and allowed_formats. Anything else a caller
+    // passes (public_id, overwrite, upload_preset, eager, notification_url,
+    // type, ...) is dropped, so Cloudinary refuses an upload that adds it.
+    const timestamp = /^\d{9,11}$/.test(extraParams?.timestamp ?? '')
+      ? (extraParams?.timestamp as string)
+      : Math.round(Date.now() / 1000).toString();
     const paramsToSign: Record<string, string> = { folder, timestamp };
-    if (extraParams) {
-      for (const [k, v] of Object.entries(extraParams)) {
-        if (!NON_SIGNABLE.has(k) && v !== undefined && v !== '') {
-          paramsToSign[k] = v;
-        }
-      }
+    for (const k of SIGNABLE_EXTRA) {
+      const v = extraParams?.[k];
+      if (typeof v === 'string' && v !== '') paramsToSign[k] = v;
     }
     const signature = sign(paramsToSign, apiSecret);
 

@@ -6,6 +6,7 @@ import { createAdminClient } from '@/lib/supabase/server';
 import { sendAccountSuspended } from '@/lib/email';
 import { STUDIO } from '@/lib/constants';
 import { profileWithEmail } from '@/lib/supabase/profile-email';
+import { banUser, revokeUserSessions } from '@/lib/auth/sessions';
 
 // ─── POST — Suspend a user (admin only) ─────────────────────────────────────
 
@@ -99,6 +100,12 @@ export async function POST(
       return NextResponse.json({ error: 'Failed to suspend user.' }, { status: 500 });
     }
 
+    // End their sessions now (security AUTH-3): before, a suspended user
+    // stayed signed in and kept using their session until it expired.
+    const sessions = await revokeUserSessions(targetUserId);
+    // ...and stop them signing in again until the suspension ends (Codex P1).
+    const banned = await banUser(targetUserId, expiresAt ? new Date(expiresAt) : null);
+
     // Deactivate user's rental listings
     await supabase
       .from('smart_rentals')
@@ -139,7 +146,7 @@ export async function POST(
       // Email failure shouldn't block the response
     }
 
-    return NextResponse.json({ success: true, message: 'User suspended.' });
+    return NextResponse.json({ success: true, message: 'User suspended.', sessions_revoked: sessions.revoked, sign_in_blocked: banned });
   } catch (err) {
     console.error('[admin/users/suspend] Error:', err);
     return NextResponse.json({ error: 'Internal server error.' }, { status: 500 });

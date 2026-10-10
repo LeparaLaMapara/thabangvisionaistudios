@@ -165,7 +165,13 @@ async function handlePaymentComplete(webhook: WebhookResult) {
       .eq('reference', paymentId)
       .single();
 
-    if (booking && Math.abs(booking.total - amountGross) > 0.01) {
+    // Never confirm blind (security MONEY-1): no booking, no confirmation.
+    if (!booking) {
+      console.error('[webhook] Service payment for an unknown reference; nothing changed:', paymentId);
+      return;
+    }
+
+    if (Math.abs(booking.total - amountGross) > 0.01) {
       console.error('[webhook] Service booking amount mismatch:', {
         expected: booking.total,
         received: amountGross,
@@ -178,11 +184,15 @@ async function handlePaymentComplete(webhook: WebhookResult) {
           admin_notes: `AMOUNT MISMATCH: expected ${booking.total}, received ${amountGross}. Manual review required.`,
           updated_at: new Date().toISOString(),
         })
-        .eq('reference', paymentId);
+        .eq('reference', paymentId)
+        .eq('status', 'pending')
+        .eq('payment_status', 'unpaid');
       return;
     }
 
-    const { error: bookingErr } = await supabase
+    // Compare-and-set from awaiting payment only (security MONEY-2): a
+    // duplicate is a no-op and a cancelled/refunded booking is never revived.
+    const { data: confirmedRows, error: bookingErr } = await supabase
       .from('bookings')
       .update({
         payment_status: 'paid',
@@ -191,15 +201,20 @@ async function handlePaymentComplete(webhook: WebhookResult) {
         paystack_reference: providerPaymentId,
         updated_at: new Date().toISOString(),
       })
-      .eq('reference', paymentId);
+      .eq('reference', paymentId)
+      .eq('status', 'pending')
+      .eq('payment_status', 'unpaid')
+      .select('id');
 
     if (bookingErr) {
       console.error('[webhook] Failed to confirm service booking:', bookingErr.message);
+    } else if (!confirmedRows || confirmedRows.length === 0) {
+      console.error('[webhook] Service payment for a booking no longer awaiting payment; needs manual review:', paymentId);
     } else {
       console.log(`[webhook] Service booking paid: ref=${paymentId} booking=${bookingId}`);
 
       // Notify client
-      if (booking) {
+      {
         await supabase.from('notifications').insert({
           user_id: booking.client_id,
           type: 'payment_confirmed',

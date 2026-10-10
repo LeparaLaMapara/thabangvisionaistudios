@@ -200,13 +200,13 @@ SQL editor, to both projects**. There is no automatic runner — a migration tha
 has been applied to prod and not dev is the usual cause of the two drifting.
 
 ```
-Latest: 077-database-integrity.sql (prod has up to 066)
+Latest: 079-security-phase-6.sql (prod has up to 066)
 ```
 
 The canonical order (base schema, `lib/migrations`, the four April files from
 `supabase/migrations/` before 029), how to rebuild a local database from the
 repo (`scripts/db/rebuild-local.sh`), how to run every SQL test
-(`scripts/db/run-sql-tests.sh`) and how to apply 067–077 to dev and prod by
+(`scripts/db/run-sql-tests.sh`) and how to apply 067–079 to dev and prod by
 hand are in [docs/database/README.md](docs/database/README.md), with the full
 schema, roles and access-control matrix next to it. Each file opens with a
 comment explaining what went wrong and why the change is shaped the way it is —

@@ -37,6 +37,7 @@ import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { Card } from '@/components/ui/Card';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { uploadAccept } from '@/lib/storage/upload-policy';
 
 /**
  * Owner listings, photo first (spec §9.3):
@@ -849,7 +850,7 @@ export default function ListingsPage() {
             <input
               id="listing-photos"
               type="file"
-              accept="image/*"
+              accept={uploadAccept('image', false)}
               multiple
               className="sr-only"
               onChange={handleImageUpload}

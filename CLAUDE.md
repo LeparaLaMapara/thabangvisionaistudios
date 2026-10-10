@@ -227,7 +227,7 @@ sweep in particular is far more useful at 30-minute intervals than daily.
 - **Auth bridge** — `providers/AuthProvider.tsx` bridges server-resolved session to the client to prevent auth flicker; don't replace it with client-only auth state.
 - **Image optimization** — Next.js `<Image>` uses a custom Cloudinary loader (`lib/cloudinary/loader.ts`) for on-the-fly resize/format conversion.
 - **In-memory rate limiter** (`lib/auth/index.ts`) — `checkRateLimit(key, maxRequests, windowMs)` for contact forms, onboarding, etc. Does NOT persist across restarts — Vercel cold starts reset it.
-- **Security headers** — `next.config.ts` sets CSP, HSTS, X-Frame-Options, etc. When adding a new external service, update the CSP `connect-src` (API calls), `img-src` (images), or `frame-src` (iframes) directives there.
+- **Security headers** — `next.config.ts` sets HSTS, X-Frame-Options, etc. The CSP is built per request in `lib/security/csp.ts` (nonce + `'strict-dynamic'`, no `'unsafe-inline'` scripts) and applied in `proxy.ts`. When adding a new external service, update the CSP `connect-src` (API calls), `img-src` (images), or `frame-src` (iframes) directives in `lib/security/csp.ts`. Pages must stay dynamically rendered or their scripts will lack the nonce (D-77).
 - **Environment setup** — copy `.env.example` to `.env.local` and fill in real values. See `.env.example` for all provider-specific variables grouped by service.
 
 ## Documentation

@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { ArrowLeft, Camera, Loader2 } from 'lucide-react';
 import { uploadFile } from '@/lib/cloudinary/upload';
+import { uploadAccept } from '@/lib/storage/upload-policy';
 
 /**
  * Staff handover at the counter (TASK-067), like an Apple Store pickup:
@@ -360,7 +361,7 @@ function PhotoButton({ label, onFiles, multiple, disabled }: { label: string; on
     <label className={`flex items-center justify-center gap-2 min-h-[44px] rounded border border-white/20 text-xs font-mono uppercase tracking-widest text-white cursor-pointer ${disabled ? 'opacity-50 pointer-events-none' : ''}`}>
       <Camera className="w-4 h-4" aria-hidden="true" />
       {label}
-      <input type="file" accept="image/*" capture="environment" multiple={multiple} className="sr-only" onChange={(e) => onFiles(e.target.files)} />
+      <input type="file" accept={uploadAccept('image', true)} capture="environment" multiple={multiple} className="sr-only" onChange={(e) => onFiles(e.target.files)} />
     </label>
   );
 }

@@ -414,6 +414,52 @@ export const STUDIO = {
     idleTimeoutMinutes: 30, // Auto-logout after 30 minutes of inactivity
   },
 
+  // Phase 6 security limits (docs/security/phase-6-assessment.md).
+  security: {
+    // Server-side fetches of a URL a person or a model supplied
+    // (lib/security/safe-fetch.ts): https only, public addresses only.
+    fetch: {
+      maxImageBytes: 15 * 1024 * 1024,
+      timeoutMs: 15_000,
+      maxRedirects: 3,
+    },
+    // Images one "analyze-portfolio" request may ask the server to fetch.
+    portfolioAnalyzeMaxImages: 12,
+    // Direct browser uploads signed by /api/cloudinary/sign
+    // (lib/storage/upload-policy.ts). The server decides the folder (every
+    // non-admin upload lands under userRoot/<user id>/), never signs a
+    // client public_id, and signs allowed_formats so nothing but these file
+    // types can be stored (no SVG, HTML, PDF or raw files).
+    uploads: {
+      userRoot: 'thabangvision_usecase/users',
+      imageFormats: ['jpg', 'jpeg', 'png', 'webp', 'heic', 'heif', 'avif', 'gif'],
+      // Portfolio project videos (STUDIO.creators.portfolio.acceptedVideoTypes).
+      videoFormats: ['mp4'],
+      // Admin uploads (productions, gear, handover/return photos, press) also
+      // take the camera formats the admin tools always accepted. Still no
+      // SVG, HTML, PDF or raw files.
+      adminImageFormats: ['jpg', 'jpeg', 'png', 'webp', 'heic', 'heif', 'avif', 'gif', 'tif', 'tiff', 'bmp'],
+      adminVideoFormats: ['mp4', 'mov', 'webm', 'm4v'],
+    },
+    // Ubunye chat (lib/ubunye/chat-links.ts, lib/agents/runtime.ts).
+    chat: {
+      // External hosts a chat reply may link to, besides our own site and
+      // the STUDIO.social profiles. Any other link is shown as plain text,
+      // and images in replies are never loaded (no zero-click exfiltration).
+      // wa.me is allowed only for STUDIO.whatsapp.number, and payment pages
+      // are never linked from model text (they come from /pay or the server).
+      linkHosts: [] as string[],
+      // Inbound request limits for POST /api/ubunye-chat.
+      maxBodyBytes: 256 * 1024,
+      maxMessageChars: 4000,
+      maxHistoryMessages: 40,
+      // Per reply: output tokens per model step, and tool executions in total
+      // (stepCountIs bounds round trips, not calls per step).
+      maxOutputTokens: 1500,
+      maxToolCallsPerMessage: 8,
+    },
+  },
+
   ai: {
     budget: {
       monthlyBudgetZAR: 500,         // R500/month AI spend cap

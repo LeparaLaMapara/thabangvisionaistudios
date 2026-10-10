@@ -4,6 +4,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin, rateLimitAdmin } from '@/lib/auth';
 import { extractMetadataFromUrl, type ImageMetadata } from '@/lib/metadata/extract';
 
+// Each URL is fetched by the server (through the guarded safeFetch).
+const MAX_URLS = 20;
+
 // ─── POST — Extract EXIF metadata from image URLs (admin only) ──────────────
 
 export async function POST(req: NextRequest) {
@@ -24,6 +27,9 @@ export async function POST(req: NextRequest) {
 
     // Multiple URLs
     if (Array.isArray(body.imageUrls)) {
+      if (body.imageUrls.length > MAX_URLS || !body.imageUrls.every((u: unknown) => typeof u === 'string')) {
+        return NextResponse.json({ error: `Provide at most ${MAX_URLS} image URLs.` }, { status: 400 });
+      }
       const results: { url: string; metadata: ImageMetadata }[] = await Promise.all(
         (body.imageUrls as string[]).map(async (url) => ({
           url,

@@ -131,7 +131,18 @@ export function decideCharge(intent: PaymentIntent | null, event: ChargeEvent, l
  * the object's status: a redelivery of the same event collides, while a later
  * status change of the same object (refund pending → processed) does not.
  */
-export function eventDedupeKey(provider: string, event: string, objectId: string | number | null | undefined, status: string | null | undefined): string {
-  const id = objectId === null || objectId === undefined || objectId === '' ? 'noid' : String(objectId);
+export function eventDedupeKey(
+  provider: string,
+  event: string,
+  objectId: string | number | null | undefined,
+  status: string | null | undefined,
+  reference?: string | null,
+): string {
+  const missing = (v: unknown): boolean => v === null || v === undefined || v === '';
+  // Without an object id, fall back to the object's own reference (a transfer
+  // reference, a charge reference). Before, every id-less event of one type
+  // and status shared a single key, so the SECOND payout's transfer.success
+  // was dropped as a duplicate of the first (Phase 6 security review).
+  const id = !missing(objectId) ? String(objectId) : !missing(reference) ? `ref:${reference}` : 'noid';
   return `${provider}:${event}:${id}:${status ?? 'nostatus'}`;
 }

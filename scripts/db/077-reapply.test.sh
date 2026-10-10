@@ -46,6 +46,14 @@ cleanup() {
   q "create or replace function public.handle_new_user() returns trigger language plpgsql security definer
      set search_path = public, pg_temp as \$f\$ begin insert into public.profiles (id) values (new.id) on conflict (id) do nothing; return new; end; \$f\$;" >/dev/null
   apply || echo "restore: 077 did not re-apply" >&2
+  # 077 redefines objects that later migrations replace (079: is_admin()), so
+  # re-apply every later migration too: the database ends where it started.
+  for later in $(LC_ALL=C ls "$ROOT"/lib/migrations/[0-9][0-9][0-9]-*.sql | LC_ALL=C sort); do
+    name="$(basename "$later")"
+    case "$name" in *.test.sql) continue ;; esac
+    [ "${name%%-*}" \> "077" ] || continue
+    psql "$URL" -X -q -v ON_ERROR_STOP=1 -f "$later" >/dev/null 2>"$ERR" || echo "restore: $name did not re-apply" >&2
+  done
 }
 trap cleanup EXIT
 
