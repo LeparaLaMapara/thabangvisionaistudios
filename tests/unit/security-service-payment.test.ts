@@ -123,3 +123,16 @@ describe('a payment never revives a cancelled or refunded booking (MONEY-2)', ()
     expect(tables.bookings[0].admin_notes).toBeUndefined();
   });
 });
+
+describe('payment event de-duplication without a provider object id', () => {
+  it('two different transfers with no data.id do not share a key (the second payout is not dropped)', async () => {
+    const { eventDedupeKey } = await import('@/lib/core/rental/payments');
+    const a = eventDedupeKey('paystack', 'transfer.success', undefined, 'success', 'tvsp_booking_a');
+    const b = eventDedupeKey('paystack', 'transfer.success', undefined, 'success', 'tvsp_booking_b');
+    expect(a).not.toBe(b);
+    // A redelivery of the same transfer still collides.
+    expect(eventDedupeKey('paystack', 'transfer.success', '', 'success', 'tvsp_booking_a')).toBe(a);
+    // With an id, the key is unchanged from before (stored keys stay valid).
+    expect(eventDedupeKey('paystack', 'transfer.success', 77, 'success', 'tvsp_booking_a')).toBe('paystack:transfer.success:77:success');
+  });
+});

@@ -98,7 +98,13 @@ export type StoreResult = { stored: true; id: string } | { stored: false; duplic
 /** Persist an event. Throws if the database is unavailable, so the route can answer 500 and Paystack retries. */
 export async function storeEvent(provider: string, parsed: ParsedPaystackEvent): Promise<StoreResult> {
   const db = createAdminClient();
-  const dedupeKey = eventDedupeKey(provider, parsed.event, parsed.dataId, parsed.status);
+  const dedupeKey = eventDedupeKey(
+    provider,
+    parsed.event,
+    parsed.dataId,
+    parsed.status,
+    parsed.reference ?? parsed.transferCode ?? parsed.transactionReference,
+  );
   const { data, error } = await db
     .from('payment_events')
     .upsert(
