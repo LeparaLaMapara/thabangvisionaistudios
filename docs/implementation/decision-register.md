@@ -156,6 +156,16 @@ See `docs/security/phase-6-assessment.md`.
 | D-82 | Which links a Ubunye reply may contain | DEFAULT (security) | Same-site paths, our https site, the STUDIO.social profiles, the studio's own WhatsApp number, tel:, mailto: our addresses. Never a payment page chosen by the model (payments go through /pay or the prepared-action card) | `lib/ubunye/chat-links.ts` |
 | D-83 | Files in `public/` and the CSP | DEFAULT (security) | The proxy (per-request CSP) runs on every path except /_next/static, /_next/image and the files actually in public/, listed by pattern in `proxy.ts`'s matcher: add one when a file is added there. Everything gets at least the fallback CSP from next.config.ts | `proxy.ts` `config.matcher`, `lib/security/csp.ts` `FALLBACK_CSP` |
 
+### Phase 8: Bob Go adapter (2026-10-10)
+
+See `docs/logistics/bobgo.md`. The Bob Go API reference is gated behind Bob Go sales; the adapter's contract is unverified.
+
+| # | Question | Status | What the code does now | Where encoded |
+|---|---|---|---|---|
+| D-84 | Whether to use Bob Go, and which of its service levels (couriers) may carry rented gear | REQUIRES_FOUNDER_APPROVAL; BLOCKED on Bob Go's API reference and written answers (`bobgo.md` questions) | Adapter built and registered, **off**: needs `DELIVERY_PROVIDER_BOBGO_ENABLED`, and `_PRODUCTION_APPROVED` + `BOBGO_API_KEY` in production. Claims no capability, so the risk gate excludes it. The approved service-level list is empty, so every quote is refused without a call. Only hand-to-hand, door-to-door levels may ever be added (never a pickup point such as Pargo) | `lib/delivery/bobgo/api-contract.ts` (`approvedServiceLevelCodes`, `BOBGO_CAPABILITIES`), `aggregatorCourierFactories` in `lib/delivery/ports.ts` |
+| D-85 | Lithium batteries through Bob Go | REQUIRES_FOUNDER_APPROVAL + written courier confirmation | Refused locally (not serviceable, quote and create refused, nothing sent) until Bob Go confirms in writing which service levels accept them. RAM needs written consent | `BOBGO_CONTRACT.lithiumAccepted = false` |
+| D-86 | Bob Go webhooks | DEFAULT (security) | Not accepted: the signing scheme is unknown and none is guessed. `/api/webhooks/delivery/bobgo` answers 503 and stores nothing; status comes from reading the order | `lib/delivery/bobgo/webhook.ts`, `lib/delivery/webhook-adapters.ts` |
+
 Superseded by Phase 1 (no longer enforced at checkout):
 
 - `STUDIO.rental.protection.trustTiers` (the R5k/R20k/R60k ladder by clean returns) is replaced by `RENTAL_POLICY.trustTierLimitsCents` (R2k/R10k/R25k/R80k).
