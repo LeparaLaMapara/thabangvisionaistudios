@@ -8,7 +8,8 @@ import type { CustomerDeliveryQuote } from '@/lib/core/delivery/quote';
 import type { DeliveryDeps } from '@/lib/core/delivery/repository';
 import type { ShipmentLeg } from '@/lib/core/delivery/state';
 import { SupabaseDeliveryRepository } from './repos';
-import { priceDeliveryForCheckout, quoteDelivery, sameLineSnapshot, type DeliveryCaller, type DeliveryLineInput } from '@/lib/core/delivery/use-cases';
+import { checkDeliveryEligibility, priceDeliveryForCheckout, quoteDelivery, sameLineSnapshot, type DeliveryCaller, type DeliveryLineInput } from '@/lib/core/delivery/use-cases';
+import { groupLinesByOrigin, originDiscriminator, sameOrigin, type LineOrigin, type OriginOwnerId } from '@/lib/core/delivery/origin';
 
 /**
  * The customer side of delivery at checkout (spec Phase 4 §4.7, §4.17).
@@ -100,6 +101,13 @@ export function windowLabel(win: DeliveryWindow): string | null {
 export interface PublicQuote {
   id: string;
   leg: ShipmentLeg;
+  /**
+   * Phase 8: where the gear on this leg comes from (outbound) or goes back to
+   * (return): our studio, or its owner. Never the owner's address; the
+   * route may add the owner's suburb (`origin_area`).
+   */
+  origin: 'studio' | 'owner';
+  origin_area?: string | null;
   provider_kind: 'courier' | 'own_fleet';
   customer_fee_cents: number;
   expires_at: string;
@@ -112,6 +120,7 @@ export function publicQuote(q: CustomerDeliveryQuote): PublicQuote {
   return {
     id: q.id,
     leg: q.leg,
+    origin: q.originOwnerId ? 'owner' : 'studio',
     provider_kind: q.providerKind,
     customer_fee_cents: q.customerFeeCents,
     expires_at: q.expiresAt,
@@ -243,33 +252,82 @@ export type CartQuoteResult =
   | { ok: true; quotes: CustomerDeliveryQuote[] }
   | { ok: false; collectionOnly: true; code: string; message: string };
 
+/** One origin's share of a cart: where its gear lives and which lines it carries (Phase 8). */
+export interface OriginGroup {
+  originOwnerId: OriginOwnerId;
+  /** delivery_addresses id of the gear's end of the legs: our site, or the owner's pickup address. */
+  addressId: string;
+  lines: DeliveryLineInput[];
+}
+
 /**
- * Quote each requested leg between our site and the renter's verified
- * address. One option per leg (the best that passed every gate). An
- * ineligible renter gets collection only, with the reason.
+ * Split the cart by where each item's gear lives (Phase 8): our site, or an
+ * owner's pickup address when the owner opted the listing in and every
+ * condition holds (core ownerPickupDecision, read by deps.origins). Without
+ * an origin port every line goes from our site, exactly as before.
+ */
+export async function deliveryOriginPlan(lines: readonly DeliveryLineInput[], siteAddressId: string, deps: Pick<DeliveryDeps, 'origins'>): Promise<OriginGroup[]> {
+  const originOf = new Map<string, LineOrigin>();
+  if (deps.origins && lines.length > 0) {
+    const decided = await deps.origins.originsFor(lines.map((l) => l.rentalId));
+    for (const [rentalId, d] of decided) if (d.ok) originOf.set(rentalId, { originOwnerId: d.ownerId, addressId: d.addressId });
+  }
+  return groupLinesByOrigin(lines, originOf, siteAddressId).map((g) => ({ ...g, lines: [...g.lines] }));
+}
+
+/**
+ * With more than one origin, the delivery eligibility of the whole order
+ * (each origin's quote only sees its own lines). One origin: the quote itself
+ * checks the whole order, exactly as before.
+ */
+async function wholeOrderEligible(
+  input: { renterId: string; renterAddressId: string; lines: readonly DeliveryLineInput[]; leg: ShipmentLeg; bookingGroupId?: string | null },
+  plan: readonly OriginGroup[],
+  deps: DeliveryDeps,
+): Promise<{ ok: true } | { ok: false; code: string; message: string }> {
+  if (plan.length <= 1) return { ok: true };
+  const r = await checkDeliveryEligibility({ renterId: input.renterId, leg: input.leg, renterAddressId: input.renterAddressId, lines: input.lines, bookingGroupId: input.bookingGroupId ?? null }, deps);
+  return r.ok ? { ok: true } : { ok: false, code: r.code, message: r.message };
+}
+
+/**
+ * Quote each requested leg between the renter's verified address and each
+ * place the cart's gear lives (Phase 8): one outbound leg per origin, and one
+ * return leg back to each origin. One option per leg (the best that passed
+ * every gate). An ineligible renter gets collection only, with the reason.
+ * A cart whose gear is all at our site gets exactly the legs it got before.
  */
 export async function quoteCartDelivery(
   input: { caller: DeliveryCaller; renterId: string; renterAddressId: string; siteAddressId: string; lines: readonly DeliveryLineInput[]; legs: readonly LegRequest[]; bookingGroupId?: string | null },
   deps: DeliveryDeps,
 ): Promise<CartQuoteResult> {
+  const plan = await deliveryOriginPlan(input.lines, input.siteAddressId, deps);
   const quotes: CustomerDeliveryQuote[] = [];
   for (const l of input.legs) {
     const out = l.leg === 'outbound';
-    const r = await quoteDelivery(
-      {
-        caller: input.caller,
-        renterId: input.renterId,
-        bookingGroupId: input.bookingGroupId ?? null,
-        leg: l.leg,
-        originAddressId: out ? input.siteAddressId : input.renterAddressId,
-        destinationAddressId: out ? input.renterAddressId : input.siteAddressId,
-        lines: input.lines,
-        window: l.window,
-      },
-      deps,
-    );
-    if (!r.ok) return { ok: false, collectionOnly: true, code: r.code, message: r.message };
-    quotes.push(r.quotes[0]);
+    // Several origins: each leg carries part of the order, so the renter's
+    // rules (trust limit, account holds, first hire, high value) are checked
+    // on the WHOLE order first, never per part (D-85).
+    const whole = await wholeOrderEligible({ ...input, leg: l.leg }, plan, deps);
+    if (!whole.ok) return { ok: false, collectionOnly: true, code: whole.code, message: whole.message };
+    for (const g of plan) {
+      const r = await quoteDelivery(
+        {
+          caller: input.caller,
+          renterId: input.renterId,
+          bookingGroupId: input.bookingGroupId ?? null,
+          leg: l.leg,
+          originAddressId: out ? g.addressId : input.renterAddressId,
+          destinationAddressId: out ? input.renterAddressId : g.addressId,
+          lines: g.lines,
+          window: l.window,
+          originOwnerId: g.originOwnerId,
+        },
+        deps,
+      );
+      if (!r.ok) return { ok: false, collectionOnly: true, code: r.code, message: r.message };
+      quotes.push(r.quotes[0]);
+    }
   }
   return { ok: true, quotes };
 }
@@ -316,13 +374,18 @@ const sastDay = (iso: string): string => studioDay(iso);
  * the last one back). Quotes recorded before the line snapshot existed are
  * compared on listings and the leg day.
  */
-export function quoteMatchesCart(q: Pick<CustomerDeliveryQuote, 'rentalIds' | 'lines' | 'leg' | 'window'>, lines: readonly DeliveryLineInput[]): boolean {
+export function quoteMatchesCart(
+  q: Pick<CustomerDeliveryQuote, 'rentalIds' | 'lines' | 'leg' | 'window'>,
+  lines: readonly DeliveryLineInput[],
+  /** The lines the leg day is taken from (the whole cart; default `lines`). Phase 8: `lines` is one origin's share. */
+  dayLines: readonly DeliveryLineInput[] = lines,
+): boolean {
   if (!sameSet(q.rentalIds, lines.map((l) => l.rentalId))) return false;
   if (q.lines && q.lines.length > 0) {
     const cart = lines.map((l) => ({ rentalId: l.rentalId, quantity: Math.max(1, l.quantity), startDate: (l.startDate ?? '').slice(0, 10), endDate: (l.endDate ?? '').slice(0, 10) }));
     if (!sameLineSnapshot(q.lines, cart)) return false;
   }
-  const day = legDate(lines.map((l) => ({ startDate: l.startDate ?? '', endDate: l.endDate ?? '' })), q.leg);
+  const day = legDate(dayLines.map((l) => ({ startDate: l.startDate ?? '', endDate: l.endDate ?? '' })), q.leg);
   if (q.window.start && day && sastDay(q.window.start) !== day) return false;
   return true;
 }
@@ -341,9 +404,25 @@ export function windowOnDay(win: DeliveryWindow, dateYmd: string): DeliveryWindo
  * compared, never charged. An expired, superseded or out-of-date quote (the
  * cart changed) is re-quoted for the same addresses and window: the same total
  * goes ahead, a different one comes back for approval.
+ *
+ * Phase 8: the cart is split by where each item's gear lives (deliveryOriginPlan).
+ * Every leg asked for (outbound, and return if chosen) needs one quote per
+ * origin, priced for exactly that origin's lines. Quotes that no longer match
+ * the plan (an owner switched pickup on or off, the cart changed) are stale
+ * and the whole delivery is re-quoted from the renter's same address and the
+ * same window slot. A cart whose gear is all at our site behaves exactly as
+ * before. `siteAddressId` is read only when the plan needs our site and no
+ * quote already names it.
  */
 export async function priceCheckoutDelivery(
-  input: { renterId: string; quoteIds: readonly string[]; approvedCents: number | null; lines: readonly DeliveryLineInput[]; bookingGroupId?: string | null },
+  input: {
+    renterId: string;
+    quoteIds: readonly string[];
+    approvedCents: number | null;
+    lines: readonly DeliveryLineInput[];
+    bookingGroupId?: string | null;
+    siteAddressId?: () => Promise<string>;
+  },
   deps: DeliveryDeps,
 ): Promise<CheckoutDeliveryPrice> {
   const invalid = (message: string): CheckoutDeliveryPrice => ({ ok: false, status: 400, code: 'DELIVERY_QUOTE_INVALID', message });
@@ -352,10 +431,39 @@ export async function priceCheckoutDelivery(
   if (quotes.some((q) => !q || q.renterId !== input.renterId)) return invalid('That delivery quote is not valid. Please get a new quote.');
   const qs = quotes as CustomerDeliveryQuote[];
   if (!qs.some((q) => q.leg === 'outbound')) return invalid('Choose a delivery option first.');
-  if (new Set(qs.map((q) => q.leg)).size !== qs.length) return invalid('Choose one delivery option per trip.');
+  const trip = (q: Pick<CustomerDeliveryQuote, 'leg' | 'originOwnerId'>): string => `${q.leg}${originDiscriminator(q.originOwnerId)}`;
+  if (new Set(qs.map(trip)).size !== qs.length) return invalid('Choose one delivery option per trip.');
 
-  // A quote is stale when the cart changed (items, units or dates), or another order already holds it.
-  const stale = qs.some((q) => !quoteMatchesCart(q, input.lines) || (q.bookingGroupId !== null && q.bookingGroupId !== (input.bookingGroupId ?? null)));
+  // The renter's end of every leg is the same verified address.
+  const renterSide = (q: CustomerDeliveryQuote): string => (q.leg === 'outbound' ? q.destinationAddressId : q.originAddressId);
+  const gearSide = (q: CustomerDeliveryQuote): string => (q.leg === 'outbound' ? q.originAddressId : q.destinationAddressId);
+  const renterAddressId = renterSide(qs[0]);
+  if (qs.some((q) => renterSide(q) !== renterAddressId)) return invalid('That delivery quote is not valid. Please get a new quote.');
+
+  // Our site's address: from a quote that already names it, else read on demand.
+  const siteQuote = qs.find((q) => !q.originOwnerId);
+  let siteId: string | null = siteQuote ? gearSide(siteQuote) : null;
+  const site = async (): Promise<string> => {
+    if (siteId) return siteId;
+    if (!input.siteAddressId) throw new Error('site address unavailable');
+    siteId = await input.siteAddressId();
+    return siteId;
+  };
+  const legsAsked = [...new Set(qs.map((q) => q.leg))];
+  const plan = deps.origins ? await deliveryOriginPlan(input.lines, siteId ?? '', deps) : [{ originOwnerId: null, addressId: siteId ?? '', lines: [...input.lines] }];
+  for (const g of plan) if (!g.originOwnerId && !g.addressId) g.addressId = await site();
+
+  // A quote is stale when the cart changed (items, units or dates), the gear's
+  // origin changed, or another order already holds it. Every leg asked for
+  // must have exactly one quote per origin in the plan.
+  const quoteFor = (leg: ShipmentLeg, g: OriginGroup): CustomerDeliveryQuote | undefined => qs.find((q) => q.leg === leg && sameOrigin(q.originOwnerId, g.originOwnerId));
+  const covered = qs.length === legsAsked.length * plan.length && legsAsked.every((leg) => plan.every((g) => !!quoteFor(leg, g)));
+  const stale =
+    !covered ||
+    qs.some((q) => {
+      const g = plan.find((x) => sameOrigin(x.originOwnerId, q.originOwnerId));
+      return !g || gearSide(q) !== g.addressId || !quoteMatchesCart(q, g.lines, input.lines) || (q.bookingGroupId !== null && q.bookingGroupId !== (input.bookingGroupId ?? null));
+    });
 
   if (!stale) {
     const check = await priceDeliveryForCheckout({ renterId: input.renterId, quoteIds: qs.map((q) => q.id), browserAmountCents: input.approvedCents }, deps);
@@ -366,29 +474,38 @@ export async function priceCheckoutDelivery(
     if (check.code !== 'quote_expired' && check.code !== 'quote_not_active') return invalid(check.message);
   }
 
-  // Re-quote every leg for the same addresses and window slot, on the day the
-  // leg now runs (D07): a changed date moves the window with it.
+  // Re-quote every leg asked for, for every origin in the plan, from the
+  // renter's same address and the same window slot, on the day the leg now
+  // runs (D07): a changed date moves the window with it.
   const fresh: CustomerDeliveryQuote[] = [];
-  for (const old of qs) {
-    const day = legDate(input.lines.map((l) => ({ startDate: l.startDate ?? '', endDate: l.endDate ?? '' })), old.leg);
-    const r = await quoteDelivery(
-      {
-        caller: { kind: 'renter', userId: input.renterId },
-        renterId: input.renterId,
-        bookingGroupId: null,
-        leg: old.leg,
-        originAddressId: old.originAddressId,
-        destinationAddressId: old.destinationAddressId,
-        lines: input.lines,
-        window: day ? windowOnDay(old.window, day) : old.window,
-      },
-      deps,
-    );
-    if (!r.ok) return { ok: false, status: 409, code: 'DELIVERY_UNAVAILABLE', message: r.message };
-    fresh.push(r.quotes.find((q) => q.providerId === old.providerId) ?? r.quotes[0]);
-    // The old quote can no longer be charged.
-    if (old.status === 'active' && old.bookingGroupId === null) await deps.repo.setQuoteStatus(old.id, ['active'], 'superseded');
+  for (const leg of legsAsked) {
+    const slot = qs.find((q) => q.leg === leg) as CustomerDeliveryQuote;
+    const day = legDate(input.lines.map((l) => ({ startDate: l.startDate ?? '', endDate: l.endDate ?? '' })), leg);
+    const whole = await wholeOrderEligible({ renterId: input.renterId, renterAddressId, lines: input.lines, leg, bookingGroupId: input.bookingGroupId ?? null }, plan, deps);
+    if (!whole.ok) return { ok: false, status: 409, code: 'DELIVERY_UNAVAILABLE', message: whole.message };
+    for (const g of plan) {
+      const old = quoteFor(leg, g);
+      const r = await quoteDelivery(
+        {
+          caller: { kind: 'renter', userId: input.renterId },
+          renterId: input.renterId,
+          bookingGroupId: null,
+          leg,
+          originAddressId: leg === 'outbound' ? g.addressId : renterAddressId,
+          destinationAddressId: leg === 'outbound' ? renterAddressId : g.addressId,
+          lines: g.lines,
+          window: day ? windowOnDay((old ?? slot).window, day) : (old ?? slot).window,
+          originOwnerId: g.originOwnerId,
+        },
+        deps,
+      );
+      if (!r.ok) return { ok: false, status: 409, code: 'DELIVERY_UNAVAILABLE', message: r.message };
+      const providerId = (old ?? slot).providerId;
+      fresh.push(r.quotes.find((q) => q.providerId === providerId) ?? r.quotes[0]);
+    }
   }
+  // The old quotes can no longer be charged.
+  for (const old of qs) if (old.status === 'active' && old.bookingGroupId === null) await deps.repo.setQuoteStatus(old.id, ['active'], 'superseded');
   const total = sum(fresh);
   if (input.approvedCents !== null && input.approvedCents === total) {
     return { ok: true, amountCents: total, quotes: fresh, requoted: true };

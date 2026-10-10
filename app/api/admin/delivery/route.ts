@@ -318,14 +318,16 @@ export async function POST(request: NextRequest) {
         const leg = body.leg === 'outbound' ? 'outbound' : body.leg === 'return' ? 'return' : null;
         if (!isId(body.bookingGroupId) || !leg) return NextResponse.json({ error: 'Choose the booking and the leg.' }, { status: 400 });
         const deps = await deliveryDeps();
-        const inputs = await legInputsFor(deps, body.bookingGroupId, leg);
+        // Phase 8: an order with several origins names the trip (originOwnerId: an owner's id, or null for the studio).
+        const origin = body.originOwnerId === null ? null : isId(body.originOwnerId) ? body.originOwnerId : undefined;
+        const inputs = await legInputsFor(deps, body.bookingGroupId, leg, origin);
         if (!inputs.ok) return NextResponse.json({ error: inputs.message, code: inputs.code }, { status: inputs.code === 'not_found' ? 404 : 409 });
         const window = sastDayWindow(typeof body.date === 'string' ? body.date : inputs.defaultDate);
         if (!window) return NextResponse.json({ error: 'Choose the date (YYYY-MM-DD).' }, { status: 400 });
         // Advisory: stored without the order link, so it never joins the order's checkout
         // payment; it is tied to the order when its own payment is recorded (dispatch_manual_paid).
         const r = await quoteDelivery(
-          { caller: staff, renterId: inputs.renterId, bookingGroupId: body.bookingGroupId, leg, originAddressId: inputs.originAddressId, destinationAddressId: inputs.destinationAddressId, lines: inputs.lines, window, link: false },
+          { caller: staff, renterId: inputs.renterId, bookingGroupId: body.bookingGroupId, leg, originAddressId: inputs.originAddressId, destinationAddressId: inputs.destinationAddressId, originOwnerId: inputs.originOwnerId, lines: inputs.lines, window, link: false },
           deps,
         );
         if (!r.ok) {

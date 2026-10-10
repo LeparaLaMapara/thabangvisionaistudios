@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { OwnerHires } from './OwnerHires';
+import { OwnerPickup } from './OwnerPickup';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
 import {
@@ -1409,6 +1410,9 @@ export default function ListingsPage() {
 
       {/* Hires of this owner's gear and their payouts (renters' details never shown) */}
       {mode === 'list' && <OwnerHires />}
+
+      {/* Pickups from the owner's own address (Phase 8): private address, per-listing opt-in, handovers */}
+      {mode === 'list' && <OwnerPickup />}
 
       {/* ── Listings ─────────────────────────────────────────────────────── */}
       {listings.length === 0 && mode === 'list' ? (

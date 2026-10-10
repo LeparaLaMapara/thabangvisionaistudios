@@ -5,7 +5,7 @@
 import { readFileSync } from 'node:fs';
 import { test, expect } from '@playwright/test';
 import { lit, one, rows, value } from './helpers/db';
-import { APP_LOG, latestMail, linkFrom, uniqueEmail } from './helpers/env';
+import { APP, APP_LOG, latestMail, linkFrom, uniqueEmail } from './helpers/env';
 import { followEmailLink, newContext, enterEmailCode, requestEmailCode, signUp, acceptTermsIfAsked, type Account } from './helpers/auth';
 
 test.describe.configure({ mode: 'serial' });
@@ -58,11 +58,11 @@ test('an outside next (open redirect) is refused', async ({ page }) => {
   const sent = await requestEmailCode(page, email, '/login?next=https%3A%2F%2Fevil.example%2Fsteal');
   await enterEmailCode(page, page.request, email, sent);
   await acceptTermsIfAsked(page);
-  expect(new URL(page.url()).host).toBe('localhost:3000');
+  expect(new URL(page.url()).host).toBe(new URL(APP).host);
   // Protocol-relative variant.
   await page.goto('/login?next=%2F%2Fevil.example');
   await page.waitForURL((u) => !u.pathname.startsWith('/login'));
-  expect(new URL(page.url()).host).toBe('localhost:3000');
+  expect(new URL(page.url()).host).toBe(new URL(APP).host);
 });
 
 test('password reset email arrives and sets a password', async ({ page }) => {

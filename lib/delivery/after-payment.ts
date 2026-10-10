@@ -1,5 +1,6 @@
 import { buildNotices, type OutboxMessage } from '@/lib/core/rental/notifications';
 import type { CustomerDeliveryQuote } from '@/lib/core/delivery/quote';
+import { originDiscriminator } from '@/lib/core/delivery/origin';
 import type { DeliveryDeps } from '@/lib/core/delivery/repository';
 import {
   commitDelivery,
@@ -78,7 +79,10 @@ export function onlinePaymentQuotes(quotes: readonly CustomerDeliveryQuote[]): C
 }
 
 /** Prepare refusals that will not go away by retrying: the paid fee is owed back now. */
-const REFUND_ON: readonly string[] = ['not_eligible', 'provider_excluded', 'provider_unavailable', 'items_mismatch', 'booking_state', 'too_many_attempts', 'dates_mismatch'];
+// Phase 8: 'origin_unavailable' (the owner switched pickup off, was suspended,
+// or moved their pickup address after payment): the fee for that owner's leg
+// goes back; staff arrange the gear from the studio (alerted above).
+const REFUND_ON: readonly string[] = ['not_eligible', 'provider_excluded', 'provider_unavailable', 'items_mismatch', 'booking_state', 'too_many_attempts', 'dates_mismatch', 'origin_unavailable'];
 
 export async function dispatchDeliveryAfterPayment(
   input: { bookingGroupId: string; paidDeliveryCents: number | null },
@@ -126,7 +130,7 @@ export async function dispatchDeliveryAfterPayment(
         // Paid but not prepared. For a lasting reason the fee goes back now
         // (capped at the charge); otherwise a person arranges it. Never
         // dispatched silently.
-        await tellStaff(deps.delivery, `delivery_prepare_failed_${prepared.code}`, `${groupId}:${q.leg}`);
+        await tellStaff(deps.delivery, `delivery_prepare_failed_${prepared.code}`, `${groupId}:${q.leg}${originDiscriminator(q.originOwnerId)}`);
         if (REFUND_ON.includes(prepared.code)) {
           const refunded = await refundUnusedDeliveryQuote({ caller: { kind: 'system' }, quoteId: q.id, reason: `prepare refused: ${prepared.code}` }, deps.delivery);
           legs.push({ leg: q.leg, result: refunded.ok ? `refunded_${prepared.code}` : `prepare_${prepared.code}` });
@@ -142,7 +146,7 @@ export async function dispatchDeliveryAfterPayment(
       }
       // dispatch_unknown / dispatch_rejected / reconcile_pending alert inside the use case.
       if (!['dispatch_unknown', 'dispatch_rejected', 'reconcile_pending', 'in_progress'].includes(committed.code)) {
-        await tellStaff(deps.delivery, `delivery_commit_failed_${committed.code}`, `${groupId}:${q.leg}`);
+        await tellStaff(deps.delivery, `delivery_commit_failed_${committed.code}`, `${groupId}:${q.leg}${originDiscriminator(q.originOwnerId)}`);
       }
       legs.push({ leg: q.leg, result: `commit_${committed.code}` });
     }

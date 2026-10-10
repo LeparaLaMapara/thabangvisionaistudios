@@ -131,7 +131,8 @@ export class InMemoryDeliveryRepo implements DeliveryRepository {
     intent: Omit<DispatchIntent, 'id' | 'shipmentId' | 'attempts' | 'claimedAt' | 'lastError' | 'providerReference' | 'state'>,
   ): Promise<{ shipment: Shipment; intent: DispatchIntent; created: boolean }> {
     for (const x of this.shipments.values()) {
-      if (x.merchantReference === s.merchantReference || (x.bookingGroupId === s.bookingGroupId && x.leg === s.leg && x.attempt === s.attempt)) {
+      // 080: one row per order, leg, ORIGIN and attempt (our site = null, as before 080).
+      if (x.merchantReference === s.merchantReference || (x.bookingGroupId === s.bookingGroupId && x.leg === s.leg && (x.originOwnerId ?? null) === (s.originOwnerId ?? null) && x.attempt === s.attempt)) {
         return { shipment: structuredClone(x), intent: { ...(this.intents.get(x.id) as DispatchIntent) }, created: false };
       }
     }

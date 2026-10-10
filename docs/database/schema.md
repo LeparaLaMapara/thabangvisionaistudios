@@ -553,14 +553,15 @@ Legacy crew request flow (Ubunye "book a creator" before `bookings`). Clients re
 
 *table · domain: delivery · created by `076-delivery` · RLS **on***
 
-Verified delivery addresses and driver contact. The person and the server only (076).
+Verified delivery addresses and driver contact. The person and the server only (076). Since 080 also an owner's private **pickup address** (`purpose = 'owner_pickup'`): one active row per owner, read by that owner only (staff through the audited reveal, renters never; D-88).
 
 - Key: `PRIMARY KEY (id)`
 - References: `(user_id) REFERENCES auth.users(id) ON DELETE SET NULL`
 - Referenced by: `delivery_quotes`, `delivery_shipments`
-- Checks: `delivery_addresses_lat_check`: `CHECK (((lat >= ('-90'::integer)::double precision) AND (lat <= (90)::double precision)))`; `delivery_addresses_lng_check`: `CHECK (((lng >= ('-180'::integer)::double precision) AND (lng <= (180)::double precision)))`; `delivery_addresses_purpose_check`: `CHECK ((purpose = ANY (ARRAY['renter_address', 'owner_handover', 'platform_site'])))`
+- Unique (080): `uq_delivery_addresses_active_owner_pickup` on `(user_id) WHERE purpose = 'owner_pickup' AND retired_at IS NULL AND redacted_at IS NULL`
+- Checks: `delivery_addresses_lat_check`: `CHECK (((lat >= ('-90'::integer)::double precision) AND (lat <= (90)::double precision)))`; `delivery_addresses_lng_check`: `CHECK (((lng >= ('-180'::integer)::double precision) AND (lng <= (180)::double precision)))`; `delivery_addresses_purpose_check` (080): `CHECK ((purpose = ANY (ARRAY['renter_address', 'owner_handover', 'platform_site', 'owner_pickup'])))`; `delivery_addresses_owner_pickup_has_owner` (080): `CHECK (((purpose <> 'owner_pickup') OR (user_id IS NOT NULL)))`
 
-<details><summary>Columns (18)</summary>
+<details><summary>Columns (19)</summary>
 
 | Column | Type | Null | Default | Money |
 |---|---|---|---|---|
@@ -582,6 +583,9 @@ Verified delivery addresses and driver contact. The person and the server only (
 | `retain_until` | timestamp with time zone | yes |  |  |
 | `redacted_at` | timestamp with time zone | yes |  |  |
 | `created_at` | timestamp with time zone | no | `now()` |  |
+| `retired_at` | timestamp with time zone | yes |  |  |
+
+`retired_at` (080): an owner pickup address the owner replaced or removed; retention purges it once nothing live uses it (an active one is never purged).
 
 </details>
 
@@ -831,7 +835,7 @@ Courier webhook inbox (076).
 
 *table · domain: delivery · created by `076-delivery` · RLS **on***
 
-Expiring delivery quotes; provider cost and customer fee kept apart (076).
+Expiring delivery quotes; provider cost and customer fee kept apart (076). `origin_owner_id uuid` (080, nullable): null = our site, else the owner whose pickup address is the gear's end of the leg (outbound origin, return destination).
 
 - Key: `PRIMARY KEY (id)`
 - References: `(destination_address_id) REFERENCES delivery_addresses(id)`; `(origin_address_id) REFERENCES delivery_addresses(id)`
@@ -904,12 +908,12 @@ Provider invoice vs what was booked (076).
 
 *table · domain: delivery · created by `076-delivery` · RLS **on***
 
-One row per order, leg and attempt (076).
+One row per order, leg, **origin** (080) and attempt (076). `origin_owner_id uuid` (080, nullable, not granted to clients): null = our site, else the owner whose pickup address is the gear's end of the leg.
 
 - Key: `PRIMARY KEY (id)`
 - References: `(destination_address_id) REFERENCES delivery_addresses(id)`; `(origin_address_id) REFERENCES delivery_addresses(id)`; `(quote_id) REFERENCES delivery_quotes(id)`
 - Referenced by: `delivery_custody_events`, `delivery_dispatch_intents`, `delivery_events`, `delivery_incidents`, `delivery_proofs`, `delivery_reconciliation`
-- Unique: `UNIQUE (booking_group_id, leg, attempt)`; `UNIQUE (merchant_reference)`
+- Unique: `UNIQUE (merchant_reference)`; (080) `uq_delivery_shipments_leg_origin_attempt` on `(booking_group_id, leg, coalesce(origin_owner_id, '00000000-…'), attempt)` and `uq_delivery_shipments_live_leg_origin` on `(booking_group_id, leg, coalesce(origin_owner_id, '00000000-…')) WHERE status NOT IN ('cancelled', 'failed')` (replace 076's `UNIQUE (booking_group_id, leg, attempt)` and `uq_delivery_shipments_live_leg`)
 - Checks: `delivery_shipments_accrued_cost_cents_check`: `CHECK ((accrued_cost_cents >= 0))`; `delivery_shipments_attempt_check`: `CHECK ((attempt >= 1))`; `delivery_shipments_customer_fee_cents_check`: `CHECK ((customer_fee_cents >= 0))`; `delivery_shipments_leg_check`: `CHECK ((leg = ANY (ARRAY['outbound', 'return'])))`; `delivery_shipments_platform_fee_cents_check`: `CHECK ((platform_fee_cents >= 0))`; `delivery_shipments_provider_cost_cents_check`: `CHECK (((provider_cost_cents IS NULL) OR (provider_cost_cents >= 0)))`; `delivery_shipments_provider_kind_check`: `CHECK ((provider_kind = ANY (ARRAY['courier', 'own_fleet'])))`; `delivery_shipments_quote_amount_cents_check`: `CHECK ((quote_amount_cents >= 0))`; `delivery_shipments_replacement_value_cents_check`: `CHECK ((replacement_value_cents >= 0))`; `delivery_shipments_status_check`: `CHECK ((status = ANY (ARRAY['requested', 'quoted', 'prepared', 'booking', 'scheduled', 'courier_assigned', 'courier_at_pickup', 'collected', 'in_transit', 'courier_at_dropoff', 'delivered', 'cancelled', 'failed', 'delivery_attempt_failed', 'return_to_sender', 'lost', 'damaged', 'incident_under_review'])))`
 
 <details><summary>Columns (38)</summary>
@@ -1234,6 +1238,9 @@ Owner-only and review data for a gear listing: serial number, replacement value,
 | `replacement_value_evidence` | text | yes |  |  |
 | `created_at` | timestamp with time zone | no | `now()` |  |
 | `updated_at` | timestamp with time zone | no | `now()` |  |
+| `owner_pickup` | boolean | no | `false` |  |
+
+`owner_pickup` (080, D-86): the owner offers this listing for collection from (and return to) their own pickup address. Written by the server only (`PATCH /api/delivery/owner-pickup`); it does not bump `updated_at` (which versions listing edits).
 
 </details>
 
@@ -1363,7 +1370,7 @@ In-app notifications per user; the user reads and marks them read; the server cr
 
 - Key: `PRIMARY KEY (id)`
 - References: `(user_id) REFERENCES profiles(id) ON DELETE CASCADE`
-- Checks: `notifications_type_check`: `CHECK ((type = ANY (ARRAY['booking_accepted', 'booking_admin_cancelled', 'booking_admin_completed', 'booking_assigned', 'booking_cancelled', 'booking_completed', 'booking_confirmed', 'booking_delivered', 'booking_expired', 'booking_reassigned', 'booking_rejected', 'cart_reminder', 'creator_arrived', 'dispute_comment', 'dispute_filed', 'dispute_updated', 'gear_awaiting_payment', 'gear_collect_tomorrow', 'gear_confirmed', 'gear_not_returned', 'gear_payment_released', 'gear_payment_reminder', 'gear_return_tomorrow', 'gear_settled', 'gig_cancelled', 'gig_completed', 'gig_confirmed', 'gig_declined', 'gig_expired', 'gig_paid', 'gig_request', 'gig_unassigned', 'listing_approved', 'listing_rejected', 'listing_suspended', 'payment_confirmed', 'payment_received', 'payout_complete', 'payout_completed', 'payout_initiated', 'payout_processing', 'rental_booking_confirmed', 'rental_collection_reminder', 'rental_dispute_opened', 'rental_dispute_resolved', 'rental_handover_completed', 'rental_inspection_completed', 'rental_late_payment_refund', 'rental_overdue', 'rental_overdue_reminder', 'rental_payment_received', 'rental_payout_completed', 'rental_payout_failed', 'rental_payout_scheduled', 'rental_refund_failed', 'rental_refund_initiated', 'rental_refund_processed', 'rental_return_pending', 'rental_return_recorded', 'rental_return_reminder', 'rental_return_reviewed', 'rental_staff_alert', 'work_delivered', 'gig_revision_requested', 'rental_delivery_quote_ready', 'rental_delivery_booked', 'rental_delivery_courier_assigned', 'rental_delivery_courier_at_pickup', 'rental_delivery_collected', 'rental_delivery_in_transit', 'rental_delivery_delivered', 'rental_delivery_attempt_failed', 'rental_delivery_return_reminder', 'rental_delivery_return_courier_assigned', 'rental_delivery_return_collected', 'rental_delivery_returned_for_inspection', 'rental_delivery_incident', 'rental_delivery_cancelled', 'rental_delivery_fee_refund'])))`
+- Checks: `notifications_type_check`: `CHECK ((type = ANY (ARRAY['booking_accepted', 'booking_admin_cancelled', 'booking_admin_completed', 'booking_assigned', 'booking_cancelled', 'booking_completed', 'booking_confirmed', 'booking_delivered', 'booking_expired', 'booking_reassigned', 'booking_rejected', 'cart_reminder', 'creator_arrived', 'dispute_comment', 'dispute_filed', 'dispute_updated', 'gear_awaiting_payment', 'gear_collect_tomorrow', 'gear_confirmed', 'gear_not_returned', 'gear_payment_released', 'gear_payment_reminder', 'gear_return_tomorrow', 'gear_settled', 'gig_cancelled', 'gig_completed', 'gig_confirmed', 'gig_declined', 'gig_expired', 'gig_paid', 'gig_request', 'gig_unassigned', 'listing_approved', 'listing_rejected', 'listing_suspended', 'payment_confirmed', 'payment_received', 'payout_complete', 'payout_completed', 'payout_initiated', 'payout_processing', 'rental_booking_confirmed', 'rental_collection_reminder', 'rental_dispute_opened', 'rental_dispute_resolved', 'rental_handover_completed', 'rental_inspection_completed', 'rental_late_payment_refund', 'rental_overdue', 'rental_overdue_reminder', 'rental_payment_received', 'rental_payout_completed', 'rental_payout_failed', 'rental_payout_scheduled', 'rental_refund_failed', 'rental_refund_initiated', 'rental_refund_processed', 'rental_return_pending', 'rental_return_recorded', 'rental_return_reminder', 'rental_return_reviewed', 'rental_staff_alert', 'work_delivered', 'gig_revision_requested', 'rental_delivery_quote_ready', 'rental_delivery_booked', 'rental_delivery_courier_assigned', 'rental_delivery_courier_at_pickup', 'rental_delivery_collected', 'rental_delivery_in_transit', 'rental_delivery_delivered', 'rental_delivery_attempt_failed', 'rental_delivery_return_reminder', 'rental_delivery_return_courier_assigned', 'rental_delivery_return_collected', 'rental_delivery_returned_for_inspection', 'rental_delivery_incident', 'rental_delivery_cancelled', 'rental_delivery_fee_refund', 'rental_owner_pickup_scheduled', 'rental_owner_pickup_collected', 'rental_owner_gear_returned'])))` (the last three added by 080)
 
 <details><summary>Columns (8)</summary>
 

@@ -11,6 +11,7 @@ import type { BookingStatus } from '@/lib/core/rental/state';
 import type { HoldingForTrust, RenterFacts } from '@/lib/core/rental/trust';
 import type { CustodyEvent } from './custody';
 import type { DeliveryIncident, IncidentStatus } from './incidents';
+import type { OwnerPickupDecision } from './origin';
 import type { DeliveryPolicyValues } from './policy';
 import type { DeliveryInsurancePort, DeliveryPoint, DeliveryPort, DeliveryWindow } from './port';
 import type { CustomerDeliveryQuote, QuoteStatus } from './quote';
@@ -31,6 +32,13 @@ export interface Shipment {
   attempt: number;
   renterId: string;
   items: ShipmentItem[];
+  /**
+   * Where the gear lives (Phase 8, migration 080): null (or absent, before
+   * 080) = our site; an owner's user id = that owner's pickup address. The
+   * outbound leg starts there, the return leg ends there. One live leg per
+   * order, leg and origin.
+   */
+  originOwnerId?: string | null;
   providerId: string;
   providerKind: 'courier' | 'own_fleet';
   quoteId: string;
@@ -265,6 +273,17 @@ export interface RenterTrustPort {
   getTrustInputs(renterId: string, opts?: { excludeGroupId?: string | null }): Promise<{ facts: RenterFacts; holdings: HoldingForTrust[] }>;
 }
 
+/**
+ * Where each listing's gear is collected from (Phase 8). The server reads the
+ * listing (community, live, the owner's per-listing opt-in), the owner
+ * (verified, not suspended) and the owner's active pickup address. A listing
+ * that is not decided `ok` goes from our site (the owner brings it to the
+ * studio). Read-only.
+ */
+export interface DeliveryOriginPort {
+  originsFor(rentalIds: readonly string[]): Promise<Map<string, OwnerPickupDecision>>;
+}
+
 /** Verified addresses (delivery_addresses), readable only by the server. */
 export interface DeliveryAddressStore {
   getPoint(addressId: string): Promise<(DeliveryPoint & { userId: string | null }) | null>;
@@ -292,4 +311,9 @@ export interface DeliveryDeps {
   newId: () => string;
   /** Policy values; defaults to DELIVERY_POLICY (lib/constants.ts). Tests and staged roll-outs override. */
   policy?: DeliveryPolicyValues;
+  /**
+   * Where gear is collected from (Phase 8). Absent: every leg runs from our
+   * site, as before; a leg from an owner's address is then refused (fail closed).
+   */
+  origins?: DeliveryOriginPort;
 }

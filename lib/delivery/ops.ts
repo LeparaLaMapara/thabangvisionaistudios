@@ -8,6 +8,7 @@ import { buildNotices, type OutboxMessage } from '@/lib/core/rental/notification
 import { CLAIM_STALE_MS } from '@/lib/core/delivery/use-cases';
 import { isMissingPipeline } from '@/lib/rental/repos';
 import { isMissingTable } from './checkout';
+import { sameOrigin, type OriginOwnerId } from '@/lib/core/delivery/origin';
 import type { createAdminClient } from '@/lib/supabase/server';
 
 /**
@@ -27,13 +28,20 @@ type Row = Record<string, unknown>;
 
 /** Columns staff see in lists. Deliberately no origin/destination ids, tracking_url or insurance details. */
 export const OPS_SHIPMENT_COLUMNS =
-  'id, booking_group_id, leg, attempt, renter_id, items, provider, provider_kind, status, merchant_reference, provider_reference, window_start, window_end, scheduled_at, collected_at, delivered_at, accepted_at, quote_amount_cents, customer_fee_cents, accrued_cost_cents, provider_cost_cents, coverage_verified, created_at, updated_at';
+  'id, booking_group_id, leg, attempt, origin_owner_id, renter_id, items, provider, provider_kind, status, merchant_reference, provider_reference, window_start, window_end, scheduled_at, collected_at, delivered_at, accepted_at, quote_amount_cents, customer_fee_cents, accrued_cost_cents, provider_cost_cents, coverage_verified, created_at, updated_at';
 
 export interface OpsShipment {
   id: string;
   bookingGroupId: string;
   leg: ShipmentLeg;
   attempt: number;
+  /**
+   * Phase 8: where the gear's end of the leg is: our studio, or an owner's
+   * pickup address (outbound origin, return destination). Staff see WHO (the
+   * owner's id); the address itself only through the audited reveal (D21).
+   */
+  origin: 'studio' | 'owner';
+  originOwnerId: string | null;
   renterId: string;
   ownerIds: string[];
   items: { bookingId: string; rentalId: string; serialNumber: string | null }[];
@@ -73,6 +81,8 @@ export function toOpsShipment(r: Row, intent: OpsShipment['intent'] = null): Ops
     bookingGroupId: String(r.booking_group_id),
     leg: r.leg as ShipmentLeg,
     attempt: Number(r.attempt ?? 1),
+    origin: r.origin_owner_id ? 'owner' : 'studio',
+    originOwnerId: s(r.origin_owner_id),
     renterId: String(r.renter_id),
     ownerIds: [...new Set(items.map((i) => i.ownerId).filter((x): x is string => !!x))],
     items: items.map((i) => ({ bookingId: i.bookingId, rentalId: i.rentalId, serialNumber: i.serialNumber ?? null })),
@@ -372,8 +382,8 @@ export function sastDayWindow(date: string): { start: string; end: string } | nu
 }
 
 export type LegInputs =
-  | { ok: true; renterId: string; lines: DeliveryLineInput[]; originAddressId: string; destinationAddressId: string; defaultDate: string; existing: Shipment | null }
-  | { ok: false; code: 'not_found' | 'no_known_addresses'; message: string };
+  | { ok: true; renterId: string; lines: DeliveryLineInput[]; originAddressId: string; destinationAddressId: string; originOwnerId: OriginOwnerId; defaultDate: string; existing: Shipment | null }
+  | { ok: false; code: 'not_found' | 'no_known_addresses' | 'several_origins'; message: string };
 
 /**
  * What a quote for one leg of an existing order needs, from the order itself:
@@ -382,10 +392,26 @@ export type LegInputs =
  * addresses. With no delivery on the order yet, there is nothing to reuse:
  * the customer chooses an address at checkout.
  */
-export async function legInputsFor(deps: Pick<DeliveryDeps, 'repo' | 'bookings'>, bookingGroupId: string, leg: ShipmentLeg): Promise<LegInputs> {
+export async function legInputsFor(
+  deps: Pick<DeliveryDeps, 'repo' | 'bookings'>,
+  bookingGroupId: string,
+  leg: ShipmentLeg,
+  /**
+   * Phase 8: which origin's trip (null = our studio, an owner's id = their
+   * pickup address). Omitted: the order's only origin; an order whose gear
+   * comes from several places needs it (`several_origins` otherwise).
+   */
+  originOwnerId?: OriginOwnerId,
+): Promise<LegInputs> {
   const group = await deps.bookings.getGroup(bookingGroupId);
   if (!group) return { ok: false, code: 'not_found', message: 'Booking not found.' };
-  const shipments = await deps.repo.listShipments(bookingGroupId);
+  const all = await deps.repo.listShipments(bookingGroupId);
+  const origins = [...new Set(all.map((x) => x.originOwnerId ?? null))];
+  if (originOwnerId === undefined && origins.length > 1) {
+    return { ok: false, code: 'several_origins', message: 'The gear on this booking comes from more than one place, so each trip is arranged by our team.' };
+  }
+  const wanted: OriginOwnerId = originOwnerId === undefined ? (origins[0] ?? null) : originOwnerId;
+  const shipments = all.filter((x) => sameOrigin(x.originOwnerId, wanted));
   const newest = (l: ShipmentLeg): Shipment | null => {
     const ofLeg = shipments.filter((x) => x.leg === l);
     const live = ofLeg.filter((x) => x.status !== 'cancelled' && x.status !== 'failed');
@@ -419,6 +445,7 @@ export async function legInputsFor(deps: Pick<DeliveryDeps, 'repo' | 'bookings'>
     lines,
     originAddressId: reverse ? basis.destinationAddressId : basis.originAddressId,
     destinationAddressId: reverse ? basis.originAddressId : basis.destinationAddressId,
+    originOwnerId: wanted,
     defaultDate: leg === 'return' ? dates[dates.length - 1] : dates[0],
     existing,
   };

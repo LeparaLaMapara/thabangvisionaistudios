@@ -431,9 +431,25 @@ export class SupabaseAddressRetention implements AddressRetentionStore {
         throw fail('delivery address retention list', r.error);
       }
     }
+    // Phase 8 (080): an owner's pickup address the owner REPLACED or REMOVED
+    // (retired) follows retention from when it was retired; an active one is
+    // the owner's standing choice and is never purged. Before 080 there are none.
+    const retired = () => this.db.from('delivery_addresses').select(ADDRESS_COLS).is('redacted_at', null).eq('purpose', 'owner_pickup').not('retired_at', 'is', null);
+    const [rFresh, rRecheck] = await Promise.all([
+      retired().is('retain_until', null).lt('retired_at', createdBefore).order('retired_at').limit(limit),
+      retired().lt('retain_until', now).order('retain_until').limit(limit),
+    ]);
+    const retiredRows: Row[] = [];
+    for (const r of [rRecheck, rFresh]) {
+      if (r.error) {
+        if (isMissingPipeline(r.error) || /retired_at|owner_pickup|purpose/.test(r.error.message ?? '')) continue;
+        throw fail('delivery address retention list (owner pickup)', r.error);
+      }
+      retiredRows.push(...((r.data ?? []) as Row[]));
+    }
     const seen = new Set<string>();
     const out: RetentionAddress[] = [];
-    for (const row of [...((recheck.data ?? []) as Row[]), ...((fresh.data ?? []) as Row[])]) {
+    for (const row of [...((recheck.data ?? []) as Row[]), ...((fresh.data ?? []) as Row[]), ...retiredRows]) {
       const a = toRetention(row);
       if (seen.has(a.id)) continue;
       seen.add(a.id);

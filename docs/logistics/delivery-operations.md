@@ -138,7 +138,7 @@ Actions, each through the use case as `{ kind: 'staff', userId }`:
 | `reconcile_invoice` | `reconcileDelivery` | amount in integer cents |
 | `quote_leg` | `quoteDelivery` | quote a leg for the renter (e.g. a return pickup by phone); advisory (stored without the order link, so it never joins the order's checkout payment); the renter gets `delivery_quote_ready`; staff confirm it with `dispatch_manual_paid` once paid |
 | `requeue_event`, `run_jobs` | `drainDeliveryInbox`, the daily jobs | re-drive the inbox and reconciliation now |
-| `reveal_address` | — | one side of one shipment, for dispatch |
+| `reveal_address` | — | one side of one shipment, for dispatch (an owner's pickup address included: the only way staff see it, strict tier, logged) |
 
 Logging: every action writes `platform_events` `delivery_ops_<action>` with
 the staff id and ids/outcomes/amounts only, never an address, phone number
@@ -147,7 +147,10 @@ and proofs.
 
 Addresses (D21): the queues and the detail never select an address, an
 address id, a contact detail or the tracking link (a tracking page shows
-where the renter is). `reveal_address` returns one side of one shipment
+where the renter is). Each leg shows its origin (Phase 8): "from studio" /
+"from owner {id}" and "back to …" (`origin`, `originOwnerId`); the owner's
+address only through `reveal_address`. `quote_leg` takes `originOwnerId`
+(or null for the studio) when the order's gear comes from several places. `reveal_address` returns one side of one shipment
 (`Cache-Control: no-store`) and is logged (`addressId`, side, shipment).
 
 ## Notifications (§4.19)
@@ -176,6 +179,32 @@ most, never an address:
 
 Test: `tests/unit/delivery-ops-notices.test.ts`. A reschedule has no notice
 kind of its own (staff agree the new window with the renter directly).
+
+Phase 8 adds three notices to the OWNER of gear collected from their address
+(`RENTAL_NOTICE_KINDS`, notification types `rental_owner_*` in 080), with the
+leg only and a link to Listings, never renter details:
+
+| Kind | Real event | Where |
+|---|---|---|
+| `owner_pickup_scheduled` | a collection from (or return to) their address is booked | `commitDelivery` (dispatch success) |
+| `owner_pickup_collected` | our driver / the courier collected it (outbound) | `confirmCollection`, `recordProviderEvent` |
+| `owner_gear_returned` | the gear is back at their address: please confirm | `recordProviderEvent` (at drop-off / delivered on a return), staff `record_handover received` |
+
+## Owners (Phase 8)
+
+`/dashboard/listings` → "Pickups from your address" (`OwnerPickup.tsx`):
+
+- `GET/PUT/DELETE /api/delivery/owner-pickup`: the owner's own pickup
+  address (verified on the server by the AddressPort, Gauteng only), the
+  driver contact and instructions; `PATCH` the per-listing switch. Changing
+  or removing the address, or switching a listing off, is refused while a
+  collection from or return to it is under way (D-89). Logged with ids only.
+- `POST /api/delivery/owner-handover`: `handed_over` (photo) at their door;
+  on return `received` (photo + condition) or `problem` (damaged / missing,
+  photo + description: an incident). Through the core as `{ kind: 'owner' }`.
+- What the owner sees: the legs carrying their own items, the state in
+  their words ("Collection from you booked", "Back with you"), the window and
+  what they can do now. No renter, fee or tracking link.
 
 ## Ubunye (§4.20)
 
@@ -217,8 +246,9 @@ page, and the core refuses an agent without a verified approval
 ## Address retention (R-41, D-46)
 
 `/api/cron/daily-maintenance` step 16 calls `purgeDeliveryAddresses`
-(`lib/delivery/jobs.ts`). Renter and owner-handover addresses (never our own
-sites) are reduced to suburb level — street, contact name, phone and
+(`lib/delivery/jobs.ts`). Renter and owner-handover addresses, and (Phase 8) owner pickup addresses the
+owner replaced or removed (never an ACTIVE pickup address, never our own
+sites; retention counts from `retired_at`), are reduced to suburb level — street, contact name, phone and
 instructions removed, coordinates rounded to
 `DELIVERY_OPS.purgedCoordinateDecimals` — `DELIVERY_POLICY.addressRetentionDays`
 after the last activity (a leg closing, a quote being made).

@@ -112,6 +112,23 @@ export function rentalNoticeText(kind: RentalNoticeKind, data: OutboxMessage['da
       return { title: 'Delivery cancelled', body: `Your delivery was cancelled. Any refund due is shown on your booking.` };
     case 'delivery_fee_refund':
       return { title: 'Delivery fee refund', body: `We will refund ${amount} of your delivery fee. It is not complete until the payment provider processes it.` };
+    // Phase 8: to the OWNER whose address the gear is collected from and returned to.
+    // Never the renter's name, address or contact, and never our driver's route.
+    case 'owner_pickup_scheduled':
+      return {
+        title: data.leg === 'return' ? 'Return to you booked' : 'Collection from you booked',
+        body:
+          data.leg === 'return'
+            ? `Our driver will bring your gear back to your pickup address at the end of the hire. The time is on Listings, under Pickups from your address.`
+            : `Our driver will collect your gear from your pickup address for a hire. The time is on Listings, under Pickups from your address. Please have it packed, with every accessory, and hand it over in person.`,
+      };
+    case 'owner_pickup_collected':
+      return { title: 'Gear collected from you', body: `Our driver has collected your gear from your pickup address.` };
+    case 'owner_gear_returned':
+      return {
+        title: 'Your gear is back: please confirm',
+        body: `Our driver has brought your gear back to your pickup address. Please check every item and accessory and confirm receipt and condition, or report a problem, on Listings. Your payout waits for this.`,
+      };
     case 'staff_alert':
       return {
         title: 'Rental needs attention',
@@ -122,6 +139,7 @@ export function rentalNoticeText(kind: RentalNoticeKind, data: OutboxMessage['da
 
 function linkFor(m: OutboxMessage): string {
   if (m.kind === 'staff_alert') return '/admin/rental-ops';
+  if (m.kind === 'owner_pickup_scheduled' || m.kind === 'owner_pickup_collected' || m.kind === 'owner_gear_returned') return '/dashboard/listings#owner-pickups';
   return m.bookingIds[0] ? `/dashboard/bookings/${m.bookingIds[0]}` : '/dashboard/bookings';
 }
 

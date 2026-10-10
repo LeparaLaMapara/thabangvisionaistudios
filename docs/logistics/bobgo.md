@@ -168,7 +168,7 @@ would either refuse every real event or accept a forged one.
 3. **Second-hand and third-party goods:** are used, second-hand or rental items owned by a third party (the gear owner, not the sender) accepted and covered by each courier? Is original packaging required? (TCG and RAM exclude second-hand goods.)
 4. **Cameras and lithium batteries:** cameras, lenses and lithium-ion batteries, installed and loose: which couriers and service levels accept them, with what limits and packaging? (RAM needs written consent.)
 5. **Declared value:** maximum declared value per item and per shipment. Single items of R50,000? Is a declared value an API field, and does it change cover or price?
-6. **Idempotency:** is `channel_order_number` (or another field) our unique reference? How long is it kept unique, and what exactly is returned for a duplicate (status code and body)?
+6. **Idempotency:** is `channel_order_number` (or another field) our unique reference? How long is it kept unique, and what exactly is returned for a duplicate (status code and body)? What is its maximum length and allowed characters? A leg collected from an owner's address has a 72-character reference (`tvd_{group}_{o|r}{n}_{owner}`, R-85).
 7. **Hand-over:** can leave-at-door be disabled per shipment, enforced by the courier? Pickup confirmation, PIN or OTP, signature, photo and ID at collection and delivery: returned through the API or webhooks?
 8. **Webhooks:** signing algorithm, header, secret rotation, retry policy, full event list, live location and ETA.
 9. **Cancellation:** cancellation windows and fees per courier, before and after collection; failed-delivery and return-to-sender fees.
@@ -205,7 +205,7 @@ would either refuse every real event or accept a forged one.
 
 ### Production (only after all of the following)
 
-1. Founder approval, recorded in the decision register (D-84).
+1. Founder approval, recorded in the decision register (D-90).
 2. A goods-in-transit policy confirmed **in writing** for third-party-owned rented gear carried by the approved Bob Go couriers. Record it in `DELIVERY_POLICY.insurance` with `coveredProviders: ['bobgo']` (D-41).
 3. `DELIVERY_POLICY.automatedDeliveryMaxItemValueCents` set by the founder (D-37), no higher than the cover limit and R50,000.
 4. Pickup confirmation, proof of delivery, hand-to-hand and idempotent create verified in writing and in sandbox, and set in `BOBGO_CAPABILITIES` with tests. Webhook signing either verified and implemented, or polling relied on.

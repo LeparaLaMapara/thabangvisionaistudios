@@ -11,6 +11,7 @@ import { quoteOwnVehicleCents } from '@/lib/delivery/quote';
 import { addressPort, compareHint, verifyAddress, type AddressInput } from '@/lib/delivery/address';
 import { SupabaseQuoteLinks, cartLinesForDelivery, deliveryLines, priceCheckoutDelivery, publicQuote } from '@/lib/delivery/checkout';
 import { deliveryDeps } from '@/lib/delivery/server';
+import { SupabaseDeliveryAddressWriter } from '@/lib/delivery/address-store';
 import { inServiceArea } from '@/lib/core/delivery/policy';
 import type { CustomerDeliveryQuote } from '@/lib/core/delivery/quote';
 import { checkAvailability, availabilityMessage } from '@/lib/rental/availability';
@@ -136,6 +137,7 @@ export async function POST(request: NextRequest) {
     delivery_lng,
     delivery_quote_id,
     return_quote_id,
+    delivery_quote_ids,
     delivery_approved_cents,
     acceptTerms,
   } = body as {
@@ -153,6 +155,12 @@ export async function POST(request: NextRequest) {
     /** Stored delivery quotes (POST /api/delivery/quote): the only source of a delivery price. */
     delivery_quote_id?: string;
     return_quote_id?: string;
+    /**
+     * Phase 8: every stored quote of the delivery (one per leg and origin: our
+     * studio and each owner whose gear is collected from their address).
+     * Read together with the two fields above; at most 20.
+     */
+    delivery_quote_ids?: unknown;
     /** The delivery total the customer approved, in cents. Compared, never charged (D08). */
     delivery_approved_cents?: number;
     acceptTerms?: boolean;
@@ -205,7 +213,7 @@ export async function POST(request: NextRequest) {
         { status: 400 },
       );
     }
-    const hasQuote = typeof delivery_quote_id === 'string' && delivery_quote_id.length > 0;
+    const hasQuote = (typeof delivery_quote_id === 'string' && delivery_quote_id.length > 0) || (Array.isArray(delivery_quote_ids) && delivery_quote_ids.some((v) => typeof v === 'string' && v.length > 0));
     const hasAddress = (typeof delivery_address === 'string' && delivery_address.trim().length >= 10) || (typeof delivery_address === 'object' && delivery_address !== null);
     if (!hasQuote && !hasAddress) {
       return NextResponse.json(
@@ -405,7 +413,8 @@ export async function POST(request: NextRequest) {
       // The stored, expiring quotes (spec §4.7). The browser's approved total
       // is compared, never charged; an expired quote is re-quoted and a
       // changed total comes back for the customer's approval (D07, D08).
-      const quoteIds = [delivery_quote_id, return_quote_id].filter((v): v is string => typeof v === 'string' && v.length > 0);
+      const listed = Array.isArray(delivery_quote_ids) ? delivery_quote_ids.slice(0, 20) : [];
+      const quoteIds = [...new Set([delivery_quote_id, return_quote_id, ...listed].filter((v): v is string => typeof v === 'string' && v.length > 0))];
       if (quoteIds.length === 0) {
         return NextResponse.json({ error: 'Get a delivery quote for your address first.', code: 'DELIVERY_QUOTE_REQUIRED' }, { status: 400 });
       }
@@ -414,7 +423,18 @@ export async function POST(request: NextRequest) {
       if (!cartLines) return NextResponse.json({ error: 'Choose dates for each item first.', code: 'INVALID_DATES' }, { status: 400 });
       try {
         const deps = await deliveryDeps();
-        const priced = await priceCheckoutDelivery({ renterId: user.id, quoteIds, approvedCents: approved, lines: deliveryLines(cartLines), bookingGroupId: checkoutGroupId }, deps);
+        const priced = await priceCheckoutDelivery(
+          {
+            renterId: user.id,
+            quoteIds,
+            approvedCents: approved,
+            lines: deliveryLines(cartLines),
+            bookingGroupId: checkoutGroupId,
+            // Read only when the gear's origins changed to include our studio and no quote names it yet.
+            siteAddressId: () => new SupabaseDeliveryAddressWriter(createAdminClient()).platformSiteId(),
+          },
+          deps,
+        );
         if (!priced.ok) {
           return NextResponse.json(
             { error: priced.message, code: priced.code, delivery_total_cents: priced.amountCents ?? null, quotes: (priced.quotes ?? []).map(publicQuote) },
@@ -551,7 +571,19 @@ export async function POST(request: NextRequest) {
             balance_due: balanceDue > 0 ? balanceDue : null,
             amount_due: amountDueNow,
           }
-        : {}),
+        : fulfilment === 'delivery' && deliveryPoint
+          ? {
+              // Every delivered line names where it goes (041's
+              // delivery_needs_address CHECK refused a multi-item delivery
+              // order before: only the first line carried an address). The
+              // fee stays on the first line only (0 here), so every sum of
+              // delivery_fee over the order is unchanged.
+              delivery_address: deliveryPoint.formattedAddress,
+              delivery_lat: deliveryPoint.lat,
+              delivery_lng: deliveryPoint.lng,
+              delivery_fee: 0,
+            }
+          : {}),
     };
   });
 
