@@ -288,10 +288,27 @@ leg is the studio and an owner leg is refused (fail closed).
 **Legs by origin.** `quoteCartDelivery` splits the cart by origin
 (`deliveryOriginPlan`, studio first, then owners by id) and quotes one
 outbound leg per origin and, when asked, one return leg back to each origin,
-each priced by the provider from that origin's verified point (own vehicle:
-`quoteOwnVehicleCents` from the leg's actual `from`, so no new price and no
-constant changed). The renter sees one line per trip and the total before
-paying. With several origins the renter's rules (trust limit, holds, first
+each priced by the provider from that origin (own vehicle:
+`quoteOwnVehicleCents` from the leg's actual `from`, so no new price). The
+renter sees one line per trip and the total before paying.
+
+**Pricing from a coarse point (D-93).** The renter sees each owner trip's fee
+separately, and the own-vehicle fee follows distance to 0.1 km: priced from
+the owner's exact point, three quotes from three of the renter's own
+addresses would place the owner's house to about 100 m without booking. So
+the OWNER's end of a leg is priced from `coarsePricingPoint`
+(`lib/core/delivery/origin.ts`): the owner's verified point snapped to the
+centre of its `DELIVERY_POLICY.ownerPickup.pricingGridDegrees` cell (0.02
+degrees, about 2 km), with only the area fields kept (suburb, city, postal
+code, province; never the street or the contact, so a courier quote that
+geocodes a street cannot price the house either). Every owner in one cell gets
+the same price from the same renter address; the renter learns the cell at
+most. The provider's cost on that quote comes from the same coarse point. The
+driver still goes to the real address: dispatch (`commitDelivery`) reads the
+stored address ids. Studio legs are priced exactly as before, from the same
+objects (byte-identical requests). The renter may pay slightly more or less
+than the exact distance would give (at most about 1.5 km of distance either
+way). Tested in `tests/unit/delivery-owner-pickup-review.test.ts` (P1). With several origins the renter's rules (trust limit, holds, first
 hire, high value) are checked on the WHOLE order before any part is quoted
 (D-85). `prepareDelivery` keeps one live leg per order + leg + ORIGIN and
 re-checks, for an owner leg, that every line is that owner's and that the
@@ -322,10 +339,26 @@ in `tests/unit/delivery-owner-pickup.test.ts` and journey H).
 | received_by_owner | return to the owner | the owner ("Received back"), or staff for them | photo |
 | inspected | return to the owner | **the owner**, with the condition (same press), or staff | condition |
 
-A problem on return ("Report a problem": damaged or missing) records the
+**When the owner can confirm a return.** Only once the gear has left the
+renter: the return leg is `courier_at_dropoff`, `delivered` or
+`incident_under_review`, or the item's own chain shows its collection from
+the renter (`collected_by_courier`, `handed_to_return_courier`), or its
+receipt is already recorded (inspection still to come). One predicate,
+`ownerMayConfirmReturn` (`lib/core/delivery/custody.ts`), is enforced by the
+core (`confirmOwnerReturn`, and `confirmHandover` for an owner caller) and
+drives the owner's `can_confirm_return`. Before that the owner-handover route
+answers 409 `not_returned_yet`. Without it, an owner could mark a scheduled
+return (gear still at the renter's) received and inspected: the return fee
+earned, settlement and the owner's payout released, the renter's deposit
+released early.
+
+A problem on return ("Report a problem"): a **damaged** item records the
 receipt and the owner's inspection with the problem, and opens an incident
 (liability undetermined, nobody accused) for that line only: it holds
-settlement and the owner's payout for that line until staff resolve it. An
+settlement and the owner's payout for that line until staff resolve it. A
+**missing** item (`lost`) is not a receipt: only the incident is recorded (no
+`received_by_owner`, no `inspected`, nothing earned) and the leg goes to
+`incident_under_review` where the state rules allow it; staff decide. An
 owner can inspect only on a return to THEIR address, only their own items
 (custody rule `ownerInspects`); studio returns are inspected by staff as
 before.
@@ -342,11 +375,40 @@ owner's. Staff still complete the counter take-back for the order, which
 waits on the same guard. A renter who chose no return pickup brings
 everything back to the studio; the owner collects their gear there.
 
+**Cancelling an order with gear out (R-84).** "The renter may still have the
+gear" is decided PER ORIGIN (`originsWithGearAtRenter`,
+`lib/rental/delivery-settlement.ts`, mirrored per origin by 080's
+`delivery_cancelled_orders_to_settle`): an outbound leg of that origin
+reached the renter and no return leg of the SAME origin brought it back or is
+under review. That origin's cancellable return pickup is kept (never
+cancelled or refunded with the order) and staff are alerted; other origins'
+cancellable legs are cancelled as before. A studio-only order is decided
+exactly as before.
+
+**Unused-quote refund alerts.** The staff alert for a paid quote whose leg
+never ran is keyed per quote (`{group}:{leg}[@owner]:{fee}:{quote id}`), so
+two owners' trips refunded at the same fee are two alerts, never one dropped
+as a duplicate (an EFT refund staff must make by hand would otherwise be
+missed).
+
 **Privacy (D-88).** The pickup address is a `delivery_addresses` row
 (`purpose = 'owner_pickup'`): only the owner reads it (RLS), staff only
 through the audited reveal, renters see the suburb at most, other users
 nothing. The owner sees only their own items on a leg, never the renter or
-the fee or a tracking link (`lib/delivery/owner-view.ts`).
+the fee or a tracking link (`lib/delivery/owner-view.ts`). The renter never
+gets the courier tracking link of a leg from or back to an owner's address
+either (a courier's tracking page shows the pickup or drop-off point):
+`getDeliveryStatus` and `customerLegs` drop it; staff still see it. The
+renter's own quotes are readable through a column grant without the
+provider's cost or where the gear is (080 section 8), and the fee itself is
+priced from the coarse cell (D-93).
+
+**The owner's pickup address** is replaced through
+`delivery_save_owner_pickup` (080): the old row is retired and the new one
+stored in one transaction, so a failed insert never leaves the owner with no
+address. It cannot change while a live leg uses it; "live" is filtered in the
+database (not cancelled or failed, and not delivered-and-accepted), so a long
+history never hides one.
 
 ## Data and access (migration 076)
 
@@ -357,7 +419,7 @@ live attempt per leg and origin.
 | Table | Who can read (besides the server) |
 |---|---|
 | delivery_addresses | the person whose address it is. Never owners or other users (D21). An owner's pickup address (080): the owner only; staff by audited reveal; never the renter (D-88) |
-| delivery_quotes | the renter |
+| delivery_quotes | the renter: their fee, status, window and lines; not the provider's cost, platform fee, provider quote ref, origin owner or address ids (column grant, 080) |
 | delivery_shipments | the renter and the owners of gear on it, **only** non-sensitive columns (no address ids, tracking link or money) (D22) |
 | delivery_events | the renter, without `actor_id` or staff `note` |
 | delivery_custody_events | the renter; an owner for their own items. Never `evidence` (photo links, e.g. taken at the renter's door) or `actor_id` |

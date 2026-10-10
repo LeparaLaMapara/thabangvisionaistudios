@@ -47,16 +47,27 @@ No new table, policy or function signature. What changes for access:
   address only through `PUT /api/delivery/owner-pickup`, which verifies it
   on the server first.
 - `delivery_shipments.origin_owner_id` is **not** in the column grant to
-  `authenticated` (076's 15 columns are unchanged); `delivery_quotes` is
-  granted table-wide, so a renter reads their own quotes' `origin_owner_id`
-  (the listing's owner id, which the public listing already shows).
+  `authenticated` (076's 15 columns are unchanged). `delivery_quotes` (076:
+  granted table-wide) is a column grant since 080's review fixes: the renter
+  reads their own quotes' fee, status, window and lines, never
+  `quote_amount_cents`, `provider_cost_cents`, `platform_fee_cents`,
+  `provider_quote_ref`, `origin_owner_id`, `origin_address_id` or
+  `destination_address_id`. No client reads `delivery_quotes` directly today
+  (every read is the server's, service role), so nothing depends on the
+  columns taken away. The fee itself is priced from a ~2 km grid cell for an
+  owner trip (D-93), so it cannot place the owner's house.
+- `delivery_save_owner_pickup` (080): retires the owner's active pickup
+  address and stores the new one in one transaction. SECURITY DEFINER,
+  `search_path = public, pg_temp`, execute for `service_role` only.
+- `delivery_cancelled_orders_to_settle` is replaced in 080 (per-origin
+  "gear may be with the renter" rule), same settings and grant as 076.
 - `listing_private.owner_pickup`: the owner (and admins) read it under the
   072 policies; nobody but the server writes `listing_private`.
 - `delivery_create_shipment` and `delivery_redact_address` are replaced in
   place: SECURITY DEFINER, `search_path = public, pg_temp`, execute for
   `service_role` only (restated in 080).
 
-Proved by `lib/migrations/080-owner-pickup.test.sql` (3a–3e, 4, 6, 8) and
+Proved by `lib/migrations/080-owner-pickup.test.sql` (3a–3f, 4, 6, 8, 9, 10, 11) and
 `rls-coverage.test.sql` (unchanged allow-lists).
 
 ## Summary (after 077)
@@ -174,7 +185,7 @@ bypasses RLS, so it is not shown.
 | `delivery_manual_tasks` | on | — | — | — | — | — | — |
 | `delivery_proofs` | on | — | — | — | — | — | — |
 | `delivery_provider_events` | on | — | — | — | — | — | — |
-| `delivery_quotes` | on | authenticated: `((renter_id = auth.uid()) OR admin)` | — | — | — | — | S |
+| `delivery_quotes` | on | authenticated: `((renter_id = auth.uid()) OR admin)` | — | — | — | — | S(20 cols) |
 | `delivery_reconciliation` | on | — | — | — | — | — | — |
 | `delivery_shipments` | on | authenticated: `((renter_id = auth.uid()) OR (auth.uid() = ANY (owner_ids)) OR admin)` | — | — | — | — | S(15 cols) |
 | `dispute_comments` | on | — | — | — | — | S | S |

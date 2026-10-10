@@ -835,7 +835,7 @@ Courier webhook inbox (076).
 
 *table · domain: delivery · created by `076-delivery` · RLS **on***
 
-Expiring delivery quotes; provider cost and customer fee kept apart (076). `origin_owner_id uuid` (080, nullable): null = our site, else the owner whose pickup address is the gear's end of the leg (outbound origin, return destination).
+Expiring delivery quotes; provider cost and customer fee kept apart (076). `origin_owner_id uuid` (080, nullable): null = our site, else the owner whose pickup address is the gear's end of the leg (outbound origin, return destination). Clients (the renter, under RLS) read a column grant since 080: not `quote_amount_cents`, `provider_cost_cents`, `platform_fee_cents`, `provider_quote_ref`, `origin_owner_id`, `origin_address_id` or `destination_address_id`.
 
 - Key: `PRIMARY KEY (id)`
 - References: `(destination_address_id) REFERENCES delivery_addresses(id)`; `(origin_address_id) REFERENCES delivery_addresses(id)`
