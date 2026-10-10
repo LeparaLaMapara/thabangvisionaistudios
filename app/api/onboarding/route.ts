@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { checkRateLimit } from '@/lib/auth';
 import { createClient } from '@/lib/supabase/server';
 import { logEvent } from '@/lib/data/events';
+import { validatePlaceName, validatePlainText } from '@/lib/security/text';
 import {
   NAME_LOCKED_MESSAGE,
   PLATFORM_ONLY_MESSAGE,
@@ -70,19 +71,31 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       return NextResponse.json({ error: `Last name: ${lastNameResult.error}` }, { status: 400 });
     }
 
-    if (!streetAddress?.trim()) {
+    if (typeof streetAddress !== 'string' || !streetAddress.trim()) {
       return NextResponse.json({ error: 'Street address is required.' }, { status: 400 });
     }
 
-    if (!city?.trim()) {
-      return NextResponse.json({ error: 'City is required.' }, { status: 400 });
+    // City and province are shown publicly (creator pages, JSON-LD), so they
+    // are held to a place-name charset like validateName (security INJ-1).
+    for (const [value, label] of [[city, 'City'], [province, 'Province']] as const) {
+      const placeResult = validatePlaceName(value, label);
+      if (!placeResult.valid) {
+        return NextResponse.json({ error: placeResult.error }, { status: 400 });
+      }
     }
 
-    if (!province?.trim()) {
-      return NextResponse.json({ error: 'Province is required.' }, { status: 400 });
+    for (const [value, label, max] of [
+      [streetAddress, 'Street address', 200],
+      [postalCode ?? '', 'Postal code', 12],
+      [country ?? '', 'Country', 60],
+    ] as const) {
+      const textResult = validatePlainText(value, label, max);
+      if (!textResult.valid) {
+        return NextResponse.json({ error: textResult.error }, { status: 400 });
+      }
     }
 
-    if (!phone?.trim() || phone.trim().length < 10) {
+    if (typeof phone !== 'string' || !phone.trim() || phone.trim().length < 10) {
       return NextResponse.json({ error: 'A valid phone number is required.' }, { status: 400 });
     }
 

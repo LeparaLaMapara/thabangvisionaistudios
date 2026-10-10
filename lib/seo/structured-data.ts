@@ -244,6 +244,20 @@ export function breadcrumbJsonLd(items: { name: string; url: string }[]): JsonLd
   };
 }
 
+/**
+ * JSON for a `<script type="application/ld+json">` element written with
+ * dangerouslySetInnerHTML. Plain JSON.stringify is NOT safe there: a value
+ * holding `</script>` (a creator's location, a review) closes the element and
+ * the rest runs as script (Phase 6 security finding INJ-1). Escaping `<`, `>`
+ * and `&` as \uXXXX keeps the JSON identical to a JSON parser while the HTML
+ * parser never sees a tag; U+2028/U+2029 are escaped for old JS parsers.
+ * Every JSON-LD caller goes through here.
+ */
 export function renderJsonLd(data: JsonLd): string {
-  return JSON.stringify(data);
+  return JSON.stringify(data)
+    .replace(/</g, '\\u003c')
+    .replace(/>/g, '\\u003e')
+    .replace(/&/g, '\\u0026')
+    .replace(/\u2028/g, '\\u2028')
+    .replace(/\u2029/g, '\\u2029');
 }
