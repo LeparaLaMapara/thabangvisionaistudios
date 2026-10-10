@@ -158,7 +158,7 @@ All tables live in **Supabase** (PostgreSQL). The platform has 3 main domains: *
 
 | Table | Key Columns | Purpose |
 |-------|-------------|---------|
-| `profiles` | id (FK auth.users), display_name, bio, avatar_url, skills[], social_links, location, phone, is_verified, available_for_hire, no_show_count | User profiles. Auto-created on registration via DB trigger (migration 006). |
+| `profiles` | id (FK auth.users), display_name, bio, avatar_url, skills[], social_links, location, phone, is_verified, available_for_hire, no_show_count | User profiles. Auto-created on registration via DB trigger (migration 006; body as in production since 077). |
 | `banking_details` | id, user_id (FK), bank_name, account_number (encrypted), branch_code, account_holder, paystack_recipient_code | Creator payout info. Required before enabling "available for hire". |
 | `verifications` | id, user_id (FK), id_front_path, id_back_path, selfie_with_id_path, status, fraud_flags, id_hash, exif_metadata | Identity verification with selfie+ID flow, EXIF fraud detection, SA ID validation. |
 | `notifications` | id, user_id (FK), type, title, body, link, is_read | In-app notifications for booking events. |
@@ -200,12 +200,15 @@ SQL editor, to both projects**. There is no automatic runner — a migration tha
 has been applied to prod and not dev is the usual cause of the two drifting.
 
 ```
-Latest: 057-unmet-demand.sql
-Count:  60 files
+Latest: 077-database-integrity.sql (prod has up to 066)
 ```
 
-They are not listed individually here; the directory is the source of truth and
-a table in a README rots the moment someone adds one. Each file opens with a
+The canonical order (base schema, `lib/migrations`, the four April files from
+`supabase/migrations/` before 029), how to rebuild a local database from the
+repo (`scripts/db/rebuild-local.sh`), how to run every SQL test
+(`scripts/db/run-sql-tests.sh`) and how to apply 067–077 to dev and prod by
+hand are in [docs/database/README.md](docs/database/README.md), with the full
+schema, roles and access-control matrix next to it. Each file opens with a
 comment explaining what went wrong and why the change is shaped the way it is —
 read those rather than a summary.
 
@@ -222,6 +225,7 @@ A few worth knowing about, because they define behaviour rather than structure:
 | 055 | Unit-aware availability and expiring checkout holds |
 | 056 | `smart_rentals.category` CHECK — it is a URL segment, so a typo published stock to an unreachable address |
 | 057 | `unmet_demand` — the demand the platform could not serve |
+| 077 | One payment-status word (`succeeded`), the signup trigger as in production, who is public (`public_profiles`: creators and owners of live listings), and the access-control fixes in [docs/database/access-control.md](docs/database/access-control.md) |
 
 ---
 
