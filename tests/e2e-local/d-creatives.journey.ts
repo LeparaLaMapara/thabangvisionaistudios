@@ -137,6 +137,13 @@ test('creator accepts and delivers; client approves; payout waits 72 hours, then
   expect(accept.status(), await accept.text()).toBe(200);
   const deliver = await cp.request.patch(`/api/service-bookings/${bookingId}/deliver`, { data: { delivery_url: 'https://example.com/gallery/journey', delivery_message: 'Your photos are ready.' } });
   expect(deliver.status(), await deliver.text()).toBe(200);
+  // The client sees every option the delivery allows, not only Approve, and who their creator is.
+  await kp.goto('/dashboard/bookings');
+  await expect(kp.getByRole('button', { name: /approve the work/i })).toBeVisible();
+  await expect(kp.getByRole('button', { name: /ask for changes \(1 left\)/i })).toBeVisible();
+  await expect(kp.getByRole('button', { name: /report a problem/i })).toBeVisible();
+  await expect(kp.getByText(new RegExp(`creator: cebo creator${run}`, "i")).first()).toBeVisible();
+  await expect(kp.getByText(/ask for changes or report a problem/i).first()).toBeVisible();
   // Only the client can approve.
   const wrong = await cp.request.patch(`/api/service-bookings/${bookingId}/status`, { data: { action: 'approve_delivery' } });
   expect(wrong.status()).toBeGreaterThanOrEqual(400);
