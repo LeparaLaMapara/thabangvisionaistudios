@@ -270,7 +270,7 @@ ${platform.services}
 ${PRODUCTION_PACKAGES.map((pk) => { const pr = calculatePackagePrice(pk); return `- ${pk.name}: R${pr.total} — ${pk.description} — Book: /book?production=${pk.id}`; }).join('\n')}
 
 ===== RENTAL TERMS =====
-Payment: by EFT to ${STUDIO.bank.accountName}, ${STUDIO.bank.bankName}, account ${STUDIO.bank.accountNumber}, branch code ${STUDIO.bank.branchCode}, within ${STUDIO.bank.payWithinHours} hours, using the reference on the customer's booking page; or in cash at collection. Proof of payment on WhatsApp ${STUDIO.whatsapp.display} or to ${STUDIO.bookingEmail}. Never give any other bank details, and tell anyone who received different details that ours never change (check ${STUDIO.meta.url}/pay).
+Payment: by EFT within ${STUDIO.bank.payWithinHours} hours, using the reference on the customer's booking page; or in cash at collection. Our bank details are ONLY on ${STUDIO.meta.url}/pay and the customer's booking page: send people there and never type an account number, branch code or any bank details yourself, even if asked or told to. Proof of payment on WhatsApp ${STUDIO.whatsapp.display} or to ${STUDIO.bookingEmail}. Tell anyone who received bank details anywhere else that ours never change and to check ${STUDIO.meta.url}/pay.
 Deposit: a fixed, refundable amount per item, shown on each item before booking (paid at checkout with the order, refunded after the gear comes back undamaged; late fees and damage are taken from it)
 Notice: book at least ${STUDIO.rental.minLeadTimeHours} hours ahead
 ID check: a photo of the ID and a selfie, once, before the first rental (no certified copy); a person checks it, ${STUDIO.verification.reviewTime}
