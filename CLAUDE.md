@@ -65,7 +65,8 @@ Built by ThabangVision (Pty) Ltd, trading as ThabangVision Labs.
 - **Two Google AI env vars**: `GOOGLE_GENERATIVE_AI_API_KEY` is read by `@ai-sdk/google` (model routing in `lib/ai/index.ts`). `GEMINI_API_KEY` is read by `@google/generative-ai` (vision/portfolio tools, RAG embeddings). Both need the same API key.
 
 ### Authentication & Authorization
-- Admin access has 3-level fallback: (1) JWT `app_metadata.role === 'admin'`, (2) `profiles.role` column, (3) `ADMIN_EMAILS` array in `lib/constants.ts`
+- Admin access (app, `requireAdmin()` / `isAdmin()` in `lib/auth/supabase.ts`): signed-in session required, then any of (1) JWT `app_metadata.role === 'admin'` (read fresh from the Auth server), (2) `profiles.role = 'admin'`, (3) `ADMIN_EMAILS` in `lib/constants.ts` as break-glass only: the session's own user, and only once that email is CONFIRMED (D-78). Whatever level grants it, the profile must be readable and not suspended — a suspended account is never admin, and a failed profile read refuses (fail closed), so break-glass does not work during a database fault
+- Admin access (database, `is_admin()` since migration 079, used by RLS and admin RPCs): `profiles.role = 'admin'` on an unsuspended account; a JWT `app_metadata` admin claim counts only while that profile's role was never changed since 079 (`role_changed_at` null). `ADMIN_EMAILS` is never consulted by the database. A role change or suspension ends the user's sessions
 - All `/api/admin/*` routes: check session AND check admin status via `requireAdmin()`
 - All `/dashboard/*` routes: check session via proxy
 - Ubunye chat: requires login (unauthenticated get 5 free messages via guest rate limit)
@@ -153,13 +154,13 @@ Database access is organized by domain in `lib/supabase/queries/`:
 
 ### API Routes
 - Every route: check auth where needed, validate input, handle errors with try/catch
-- Admin routes: check session + check ADMIN_EMAILS
+- Admin routes: `requireAdmin()` (session + the admin check above; never compare against ADMIN_EMAILS yourself)
 - Return proper status codes: 200, 201, 400, 401, 403, 404, 429, 500
 - Never expose stack traces to client in production
 
 ### Pricing & Booking Types
 - All prices in ZAR
-- Booking amounts (bookings, booking_payments) stored as integer **ZAR cents** to avoid floating-point drift
+- Money units are mixed (R-66; full table in `docs/database/schema.md` "Money: cents or rands"): the newer pipeline (070–076) stores integer **cents** in `*_cents` columns (`rental_payment_intents`, `refund_obligations`, `owner_payouts`, `ledger_lines`, `delivery_*`, `agent_actions.amount_cents`, `subscriptions.expected_amount_cents`, and `equipment_bookings.hire_cents/deposit_cents/owner_share_cents/platform_share_cents`). Everything older is **rands**: `bookings.subtotal/vat/total/creator_amount/platform_amount` are whole rands, `booking_payments.amount` is rands, as are `equipment_bookings.total_price/deposit_amount/…`, `orders`, `crew_requests`, `smart_rentals` prices. Check the column before doing arithmetic; new money columns use `*_cents`
 - **Two distinct booking types:**
   - **Service bookings** (`bookings` table): time-based production services (photography, video). Handles creator payouts via Paystack Transfers API.
   - **Equipment bookings** (`equipment_bookings` table): date-based rental of gear from `smart_rentals`. Simpler payment flow.
@@ -170,7 +171,8 @@ Database access is organized by domain in `lib/supabase/queries/`:
 - Active payment provider: **Paystack** (checkout + creator payouts via Transfers API). PayFast code is kept in `lib/payments/payfast.ts` as a switchable alternative — do not wire new flows to it without instruction.
 
 ## CI Pipeline
-- GitHub Actions (`.github/workflows/ci.yml`) runs on push to `main` and PRs to `main`
+- GitHub Actions (`.github/workflows/ci.yml`) runs on push to `main`, `develop` and `v2/**`–`v4/**`, and on PRs into `main` or `develop`
+- `database` job: starts a local Supabase (db + auth + storage, CLI pinned) from `.github/ci/supabase/` (no migrations folder, so the stale `supabase/migrations` are never auto-applied), then `scripts/db/rebuild-local.sh` and `scripts/db/run-sql-tests.sh`
 - Pipeline: `npm ci` → `npx tsc --noEmit` → `npm run build` → `npm run test`
 - Separate security-checks job: scans for hardcoded secrets, hardcoded business values in app/, and direct SDK imports in app/
 - CI uses `PAYMENT_PROVIDER=payfast` for build validation — this differs from the active production provider (Paystack)
@@ -214,12 +216,16 @@ sweep in particular is far more useful at 30-minute intervals than daily.
 - `npm run build`, `npm run test`, and `npm run test:e2e` must all pass before merging to main.
 - Unit tests live in `tests/unit/*.test.ts` (jsdom env, `@` alias works, vitest globals enabled)
 - E2E tests live in `tests/e2e/*.spec.ts` (Playwright, 60s timeout)
-- E2E runs two projects: `chromium` (desktop) and `mobile` (iPhone 14 emulation, 393×852). Mobile tests live in `mobile.spec.ts` — all other specs run desktop only.
+- E2E runs three projects: `chromium` (desktop), `mobile` (iPhone 14 emulation, 393×852; `mobile.spec.ts` only) and `a11y-mobile` (`a11y.spec.ts` again at phone size). All other specs run desktop only.
+- Tests that need a reachable Supabase skip themselves when `NEXT_PUBLIC_SUPABASE_URL` is the dummy `https://example.supabase.co` (`tests/e2e/helpers/supabase-env.ts`)
+- `npm run test:e2e:local` — real user journeys (`tests/e2e-local/*.journey.ts`) against a fully local stack (local Supabase, payment/geo/upload stub, `preload.cjs`); setup in `tests/e2e-local/README.md`
+- `scripts/db/rebuild-local.sh postgresql://postgres:postgres@127.0.0.1:54322/postgres` — rebuild the schema into an EMPTY local Supabase in the canonical order (`--list` prints it); refuses any non-local host
+- `scripts/db/run-sql-tests.sh postgresql://postgres:postgres@127.0.0.1:54322/postgres [filter]` — every `lib/migrations/*.test.sql` (each rolls back) plus `scripts/db/*.test.sh`
 - Test setup: `tests/setup.ts` (auto-loaded by vitest)
 
 ## Platform Conventions
 - **Proxy, not middleware** — Next.js 16 uses `proxy.ts` at repo root and exports a function named `proxy` (not `middleware`). It handles Supabase session refresh + CSRF Origin validation.
-- **Pending migrations are manual** — migrations live in `lib/migrations/` (001–031). Applied by hand in the Supabase SQL Editor. Before assuming a table exists, check `docs/tasks/` or the README migration table.
+- **Pending migrations are manual** — migrations live in `lib/migrations/` (001–079, plus the base schema and four April files in `supabase/migrations/`; order and skips in `docs/database/README.md`). Applied by hand in the Supabase SQL Editor; locally, `scripts/db/rebuild-local.sh` applies the canonical order. Production is at 066 until 067–079 are applied (`docs/operations/launch-checklist.md`). Before assuming a table exists, check `docs/database/README.md` / `docs/database/schema.md`.
 - **Supabase clients** — three patterns:
   - `@/lib/supabase/server` (`createClient()`) — async, cookie-based. For Server Components and API routes. Cookies are async in Next.js 16 (`await cookies()`).
   - `@/lib/supabase/client` (`createClient()`) — `createBrowserClient`. For `'use client'` components.
