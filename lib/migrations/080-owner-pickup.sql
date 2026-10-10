@@ -174,6 +174,17 @@ begin
   -- whichever is second sees the other (R-91).
   if v_origin is not null then
     perform pg_advisory_xact_lock(hashtext('delivery_save_owner_pickup'), hashtext(v_origin::text));
+    -- Under the lock: the owner's end of the leg must still be their ACTIVE
+    -- pickup address. A save or removal that won the lock first retired it;
+    -- the leg is refused (the app refunds its fee, staff arrange it from the
+    -- studio) rather than sent to an address the owner has left.
+    if not exists (
+      select 1 from public.delivery_addresses a
+       where a.id = (case when p_shipment ->> 'leg' = 'outbound' then p_shipment ->> 'originAddressId' else p_shipment ->> 'destinationAddressId' end)::uuid
+         and a.user_id = v_origin and a.purpose = 'owner_pickup' and a.retired_at is null and a.redacted_at is null
+    ) then
+      raise exception 'delivery_origin_address_changed' using errcode = 'P0001';
+    end if;
   end if;
   -- The quote must still be payable or paid. Locked, so it cannot be refunded
   -- (delivery_refund_quote) while a leg is being made from it.
@@ -407,6 +418,38 @@ $$;
 revoke all on function public.delivery_save_owner_pickup(uuid, jsonb, timestamptz) from public, anon, authenticated;
 grant execute on function public.delivery_save_owner_pickup(uuid, jsonb, timestamptz) to service_role;
 
+-- Removing the pickup address takes the same lock and the same live-leg rule
+-- (Codex review): a removal never races a new leg either.
+create or replace function public.delivery_remove_owner_pickup(p_owner uuid, p_now timestamptz) returns integer
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $$
+declare
+  n integer;
+begin
+  if p_owner is null then
+    raise exception 'delivery_remove_owner_pickup: owner required' using errcode = '22004';
+  end if;
+  perform pg_advisory_xact_lock(hashtext('delivery_save_owner_pickup'), hashtext(p_owner::text));
+  if exists (
+    select 1 from public.delivery_shipments
+     where origin_owner_id = p_owner
+       and status not in ('cancelled', 'failed')
+       and not (status = 'delivered' and accepted_at is not null)
+  ) then
+    raise exception 'delivery_owner_pickup_leg_in_progress' using errcode = 'P0001';
+  end if;
+  update public.delivery_addresses
+     set retired_at = coalesce(p_now, now())
+   where user_id = p_owner and purpose = 'owner_pickup' and retired_at is null;
+  get diagnostics n = row_count;
+  return n;
+end;
+$$;
+revoke all on function public.delivery_remove_owner_pickup(uuid, timestamptz) from public, anon, authenticated;
+grant execute on function public.delivery_remove_owner_pickup(uuid, timestamptz) to service_role;
+
 -- PostgREST picks up the new columns (delivered at commit).
 notify pgrst, 'reload schema';
 
@@ -431,6 +474,7 @@ commit;
 --   -- delivery_cancelled_orders_to_settle bodies, and 076's table-wide
 --   -- `grant select on public.delivery_quotes to authenticated` (or re-apply 076).
 --   drop function if exists public.delivery_save_owner_pickup(uuid, jsonb, timestamptz);
+--   drop function if exists public.delivery_remove_owner_pickup(uuid, timestamptz);
 --   -- Owner pickup addresses: delete them (they were never used by a leg), then restore the purpose check:
 --   delete from public.delivery_addresses where purpose = 'owner_pickup';
 --   alter table public.delivery_addresses drop constraint delivery_addresses_owner_pickup_has_owner;

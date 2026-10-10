@@ -357,6 +357,7 @@ declare
   pick_c uuid := '00000000-0000-4000-8000-0000000800f6';
   grp2 uuid := '00000000-0000-4000-8000-0000000800d2';
   q2 uuid := '00000000-0000-4000-8000-000000080201';
+  q3 uuid := '00000000-0000-4000-8000-000000080301';
   bk2_s uuid := '00000000-0000-4000-8000-0000000802e1';
   bk2_a uuid := '00000000-0000-4000-8000-0000000802e2';
   bk2_b uuid := '00000000-0000-4000-8000-0000000802e3';
@@ -426,13 +427,45 @@ begin
   if (select retired_at from public.delivery_addresses where id = v_new) is not null then
     raise exception 'FAIL 10: a refused save retired the address a live leg uses';
   end if;
+  -- A leg made after the save won the lock: its quote still names the replaced
+  -- address, and the database refuses it rather than send the driver there (Codex review).
+  insert into public.delivery_quotes (id, renter_id, booking_group_id, leg, provider, provider_kind, quote_amount_cents, provider_cost_cents, platform_fee_cents, customer_fee_cents, rental_ids, origin_address_id, destination_address_id, expires_at, status, paid_reference, origin_owner_id)
+  values (q3, renter, grp2, 'return', 'manual', 'own_fleet', 100, 100, 0, 100, '{}', home, pick_c, now() + interval '1 hour', 'paid', 'p8-grp2', owner_c);
+  begin
+    perform public.delivery_create_shipment(
+      jsonb_build_object('bookingGroupId', grp2, 'leg', 'return', 'attempt', 1, 'originOwnerId', owner_c, 'renterId', renter,
+        'items', '[]'::jsonb, 'providerId', 'manual', 'providerKind', 'own_fleet', 'quoteId', q3, 'merchantReference', 'tvd_p8g2_r1_c_old',
+        'quoteAmountCents', 100, 'customerFeeCents', 100, 'platformFeeCents', 0, 'replacementValueCents', 0,
+        'originAddressId', home, 'destinationAddressId', pick_c, 'window', '{}'::jsonb),
+      jsonb_build_object('merchantReference', 'tvd_p8g2_r1_c_old', 'idempotencyKey', 'delivery-dispatch:p8g2:return@c:old', 'providerId', 'manual'));
+    raise exception 'FAIL 10: a leg was stored against an owner''s replaced pickup address';
+  exception when raise_exception then
+    if sqlerrm not like '%delivery_origin_address_changed%' then raise; end if;
+  end;
+  -- Removing the address: refused under the same lock while a leg is under way, allowed after.
+  begin
+    perform public.delivery_remove_owner_pickup(owner_c, now());
+    raise exception 'FAIL 10: the pickup address was removed under a leg that is under way';
+  exception when raise_exception then
+    if sqlerrm not like '%delivery_owner_pickup_leg_in_progress%' then raise; end if;
+  end;
+  if (select retired_at from public.delivery_addresses where id = v_new) is not null then
+    raise exception 'FAIL 10: a refused removal retired the address';
+  end if;
+  update public.delivery_shipments set status = 'cancelled' where merchant_reference = 'tvd_p8g2_o1_c';
+  n := public.delivery_remove_owner_pickup(owner_c, now());  -- its own statement, so the check below sees its update
+  if n <> 1 or (select retired_at from public.delivery_addresses where id = v_new) is null then
+    raise exception 'FAIL 10: removing the pickup address with no leg under way did not retire it';
+  end if;
   -- A new leg from an owner's address takes the same per-owner lock as the save.
   if (select prosrc from pg_proc where proname = 'delivery_create_shipment') not like '%pg_advisory_xact_lock(hashtext(''delivery_save_owner_pickup'')%' then
     raise exception 'FAIL 10: delivery_create_shipment does not take the per-owner pickup lock';
   end if;
   if has_function_privilege('authenticated', 'public.delivery_save_owner_pickup(uuid, jsonb, timestamptz)', 'execute')
      or has_function_privilege('anon', 'public.delivery_save_owner_pickup(uuid, jsonb, timestamptz)', 'execute')
-     or exists (select 1 from pg_proc p where p.proname in ('delivery_save_owner_pickup', 'delivery_cancelled_orders_to_settle')
+     or has_function_privilege('authenticated', 'public.delivery_remove_owner_pickup(uuid, timestamptz)', 'execute')
+     or has_function_privilege('anon', 'public.delivery_remove_owner_pickup(uuid, timestamptz)', 'execute')
+     or exists (select 1 from pg_proc p where p.proname in ('delivery_save_owner_pickup', 'delivery_remove_owner_pickup', 'delivery_cancelled_orders_to_settle')
                   and (not p.prosecdef or not p.proconfig @> array['search_path=public, pg_temp'])) then
     raise exception 'FAIL 10: delivery_save_owner_pickup / the sweep is callable by a client or lost its definer settings';
   end if;

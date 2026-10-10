@@ -114,7 +114,7 @@ export function ownerLegs(
           title: titles.get(i.rentalId) ?? null,
           progress: s.leg === 'outbound' ? outboundReceipt(chain) : returnProgress(chain),
           can_hand_over: fromOwner && s.leg === 'outbound' && HAND_OVER_STATES.includes(s.status) && !kinds.has('handed_to_courier') && !kinds.has('collected_by_courier'),
-          can_confirm_return: fromOwner && s.leg === 'return' && !FINAL_DELIVERY_STATES.includes(s.status) && ownerMayConfirmReturn(s.status, chain) && !kinds.has('inspected'),
+          can_confirm_return: fromOwner && s.leg === 'return' && !FINAL_DELIVERY_STATES.includes(s.status) && ownerMayConfirmReturn(s, chain) && !kinds.has('inspected'),
         };
       }),
     });

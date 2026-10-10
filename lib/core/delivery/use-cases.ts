@@ -53,7 +53,7 @@ import { coarsePricingPoint, originDiscriminator, originReferenceSuffix, sameOri
 import { evaluateDeliveryEligibility, inServiceArea, providerRiskGate, type DeliveryIneligibleCode, type InsuranceAnswer } from './policy';
 import type { CreateDeliveryRequest, DeliveryWindow, ParcelItem, ProviderDelivery, ProviderDeliveryState, ProviderQuote } from './port';
 import { checkQuotesForCharge, priceDeliveryQuote, quoteIsLive, type ChargeCheck, type CustomerDeliveryQuote, type QuoteLineSnapshot } from './quote';
-import type { DeliveryBookingLine, DeliveryDeps, DeliveryProof, DispatchIntent, Shipment, ShipmentTransition } from './repository';
+import { OriginAddressChangedError, type DeliveryBookingLine, type DeliveryDeps, type DeliveryProof, type DispatchIntent, type Shipment, type ShipmentTransition } from './repository';
 import { selectDeliveryProviders, type EvaluatedCandidate } from './select';
 import {
   CANCELLABLE_STATES,
@@ -550,36 +550,44 @@ export async function prepareDelivery(input: { caller: DeliveryCaller; quoteId: 
   const gate = providerRiskGate({ provider: port, leg: quote.leg, items, window: quote.window, insurance, allowSandbox: deps.providers.allowSandbox, policy: deps.policy });
   if (!gate.eligible) return refuse('provider_excluded', `That delivery option cannot carry this order (${gate.reasons.join(', ')}).`);
 
-  const created = await deps.repo.createShipment(
-    {
-      bookingGroupId: group.bookingGroupId,
-      leg: quote.leg,
-      attempt,
-      originOwnerId,
-      renterId: group.renterId,
-      items: bookingLines.map((l) => ({ bookingId: l.bookingId, rentalId: l.rentalId, ownerId: l.ownerId, serialNumber: l.serialNumber })),
-      providerId: port.providerId,
-      providerKind: kind,
-      quoteId: quote.id,
-      merchantReference: merchantReferenceFor(group.bookingGroupId, quote.leg, attempt, originOwnerId),
-      status: 'prepared',
-      quoteAmountCents: quote.quoteAmountCents,
-      customerFeeCents: quote.customerFeeCents,
-      platformFeeCents: quote.platformFeeCents,
-      replacementValueCents: items.reduce((s, i) => s + i.replacementValueCents, 0),
-      coverageVerified: kind === 'courier' ? !!insurance?.covered : DELIVERY_POLICY.ownFleet.verifiedTransitCover,
-      insuranceReference: insurance?.policyRef ?? null,
-      originAddressId: quote.originAddressId,
-      destinationAddressId: quote.destinationAddressId,
-      window: quote.window,
-      paidReference: quote.paidReference,
-    },
-    {
-      merchantReference: merchantReferenceFor(group.bookingGroupId, quote.leg, attempt, originOwnerId),
-      idempotencyKey: dispatchIdempotencyKey(group.bookingGroupId, quote.leg, attempt, originOwnerId),
-      providerId: port.providerId,
-    },
-  );
+  let created: Awaited<ReturnType<DeliveryDeps['repo']['createShipment']>>;
+  try {
+    created = await deps.repo.createShipment(
+      {
+        bookingGroupId: group.bookingGroupId,
+        leg: quote.leg,
+        attempt,
+        originOwnerId,
+        renterId: group.renterId,
+        items: bookingLines.map((l) => ({ bookingId: l.bookingId, rentalId: l.rentalId, ownerId: l.ownerId, serialNumber: l.serialNumber })),
+        providerId: port.providerId,
+        providerKind: kind,
+        quoteId: quote.id,
+        merchantReference: merchantReferenceFor(group.bookingGroupId, quote.leg, attempt, originOwnerId),
+        status: 'prepared',
+        quoteAmountCents: quote.quoteAmountCents,
+        customerFeeCents: quote.customerFeeCents,
+        platformFeeCents: quote.platformFeeCents,
+        replacementValueCents: items.reduce((s, i) => s + i.replacementValueCents, 0),
+        coverageVerified: kind === 'courier' ? !!insurance?.covered : DELIVERY_POLICY.ownFleet.verifiedTransitCover,
+        insuranceReference: insurance?.policyRef ?? null,
+        originAddressId: quote.originAddressId,
+        destinationAddressId: quote.destinationAddressId,
+        window: quote.window,
+        paidReference: quote.paidReference,
+      },
+      {
+        merchantReference: merchantReferenceFor(group.bookingGroupId, quote.leg, attempt, originOwnerId),
+        idempotencyKey: dispatchIdempotencyKey(group.bookingGroupId, quote.leg, attempt, originOwnerId),
+        providerId: port.providerId,
+      },
+    );
+  } catch (e) {
+    // The owner replaced or removed the address between our check above and the insert (the
+    // database re-checks under the per-owner lock): same answer as a pickup that no longer holds.
+    if (e instanceof OriginAddressChangedError) return refuse('origin_unavailable', 'This gear can no longer be collected from its owner. Our team will arrange it from the studio.');
+    throw e;
+  }
   return { ok: true, ...created };
 }
 
@@ -1252,7 +1260,7 @@ const NOT_RETURNED_YET = refuse('not_returned_yet', 'This item has not been coll
 /** The owner's receipt gate (ownerMayConfirmReturn) for one item on this leg, from its recorded chain. */
 async function ownerReturnArrived(s: Shipment, item: { bookingId: string; rentalId: string }, repo: Pick<DeliveryDeps['repo'], 'listCustody'>): Promise<boolean> {
   const chain = (await repo.listCustody(s.id)).filter((c) => c.bookingId === item.bookingId && c.rentalId === item.rentalId);
-  return ownerMayConfirmReturn(s.status, chain);
+  return ownerMayConfirmReturn(s, chain);
 }
 
 /** Every item on the return leg is received back: the leg is delivered and its fee earned (once). */
@@ -1307,7 +1315,7 @@ export async function confirmOwnerReturn(
   const now = deps.clock.now();
 
   // Before the gear has left the renter there is nothing to receive, and nothing to report missing either.
-  if (!ownerMayConfirmReturn(s.status, itemChain)) return NOT_RETURNED_YET;
+  if (!ownerMayConfirmReturn(s, itemChain)) return NOT_RETURNED_YET;
   if (problem && input.problem?.kind === 'lost' && !already) return ownerReportsMissing(s, { ...input, caller: c }, detail, deps);
   const refunded = await feeRefunded(s, deps.repo);
 

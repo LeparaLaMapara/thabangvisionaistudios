@@ -285,23 +285,30 @@ export function endsRenterPossession(e: Pick<CustodyEvent, 'kind' | 'actor'>): b
  * not enough on their own: a staff or provider move can reach them without a
  * per-item record; the item's own collection record covers those.
  */
-export const RETURN_ARRIVED_STATES: readonly DeliveryState[] = ['courier_at_dropoff', 'delivered', 'incident_under_review'];
+export const RETURN_ARRIVED_STATES: readonly DeliveryState[] = ['courier_at_dropoff', 'delivered'];
 
 /**
  * Whether an OWNER may record that an item on a return leg came back to them
  * (D17, D-87; Phase 8 review fix P2). The one predicate the core
  * (confirmOwnerReturn, confirmHandover) and the owner's screen
  * (`can_confirm_return`) share. True when the leg is arriving or arrived
- * (RETURN_ARRIVED_STATES), or the item's own chain on this leg shows it left
+ * (RETURN_ARRIVED_STATES; under review only if it was delivered first), or
+ * the item's own chain on this leg shows it left
  * the renter (`collected_by_courier`, `handed_to_return_courier`) or was
  * already received (inspection still to come). A leg that is only scheduled,
  * with the gear still at the renter's, never lets the owner mark it received:
  * that would earn the fee, release the owner's payout and the renter's
  * deposit while the renter still has the gear.
  */
-export function ownerMayConfirmReturn(status: DeliveryState, itemChain: readonly Pick<CustodyEvent, 'kind'>[]): boolean {
-  if (RETURN_ARRIVED_STATES.includes(status)) return true;
-  return itemChain.some((c) => c.kind === 'collected_by_courier' || c.kind === 'handed_to_return_courier' || c.kind === 'received_by_owner');
+export function ownerMayConfirmReturn(
+  leg: { status: DeliveryState; deliveredAt?: string | null },
+  itemChain: readonly Pick<CustodyEvent, 'kind'>[],
+): boolean {
+  if (itemChain.some((c) => c.kind === 'collected_by_courier' || c.kind === 'handed_to_return_courier' || c.kind === 'received_by_owner')) return true;
+  // Under review says nothing about THIS item: an incident on one item puts the whole leg there
+  // (Codex P1). Only a leg that had already arrived (delivered before the review) vouches for every item.
+  if (leg.status === 'incident_under_review') return !!leg.deliveredAt;
+  return RETURN_ARRIVED_STATES.includes(leg.status);
 }
 
 /** The custody actor kinds that may end the renter's possession on a return (for database filters). */

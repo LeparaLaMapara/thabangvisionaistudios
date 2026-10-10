@@ -197,7 +197,10 @@ export interface DeliveryRepository {
   /**
    * Insert the shipment and its dispatch intent together. On a conflict
    * (same order + leg + attempt, or the same merchant reference) returns the
-   * existing pair with created = false.
+   * existing pair with created = false. For a leg from (or back to) an
+   * owner's address, throws OriginAddressChangedError when that address is
+   * no longer the owner's active pickup address (checked under the per-owner
+   * lock the address save and removal take).
    */
   createShipment(s: NewShipment, intent: Omit<DispatchIntent, 'id' | 'shipmentId' | 'attempts' | 'claimedAt' | 'lastError' | 'providerReference' | 'state'>): Promise<{ shipment: Shipment; intent: DispatchIntent; created: boolean }>;
 
@@ -316,4 +319,12 @@ export interface DeliveryDeps {
    * site, as before; a leg from an owner's address is then refused (fail closed).
    */
   origins?: DeliveryOriginPort;
+}
+
+/** The owner replaced or removed their pickup address before this leg was stored (080, Codex review). */
+export class OriginAddressChangedError extends Error {
+  constructor() {
+    super('delivery_origin_address_changed');
+    this.name = 'OriginAddressChangedError';
+  }
 }

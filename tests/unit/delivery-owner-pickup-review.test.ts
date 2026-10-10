@@ -11,7 +11,7 @@ import { DELIVERY_POLICY } from '@/lib/constants';
 import { coarsePricingPoint } from '@/lib/core/delivery/origin';
 import { ownerMayConfirmReturn, type CustodyEvent } from '@/lib/core/delivery/custody';
 import type { DeliveryPort, DeliveryQuoteRequest } from '@/lib/core/delivery/port';
-import type { Shipment } from '@/lib/core/delivery/repository';
+import { OriginAddressChangedError, type Shipment } from '@/lib/core/delivery/repository';
 import {
   advanceManualDelivery,
   checkRentalSettlement,
@@ -211,12 +211,38 @@ describe('P2: an owner confirms a return only once the gear has left the renter'
 
   it('the predicate itself', () => {
     const ev = (kind: CustodyEvent['kind']) => ({ kind });
-    expect(ownerMayConfirmReturn('scheduled', [])).toBe(false);
-    expect(ownerMayConfirmReturn('collected', [])).toBe(false);
-    expect(ownerMayConfirmReturn('in_transit', [])).toBe(false);
-    expect(ownerMayConfirmReturn('scheduled', [ev('handed_to_return_courier')])).toBe(true);
-    expect(ownerMayConfirmReturn('collected', [ev('collected_by_courier')])).toBe(true);
-    for (const s of ['courier_at_dropoff', 'delivered', 'incident_under_review'] as const) expect(ownerMayConfirmReturn(s, [])).toBe(true);
+    const leg = (status: Shipment['status'], deliveredAt: string | null = null) => ({ status, deliveredAt });
+    expect(ownerMayConfirmReturn(leg('scheduled'), [])).toBe(false);
+    expect(ownerMayConfirmReturn(leg('collected'), [])).toBe(false);
+    expect(ownerMayConfirmReturn(leg('in_transit'), [])).toBe(false);
+    expect(ownerMayConfirmReturn(leg('scheduled'), [ev('handed_to_return_courier')])).toBe(true);
+    expect(ownerMayConfirmReturn(leg('collected'), [ev('collected_by_courier')])).toBe(true);
+    for (const s of ['courier_at_dropoff', 'delivered'] as const) expect(ownerMayConfirmReturn(leg(s), [])).toBe(true);
+    // Under review says nothing about this item (Codex P1), unless the leg had arrived first.
+    expect(ownerMayConfirmReturn(leg('incident_under_review'), [])).toBe(false);
+    expect(ownerMayConfirmReturn(leg('incident_under_review', '2031-05-04T10:00:00.000Z'), [])).toBe(true);
+    expect(ownerMayConfirmReturn(leg('incident_under_review'), [ev('collected_by_courier')])).toBe(true);
+  });
+
+  it('Codex P1: an incident on one item does not let the owner receive another item still with the renter', async () => {
+    const w = originWorld();
+    await paidAndDispatched(w);
+    await deliverOwnerAOutbound(w);
+    const r = legOf(w, 'return', OWNER_A);
+    // A second item of owner A on the same return leg, never collected from the renter.
+    const SECOND = '00000000-0000-4000-8000-00000000a2a2';
+    w.repo.shipments.get(r.id)!.items.push({ ...r.items[0], rentalId: SECOND });
+    await confirmCollection({ caller: staff, shipmentId: r.id, bookingId: 'bk-a', rentalId: LENS_A, evidence: PHOTO }, w.deps);
+    await advanceManualDelivery({ caller: staff, shipmentId: r.id, state: 'in_transit' }, w.deps);
+    expect(await confirmOwnerReturn({ caller: ownerA, shipmentId: r.id, bookingId: 'bk-a', rentalId: LENS_A, evidence: PHOTO, outcome: 'problem', problem: { kind: 'lost', description: 'Never arrived' } }, w.deps)).toMatchObject({ ok: true });
+    expect(w.repo.shipments.get(r.id)?.status).toBe('incident_under_review');
+    expect(w.repo.shipments.get(r.id)?.deliveredAt ?? null).toBeNull();
+    const second = await confirmOwnerReturn({ caller: ownerA, shipmentId: r.id, bookingId: 'bk-a', rentalId: SECOND, evidence: PHOTO, outcome: 'received', condition: 'Good' }, w.deps);
+    expect(second).toMatchObject({ ok: false, code: 'not_returned_yet' });
+    expect(w.repo.custody.some((c) => c.rentalId === SECOND && (c.kind === 'received_by_owner' || c.kind === 'inspected'))).toBe(false);
+    // Once that item's own collection is recorded, the owner can confirm it.
+    await confirmCollection({ caller: staff, shipmentId: r.id, bookingId: 'bk-a', rentalId: SECOND, evidence: PHOTO }, w.deps);
+    expect(await confirmOwnerReturn({ caller: ownerA, shipmentId: r.id, bookingId: 'bk-a', rentalId: SECOND, evidence: PHOTO, outcome: 'received', condition: 'Good' }, w.deps)).toMatchObject({ ok: true });
   });
 });
 
@@ -274,6 +300,30 @@ describe('round 2: a missing report is refused while the renter still has the ge
     await confirmOwnerReturn({ caller: ownerA, shipmentId: r.id, bookingId: 'bk-a', rentalId: LENS_A, evidence: PHOTO, outcome: 'problem', problem: { kind: 'lost', description: 'Never arrived' } }, w.deps);
     const alerts = [...w.repo.outbox.values()].filter((n) => (n.data as { what?: string }).what === 'delivery_owner_return_lost');
     expect(alerts.map((n) => (n.data as { reference: string }).reference)).toEqual([`${r.merchantReference}:bk-a:${LENS_A}`]);
+  });
+});
+
+// ── Codex P2: the database says the owner's address changed before the leg was stored ──
+
+describe('Codex P2: a leg whose owner address was replaced under the lock is refused and its fee refunded', () => {
+  it('owner B moved between the check and the insert: no leg for B, B\'s fee back, the rest go ahead', async () => {
+    const w = originWorld();
+    const r = await quoteCartDelivery({ caller: renter, renterId: RENTER, renterAddressId: RENTER_HOME, siteAddressId: OFFICE, lines: MIXED_LINES, legs: [{ leg: 'outbound', window: OUT_WINDOW }], bookingGroupId: GROUP }, w.deps);
+    if (!r.ok) throw new Error(r.code);
+    const total = r.quotes.reduce((n, q) => n + q.customerFeeCents, 0);
+    const real = w.repo.createShipment.bind(w.repo);
+    // What the database answers when the save or removal won the per-owner lock first.
+    w.repo.createShipment = async (s, i) => {
+      if (s.originOwnerId === OWNER_B) throw new OriginAddressChangedError();
+      return real(s, i);
+    };
+    const out = await dispatchDeliveryAfterPayment({ bookingGroupId: GROUP, paidDeliveryCents: total }, { delivery: w.deps, links: w.links });
+    expect(out.outcome).toBe('done');
+    const legs = [...w.repo.shipments.values()];
+    expect(legs.some((s) => s.originOwnerId === OWNER_B)).toBe(false);
+    expect(legs.some((s) => s.originOwnerId === OWNER_A)).toBe(true);
+    const bFee = r.quotes.filter((q) => q.originOwnerId === OWNER_B).reduce((n, q) => n + q.customerFeeCents, 0);
+    expect([...w.repo.refunds.values()].reduce((n, x) => n + x.amountCents, 0)).toBe(bFee);
   });
 });
 
@@ -422,6 +472,15 @@ describe('P3.5: replacing the pickup address is one database transaction', () =>
     await expect(new SupabaseOwnerPickup(db as never).save(input)).rejects.toThrow(/owner pickup save failed/);
     expect(db.ops.some((o) => o.startsWith('update:') || o.startsWith('insert:'))).toBe(false);
   });
+  it('removing the address goes through the database function too (same lock and live-leg rule)', async () => {
+    const ok = fakeDb([]);
+    expect(await new SupabaseOwnerPickup(ok as never).remove(OWNER_A)).toEqual({ ok: true });
+    expect(ok.ops).toContain('rpc:delivery_remove_owner_pickup');
+    expect(ok.ops.some((o) => o.startsWith('update:'))).toBe(false);
+    const busy = fakeDb([], { rpcError: 'delivery_owner_pickup_leg_in_progress' });
+    expect(await new SupabaseOwnerPickup(busy as never).remove(OWNER_A)).toEqual({ ok: false, code: 'leg_in_progress' });
+  });
+
   it('a leg that started after our check: the database refuses under its lock, and the owner is told a pickup is under way (R-91)', async () => {
     const db = fakeDb([], { rpcError: 'delivery_owner_pickup_leg_in_progress' });
     expect(await new SupabaseOwnerPickup(db as never).save(input)).toEqual({ ok: false, code: 'leg_in_progress' });

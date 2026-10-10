@@ -137,7 +137,10 @@ export class SupabaseOwnerPickup {
   /** Remove the owner's pickup address (retired; purged by retention once no leg needs it). */
   async remove(ownerId: string): Promise<{ ok: true } | { ok: false; code: 'leg_in_progress' }> {
     if (await this.hasLiveLeg(ownerId)) return { ok: false, code: 'leg_in_progress' };
-    const { error } = await this.db.from('delivery_addresses').update({ retired_at: new Date().toISOString() }).eq('user_id', ownerId).eq('purpose', 'owner_pickup').is('retired_at', null);
+    // Through the database (delivery_remove_owner_pickup, 080): the same per-owner lock and
+    // live-leg rule as a save, so a removal never races a new leg.
+    const { error } = await this.db.rpc('delivery_remove_owner_pickup', { p_owner: ownerId, p_now: new Date().toISOString() });
+    if (error?.message?.includes('delivery_owner_pickup_leg_in_progress')) return { ok: false, code: 'leg_in_progress' };
     if (error) throw new Error(`owner pickup remove failed: ${error.message}`);
     return { ok: true };
   }

@@ -56,8 +56,12 @@ No new table, policy or function signature. What changes for access:
   (every read is the server's, service role), so nothing depends on the
   columns taken away. The fee itself is priced from a ~2 km grid cell for an
   owner trip (D-93), so it cannot place the owner's house.
-- `delivery_save_owner_pickup` (080): retires the owner's active pickup
-  address and stores the new one in one transaction. SECURITY DEFINER,
+- `delivery_save_owner_pickup` and `delivery_remove_owner_pickup` (080):
+  replace (retire + store, one transaction) or retire the owner's active
+  pickup address, refused while a leg from or back to it is under way,
+  checked under a per-owner advisory lock that `delivery_create_shipment`
+  also takes for an owner leg (which in turn refuses a leg whose quoted
+  owner address was retired: R-91). SECURITY DEFINER,
   `search_path = public, pg_temp`, execute for `service_role` only.
 - `delivery_cancelled_orders_to_settle` is replaced in 080 (per-origin
   "gear may be with the renter" rule), same settings and grant as 076.

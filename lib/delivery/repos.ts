@@ -26,6 +26,7 @@ import type { Journal } from '@/lib/core/rental/ledger';
 import type { OutboxMessage } from '@/lib/core/rental/notifications';
 import type { BookingStatus } from '@/lib/core/rental/state';
 import { isManualPaymentReference } from '@/lib/core/delivery/use-cases';
+import { OriginAddressChangedError } from '@/lib/core/delivery/repository';
 import { loadRenterFacts } from '@/lib/rental/eligibility-server';
 import { isMissingPipeline } from '@/lib/rental/repos';
 import type { DeliveryInboxStore, StoredDeliveryEvent } from './inbox';
@@ -270,6 +271,7 @@ export class SupabaseDeliveryRepository implements DeliveryRepository {
     intent: Omit<DispatchIntent, 'id' | 'shipmentId' | 'attempts' | 'claimedAt' | 'lastError' | 'providerReference' | 'state'>,
   ): Promise<{ shipment: Shipment; intent: DispatchIntent; created: boolean }> {
     const { data, error } = await this.db.rpc('delivery_create_shipment', { p_shipment: s, p_intent: intent });
+    if (error?.message?.includes('delivery_origin_address_changed')) throw new OriginAddressChangedError();
     if (error) throw dbError('delivery_create_shipment', error);
     const res = data as { shipment_id: string; created: boolean };
     const [shipment, di] = await Promise.all([this.getShipment(res.shipment_id), this.getDispatchIntent(res.shipment_id)]);
