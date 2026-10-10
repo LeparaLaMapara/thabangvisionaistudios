@@ -5,11 +5,16 @@ on:
   pull_request:
     branches: [main, develop]
 
+# CI never uses real credentials. The repository secrets pointed at the
+# PRODUCTION Supabase project (with its service-role key), which the
+# no-prod-credentials guard test refuses: the build and unit tests need no
+# live service, so placeholders are used. The database job runs its own
+# local Supabase.
 env:
-  NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
-  NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
-  SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-  ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+  NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
+  NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-placeholder-anon-key
+  SUPABASE_SERVICE_ROLE_KEY: ci-placeholder-service-role-key
+  ANTHROPIC_API_KEY: ci-placeholder
   AI_PROVIDER: anthropic
   PAYMENT_PROVIDER: payfast
   STORAGE_PROVIDER: cloudinary

@@ -176,6 +176,7 @@ Database access is organized by domain in `lib/supabase/queries/`:
 - Pipeline: `npm ci` → `npx tsc --noEmit` → `npm run build` → `npm run test`
 - Separate security-checks job: scans for hardcoded secrets, hardcoded business values in app/, and direct SDK imports in app/
 - CI uses `PAYMENT_PROVIDER=payfast` for build validation — this differs from the active production provider (Paystack)
+- CI uses placeholder Supabase/AI credentials, never repository secrets: the build and unit tests need no live service, and `tests/unit/no-prod-credentials.test.ts` fails if the production project ref or live keys reach the test environment
 
 ## Cron Jobs — plan constraint
 
