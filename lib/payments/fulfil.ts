@@ -9,6 +9,8 @@ import {
 } from '@/lib/payments/subscriptions';
 import { recordServiceBookingEvent } from '@/lib/supabase/queries/service-bookings';
 import { logEvent } from '@/lib/data/events';
+import { STUDIO } from '@/lib/constants';
+import { toCents } from '@/lib/core/pricing/money';
 
 /**
  * What happens once a payment provider tells us, with a verified signature,
@@ -184,56 +186,160 @@ export async function handlePaymentComplete(webhook: WebhookResult) {
       console.log(`[payment-webhook] Booking confirmed: ref=${paymentId}`);
     }
   } else if (paymentType === 'service_booking') {
-    // Service booking — confirm payment by reference
-    const bookingId = raw.custom_str2 ?? raw.customStr2 ?? '';
-
-    const { data: updatedBooking, error: bookingErr } = await supabase
-      .from('bookings')
-      .update({
-        status: 'paid',
-        payment_status: 'paid',
-        paid_at: new Date().toISOString(),
-        paystack_reference: providerPaymentId,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('reference', paymentId)
-      .select('id, reference, creator_id, client_id, project_category, total, duration_hours')
-      .single();
-
-    if (bookingErr) {
-      console.error('[payment-webhook] Failed to confirm service booking:', bookingErr.message);
-    } else {
-      console.log(`[payment-webhook] Service booking confirmed: ref=${paymentId} booking=${bookingId}`);
-
-      // Notify the creator they have a new paid gig
-      if (updatedBooking?.creator_id) {
-        try {
-          await supabase.from('notifications').insert({
-            user_id: updatedBooking.creator_id,
-            type: 'gig_request',
-            title: 'New Paid Gig',
-            body: `You have a new ${updatedBooking.project_category} booking (${updatedBooking.reference}). R${updatedBooking.total} — ${updatedBooking.duration_hours}hrs. Accept it in your gigs dashboard.`,
-            link: '/dashboard/gigs',
-          });
-        } catch { /* don't block webhook */ }
-      }
-
-      // Notify the client that payment was confirmed
-      if (updatedBooking?.client_id) {
-        try {
-          await supabase.from('notifications').insert({
-            user_id: updatedBooking.client_id,
-            type: 'booking_confirmed',
-            title: 'Payment Confirmed',
-            body: `Your ${updatedBooking.project_category} booking (${updatedBooking.reference}) is confirmed. The creator will be notified.`,
-            link: '/dashboard/bookings',
-          });
-        } catch { /* don't block webhook */ }
-      }
-    }
+    await confirmServiceBookingPayment(webhook);
   } else if (paymentType === 'subscription') {
     await confirmSubscriptionPayment(webhook);
   }
+}
+
+// ─── Service bookings ────────────────────────────────────────────────────────
+
+export type ServiceBookingConfirmation = 'confirmed' | 'already_paid' | 'rejected' | 'not_awaiting_payment';
+
+/**
+ * Confirmation of a creative service booking (bookings table) from a verified
+ * payment webhook. Like the gear and subscription branches, it confirms only
+ * when the payment matches what the booking asked for, and only from the
+ * awaiting-payment state:
+ *
+ *   - the booking is found by our reference, and the metadata booking id (when
+ *     present) is that booking;
+ *   - currency is ZAR and the amount, compared in integer cents, equals
+ *     bookings.total (whole rands, the amount sent to createCheckout);
+ *   - the update is a compare-and-set from status 'pending' + payment_status
+ *     'unpaid'. Zero rows changes nothing: a duplicate webhook for a paid
+ *     booking is a no-op, and a payment for a cancelled or refunded booking
+ *     never revives it; it is logged for a person to refund or review.
+ *
+ * Phase 6 security MONEY-1 (no amount check: R1 confirmed an R5 000 booking)
+ * and MONEY-2 (no state guard: a late charge revived a refunded booking).
+ */
+export async function confirmServiceBookingPayment(webhook: WebhookResult): Promise<ServiceBookingConfirmation> {
+  const { paymentId, providerPaymentId, amountGross, raw } = webhook;
+  const metadataBookingId = raw.custom_str2 ?? raw.customStr2 ?? '';
+  const supabase = createAdminClient();
+
+  const { data: booking, error: lookupErr } = await supabase
+    .from('bookings')
+    .select('id, reference, status, payment_status, total, creator_id, client_id, project_category, duration_hours')
+    .eq('reference', paymentId)
+    .maybeSingle();
+
+  // Without the booking there is nothing to check the amount against: never
+  // confirm blind. A read error is retried by the provider (throw).
+  if (lookupErr) {
+    console.error('[payment-webhook] Could not load the service booking; not confirmed:', paymentId, lookupErr.message);
+    throw new Error('service booking lookup failed');
+  }
+  if (!booking) {
+    console.error('[payment-webhook] Service payment for an unknown reference; nothing changed:', paymentId);
+    return 'rejected';
+  }
+
+  const reject = (reason: string): ServiceBookingConfirmation => {
+    console.error('[payment-webhook] Service booking NOT confirmed:', { reference: paymentId, reason });
+    logEvent({
+      eventType: 'service_payment_rejected',
+      eventCategory: 'payment',
+      userId: booking.client_id ?? null,
+      metadata: { reference: paymentId, bookingId: booking.id, providerPaymentId, reason },
+    });
+    return 'rejected';
+  };
+
+  if (metadataBookingId && metadataBookingId !== booking.id) {
+    return reject(`metadata booking ${metadataBookingId} is not ${booking.id}`);
+  }
+  const currency = (raw.currency ?? '').toUpperCase();
+  if (currency !== STUDIO.currency.code) {
+    return reject(`currency mismatch: received ${raw.currency ?? 'none'}`);
+  }
+  const expectedCents = Number.isFinite(Number(booking.total)) ? toCents(Number(booking.total)) : NaN;
+  const receivedCents = Number.isFinite(amountGross) ? toCents(amountGross) : NaN;
+  if (!Number.isSafeInteger(expectedCents) || expectedCents <= 0 || receivedCents !== expectedCents) {
+    // Flag a booking still awaiting payment for review; never touch one that
+    // has moved on.
+    await supabase
+      .from('bookings')
+      .update({
+        admin_notes: `AMOUNT MISMATCH: expected ${expectedCents} cents, received ${receivedCents} cents (${providerPaymentId}). Manual review required.`,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', booking.id)
+      .eq('status', 'pending')
+      .eq('payment_status', 'unpaid');
+    return reject(`amount mismatch: expected ${expectedCents} cents, received ${receivedCents} cents`);
+  }
+
+  const now = new Date().toISOString();
+  const { data: updated, error: updateErr } = await supabase
+    .from('bookings')
+    .update({
+      status: 'paid',
+      payment_status: 'paid',
+      paid_at: now,
+      paystack_reference: providerPaymentId,
+      updated_at: now,
+    })
+    .eq('id', booking.id)
+    .eq('status', 'pending')
+    .eq('payment_status', 'unpaid')
+    .select('id');
+
+  if (updateErr) {
+    console.error('[payment-webhook] Failed to confirm service booking:', updateErr.message);
+    throw new Error('service booking confirmation failed');
+  }
+  if (!updated || updated.length === 0) {
+    if (booking.payment_status === 'paid') {
+      console.log(`[payment-webhook] Service booking already paid, nothing changed: ref=${paymentId}`);
+      return 'already_paid';
+    }
+    // Paid for a booking that is cancelled, refunded or otherwise no longer
+    // awaiting payment: the money needs a person (refund), the booking stays.
+    console.error('[payment-webhook] Service payment for a booking no longer awaiting payment; needs manual review:', {
+      reference: paymentId,
+      status: booking.status,
+      paymentStatus: booking.payment_status,
+      providerPaymentId,
+    });
+    logEvent({
+      eventType: 'service_payment_not_awaiting',
+      eventCategory: 'payment',
+      userId: booking.client_id ?? null,
+      metadata: { reference: paymentId, bookingId: booking.id, providerPaymentId, status: booking.status, paymentStatus: booking.payment_status },
+    });
+    return 'not_awaiting_payment';
+  }
+
+  console.log(`[payment-webhook] Service booking confirmed: ref=${paymentId} booking=${booking.id}`);
+
+  // Notify the creator they have a new paid gig
+  if (booking.creator_id) {
+    try {
+      await supabase.from('notifications').insert({
+        user_id: booking.creator_id,
+        type: 'gig_request',
+        title: 'New Paid Gig',
+        body: `You have a new ${booking.project_category} booking (${booking.reference}). R${booking.total} — ${booking.duration_hours}hrs. Accept it in your gigs dashboard.`,
+        link: '/dashboard/gigs',
+      });
+    } catch { /* don't block webhook */ }
+  }
+
+  // Notify the client that payment was confirmed
+  if (booking.client_id) {
+    try {
+      await supabase.from('notifications').insert({
+        user_id: booking.client_id,
+        type: 'booking_confirmed',
+        title: 'Payment Confirmed',
+        body: `Your ${booking.project_category} booking (${booking.reference}) is confirmed. The creator will be notified.`,
+        link: '/dashboard/bookings',
+      });
+    } catch { /* don't block webhook */ }
+  }
+  return 'confirmed';
 }
 
 // ─── Subscriptions ───────────────────────────────────────────────────────────
