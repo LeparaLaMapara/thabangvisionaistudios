@@ -425,6 +425,17 @@ export const STUDIO = {
     },
     // Images one "analyze-portfolio" request may ask the server to fetch.
     portfolioAnalyzeMaxImages: 12,
+    // Direct browser uploads signed by /api/cloudinary/sign
+    // (lib/storage/upload-policy.ts). The server decides the folder (every
+    // non-admin upload lands under userRoot/<user id>/), never signs a
+    // client public_id, and signs allowed_formats so nothing but these file
+    // types can be stored (no SVG, HTML, PDF or raw files).
+    uploads: {
+      userRoot: 'thabangvision_usecase/users',
+      imageFormats: ['jpg', 'jpeg', 'png', 'webp', 'heic', 'heif', 'avif', 'gif'],
+      // Portfolio project videos (STUDIO.creators.portfolio.acceptedVideoTypes).
+      videoFormats: ['mp4'],
+    },
   },
 
   ai: {

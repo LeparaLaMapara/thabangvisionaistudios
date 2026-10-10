@@ -182,14 +182,16 @@ export default function ProfileEditPage() {
         throw new Error(err.error || 'Failed to sign upload.');
       }
 
-      const { signature, timestamp, cloudName, apiKey } = await signRes.json();
+      const { signature, cloudName, apiKey, params } = (await signRes.json()) as {
+        signature: string; cloudName: string; apiKey: string; params: Record<string, string>;
+      };
 
+      // Post exactly what the server signed (it chooses the folder).
       const formData = new FormData();
       formData.append('file', file);
       formData.append('signature', signature);
-      formData.append('timestamp', timestamp);
       formData.append('api_key', apiKey);
-      formData.append('folder', folder);
+      for (const [k, v] of Object.entries(params)) formData.append(k, v);
 
       const uploadRes = await fetch(
         `https://api.cloudinary.com/v1_1/${cloudName}/image/upload`,

@@ -1,8 +1,9 @@
 export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
-import { requireAuth, checkRateLimit } from '@/lib/auth';
+import { requireAuth, checkRateLimit, isAdmin } from '@/lib/auth';
 import { storage } from '@/lib/storage';
+import { uploadPolicy } from '@/lib/storage/upload-policy';
 
 /**
  * POST /api/cloudinary/sign
@@ -29,27 +30,38 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const { paramsToSign } = await req.json();
-  const params = paramsToSign as Record<string, string>;
+  let body: unknown;
+  try {
+    body = await req.json();
+  } catch {
+    return NextResponse.json({ error: 'Invalid JSON body.' }, { status: 400 });
+  }
+  const requested = ((body as { paramsToSign?: unknown } | null)?.paramsToSign ?? {}) as Record<string, unknown>;
+  if (typeof requested !== 'object' || requested === null) {
+    return NextResponse.json({ error: 'paramsToSign must be an object.' }, { status: 400 });
+  }
 
-  // H4: Validate upload parameters — enforce allowed resource types
-  const allowedResourceTypes = ['image', 'video', 'raw'];
-  if (params.resource_type && !allowedResourceTypes.includes(params.resource_type)) {
-    return NextResponse.json(
-      { error: `Invalid resource_type. Allowed: ${allowedResourceTypes.join(', ')}` },
-      { status: 400 },
-    );
+  // The SERVER decides what is signed (security INJ-5): a folder in the
+  // user's own namespace (admins may name one), image or video only, and
+  // allowed_formats. A client public_id or any other parameter is ignored.
+  const admin = await isAdmin(auth.user.id, auth.user.email);
+  const policy = uploadPolicy(auth.user.id, admin, requested);
+  if (!policy) {
+    return NextResponse.json({ error: 'Only image or video uploads can be signed.' }, { status: 400 });
   }
 
   try {
-    const folder = params.folder ?? '';
-    const signed = await storage.getSignedUploadParams(folder, params);
+    const signed = await storage.getSignedUploadParams(policy.folder, policy.params);
 
     return NextResponse.json({
       signature: signed.signature,
       timestamp: signed.timestamp,
       cloudName: signed.fields.cloud_name,
       apiKey: signed.fields.api_key,
+      // Post exactly these with the file (they are what was signed).
+      folder: policy.folder,
+      params: { ...policy.params, timestamp: signed.timestamp },
+      resourceType: policy.kind,
     });
   } catch (err) {
     console.error('[sign] Storage error:', err);
