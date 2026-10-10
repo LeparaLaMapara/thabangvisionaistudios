@@ -28,6 +28,11 @@ export default defineConfig({
     // block. Bypass CSP locally (production CSP is unchanged and still checked
     // by the default suite against the hosted project).
     bypassCSP: true,
+    // A browser always sends Origin with a POST/PUT/PATCH/DELETE; the
+    // journeys' direct API calls (page.request) must too, or proxy.ts's CSRF
+    // check refuses them (a session cookie with no Origin/Referer is exactly
+    // what security finding AUTH-4 closed).
+    extraHTTPHeaders: { Origin: new URL(process.env.BASE_URL || 'http://localhost:3000').origin },
     launchOptions: executablePath ? { executablePath } : {},
   },
   outputDir: '../../test-results/e2e-local',

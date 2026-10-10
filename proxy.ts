@@ -65,6 +65,68 @@ function maintenanceResponse(request: NextRequest): NextResponse | null {
   }
 }
 
+// ─── CSRF ────────────────────────────────────────────────────────────────────
+
+/** Supabase auth cookie (sb-<ref>-auth-token, possibly chunked .0/.1). */
+const SESSION_COOKIE = /^sb-.+-auth-token(\.\d+)?$/;
+
+/** Origins the app is served from: the app URL (+/- www) and this Vercel deployment's own URLs. */
+function allowedOrigins(): Set<string> {
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000';
+  const parsedUrl = new URL(appUrl);
+  const allowed = new Set<string>([parsedUrl.origin]);
+  // Allow both www and non-www variants of the same domain
+  if (parsedUrl.hostname.startsWith('www.')) {
+    allowed.add(`${parsedUrl.protocol}//${parsedUrl.hostname.slice(4)}`);
+  } else if (!['localhost', '127.0.0.1'].includes(parsedUrl.hostname)) {
+    allowed.add(`${parsedUrl.protocol}//www.${parsedUrl.hostname}`);
+  }
+  // Vercel previews: exactly this deployment's own hosts (set by Vercel at
+  // runtime). Before, any *.vercel.app origin containing "thabangvision" was
+  // trusted, which anyone can register.
+  for (const host of [process.env.VERCEL_URL, process.env.VERCEL_BRANCH_URL, process.env.VERCEL_PROJECT_PRODUCTION_URL]) {
+    if (host) allowed.add(`https://${host}`);
+  }
+  return allowed;
+}
+
+function originOf(value: string | null): string | null {
+  if (!value) return null;
+  try {
+    return new URL(value).origin;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Refuses a cross-site state-changing API request. Webhooks and cron are
+ * server-to-server (signed / bearer secret) and exempt.
+ *   - An Origin header (including "null") must be one of ours.
+ *   - With NO Origin header, a request that carries a Supabase session cookie
+ *     must have a Referer from one of our origins (security AUTH-4: the
+ *     check used to be skipped whenever Origin was absent). A request with
+ *     neither Origin nor a session cookie cannot act as anyone, so it passes.
+ * Exported for tests.
+ */
+export function csrfRejection(request: NextRequest): NextResponse | null {
+  const path = request.nextUrl.pathname;
+  const isApiMutation = path.startsWith('/api/') && ['POST', 'PUT', 'DELETE', 'PATCH'].includes(request.method);
+  const isExempt = path.startsWith('/api/webhooks/') || path.startsWith('/api/cron/');
+  if (!isApiMutation || isExempt) return null;
+
+  const allowed = allowedOrigins();
+  const origin = request.headers.get('origin');
+  const refuse = () => NextResponse.json({ error: 'Invalid origin.' }, { status: 403 });
+
+  if (origin !== null) return allowed.has(origin) ? null : refuse();
+
+  const hasSession = request.cookies.getAll().some((c) => SESSION_COOKIE.test(c.name));
+  if (!hasSession) return null;
+  const refererOrigin = originOf(request.headers.get('referer'));
+  return refererOrigin && allowed.has(refererOrigin) ? null : refuse();
+}
+
 /**
  * Runs on every request matching the pattern below.
  * Silently refreshes the Supabase session token so Server Components
@@ -78,37 +140,9 @@ export async function proxy(request: NextRequest) {
   const maintenance = maintenanceResponse(request);
   if (maintenance) return maintenance;
 
-  // M1: CSRF protection — validate Origin header on mutation requests to /api/ routes
-  // Exemptions: PayFast ITN webhook (server-to-server, no Origin header)
-  const method = request.method;
-  const isApiMutation =
-    request.nextUrl.pathname.startsWith('/api/') &&
-    ['POST', 'PUT', 'DELETE', 'PATCH'].includes(method);
-  const isWebhook = request.nextUrl.pathname.startsWith('/api/webhooks/');
-
-  if (isApiMutation && !isWebhook) {
-    const origin = request.headers.get('origin');
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000';
-    const parsedUrl = new URL(appUrl);
-    const allowedOrigins = new Set<string>([parsedUrl.origin]);
-
-    // Allow both www and non-www variants of the same domain
-    if (parsedUrl.hostname.startsWith('www.')) {
-      allowedOrigins.add(`${parsedUrl.protocol}//${parsedUrl.hostname.slice(4)}`);
-    } else if (!['localhost', '127.0.0.1'].includes(parsedUrl.hostname)) {
-      allowedOrigins.add(`${parsedUrl.protocol}//www.${parsedUrl.hostname}`);
-    }
-
-    // Allow Vercel preview deployments
-    const isVercelPreview = origin?.endsWith('.vercel.app') && origin.includes('thabangvision');
-
-    if (origin && !allowedOrigins.has(origin) && !isVercelPreview) {
-      return NextResponse.json(
-        { error: 'Invalid origin.' },
-        { status: 403 },
-      );
-    }
-  }
+  // M1 / security AUTH-4: CSRF protection for state-changing /api requests.
+  const csrf = csrfRejection(request);
+  if (csrf) return csrf;
 
   let supabaseResponse = NextResponse.next({ request });
 
