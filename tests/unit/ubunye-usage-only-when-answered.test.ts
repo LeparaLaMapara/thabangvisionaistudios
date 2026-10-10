@@ -45,6 +45,8 @@ function fakeDb() {
         eq: () => b,
         single: async () => ({ data: null, error: null }),
         maybeSingle: async () => ({ data: null, error: null }),
+        update: () => b,
+        insert: async () => ({ error: null }),
       };
       return b;
     },
@@ -155,7 +157,7 @@ describe('signed-in Ubunye usage: reserve, then release if no reply starts', () 
     expect(state.modelCalls).toBe(0);
   });
 
-  it('before 078 is applied the message is answered but not counted (logged loudly)', async () => {
+  it('before 078 is applied the message is still answered, counted the pre-078 way (logged loudly)', async () => {
     state.rpcError = { code: 'PGRST202', message: 'Could not find the function public.ubunye_reserve_message' };
     const err = vi.spyOn(console, 'error').mockImplementation(() => undefined);
     const res = await ask();
@@ -172,5 +174,31 @@ describe('reserveMessage / releaseMessage', () => {
     expect(await reserveMessage(fakeDb(), { userId: 'u', date: '2026-10-10', limit: 1 })).toEqual({ kind: 'limit_reached' });
     await releaseMessage(fakeDb(), { userId: 'u', date: '2026-10-10' });
     expect(state.count).toBe(0);
+  });
+});
+
+// Deploying this build before 078 must never mean unlimited messages.
+describe('before 078 is applied (RPC missing)', () => {
+  function legacyDb() {
+    const row: { id: string; message_count: number } | null = null;
+    const t = { row: row as { id: string; message_count: number } | null };
+    const missing = { data: null, error: { code: 'PGRST202', message: 'Could not find the function' } };
+    const builder = () => ({
+      select: () => ({ eq: () => ({ eq: () => ({ maybeSingle: async () => ({ data: t.row ? { ...t.row } : null, error: null }) }) }) }),
+      update: (v: { message_count: number }) => ({ eq: async () => { if (t.row) t.row.message_count = v.message_count; return { error: null }; } }),
+      insert: async (v: { message_count: number }) => { t.row = { id: 'u1', message_count: v.message_count }; return { error: null }; },
+    });
+    return { t, db: { rpc: async () => missing, from: () => builder() } };
+  }
+
+  it('counts with the table, enforces the limit and gives a slot back', async () => {
+    const err = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const { t, db } = legacyDb();
+    expect(await reserveMessage(db, { userId: 'u', date: '2026-10-10', limit: 2 })).toEqual({ kind: 'reserved', count: 1 });
+    expect(await reserveMessage(db, { userId: 'u', date: '2026-10-10', limit: 2 })).toEqual({ kind: 'reserved', count: 2 });
+    expect(await reserveMessage(db, { userId: 'u', date: '2026-10-10', limit: 2 })).toEqual({ kind: 'limit_reached' });
+    await releaseMessage(db, { userId: 'u', date: '2026-10-10' });
+    expect(t.row?.message_count).toBe(1);
+    err.mockRestore();
   });
 });
