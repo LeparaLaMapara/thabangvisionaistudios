@@ -113,8 +113,8 @@ export default async function DashboardPage() {
         </h1>
         <p className="text-sm text-neutral-400 dark:text-neutral-400 font-mono mt-3">
           {isVerified
-            ? 'You are a verified creator. List gear, book equipment, and manage your orders.'
-            : 'Rent equipment, hire photographers, and explore the platform. Get verified to list your own gear and services.'}
+            ? 'Your ID is checked. Rent gear, list your own gear or offer your services, and follow all of it here.'
+            : 'Rent equipment, hire photographers, and explore the platform. Check your ID once to rent gear or to list your own gear and services.'}
         </p>
       </div>
 
@@ -234,14 +234,14 @@ export default async function DashboardPage() {
                   ? 'Verification pending'
                   : verificationStatus === 'rejected'
                     ? 'Resubmit verification'
-                    : 'Get verified (become a creator)'
+                    : 'Check your ID once'
               }
               description={
                 verificationStatus === 'pending'
                   ? `A person is checking your documents, ${STUDIO.verification.reviewTime}.`
                   : verificationStatus === 'rejected'
                     ? 'Verification was rejected. Please resubmit.'
-                    : 'Verification lets you list gear, accept gigs, and earn on the platform.'
+                    : 'Needed before your first gear rental, before your gear or services go live, and before a first payout.'
               }
               href="/dashboard/verification"
             />
