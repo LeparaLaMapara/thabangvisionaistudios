@@ -7,6 +7,7 @@ import { anthropic } from '@ai-sdk/anthropic';
 import { requireAuth, checkNotSuspended, checkRateLimit } from '@/lib/auth';
 import { createAdminClient } from '@/lib/supabase/server';
 import { trackedCompletion } from '@/lib/ai/tracked';
+import { releaseMessage, reserveMessage } from '@/lib/agents/usage';
 import {
   bioWriterAgent,
   buildBioWriterPrompt,
@@ -85,18 +86,19 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     );
   }
 
-  // Daily limit via ubunye_usage
+  // Daily limit via ubunye_usage: one slot RESERVED atomically before the
+  // model is called (078), given back if no bio is produced. The old
+  // read-then-write let parallel requests pass the cap (security LLM-6).
   const supabase = createAdminClient();
-  const today = getTodaySAST();
-  const { data: usage } = await supabase
-    .from('ubunye_usage')
-    .select('id, message_count')
-    .eq('user_id', auth.user.id)
-    .eq('date', today)
-    .single();
-
-  const currentCount = usage?.message_count ?? 0;
-  if (currentCount >= DAILY_LIMIT) {
+  const slot = { userId: auth.user.id, date: getTodaySAST() };
+  let reservation;
+  try {
+    reservation = await reserveMessage(supabase, { ...slot, limit: DAILY_LIMIT });
+  } catch (err) {
+    console.error('[agents/bio-writer] usage reserve failed:', err);
+    return NextResponse.json({ error: 'Bio generation is unavailable just now.' }, { status: 503 });
+  }
+  if (reservation.kind === 'limit_reached') {
     return NextResponse.json(
       { error: 'Daily bio-generation limit reached.', limit: DAILY_LIMIT },
       { status: 429 },
@@ -127,21 +129,15 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       },
     });
 
-    // Increment daily counter (fire-and-forget, after success)
-    if (usage) {
-      await supabase
-        .from('ubunye_usage')
-        .update({ message_count: currentCount + 1 })
-        .eq('id', usage.id);
-    } else {
-      await supabase
-        .from('ubunye_usage')
-        .insert({ user_id: auth.user.id, date: today, message_count: 1 });
-    }
-
     return NextResponse.json({ bio, samples: input.topSceneTypes.length });
   } catch (err) {
     console.error('[agents/bio-writer] error:', err);
+    // No bio was produced: the slot is given back.
+    try {
+      await releaseMessage(supabase, slot);
+    } catch (releaseErr) {
+      console.error('[agents/bio-writer] usage release failed:', releaseErr);
+    }
     return NextResponse.json(
       { error: 'Failed to generate bio. Please try again.' },
       { status: 500 },
