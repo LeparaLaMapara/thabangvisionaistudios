@@ -127,6 +127,13 @@ export interface ShipmentCustodyContext {
   items: readonly { bookingId: string; rentalId: string; ownerId: string | null }[];
   /** The booking's renter: the only person who can accept a delivery. */
   renterId: string;
+  /**
+   * Phase 8: the owner whose address is the gear's end of this leg (null or
+   * absent = our site). On a return leg to an owner's address, that owner
+   * confirms receipt AND condition of their own items (records `inspected`),
+   * because the gear never comes back to us (D-87).
+   */
+  originOwnerId?: string | null;
 }
 
 export type CustodyCheck =
@@ -159,7 +166,9 @@ export function checkCustodyEvent(e: CustodyEvent, ctx: ShipmentCustodyContext, 
   if (!legOk(e.kind, ctx.leg)) return { ok: false, code: 'wrong_leg', message: `${e.kind} does not happen on the ${ctx.leg} leg.` };
 
   const rule = RULES[e.kind];
-  if (!rule.actors.includes(e.actor.kind)) {
+  // D-87: the owner inspects their own items on a return to their own address.
+  const ownerInspects = e.kind === 'inspected' && e.actor.kind === 'owner' && ctx.leg === 'return' && !!ctx.originOwnerId && e.actor.id === ctx.originOwnerId;
+  if (!rule.actors.includes(e.actor.kind) && !ownerInspects) {
     return { ok: false, code: 'actor_not_allowed', message: `${e.actor.kind} cannot record ${e.kind}.` };
   }
   // D15: only the booking's own renter accepts or hands back as the renter.

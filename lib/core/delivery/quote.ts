@@ -52,6 +52,12 @@ export interface CustomerDeliveryQuote {
   /** Equipment booking lines and listings on the leg. */
   bookingIds: string[];
   rentalIds: string[];
+  /**
+   * Phase 8 (080): whose address the gear's end of the leg is. null/absent =
+   * our site; an owner's user id = that owner's pickup address (the outbound
+   * origin, the return destination).
+   */
+  originOwnerId?: string | null;
   /** Verified addresses (delivery_addresses ids), never raw text from the browser. */
   originAddressId: string;
   destinationAddressId: string;

@@ -835,6 +835,17 @@ export const DELIVERY_POLICY = {
     // shipments record coverage_verified = false.
     verifiedTransitCover: false,
   },
+  // FOUNDER DECISION (D-84..D-88, Phase 8): community gear can be collected
+  // from (and returned to) the owner's own verified pickup address instead of
+  // the owner bringing it to the studio. Only for a listing the owner opted in
+  // (per listing, default off, D-86), an owner whose ID is verified and who is
+  // not suspended, and a pickup address verified on the server inside the
+  // service area. Anything else: the gear goes from (and back to) the studio,
+  // as before. First-hire and high-value orders stay collection in person at
+  // the studio (D-85). false switches owner pickup off for new quotes.
+  ownerPickup: {
+    enabled: true,
+  },
   // FOUNDER DECISION (D-41): a verified goods-in-transit policy. Until a
   // policy reference is set and the founder confirms the wording covers
   // rented and community-owned camera gear in transit (spec §4.13), every

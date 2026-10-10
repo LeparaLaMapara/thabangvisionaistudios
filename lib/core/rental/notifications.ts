@@ -42,6 +42,12 @@ export const RENTAL_NOTICE_KINDS = [
   'delivery_incident',
   'delivery_cancelled',
   'delivery_fee_refund',
+  // Phase 8 owner pickup notices (to the OWNER of the gear, never renter
+  // details): a collection from their address is booked, the driver collected
+  // it, and the gear is back at their address (please confirm receipt).
+  'owner_pickup_scheduled',
+  'owner_pickup_collected',
+  'owner_gear_returned',
 ] as const;
 
 export type RentalNoticeKind = (typeof RENTAL_NOTICE_KINDS)[number];
@@ -82,6 +88,9 @@ export const NOTICE_CHANNELS: Record<RentalNoticeKind, readonly NoticeChannel[]>
   delivery_incident: ['in_app', 'email'],
   delivery_cancelled: ['in_app', 'email'],
   delivery_fee_refund: ['in_app', 'email'],
+  owner_pickup_scheduled: ['in_app', 'email'],
+  owner_pickup_collected: ['in_app'],
+  owner_gear_returned: ['in_app', 'email', 'sms'],
 };
 
 export interface OutboxMessage {
