@@ -34,18 +34,30 @@ The local config's email templates carry only the sign-in **link**, not the
 The specs read the email from Mailpit and, when it has no code, mint one
 through the local Auth admin API (`helpers/auth.ts emailCode`).
 
-## 2. Schema, in this order
+## 2. Schema
 
-Apply with `psql postgresql://postgres:postgres@127.0.0.1:54322/postgres -v ON_ERROR_STOP=1 -f <file>`:
+One command, from the repo root, against the empty local database:
 
-1. `supabase/migrations/20260311000000_base_schema.sql`
-2. `lib/migrations/001-*.sql` … `028-*.sql` (lexical order; where two files share a number, both, in name order)
-3. `supabase/migrations/20260411000001_user_suspension.sql` … `20260411000004_disputes.sql` (these stand in for 029)
-4. `lib/migrations/030-*.sql` … `076-*.sql`
-5. The local-only shims in `harness/` (each explains the real finding it works around):
-   - `shim-handle-new-user.sql`: production's signup trigger. The repo's 006 body inserts `profiles.email`, which 048 drops, so every sign-up fails without it.
-   - `shim-booking-payments-status.sql`: lets `confirm_rental_payment` (070) write `booking_payments.status = 'succeeded'`; the base CHECK allows only `complete`, which rolls back every webhook confirmation.
-6. `NOTIFY pgrst, 'reload schema';` so PostgREST picks up the final schema.
+```bash
+scripts/db/rebuild-local.sh postgresql://postgres:postgres@127.0.0.1:54322/postgres
+scripts/db/run-sql-tests.sh postgresql://postgres:postgres@127.0.0.1:54322/postgres   # optional: every *.test.sql
+```
+
+The script applies the canonical order (`--list` prints it; see
+[docs/database/README.md](../../docs/database/README.md)): the base schema,
+`lib/migrations` in name order with the four April files from
+`supabase/migrations/` before 029, through the latest migration, then asks
+PostgREST to reload its schema. It refuses any host that is not local.
+
+No local shims are needed any more. Migration 077 fixed the two findings the
+harness used to patch around: the signup trigger (`handle_new_user` inserted
+`profiles.email`, which 048 drops, so every sign-up failed) and the
+`booking_payments.status` CHECK (it refused the `succeeded` that
+`confirm_rental_payment` writes, which rolled back every gear payment
+confirmation).
+
+To start again: `supabase db reset` in the local Supabase folder, then run the
+script again.
 
 ## 3. Admin account
 
