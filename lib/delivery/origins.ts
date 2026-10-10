@@ -125,6 +125,9 @@ export class SupabaseOwnerPickup {
       },
       p_now: new Date().toISOString(),
     });
+    // The database checks for a live leg again under the per-owner lock (R-91): one that started
+    // between our check and the save keeps the address.
+    if (saved.error?.message?.includes('delivery_owner_pickup_leg_in_progress')) return { ok: false, code: 'leg_in_progress' };
     if (saved.error || !saved.data) throw new Error(`owner pickup save failed: ${saved.error?.message ?? 'no row'}`);
     const { data, error } = await this.db.from('delivery_addresses').select(PICKUP_COLS).eq('id', String(saved.data)).maybeSingle();
     if (error || !data) throw new Error(`owner pickup read-back failed: ${error?.message ?? 'no row'}`);

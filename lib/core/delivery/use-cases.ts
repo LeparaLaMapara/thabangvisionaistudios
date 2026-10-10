@@ -1306,8 +1306,9 @@ export async function confirmOwnerReturn(
   const already = itemChain.some((x) => x.kind === 'received_by_owner');
   const now = deps.clock.now();
 
-  if (problem && input.problem?.kind === 'lost' && !already) return ownerReportsMissing(s, { ...input, caller: c }, detail, deps);
+  // Before the gear has left the renter there is nothing to receive, and nothing to report missing either.
   if (!ownerMayConfirmReturn(s.status, itemChain)) return NOT_RETURNED_YET;
+  if (problem && input.problem?.kind === 'lost' && !already) return ownerReportsMissing(s, { ...input, caller: c }, detail, deps);
   const refunded = await feeRefunded(s, deps.repo);
 
   const inspect = (sh: Shipment, e: CustodyEvent, chain: CustodyEvent[], t: ShipmentTransition): void => {
@@ -1403,7 +1404,8 @@ async function ownerReportsMissing(
   t.incidents.push(incident);
   t.notices.push(
     ...buildNotices({ kind: 'delivery_incident', userId: s.renterId, bookingIds: [item.bookingId], discriminator: `${s.id}:incident:${incident.id}` }),
-    ...staffAlert('delivery_owner_return_lost', s.merchantReference),
+    // One alert per missing ITEM: a second item missing from the same leg is its own alert.
+    ...staffAlert('delivery_owner_return_lost', `${s.merchantReference}:${item.bookingId}:${item.rentalId}`),
   );
   const r = await deps.repo.transitionShipment(t);
   if (r === 'conflict') return refuse('conflict', 'This delivery changed at the same time. Please try again.');
@@ -1880,9 +1882,10 @@ export async function refundUnusedDeliveryQuote(
   const notices: OutboxMessage[] = [];
   if (fee > 0) {
     notices.push(...buildNotices({ kind: 'delivery_fee_refund', userId: q.renterId, bookingIds: q.bookingIds, discriminator: `${ref}:fee_refund`, data: { amountCents: fee } }));
-    // Keyed per QUOTE (P3.2): two unused quotes of one order with the same leg and fee (two owners'
-    // trips at the minimum fee) are two refunds, and the second alert must not be dropped as a duplicate.
-    notices.push(...staffAlert(manual ? 'delivery_manual_fee_refund_due' : 'delivery_unused_quote_refunded', `${q.bookingGroupId}:${q.leg}${originDiscriminator(q.originOwnerId)}:${fee}:${q.id}`));
+    // An owner trip is keyed per QUOTE (P3.2): two owners' trips on one order with the same leg and fee
+    // (both at the minimum) are two refunds, and the second alert must not be dropped as a duplicate.
+    // Our site's key is unchanged.
+    notices.push(...staffAlert(manual ? 'delivery_manual_fee_refund_due' : 'delivery_unused_quote_refunded', `${q.bookingGroupId}:${q.leg}${originDiscriminator(q.originOwnerId)}:${fee}${q.originOwnerId ? `:${q.id}` : ''}`));
   }
   const r = await deps.repo.refundUnusedQuote({
     quoteId: q.id,

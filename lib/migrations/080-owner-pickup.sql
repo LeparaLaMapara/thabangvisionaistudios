@@ -70,7 +70,9 @@
 --        and store the new one in ONE statement's transaction, so a failed
 --        insert never leaves the owner with no address (the unique index
 --        allows one active row, so the new row cannot go in first).
---        SECURITY DEFINER, pinned search_path, service_role only.
+--        SECURITY DEFINER, pinned search_path, service_role only. Refuses
+--        while a leg from or back to the address is under way, checked under
+--        a per-owner lock that delivery_create_shipment also takes (R-91).
 --
 -- SAFETY
 --   One transaction (a failure leaves nothing applied). Additive and
@@ -167,6 +169,12 @@ declare
   v_quote_status text;
   v_origin uuid := nullif(p_shipment ->> 'originOwnerId', '')::uuid;
 begin
+  -- A leg from (or back to) an owner's address takes the same per-owner lock
+  -- as delivery_save_owner_pickup, so a save and a new leg never interleave:
+  -- whichever is second sees the other (R-91).
+  if v_origin is not null then
+    perform pg_advisory_xact_lock(hashtext('delivery_save_owner_pickup'), hashtext(v_origin::text));
+  end if;
   -- The quote must still be payable or paid. Locked, so it cannot be refunded
   -- (delivery_refund_quote) while a leg is being made from it.
   select status into v_quote_status from public.delivery_quotes where id = (p_shipment ->> 'quoteId')::uuid for update;
@@ -372,6 +380,17 @@ begin
   -- One save per owner at a time: two racing saves would both retire, and the
   -- second insert would hit the one-active-row index.
   perform pg_advisory_xact_lock(hashtext('delivery_save_owner_pickup'), hashtext(p_owner::text));
+  -- Checked again under the lock (the app checks first, outside it): a leg
+  -- from or back to this owner's address that is still under way keeps the
+  -- address. Same rule as the app's LIVE_LEG (lib/delivery/origins.ts).
+  if exists (
+    select 1 from public.delivery_shipments
+     where origin_owner_id = p_owner
+       and status not in ('cancelled', 'failed')
+       and not (status = 'delivered' and accepted_at is not null)
+  ) then
+    raise exception 'delivery_owner_pickup_leg_in_progress' using errcode = 'P0001';
+  end if;
   update public.delivery_addresses
      set retired_at = coalesce(p_now, now())
    where user_id = p_owner and purpose = 'owner_pickup' and retired_at is null;

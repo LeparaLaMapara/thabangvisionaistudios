@@ -251,6 +251,32 @@ describe('P3.1: the owner reports an item missing: incident only, nothing receiv
   });
 });
 
+// ── Round 2: "missing" waits for the gear to leave the renter; one alert per item ──
+
+describe('round 2: a missing report is refused while the renter still has the gear', () => {
+  it('a scheduled return: not_returned_yet, no incident, no alert', async () => {
+    const w = originWorld();
+    await paidAndDispatched(w);
+    await deliverOwnerAOutbound(w);
+    const r = legOf(w, 'return', OWNER_A);
+    const res = await confirmOwnerReturn({ caller: ownerA, shipmentId: r.id, bookingId: 'bk-a', rentalId: LENS_A, evidence: PHOTO, outcome: 'problem', problem: { kind: 'lost', description: 'Never arrived' } }, w.deps);
+    expect(res).toMatchObject({ ok: false, code: 'not_returned_yet' });
+    expect(w.repo.incidents.size).toBe(0);
+    expect([...w.repo.outbox.values()].some((n) => (n.data as { what?: string }).what === 'delivery_owner_return_lost')).toBe(false);
+  });
+
+  it('once collected, the staff alert names the missing item, not just the leg', async () => {
+    const w = originWorld();
+    await paidAndDispatched(w);
+    await deliverOwnerAOutbound(w);
+    const r = legOf(w, 'return', OWNER_A);
+    await confirmCollection({ caller: staff, shipmentId: r.id, bookingId: 'bk-a', rentalId: LENS_A, evidence: PHOTO }, w.deps);
+    await confirmOwnerReturn({ caller: ownerA, shipmentId: r.id, bookingId: 'bk-a', rentalId: LENS_A, evidence: PHOTO, outcome: 'problem', problem: { kind: 'lost', description: 'Never arrived' } }, w.deps);
+    const alerts = [...w.repo.outbox.values()].filter((n) => (n.data as { what?: string }).what === 'delivery_owner_return_lost');
+    expect(alerts.map((n) => (n.data as { reference: string }).reference)).toEqual([`${r.merchantReference}:bk-a:${LENS_A}`]);
+  });
+});
+
 // ── P3.2: one staff alert per unused quote refunded ──────────────────────────
 
 describe('P3.2: two owner-origin quotes with the same fee each raise their own refund alert', () => {
@@ -264,6 +290,17 @@ describe('P3.2: two owner-origin quotes with the same fee each raise their own r
     for (const q of owners) expect(await refundUnusedDeliveryQuote({ caller: staff, quoteId: q.id, reason: 'not run' }, w.deps)).toMatchObject({ ok: true, outcome: 'refunded', refundCents: 25_000 });
     const alerts = [...w.repo.outbox.values()].filter((n) => n.userId === 'staff' && (n.data as { what?: string }).what === 'delivery_unused_quote_refunded');
     expect(alerts).toHaveLength(2);
+  });
+
+  it('a studio quote keeps its pre-Phase-8 alert key (no quote id)', async () => {
+    const w = originWorld();
+    const r = await quoteCartDelivery({ caller: renter, renterId: RENTER, renterAddressId: RENTER_HOME, siteAddressId: OFFICE, lines: MIXED_LINES, legs: [{ leg: 'outbound', window: OUT_WINDOW }], bookingGroupId: GROUP }, w.deps);
+    if (!r.ok) throw new Error(r.code);
+    const studio = r.quotes.find((q) => !q.originOwnerId)!;
+    Object.assign(w.repo.quotes.get(studio.id)!, { status: 'paid', paidReference: 'pay-ref-1', bookingGroupId: GROUP, customerFeeCents: 25_000, providerCostCents: 25_000, quoteAmountCents: 25_000 });
+    expect(await refundUnusedDeliveryQuote({ caller: staff, quoteId: studio.id, reason: 'not run' }, w.deps)).toMatchObject({ ok: true, outcome: 'refunded' });
+    const alert = [...w.repo.outbox.values()].find((n) => (n.data as { what?: string }).what === 'delivery_unused_quote_refunded');
+    expect((alert?.data as { reference: string }).reference).toBe(`${GROUP}:outbound:25000`);
   });
 });
 
@@ -384,6 +421,10 @@ describe('P3.5: replacing the pickup address is one database transaction', () =>
     const db = fakeDb([], { rpcError: 'new row violates check constraint' });
     await expect(new SupabaseOwnerPickup(db as never).save(input)).rejects.toThrow(/owner pickup save failed/);
     expect(db.ops.some((o) => o.startsWith('update:') || o.startsWith('insert:'))).toBe(false);
+  });
+  it('a leg that started after our check: the database refuses under its lock, and the owner is told a pickup is under way (R-91)', async () => {
+    const db = fakeDb([], { rpcError: 'delivery_owner_pickup_leg_in_progress' });
+    expect(await new SupabaseOwnerPickup(db as never).save(input)).toEqual({ ok: false, code: 'leg_in_progress' });
   });
 });
 

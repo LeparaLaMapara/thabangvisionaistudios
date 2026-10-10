@@ -412,13 +412,31 @@ begin
      or (select formatted_address from public.delivery_addresses where id = v_new) <> '5 New Road, Melville' then
     raise exception 'FAIL 10: the save did not leave exactly the new address active (% active)', n;
   end if;
+  -- A leg from owner C's address that started after the app's own check: the
+  -- database refuses the change under the per-owner lock, and the address stays (R-91).
+  insert into public.delivery_shipments (booking_group_id, leg, attempt, origin_owner_id, renter_id, items, provider, provider_kind, quote_id, merchant_reference, status, quote_amount_cents, customer_fee_cents, origin_address_id, destination_address_id)
+  values (grp2, 'outbound', 1, owner_c, renter, '[]', 'manual', 'own_fleet', q2, 'tvd_p8g2_o1_c', 'scheduled', 100, 100, v_new, home);
+  begin
+    perform public.delivery_save_owner_pickup(owner_c, jsonb_build_object('formatted_address', '6 Later Road, Melville', 'suburb', 'Melville', 'city', 'Johannesburg',
+      'province', 'Gauteng', 'lat', -26.17, 'lng', 28.0, 'contact_name', 'Cebo', 'contact_phone', '0000000005', 'verified_by', 'test'), now());
+    raise exception 'FAIL 10: the pickup address changed under a leg that is under way';
+  exception when raise_exception then
+    if sqlerrm not like '%delivery_owner_pickup_leg_in_progress%' then raise; end if;
+  end;
+  if (select retired_at from public.delivery_addresses where id = v_new) is not null then
+    raise exception 'FAIL 10: a refused save retired the address a live leg uses';
+  end if;
+  -- A new leg from an owner's address takes the same per-owner lock as the save.
+  if (select prosrc from pg_proc where proname = 'delivery_create_shipment') not like '%pg_advisory_xact_lock(hashtext(''delivery_save_owner_pickup'')%' then
+    raise exception 'FAIL 10: delivery_create_shipment does not take the per-owner pickup lock';
+  end if;
   if has_function_privilege('authenticated', 'public.delivery_save_owner_pickup(uuid, jsonb, timestamptz)', 'execute')
      or has_function_privilege('anon', 'public.delivery_save_owner_pickup(uuid, jsonb, timestamptz)', 'execute')
      or exists (select 1 from pg_proc p where p.proname in ('delivery_save_owner_pickup', 'delivery_cancelled_orders_to_settle')
                   and (not p.prosecdef or not p.proconfig @> array['search_path=public, pg_temp'])) then
     raise exception 'FAIL 10: delivery_save_owner_pickup / the sweep is callable by a client or lost its definer settings';
   end if;
-  raise notice 'PASS 10: an owner''s pickup address is replaced atomically, by the server only';
+  raise notice 'PASS 10: an owner''s pickup address is replaced atomically, by the server only, never under a live leg';
 end $$;
 
 select 'ALL 080 CHECKS PASSED' as result;
