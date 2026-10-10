@@ -136,7 +136,9 @@ export async function noticeData(
   m: Pick<OutboxMessage, 'kind' | 'bookingIds' | 'data'>,
 ): Promise<OutboxMessage['data']> {
   if (m.kind !== 'booking_confirmed' || m.bookingIds.length === 0) return m.data;
-  const { data } = await db.from('equipment_bookings').select('fulfilment_method').in('id', m.bookingIds);
+  const { data, error } = await db.from('equipment_bookings').select('fulfilment_method').in('id', m.bookingIds);
+  // Never guess "collection" on a failed read: the delivery is retried instead.
+  if (error) throw new Error(`fulfilment lookup failed: ${error.message}`);
   const delivery = ((data ?? []) as { fulfilment_method?: string | null }[]).some((b) => b.fulfilment_method === 'delivery');
   return { ...m.data, delivery };
 }
@@ -144,7 +146,13 @@ export async function noticeData(
 export const supabaseNotify: NotifyPort = {
   async deliver(m) {
     const db = createAdminClient();
-    const { title, body } = rentalNoticeText(m.kind, await noticeData(db, m));
+    let facts: OutboxMessage['data'];
+    try {
+      facts = await noticeData(db, m);
+    } catch (err) {
+      return { ok: false, retryable: true, message: err instanceof Error ? err.message : 'notice data unavailable' };
+    }
+    const { title, body } = rentalNoticeText(m.kind, facts);
     const link = linkFor(m);
 
     if (m.channel === 'in_app') {

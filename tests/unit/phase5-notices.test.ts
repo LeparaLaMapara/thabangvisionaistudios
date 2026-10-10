@@ -88,3 +88,11 @@ describe('booking confirmed reads fulfilment_method, like the reminder', () => {
     expect(await noticeData(db([]) as any, other)).toBe(other.data);
   });
 });
+
+describe('a failed fulfilment lookup is retried, never sent as collection', () => {
+  it('noticeData throws on a query error', async () => {
+    const failing = { from: () => { const q = { select: () => q, in: async () => ({ data: null, error: { message: 'timeout' } }) }; return q; } };
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await expect(noticeData(failing as any, { kind: 'booking_confirmed', bookingIds: ['b1'], data: {} })).rejects.toThrow(/fulfilment lookup failed/);
+  });
+});

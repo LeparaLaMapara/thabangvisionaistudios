@@ -401,6 +401,9 @@ export default function ServiceBookingsList({ bookings }: { bookings: ServiceBoo
           onFiled={() => {
             setReported((r) => ({ ...r, [reportFor]: true }));
             setReportFor(null);
+            // Filing a report moves the booking to "disputed": reload so it no
+            // longer offers cancel / approve / changes the server would refuse.
+            setTimeout(() => window.location.reload(), 2500);
           }}
         />
       )}
