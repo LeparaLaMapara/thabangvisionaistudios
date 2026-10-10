@@ -398,6 +398,18 @@ begin
   end;
 end $$;
 
+-- E10: no self-published marketplace listings.
+do $$
+begin
+  begin
+    insert into public.listings (user_id, type, title, slug, is_published)
+    values (auth.uid(), 'sell', 't077 spam', 't077-spam-' || gen_random_uuid(), true);
+    raise exception 'FAIL E10: a signed-in user published a marketplace listing directly';
+  exception when insufficient_privilege then
+    raise notice 'PASS E10: a signed-in user cannot publish a marketplace listing directly';
+  end;
+end $$;
+
 -- E7: the creator saves their own onboarding progress and portfolio analysis.
 do $$ begin perform set_config('request.jwt.claims', json_build_object('sub', current_setting('t077.creator'), 'role', 'authenticated')::text, true); end $$;
 do $$
@@ -458,6 +470,7 @@ begin
   end if;
   if has_table_privilege('authenticated', 'public.bookings', 'INSERT')
      or has_table_privilege('authenticated', 'public.platform_events', 'INSERT')
+     or has_table_privilege('authenticated', 'public.ai_token_usage', 'INSERT')   -- service-role-only policy
      or has_table_privilege('authenticated', 'public.profiles', 'TRUNCATE') then
     raise exception 'FAIL E5: authenticated keeps a write grant no policy uses';
   end if;

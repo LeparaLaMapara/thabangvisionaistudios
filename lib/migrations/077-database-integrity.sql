@@ -69,13 +69,14 @@
 --          TRIGGER on every ThabangVision table (no policy lets anon write
 --          after E2). authenticated loses TRUNCATE/REFERENCES/TRIGGER, and
 --          INSERT/UPDATE/DELETE wherever no policy for that command reaches
---          it (RLS refused those writes already; this removes the reliance
---          on RLS alone). Other apps' tables in public are not touched.
+--          it, a service-role-only policy not counting (RLS refused those
+--          writes already; this removes the reliance on RLS alone). Other
+--          apps' tables in public are not touched.
 --      E6. Functions: every SECURITY DEFINER function in public gets pg_temp
 --          last in its search_path (other apps' kb_/blog_/apps_ functions
---          excluded); trigger functions and
---          caller_owns_rental are no longer executable by anon; three
---          invoker trigger functions get a pinned search_path.
+--          excluded); trigger functions and caller_owns_rental are no longer
+--          executable by anon; three invoker trigger functions get a pinned
+--          search_path.
 --      E7. onboarding_progress and portfolio_analysis had RLS on and no
 --          policy, so the onboarding page's progress upsert and the portfolio
 --          agent's analysis insert (both as the signed-in creator) were
@@ -86,6 +87,14 @@
 --          review ("Public can view published reviews" + a table-wide
 --          SELECT grant). Clients may now select every column except it; no
 --          code reads it.
+--      E10. listings (marketplace): any signed-in user could INSERT a row
+--          already published (the insert policy checked only user_id) or
+--          UPDATE their own to is_published / is_featured. Published listings
+--          feed the sitemap, search and Ubunye's system prompt, so this was
+--          an unreviewed path into all three. Nothing in the app writes
+--          listings with a user session (createListing/updateListing have no
+--          callers); the owner INSERT and UPDATE policies are dropped. Owners
+--          keep DELETE of their own rows; admins keep everything.
 --
 -- SAFE TO RE-RUN. Additive except where noted: A rewrites 'complete' rows,
 -- C narrows public_profiles, E drops the policies named above and revokes
@@ -347,6 +356,10 @@ end $$;
 -- ═══ E4. orders ════════════════════════════════════════════════════════════
 drop policy if exists "Buyers can create orders" on public.orders;
 
+-- ═══ E10. listings ═════════════════════════════════════════════════════════
+drop policy if exists "Users can create own listings" on public.listings;
+drop policy if exists "Users can update own listings" on public.listings;
+
 -- ═══ E7. onboarding_progress / portfolio_analysis own rows ════════════════
 do $$
 begin
@@ -393,7 +406,11 @@ begin
             where p.schemaname = 'public' and p.tablename = t.relname
               and p.cmd in (v_cmd, 'ALL')
               and p.roles && array['public', 'authenticated']::name[]
-              and coalesce(p.qual, '') <> 'false')
+              and coalesce(p.qual, '') <> 'false'
+              -- "auth.role() = 'service_role'" policies admit nobody but the
+              -- service role, which bypasses RLS anyway.
+              and not (coalesce(p.qual, '') in ('', '(auth.role() = ''service_role''::text)')
+                       and coalesce(p.with_check, '') in ('', '(auth.role() = ''service_role''::text)')))
       then
         execute format('revoke %s on public.%I from authenticated', v_cmd, t.relname);
         v_revoked := v_revoked || (t.relname || ':' || v_cmd);
@@ -510,4 +527,7 @@ notify pgrst, 'reload schema';
 -- --     drop policy "Creators add own portfolio analysis" on public.portfolio_analysis;
 -- -- E8: grant select on public.unmet_demand_summary to anon, authenticated;
 -- -- E9: grant select on public.reviews to anon, authenticated;
+-- -- E10: create policy "Users can create own listings" on public.listings for insert with check (auth.uid() = user_id);
+-- --      create policy "Users can update own listings" on public.listings for update using (auth.uid() = user_id);
+-- --      grant insert, update on public.listings to authenticated;
 -- commit;
