@@ -2,6 +2,26 @@ import { NextResponse } from 'next/server';
 import { ADMIN_EMAILS } from '@/lib/constants';
 import type { AuthProvider, AuthUser, AuthResult } from './types';
 
+// ─── Break-glass admin (ADMIN_EMAILS) ────────────────────────────────────────
+
+export interface BreakGlassUser {
+  id: string;
+  email?: string | null;
+  email_confirmed_at?: string | null;
+}
+
+/**
+ * True only when the session's user is the user being checked, their email is
+ * in ADMIN_EMAILS, and that email has been confirmed (email_confirmed_at set
+ * by Supabase Auth after the mailbox owner proved control of it).
+ */
+export function isBreakGlassAdmin(sessionUser: BreakGlassUser | null | undefined, userId: string): boolean {
+  if (!sessionUser || sessionUser.id !== userId) return false;
+  const email = sessionUser.email?.toLowerCase();
+  if (!email || !ADMIN_EMAILS.some((a) => a.toLowerCase() === email)) return false;
+  return Boolean(sessionUser.email_confirmed_at);
+}
+
 // ─── Supabase Auth Provider ──────────────────────────────────────────────────
 
 export const supabaseAuth: AuthProvider = {
@@ -51,14 +71,18 @@ export const supabaseAuth: AuthProvider = {
     return { user: auth.user };
   },
 
-  async isAdmin(userId: string, email?: string): Promise<boolean> {
+  async isAdmin(userId: string): Promise<boolean> {
+    // The session's own user record, fresh from the Auth server (getUser()
+    // validates the token with Supabase Auth; it is not a decoded JWT).
+    let sessionUser: BreakGlassUser | null = null;
     try {
       const { createClient } = await import('@/lib/supabase/server');
       const supabase = await createClient();
 
-      // Primary: check app_metadata.role from JWT (set via Supabase dashboard or service role)
+      // Primary: check app_metadata.role (set via Supabase dashboard or service role)
       const { data: { user } } = await supabase.auth.getUser();
-      if (user?.app_metadata?.role === 'admin') return true;
+      sessionUser = user ?? null;
+      if (user && user.id === userId && user.app_metadata?.role === 'admin') return true;
 
       // Secondary: check profiles.role column
       const { data } = await supabase
@@ -76,13 +100,13 @@ export const supabaseAuth: AuthProvider = {
       console.error('[isAdmin] role lookup failed, falling back to ADMIN_EMAILS:', err);
     }
 
-    // Break-glass, not a fallback that widens access: ADMIN_EMAILS is a fixed
-    // one-address allowlist, checked against the email on the authenticated
-    // session. It cannot be forged without control of that mailbox, and it
-    // exists so a database fault cannot lock the owner out of their own admin.
-    if (email && ADMIN_EMAILS.includes(email.toLowerCase())) return true;
-
-    return false;
+    // Break-glass (CLAUDE.md level 3): ADMIN_EMAILS, a fixed allowlist, so a
+    // database fault cannot lock the owner out of their own admin. Checked
+    // against the AUTHENTICATED session's own user, never a passed-in email,
+    // and only once that address has been CONFIRMED (Phase 6 security AUTH-1:
+    // anyone who could open a session under the address, e.g. a sign-up with
+    // e-mail confirmation off, got full admin).
+    return isBreakGlassAdmin(sessionUser, userId);
   },
 
   async signOut(): Promise<void> {
