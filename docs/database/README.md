@@ -73,7 +73,7 @@ passed on that database with no shims.
 
 ## Applying migrations to dev or production by hand
 
-Production has 001–066 applied; **067–078 are applied nowhere yet**. Apply
+Production has 001–066 applied; **067–079 are applied nowhere yet**. Apply
 them to DEV first, in order, each followed by its test, and record the output
 in the evidence documents ([phase-0](../security/phase-0-db-evidence.md),
 [phase-1](../security/phase-1-db-evidence.md)). Production only after the
@@ -103,7 +103,8 @@ ROLLBACK and creates its own throwaway users and rows.
 | 10 | `076-delivery.sql` | `076-…test.sql` | |
 | 11 | `077-database-integrity.sql` | `077-…test.sql`, then `rls-coverage.test.sql` | **Deploy the app first** (the build with `getBusyCreatorIds`, see "Deploy order for 077"). Run `scripts/db/precheck-077.sql` first (below). Keep the NOTICE output: it lists rewritten payment rows, dropped CHECKs, authenticated grants revoked, objects left untouched, and non-creators marked available for hire |
 | 12 | `078-ubunye-usage-reserve.sql` | `078-…test.sql`, then `scripts/db/078-concurrency.test.sh` (local only) | Atomic Ubunye message slots (D-68). Apply with the Phase 5 build: without it that build answers signed-in messages without counting them (logged); the older build keeps working with it |
-| 13 | — | `notify pgrst, 'reload schema';` | 077 and 078 do this themselves |
+| 13 | `079-security-phase-6.sql` | `079-…test.sql`, then `rls-coverage.test.sql` | Phase 6 security (docs/security/phase-6-assessment.md): `is_admin()` trusts `profiles.role` over a stale JWT, `admin_revoke_user_sessions()`, suspended accounts cannot write cart/banking/reviews, no `<`/`>` in names and places. Independent of the app build (the Phase 6 build calls `admin_revoke_user_sessions`; without 079 the role/suspend routes still work and report `sessions_revoked: false`). On a hosted project, check the test's B2 passes: the function needs DELETE on `auth.sessions` as its owner |
+| 14 | — | `notify pgrst, 'reload schema';` | 077, 078 and 079 do this themselves |
 
 Any time later: `rls-coverage.test.sql` after every new migration.
 

@@ -142,6 +142,18 @@ See `docs/experience/principles.md` and `docs/experience/journey-review.md`.
 | D-75 | An email to a client who cancels a shoot | REQUIRES_FOUNDER_APPROVAL | The outcome (refund sent, none due, or a person completing it) is shown on screen only; staff get an email, the client does not | `PATCH /api/service-bookings/[id]/status` (cancel) |
 | D-76 | The return cut-off for collected gear | REQUIRES_FOUNDER_APPROVAL | Ops rule: due back by the end of the end date (SAST). The counter's published hours end at 18:00 (14:00 Saturday). The booking page says "return on <date> to the collection point (hours)". Decide the cut-off customers are told | `lib/rental/next-step.ts`, `docs/operations/handover-and-returns.md` |
 
+### Phase 6: security (2026-10-10)
+
+See `docs/security/phase-6-assessment.md`.
+
+| # | Question | Status | What the code does now | Where encoded |
+|---|---|---|---|---|
+| D-77 | Content-Security-Policy for scripts | DEFAULT (security) | A per-request nonce + `'strict-dynamic'`; no `'unsafe-inline'` for scripts (INJ-3). Works because every page is rendered per request; a page that is ever prerendered (static/ISR) would ship without nonces and its scripts would be blocked, so keep pages dynamic or give that page script hashes. New external services are added in `lib/security/csp.ts` (CLAUDE.md still says `next.config.ts`: update it) | `lib/security/csp.ts`, `proxy.ts`, `tests/e2e/csp.spec.ts` |
+| D-78 | The `ADMIN_EMAILS` break-glass, and 2FA for admins | REQUIRES_FOUNDER_APPROVAL | Level 3 still grants admin to the listed address, but only with a CONFIRMED email on the session's own user (AUTH-1). Options: keep it; restrict it to the case where the role lookup failed (its stated purpose); require MFA (`aal2`) for every admin in `requireAdmin` and `is_admin()`. Admin 2FA is not built | `lib/auth/supabase.ts` `isBreakGlassAdmin` |
+| D-79 | Upgrade nodemailer to 10.x | REQUIRES_FOUNDER_APPROVAL | 9.1.1 (latest 9.x). The remaining advisories are fixed only in 10.x, a breaking major (R-80) | `package.json` |
+| D-80 | Which admin the database trusts (`is_admin()`) | DEFAULT (security) | `profiles.role = 'admin'` on an unsuspended account. The JWT `app_metadata.role` claim counts only for a profile whose role was never changed since 079 (`role_changed_at` null), so a hand-made app_metadata admin is not locked out while any role change through the app makes the profile authoritative (AUTH-2). The app's `requireAdmin` keeps its three levels (it reads app_metadata fresh from the Auth server). A role change or suspension ends the user's sessions | `079-security-phase-6.sql` A/B, `lib/auth/sessions.ts` |
+| D-81 | What a browser may upload with our signature | DEFAULT (security) | Images (jpg, jpeg, png, webp, heic, heif, avif, gif) and mp4 video (portfolio videos); no SVG, raw or other files. A non-admin's files always go under `thabangvision_usecase/users/<user id>/`; the server never signs a client `public_id` (INJ-5). Old files keep their folders | `lib/storage/upload-policy.ts`, `STUDIO.security.uploads` |
+
 Superseded by Phase 1 (no longer enforced at checkout):
 
 - `STUDIO.rental.protection.trustTiers` (the R5k/R20k/R60k ladder by clean returns) is replaced by `RENTAL_POLICY.trustTierLimitsCents` (R2k/R10k/R25k/R80k).
