@@ -25,6 +25,27 @@ begin;
 -- ════════════════════════════════════════════════════════════════════════════
 reset role;
 
+-- A fresh database (e.g. one rebuilt with scripts/db/rebuild-local.sh) has
+-- no users. Create two throwaway non-admin users when fewer than two exist;
+-- they are rolled back with everything else. The profile insert covers a
+-- database whose signup trigger is missing or still the pre-077 body.
+do $$
+declare
+  n integer;
+  v uuid;
+begin
+  select count(*) into n
+    from public.profiles p join auth.users u on u.id = p.id
+   where coalesce(p.role, 'user') <> 'admin';
+  for i in 1 .. greatest(0, 2 - n) loop
+    v := gen_random_uuid();
+    insert into auth.users (id, email, created_at)
+    values (v, 'tv-067-fixture-' || i || '@example.invalid', now() + make_interval(secs => i));
+    insert into public.profiles (id) values (v) on conflict (id) do nothing;
+    raise notice 'fixture user % created (no existing non-admin users)', v;
+  end loop;
+end $$;
+
 select set_config('tv.user_a', (
   select p.id::text from public.profiles p join auth.users u on u.id = p.id
    where coalesce(p.role, 'user') <> 'admin'
