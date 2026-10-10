@@ -1,5 +1,11 @@
 -- 080 — Collect gear from the owner's address (Phase 8, 2026-10-10)
 --
+-- WARNING (R-87): 080 replaces 076 functions and 076's grant on
+--   delivery_quotes. Re-running 076 after 080 puts the 076 versions back:
+--   re-run 080 straight after it. Code from the Phase 8 branch reads and
+--   writes 080's columns and calls 080's functions: apply 080 BEFORE that
+--   code is deployed.
+--
 -- WHY
 --   Until now every delivery leg ran between OUR SITE and the renter
 --   (076): community owners keep their gear at home and had to bring it to
@@ -46,14 +52,35 @@
 --        rental_owner_pickup_collected, rental_owner_gear_returned (notices to
 --        the OWNER; read and extended like 076, every existing value kept).
 --
+-- REVIEW FIXES (2026-10-10, before 080 was applied anywhere)
+--   8. delivery_quotes: the renter reads their own quotes through a COLUMN
+--        grant (076 granted the whole table). Left out: the provider's side
+--        (quote_amount_cents, provider_cost_cents, platform_fee_cents,
+--        provider_quote_ref) and where the gear is (origin_owner_id,
+--        origin_address_id, destination_address_id). No client reads
+--        delivery_quotes directly (the server uses service_role); the
+--        renter's own fee is customer_fee_cents. An owner-origin fee is
+--        priced from a ~2 km grid cell, never the owner's exact point (D-93).
+--   9. delivery_cancelled_orders_to_settle (076) replaced: "the renter may
+--        still have the gear" is decided PER ORIGIN, as the server does
+--        (deliveryCancellationPlan): an owner's scheduled return is kept
+--        while that owner's gear is with the renter, whatever happened to
+--        the studio's gear (R-84).
+--  10. delivery_save_owner_pickup: retire the owner's active pickup address
+--        and store the new one in ONE statement's transaction, so a failed
+--        insert never leaves the owner with no address (the unique index
+--        allows one active row, so the new row cannot go in first).
+--        SECURITY DEFINER, pinned search_path, service_role only.
+--
 -- SAFETY
 --   One transaction (a failure leaves nothing applied). Additive and
 --   re-runnable (IF NOT EXISTS / CREATE OR REPLACE / constraint found by
 --   definition). No existing row changes: every existing quote and shipment
 --   is our site (origin_owner_id null). Code built before 080 keeps working on
 --   an 080 database (it never sends an origin, so every leg is our site).
---   Code built WITH 080 reads origin_owner_id, so apply 080 together with
---   076–079 (docs/operations/launch-checklist.md).
+--   Code built WITH 080 reads origin_owner_id and calls
+--   delivery_save_owner_pickup, so apply 080 together with 076–079, before
+--   that code is deployed (docs/operations/launch-checklist.md).
 --
 -- APPLY: DEV first, then 080-owner-pickup.test.sql and rls-coverage.test.sql
 --        (both end in ROLLBACK). PROD after founder approval, after 079.
@@ -278,6 +305,89 @@ begin
     (select string_agg(quote_literal(t), ', ' order by ord) from unnest(types) with ordinality as u(t, ord)));
 end $$;
 
+-- ── 8. The renter's own quotes: the columns they need, nothing else ─────────
+
+-- Table-level SELECT off (this also clears any column grants), then the
+-- renter-facing columns back. Re-runnable. The 076 policy ("Own delivery
+-- quotes") still decides WHICH rows.
+revoke select on public.delivery_quotes from authenticated;
+grant select (id, renter_id, booking_group_id, leg, provider, provider_kind, customer_fee_cents, replacement_value_cents,
+  booking_ids, rental_ids, window_start, window_end, expires_at, status, paid_reference, paid_at, line_snapshot,
+  requested_at, created_at, updated_at) on public.delivery_quotes to authenticated;
+
+-- ── 9. Cancelled-order sweep, per origin ─────────────────────────────────────
+
+create or replace function public.delivery_cancelled_orders_to_settle(p_limit integer) returns setof uuid
+language sql
+stable
+security definer
+set search_path = public, pg_temp
+as $$
+  select g.booking_group_id
+    from (
+      select s.booking_group_id, s.updated_at as since
+        from public.delivery_shipments s
+       where s.status in ('requested', 'quoted', 'prepared', 'booking', 'scheduled', 'courier_assigned', 'courier_at_pickup')
+         -- A return pickup kept because the renter may still have THIS ORIGIN's gear (080: per origin).
+         and not (s.leg = 'return'
+                  and exists (select 1 from public.delivery_shipments o
+                               where o.booking_group_id = s.booking_group_id and o.leg = 'outbound'
+                                 and o.origin_owner_id is not distinct from s.origin_owner_id
+                                 and o.status in ('delivered', 'damaged', 'incident_under_review'))
+                  and not exists (select 1 from public.delivery_shipments r
+                                   where r.booking_group_id = s.booking_group_id and r.leg = 'return'
+                                     and r.origin_owner_id is not distinct from s.origin_owner_id
+                                     and r.status in ('delivered', 'lost', 'damaged', 'incident_under_review')))
+      union all
+      select q.booking_group_id, q.updated_at
+        from public.delivery_quotes q
+       where q.status = 'paid'
+         and q.booking_group_id is not null
+         and not exists (select 1 from public.delivery_shipments s2 where s2.quote_id = q.id)
+    ) g
+    left join public.delivery_cancelled_order_notes n on n.booking_group_id = g.booking_group_id
+   where exists (select 1 from public.equipment_bookings b where b.checkout_group_id = g.booking_group_id)
+     and not exists (select 1 from public.equipment_bookings b where b.checkout_group_id = g.booking_group_id and b.status <> 'cancelled')
+     and n.staff_hold is null
+   group by g.booking_group_id, n.last_attempt_at
+   order by n.last_attempt_at nulls first, min(g.since), g.booking_group_id
+   limit greatest(coalesce(p_limit, 0), 0);
+$$;
+revoke all on function public.delivery_cancelled_orders_to_settle(integer) from public, anon, authenticated;
+grant execute on function public.delivery_cancelled_orders_to_settle(integer) to service_role;
+
+-- ── 10. Replace an owner's pickup address atomically ─────────────────────────
+
+create or replace function public.delivery_save_owner_pickup(p_owner uuid, p_address jsonb, p_now timestamptz) returns uuid
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $$
+declare
+  v_id uuid;
+begin
+  if p_owner is null then
+    raise exception 'delivery_save_owner_pickup: owner required' using errcode = '22004';
+  end if;
+  -- One save per owner at a time: two racing saves would both retire, and the
+  -- second insert would hit the one-active-row index.
+  perform pg_advisory_xact_lock(hashtext('delivery_save_owner_pickup'), hashtext(p_owner::text));
+  update public.delivery_addresses
+     set retired_at = coalesce(p_now, now())
+   where user_id = p_owner and purpose = 'owner_pickup' and retired_at is null;
+  -- If this insert fails (a check, a bad value), the retirement above is undone with it.
+  insert into public.delivery_addresses (user_id, purpose, formatted_address, suburb, city, province, postal_code, lat, lng,
+    contact_name, contact_phone, instructions, verified_by)
+  values (p_owner, 'owner_pickup', p_address ->> 'formatted_address', p_address ->> 'suburb', p_address ->> 'city',
+    p_address ->> 'province', p_address ->> 'postal_code', (p_address ->> 'lat')::double precision, (p_address ->> 'lng')::double precision,
+    p_address ->> 'contact_name', p_address ->> 'contact_phone', p_address ->> 'instructions', p_address ->> 'verified_by')
+  returning id into v_id;
+  return v_id;
+end;
+$$;
+revoke all on function public.delivery_save_owner_pickup(uuid, jsonb, timestamptz) from public, anon, authenticated;
+grant execute on function public.delivery_save_owner_pickup(uuid, jsonb, timestamptz) to service_role;
+
 -- PostgREST picks up the new columns (delivered at commit).
 notify pgrst, 'reload schema';
 
@@ -298,7 +408,10 @@ commit;
 --   create unique index uq_delivery_shipments_live_leg on public.delivery_shipments (booking_group_id, leg) where status not in ('cancelled', 'failed');
 --   alter table public.delivery_shipments drop column origin_owner_id;
 --   alter table public.delivery_quotes drop column origin_owner_id;
---   -- Re-run 076's sections 13 delivery_create_shipment and delivery_redact_address bodies (or re-apply 076).
+--   -- Re-run 076's sections 13 delivery_create_shipment, delivery_redact_address and
+--   -- delivery_cancelled_orders_to_settle bodies, and 076's table-wide
+--   -- `grant select on public.delivery_quotes to authenticated` (or re-apply 076).
+--   drop function if exists public.delivery_save_owner_pickup(uuid, jsonb, timestamptz);
 --   -- Owner pickup addresses: delete them (they were never used by a leg), then restore the purpose check:
 --   delete from public.delivery_addresses where purpose = 'owner_pickup';
 --   alter table public.delivery_addresses drop constraint delivery_addresses_owner_pickup_has_owner;

@@ -31,6 +31,7 @@ import {
   checkCustodyEvent,
   endsRenterPossession,
   outboundReceipt,
+  ownerMayConfirmReturn,
   returnProgress,
   type AccessoryCheck,
   type CustodyActor,
@@ -48,7 +49,7 @@ import {
   type DeliveryIncident,
   type IncidentKind,
 } from './incidents';
-import { originDiscriminator, originReferenceSuffix, sameOrigin, type OriginOwnerId } from './origin';
+import { coarsePricingPoint, originDiscriminator, originReferenceSuffix, sameOrigin, type OriginOwnerId } from './origin';
 import { evaluateDeliveryEligibility, inServiceArea, providerRiskGate, type DeliveryIneligibleCode, type InsuranceAnswer } from './policy';
 import type { CreateDeliveryRequest, DeliveryWindow, ParcelItem, ProviderDelivery, ProviderDeliveryState, ProviderQuote } from './port';
 import { checkQuotesForCharge, priceDeliveryQuote, quoteIsLive, type ChargeCheck, type CustomerDeliveryQuote, type QuoteLineSnapshot } from './quote';
@@ -308,6 +309,12 @@ export async function quoteDelivery(
     containsLithium: l.containsLithium,
   }));
 
+  // D-93: the owner's end of the leg is priced from its coarse grid cell (the
+  // renter reads every fee and could otherwise trilaterate the owner's home).
+  // Our site's end, and the renter's, are priced exactly as before.
+  const priceFrom = originOwnerId && input.leg === 'outbound' ? coarsePricingPoint(from) : from;
+  const priceTo = originOwnerId && input.leg === 'return' ? coarsePricingPoint(to) : to;
+
   const candidates: EvaluatedCandidate[] = [];
   for (const port of deps.providers.list()) {
     const kind = port.kind ?? 'courier';
@@ -323,7 +330,7 @@ export async function quoteDelivery(
       candidates.push({ provider: port, gate, serviceability: null, quote: null });
       continue;
     }
-    const req = { from, to, window: input.window, items };
+    const req = { from: priceFrom, to: priceTo, window: input.window, items };
     const serviceability = await safeCall(() => port.checkServiceability(req));
     const quote = serviceability.ok && serviceability.value.serviceable ? await safeCall(() => port.quote({ ...req, leg: input.leg })) : null;
     candidates.push({ provider: port, gate, serviceability, quote });
@@ -1068,6 +1075,7 @@ export type CustodyResult =
       | 'out_of_order'
       | 'evidence_required'
       | 'exception_needs_detail'
+      | 'not_returned_yet'
       | 'conflict'
     >;
 
@@ -1186,6 +1194,8 @@ export async function confirmHandover(
   const now = deps.clock.now();
   // A fee refunded before receipt is never earned by it (round 3, finding 1).
   const leg = input.outcome === 'accepted' || input.outcome === 'received' ? await deps.repo.getShipment(input.shipmentId) : null;
+  // An owner records a receipt only once the gear has left the renter (P2, D17); staff are trusted with it.
+  if (leg && input.outcome === 'received' && input.caller.kind === 'owner' && !(await ownerReturnArrived(leg, input, deps.repo))) return NOT_RETURNED_YET;
   const refunded = leg ? await feeRefunded(leg, deps.repo) : false;
   return recordCustody(input, kind, deps, (s, e, chain, t) => {
     if (kind === 'delivered_to_renter') {
@@ -1237,6 +1247,14 @@ export async function confirmHandover(
   });
 }
 
+const NOT_RETURNED_YET = refuse('not_returned_yet', 'This item has not been collected from the renter yet. Confirm it once our driver brings it back to you.');
+
+/** The owner's receipt gate (ownerMayConfirmReturn) for one item on this leg, from its recorded chain. */
+async function ownerReturnArrived(s: Shipment, item: { bookingId: string; rentalId: string }, repo: Pick<DeliveryDeps['repo'], 'listCustody'>): Promise<boolean> {
+  const chain = (await repo.listCustody(s.id)).filter((c) => c.bookingId === item.bookingId && c.rentalId === item.rentalId);
+  return ownerMayConfirmReturn(s.status, chain);
+}
+
 /** Every item on the return leg is received back: the leg is delivered and its fee earned (once). */
 function receivedBack(s: Shipment, e: CustodyEvent, chain: readonly CustodyEvent[], t: ShipmentTransition, refunded: boolean): void {
   const all = s.items.every((i) => chain.some((c) => c.bookingId === i.bookingId && c.rentalId === i.rentalId && c.kind === 'received_by_owner'));
@@ -1251,14 +1269,24 @@ function receivedBack(s: Shipment, e: CustodyEvent, chain: readonly CustodyEvent
 /**
  * Phase 8 (D-87): gear returned to the OWNER's pickup address. The owner
  * confirms, per item, that it is back and in what condition (`received`), or
- * reports a problem (`problem`: damaged or missing). Either way their record
- * is the receipt (`received_by_owner`, with a photo) and the inspection
- * (`inspected`, with the condition): the gear never comes back to us, so the
- * owner is the one who can look at it. A problem also opens an incident
- * (liability undetermined, nobody accused) that holds settlement and the
- * owner's payout for that line until staff resolve it (D29). Only the owner
- * the leg returns to, only for their own items; staff can still record the
- * receipt for them and inspect as before.
+ * reports a problem (`problem`: damaged or missing). For `received` and a
+ * damaged item their record is the receipt (`received_by_owner`, with a
+ * photo) and the inspection (`inspected`, with the condition): the gear never
+ * comes back to us, so the owner is the one who can look at it. A problem
+ * also opens an incident (liability undetermined, nobody accused) that holds
+ * settlement and the owner's payout for that line until staff resolve it
+ * (D29). Only the owner the leg returns to, only for their own items; staff
+ * can still record the receipt for them and inspect as before.
+ *
+ * Review fixes (Phase 8):
+ *  - P2: a receipt is refused (`not_returned_yet`) until the gear has left
+ *    the renter (ownerMayConfirmReturn: the leg is arriving or arrived, or
+ *    the item's chain shows its collection). Otherwise an owner could mark a
+ *    scheduled return received and inspected while the renter still has the
+ *    gear: fee earned, payout and deposit released.
+ *  - P3.1: a MISSING item (`lost`) is not a receipt. Only the incident is
+ *    recorded (no `received_by_owner`, no `inspected`, nothing earned) and
+ *    the leg goes under review where the state rules allow it.
  */
 export async function confirmOwnerReturn(
   input: CustodyInput & { outcome: 'received' | 'problem'; problem?: { kind: Extract<IncidentKind, 'damaged' | 'lost'>; description: string } | null },
@@ -1274,9 +1302,13 @@ export async function confirmOwnerReturn(
   if (problem && detail.length < 3) return refuse('exception_needs_detail', 'Say what is wrong or missing.');
   const condition = problem ? `Problem reported by the owner: ${detail}` : (input.condition ?? '').trim().slice(0, 500);
   if (condition.length < 3) return refuse('evidence_required', 'Say what condition the gear is in.');
-  const refunded = await feeRefunded(s, deps.repo);
-  const already = (await deps.repo.listCustody(s.id)).some((x) => x.bookingId === input.bookingId && x.rentalId === input.rentalId && x.kind === 'received_by_owner');
+  const itemChain = (await deps.repo.listCustody(s.id)).filter((x) => x.bookingId === input.bookingId && x.rentalId === input.rentalId);
+  const already = itemChain.some((x) => x.kind === 'received_by_owner');
   const now = deps.clock.now();
+
+  if (problem && input.problem?.kind === 'lost' && !already) return ownerReportsMissing(s, { ...input, caller: c }, detail, deps);
+  if (!ownerMayConfirmReturn(s.status, itemChain)) return NOT_RETURNED_YET;
+  const refunded = await feeRefunded(s, deps.repo);
 
   const inspect = (sh: Shipment, e: CustodyEvent, chain: CustodyEvent[], t: ShipmentTransition): void => {
     let incidentId: string | null = null;
@@ -1325,6 +1357,57 @@ export async function confirmOwnerReturn(
     });
   }
   return recordCustody({ ...input, condition }, 'inspected', deps, (sh, e, chain, t) => inspect(sh, e, chain, t));
+}
+
+/**
+ * The owner says an item did not come back (P3.1). Not a receipt: the
+ * incident alone, on the owner's own line, and the leg under review when the
+ * state rules allow it (otherwise the incident is opened on its own). Nothing
+ * is earned and nothing is inspected, so settlement and the payout stay held
+ * (awaiting inspection, and the open incident) until staff decide.
+ */
+async function ownerReportsMissing(
+  s: Shipment,
+  input: CustodyInput & { caller: { kind: 'owner'; userId: string } },
+  detail: string,
+  deps: Pick<DeliveryDeps, 'repo' | 'clock' | 'newId'>,
+): Promise<CustodyResult> {
+  if (FINAL_DELIVERY_STATES.includes(s.status)) return refuse('shipment_closed', 'This delivery is closed.');
+  if (!DISPATCHED.includes(s.status)) return refuse('not_dispatched', 'This delivery has not been booked yet.');
+  const item = s.items.find((i) => i.bookingId === input.bookingId && i.rentalId === input.rentalId);
+  if (!item) return refuse('item_not_on_shipment', 'That item is not on this delivery.');
+  if (item.ownerId !== input.caller.userId) return refuse('not_owner', 'Only the owner of this item can confirm this.');
+  const now = deps.clock.now();
+  const incident = newIncident({
+    id: deps.newId(),
+    shipmentId: s.id,
+    bookingGroupId: s.bookingGroupId,
+    bookingIds: [item.bookingId],
+    leg: s.leg,
+    kind: 'lost',
+    reportedBy: { kind: 'owner', id: input.caller.userId },
+    description: detail,
+    evidence: input.evidence.map((x) => ({ kind: x.kind, ref: x.ref })),
+    discriminator: `owner-return:${item.bookingId}:${item.rentalId}`,
+    now,
+  });
+  const to: DeliveryState = checkDeliveryTransition(s.status, 'incident_under_review', 'system').ok ? 'incident_under_review' : s.status;
+  const t = emptyTransition(s, to, {
+    source: 'owner',
+    actorId: input.caller.userId,
+    dedupeKey: `owner-return-missing:${s.id}:${item.bookingId}:${item.rentalId}`,
+    providerState: null,
+    occurredAt: input.occurredAt ?? now.toISOString(),
+    note: 'lost',
+  });
+  t.incidents.push(incident);
+  t.notices.push(
+    ...buildNotices({ kind: 'delivery_incident', userId: s.renterId, bookingIds: [item.bookingId], discriminator: `${s.id}:incident:${incident.id}` }),
+    ...staffAlert('delivery_owner_return_lost', s.merchantReference),
+  );
+  const r = await deps.repo.transitionShipment(t);
+  if (r === 'conflict') return refuse('conflict', 'This delivery changed at the same time. Please try again.');
+  return { ok: true, duplicate: r === 'duplicate', shipment: (await deps.repo.getShipment(s.id)) ?? s, incidentId: incident.id };
 }
 
 /** Staff record the inspection of a returned item (the existing take-back flow calls this too). */
@@ -1421,8 +1504,10 @@ export async function getDeliveryStatus(
       originOwnerId: s.originOwnerId ?? null,
       status: s.status,
       providerId: s.providerId,
-      // Owners never see the renter-side tracking link (it reveals the renter's address).
-      trackingUrl: isOwner ? null : s.trackingUrl,
+      // Owners never see the renter-side tracking link (it reveals the renter's address);
+      // the renter never sees it on a leg from or back to an OWNER's address (a courier's
+      // tracking page shows the pickup or drop-off point, D-88). Staff see it.
+      trackingUrl: isOwner || (!!s.originOwnerId && input.caller.kind !== 'staff') ? null : s.trackingUrl,
       courierName: s.courierName,
       scheduledAt: s.scheduledAt,
       items: s.items
@@ -1795,7 +1880,9 @@ export async function refundUnusedDeliveryQuote(
   const notices: OutboxMessage[] = [];
   if (fee > 0) {
     notices.push(...buildNotices({ kind: 'delivery_fee_refund', userId: q.renterId, bookingIds: q.bookingIds, discriminator: `${ref}:fee_refund`, data: { amountCents: fee } }));
-    notices.push(...staffAlert(manual ? 'delivery_manual_fee_refund_due' : 'delivery_unused_quote_refunded', `${q.bookingGroupId}:${q.leg}:${fee}`));
+    // Keyed per QUOTE (P3.2): two unused quotes of one order with the same leg and fee (two owners'
+    // trips at the minimum fee) are two refunds, and the second alert must not be dropped as a duplicate.
+    notices.push(...staffAlert(manual ? 'delivery_manual_fee_refund_due' : 'delivery_unused_quote_refunded', `${q.bookingGroupId}:${q.leg}${originDiscriminator(q.originOwnerId)}:${fee}:${q.id}`));
   }
   const r = await deps.repo.refundUnusedQuote({
     quoteId: q.id,

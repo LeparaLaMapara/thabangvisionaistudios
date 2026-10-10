@@ -17,7 +17,7 @@
  *    address or tracking link; renters see the owner's suburb at most.
  */
 import { beforeEach, describe, expect, it } from 'vitest';
-import { groupLinesByOrigin, originDiscriminator, originReferenceSuffix, ownerPickupDecision, publicOriginArea, type OwnerPickupFacts } from '@/lib/core/delivery/origin';
+import { coarsePricingPoint, groupLinesByOrigin, originDiscriminator, originReferenceSuffix, ownerPickupDecision, publicOriginArea, type OwnerPickupFacts } from '@/lib/core/delivery/origin';
 import { checkCustodyEvent, type CustodyEvent } from '@/lib/core/delivery/custody';
 import { deliveryEarned, isBalanced } from '@/lib/core/rental/ledger';
 import {
@@ -173,11 +173,12 @@ describe('a mixed order: one leg per origin, each priced from where the gear is'
     const b = w.addresses.points.get(PICK_B)!;
     const office = w.addresses.points.get(OFFICE)!;
     const byOrigin = (leg: string, o: string | null) => quotes.find((q) => q.leg === leg && (q.originOwnerId ?? null) === o)!;
-    // The own-vehicle formula, from each origin's verified point (no hardcoded price).
+    // The own-vehicle formula, from each origin's verified point (no hardcoded price); an
+    // owner's point is priced from its coarse grid cell (D-93), our site's exactly.
     expect(byOrigin('outbound', null).customerFeeCents).toBe(feeFrom(office, home));
-    expect(byOrigin('outbound', OWNER_A).customerFeeCents).toBe(feeFrom(a, home));
-    expect(byOrigin('outbound', OWNER_B).customerFeeCents).toBe(feeFrom(b, home));
-    expect(byOrigin('return', OWNER_B).customerFeeCents).toBe(feeFrom(home, b));
+    expect(byOrigin('outbound', OWNER_A).customerFeeCents).toBe(feeFrom(coarsePricingPoint(a), home));
+    expect(byOrigin('outbound', OWNER_B).customerFeeCents).toBe(feeFrom(coarsePricingPoint(b), home));
+    expect(byOrigin('return', OWNER_B).customerFeeCents).toBe(feeFrom(home, coarsePricingPoint(b)));
     // Owner B is far away: their trip costs more than owner A's, which proves the origin is used.
     expect(byOrigin('outbound', OWNER_B).customerFeeCents).toBeGreaterThan(byOrigin('outbound', OWNER_A).customerFeeCents);
     // Addresses: outbound from the origin to the renter; return from the renter back to the origin.

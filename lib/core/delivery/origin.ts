@@ -126,6 +126,35 @@ export function groupLinesByOrigin<L extends { rentalId: string }>(
   return [...groups.entries()].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)).map(([, g]) => g);
 }
 
+/** What a pricing call may know of a point: area fields and coordinates, never the street or a contact. */
+export interface PricingPoint {
+  lat: number;
+  lng: number;
+  suburb: string | null;
+  city: string | null;
+  postalCode: string | null;
+  province?: string | null;
+}
+
+/**
+ * The point the OWNER's end of a leg is priced from (D-93, D-88): the
+ * owner's verified point snapped to the centre of its grid cell
+ * (DELIVERY_POLICY.ownerPickup.pricingGridDegrees), with only the area
+ * fields kept (a courier quote that geocodes a street would otherwise price
+ * the exact house). Every owner in the same cell gets the same price from
+ * the same renter address, so a renter who quotes from several addresses
+ * learns the cell at most, never the house. The driver still goes to the real
+ * address (dispatch reads the stored address). Our site is never snapped.
+ */
+export function coarsePricingPoint(
+  p: PricingPoint,
+  gridDegrees: number = DELIVERY_POLICY.ownerPickup.pricingGridDegrees,
+): PricingPoint {
+  if (!(gridDegrees > 0) || !Number.isFinite(gridDegrees)) throw new RangeError('pricing grid must be a positive number of degrees');
+  const snap = (v: number): number => Number(((Math.floor(v / gridDegrees) + 0.5) * gridDegrees).toFixed(6));
+  return { lat: snap(p.lat), lng: snap(p.lng), suburb: p.suburb, city: p.city, postalCode: p.postalCode, province: p.province ?? null };
+}
+
 /** What a renter may know about where gear comes from: our site, or the owner's suburb at most. Never the street. */
 export function publicOriginArea(p: { suburb?: string | null; city?: string | null } | null): string | null {
   if (!p) return null;

@@ -22,9 +22,13 @@ import { dispatchOutbox } from '@/lib/rental/notify';
  *   { shipment_id, booking_id, rental_id, action: 'received', photos, condition }
  *       return: it is back with the owner, in this condition (receipt and
  *       inspection, which releases the hold on their payout for that line).
+ *       409 `not_returned_yet` while the gear has not left the renter (the
+ *       leg is not arriving and the item's collection is not recorded).
  *   { shipment_id, booking_id, rental_id, action: 'problem', photos, problem_kind: 'damaged' | 'lost', description }
  *       return: something is wrong or missing: an incident for our team
- *       (nobody is accused) that holds the payout for that line.
+ *       (nobody is accused) that holds the payout for that line. Damaged is
+ *       a receipt with a problem (same 409 before collection); lost is the
+ *       incident alone (no receipt, nothing earned).
  *
  * Photos must be links to our own storage (uploaded through the app).
  * Logged with ids and outcomes only.
@@ -82,6 +86,7 @@ export async function POST(request: NextRequest) {
       metadata: { shipmentId: base.shipmentId, bookingId: base.bookingId, action, outcome: r.ok ? (r.duplicate ? 'duplicate' : 'recorded') : r.code },
     });
     if (!r.ok) {
+      // 409 for everything about the leg's state: `not_returned_yet` (the gear is still with the renter), out of order, closed, a race.
       const status = r.code === 'not_found' ? 404 : r.code === 'not_allowed' || r.code === 'not_owner' || r.code === 'actor_not_allowed' ? 403 : r.code === 'evidence_required' || r.code === 'exception_needs_detail' ? 400 : 409;
       return NextResponse.json({ error: r.message, code: r.code }, { status });
     }

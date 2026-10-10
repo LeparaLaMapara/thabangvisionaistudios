@@ -22,6 +22,14 @@
 --    6. listing_private.owner_pickup defaults to false and clients cannot write it
 --    7. notifications accept the rental_owner_* types and still accept old ones
 --    8. the replaced functions stay service_role only, with a pinned search_path
+--    review fixes:
+--    9. the cancelled-order sweep keeps an owner's scheduled return while THAT
+--       owner's gear is with the renter, even when the studio's gear is back
+--       (per origin, R-84); an origin whose gear never went out is still listed
+--   10. delivery_save_owner_pickup retires and inserts in one transaction: a
+--       failed insert leaves the old address active; service_role only
+--   11. (3f) the renter reads their own quotes' fee, never the provider's cost
+--       or where the gear is (origin_owner_id, address ids)
 
 begin;
 
@@ -266,6 +274,27 @@ begin
   raise notice 'PASS 3b: the renter never reads an owner''s pickup address or a leg''s address ids';
 end $$;
 
+-- 11 (3f). The renter's own quotes: the fee, not the provider's side or where the gear is.
+do $$
+declare
+  n integer;
+  c text;
+begin
+  select count(*) into n from public.delivery_quotes;
+  if n <> 3 then raise exception 'FAIL 11: the renter sees % of their 3 quotes', n; end if;
+  select sum(customer_fee_cents) into n from public.delivery_quotes;
+  if n <> 38000 then raise exception 'FAIL 11: the renter cannot read their own fees (%)', n; end if;
+  foreach c in array array['provider_cost_cents', 'quote_amount_cents', 'platform_fee_cents', 'provider_quote_ref', 'origin_owner_id', 'origin_address_id', 'destination_address_id'] loop
+    begin
+      execute format('select %I from public.delivery_quotes limit 1', c);
+      raise exception 'FAIL 11: the renter can read delivery_quotes.%', c;
+    exception when insufficient_privilege then
+      null;
+    end;
+  end loop;
+  raise notice 'PASS 11 (3f): the renter reads their own quotes'' fee, never the provider cost or the origin';
+end $$;
+
 -- Owner B: their own address only, never owner A's (both on the same order).
 select set_config('request.jwt.claims', json_build_object('sub', '00000000-0000-4000-8000-0000000800b2', 'role', 'authenticated')::text, true);
 do $$
@@ -310,6 +339,87 @@ begin
   raise notice 'PASS 3e: anon reads nothing';
 end $$;
 reset role;
+
+-- 9 and 10 run as the server again (after the client checks, whose counts they would change).
+do $$
+declare
+  renter uuid := '00000000-0000-4000-8000-0000000800a1';
+  owner_a uuid := '00000000-0000-4000-8000-0000000800b1';
+  owner_b uuid := '00000000-0000-4000-8000-0000000800b2';
+  owner_c uuid := '00000000-0000-4000-8000-0000000800b3';
+  studio_cam uuid := '00000000-0000-4000-8000-0000000800c1';
+  lens_a uuid := '00000000-0000-4000-8000-0000000800c2';
+  light_b uuid := '00000000-0000-4000-8000-0000000800c3';
+  office uuid := '00000000-0000-4000-8000-0000000800f1';
+  home uuid := '00000000-0000-4000-8000-0000000800f2';
+  pick_a uuid := '00000000-0000-4000-8000-0000000800f3';
+  pick_b uuid := '00000000-0000-4000-8000-0000000800f4';
+  pick_c uuid := '00000000-0000-4000-8000-0000000800f6';
+  grp2 uuid := '00000000-0000-4000-8000-0000000800d2';
+  q2 uuid := '00000000-0000-4000-8000-000000080201';
+  bk2_s uuid := '00000000-0000-4000-8000-0000000802e1';
+  bk2_a uuid := '00000000-0000-4000-8000-0000000802e2';
+  bk2_b uuid := '00000000-0000-4000-8000-0000000802e3';
+  ids uuid[];
+  v_new uuid;
+  n integer;
+begin
+  -- 9. A cancelled order: the studio's gear went out and came back; owner A's went
+  --    out and its return to owner A's address is only scheduled.
+  insert into public.equipment_bookings (id, user_id, rental_id, start_date, end_date, total_price, status, checkout_group_id, owner_id) values
+    (bk2_s, renter, studio_cam, '2031-05-01', '2031-05-03', 1500, 'cancelled', grp2, null),
+    (bk2_a, renter, lens_a, '2031-05-01', '2031-05-03', 900, 'cancelled', grp2, owner_a);
+  insert into public.delivery_quotes (id, renter_id, booking_group_id, leg, provider, provider_kind, quote_amount_cents, provider_cost_cents, platform_fee_cents, customer_fee_cents, rental_ids, origin_address_id, destination_address_id, expires_at, status, paid_reference)
+  values (q2, renter, grp2, 'outbound', 'manual', 'own_fleet', 100, 100, 0, 100, array[studio_cam], office, home, now() + interval '1 hour', 'consumed', 'p8-grp2');
+  insert into public.delivery_shipments (booking_group_id, leg, attempt, origin_owner_id, renter_id, items, provider, provider_kind, quote_id, merchant_reference, status, quote_amount_cents, customer_fee_cents, origin_address_id, destination_address_id)
+  values (grp2, 'outbound', 1, null, renter, '[]', 'manual', 'own_fleet', q2, 'tvd_p8g2_o1', 'delivered', 100, 100, office, home),
+         (grp2, 'return', 1, null, renter, '[]', 'manual', 'own_fleet', q2, 'tvd_p8g2_r1', 'delivered', 100, 100, home, office),
+         (grp2, 'outbound', 1, owner_a, renter, '[]', 'manual', 'own_fleet', q2, 'tvd_p8g2_o1_a', 'delivered', 100, 100, pick_a, home),
+         (grp2, 'return', 1, owner_a, renter, '[]', 'manual', 'own_fleet', q2, 'tvd_p8g2_r1_a', 'scheduled', 100, 100, home, pick_a);
+  select array_agg(x) into ids from public.delivery_cancelled_orders_to_settle(500) x;
+  if grp2 = any (coalesce(ids, '{}')) then
+    raise exception 'FAIL 9: the sweep would cancel owner A''s return pickup while owner A''s gear is with the renter (studio gear being back says nothing about it)';
+  end if;
+  -- Owner B's gear never went out: their scheduled return is cancellable, so the order is listed.
+  insert into public.equipment_bookings (id, user_id, rental_id, start_date, end_date, total_price, status, checkout_group_id, owner_id)
+  values (bk2_b, renter, light_b, '2031-05-01', '2031-05-03', 600, 'cancelled', grp2, owner_b);
+  insert into public.delivery_shipments (booking_group_id, leg, attempt, origin_owner_id, renter_id, items, provider, provider_kind, quote_id, merchant_reference, status, quote_amount_cents, customer_fee_cents, origin_address_id, destination_address_id)
+  values (grp2, 'return', 1, owner_b, renter, '[]', 'manual', 'own_fleet', q2, 'tvd_p8g2_r1_b', 'scheduled', 100, 100, home, pick_b);
+  select array_agg(x) into ids from public.delivery_cancelled_orders_to_settle(500) x;
+  if not (grp2 = any (coalesce(ids, '{}'))) then
+    raise exception 'FAIL 9: a cancellable return of an origin whose gear never went out was not listed';
+  end if;
+  raise notice 'PASS 9: the cancelled-order sweep decides "the renter may still have the gear" per origin';
+
+  -- 10. Replacing a pickup address is atomic.
+  insert into auth.users (id, email) values (owner_c, 'p8-owner-c@example.invalid');
+  insert into public.profiles (id) values (owner_c) on conflict (id) do nothing;
+  insert into public.delivery_addresses (id, user_id, purpose, formatted_address, suburb, city, province, lat, lng, contact_name, contact_phone, verified_by)
+  values (pick_c, owner_c, 'owner_pickup', '3 Old Road, Auckland Park', 'Auckland Park', 'Johannesburg', 'Gauteng', -26.18, 28.0, 'Cebo', '0000000005', 'test');
+  begin
+    perform public.delivery_save_owner_pickup(owner_c, jsonb_build_object('formatted_address', '4 Bad Road', 'lat', 200, 'lng', 28.0, 'contact_name', 'Cebo', 'contact_phone', '0', 'verified_by', 'test'), now());
+    raise exception 'FAIL 10: an address with an impossible latitude was stored';
+  exception when check_violation then
+    null;
+  end;
+  if (select retired_at from public.delivery_addresses where id = pick_c) is not null then
+    raise exception 'FAIL 10: a failed save retired the owner''s address and left them with none';
+  end if;
+  v_new := public.delivery_save_owner_pickup(owner_c, jsonb_build_object('formatted_address', '5 New Road, Melville', 'suburb', 'Melville', 'city', 'Johannesburg',
+    'province', 'Gauteng', 'postal_code', '2092', 'lat', -26.17, 'lng', 28.0, 'contact_name', 'Cebo', 'contact_phone', '0000000005', 'instructions', null, 'verified_by', 'test'), now());
+  select count(*) into n from public.delivery_addresses where user_id = owner_c and purpose = 'owner_pickup' and retired_at is null and redacted_at is null;
+  if v_new is null or n <> 1 or (select retired_at from public.delivery_addresses where id = pick_c) is null
+     or (select formatted_address from public.delivery_addresses where id = v_new) <> '5 New Road, Melville' then
+    raise exception 'FAIL 10: the save did not leave exactly the new address active (% active)', n;
+  end if;
+  if has_function_privilege('authenticated', 'public.delivery_save_owner_pickup(uuid, jsonb, timestamptz)', 'execute')
+     or has_function_privilege('anon', 'public.delivery_save_owner_pickup(uuid, jsonb, timestamptz)', 'execute')
+     or exists (select 1 from pg_proc p where p.proname in ('delivery_save_owner_pickup', 'delivery_cancelled_orders_to_settle')
+                  and (not p.prosecdef or not p.proconfig @> array['search_path=public, pg_temp'])) then
+    raise exception 'FAIL 10: delivery_save_owner_pickup / the sweep is callable by a client or lost its definer settings';
+  end if;
+  raise notice 'PASS 10: an owner''s pickup address is replaced atomically, by the server only';
+end $$;
 
 select 'ALL 080 CHECKS PASSED' as result;
 rollback;

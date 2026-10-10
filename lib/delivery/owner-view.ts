@@ -1,6 +1,6 @@
-import { chainsByItem, outboundReceipt, returnProgress, type CustodyEvent } from '@/lib/core/delivery/custody';
+import { chainsByItem, outboundReceipt, ownerMayConfirmReturn, returnProgress, type CustodyEvent } from '@/lib/core/delivery/custody';
 import type { Shipment } from '@/lib/core/delivery/repository';
-import type { DeliveryState, ShipmentLeg } from '@/lib/core/delivery/state';
+import { FINAL_DELIVERY_STATES, type DeliveryState, type ShipmentLeg } from '@/lib/core/delivery/state';
 import { deliveryStatusLabel } from './customer-view';
 import { windowLabel } from './checkout';
 
@@ -22,7 +22,11 @@ export interface OwnerLegItem {
   progress: string;
   /** Outbound from the owner's address, not yet handed over: the owner records the handover (photo). */
   can_hand_over: boolean;
-  /** Return to the owner's address, not yet confirmed: the owner confirms receipt and condition, or reports a problem. */
+  /**
+   * Return to the owner's address, not yet confirmed, and the gear has left
+   * the renter (core ownerMayConfirmReturn, the same rule the server
+   * enforces): the owner confirms receipt and condition, or reports a problem.
+   */
   can_confirm_return: boolean;
 }
 
@@ -40,7 +44,6 @@ export interface OwnerLeg {
 }
 
 const HAND_OVER_STATES: readonly DeliveryState[] = ['scheduled', 'courier_assigned', 'courier_at_pickup'];
-const RETURN_CONFIRM_STATES: readonly DeliveryState[] = ['collected', 'in_transit', 'courier_at_dropoff', 'delivered', 'incident_under_review'];
 
 /** The leg's state in words, from the owner's side of their own address. */
 export function ownerStatusLabel(leg: ShipmentLeg, status: DeliveryState, fromOwner: boolean): string {
@@ -111,7 +114,7 @@ export function ownerLegs(
           title: titles.get(i.rentalId) ?? null,
           progress: s.leg === 'outbound' ? outboundReceipt(chain) : returnProgress(chain),
           can_hand_over: fromOwner && s.leg === 'outbound' && HAND_OVER_STATES.includes(s.status) && !kinds.has('handed_to_courier') && !kinds.has('collected_by_courier'),
-          can_confirm_return: fromOwner && s.leg === 'return' && RETURN_CONFIRM_STATES.includes(s.status) && !kinds.has('inspected'),
+          can_confirm_return: fromOwner && s.leg === 'return' && !FINAL_DELIVERY_STATES.includes(s.status) && ownerMayConfirmReturn(s.status, chain) && !kinds.has('inspected'),
         };
       }),
     });

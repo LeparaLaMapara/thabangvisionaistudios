@@ -79,28 +79,38 @@ export class SupabaseOwnerPickup {
     return r ? toView(r) : null;
   }
 
-  /** A live leg (outbound from, or return to) this owner's address: the address cannot change under it. */
+  /**
+   * A live leg (outbound from, or return to) this owner's address: the
+   * address cannot change under it. The database filters out finished legs
+   * (cancelled, failed, delivered and accepted), so however long the owner's
+   * history is, one live leg is always found (P3.4: an unfiltered read capped
+   * at 200 rows could miss it).
+   */
   async hasLiveLeg(ownerId: string): Promise<boolean> {
-    const { data, error } = await this.db.from('delivery_shipments').select('id, status, accepted_at').eq('origin_owner_id', ownerId).limit(200);
+    const { data, error } = await this.db
+      .from('delivery_shipments')
+      .select('id, status, accepted_at')
+      .eq('origin_owner_id', ownerId)
+      .not('status', 'in', `(${FINAL_DELIVERY_STATES.join(',')})`)
+      .or('status.neq.delivered,accepted_at.is.null')
+      .limit(1);
     if (error) throw new Error(`owner pickup legs lookup failed: ${error.message}`);
+    // Checked again here, so a filter the database did not apply can only make this stricter.
     return ((data ?? []) as Row[]).some((r) => LIVE_LEG(String(r.status), r.accepted_at));
   }
 
   /**
    * Save (or replace) the owner's pickup address. The previous active row is
-   * retired first (one active row per owner, unique index in 080). Refused
-   * while a pickup or return from the current address is under way.
+   * retired and the new one stored in one database transaction
+   * (delivery_save_owner_pickup, 080): one active row per owner (unique
+   * index), and a failed insert leaves the old address active (P3.5).
+   * Refused while a pickup or return from the current address is under way.
    */
   async save(p: { ownerId: string; address: VerifiedAddress; verifiedBy: string; contactName: string; contactPhone: string; instructions: string | null }): Promise<{ ok: true; address: OwnerPickupAddressView } | { ok: false; code: 'leg_in_progress' }> {
     if (await this.hasLiveLeg(p.ownerId)) return { ok: false, code: 'leg_in_progress' };
-    const now = new Date().toISOString();
-    const retire = await this.db.from('delivery_addresses').update({ retired_at: now }).eq('user_id', p.ownerId).eq('purpose', 'owner_pickup').is('retired_at', null);
-    if (retire.error) throw new Error(`owner pickup retire failed: ${retire.error.message}`);
-    const { data, error } = await this.db
-      .from('delivery_addresses')
-      .insert({
-        user_id: p.ownerId,
-        purpose: 'owner_pickup',
+    const saved = await this.db.rpc('delivery_save_owner_pickup', {
+      p_owner: p.ownerId,
+      p_address: {
         formatted_address: p.address.formattedAddress,
         suburb: p.address.suburb,
         city: p.address.city,
@@ -112,10 +122,12 @@ export class SupabaseOwnerPickup {
         contact_phone: p.contactPhone,
         instructions: p.instructions,
         verified_by: p.verifiedBy,
-      })
-      .select(PICKUP_COLS)
-      .single();
-    if (error || !data) throw new Error(`owner pickup insert failed: ${error?.message ?? 'no row'}`);
+      },
+      p_now: new Date().toISOString(),
+    });
+    if (saved.error || !saved.data) throw new Error(`owner pickup save failed: ${saved.error?.message ?? 'no row'}`);
+    const { data, error } = await this.db.from('delivery_addresses').select(PICKUP_COLS).eq('id', String(saved.data)).maybeSingle();
+    if (error || !data) throw new Error(`owner pickup read-back failed: ${error?.message ?? 'no row'}`);
     return { ok: true, address: toView(data as Row) };
   }
 
@@ -150,7 +162,14 @@ export class SupabaseOwnerPickup {
     if (!own.data) return { ok: false, code: 'not_found' };
     if (!enabled && (await this.hasLiveLeg(ownerId))) {
       // Switching off while a pickup is booked would strand it: staff change it with the owner.
-      const { data, error } = await this.db.from('delivery_shipments').select('status, accepted_at').eq('origin_owner_id', ownerId).contains('equipment_ids', [rentalId]);
+      const { data, error } = await this.db
+        .from('delivery_shipments')
+        .select('status, accepted_at')
+        .eq('origin_owner_id', ownerId)
+        .contains('equipment_ids', [rentalId])
+        .not('status', 'in', `(${FINAL_DELIVERY_STATES.join(',')})`)
+        .or('status.neq.delivered,accepted_at.is.null')
+        .limit(1);
       if (error) throw new Error(`owner listing legs lookup failed: ${error.message}`);
       if (((data ?? []) as Row[]).some((r) => LIVE_LEG(String(r.status), r.accepted_at))) return { ok: false, code: 'leg_in_progress' };
     }

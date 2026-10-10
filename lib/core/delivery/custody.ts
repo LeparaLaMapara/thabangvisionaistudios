@@ -33,7 +33,7 @@
  *    time for late fees (finding 8, see `endsRenterPossession`).
  */
 
-import type { ShipmentLeg } from './state';
+import type { DeliveryState, ShipmentLeg } from './state';
 
 /** `system` records only `deemed_accepted` (D-48); it never vouches for a physical handover. */
 export const CUSTODY_ACTOR_KINDS = ['owner', 'thabangvision_staff', 'courier', 'renter', 'system'] as const;
@@ -277,6 +277,31 @@ export function returnProgress(chain: readonly CustodyEvent[]): ReturnProgress {
 export function endsRenterPossession(e: Pick<CustodyEvent, 'kind' | 'actor'>): boolean {
   if (e.kind !== 'collected_by_courier' && e.kind !== 'handed_to_return_courier') return false;
   return e.actor.kind === 'courier' || e.actor.kind === 'thabangvision_staff';
+}
+
+/**
+ * Return-leg states in which the gear has left the renter and is at (or
+ * arriving at) the place it goes back to. `collected` and `in_transit` are
+ * not enough on their own: a staff or provider move can reach them without a
+ * per-item record; the item's own collection record covers those.
+ */
+export const RETURN_ARRIVED_STATES: readonly DeliveryState[] = ['courier_at_dropoff', 'delivered', 'incident_under_review'];
+
+/**
+ * Whether an OWNER may record that an item on a return leg came back to them
+ * (D17, D-87; Phase 8 review fix P2). The one predicate the core
+ * (confirmOwnerReturn, confirmHandover) and the owner's screen
+ * (`can_confirm_return`) share. True when the leg is arriving or arrived
+ * (RETURN_ARRIVED_STATES), or the item's own chain on this leg shows it left
+ * the renter (`collected_by_courier`, `handed_to_return_courier`) or was
+ * already received (inspection still to come). A leg that is only scheduled,
+ * with the gear still at the renter's, never lets the owner mark it received:
+ * that would earn the fee, release the owner's payout and the renter's
+ * deposit while the renter still has the gear.
+ */
+export function ownerMayConfirmReturn(status: DeliveryState, itemChain: readonly Pick<CustodyEvent, 'kind'>[]): boolean {
+  if (RETURN_ARRIVED_STATES.includes(status)) return true;
+  return itemChain.some((c) => c.kind === 'collected_by_courier' || c.kind === 'handed_to_return_courier' || c.kind === 'received_by_owner');
 }
 
 /** The custody actor kinds that may end the renter's possession on a return (for database filters). */

@@ -845,6 +845,13 @@ export const DELIVERY_POLICY = {
   // the studio (D-85). false switches owner pickup off for new quotes.
   ownerPickup: {
     enabled: true,
+    // D-93: the renter's price for a trip from (or back to) an owner's
+    // address is worked out from the CENTRE of the grid cell the owner's
+    // address falls in, never from the exact point, so quoting from several
+    // addresses cannot pinpoint the owner's home. 0.02 degrees is about
+    // 2.2 km north-south and 2 km east-west around Johannesburg. The driver
+    // still goes to the real address. Studio trips are priced exactly.
+    pricingGridDegrees: 0.02,
   },
   // FOUNDER DECISION (D-41): a verified goods-in-transit policy. Until a
   // policy reference is set and the founder confirms the wording covers

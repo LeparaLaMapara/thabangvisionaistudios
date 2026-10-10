@@ -125,7 +125,8 @@ export function customerLegs(
       window_label: s ? windowLabel(s.window) : null,
       fee_cents: s?.customerFeeCents ?? 0,
       courier_name: l.courierName?.trim() || null,
-      tracking_url: safeTrackingUrl(l.trackingUrl),
+      // Never on a leg from or back to an owner's address: the courier's page shows that point (D-88).
+      tracking_url: fromOwner ? null : safeTrackingUrl(l.trackingUrl),
       scheduled_at: l.scheduledAt,
       items: l.items.length,
       by: s?.providerKind === 'courier' ? 'courier' : 'our_vehicle',
