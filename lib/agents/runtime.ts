@@ -24,6 +24,7 @@ import { createConversation, logChatMessage, hashIp, conversationBelongsTo } fro
 import { promptField, promptList, sanitiseForPrompt } from '@/lib/ubunye/sanitise';
 import { SupabaseAgentActions } from '@/lib/agent/repo';
 import { pendingProposalBlock } from '@/lib/agent/prompt';
+import { recordAnsweredMessage } from '@/lib/agents/usage';
 
 // Writes that touch money or status go through the service role, after the
 // route has checked who the user is and that the record is theirs. The users'
@@ -219,6 +220,7 @@ export async function executeAgent(
   }
 
   // ── Authenticated usage check ──
+  let chargeAnsweredMessage: (() => Promise<void>) | null = null;
   if (user) {
     const rateLimited = !(await checkRateLimit(`ai:${agentId}:${user.id}`, 10, 60_000));
     if (rateLimited) {
@@ -255,11 +257,9 @@ export async function executeAgent(
         );
       }
 
-      if (usage) {
-        await admin().from('ubunye_usage').update({ message_count: currentCount + 1 }).eq('id', usage.id);
-      } else {
-        await admin().from('ubunye_usage').insert({ user_id: user.id, date: todaySAST, message_count: 1 });
-      }
+      // Counted when the reply starts (onServed below), not here: a reply
+      // that never comes does not use up one of today's messages.
+      chargeAnsweredMessage = () => recordAnsweredMessage(admin(), { userId: user.id, date: todaySAST });
     }
   }
 
@@ -435,6 +435,11 @@ Only ask: how many hours, when, and where. Then prepare the booking for their ap
       stopWhen: stepCountIs(4),
       onServed: (entry, failovers) => {
         servedModelId = entry.modelId;
+        if (chargeAnsweredMessage) {
+          const charge = chargeAnsweredMessage;
+          chargeAnsweredMessage = null;
+          void charge().catch((err) => console.error(`[agent:${agentId}] usage count failed:`, err instanceof Error ? err.message : err));
+        }
         if (failovers > 0) {
           console.warn(`[agent:${agentId}] streamed by ${entry.provider}/${entry.modelId} after ${failovers} failover(s)`);
         }
