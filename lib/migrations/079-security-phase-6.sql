@@ -46,6 +46,13 @@ begin
     new.role_changed_at := case when coalesce(new.role, 'user') <> 'user' then now() else null end;
   elsif new.role is distinct from old.role then
     new.role_changed_at := now();
+  elsif current_user in ('postgres', 'service_role', 'supabase_admin')
+        and current_setting('tv.stamp_role_change', true) = 'on' then
+    -- The platform asks for a stamp without a role change: ending a
+    -- demoted user's sessions (admin_revoke_user_sessions), so an
+    -- app_metadata-only admin whose profile already said 'user' stops
+    -- being trusted by their old JWT (review fix).
+    new.role_changed_at := now();
   else
     -- Derived, never written by hand.
     new.role_changed_at := old.role_changed_at;
@@ -99,7 +106,9 @@ $$;
 -- immediately) and refuses every refresh. Direct REST calls with the old
 -- access token still verify until it expires (at most the JWT lifetime);
 -- part A and part C cover the privileges that matter in that window.
--- Service role only: the app calls it after requireAdmin().
+-- It also stamps profiles.role_changed_at, so the user's old JWT app_metadata
+-- claim stops counting in is_admin() (part A). Service role only: the app
+-- calls it after requireAdmin().
 
 create or replace function public.admin_revoke_user_sessions(p_user_id uuid)
 returns integer
@@ -116,6 +125,13 @@ begin
   delete from auth.refresh_tokens where user_id = p_user_id::text and session_id is null;
   delete from auth.sessions where user_id = p_user_id;
   get diagnostics v_sessions = row_count;
+  -- Stamp the profile as role-managed (see profiles_stamp_role_change): a
+  -- JWT app_metadata claim minted before this moment no longer counts in
+  -- is_admin(), even when the role route's demotion changed nothing because
+  -- the profile already said 'user' (an app_metadata-only admin).
+  perform set_config('tv.stamp_role_change', 'on', true);
+  update public.profiles set updated_at = updated_at where id = p_user_id;
+  perform set_config('tv.stamp_role_change', 'off', true);
   return v_sessions;
 end;
 $$;

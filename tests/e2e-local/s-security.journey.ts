@@ -215,6 +215,21 @@ test('AUTH-2: a demoted admin\'s old token loses admin over REST/RPC at once', a
   expect(refresh.ok()).toBe(false);
 });
 
+test('AUTH-2 (review): an app_metadata-only admin demoted through the app loses admin at once', async ({ browser, request }) => {
+  const boss = await account(request);
+  makeAdmin(boss);
+  const legacy = await account(request);
+  // Admin only in app_metadata (made by hand before 079); the profile says 'user'.
+  exec(`update auth.users set raw_app_meta_data = coalesce(raw_app_meta_data, '{}'::jsonb) || '{"role":"admin"}'::jsonb where id = ${lit(legacy.id)};`);
+  const t = await tokens(request, legacy);
+  expect(await (await request.post(`${SUPABASE_URL}/rest/v1/rpc/is_admin`, { headers: rest(t.access), data: {} })).json()).toBe(true);
+
+  const { context, page } = await signedIn(browser, boss);
+  expect((await page.request.patch(`/api/admin/users/${legacy.id}/role`, { data: { role: 'user' } })).status()).toBe(200);
+  await context.close();
+  expect(await (await request.post(`${SUPABASE_URL}/rest/v1/rpc/is_admin`, { headers: rest(t.access), data: {} })).json()).toBe(false);
+});
+
 test('AUTH-3: a suspended user is signed out and cannot write their cart over REST', async ({ browser, request }) => {
   const boss = await account(request);
   makeAdmin(boss);

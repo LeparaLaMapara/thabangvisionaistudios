@@ -238,4 +238,52 @@ begin
   raise notice 'PASS D4: a legacy row with markup can still be edited elsewhere';
 end $$;
 
+-- ════════════════════════════════════════════════════════════════════════════
+-- E. Review fix: a legacy app_metadata-only admin (profiles.role already
+--    'user', role_changed_at null). The role route's demotion writes
+--    role = 'user' (no change), so the trigger stamps nothing; ending the
+--    sessions must stamp role_changed_at so the old JWT stops counting.
+-- ════════════════════════════════════════════════════════════════════════════
+do $$
+begin
+  update public.profiles set role = 'user' where id = current_setting('t079.legacy')::uuid;  -- what the route writes
+  perform set_config('request.jwt.claims', json_build_object('sub', current_setting('t079.legacy'), 'role', 'authenticated',
+    'app_metadata', json_build_object('role', 'admin'))::text, true);
+  if not public.is_admin() then raise exception 'FAIL E0: setup: the legacy JWT should still count before sessions are ended'; end if;
+  perform set_config('request.jwt.claims', '', true);
+end $$;
+
+set local role service_role;
+select public.admin_revoke_user_sessions(current_setting('t079.legacy')::uuid);
+reset role;
+
+do $$
+begin
+  if (select role_changed_at from public.profiles where id = current_setting('t079.legacy')::uuid) is null then
+    raise exception 'FAIL E1: ending the sessions did not stamp role_changed_at';
+  end if;
+  perform set_config('request.jwt.claims', json_build_object('sub', current_setting('t079.legacy'), 'role', 'authenticated',
+    'app_metadata', json_build_object('role', 'admin'))::text, true);
+  if public.is_admin() then raise exception 'FAIL E1: the demoted legacy admin''s old JWT still gives admin'; end if;
+  perform set_config('request.jwt.claims', '', true);
+  raise notice 'PASS E1: a legacy app_metadata admin demoted without a role change loses admin once sessions are ended';
+end $$;
+
+-- E2. The stamp switch is not something a user can use to keep a stamp off,
+--     and a plain user update still cannot write role_changed_at.
+select set_config('request.jwt.claims', json_build_object('sub', current_setting('t079.user'), 'role', 'authenticated')::text, true);
+set local role authenticated;
+do $$
+declare before timestamptz;
+begin
+  select role_changed_at into before from public.profiles where id = current_setting('t079.user')::uuid;
+  perform set_config('tv.stamp_role_change', 'on', true);
+  update public.profiles set bio = 'x' where id = current_setting('t079.user')::uuid;
+  if (select role_changed_at from public.profiles where id = current_setting('t079.user')::uuid) is distinct from before then
+    raise exception 'FAIL E2: a user session changed role_changed_at through the switch';
+  end if;
+  raise notice 'PASS E2: only the platform (definer/service role) can use the stamp switch';
+end $$;
+reset role;
+
 rollback;
