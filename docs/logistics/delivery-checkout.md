@@ -83,6 +83,20 @@ below).
      the new quote. A different total: `409 DELIVERY_REQUOTE` with the new
      quotes; the renter presses "Accept delivery at R…" and checks out again
      (D07). Nothing is reserved or charged before that.
+   Phase 8: when some of the gear is collected from its owner's address
+   (D-86), the quote has one line per trip and origin ("Delivery from our
+   studio", "Delivery from the owner (Melville)", the same for the return)
+   and the total. The checkout sends every quote id (`delivery_quote_ids`,
+   with the older `delivery_quote_id` / `return_quote_id` still read); the
+   price check wants exactly one live quote per leg asked for and per origin
+   of the cart as the server sees it now. If an owner switched pickup on or
+   off since, the cart changed, or a quote is missing, the whole delivery is
+   re-quoted from the same address and window and comes back for approval
+   (D07). The renter never sees an owner's street (D-88). An owner trip's fee
+   is priced from the centre of the ~2 km grid cell the owner's address is in
+   (`DELIVERY_POLICY.ownerPickup.pricingGridDegrees`, D-93), never from the
+   exact point, so quoting from several addresses cannot locate the owner;
+   the studio trip is priced exactly as before.
 5. After the order is reserved, its quotes are tied to it
    (`delivery_quotes.booking_group_id`, compare-and-set: a quote another order
    holds is refused). The payment intent carries the delivery cents.
@@ -154,8 +168,9 @@ dispatches as staff. Never unpaid.
 `GET /api/delivery/status?booking_id=` (the renter's own booking): each leg's
 state in plain words, the window, the fee paid, the driver or courier name
 **only if recorded** ("not assigned yet" / "not available yet" otherwise), and
-a tracking link only when the provider gave an https link. No addresses.
-The booking page shows this in a Delivery panel.
+a tracking link only when the provider gave an https link, and never on a
+trip from or back to an owner's address (the courier's page shows that
+point, D-88). No addresses. The booking page shows this in a Delivery panel.
 
 `POST /api/delivery/accept` (renter only, signed in): per delivered item,
 `accepted`, or `exception` with a kind (damaged, missing) and what is wrong.
@@ -266,6 +281,15 @@ The booking page's confirmation shows the delivery refund.
   - owner payout eligibility (`evaluatePayout`) adds `delivery_<reason>` hold
     reasons (`checkPayoutEligibility.deliveryHoldReasons`).
   Any of these lookups failing holds the step (fail closed).
+
+## Multi-item delivery orders (R-88)
+
+Before Phase 8 a delivery order with more than one item could not be
+reserved: 041's CHECK (`delivery_needs_address`) wants every delivered line
+to carry an address and a fee, but only the first line got them. Every
+delivered line now carries the verified address; the fee stays on the first
+line (0 on the others), so every sum of `delivery_fee` over an order is
+unchanged.
 
 ## Founder decisions surfaced
 

@@ -1,5 +1,5 @@
 import { createAdminClient } from '@/lib/supabase/server';
-import type { DeliveryDeps, DeliveryRepository } from '@/lib/core/delivery/repository';
+import type { DeliveryDeps, DeliveryRepository, Shipment } from '@/lib/core/delivery/repository';
 import {
   cancelDelivery,
   checkRentalSettlement,
@@ -66,6 +66,21 @@ export async function usesPhase4Delivery(db: Admin, bookingGroupId: string | nul
  * Mirrored in SQL by delivery_cancelled_orders_to_settle (076).
  */
 export const GEAR_WITH_RENTER_STATES: readonly DeliveryState[] = ['delivered', 'damaged', 'incident_under_review'];
+
+const originKey = (s: Pick<Shipment, 'originOwnerId'>): string => s.originOwnerId ?? '';
+
+/**
+ * The origins (our site = '', else the owner's id) whose gear may still be with
+ * the renter: an outbound leg of that origin reached them (GEAR_WITH_RENTER_STATES)
+ * and no return leg of THAT origin has brought it back or is being reviewed.
+ * Mirrored in SQL by delivery_cancelled_orders_to_settle (080, per origin).
+ */
+export function originsWithGearAtRenter(kept: readonly Pick<Shipment, 'leg' | 'status' | 'originOwnerId'>[]): Set<string> {
+  const out = new Set<string>();
+  for (const s of kept) if (s.leg === 'outbound' && GEAR_WITH_RENTER_STATES.includes(s.status)) out.add(originKey(s));
+  for (const s of kept) if (s.leg === 'return') out.delete(originKey(s));
+  return out;
+}
 
 /** Nothing about delivery stands in the way. */
 export const NO_DELIVERY_HOLD: SettlementCheck = { allowed: true, reasons: [], lateFeeAutoCharge: true, returnCollectedAt: null };
@@ -234,9 +249,13 @@ export async function deliveryCancellationPlan(
   const moving = live.filter((s) => IN_COURIER_CUSTODY.includes(s.status));
   const kept = live.filter((s) => !CANCELLABLE_STATES.includes(s.status) && !IN_COURIER_CUSTODY.includes(s.status));
   // Finding 2 (round 3): the renter may still have the gear. Its return pickup is
-  // not cancelled with the order: it is how the gear comes back.
-  const gearWithRenter = kept.some((s) => s.leg === 'outbound' && GEAR_WITH_RENTER_STATES.includes(s.status)) && !kept.some((s) => s.leg === 'return');
-  const returnKept = gearWithRenter ? live.filter((s) => s.leg === 'return' && CANCELLABLE_STATES.includes(s.status)) : [];
+  // not cancelled with the order: it is how the gear comes back. Decided per
+  // ORIGIN (Phase 8 review fix P3.3): the studio's gear being back says nothing
+  // about an owner's gear, and an owner's scheduled return to their address is
+  // kept while that owner's gear is still with the renter.
+  const withRenter = originsWithGearAtRenter(kept);
+  const gearWithRenter = withRenter.size > 0;
+  const returnKept = live.filter((s) => s.leg === 'return' && CANCELLABLE_STATES.includes(s.status) && withRenter.has(originKey(s)));
   const cancellable = live.filter((s) => CANCELLABLE_STATES.includes(s.status) && !returnKept.includes(s));
   const used = new Set(all.map((s) => s.quoteId));
   const [paidQ, openQ, orderQ, intentQ] = await Promise.all([

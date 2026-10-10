@@ -5,6 +5,7 @@ import type { DeliveryProviderRegistry } from '@/lib/core/delivery/repository';
 import { MANUAL_PROVIDER_ID, createManualDeliveryAdapter, type ManualTaskStore } from './manual';
 import { UBER_DIRECT_PROVIDER_ID, createUberDirectAdapter, uberDirectConfigFromEnv } from './uber-direct';
 import { WUMDROP_PROVIDER_ID, createWumdropAdapter, wumdropConfigFromEnv } from './wumdrop';
+import { BOBGO_PROVIDER_ID, bobgoConfigFromEnv, createBobgoAdapter } from './bobgo';
 
 /**
  * The delivery providers in use, chosen by configuration (spec Phase 4 §4.15).
@@ -19,7 +20,7 @@ import { WUMDROP_PROVIDER_ID, createWumdropAdapter, wumdropConfigFromEnv } from 
  *   DELIVERY_ALLOW_SANDBOX           "true" lets sandbox adapters be offered;
  *                                    ignored on the production deployment.
  *
- * Couriers (uber_direct, wumdrop) are stricter: off unless explicitly enabled,
+ * Couriers (uber_direct, wumdrop, bobgo) are stricter: off unless explicitly enabled,
  * and production needs a recorded approval. See gatedCourierFactory below.
  *
  * An id with no adapter gets the refuse-everything adapter: no capabilities,
@@ -134,10 +135,22 @@ export function courierFactories(env: Env): Record<string, DeliveryAdapterFactor
   };
 }
 
+/**
+ * Courier aggregators (one account, several couriers behind it), behind the
+ * same explicit switch. Bob Go's API contract is unverified
+ * (lib/delivery/bobgo/api-contract.ts), so it claims no capabilities.
+ */
+export function aggregatorCourierFactories(env: Env): Record<string, DeliveryAdapterFactory> {
+  return {
+    [BOBGO_PROVIDER_ID]: gatedCourierFactory(BOBGO_PROVIDER_ID, env, (mode) => createBobgoAdapter(bobgoConfigFromEnv(env, mode))),
+  };
+}
+
 /** The registry for this deployment. The manual adapter's tasks live in Supabase. */
 export function deliveryProviders(taskStore: ManualTaskStore, env: Env = process.env): DeliveryProviderRegistry {
   return buildDeliveryRegistry(env, {
     [MANUAL_PROVIDER_ID]: () => createManualDeliveryAdapter(taskStore),
     ...courierFactories(env),
+    ...aggregatorCourierFactories(env),
   });
 }

@@ -31,6 +31,7 @@ import {
   checkCustodyEvent,
   endsRenterPossession,
   outboundReceipt,
+  ownerMayConfirmReturn,
   returnProgress,
   type AccessoryCheck,
   type CustodyActor,
@@ -48,10 +49,11 @@ import {
   type DeliveryIncident,
   type IncidentKind,
 } from './incidents';
-import { evaluateDeliveryEligibility, providerRiskGate, type DeliveryIneligibleCode, type InsuranceAnswer } from './policy';
+import { coarsePricingPoint, originDiscriminator, originReferenceSuffix, sameOrigin, type OriginOwnerId } from './origin';
+import { evaluateDeliveryEligibility, inServiceArea, providerRiskGate, type DeliveryIneligibleCode, type InsuranceAnswer } from './policy';
 import type { CreateDeliveryRequest, DeliveryWindow, ParcelItem, ProviderDelivery, ProviderDeliveryState, ProviderQuote } from './port';
 import { checkQuotesForCharge, priceDeliveryQuote, quoteIsLive, type ChargeCheck, type CustomerDeliveryQuote, type QuoteLineSnapshot } from './quote';
-import type { DeliveryBookingLine, DeliveryDeps, DeliveryProof, DispatchIntent, Shipment, ShipmentTransition } from './repository';
+import { OriginAddressChangedError, type DeliveryBookingLine, type DeliveryDeps, type DeliveryProof, type DispatchIntent, type Shipment, type ShipmentTransition } from './repository';
 import { selectDeliveryProviders, type EvaluatedCandidate } from './select';
 import {
   CANCELLABLE_STATES,
@@ -148,12 +150,54 @@ function staffAlert(what: string, reference: string): OutboxMessage[] {
 
 const ownerIds = (s: Pick<Shipment, 'items'>): (string | null)[] => s.items.map((i) => i.ownerId);
 
-export function merchantReferenceFor(bookingGroupId: string, leg: ShipmentLeg, attempt: number): string {
-  return `tvd_${bookingGroupId.replace(/-/g, '')}_${leg === 'outbound' ? 'o' : 'r'}${attempt}`;
+/**
+ * Our stable reference for one dispatch attempt of one leg. A leg from our
+ * site keeps the pre-Phase-8 form `tvd_{group}_{o|r}{attempt}`; a leg from an
+ * owner's address adds `_{owner id without dashes}` (D-84), so two origins of
+ * the same order never share a reference.
+ */
+export function merchantReferenceFor(bookingGroupId: string, leg: ShipmentLeg, attempt: number, originOwnerId: OriginOwnerId = null): string {
+  return `tvd_${bookingGroupId.replace(/-/g, '')}_${leg === 'outbound' ? 'o' : 'r'}${attempt}${originReferenceSuffix(originOwnerId)}`;
 }
 
-export function dispatchIdempotencyKey(bookingGroupId: string, leg: ShipmentLeg, attempt: number): string {
-  return `delivery-dispatch:${bookingGroupId}:${leg}:${attempt}`;
+/** `delivery-dispatch:{group}:{leg}[@{owner}]:{attempt}` (our site: unchanged from before Phase 8). */
+export function dispatchIdempotencyKey(bookingGroupId: string, leg: ShipmentLeg, attempt: number, originOwnerId: OriginOwnerId = null): string {
+  return `delivery-dispatch:${bookingGroupId}:${leg}${originDiscriminator(originOwnerId)}:${attempt}`;
+}
+
+/** The leg's fee becomes income: one journal per order, leg, origin and attempt (L.deliveryEarned). */
+function earnedJournal(s: Pick<Shipment, 'bookingGroupId' | 'customerFeeCents' | 'leg' | 'attempt' | 'originOwnerId'>): L.Journal {
+  return L.deliveryEarned({ bookingGroupId: s.bookingGroupId, deliveryCents: s.customerFeeCents, leg: s.leg, attempt: s.attempt, originOwnerId: s.originOwnerId ?? null });
+}
+
+/** Notices to the owner whose address the gear's end of this leg is (never for our site). */
+function ownerOriginNotices(kind: 'owner_pickup_scheduled' | 'owner_pickup_collected' | 'owner_gear_returned', s: Pick<Shipment, 'id' | 'items' | 'leg' | 'originOwnerId'>, discriminator: string): OutboxMessage[] {
+  if (!s.originOwnerId) return [];
+  // Only the owner's own booking lines are named; the link goes to their listings, never the renter's booking.
+  const own = { id: s.id, items: s.items.filter((i) => i.ownerId === s.originOwnerId) };
+  return legNotices({ kind, userIds: [s.originOwnerId], shipment: own, discriminator, data: { leg: s.leg } });
+}
+
+/**
+ * A leg from an owner's address (Phase 8): the owner-side address must be
+ * that owner's ACTIVE pickup address and every listing on the leg must, today,
+ * be collected from it (opted in, owner verified and active, address in the
+ * service area). Fails closed when the server cannot tell (no origin port).
+ */
+async function ownerOriginHolds(
+  deps: Pick<DeliveryDeps, 'origins' | 'addresses' | 'policy'>,
+  originOwnerId: string,
+  ownerAddressId: string,
+  rentalIds: readonly string[],
+): Promise<boolean> {
+  if (!deps.origins || rentalIds.length === 0) return false;
+  const point = await deps.addresses.getPoint(ownerAddressId);
+  if (!point || point.userId !== originOwnerId || !inServiceArea(point, deps.policy)) return false;
+  const decided = await deps.origins.originsFor(rentalIds);
+  return rentalIds.every((r) => {
+    const d = decided.get(r);
+    return !!d && d.ok && d.ownerId === originOwnerId && d.addressId === ownerAddressId;
+  });
 }
 
 export function deliveryFeeRefundKey(shipmentId: string): string {
@@ -204,7 +248,7 @@ export async function checkDeliveryEligibility(
 
 export type QuoteDeliveryResult =
   | { ok: true; quotes: CustomerDeliveryQuote[]; excluded: { providerId: string; reasons: string[] }[] }
-  | (Refusal<DeliveryIneligibleCode | 'address_not_found' | 'not_allowed' | 'no_provider'> & { collectionOnly: true; excluded?: { providerId: string; reasons: string[] }[] });
+  | (Refusal<DeliveryIneligibleCode | 'address_not_found' | 'not_allowed' | 'no_provider' | 'origin_unavailable'> & { collectionOnly: true; excluded?: { providerId: string; reasons: string[] }[] });
 
 /**
  * Quote a leg with every eligible provider and store an expiring quote per
@@ -224,6 +268,11 @@ export async function quoteDelivery(
     lines: readonly DeliveryLineInput[];
     window: DeliveryWindow;
     /**
+     * Phase 8: the owner whose pickup address is the gear's end of the leg
+     * (outbound origin, return destination). Absent/null: our site.
+     */
+    originOwnerId?: OriginOwnerId;
+    /**
      * false: an advisory quote for a leg of an existing order (staff by phone,
      * Ubunye, a renter's mid-hire request). It is stored WITHOUT the order
      * link, so it never joins the order's checkout payment (whose delivery
@@ -241,6 +290,13 @@ export async function quoteDelivery(
 
   const [from, to] = await Promise.all([deps.addresses.getPoint(input.originAddressId), deps.addresses.getPoint(input.destinationAddressId)]);
   if (!from || !to) return { ...refuse('address_not_found', 'Choose a saved, verified address.'), collectionOnly: true };
+  const originOwnerId = input.originOwnerId ?? null;
+  if (originOwnerId) {
+    const ownerSide = input.leg === 'outbound' ? input.originAddressId : input.destinationAddressId;
+    if (!(await ownerOriginHolds(deps, originOwnerId, ownerSide, input.lines.map((l) => l.rentalId)))) {
+      return { ...refuse('origin_unavailable', 'This gear cannot be collected from its owner right now. It can go from our studio instead.'), collectionOnly: true };
+    }
+  }
 
   const now = deps.clock.now();
   const items: ParcelItem[] = input.lines.map((l) => ({
@@ -252,6 +308,12 @@ export async function quoteDelivery(
     weightGrams: l.weightGrams,
     containsLithium: l.containsLithium,
   }));
+
+  // D-93: the owner's end of the leg is priced from its coarse grid cell (the
+  // renter reads every fee and could otherwise trilaterate the owner's home).
+  // Our site's end, and the renter's, are priced exactly as before.
+  const priceFrom = originOwnerId && input.leg === 'outbound' ? coarsePricingPoint(from) : from;
+  const priceTo = originOwnerId && input.leg === 'return' ? coarsePricingPoint(to) : to;
 
   const candidates: EvaluatedCandidate[] = [];
   for (const port of deps.providers.list()) {
@@ -268,7 +330,7 @@ export async function quoteDelivery(
       candidates.push({ provider: port, gate, serviceability: null, quote: null });
       continue;
     }
-    const req = { from, to, window: input.window, items };
+    const req = { from: priceFrom, to: priceTo, window: input.window, items };
     const serviceability = await safeCall(() => port.checkServiceability(req));
     const quote = serviceability.ok && serviceability.value.serviceable ? await safeCall(() => port.quote({ ...req, leg: input.leg })) : null;
     candidates.push({ provider: port, gate, serviceability, quote });
@@ -287,6 +349,7 @@ export async function quoteDelivery(
         renterId: input.renterId,
         bookingGroupId: input.link === false ? null : input.bookingGroupId,
         leg: input.leg,
+        originOwnerId,
         providerId: o.providerId,
         providerKind: o.kind,
         providerQuoteRef: o.quote.providerQuoteRef,
@@ -319,7 +382,8 @@ export async function priceDeliveryForCheckout(
   deps: Pick<DeliveryDeps, 'repo' | 'clock'>,
 ): Promise<ChargeCheck | Refusal<'duplicate_leg'>> {
   const quotes = await Promise.all(input.quoteIds.map((id) => deps.repo.getQuote(id)));
-  const legs = quotes.filter((q): q is CustomerDeliveryQuote => !!q).map((q) => q.leg);
+  // One quote per trip: per leg AND origin (Phase 8: one leg per place the gear comes from).
+  const legs = quotes.filter((q): q is CustomerDeliveryQuote => !!q).map((q) => `${q.leg}${originDiscriminator(q.originOwnerId)}`);
   if (new Set(legs).size !== legs.length) return refuse('duplicate_leg', 'Choose one delivery option per trip.');
   return checkQuotesForCharge({ quotes, renterId: input.renterId, now: deps.clock.now(), browserAmountCents: input.browserAmountCents });
 }
@@ -383,6 +447,7 @@ export type PrepareResult =
       | 'provider_excluded'
       | 'too_many_attempts'
       | 'dates_mismatch'
+      | 'origin_unavailable'
     >;
 
 /**
@@ -422,7 +487,9 @@ export async function prepareDelivery(input: { caller: DeliveryCaller; quoteId: 
   const bookingLines = lines as NonNullable<(typeof lines)[number]>[];
 
   const existing = await deps.repo.listShipments(group.bookingGroupId);
-  const sameLeg = existing.filter((s) => s.leg === quote.leg);
+  // One live leg per order, leg AND origin (Phase 8): each place the gear comes from has its own trip.
+  const originOwnerId = quote.originOwnerId ?? null;
+  const sameLeg = existing.filter((s) => s.leg === quote.leg && sameOrigin(s.originOwnerId, originOwnerId));
   const live = sameLeg.find((s) => !FINAL_DELIVERY_STATES.includes(s.status));
   if (live) {
     const intent = await deps.repo.getDispatchIntent(live.id);
@@ -440,6 +507,15 @@ export async function prepareDelivery(input: { caller: DeliveryCaller; quoteId: 
   if (sameLeg.some((s) => s.quoteId === quote.id)) return refuse('quote_not_active', 'That delivery quote has already been used. A new delivery needs a new quote.');
   if (quote.status === 'active' && !quoteIsLive(quote, now)) return refuse('quote_expired', 'Your delivery quote has expired. Please get a new quote.');
   if (!quoteFitsBooking(quote, bookingLines)) return refuse('dates_mismatch', 'The booking dates or quantities changed since this delivery was quoted. Please get a new quote.');
+  if (originOwnerId) {
+    // From an owner's address: every line is that owner's, and the pickup still holds today
+    // (opt-in, owner verified and active, the same active pickup address).
+    const ownerSide = quote.leg === 'outbound' ? quote.originAddressId : quote.destinationAddressId;
+    const allTheirs = bookingLines.every((l) => l.ownerId === originOwnerId);
+    if (!allTheirs || !(await ownerOriginHolds(deps, originOwnerId, ownerSide, bookingLines.map((l) => l.rentalId)))) {
+      return refuse('origin_unavailable', 'This gear can no longer be collected from its owner. Our team will arrange it from the studio.');
+    }
+  }
 
   const port = deps.providers.get(quote.providerId);
   if (!port) return refuse('provider_unavailable', 'That delivery option is no longer available. Please get a new quote.');
@@ -474,35 +550,44 @@ export async function prepareDelivery(input: { caller: DeliveryCaller; quoteId: 
   const gate = providerRiskGate({ provider: port, leg: quote.leg, items, window: quote.window, insurance, allowSandbox: deps.providers.allowSandbox, policy: deps.policy });
   if (!gate.eligible) return refuse('provider_excluded', `That delivery option cannot carry this order (${gate.reasons.join(', ')}).`);
 
-  const created = await deps.repo.createShipment(
-    {
-      bookingGroupId: group.bookingGroupId,
-      leg: quote.leg,
-      attempt,
-      renterId: group.renterId,
-      items: bookingLines.map((l) => ({ bookingId: l.bookingId, rentalId: l.rentalId, ownerId: l.ownerId, serialNumber: l.serialNumber })),
-      providerId: port.providerId,
-      providerKind: kind,
-      quoteId: quote.id,
-      merchantReference: merchantReferenceFor(group.bookingGroupId, quote.leg, attempt),
-      status: 'prepared',
-      quoteAmountCents: quote.quoteAmountCents,
-      customerFeeCents: quote.customerFeeCents,
-      platformFeeCents: quote.platformFeeCents,
-      replacementValueCents: items.reduce((s, i) => s + i.replacementValueCents, 0),
-      coverageVerified: kind === 'courier' ? !!insurance?.covered : DELIVERY_POLICY.ownFleet.verifiedTransitCover,
-      insuranceReference: insurance?.policyRef ?? null,
-      originAddressId: quote.originAddressId,
-      destinationAddressId: quote.destinationAddressId,
-      window: quote.window,
-      paidReference: quote.paidReference,
-    },
-    {
-      merchantReference: merchantReferenceFor(group.bookingGroupId, quote.leg, attempt),
-      idempotencyKey: dispatchIdempotencyKey(group.bookingGroupId, quote.leg, attempt),
-      providerId: port.providerId,
-    },
-  );
+  let created: Awaited<ReturnType<DeliveryDeps['repo']['createShipment']>>;
+  try {
+    created = await deps.repo.createShipment(
+      {
+        bookingGroupId: group.bookingGroupId,
+        leg: quote.leg,
+        attempt,
+        originOwnerId,
+        renterId: group.renterId,
+        items: bookingLines.map((l) => ({ bookingId: l.bookingId, rentalId: l.rentalId, ownerId: l.ownerId, serialNumber: l.serialNumber })),
+        providerId: port.providerId,
+        providerKind: kind,
+        quoteId: quote.id,
+        merchantReference: merchantReferenceFor(group.bookingGroupId, quote.leg, attempt, originOwnerId),
+        status: 'prepared',
+        quoteAmountCents: quote.quoteAmountCents,
+        customerFeeCents: quote.customerFeeCents,
+        platformFeeCents: quote.platformFeeCents,
+        replacementValueCents: items.reduce((s, i) => s + i.replacementValueCents, 0),
+        coverageVerified: kind === 'courier' ? !!insurance?.covered : DELIVERY_POLICY.ownFleet.verifiedTransitCover,
+        insuranceReference: insurance?.policyRef ?? null,
+        originAddressId: quote.originAddressId,
+        destinationAddressId: quote.destinationAddressId,
+        window: quote.window,
+        paidReference: quote.paidReference,
+      },
+      {
+        merchantReference: merchantReferenceFor(group.bookingGroupId, quote.leg, attempt, originOwnerId),
+        idempotencyKey: dispatchIdempotencyKey(group.bookingGroupId, quote.leg, attempt, originOwnerId),
+        providerId: port.providerId,
+      },
+    );
+  } catch (e) {
+    // The owner replaced or removed the address between our check above and the insert (the
+    // database re-checks under the per-owner lock): same answer as a pickup that no longer holds.
+    if (e instanceof OriginAddressChangedError) return refuse('origin_unavailable', 'This gear can no longer be collected from its owner. Our team will arrange it from the studio.');
+    throw e;
+  }
   return { ok: true, ...created };
 }
 
@@ -703,7 +788,7 @@ function withFeeRefund(t: ShipmentTransition, s: Shipment, refundCents: number):
   } else if (refund > 0 && !FINAL_DELIVERY_STATES.includes(t.to)) {
     // Not earned yet, and the leg stays open: settle the earn key now so a later earn is a no-op.
     t.journals.push(
-      L.deliveryEarned({ bookingGroupId: s.bookingGroupId, deliveryCents: s.customerFeeCents, leg: s.leg, attempt: s.attempt }),
+      earnedJournal(s),
       L.deliveryEarnedRefund({ shipmentId: s.id, bookingGroupId: s.bookingGroupId, refundCents: refund }),
     );
   } else {
@@ -762,7 +847,7 @@ async function recordDispatchSuccess(shipment: Shipment, intent: DispatchIntent,
     t.journals.push(L.courierCost({ shipmentId: current.id, bookingGroupId: current.bookingGroupId, amountCents: current.quoteAmountCents, what: 'dispatch' }));
     t.patch.accruedCostCents = current.quoteAmountCents;
   }
-  t.notices.push(...legNotices({ kind: 'delivery_booked', userIds: [current.renterId], shipment: current, discriminator: 'booked' }));
+  t.notices.push(...legNotices({ kind: 'delivery_booked', userIds: [current.renterId], shipment: current, discriminator: 'booked' }), ...ownerOriginNotices('owner_pickup_scheduled', current, 'owner_scheduled'));
   t.quoteStatus = { quoteId: current.quoteId, to: 'consumed' };
   const r = await deps.repo.transitionShipment(t);
   if (r === 'conflict') return false;
@@ -899,6 +984,11 @@ export async function recordProviderEvent(input: ProviderEventInput, deps: Pick<
       t.patch.collectedAt = at;
       t.custody.push(...courierCustody('collected_by_courier'));
       t.notices.push(...legNotices({ kind: outbound ? 'delivery_collected' : 'delivery_return_collected', userIds: renter, shipment, discriminator: to }));
+      if (outbound) t.notices.push(...ownerOriginNotices('owner_pickup_collected', shipment, 'owner_collected'));
+      break;
+    case 'courier_at_dropoff':
+      // On the way back to an owner's address: the owner is asked to confirm receipt and condition.
+      if (!outbound) t.notices.push(...ownerOriginNotices('owner_gear_returned', shipment, 'owner_returned'));
       break;
     case 'in_transit':
       if (outbound) t.notices.push(...legNotices({ kind: 'delivery_in_transit', userIds: renter, shipment, discriminator: to }));
@@ -910,7 +1000,7 @@ export async function recordProviderEvent(input: ProviderEventInput, deps: Pick<
         t.custody.push(...courierCustody('delivered_to_renter'));
         t.notices.push(...legNotices({ kind: 'delivery_delivered', userIds: renter, shipment, discriminator: to }));
       } else {
-        t.notices.push(...staffAlert('delivery_return_awaiting_receipt', shipment.merchantReference));
+        t.notices.push(...staffAlert('delivery_return_awaiting_receipt', shipment.merchantReference), ...ownerOriginNotices('owner_gear_returned', shipment, 'owner_returned'));
       }
       break;
     case 'return_to_sender':
@@ -993,6 +1083,7 @@ export type CustodyResult =
       | 'out_of_order'
       | 'evidence_required'
       | 'exception_needs_detail'
+      | 'not_returned_yet'
       | 'conflict'
     >;
 
@@ -1043,7 +1134,7 @@ async function recordCustody(
     dedupeKey: `${kind}:${shipment.id}:${input.bookingId}:${input.rentalId}`,
   };
   const chain = await deps.repo.listCustody(shipment.id);
-  const check = checkCustodyEvent(e, { shipmentId: shipment.id, bookingGroupId: shipment.bookingGroupId, leg: shipment.leg, items: shipment.items, renterId: shipment.renterId }, chain);
+  const check = checkCustodyEvent(e, { shipmentId: shipment.id, bookingGroupId: shipment.bookingGroupId, leg: shipment.leg, items: shipment.items, renterId: shipment.renterId, originOwnerId: shipment.originOwnerId ?? null }, chain);
   if (!check.ok) return check;
   if (check.duplicate) return { ok: true, duplicate: true, shipment };
 
@@ -1085,6 +1176,7 @@ export async function confirmCollection(input: CustodyInput, deps: Pick<Delivery
       if (t.to === 'collected') {
         t.patch.collectedAt = t.event.occurredAt;
         t.notices.push(...legNotices({ kind: s.leg === 'outbound' ? 'delivery_collected' : 'delivery_return_collected', userIds: [s.renterId], shipment: s, discriminator: 'collected' }));
+        if (s.leg === 'outbound') t.notices.push(...ownerOriginNotices('owner_pickup_collected', s, 'owner_collected'));
       }
     }
   });
@@ -1110,6 +1202,8 @@ export async function confirmHandover(
   const now = deps.clock.now();
   // A fee refunded before receipt is never earned by it (round 3, finding 1).
   const leg = input.outcome === 'accepted' || input.outcome === 'received' ? await deps.repo.getShipment(input.shipmentId) : null;
+  // An owner records a receipt only once the gear has left the renter (P2, D17); staff are trusted with it.
+  if (leg && input.outcome === 'received' && input.caller.kind === 'owner' && !(await ownerReturnArrived(leg, input, deps.repo))) return NOT_RETURNED_YET;
   const refunded = leg ? await feeRefunded(leg, deps.repo) : false;
   return recordCustody(input, kind, deps, (s, e, chain, t) => {
     if (kind === 'delivered_to_renter') {
@@ -1129,7 +1223,7 @@ export async function confirmHandover(
       if (t.to === 'delivered' && !s.deliveredAt) t.patch.deliveredAt = e.occurredAt;
       if (allAccepted(s.items, chain)) {
         t.patch.acceptedAt = e.occurredAt;
-        if (feeInLedger(s) && !refunded) t.journals.push(L.deliveryEarned({ bookingGroupId: s.bookingGroupId, deliveryCents: s.customerFeeCents, leg: 'outbound', attempt: s.attempt }));
+        if (feeInLedger(s) && !refunded) t.journals.push(earnedJournal(s));
       }
       return;
     }
@@ -1154,16 +1248,176 @@ export async function confirmHandover(
       return;
     }
     if (kind === 'received_by_owner') {
-      const all = s.items.every((i) => chain.some((c) => c.bookingId === i.bookingId && c.rentalId === i.rentalId && c.kind === 'received_by_owner'));
-      if (all) {
-        advance(t, s, 'delivered', 'staff');
-        if (!s.deliveredAt) t.patch.deliveredAt = e.occurredAt;
-        t.patch.acceptedAt = e.occurredAt;
-        if (feeInLedger(s) && !refunded) t.journals.push(L.deliveryEarned({ bookingGroupId: s.bookingGroupId, deliveryCents: s.customerFeeCents, leg: 'return', attempt: s.attempt }));
-        t.notices.push(...legNotices({ kind: 'delivery_returned_for_inspection', userIds: [s.renterId], shipment: s, discriminator: 'received' }));
-      }
+      receivedBack(s, e, chain, t, refunded);
+      // Our driver recorded handing the gear back at the owner's door: the owner confirms condition.
+      if (e.actor.kind === 'thabangvision_staff') t.notices.push(...ownerOriginNotices('owner_gear_returned', s, 'owner_returned'));
     }
   });
+}
+
+const NOT_RETURNED_YET = refuse('not_returned_yet', 'This item has not been collected from the renter yet. Confirm it once our driver brings it back to you.');
+
+/** The owner's receipt gate (ownerMayConfirmReturn) for one item on this leg, from its recorded chain. */
+async function ownerReturnArrived(s: Shipment, item: { bookingId: string; rentalId: string }, repo: Pick<DeliveryDeps['repo'], 'listCustody'>): Promise<boolean> {
+  const chain = (await repo.listCustody(s.id)).filter((c) => c.bookingId === item.bookingId && c.rentalId === item.rentalId);
+  return ownerMayConfirmReturn(s, chain);
+}
+
+/** Every item on the return leg is received back: the leg is delivered and its fee earned (once). */
+function receivedBack(s: Shipment, e: CustodyEvent, chain: readonly CustodyEvent[], t: ShipmentTransition, refunded: boolean): void {
+  const all = s.items.every((i) => chain.some((c) => c.bookingId === i.bookingId && c.rentalId === i.rentalId && c.kind === 'received_by_owner'));
+  if (!all) return;
+  advance(t, s, 'delivered', 'staff');
+  if (!s.deliveredAt) t.patch.deliveredAt = e.occurredAt;
+  t.patch.acceptedAt = e.occurredAt;
+  if (feeInLedger(s) && !refunded) t.journals.push(earnedJournal(s));
+  t.notices.push(...legNotices({ kind: 'delivery_returned_for_inspection', userIds: [s.renterId], shipment: s, discriminator: 'received' }));
+}
+
+/**
+ * Phase 8 (D-87): gear returned to the OWNER's pickup address. The owner
+ * confirms, per item, that it is back and in what condition (`received`), or
+ * reports a problem (`problem`: damaged or missing). For `received` and a
+ * damaged item their record is the receipt (`received_by_owner`, with a
+ * photo) and the inspection (`inspected`, with the condition): the gear never
+ * comes back to us, so the owner is the one who can look at it. A problem
+ * also opens an incident (liability undetermined, nobody accused) that holds
+ * settlement and the owner's payout for that line until staff resolve it
+ * (D29). Only the owner the leg returns to, only for their own items; staff
+ * can still record the receipt for them and inspect as before.
+ *
+ * Review fixes (Phase 8):
+ *  - P2: a receipt is refused (`not_returned_yet`) until the gear has left
+ *    the renter (ownerMayConfirmReturn: the leg is arriving or arrived, or
+ *    the item's chain shows its collection). Otherwise an owner could mark a
+ *    scheduled return received and inspected while the renter still has the
+ *    gear: fee earned, payout and deposit released.
+ *  - P3.1: a MISSING item (`lost`) is not a receipt. Only the incident is
+ *    recorded (no `received_by_owner`, no `inspected`, nothing earned) and
+ *    the leg goes under review where the state rules allow it.
+ */
+export async function confirmOwnerReturn(
+  input: CustodyInput & { outcome: 'received' | 'problem'; problem?: { kind: Extract<IncidentKind, 'damaged' | 'lost'>; description: string } | null },
+  deps: Pick<DeliveryDeps, 'repo' | 'clock' | 'newId'>,
+): Promise<CustodyResult> {
+  const c = input.caller;
+  if (c.kind !== 'owner') return refuse('not_allowed', 'Only the owner the gear is returned to confirms it this way.');
+  const s = await deps.repo.getShipment(input.shipmentId);
+  if (!s) return refuse('not_found', 'Delivery not found.');
+  if (s.leg !== 'return' || !s.originOwnerId || s.originOwnerId !== c.userId) return refuse('not_allowed', 'Only the owner the gear is returned to confirms it this way.');
+  const problem = input.outcome === 'problem';
+  const detail = (input.problem?.description ?? '').trim().slice(0, 500);
+  if (problem && detail.length < 3) return refuse('exception_needs_detail', 'Say what is wrong or missing.');
+  const condition = problem ? `Problem reported by the owner: ${detail}` : (input.condition ?? '').trim().slice(0, 500);
+  if (condition.length < 3) return refuse('evidence_required', 'Say what condition the gear is in.');
+  const itemChain = (await deps.repo.listCustody(s.id)).filter((x) => x.bookingId === input.bookingId && x.rentalId === input.rentalId);
+  const already = itemChain.some((x) => x.kind === 'received_by_owner');
+  const now = deps.clock.now();
+
+  // Before the gear has left the renter there is nothing to receive, and nothing to report missing either.
+  if (!ownerMayConfirmReturn(s, itemChain)) return NOT_RETURNED_YET;
+  if (problem && input.problem?.kind === 'lost' && !already) return ownerReportsMissing(s, { ...input, caller: c }, detail, deps);
+  const refunded = await feeRefunded(s, deps.repo);
+
+  const inspect = (sh: Shipment, e: CustodyEvent, chain: CustodyEvent[], t: ShipmentTransition): void => {
+    let incidentId: string | null = null;
+    if (problem && input.problem) {
+      const incident = newIncident({
+        id: deps.newId(),
+        shipmentId: sh.id,
+        bookingGroupId: sh.bookingGroupId,
+        bookingIds: [e.bookingId],
+        leg: sh.leg,
+        kind: input.problem.kind,
+        reportedBy: { kind: 'owner', id: c.userId },
+        description: detail,
+        evidence: e.evidence.map((x) => ({ kind: x.kind, ref: x.ref })),
+        discriminator: `owner-return:${e.bookingId}:${e.rentalId}`,
+        now,
+      });
+      incidentId = incident.id;
+      t.incidents.push(incident);
+      t.notices.push(
+        ...buildNotices({ kind: 'delivery_incident', userId: sh.renterId, bookingIds: [e.bookingId], discriminator: `${sh.id}:incident:${incident.id}` }),
+        ...staffAlert(`delivery_owner_return_${input.problem.kind}`, sh.merchantReference),
+      );
+    }
+    const ins: CustodyEvent = {
+      ...e,
+      kind: 'inspected',
+      condition,
+      discrepancies: problem ? [detail] : [],
+      incidentId,
+      dedupeKey: `inspected:${sh.id}:${e.bookingId}:${e.rentalId}`,
+    };
+    if (e.kind === 'inspected') {
+      Object.assign(e, { condition, discrepancies: ins.discrepancies, incidentId });
+      return;
+    }
+    const ctx = { shipmentId: sh.id, bookingGroupId: sh.bookingGroupId, leg: sh.leg, items: sh.items, renterId: sh.renterId, originOwnerId: sh.originOwnerId ?? null };
+    const ok = checkCustodyEvent(ins, ctx, chain);
+    if (ok.ok && !ok.duplicate) t.custody.push(ins);
+  };
+
+  if (!already) {
+    return recordCustody({ ...input, condition }, 'received_by_owner', deps, (sh, e, chain, t) => {
+      receivedBack(sh, e, chain, t, refunded);
+      inspect(sh, e, chain, t);
+    });
+  }
+  return recordCustody({ ...input, condition }, 'inspected', deps, (sh, e, chain, t) => inspect(sh, e, chain, t));
+}
+
+/**
+ * The owner says an item did not come back (P3.1). Not a receipt: the
+ * incident alone, on the owner's own line, and the leg under review when the
+ * state rules allow it (otherwise the incident is opened on its own). Nothing
+ * is earned and nothing is inspected, so settlement and the payout stay held
+ * (awaiting inspection, and the open incident) until staff decide.
+ */
+async function ownerReportsMissing(
+  s: Shipment,
+  input: CustodyInput & { caller: { kind: 'owner'; userId: string } },
+  detail: string,
+  deps: Pick<DeliveryDeps, 'repo' | 'clock' | 'newId'>,
+): Promise<CustodyResult> {
+  if (FINAL_DELIVERY_STATES.includes(s.status)) return refuse('shipment_closed', 'This delivery is closed.');
+  if (!DISPATCHED.includes(s.status)) return refuse('not_dispatched', 'This delivery has not been booked yet.');
+  const item = s.items.find((i) => i.bookingId === input.bookingId && i.rentalId === input.rentalId);
+  if (!item) return refuse('item_not_on_shipment', 'That item is not on this delivery.');
+  if (item.ownerId !== input.caller.userId) return refuse('not_owner', 'Only the owner of this item can confirm this.');
+  const now = deps.clock.now();
+  const incident = newIncident({
+    id: deps.newId(),
+    shipmentId: s.id,
+    bookingGroupId: s.bookingGroupId,
+    bookingIds: [item.bookingId],
+    leg: s.leg,
+    kind: 'lost',
+    reportedBy: { kind: 'owner', id: input.caller.userId },
+    description: detail,
+    evidence: input.evidence.map((x) => ({ kind: x.kind, ref: x.ref })),
+    discriminator: `owner-return:${item.bookingId}:${item.rentalId}`,
+    now,
+  });
+  const to: DeliveryState = checkDeliveryTransition(s.status, 'incident_under_review', 'system').ok ? 'incident_under_review' : s.status;
+  const t = emptyTransition(s, to, {
+    source: 'owner',
+    actorId: input.caller.userId,
+    dedupeKey: `owner-return-missing:${s.id}:${item.bookingId}:${item.rentalId}`,
+    providerState: null,
+    occurredAt: input.occurredAt ?? now.toISOString(),
+    note: 'lost',
+  });
+  t.incidents.push(incident);
+  t.notices.push(
+    ...buildNotices({ kind: 'delivery_incident', userId: s.renterId, bookingIds: [item.bookingId], discriminator: `${s.id}:incident:${incident.id}` }),
+    // One alert per missing ITEM: a second item missing from the same leg is its own alert.
+    ...staffAlert('delivery_owner_return_lost', `${s.merchantReference}:${item.bookingId}:${item.rentalId}`),
+  );
+  const r = await deps.repo.transitionShipment(t);
+  if (r === 'conflict') return refuse('conflict', 'This delivery changed at the same time. Please try again.');
+  return { ok: true, duplicate: r === 'duplicate', shipment: (await deps.repo.getShipment(s.id)) ?? s, incidentId: incident.id };
 }
 
 /** Staff record the inspection of a returned item (the existing take-back flow calls this too). */
@@ -1229,6 +1483,8 @@ export async function checkRentalSettlement(input: { bookingGroupId: string; boo
 export interface DeliveryStatusLeg {
   shipmentId: string;
   leg: ShipmentLeg;
+  /** Phase 8: null = our site; an owner's id = that owner's pickup address (outbound origin, return destination). */
+  originOwnerId?: string | null;
   status: DeliveryState;
   providerId: string;
   trackingUrl: string | null;
@@ -1255,10 +1511,13 @@ export async function getDeliveryStatus(
     legs.push({
       shipmentId: s.id,
       leg: s.leg,
+      originOwnerId: s.originOwnerId ?? null,
       status: s.status,
       providerId: s.providerId,
-      // Owners never see the renter-side tracking link (it reveals the renter's address).
-      trackingUrl: isOwner ? null : s.trackingUrl,
+      // Owners never see the renter-side tracking link (it reveals the renter's address);
+      // the renter never sees it on a leg from or back to an OWNER's address (a courier's
+      // tracking page shows the pickup or drop-off point, D-88). Staff see it.
+      trackingUrl: isOwner || (!!s.originOwnerId && input.caller.kind !== 'staff') ? null : s.trackingUrl,
       courierName: s.courierName,
       scheduledAt: s.scheduledAt,
       items: s.items
@@ -1591,7 +1850,7 @@ export async function deemDeliveryAccepted(
     }
   }
   t.patch.acceptedAt = now.toISOString();
-  if (feeInLedger(s)) t.journals.push(L.deliveryEarned({ bookingGroupId: s.bookingGroupId, deliveryCents: s.customerFeeCents, leg: 'outbound', attempt: s.attempt }));
+  if (feeInLedger(s)) t.journals.push(earnedJournal(s));
   const r = await deps.repo.transitionShipment(t);
   return { ok: true, outcome: r === 'applied' ? 'deemed' : r };
 }
@@ -1631,7 +1890,10 @@ export async function refundUnusedDeliveryQuote(
   const notices: OutboxMessage[] = [];
   if (fee > 0) {
     notices.push(...buildNotices({ kind: 'delivery_fee_refund', userId: q.renterId, bookingIds: q.bookingIds, discriminator: `${ref}:fee_refund`, data: { amountCents: fee } }));
-    notices.push(...staffAlert(manual ? 'delivery_manual_fee_refund_due' : 'delivery_unused_quote_refunded', `${q.bookingGroupId}:${q.leg}:${fee}`));
+    // An owner trip is keyed per QUOTE (P3.2): two owners' trips on one order with the same leg and fee
+    // (both at the minimum) are two refunds, and the second alert must not be dropped as a duplicate.
+    // Our site's key is unchanged.
+    notices.push(...staffAlert(manual ? 'delivery_manual_fee_refund_due' : 'delivery_unused_quote_refunded', `${q.bookingGroupId}:${q.leg}${originDiscriminator(q.originOwnerId)}:${fee}${q.originOwnerId ? `:${q.id}` : ''}`));
   }
   const r = await deps.repo.refundUnusedQuote({
     quoteId: q.id,
@@ -1720,7 +1982,7 @@ export async function closeDeliveryReview(
       t.patch.acceptedAt = now;
       if (!s.deliveredAt) t.patch.deliveredAt = now;
       // Earned once: the journal is keyed per order, leg and attempt.
-      if (feeInLedger(s) && !refunded) t.journals.push(L.deliveryEarned({ bookingGroupId: s.bookingGroupId, deliveryCents: s.customerFeeCents, leg: 'outbound', attempt: s.attempt }));
+      if (feeInLedger(s) && !refunded) t.journals.push(earnedJournal(s));
     }
   }
   if (input.to === 'failed' && input.refundFee) {

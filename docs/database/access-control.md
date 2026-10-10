@@ -33,6 +33,47 @@ that fail the build of a database: run it after every migration.
   third admin path, the `ADMIN_EMAILS` break-glass in `lib/auth/supabase.ts`,
   exists only in API routes; RLS does not know about it.
 
+## Migration 080 (Phase 8, owner pickup)
+
+No new table, policy or function signature. What changes for access:
+
+- `delivery_addresses` gains `purpose = 'owner_pickup'` rows. The existing
+  policy ("Own delivery addresses": `user_id = auth.uid()`) is exactly the
+  rule wanted: the owner reads their own pickup address; the renter of an
+  order collected from it, other owners, strangers and **admins through the
+  API** read nothing of it (staff see it only through the audited, strictly
+  rate-limited `reveal_address` action, which runs as the server and is
+  logged, D21/D-88). Clients have no write grant: an owner changes their
+  address only through `PUT /api/delivery/owner-pickup`, which verifies it
+  on the server first.
+- `delivery_shipments.origin_owner_id` is **not** in the column grant to
+  `authenticated` (076's 15 columns are unchanged). `delivery_quotes` (076:
+  granted table-wide) is a column grant since 080's review fixes: the renter
+  reads their own quotes' fee, status, window and lines, never
+  `quote_amount_cents`, `provider_cost_cents`, `platform_fee_cents`,
+  `provider_quote_ref`, `origin_owner_id`, `origin_address_id` or
+  `destination_address_id`. No client reads `delivery_quotes` directly today
+  (every read is the server's, service role), so nothing depends on the
+  columns taken away. The fee itself is priced from a ~2 km grid cell for an
+  owner trip (D-93), so it cannot place the owner's house.
+- `delivery_save_owner_pickup` and `delivery_remove_owner_pickup` (080):
+  replace (retire + store, one transaction) or retire the owner's active
+  pickup address, refused while a leg from or back to it is under way,
+  checked under a per-owner advisory lock that `delivery_create_shipment`
+  also takes for an owner leg (which in turn refuses a leg whose quoted
+  owner address was retired: R-91). SECURITY DEFINER,
+  `search_path = public, pg_temp`, execute for `service_role` only.
+- `delivery_cancelled_orders_to_settle` is replaced in 080 (per-origin
+  "gear may be with the renter" rule), same settings and grant as 076.
+- `listing_private.owner_pickup`: the owner (and admins) read it under the
+  072 policies; nobody but the server writes `listing_private`.
+- `delivery_create_shipment` and `delivery_redact_address` are replaced in
+  place: SECURITY DEFINER, `search_path = public, pg_temp`, execute for
+  `service_role` only (restated in 080).
+
+Proved by `lib/migrations/080-owner-pickup.test.sql` (3a–3f, 4, 6, 8, 9, 10, 11) and
+`rls-coverage.test.sql` (unchanged allow-lists).
+
 ## Summary (after 077)
 
 | Item | Count |
@@ -148,7 +189,7 @@ bypasses RLS, so it is not shown.
 | `delivery_manual_tasks` | on | — | — | — | — | — | — |
 | `delivery_proofs` | on | — | — | — | — | — | — |
 | `delivery_provider_events` | on | — | — | — | — | — | — |
-| `delivery_quotes` | on | authenticated: `((renter_id = auth.uid()) OR admin)` | — | — | — | — | S |
+| `delivery_quotes` | on | authenticated: `((renter_id = auth.uid()) OR admin)` | — | — | — | — | S(20 cols) |
 | `delivery_reconciliation` | on | — | — | — | — | — | — |
 | `delivery_shipments` | on | authenticated: `((renter_id = auth.uid()) OR (auth.uid() = ANY (owner_ids)) OR admin)` | — | — | — | — | S(15 cols) |
 | `dispute_comments` | on | — | — | — | — | S | S |

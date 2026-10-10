@@ -26,6 +26,7 @@ import type { Journal } from '@/lib/core/rental/ledger';
 import type { OutboxMessage } from '@/lib/core/rental/notifications';
 import type { BookingStatus } from '@/lib/core/rental/state';
 import { isManualPaymentReference } from '@/lib/core/delivery/use-cases';
+import { OriginAddressChangedError } from '@/lib/core/delivery/repository';
 import { loadRenterFacts } from '@/lib/rental/eligibility-server';
 import { isMissingPipeline } from '@/lib/rental/repos';
 import type { DeliveryInboxStore, StoredDeliveryEvent } from './inbox';
@@ -51,7 +52,7 @@ const str = (v: unknown): string | null => (v === null || v === undefined ? null
 const num = (v: unknown): number => Number(v ?? 0);
 
 const QUOTE_COLS =
-  'id, renter_id, booking_group_id, leg, provider, provider_kind, provider_quote_ref, quote_amount_cents, provider_cost_cents, platform_fee_cents, customer_fee_cents, replacement_value_cents, booking_ids, rental_ids, origin_address_id, destination_address_id, window_start, window_end, expires_at, status, paid_reference, line_snapshot, requested_at, created_at';
+  'id, renter_id, booking_group_id, leg, provider, provider_kind, provider_quote_ref, quote_amount_cents, provider_cost_cents, platform_fee_cents, customer_fee_cents, replacement_value_cents, booking_ids, rental_ids, origin_owner_id, origin_address_id, destination_address_id, window_start, window_end, expires_at, status, paid_reference, line_snapshot, requested_at, created_at';
 
 function toQuote(r: Row): CustomerDeliveryQuote {
   return {
@@ -69,6 +70,7 @@ function toQuote(r: Row): CustomerDeliveryQuote {
     replacementValueCents: num(r.replacement_value_cents),
     bookingIds: (r.booking_ids as string[] | null) ?? [],
     rentalIds: (r.rental_ids as string[] | null) ?? [],
+    originOwnerId: str(r.origin_owner_id),
     originAddressId: String(r.origin_address_id),
     destinationAddressId: String(r.destination_address_id),
     window: { start: str(r.window_start), end: str(r.window_end) },
@@ -82,7 +84,7 @@ function toQuote(r: Row): CustomerDeliveryQuote {
 }
 
 const SHIPMENT_COLS =
-  'id, booking_group_id, leg, attempt, renter_id, items, provider, provider_kind, quote_id, merchant_reference, provider_reference, status, quote_amount_cents, customer_fee_cents, platform_fee_cents, accrued_cost_cents, provider_cost_cents, replacement_value_cents, coverage_verified, insurance_reference, tracking_reference, tracking_url, courier_name, origin_address_id, destination_address_id, window_start, window_end, scheduled_at, collected_at, delivered_at, accepted_at, last_provider_state_at, paid_reference, created_at';
+  'id, booking_group_id, leg, attempt, origin_owner_id, renter_id, items, provider, provider_kind, quote_id, merchant_reference, provider_reference, status, quote_amount_cents, customer_fee_cents, platform_fee_cents, accrued_cost_cents, provider_cost_cents, replacement_value_cents, coverage_verified, insurance_reference, tracking_reference, tracking_url, courier_name, origin_address_id, destination_address_id, window_start, window_end, scheduled_at, collected_at, delivered_at, accepted_at, last_provider_state_at, paid_reference, created_at';
 
 function toShipment(r: Row): Shipment {
   return {
@@ -90,6 +92,7 @@ function toShipment(r: Row): Shipment {
     bookingGroupId: String(r.booking_group_id),
     leg: r.leg as Shipment['leg'],
     attempt: num(r.attempt),
+    originOwnerId: str(r.origin_owner_id),
     renterId: String(r.renter_id),
     items: ((r.items as ShipmentItem[] | null) ?? []).map((i) => ({ bookingId: i.bookingId, rentalId: i.rentalId, ownerId: i.ownerId ?? null, serialNumber: i.serialNumber ?? null })),
     providerId: String(r.provider),
@@ -196,6 +199,7 @@ export class SupabaseDeliveryRepository implements DeliveryRepository {
         replacement_value_cents: q.replacementValueCents,
         booking_ids: q.bookingIds,
         rental_ids: q.rentalIds,
+        origin_owner_id: q.originOwnerId ?? null,
         origin_address_id: q.originAddressId,
         destination_address_id: q.destinationAddressId,
         window_start: q.window.start,
@@ -267,6 +271,7 @@ export class SupabaseDeliveryRepository implements DeliveryRepository {
     intent: Omit<DispatchIntent, 'id' | 'shipmentId' | 'attempts' | 'claimedAt' | 'lastError' | 'providerReference' | 'state'>,
   ): Promise<{ shipment: Shipment; intent: DispatchIntent; created: boolean }> {
     const { data, error } = await this.db.rpc('delivery_create_shipment', { p_shipment: s, p_intent: intent });
+    if (error?.message?.includes('delivery_origin_address_changed')) throw new OriginAddressChangedError();
     if (error) throw dbError('delivery_create_shipment', error);
     const res = data as { shipment_id: string; created: boolean };
     const [shipment, di] = await Promise.all([this.getShipment(res.shipment_id), this.getDispatchIntent(res.shipment_id)]);

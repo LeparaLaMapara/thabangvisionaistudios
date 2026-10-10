@@ -162,7 +162,7 @@ export function createDeliveryTools(supabase: SupabaseClient, isAuthenticated: b
     if (!window) return { error: 'Give the date as YYYY-MM-DD.' };
     const r = await quoteDelivery(
       // Advisory (no order link): it never changes what the order's payment covers.
-      { caller: who.caller, renterId: who.userId, bookingGroupId: who.bookingGroupId, leg, originAddressId: inputs.originAddressId, destinationAddressId: inputs.destinationAddressId, lines: inputs.lines, window, link: false },
+      { caller: who.caller, renterId: who.userId, bookingGroupId: who.bookingGroupId, leg, originAddressId: inputs.originAddressId, destinationAddressId: inputs.destinationAddressId, originOwnerId: inputs.originOwnerId, lines: inputs.lines, window, link: false },
       deps,
     );
     if (!r.ok) return { available: false, reason: r.code, message: r.message, collection_in_person: 'Free', note: HONESTY };

@@ -7,6 +7,7 @@ import { getDeliveryStatus } from '@/lib/core/delivery/use-cases';
 import { deliveryDeps } from '@/lib/delivery/server';
 import { customerLegs, returnPickupOption } from '@/lib/delivery/customer-view';
 import { SupabaseQuoteLinks } from '@/lib/delivery/checkout';
+import { publicOriginArea } from '@/lib/core/delivery/origin';
 
 /**
  * Delivery status for one of the signed-in renter's bookings (spec §4.17):
@@ -44,8 +45,14 @@ export async function GET(request: NextRequest) {
     const rentalIds = [...new Set(status.legs.flatMap((l) => l.items.map((i) => i.rentalId)))];
     const { data: rentals } = rentalIds.length ? await supabase.from('smart_rentals').select('id, title').in('id', rentalIds) : { data: [] };
     const titles = new Map(((rentals ?? []) as { id: string; title: string | null }[]).map((r) => [r.id, r.title ?? '']));
+    // Phase 8: a leg from (or back to) an owner's address names the owner's suburb, never the street (D-88).
+    const areas = new Map<string, string | null>();
+    for (const s of shipments) {
+      if (!s.originOwnerId) continue;
+      areas.set(s.id, publicOriginArea(await deps.addresses.getPoint(s.leg === 'outbound' ? s.originAddressId : s.destinationAddressId)));
+    }
     return NextResponse.json({
-      legs: customerLegs(status.legs, shipments, titles),
+      legs: customerLegs(status.legs, shipments, titles, areas),
       open_incidents: status.openIncidents,
       return_pickup: status.legs.length === 0 ? null : option,
       return_pickup_requested: pending ? { fee_cents: pending.customerFeeCents } : null,

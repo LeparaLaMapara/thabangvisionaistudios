@@ -26,6 +26,9 @@ interface Shipment {
   bookingGroupId: string;
   leg: 'outbound' | 'return';
   attempt: number;
+  /** Phase 8: the gear's end of the leg: our studio, or an owner's pickup address (reveal it to see it). */
+  origin?: 'studio' | 'owner';
+  originOwnerId?: string | null;
   renterId: string;
   ownerIds: string[];
   items: { bookingId: string; rentalId: string; serialNumber: string | null }[];
@@ -398,6 +401,9 @@ function ShipmentRow({ s, open, onToggle, busy, act }: { s: Shipment; open: bool
       <div className="flex flex-wrap items-center gap-3">
         <Badge variant={stateVariant(s.status)}>{label(s.status)}</Badge>
         <Badge variant="default">{s.leg === 'outbound' ? 'to renter' : 'return'}</Badge>
+        <Badge variant={s.origin === 'owner' ? 'featured' : 'default'}>
+          {s.origin === 'owner' ? (s.leg === 'outbound' ? `from owner ${short(s.originOwnerId)}` : `back to owner ${short(s.originOwnerId)}`) : s.leg === 'outbound' ? 'from studio' : 'back to studio'}
+        </Badge>
         <Badge variant={s.providerKind === 'own_fleet' ? 'featured' : 'default'}>{s.providerKind === 'own_fleet' ? 'our driver' : s.providerId}</Badge>
         <span className="text-sm font-mono text-white break-all">{s.merchantReference}</span>
         {s.intent && s.intent.state !== 'succeeded' && <Badge variant={stateVariant(s.intent.state)}>dispatch {label(s.intent.state)}</Badge>}
@@ -405,6 +411,7 @@ function ShipmentRow({ s, open, onToggle, busy, act }: { s: Shipment; open: bool
       <Meta
         items={[
           ['Window', s.windowStart ? `${when(s.windowStart)} – ${when(s.windowEnd)}` : 'as soon as possible'],
+          ['Origin', s.origin === 'owner' ? `owner's pickup address (${short(s.originOwnerId)})` : 'studio'],
           ['Items', String(s.items.length)],
           ['Fee', money(s.customerFeeCents)],
           ['Order', short(s.bookingGroupId)],

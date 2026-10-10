@@ -71,15 +71,23 @@ export async function POST(request: NextRequest) {
     if (pending && body.action === 'approve') return NextResponse.json({ ok: true, requested: true, already: true, message: RETURN_REQUESTED_MESSAGE, quote: publicQuote(pending) });
     const option = returnPickupOption(shipments, group.lines.map((l) => l.status), pending);
     if (!option.allowed) return NextResponse.json({ error: option.message, code: option.reason }, { status: 409 });
-    const outbound = shipments.find((s) => s.leg === 'outbound' && !FINAL_DELIVERY_STATES.includes(s.status));
+    const liveOut = shipments.filter((s) => s.leg === 'outbound' && !FINAL_DELIVERY_STATES.includes(s.status));
+    const outbound = liveOut[0];
     if (!outbound) return NextResponse.json({ error: 'Gear collected in person is returned in person.', code: 'collected_in_person' }, { status: 409 });
-    const lines = group.lines.filter((l) => ['confirmed', 'active', 'overdue'].includes(l.status));
+    // Phase 8: gear that came from more than one place (our studio, owners' addresses) goes back to
+    // each of them; those trips are arranged by our team, not from this page.
+    if (new Set(liveOut.map((s) => s.originOwnerId ?? null)).size > 1) {
+      return NextResponse.json({ error: 'Your gear came from more than one place, so our team arranges the return pickups. Please contact us.', code: 'several_origins' }, { status: 409 });
+    }
+    const originOwnerId = outbound.originOwnerId ?? null;
+    const onLeg = new Set(outbound.items.map((i) => i.bookingId));
+    const lines = group.lines.filter((l) => ['confirmed', 'active', 'overdue'].includes(l.status) && (!originOwnerId || onLeg.has(l.bookingId)));
     const caller = { kind: 'renter' as const, userId: user.id };
 
     const quoteFor = async (window: { start: string | null; end: string | null }) =>
       quoteDelivery(
         // The same verified address the gear went to, back to where it came from.
-        { caller, renterId: user.id, bookingGroupId: groupId, leg: 'return', originAddressId: outbound.destinationAddressId, destinationAddressId: outbound.originAddressId, lines, window, link: false },
+        { caller, renterId: user.id, bookingGroupId: groupId, leg: 'return', originAddressId: outbound.destinationAddressId, destinationAddressId: outbound.originAddressId, originOwnerId, lines, window, link: false },
         deps,
       );
 
