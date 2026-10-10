@@ -125,7 +125,9 @@ export function bookingMoneyView(p: {
         depositCents: null,
         deliveryCents: null,
         at: latest,
-        wholeOrder: wholeOrder && succeeded.some((x) => x.booking_id !== p.bookingId),
+        // Staff "mark paid" records ONE succeeded row for the whole order
+        // against one line, so any multi-line order's payment is the order's.
+        wholeOrder,
       };
     } else if (p.intent?.state === 'initiated' || p.payments.some((x) => x.status === 'pending')) {
       awaitingConfirmation = true;

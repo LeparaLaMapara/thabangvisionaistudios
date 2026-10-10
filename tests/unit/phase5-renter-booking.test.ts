@@ -51,6 +51,19 @@ describe('bookingMoneyView', () => {
     expect(v.charged?.at).toBe('2026-10-02T00:00:00Z');
   });
 
+  it('a hand-recorded payment for a multi-line order (one row on one line) is labelled as the whole order', () => {
+    const v = bookingMoneyView({
+      bookingId: BOOKING,
+      orderLineCount: 3,
+      intent: null,
+      payments: [{ booking_id: BOOKING, amount: 2400, status: 'succeeded', created_at: '2026-10-01T00:00:00Z' }],
+      refunds: [],
+    });
+    expect(v.charged).toMatchObject({ totalCents: 240000, wholeOrder: true });
+    const single = bookingMoneyView({ bookingId: BOOKING, orderLineCount: 1, intent: null, payments: [{ booking_id: BOOKING, amount: 500, status: 'succeeded', created_at: '2026-10-01T00:00:00Z' }], refunds: [] });
+    expect(single.charged?.wholeOrder).toBe(false);
+  });
+
   it('says nothing was charged when nothing was', () => {
     const v = bookingMoneyView({ bookingId: BOOKING, orderLineCount: 1, intent: null, payments: [], refunds: [] });
     expect(v.charged).toBeNull();

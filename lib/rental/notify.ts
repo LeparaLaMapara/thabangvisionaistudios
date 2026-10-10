@@ -125,10 +125,26 @@ function linkFor(m: OutboxMessage): string {
   return m.bookingIds[0] ? `/dashboard/bookings/${m.bookingIds[0]}` : '/dashboard/bookings';
 }
 
+/**
+ * Facts a notice's words depend on that are read when it is sent. "Booking
+ * confirmed" says collection or delivery from the booking's fulfilment_method,
+ * the same field the collection reminder uses (lib/rental/workers.ts), never
+ * from whether a delivery fee was charged.
+ */
+export async function noticeData(
+  db: Pick<ReturnType<typeof createAdminClient>, 'from'>,
+  m: Pick<OutboxMessage, 'kind' | 'bookingIds' | 'data'>,
+): Promise<OutboxMessage['data']> {
+  if (m.kind !== 'booking_confirmed' || m.bookingIds.length === 0) return m.data;
+  const { data } = await db.from('equipment_bookings').select('fulfilment_method').in('id', m.bookingIds);
+  const delivery = ((data ?? []) as { fulfilment_method?: string | null }[]).some((b) => b.fulfilment_method === 'delivery');
+  return { ...m.data, delivery };
+}
+
 export const supabaseNotify: NotifyPort = {
   async deliver(m) {
     const db = createAdminClient();
-    const { title, body } = rentalNoticeText(m.kind, m.data);
+    const { title, body } = rentalNoticeText(m.kind, await noticeData(db, m));
     const link = linkFor(m);
 
     if (m.channel === 'in_app') {

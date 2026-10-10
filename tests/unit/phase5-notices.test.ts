@@ -7,7 +7,7 @@
 import { describe, expect, it } from 'vitest';
 import { STUDIO } from '@/lib/constants';
 import { collectionPointWithCity } from '@/lib/rental/collection-point';
-import { rentalNoticeText } from '@/lib/rental/notify';
+import { noticeData, rentalNoticeText } from '@/lib/rental/notify';
 
 
 describe('notices carry what the checkout page promised', () => {
@@ -57,5 +57,34 @@ describe('runReminders: "ready for collection" only for orders that are collecte
     const collection = enqueued.filter((n) => n.kind === 'collection_reminder').flatMap((n) => n.bookingIds);
     expect([...new Set(collection)].sort()).toEqual(['collect-1', 'legacy-1']);
     expect(enqueued.some((n) => n.kind === 'return_reminder' && n.bookingIds.includes('return-1'))).toBe(true);
+  });
+});
+
+describe('booking confirmed reads fulfilment_method, like the reminder', () => {
+  const db = (rows: Record<string, unknown>[]) => ({
+    from: () => {
+      const q = { select: () => q, in: async () => ({ data: rows, error: null }) };
+      return q;
+    },
+  });
+
+  it('a delivered order is told about the delivery; a collected one where to collect', async () => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const d = await noticeData(db([{ fulfilment_method: 'delivery' }]) as any, { kind: 'booking_confirmed', bookingIds: ['b1'], data: {} });
+    expect(d.delivery).toBe(true);
+    expect(rentalNoticeText('booking_confirmed', d).body).not.toContain(collectionPointWithCity());
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const c = await noticeData(db([{ fulfilment_method: 'collection' }, { fulfilment_method: null }]) as any, { kind: 'booking_confirmed', bookingIds: ['b1', 'b2'], data: {} });
+    expect(c.delivery).toBe(false);
+    expect(rentalNoticeText('booking_confirmed', c).body).toContain(collectionPointWithCity());
+  });
+
+  it('a delivery fee alone does not decide it, and other notices are untouched', async () => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const d = await noticeData(db([{ fulfilment_method: 'collection' }]) as any, { kind: 'booking_confirmed', bookingIds: ['b1'], data: { delivery: true } });
+    expect(d.delivery).toBe(false);
+    const other = { kind: 'refund_processed' as const, bookingIds: ['b1'], data: { amountCents: 100 } };
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    expect(await noticeData(db([]) as any, other)).toBe(other.data);
   });
 });

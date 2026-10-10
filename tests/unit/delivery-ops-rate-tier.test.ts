@@ -44,20 +44,28 @@ beforeEach(() => {
 
 describe('deliveryActionRateTier', () => {
   it('puts recording what physically happened on the everyday limit', () => {
-    for (const a of ['advance_manual', 'record_collection', 'record_handover', 'record_inspection', 'report_incident', 'reschedule', 'quote_leg', 'reveal_address']) {
-      expect(deliveryActionRateTier(a), a).toBe('standard');
+    for (const a of ['advance_manual', 'record_collection', 'record_handover', 'record_inspection', 'report_incident', 'reschedule', 'quote_leg']) {
+      expect(deliveryActionRateTier({ action: a }), a).toBe('standard');
     }
   });
 
-  it('keeps money, courier bookings, liability and batches on the strict limit', () => {
-    for (const a of ['dispatch', 'cancel', 'dispatch_manual_paid', 'reconcile_invoice', 'close_review', 'resolve_incident', 'run_jobs', 'requeue_event']) {
-      expect(deliveryActionRateTier(a), a).toBe('sensitive');
+  it('keeps money, courier bookings, liability, address reveals and batches on the strict limit', () => {
+    for (const a of ['dispatch', 'cancel', 'dispatch_manual_paid', 'reconcile_invoice', 'close_review', 'resolve_incident', 'run_jobs', 'requeue_event', 'reveal_address']) {
+      expect(deliveryActionRateTier({ action: a }), a).toBe('sensitive');
     }
+  });
+
+  it('an incident that decides whether the provider caused it (waives the late fee) is strict', () => {
+    expect(deliveryActionRateTier({ action: 'report_incident', providerCaused: true })).toBe('sensitive');
+    expect(deliveryActionRateTier({ action: 'report_incident', providerCaused: false })).toBe('sensitive');
+    // Anything else the route reads as "not decided" (null).
+    expect(deliveryActionRateTier({ action: 'report_incident', providerCaused: null })).toBe('standard');
+    expect(deliveryActionRateTier({ action: 'report_incident', providerCaused: 'yes' })).toBe('standard');
   });
 
   it('is strict for anything it does not know', () => {
-    for (const a of [undefined, null, 42, '', 'Advance_Manual', 'refund_everything', { action: 'advance_manual' }]) {
-      expect(deliveryActionRateTier(a)).toBe('sensitive');
+    for (const b of [undefined, null, 42, 'advance_manual', {}, { action: '' }, { action: 'Advance_Manual' }, { action: 'refund_everything' }, { action: { action: 'advance_manual' } }]) {
+      expect(deliveryActionRateTier(b)).toBe('sensitive');
     }
   });
 });
@@ -72,6 +80,19 @@ describe('POST /api/admin/delivery applies the tier per action', () => {
 
   it('a cancellation (money) is limited on the sensitive bucket', async () => {
     const res = await post({ action: 'cancel', shipmentId: '00000000-0000-4000-8000-000000000001', reason: 'x', initiatedBy: 'renter' });
+    expect(res.status).toBe(429);
+    expect(state.tiers).toEqual(['sensitive']);
+    expect(state.ranUseCase).toBe(0);
+  });
+
+  it('an address reveal is limited on the sensitive bucket', async () => {
+    const res = await post({ action: 'reveal_address', shipmentId: '00000000-0000-4000-8000-000000000001', side: 'dropoff' });
+    expect(res.status).toBe(429);
+    expect(state.tiers).toEqual(['sensitive']);
+  });
+
+  it('an incident with a provider-caused decision is limited on the sensitive bucket', async () => {
+    const res = await post({ action: 'report_incident', shipmentId: '00000000-0000-4000-8000-000000000001', kind: 'late', providerCaused: true });
     expect(res.status).toBe(429);
     expect(state.tiers).toEqual(['sensitive']);
     expect(state.ranUseCase).toBe(0);

@@ -137,7 +137,7 @@ export async function processChargeEvent(
         }),
         notices: [
           ...buildNotices({ kind: 'payment_received', userId: intent.userId, bookingIds: intent.bookingIds, discriminator: event.providerTransactionId, data: { amountCents: event.amountCents } }),
-          ...buildNotices({ kind: 'booking_confirmed', userId: intent.userId, bookingIds: intent.bookingIds, discriminator: intent.checkoutGroupId, data: { delivery: intent.deliveryCents > 0 } }),
+          ...buildNotices({ kind: 'booking_confirmed', userId: intent.userId, bookingIds: intent.bookingIds, discriminator: intent.checkoutGroupId }),
         ],
       });
       if (outcome === 'confirmed') return late ? 'confirmed_late' : 'confirmed';

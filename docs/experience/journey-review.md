@@ -259,7 +259,8 @@ add detail under Disputes; we email you when it is resolved." A duplicate is
 pointed to the open report. An empty Disputes page says how to report and links
 to the bookings. Ubunye: a failed reply no longer uses up a guest's free
 message (before: "4 free messages left" after one failed reply) or a signed-in
-person's daily message.
+person's daily message: their slot is reserved atomically before the model is
+called and given back if no reply starts (migration 078).
 
 **Founder decisions.** D-70 (a response time for reports).
 
@@ -275,9 +276,9 @@ through one delivery (the local journey cleared the limit between taps to
 pass).
 
 **Changed.** Progress records (driver states, collection, handover,
-inspection, incidents, reschedules, quotes, address reveals) count against the
-everyday 30-a-minute limit; money, courier bookings, liability and batch runs
-keep the strict limit; unknown actions are strict
+inspection, incidents, reschedules, quotes) count against the everyday
+30-a-minute limit; money, courier bookings, liability decisions, address
+reveals and batch runs keep the strict limit; unknown actions are strict
 (`lib/delivery/staff-rate-tier.ts`). The local journey no longer clears it.
 
 ---

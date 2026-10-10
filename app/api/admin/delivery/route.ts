@@ -110,7 +110,7 @@ export async function POST(request: NextRequest) {
   // Recording a delivery's progress counts against the everyday admin limit;
   // money, courier bookings and liability decisions against the strict one
   // (lib/delivery/staff-rate-tier.ts). An unreadable body counts as strict.
-  const limited = await rateLimitAdmin(auth.user.id, deliveryActionRateTier(body?.action));
+  const limited = await rateLimitAdmin(auth.user.id, deliveryActionRateTier(body));
   if (limited) return limited;
   if (!body || typeof body !== 'object' || typeof body.action !== 'string') {
     return NextResponse.json({ error: 'Unknown action.' }, { status: 400 });
