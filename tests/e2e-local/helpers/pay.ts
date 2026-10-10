@@ -5,7 +5,10 @@
  * that host to the stub inside the test browser.
  */
 import { expect, type BrowserContext, type Page } from '@playwright/test';
-import { STUB } from './env';
+import { APP, STUB } from './env';
+
+// The app under test (BASE_URL, default localhost:3000): payment returns land back on it.
+const APP_HOST = new URL(APP).host;
 
 const CHECKOUT_HOST = 'https://checkout.paystack.com';
 
@@ -30,7 +33,7 @@ export async function payOnStub(page: Page, opts: { skipWebhook?: boolean } = {}
   const reference = referenceOnCheckout(page);
   const pay = `${CHECKOUT_HOST}/checkout/${encodeURIComponent(reference)}/pay${opts.skipWebhook ? '?webhook=skip' : ''}`;
   await page.goto(pay);
-  await page.waitForURL((u) => u.host === 'localhost:3000', { timeout: 30_000 });
+  await page.waitForURL((u) => u.host === APP_HOST, { timeout: 30_000 });
   return reference;
 }
 
@@ -39,6 +42,6 @@ export async function cancelOnStub(page: Page): Promise<string> {
   await expect(page).toHaveURL(/checkout\.paystack\.com\/checkout\//);
   const reference = referenceOnCheckout(page);
   await page.locator('#cancel').click();
-  await page.waitForURL((u) => u.host === 'localhost:3000', { timeout: 30_000 });
+  await page.waitForURL((u) => u.host === APP_HOST, { timeout: 30_000 });
   return reference;
 }

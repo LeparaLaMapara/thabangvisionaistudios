@@ -17,6 +17,7 @@ config).
 | `c-marketplace.journey.ts` | owner listing (photo, AI fallback, submit), owner cannot self-publish, admin review, hire, handover, return, owner payout |
 | `d-creatives.journey.ts` | creator onboarding without AI, private portfolio, verification, service booking, delivery, approval, 72-hour payout |
 | `e-delivery.journey.ts` | address checks, delivery fee in the charge, delivery ops, handover, renter acceptance, return pickup, cancellations and refunds |
+| `h-owner-pickup.journey.ts` | Phase 8: owners save a private pickup address and opt listings in; a studio + two-owner order gets one outbound and one return leg per origin; privacy (renter sees the suburb, owners their own items, staff only by an audited reveal); owner handover with a photo at their door; return to each owner, confirmed (receipt and condition) or reported as a problem; one earn journal per leg and origin |
 | `f-admin.journey.ts` | admin pages and APIs, non-admin refused |
 | `g-ubunye.journey.ts` | chat with no AI reachable, guest limits |
 | `s-security.journey.ts` | Phase 6 security regressions at the HTTP level: JSON-LD XSS, SSRF, upload signing, service-payment webhook amount/state, admin break-glass, demotion/suspension revoke sessions, CSRF without Origin, oversized chat (docs/security/phase-6-assessment.md) |
@@ -93,6 +94,12 @@ browser, `helpers/pay.ts` and `helpers/storage.ts` route
 
 Stop the app by PID only (`ps -eo pid,cmd | grep -E 'next-server|next start'`),
 never `pkill -f`.
+
+Another port: build with `NEXT_PUBLIC_APP_URL=http://localhost:3100`, start
+with `next start -p 3100`, run the stub with `STUB_PORT=4110
+APP_URL=http://localhost:3100` and the specs with
+`BASE_URL=http://localhost:3100 STUB_URL=http://localhost:4110` (the
+payment helpers and journey A follow `BASE_URL`).
 
 ## 5. Run
 
