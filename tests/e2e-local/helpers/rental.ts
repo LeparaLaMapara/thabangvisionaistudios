@@ -16,9 +16,14 @@ export async function addToCartAt(page: Page, gear: { category: string; slug: st
 
 /** From the cart: accept the Terms when asked and press Checkout (lands on the payment page). */
 export async function checkoutFromCart(page: Page): Promise<void> {
+  // The cart shows the Terms box until GET /api/consent answers, then hides it for a renter who
+  // already accepted the current version. Deciding before that answer raced it: the box could be
+  // seen, then removed while being ticked, and the tick waited until the test timed out.
+  const consent = page.waitForResponse((r) => new URL(r.url()).pathname === '/api/consent', { timeout: 15_000 }).catch(() => null);
   await page.goto('/dashboard/cart');
   const pay = page.getByRole('button', { name: /^checkout, r/i });
   await expect(pay).toBeVisible();
+  await consent;
   // The Terms box shows until this renter has accepted the current version once.
   const terms = page.getByRole('checkbox', { name: /i agree to the terms/i });
   if (await terms.isVisible().catch(() => false)) await terms.check();
