@@ -177,6 +177,12 @@ describe('D12 - a duplicate webhook is processed once', () => {
 
   it('a replay arriving after a failed first processing is retried by the drain, still applied once', async () => {
     const { shipment, w } = await setup();
+    // The route schedules the retry on the real clock (systemClock) while the
+    // drain reads the fake one: pin real Date to the fake clock so the test
+    // does not depend on today's date.
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(w.clock.now());
+    try {
     repo.failNextTransitions = 1;
     const body = JSON.stringify({ id: 'evt-collected-1', ref: shipment.merchantReference, state: 'collected', at: '2026-10-20T07:05:00Z' });
     expect((await POST(req('fake_courier', body, sign(body)), ctx('fake_courier'))).status).toBe(200);
@@ -190,6 +196,9 @@ describe('D12 - a duplicate webhook is processed once', () => {
     await drainDeliveryInbox({ store: inbox, useCases: w.deps });
     expect(repo.events.filter((e) => e.to === 'collected')).toHaveLength(1);
     expect(repo.shipments.get(shipment.id)!.status).toBe('collected');
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 

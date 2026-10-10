@@ -1,0 +1,54 @@
+# CI-only Supabase project for the `database` job in .github/workflows/ci.yml.
+#
+# Deliberately NOT the repo's supabase/ folder: that one holds stale copies of
+# lib/migrations, which `supabase start` would auto-apply. This project has
+# no migrations/ folder, so `supabase start` gives an empty database and
+# scripts/db/rebuild-local.sh applies the canonical order itself.
+#
+# Ports differ from the defaults (5432x) so it can run next to a developer's
+# own local stack. Only the database, Auth (gotrue) and Storage containers are
+# started (see the -x list in the workflow): the schema needs the auth.users
+# columns and the storage.buckets/objects tables that those two services
+# create with their own migrations at start-up. No API gateway, PostgREST,
+# Studio or mail.
+project_id = "tv-ci"
+
+[api]
+enabled = false
+port = 54421
+
+[db]
+port = 54422
+shadow_port = 54420
+major_version = 17
+
+[db.pooler]
+enabled = false
+
+[db.migrations]
+enabled = true
+
+[db.seed]
+enabled = false
+
+[realtime]
+enabled = false
+
+[studio]
+enabled = false
+
+[local_smtp]
+enabled = false
+
+[storage]
+enabled = true
+
+[auth]
+enabled = true
+site_url = "http://127.0.0.1:3000"
+
+[edge_runtime]
+enabled = false
+
+[analytics]
+enabled = false

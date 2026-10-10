@@ -1,4 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
+import { usesDummySupabase, DUMMY_SUPABASE_SKIP_REASON } from './helpers/supabase-env';
 
 // ─── Test credentials ──────────────────────────────────────────────────────────
 
@@ -128,6 +129,7 @@ test.describe('2. Login', () => {
   });
 
   test('2b. Login succeeds with correct credentials', async ({ page }) => {
+    test.skip(usesDummySupabase(), DUMMY_SUPABASE_SKIP_REASON);
     await login(page);
     // Should redirect to dashboard or admin
     await page.waitForTimeout(3000);
@@ -137,6 +139,7 @@ test.describe('2. Login', () => {
   });
 
   test('2c. Login fails with wrong password', async ({ page }) => {
+    test.skip(usesDummySupabase(), DUMMY_SUPABASE_SKIP_REASON);
     await page.goto('/login');
     await switchToPasswordSignIn(page);
     await page.locator('#email').fill(TEST_EMAIL);
@@ -150,6 +153,7 @@ test.describe('2. Login', () => {
   });
 
   test('2d. Login fails with non-existent email', async ({ page }) => {
+    test.skip(usesDummySupabase(), DUMMY_SUPABASE_SKIP_REASON);
     await page.goto('/login');
     await switchToPasswordSignIn(page);
     await page.locator('#email').fill('nobody@doesnotexist.com');
@@ -571,10 +575,13 @@ test.describe('6. Ubunye AI', () => {
     await page.goto('/ubunye-ai-studio');
     await page.waitForLoadState('networkidle');
 
-    // ChatInputBar renders "{remaining} left" for guests, not "N free messages".
-    const bodyText = await page.textContent('body');
-    const hasCounter = bodyText?.match(/\d+\s*left/i) !== null;
-    expect(hasCounter).toBe(true);
+    // A guest sees the counter before sending anything: ChatInputBar renders
+    // "{remaining} free message(s) left" (no "today": that is the signed-in
+    // daily allowance). The copy used to be "{remaining} left".
+    const counter = page.getByText(/^\d+ free messages? left$/i);
+    await expect(counter).toBeVisible();
+    const remaining = Number((await counter.textContent())?.match(/\d+/)?.[0]);
+    expect(remaining).toBeGreaterThan(0);
   });
 });
 
@@ -885,8 +892,15 @@ test.describe('11. API validation', () => {
     }
   });
 
-  test('11e. Gemini API rejects empty prompt', async ({ page }) => {
-    const response = await page.request.post('/api/gemini', {
+  // /api/gemini was removed on purpose (81a5b3b: an unmetered, guest-callable
+  // model endpoint nothing called). Guest prompts go to /api/ubunye-chat,
+  // which takes `prompt` or `messages` and validates them before any model
+  // or usage counter is touched.
+  test('11e. Chat API rejects an empty prompt (the old Gemini route stays gone)', async ({ page }) => {
+    const gone = await page.request.post('/api/gemini', { data: { prompt: 'hello' } });
+    expect(gone.status()).toBe(404);
+
+    const response = await page.request.post('/api/ubunye-chat', {
       data: { prompt: '' },
     });
     expect(response.status()).toBe(400);
@@ -894,12 +908,16 @@ test.describe('11. API validation', () => {
     expect(json.error).toMatch(/prompt/i);
   });
 
-  test('11f. Gemini API rejects invalid JSON', async ({ page }) => {
-    const response = await page.request.post('/api/gemini', {
+  test('11f. Chat API rejects invalid JSON', async ({ page }) => {
+    // A Buffer goes on the wire as is (a string with a JSON content type is
+    // JSON-encoded by Playwright, i.e. becomes the valid JSON "not json").
+    const response = await page.request.post('/api/ubunye-chat', {
       headers: { 'Content-Type': 'application/json' },
-      data: 'not json',
+      data: Buffer.from('not json'),
     });
     expect(response.status()).toBe(400);
+    const json = await response.json();
+    expect(json.error).toMatch(/invalid json/i);
   });
 
   test('11g. Ubunye chat API rejects empty body', async ({ page }) => {
@@ -919,6 +937,9 @@ test.describe('11. API validation', () => {
   });
 
   test('11i. All public pages return 200', async ({ page }) => {
+    // ~7 s per page while every render waits on the dummy host: 17 pages
+    // exceed the 60 s timeout. Each page is still loaded by section 5.
+    test.skip(usesDummySupabase(), DUMMY_SUPABASE_SKIP_REASON);
     const publicPages = [
       '/', '/rentals', '/studio', '/press', '/pricing',
       '/contact', '/about', '/careers', '/locations', '/legal', '/privacy', '/refunds',

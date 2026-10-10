@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { usesDummySupabase, DUMMY_SUPABASE_SKIP_REASON } from './helpers/supabase-env';
 
 test.describe('Auth flow', () => {
   // /register is the same screen as /login now (spec 9.1): Google or a
@@ -33,6 +34,7 @@ test.describe('Auth flow', () => {
   test('login fails with wrong credentials and shows error', async ({
     page,
   }) => {
+    test.skip(usesDummySupabase(), DUMMY_SUPABASE_SKIP_REASON);
     await page.goto('/login');
     await page.getByRole('button', { name: /use a password instead/i }).click();
     await page.locator('#email').fill('wrong@example.com');
