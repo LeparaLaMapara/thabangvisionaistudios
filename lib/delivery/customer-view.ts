@@ -13,7 +13,14 @@ import { windowLabel } from './checkout';
  * ever included (the renter knows their own; notifications never carry it).
  */
 
-export function deliveryStatusLabel(leg: ShipmentLeg, status: DeliveryState): string {
+export function deliveryStatusLabel(leg: ShipmentLeg, status: DeliveryState, toOwner = false): string {
+  // Phase 8: a return to the owner's own address ends with the owner, not with us.
+  if (toOwner && leg === 'return') {
+    if (status === 'in_transit') return 'On the way back to the owner';
+    if (status === 'courier_at_dropoff') return 'Arriving back with the owner';
+    if (status === 'delivered') return 'Back with the owner';
+    if (status === 'return_to_sender') return 'Being returned to the owner';
+  }
   switch (status) {
     case 'requested':
     case 'quoted':
@@ -85,20 +92,34 @@ export interface CustomerLeg {
   items: number;
   /** Own vehicle (our staff) or a courier. */
   by: 'our_vehicle' | 'courier';
+  /**
+   * Phase 8: where the gear on this leg comes from (outbound) or goes back to
+   * (return): our studio, or its owner's address. The renter sees the
+   * owner's suburb at most (`origin_area`), never the street (D-88).
+   */
+  from: 'studio' | 'owner';
+  origin_area: string | null;
   item_details: CustomerLegItem[];
 }
 
 /** Leg states in which a delivered item can be confirmed or reported by the renter (D15). */
 const CONFIRMABLE: readonly DeliveryState[] = ['courier_at_dropoff', 'delivered', 'delivery_attempt_failed', 'incident_under_review'];
 
-export function customerLegs(legs: readonly DeliveryStatusLeg[], shipments: readonly Shipment[], titles: ReadonlyMap<string, string> = new Map()): CustomerLeg[] {
+export function customerLegs(
+  legs: readonly DeliveryStatusLeg[],
+  shipments: readonly Shipment[],
+  titles: ReadonlyMap<string, string> = new Map(),
+  /** Suburb of an owner's pickup address, per shipment id (Phase 8). */
+  originAreas: ReadonlyMap<string, string | null> = new Map(),
+): CustomerLeg[] {
   return legs.map((l) => {
     const s = shipments.find((x) => x.id === l.shipmentId);
+    const fromOwner = !!(l.originOwnerId ?? s?.originOwnerId);
     return {
       shipment_id: l.shipmentId,
       leg: l.leg,
       status: l.status,
-      status_label: deliveryStatusLabel(l.leg, l.status),
+      status_label: deliveryStatusLabel(l.leg, l.status, fromOwner),
       window_start: s?.window.start ?? null,
       window_end: s?.window.end ?? null,
       window_label: s ? windowLabel(s.window) : null,
@@ -108,6 +129,8 @@ export function customerLegs(legs: readonly DeliveryStatusLeg[], shipments: read
       scheduled_at: l.scheduledAt,
       items: l.items.length,
       by: s?.providerKind === 'courier' ? 'courier' : 'our_vehicle',
+      from: fromOwner ? 'owner' : 'studio',
+      origin_area: fromOwner ? (originAreas.get(l.shipmentId) ?? null) : null,
       item_details: l.items.map((i) => ({
         booking_id: i.bookingId,
         rental_id: i.rentalId,

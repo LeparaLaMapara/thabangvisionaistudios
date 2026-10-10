@@ -7,6 +7,7 @@ import { DELIVERY_CHECKOUT } from '@/lib/constants';
 import { getCartItems } from '@/lib/supabase/queries/cart';
 import { logEvent } from '@/lib/data/events';
 import { evaluateDeliveryEligibility } from '@/lib/core/delivery/policy';
+import { publicOriginArea } from '@/lib/core/delivery/origin';
 import { deliveryDeps } from '@/lib/delivery/server';
 import { addressPort, compareHint, contactDetails, verifyAddress } from '@/lib/delivery/address';
 import { SupabaseDeliveryAddressWriter } from '@/lib/delivery/address-store';
@@ -129,7 +130,13 @@ export async function POST(request: NextRequest) {
     ]);
     const r = await quoteCartDelivery({ caller: { kind: 'renter', userId: user.id }, renterId: user.id, renterAddressId, siteAddressId, lines, legs }, deps);
     if (!r.ok) return NextResponse.json({ ok: false, collection_only: true, code: r.code, message: r.message, address });
-    const quotes = r.quotes.map(publicQuote);
+    // Phase 8: gear collected from an owner shows where from at suburb level only (never the street, D-88).
+    const quotes = await Promise.all(
+      r.quotes.map(async (q) => ({
+        ...publicQuote(q),
+        origin_area: q.originOwnerId ? publicOriginArea(await deps.addresses.getPoint(q.leg === 'outbound' ? q.originAddressId : q.destinationAddressId)) : null,
+      })),
+    );
     return NextResponse.json(
       { ok: true, quotes, delivery_total_cents: quotes.reduce((s, q) => s + q.customer_fee_cents, 0), address, attribution: DELIVERY_CHECKOUT.address.attribution },
       { status: 201 },
