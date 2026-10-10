@@ -1,40 +1,50 @@
 /**
- * Phase 5: a signed-in person's daily Ubunye message is counted only once a
- * reply starts (onServed), never for a reply that failed. The limit check
- * itself still runs before the model is called.
+ * Phase 5 (D-68, review fix): a signed-in person's daily Ubunye slot is
+ * RESERVED atomically before the model is called (078
+ * ubunye_reserve_message), and RELEASED if no reply ever starts: every
+ * provider failed, the AI budget refused, or the request broke first. At the
+ * limit the RPC refuses and no model is called. Concurrency is proved in SQL
+ * (scripts/db/078-concurrency.test.sh).
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { NextRequest } from 'next/server';
-import { recordAnsweredMessage } from '@/lib/agents/usage';
+import { releaseMessage, reserveMessage } from '@/lib/agents/usage';
 
 type Row = Record<string, unknown>;
 const state = vi.hoisted(() => ({
-  usage: [] as Row[],
-  writes: [] as { op: string; values: Row }[],
+  count: 0,
+  limitSeen: [] as number[],
+  calls: [] as string[],
   serve: true,
-  limitCount: 0,
+  budget: true,
+  rpcError: null as null | { code?: string; message: string },
+  modelCalls: 0,
 }));
 
+/** Stands in for 078: reserve under the limit, release never below 0. */
 function fakeDb() {
   return {
-    from: (table: string) => {
-      const filters: [string, unknown][] = [];
-      let update: Row | null = null;
-      const rows = () => (table === 'ubunye_usage' ? state.usage.filter((r) => filters.every(([k, v]) => r[k] === v)) : []);
+    rpc: async (fn: string, args: { p_limit?: number }) => {
+      state.calls.push(fn);
+      if (state.rpcError) return { data: null, error: state.rpcError };
+      if (fn === 'ubunye_reserve_message') {
+        state.limitSeen.push(args.p_limit ?? -1);
+        if (state.count >= (args.p_limit ?? 0)) return { data: null, error: null };
+        state.count += 1;
+        return { data: state.count, error: null };
+      }
+      if (fn === 'ubunye_release_message') {
+        state.count = Math.max(0, state.count - 1);
+        return { data: null, error: null };
+      }
+      return { data: null, error: { message: `unknown ${fn}` } };
+    },
+    from: () => {
       const b: Record<string, unknown> = {
         select: () => b,
-        eq: (k: string, v: unknown) => { filters.push([k, v]); return b; },
-        single: async () => ({ data: table === 'subscriptions' ? null : rows()[0] ?? null, error: null }),
-        maybeSingle: async () => ({ data: rows()[0] ?? null, error: null }),
-        update: (v: Row) => { update = v; return b; },
-        insert: async (v: Row) => { state.writes.push({ op: 'insert', values: v }); state.usage.push({ id: `u${state.usage.length + 1}`, ...v }); return { error: null }; },
-        then: (resolve: (r: unknown) => void) => {
-          if (update) {
-            state.writes.push({ op: 'update', values: update });
-            rows().forEach((r) => Object.assign(r, update));
-          }
-          resolve({ data: null, error: null });
-        },
+        eq: () => b,
+        single: async () => ({ data: null, error: null }),
+        maybeSingle: async () => ({ data: null, error: null }),
       };
       return b;
     },
@@ -49,7 +59,7 @@ vi.mock('@/lib/auth', () => ({ checkRateLimit: async () => true }));
 vi.mock('@/lib/ai', () => ({ getModelId: () => 'model-smart', routeQuery: () => ({ tier: 'smart', modelId: 'model-smart' }) }));
 vi.mock('@/lib/ai/tracked', () => ({ logTokenUsage: () => undefined }));
 vi.mock('@/lib/ai/pricing', () => ({ estimateCostZAR: () => 0.1 }));
-vi.mock('@/lib/ai/budget', () => ({ checkAiBudget: async () => ({ allowed: true, spent: 0, budget: 100 }) }));
+vi.mock('@/lib/ai/budget', () => ({ checkAiBudget: async () => ({ allowed: state.budget, spent: 0, budget: 100 }) }));
 vi.mock('@/lib/http/clientIp', () => ({ clientIp: () => '127.0.0.1' }));
 vi.mock('@/lib/ubunye/system-prompt', () => ({ fetchPlatformData: async () => ({}), fetchUserContext: async () => null, buildSystemPrompt: () => 'system' }));
 vi.mock('@/lib/agents/agents/assistant', () => ({
@@ -71,10 +81,13 @@ vi.mock('@/lib/data/chat-history', () => ({
 vi.mock('@/lib/agent/repo', () => ({ SupabaseAgentActions: class { async pending() { return null; } } }));
 vi.mock('@/lib/agent/prompt', () => ({ pendingProposalBlock: () => '' }));
 vi.mock('@/lib/ai/resilient-stream', () => ({
-  // Stands in for the provider chain: either a reply starts (onServed) or every provider fails.
-  streamWithFallback: (p: { onServed?: (e: { modelId: string; provider: string }, n: number) => void }) => {
+  // Stands in for the provider chain: a reply starts (onServed) or every
+  // provider fails; then the stream settles, as the real one does, before closing.
+  streamWithFallback: (p: { onServed?: (e: { modelId: string; provider: string }, n: number) => void; onSettled?: (served: boolean) => Promise<void> | void }) => {
+    state.modelCalls += 1;
     if (state.serve) p.onServed?.({ modelId: 'model-smart', provider: 'anthropic' }, 0);
-    return new Response('stream');
+    const settled = Promise.resolve().then(() => p.onSettled?.(state.serve));
+    return new Response(new ReadableStream({ async start(c) { await settled; c.close(); } }));
   },
 }));
 
@@ -87,47 +100,77 @@ const ask = async (): Promise<Response> => {
   return executeAgent('assistant', req);
 };
 
-const flush = () => new Promise((r) => setTimeout(r, 0));
+const finish = async (res: Response) => { await res.text(); };
 
 beforeEach(() => {
-  state.usage = [];
-  state.writes = [];
+  state.count = 0;
+  state.limitSeen = [];
+  state.calls = [];
   state.serve = true;
+  state.budget = true;
+  state.rpcError = null;
+  state.modelCalls = 0;
 });
 
-describe('signed-in Ubunye usage', () => {
-  it('a reply that never starts does not use up a message', async () => {
+describe('signed-in Ubunye usage: reserve, then release if no reply starts', () => {
+  it('an answered message keeps its slot (reserved once, never released)', async () => {
+    const res = await ask();
+    await finish(res);
+    expect(res.status).toBe(200);
+    expect(state.count).toBe(1);
+    expect(state.calls).toEqual(['ubunye_reserve_message']);
+    expect(state.limitSeen).toEqual([20]); // the assistant's free-plan limit, unchanged
+  });
+
+  it('a reply that never starts gives the slot back, once the stream settles', async () => {
     state.serve = false;
     const res = await ask();
-    await flush();
-    expect(res.status).toBe(200);
-    expect(state.writes).toEqual([]);
+    await finish(res);
+    expect(state.calls).toEqual(['ubunye_reserve_message', 'ubunye_release_message']);
+    expect(state.count).toBe(0);
   });
 
-  it('an answered message is counted once', async () => {
-    await ask();
-    await flush();
-    expect(state.writes).toHaveLength(1);
-    expect(state.writes[0]).toMatchObject({ op: 'insert', values: { user_id: 'user-1', message_count: 1 } });
-    await ask();
-    await flush();
-    expect(state.writes[1]).toMatchObject({ op: 'update', values: { message_count: 2 } });
+  it('an AI budget refusal gives the slot back', async () => {
+    state.budget = false;
+    const res = await ask();
+    expect(res.status).toBe(503);
+    expect(state.modelCalls).toBe(0);
+    expect(state.count).toBe(0);
+    expect(state.calls).toEqual(['ubunye_reserve_message', 'ubunye_release_message']);
   });
 
-  it('the daily limit is still enforced before any model call', async () => {
-    const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Africa/Johannesburg' });
-    state.usage = [{ id: 'u1', user_id: 'user-1', date: today, message_count: 20 }];
+  it('at the limit the reserve is refused: 429 and no model call', async () => {
+    state.count = 20;
     const res = await ask();
     expect(res.status).toBe(429);
     expect(await res.json()).toMatchObject({ error: 'limit_reached', limit: 20 });
-    expect(state.writes).toEqual([]);
+    expect(state.modelCalls).toBe(0);
+    expect(state.count).toBe(20);
+  });
+
+  it('a database error refuses (fails closed) without calling the model', async () => {
+    state.rpcError = { code: 'XX000', message: 'boom' };
+    const res = await ask();
+    expect(res.status).toBe(503);
+    expect(state.modelCalls).toBe(0);
+  });
+
+  it('before 078 is applied the message is answered but not counted (logged loudly)', async () => {
+    state.rpcError = { code: 'PGRST202', message: 'Could not find the function public.ubunye_reserve_message' };
+    const err = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const res = await ask();
+    await finish(res);
+    expect(res.status).toBe(200);
+    expect(err.mock.calls.some((c) => String(c[0]).includes('078'))).toBe(true);
+    err.mockRestore();
   });
 });
 
-describe('recordAnsweredMessage', () => {
-  it('re-reads the row, so concurrent answers are not lost', async () => {
-    state.usage = [{ id: 'u1', user_id: 'user-1', date: '2026-10-10', message_count: 3 }];
-    await recordAnsweredMessage(fakeDb(), { userId: 'user-1', date: '2026-10-10' });
-    expect(state.usage[0].message_count).toBe(4);
+describe('reserveMessage / releaseMessage', () => {
+  it('map the RPC answers', async () => {
+    expect(await reserveMessage(fakeDb(), { userId: 'u', date: '2026-10-10', limit: 1 })).toEqual({ kind: 'reserved', count: 1 });
+    expect(await reserveMessage(fakeDb(), { userId: 'u', date: '2026-10-10', limit: 1 })).toEqual({ kind: 'limit_reached' });
+    await releaseMessage(fakeDb(), { userId: 'u', date: '2026-10-10' });
+    expect(state.count).toBe(0);
   });
 });

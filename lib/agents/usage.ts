@@ -1,38 +1,42 @@
 /**
- * Daily Ubunye message counting for signed-in people (`ubunye_usage`).
+ * Daily Ubunye message slots for signed-in people (`ubunye_usage`, 078).
  *
- * The limit is checked before the model is called, but a message is only
- * COUNTED once a reply has started streaming (the runtime calls this from
- * `onServed`). A failed reply, an outage or a budget refusal never uses up one
- * of the day's messages.
+ * A slot is RESERVED atomically before the model is called
+ * (`ubunye_reserve_message`: one INSERT ... ON CONFLICT DO UPDATE ... WHERE
+ * count < limit), so parallel prompts can never pass the day's limit and no
+ * increment is lost. If no reply ever starts (every provider failed, the AI
+ * budget refused, the request broke before streaming), the slot is RELEASED
+ * (`ubunye_release_message`, never below 0). A failed reply does not use up a
+ * message (D-68); an answered one always does.
  */
 
-interface UsageDb {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  from: (table: string) => any;
+interface RpcDb {
+  rpc: (fn: string, args: Record<string, unknown>) => PromiseLike<{ data: unknown; error: { code?: string; message?: string } | null }>;
 }
 
-export async function recordAnsweredMessage(
-  db: UsageDb,
-  p: { userId: string; date: string },
-): Promise<void> {
-  // Re-read the count: other turns may have been answered since the check.
-  const { data: row, error } = await db
-    .from('ubunye_usage')
-    .select('id, message_count')
-    .eq('user_id', p.userId)
-    .eq('date', p.date)
-    .maybeSingle();
-  if (error) throw new Error(`ubunye_usage read failed: ${error.message}`);
-  const current = row as { id: string; message_count: number | null } | null;
-  if (current) {
-    const { error: upErr } = await db
-      .from('ubunye_usage')
-      .update({ message_count: (current.message_count ?? 0) + 1 })
-      .eq('id', current.id);
-    if (upErr) throw new Error(`ubunye_usage update failed: ${upErr.message}`);
-    return;
+export type Reservation =
+  | { kind: 'reserved'; count: number }
+  | { kind: 'limit_reached' }
+  /** 078 is not applied in this database: nothing was reserved (logged loudly). */
+  | { kind: 'not_tracked' };
+
+const missingFunction = (e: { code?: string; message?: string }): boolean =>
+  e.code === 'PGRST202' || e.code === '42883' || /could not find the function/i.test(e.message ?? '');
+
+export async function reserveMessage(db: RpcDb, p: { userId: string; date: string; limit: number }): Promise<Reservation> {
+  const { data, error } = await db.rpc('ubunye_reserve_message', { p_user: p.userId, p_date: p.date, p_limit: p.limit });
+  if (error) {
+    if (missingFunction(error)) {
+      // Deploy order: 078 must be applied before this build (docs/database/README.md).
+      console.error('[ubunye-usage] ubunye_reserve_message missing: apply lib/migrations/078-ubunye-usage-reserve.sql. Message not counted.');
+      return { kind: 'not_tracked' };
+    }
+    throw new Error(`ubunye_reserve_message failed: ${error.message ?? 'unknown'}`);
   }
-  const { error: insErr } = await db.from('ubunye_usage').insert({ user_id: p.userId, date: p.date, message_count: 1 });
-  if (insErr) throw new Error(`ubunye_usage insert failed: ${insErr.message}`);
+  return typeof data === 'number' ? { kind: 'reserved', count: data } : { kind: 'limit_reached' };
+}
+
+export async function releaseMessage(db: RpcDb, p: { userId: string; date: string }): Promise<void> {
+  const { error } = await db.rpc('ubunye_release_message', { p_user: p.userId, p_date: p.date });
+  if (error) throw new Error(`ubunye_release_message failed: ${error.message ?? 'unknown'}`);
 }
