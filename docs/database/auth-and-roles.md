@@ -69,14 +69,19 @@ An admin is an ordinary account promoted by hand (or by
    with the Auth admin API; only the service role can change it);
 2. `profiles.role = 'admin'` (a client cannot change `role`: 067);
 3. `ADMIN_EMAILS` in `lib/constants.ts`: a break-glass e-mail list checked
-   against the session's e-mail **in API routes only**
-   (`lib/auth/supabase.ts`). It does not check `email_confirmed_at` (audit
-   D6, still open: recommendation R-71).
+   against the live Auth user's e-mail **in API routes only**
+   (`lib/auth/supabase.ts`). Since Phase 6 it requires a confirmed e-mail
+   (`email_confirmed_at`, AUTH-1) and, like the other two, is refused for a
+   suspended profile or when the profile cannot be read (fail closed; D-78).
 
-`requireAdmin()` (API routes) checks all three; `is_admin()` (RLS and the
-admin RPCs) checks 1 and 2. The `(admin)` layout redirects non-admins.
-077 made `is_admin()` return false instead of failing when
-`request.jwt.claims` is an empty string.
+`requireAdmin()` (API routes) checks all three against the live Auth user and
+refuses suspended accounts. `is_admin()` (RLS and the admin RPCs), since 079,
+treats `profiles.role` as the authority: the JWT `app_metadata` claim counts
+only for a profile whose role was never changed after 079, and a suspended
+profile is never admin. Demotion and suspension end every session
+(`admin_revoke_user_sessions`), and suspension also bans sign-in. The
+`(admin)` layout redirects non-admins. 077 made `is_admin()` return false
+instead of failing when `request.jwt.claims` is an empty string.
 
 ## Where the service role is used
 
