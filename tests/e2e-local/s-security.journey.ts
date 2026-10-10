@@ -254,6 +254,30 @@ test('AUTH-3: a suspended user is signed out and cannot write their cart over RE
   expect(value<number>(`select count(*) from public.cart_items where user_id = ${lit(user.id)}`)).toBe(0);
 });
 
+test('Codex P1: a suspended admin cannot sign in again, and is not admin even with a session', async ({ browser, request }) => {
+  const boss = await account(request);
+  makeAdmin(boss);
+  const target = await account(request);
+  makeAdmin(target);
+  const admin = await signedIn(browser, boss);
+  const s = await admin.page.request.post(`/api/admin/users/${target.id}/suspend`, { data: { reason: 'security journey: suspended admin' } });
+  expect(s.status()).toBe(200);
+  expect(((await s.json()) as { sign_in_blocked: boolean }).sign_in_blocked).toBe(true);
+  await admin.context.close();
+
+  // The Auth ban: password sign-in is refused.
+  const grant = await request.post(`${SUPABASE_URL}/auth/v1/token?grant_type=password`, { headers: { apikey: ANON_KEY }, data: { email: target.email, password: target.password } });
+  expect(grant.ok()).toBe(false);
+
+  // Even with a session (ban lifted out of band, e.g. it failed), the app refuses admin.
+  const lift = await request.put(`${SUPABASE_URL}/auth/v1/admin/users/${target.id}`, { headers: svcHeaders, data: { ban_duration: 'none' } });
+  expect(lift.ok()).toBe(true);
+  const again = await signedIn(browser, target);
+  expect((await again.page.request.get('/api/admin/users')).status()).toBe(403);
+  expect((await again.page.request.patch(`/api/admin/users/${boss.id}/role`, { data: { role: 'user' } })).status()).toBe(403);
+  await again.context.close();
+});
+
 // ─── AUTH-4: CSRF without an Origin header ────────────────────────────────
 
 test('AUTH-4: a cookie-authenticated POST with no Origin and no Referer is refused', async ({ browser, request }) => {
