@@ -414,6 +414,19 @@ export const STUDIO = {
     idleTimeoutMinutes: 30, // Auto-logout after 30 minutes of inactivity
   },
 
+  // Phase 6 security limits (docs/security/phase-6-assessment.md).
+  security: {
+    // Server-side fetches of a URL a person or a model supplied
+    // (lib/security/safe-fetch.ts): https only, public addresses only.
+    fetch: {
+      maxImageBytes: 15 * 1024 * 1024,
+      timeoutMs: 15_000,
+      maxRedirects: 3,
+    },
+    // Images one "analyze-portfolio" request may ask the server to fetch.
+    portfolioAnalyzeMaxImages: 12,
+  },
+
   ai: {
     budget: {
       monthlyBudgetZAR: 500,         // R500/month AI spend cap
