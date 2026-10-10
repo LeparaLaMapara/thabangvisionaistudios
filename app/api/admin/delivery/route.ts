@@ -31,6 +31,7 @@ import { SupabaseQuoteLinks } from '@/lib/delivery/checkout';
 import { dispatchOutbox } from '@/lib/rental/notify';
 import { manualReference } from '@/lib/payments/routing';
 import { toCents } from '@/lib/core/pricing/money';
+import { deliveryActionRateTier } from '@/lib/delivery/staff-rate-tier';
 
 /**
  * Delivery operations for staff (spec Phase 4 §4.18). GET lists the queues;
@@ -38,7 +39,8 @@ import { toCents } from '@/lib/core/pricing/money';
  * platform uses, as `{ kind: 'staff', userId }`, so every rule (custody
  * order, who may confirm what, cancellation windows, reconciliation) is
  * enforced by the core, not here. Hiding a button is not authorisation: each
- * call requires an admin session, and POST is rate limited.
+ * call requires an admin session, and POST is rate limited (progress records
+ * on the everyday admin limit, money and courier bookings on the strict one).
  *
  * Logging: every action is logged with ids and outcomes only (never an
  * address, phone number or free text). The use cases add their own records:
@@ -103,10 +105,13 @@ function refusal(r: { code: string; message: string }): NextResponse {
 export async function POST(request: NextRequest) {
   const auth = await requireAdmin();
   if (auth.error) return auth.error;
-  const limited = await rateLimitAdmin(auth.user.id, 'sensitive');
-  if (limited) return limited;
 
   const body = (await request.json().catch(() => null)) as Body | null;
+  // Recording a delivery's progress counts against the everyday admin limit;
+  // money, courier bookings and liability decisions against the strict one
+  // (lib/delivery/staff-rate-tier.ts). An unreadable body counts as strict.
+  const limited = await rateLimitAdmin(auth.user.id, deliveryActionRateTier(body?.action));
+  if (limited) return limited;
   if (!body || typeof body !== 'object' || typeof body.action !== 'string') {
     return NextResponse.json({ error: 'Unknown action.' }, { status: 400 });
   }

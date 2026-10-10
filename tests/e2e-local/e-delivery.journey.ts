@@ -113,9 +113,9 @@ test('the shipment appears in /admin/delivery-ops', async () => {
 });
 
 const staff = async (data: Record<string, unknown>) => {
-  // Delivery ops actions are limited to 5 a minute per admin (the 'sensitive'
-  // tier); a person takes longer between taps than this test does.
-  clearRateLimit(`admin:sensitive:${admin.id}`);
+  // No rate-limit reset: recording a delivery's progress counts against the
+  // everyday admin limit (30 a minute), and money and courier bookings
+  // against the strict one (5), so a whole delivery runs at test speed.
   const res = await ap.request.post('/api/admin/delivery', { data });
   const body = (await res.json().catch(() => ({}))) as Record<string, unknown>;
   return { status: res.status(), body };

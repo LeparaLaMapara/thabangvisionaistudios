@@ -116,7 +116,8 @@ on the same database.
 - **Time moves in the database** for the 48-hour owner payout delay, the
   72-hour creator payout delay and a renter's past clean return.
 - **Rate-limit windows are cleared** where a person would take longer than a
-  test (five staff delivery updates in a minute, several checkouts).
+  test (several checkouts in a minute). Staff delivery updates are not
+  cleared: a whole delivery fits inside the admin limits.
 - **The provider side is simulated** by the stub: refunds become `processed`
   and transfer webhooks are sent when a spec asks (`/__refunds/settle`,
   `/__transfers/notify`).
