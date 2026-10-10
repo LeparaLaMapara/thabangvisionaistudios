@@ -12,6 +12,7 @@ Source: the founder's master engineering specification (2026-10-08). Each phase 
 | 2 | `phase-2-marketplace-agent` | Marketplace, provider-independent payments, Ubunye agent | Not started |
 | 3 | `phase-3-simplicity` | Apple-level simplicity on mobile | Not started |
 | 4 | `phase-4-delivery-logistics` | Delivery and reverse logistics | Not started |
+| 5 | `phase-5-customer-experience` | Design for the customer: every journey ends with a clear next step, honest money and status words ([principles](../experience/principles.md), [review](../experience/journey-review.md)) | In review on `phase-5-customer-experience` |
 
 ## Phase 0: Honest site and security
 - Fix the Paystack API host (`api.paystack.co`) and the SA recipient type (`basa`). Move recipient creation behind `lib/payments`.
