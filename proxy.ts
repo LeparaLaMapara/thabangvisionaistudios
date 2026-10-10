@@ -8,6 +8,7 @@ import {
   MAINTENANCE_PREVIEW_PARAM,
   MAINTENANCE_RETRY_AFTER_SECONDS,
 } from '@/lib/maintenance';
+import { buildCsp, generateNonce } from '@/lib/security/csp';
 
 /** Applies maintenance mode (lib/maintenance.ts). Returns null to continue normally. */
 function maintenanceResponse(request: NextRequest): NextResponse | null {
@@ -144,6 +145,18 @@ export async function proxy(request: NextRequest) {
   const csrf = csrfRejection(request);
   if (csrf) return csrf;
 
+  // Content-Security-Policy with a per-request nonce (security INJ-3). On
+  // the REQUEST so Next.js puts the nonce on its scripts, and on every
+  // response returned below.
+  const nonce = generateNonce();
+  const csp = buildCsp(nonce, { dev: process.env.NODE_ENV === 'development' });
+  request.headers.set('x-nonce', nonce);
+  request.headers.set('Content-Security-Policy', csp);
+  const withCsp = <T extends NextResponse>(res: T): T => {
+    res.headers.set('Content-Security-Policy', csp);
+    return res;
+  };
+
   let supabaseResponse = NextResponse.next({ request });
 
   const supabase = createServerClient(
@@ -182,10 +195,10 @@ export async function proxy(request: NextRequest) {
     login.searchParams.set('next', `${path}${request.nextUrl.search}`);
     const redirect = NextResponse.redirect(login);
     supabaseResponse.cookies.getAll().forEach((c) => redirect.cookies.set(c));
-    return redirect;
+    return withCsp(redirect);
   }
 
-  return supabaseResponse;
+  return withCsp(supabaseResponse);
 }
 
 export const config = {

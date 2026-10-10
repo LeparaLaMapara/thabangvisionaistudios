@@ -78,24 +78,9 @@ const nextConfig: NextConfig = {
         { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
         { key: 'Permissions-Policy', value: 'camera=(self), microphone=(), geolocation=()' },
         { key: 'Strict-Transport-Security', value: 'max-age=31536000; includeSubDomains' },
-        {
-          key: 'Content-Security-Policy',
-          value: [
-            "default-src 'self'",
-            "script-src 'self' 'unsafe-inline' https://js.paystack.co https://va.vercel-scripts.com",
-            "style-src 'self' 'unsafe-inline'",
-            "img-src 'self' https://res.cloudinary.com https://*.supabase.co https://images.unsplash.com https://i.ytimg.com https://img.youtube.com data: blob:",
-            "font-src 'self'",
-            "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.anthropic.com https://api.paystack.co https://js.paystack.co https://api.cloudinary.com https://va.vercel-scripts.com https://vitals.vercel-insights.com https://nominatim.openstreetmap.org",
-            "frame-src https://checkout.paystack.com https://www.youtube.com https://player.vimeo.com",
-            "frame-ancestors 'none'",
-            "media-src 'self' https://res.cloudinary.com",
-            "object-src 'none'",
-            "base-uri 'self'",
-            "form-action 'self' https://checkout.paystack.com",
-            "upgrade-insecure-requests",
-          ].join('; '),
-        },
+        // Content-Security-Policy is set per request with a nonce in proxy.ts
+        // (lib/security/csp.ts, security INJ-3). When adding a new external
+        // service, update the directives there.
       ],
     },
   ],
