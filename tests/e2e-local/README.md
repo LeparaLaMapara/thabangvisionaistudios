@@ -19,6 +19,7 @@ config).
 | `e-delivery.journey.ts` | address checks, delivery fee in the charge, delivery ops, handover, renter acceptance, return pickup, cancellations and refunds |
 | `f-admin.journey.ts` | admin pages and APIs, non-admin refused |
 | `g-ubunye.journey.ts` | chat with no AI reachable, guest limits |
+| `s-security.journey.ts` | Phase 6 security regressions at the HTTP level: JSON-LD XSS, SSRF, upload signing, service-payment webhook amount/state, admin break-glass, demotion/suspension revoke sessions, CSRF without Origin, oversized chat (docs/security/phase-6-assessment.md) |
 | `seed-suite-user.journey.ts` | creates the account `tests/e2e/full-journey.spec.ts` signs in with |
 
 ## 1. Local Supabase
@@ -108,6 +109,11 @@ on the same database.
 
 ## What the harness does that a person would not
 
+- **A Referer on direct API calls.** Journeys call app APIs with
+  `page.request`, which sends no Origin; a browser always sends one, and
+  `proxy.ts` refuses a cookie-authenticated mutation with neither Origin nor
+  a same-site Referer (security AUTH-4). The config and `newContext` add a
+  same-site Referer (not an Origin: Mailpit refuses a foreign Origin).
 - **CSP bypass in the test browser.** The site's CSP allows Supabase only at
   `https://*.supabase.co`; the local API is `http://127.0.0.1:54321`.
 - **ID documents are not uploaded** (no Storage locally): the submission is
