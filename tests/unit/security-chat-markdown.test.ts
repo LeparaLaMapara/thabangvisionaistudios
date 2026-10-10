@@ -93,3 +93,43 @@ describe('review fixes: control-character paths and model-chosen payment/WhatsAp
     expect(chatLinkTarget('/rentals?cat=lenses#top')).toEqual({ kind: 'internal', href: '/rentals?cat=lenses#top' });
   });
 });
+
+describe('Codex review: classification never throws; tel: only to the studio', () => {
+  const MALFORMED = [
+    'mailto:%', 'mailto:%E0%A4%A', 'mailto:%ZZ@x', 'tel:%', 'https://%', 'https://wa.me/%', '/%', '/%E0%A4%A',
+    'mailto:', 'tel:', 'http://[::1', 'https://[', '//', '/', '#', '?', 'javascript:%', 'data:,%', '\u0000', '%',
+    'https://user:%@x', 'mailto:hello@thabangvision.com?subject=%',
+  ];
+
+  it.each(MALFORMED)('%j is classified without throwing', (href) => {
+    expect(() => chatLinkTarget(href)).not.toThrow();
+  });
+
+  it('a markdown mailto with a broken escape renders as text instead of crashing the chat', () => {
+    expect(() => renderReply('[contact](mailto:%)')).not.toThrow();
+    expect(renderReply('[contact](mailto:%)').querySelector('a')).toBeNull();
+  });
+
+  it('random strings never throw', () => {
+    const chars = ['%', ':', '/', '\\\\', '@', '?', '#', '[', ']', 'a', '0', ' ', 'mailto:', 'tel:', 'https://', 'wa.me', ' '];
+    let seed = 7;
+    const rnd = () => (seed = (seed * 1103515245 + 12345) % 2147483648) / 2147483648;
+    for (let i = 0; i < 2000; i++) {
+      let s = '';
+      for (let j = 0; j < 1 + Math.floor(rnd() * 8); j++) s += chars[Math.floor(rnd() * chars.length)];
+      expect(() => chatLinkTarget(s), s).not.toThrow();
+    }
+  });
+
+  it("tel: is a link only for the studio's own number, however it is written", async () => {
+    const { STUDIO } = await import('@/lib/constants');
+    const digits = STUDIO.phone.replace(/\D/g, ''); // 27…
+    const local = `0${digits.slice(2)}`;
+    for (const ok of [`tel:${STUDIO.phone.replace(/\s/g, '')}`, `tel:+${digits}`, `tel:${local}`, `tel:${local.slice(0, 3)}-${local.slice(3, 6)}-${local.slice(6)}`, `tel:00${digits}`]) {
+      expect(chatLinkTarget(ok).kind, ok).toBe('external');
+    }
+    for (const bad of ['tel:+27820000000', 'tel:0820000000', 'tel:*123#', 'tel:', `tel:${digits}1`]) {
+      expect(chatLinkTarget(bad).kind, bad).toBe('text');
+    }
+  });
+});

@@ -8,7 +8,7 @@ import { STUDIO } from '@/lib/constants';
  *   internal  a same-site path ("/studio", never "//evil.example")
  *   external  https on our own site or an allowlisted host
  *             (STUDIO.security.chat.linkHosts + STUDIO.social) or the
- *             studio's own WhatsApp number, new tab. Payment links are never
+ *             studio's own WhatsApp number, tel: the studio's own phone, new tab. Payment links are never
  *             taken from model text: payments go through /pay or the
  *             prepared-action card, which the server issues.
  *   text      anything else: shown as plain text, not clickable
@@ -46,7 +46,38 @@ export function allowedChatHosts(extra: string[] = []): Set<string> {
   return hosts;
 }
 
+/**
+ * Classifies a link from a model reply. Never throws: a malformed href (e.g.
+ * "mailto:%", which made decodeURIComponent throw and crashed the chat while
+ * rendering, Codex review) is plain text.
+ */
 export function chatLinkTarget(href: string | null | undefined, ownHost?: string): ChatLink {
+  try {
+    return classify(href, ownHost);
+  } catch {
+    return { kind: 'text' };
+  }
+}
+
+function safeDecode(value: string): string | null {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return null;
+  }
+}
+
+/** Digits of a South African number in international form (27…), or null. */
+export function normalisePhone(raw: string): string | null {
+  const compact = raw.replace(/[\s().-]/g, '');
+  if (!/^\+?\d+$/.test(compact)) return null;
+  let digits = compact.replace(/^\+/, '');
+  if (digits.startsWith('00')) digits = digits.slice(2);
+  else if (digits.startsWith('0')) digits = `27${digits.slice(1)}`;
+  return digits.length >= 10 ? digits : null;
+}
+
+function classify(href: string | null | undefined, ownHost?: string): ChatLink {
   if (!href) return { kind: 'text' };
   // Browsers strip tabs/newlines and trim spaces from URLs, so "/\t/evil.com"
   // becomes "//evil.com" (off-site). Any whitespace or control character
@@ -74,9 +105,19 @@ export function chatLinkTarget(href: string | null | undefined, ownHost?: string
       ? { kind: 'external', href: url.href }
       : { kind: 'text' };
   }
-  if (url.protocol === 'tel:') return { kind: 'external', href: url.href };
+  if (url.protocol === 'tel:') {
+    // Only the studio's own number (Codex review: a model could make any
+    // number one tap away).
+    const number = safeDecode(url.pathname);
+    const studio = normalisePhone(STUDIO.phone);
+    return number !== null && studio !== null && normalisePhone(number) === studio
+      ? { kind: 'external', href: url.href }
+      : { kind: 'text' };
+  }
   if (url.protocol === 'mailto:') {
-    const to = decodeURIComponent(url.pathname).toLowerCase();
+    const decoded = safeDecode(url.pathname);
+    if (decoded === null) return { kind: 'text' };
+    const to = decoded.toLowerCase();
     return [STUDIO.email, STUDIO.bookingEmail].some((e) => e.toLowerCase() === to) && !url.search
       ? { kind: 'external', href: url.href }
       : { kind: 'text' };
