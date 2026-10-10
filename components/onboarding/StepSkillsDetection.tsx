@@ -3,23 +3,21 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Loader2 } from 'lucide-react';
 import type { SceneAnalysisResult, SkillDetectionResult } from '@/lib/agents/types';
+import { manualSkillChoices, skillChoices, type SelectableSkill } from '@/lib/onboarding/skill-choices';
 
 interface StepSkillsDetectionProps {
   analyses: SceneAnalysisResult[];
+  /** The creator went on without a usable analysis: always offer the full list. */
+  manualSkills?: boolean;
   onComplete: (skills: SkillDetectionResult) => void;
 }
 
-interface SelectableSkill {
-  id: string;
-  name: string;
-  percentage: number;
-  selected: boolean;
-}
-
-export default function StepSkillsDetection({ analyses, onComplete }: StepSkillsDetectionProps) {
+export default function StepSkillsDetection({ analyses, manualSkills = false, onComplete }: StepSkillsDetectionProps) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [skills, setSkills] = useState<SelectableSkill[]>([]);
+  // No usable detection (AI unavailable, or nothing recognised): the creator picks.
+  const [manual, setManual] = useState(false);
 
   const detectSkills = useCallback(async () => {
     setLoading(true);
@@ -36,24 +34,18 @@ export default function StepSkillsDetection({ analyses, onComplete }: StepSkills
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Skills detection failed.');
 
-      const result = data.data as SkillDetectionResult;
-      // Prefer mapped platform skills (e.g. wedding_photography) over raw scene types.
-      const mapped: SelectableSkill[] =
-        result.platformSkills && result.platformSkills.length > 0
-          ? result.platformSkills.map((s) => ({
-              id: s.id,
-              name: s.label,
-              percentage: s.percentage,
-              selected: true,
-            }))
-          : result.skills.map((s) => ({ id: s.name, ...s, selected: true }));
-      setSkills(mapped);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to detect skills.');
+      // Mapped platform skills (e.g. wedding_photography), or the manual list.
+      const choices = skillChoices(data.data as SkillDetectionResult, manualSkills);
+      setSkills(choices.skills);
+      setManual(choices.manual);
+    } catch {
+      // Detection is a convenience: never a dead end.
+      setSkills(manualSkillChoices());
+      setManual(true);
     } finally {
       setLoading(false);
     }
-  }, [analyses]);
+  }, [analyses, manualSkills]);
 
   useEffect(() => {
     detectSkills();
@@ -104,7 +96,9 @@ export default function StepSkillsDetection({ analyses, onComplete }: StepSkills
           Your Skills
         </h2>
         <p className="text-xs font-mono text-neutral-400 leading-relaxed">
-          Based on your portfolio, here are your detected specialties. Uncheck any that don&apos;t apply.
+          {manual
+            ? 'We could not work out your skills from your photos just now. Choose what you do.'
+            : <>Based on your portfolio, here are your detected specialties. Uncheck any that don&apos;t apply.</>}
         </p>
       </div>
 
@@ -137,8 +131,8 @@ export default function StepSkillsDetection({ analyses, onComplete }: StepSkills
             {/* Skill name */}
             <span className="text-sm font-mono text-white flex-1 text-left">{skill.name}</span>
 
-            {/* Percentage bar */}
-            <div className="w-24 flex items-center gap-2">
+            {/* Percentage bar (detected skills only) */}
+            {!manual && <div className="w-24 flex items-center gap-2">
               <div className="flex-1 h-1.5 bg-white/5 overflow-hidden">
                 <div
                   className="h-full bg-[#D4A843] transition-all duration-500"
@@ -148,7 +142,7 @@ export default function StepSkillsDetection({ analyses, onComplete }: StepSkills
               <span className="text-xs font-mono text-neutral-400 w-8 text-right">
                 {skill.percentage}%
               </span>
-            </div>
+            </div>}
           </button>
         ))}
       </div>

@@ -4,6 +4,7 @@ import { useState, useCallback, useRef, useEffect } from 'react';
 import Image from 'next/image';
 import { Upload, X, Loader2, ImageIcon } from 'lucide-react';
 import type { SceneAnalysisResult } from '@/lib/agents/types';
+import { analysesForUploaded, analysisUnavailable } from '@/lib/onboarding/skill-choices';
 
 const SCENE_OPTIONS = [
   'wedding',
@@ -27,7 +28,7 @@ interface PortfolioItem {
 }
 
 interface StepPortfolioUploadProps {
-  onComplete: (analyses: SceneAnalysisResult[]) => void;
+  onComplete: (analyses: SceneAnalysisResult[], opts?: { manualSkills?: boolean }) => void;
 }
 
 export default function StepPortfolioUpload({ onComplete }: StepPortfolioUploadProps) {
@@ -37,6 +38,7 @@ export default function StepPortfolioUpload({ onComplete }: StepPortfolioUploadP
   const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const autoAnalyzeTriggered = useRef(false);
+  const [analysisRequestFailed, setAnalysisRequestFailed] = useState(false);
 
   const validAnalyses = items
     .map(i => i.analysis)
@@ -144,6 +146,7 @@ export default function StepPortfolioUpload({ onComplete }: StepPortfolioUploadP
 
     setAnalyzing(true);
     setError(null);
+    setAnalysisRequestFailed(false);
     setAnalyzeProgress({ current: 0, total: uploadedUrls.length });
 
     try {
@@ -175,6 +178,7 @@ export default function StepPortfolioUpload({ onComplete }: StepPortfolioUploadP
       setAnalyzeProgress({ current: uploadedUrls.length, total: uploadedUrls.length });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Analysis failed. Try again.');
+      setAnalysisRequestFailed(true);
     } finally {
       setAnalyzing(false);
     }
@@ -233,6 +237,14 @@ export default function StepPortfolioUpload({ onComplete }: StepPortfolioUploadP
   const handleProceed = () => {
     if (!canProceed) return;
     onComplete(validAnalyses);
+  };
+
+  // The photos were analysed but the AI could not read them (down, or out of
+  // quota): carry on, and choose the skills by hand on the next step.
+  const aiUnavailable = !canProceed && analysisUnavailable(items, analyzing, analysisRequestFailed);
+  const handleProceedWithoutAnalysis = () => {
+    if (!aiUnavailable) return;
+    onComplete(analysesForUploaded(items), { manualSkills: true });
   };
 
   const uploadedCount = items.filter(i => i.url && !i.uploading && !i.error).length;
@@ -361,7 +373,21 @@ export default function StepPortfolioUpload({ onComplete }: StepPortfolioUploadP
             Looks Good
           </button>
         )}
+        {aiUnavailable && (
+          <button
+            type="button"
+            onClick={handleProceedWithoutAnalysis}
+            className="flex-1 bg-[#D4A843] text-black py-3 px-6 text-xs font-mono font-bold uppercase tracking-widest hover:opacity-80 transition-opacity min-h-[44px]"
+          >
+            Continue and choose my skills
+          </button>
+        )}
       </div>
+      {aiUnavailable && (
+        <p className="text-xs font-mono text-neutral-400" role="status">
+          We could not analyse your photos just now. Your photos are saved; continue and choose your skills yourself.
+        </p>
+      )}
 
       {analyzing && (
         <div className="flex items-center justify-center gap-3 py-4">

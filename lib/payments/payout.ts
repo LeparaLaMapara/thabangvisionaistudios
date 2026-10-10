@@ -1,7 +1,8 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { createAdminClient } from '@/lib/supabase/server';
 import { createTransferRecipient, type TransferRecipientResult } from '@/lib/payments/paystack';
-import { verifyPayment } from '@/lib/payments/routing';
+import { isManualReference, verifyPayment } from '@/lib/payments/routing';
+import { isYocoReference } from '@/lib/payments/yoco';
 import { payoutAdapterFor } from '@/lib/payments/ports';
 import { email as emailProvider } from '@/lib/email';
 import { STUDIO } from '@/lib/constants';
@@ -228,7 +229,16 @@ export async function triggerCreatorPayout(params: PayoutParams, deps: Partial<P
   }
 
   // ── Before any money moves: every rule must hold. ─────────────────────────
-  const paymentRef = booking.paystack_reference || booking.reference;
+  // Verify by OUR reference (BK-...): it is what the checkout sent the
+  // provider, and what its verify endpoint looks up. paystack_reference is
+  // overwritten by the payment webhook (lib/payments/fulfil.ts) with the
+  // provider's numeric transaction id, which verify answers "not found" for,
+  // so every service payout was held as "the payment provider does not
+  // confirm the payment" (found by the local journey tests). A Yoco charge
+  // id (ch_...) or a manual reference is still verified as stored: those are
+  // looked up in our own payment_confirmations, not at the provider.
+  const stored = booking.paystack_reference;
+  const paymentRef = stored && (isYocoReference(stored) || isManualReference(stored)) ? stored : booking.reference || stored;
   let confirmation: { success: boolean; amount: number } | null = null;
   try {
     confirmation = paymentRef ? await d.verifyCharge(paymentRef) : null;

@@ -365,13 +365,37 @@ export async function createCreatorProduction(userId: string): Promise<{ success
     updated_at: new Date().toISOString(),
   };
 
-  const { error: upsertErr } = await supabase
-    .from('smart_productions')
-    .upsert(row, { onConflict: 'creator_id', ignoreDuplicates: false });
+  // One live production per creator. The uniqueness is a PARTIAL index
+  // (creator_id WHERE creator_id IS NOT NULL AND deleted_at IS NULL, migration
+  // 035), which an upsert's ON CONFLICT (creator_id) cannot target: Postgres
+  // refused every call with "no unique or exclusion constraint matching the
+  // ON CONFLICT specification", so finishing creator onboarding always failed
+  // ("Failed to create production listing."). Update the live row, or insert;
+  // an insert that loses a race to another request updates instead.
+  const { created_at: _createdAt, ...changes } = row;
+  void _createdAt;
+  const updateLive = async (): Promise<{ found: boolean; error: string | null }> => {
+    const { data, error } = await supabase
+      .from('smart_productions')
+      .update(changes)
+      .eq('creator_id', profile.id)
+      .is('deleted_at', null)
+      .select('id');
+    if (error) return { found: false, error: error.message };
+    return { found: (data ?? []).length > 0, error: null };
+  };
 
-  if (upsertErr) {
-    console.error('[createCreatorProduction]', upsertErr.message);
-    return { success: false, error: upsertErr.message };
+  let result = await updateLive();
+  if (!result.error && !result.found) {
+    const { error: insertErr } = await supabase.from('smart_productions').insert(row);
+    if (!insertErr) return { success: true };
+    result = insertErr.code === '23505' ? await updateLive() : { found: false, error: insertErr.message };
+    if (!result.error && !result.found) result = { found: false, error: insertErr.message };
+  }
+
+  if (result.error) {
+    console.error('[createCreatorProduction]', result.error);
+    return { success: false, error: result.error };
   }
 
   return { success: true };

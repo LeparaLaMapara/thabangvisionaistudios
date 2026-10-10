@@ -164,13 +164,18 @@ export class SupabaseQuoteLinks implements QuoteLinkStore {
 
   async linkToGroup(quoteId: string, bookingGroupId: string): Promise<boolean> {
     // Compare-and-set: only an active quote that no other order has claimed.
+    // booking_group_id MUST be in the returned columns: PostgREST (12 to 14)
+    // answers an update whose or= filter names a column missing from select=
+    // with 42703 "column delivery_quotes.booking_group_id does not exist", so
+    // selecting only 'id' made every delivery checkout fail ("Your delivery
+    // quote could not be used"). Found by the local journey tests.
     const { data, error } = await this.db
       .from('delivery_quotes')
       .update({ booking_group_id: bookingGroupId, updated_at: new Date().toISOString() })
       .eq('id', quoteId)
       .eq('status', 'active')
       .or(`booking_group_id.is.null,booking_group_id.eq.${bookingGroupId}`)
-      .select('id');
+      .select('id, booking_group_id');
     if (error) throw new Error(`link delivery quote failed: ${error.message}`);
     return (data ?? []).length === 1;
   }
