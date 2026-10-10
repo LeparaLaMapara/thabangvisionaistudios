@@ -16,6 +16,7 @@ import { getFlags } from '@/lib/features';
 import { isRagEnabled, searchSimilar, formatRetrievalContext } from '@/lib/rag';
 import { UBUNYE_AGENTS } from '@/lib/agents/registry';
 import { createSearchTools } from '@/lib/agents/tools/search';
+import { CHAT_TOO_LONG_MESSAGE, capToolCalls, chatBodyWithinLimit, limitChatMessages } from '@/lib/agents/request-limits';
 import { createBookingTools } from '@/lib/agents/tools/booking';
 import { createDeliveryTools } from '@/lib/agents/tools/delivery';
 import { buildAssistantPrompt } from '@/lib/agents/agents/assistant';
@@ -164,7 +165,16 @@ export async function executeAgent(
   let conversationId: string | null = null;
 
   try {
-    const body = await req.json();
+    // Size first, before parsing (security LLM-4: a 2 MB message was accepted).
+    const declared = Number(req.headers.get('content-length') ?? '0');
+    if (!chatBodyWithinLimit(declared)) {
+      return NextResponse.json({ error: CHAT_TOO_LONG_MESSAGE }, { status: 413 });
+    }
+    const rawBody = await req.text();
+    if (!chatBodyWithinLimit(Buffer.byteLength(rawBody, 'utf8'))) {
+      return NextResponse.json({ error: CHAT_TOO_LONG_MESSAGE }, { status: 413 });
+    }
+    const body = JSON.parse(rawBody);
 
     if (body.messages && Array.isArray(body.messages)) {
       rawMessages = body.messages;
@@ -176,6 +186,12 @@ export async function executeAgent(
         { status: 400 },
       );
     }
+
+    const limited = limitChatMessages(rawMessages);
+    if (!limited.ok) {
+      return NextResponse.json({ error: limited.error }, { status: limited.status });
+    }
+    rawMessages = limited.messages;
 
     if (typeof body.sessionMessageCount === 'number') sessionMessageCount = body.sessionMessageCount;
     if (body.isFirstGuestMessage === true) isFirstGuestMessage = true;
@@ -386,7 +402,8 @@ export async function executeAgent(
         ? await convertToModelMessages(rawMessages)
         : rawMessages;
 
-      const tools = getToolsForAgent(agentId, supabase, !!user, flags, !!preSelectedCreatorId, conversationId);
+      // One shared budget of tool executions for this message (security LLM-5).
+      const tools = capToolCalls(getToolsForAgent(agentId, supabase, !!user, flags, !!preSelectedCreatorId, conversationId));
 
       // Route to model based on agent config and query complexity
       const lastUserText = [...rawMessages].reverse().find(
@@ -447,6 +464,8 @@ export async function executeAgent(
         messages: modelMessages,
         tools: toolsEnabled ? tools : undefined,
         stopWhen: stepCountIs(4),
+        // Per model step (security LLM-4: output was uncapped).
+        maxOutputTokens: STUDIO.security.chat.maxOutputTokens,
         // Awaited inside the stream before it closes, so it is never dropped
         // when a short reply finishes first: no reply started → slot back.
         onSettled: async (served: boolean) => {

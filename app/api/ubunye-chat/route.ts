@@ -1,7 +1,8 @@
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
-import { NextRequest } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
+import { CHAT_TOO_LONG_MESSAGE, chatBodyWithinLimit } from '@/lib/agents/request-limits';
 import { executeAgent } from '@/lib/agents/runtime';
 import { classifyIntent } from '@/lib/agents/router';
 import { lastUserText } from '@/lib/agents/last-user-text';
@@ -13,6 +14,12 @@ import { conversationBelongsTo } from '@/lib/data/chat-history';
 // and routes to the appropriate agent (assistant, booking, portfolios, rates).
 // The frontend continues to call /api/ubunye-chat for all conversations.
 export async function POST(req: NextRequest): Promise<Response> {
+  // Refuse an oversized body before parsing it even once (security LLM-4);
+  // executeAgent re-checks the bytes it actually reads.
+  if (!chatBodyWithinLimit(Number(req.headers.get('content-length') ?? '0'))) {
+    return NextResponse.json({ error: CHAT_TOO_LONG_MESSAGE }, { status: 413 });
+  }
+
   // Clone the request so we can peek at the body without consuming it
   const cloned = req.clone();
 

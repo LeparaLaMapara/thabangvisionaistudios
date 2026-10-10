@@ -443,7 +443,7 @@ export const STUDIO = {
       // and images in replies are never loaded (no zero-click exfiltration).
       linkHosts: ['wa.me', 'checkout.paystack.com'],
       // Inbound request limits for POST /api/ubunye-chat.
-      maxBodyBytes: 64 * 1024,
+      maxBodyBytes: 256 * 1024,
       maxMessageChars: 4000,
       maxHistoryMessages: 40,
       // Per reply: output tokens per model step, and tool executions in total
