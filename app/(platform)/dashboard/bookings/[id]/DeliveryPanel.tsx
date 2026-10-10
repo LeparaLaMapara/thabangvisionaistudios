@@ -40,6 +40,9 @@ interface Leg {
   tracking_url: string | null;
   items: number;
   by: 'our_vehicle' | 'courier';
+  /** Phase 8: gear from our studio, or collected from (and returned to) its owner (suburb at most). */
+  from?: 'studio' | 'owner';
+  origin_area?: string | null;
 }
 
 interface StatusResponse {
@@ -187,7 +190,10 @@ export function DeliveryPanel({ bookingId }: { bookingId: string }) {
         {data.legs.map((l, i) => (
           <div key={`${l.leg}-${i}`} className="space-y-1 text-sm font-mono">
             <div className="flex flex-wrap justify-between gap-2">
-              <span className="text-white">{l.leg === 'outbound' ? 'Delivery to you' : 'Return pickup'}</span>
+              <span className="text-white">
+                {l.leg === 'outbound' ? 'Delivery to you' : 'Return pickup'}
+                {l.from === 'owner' ? (l.leg === 'outbound' ? ' from the owner' : ' back to the owner') + (l.origin_area ? ` (${l.origin_area})` : '') : ''}
+              </span>
               <span className="text-[#D4A843]">{l.status_label}</span>
             </div>
             {(l.window_start || l.window_label) && (

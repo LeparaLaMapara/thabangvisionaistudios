@@ -369,6 +369,7 @@ export default function CartPage() {
               ? {
                   delivery_quote_id: deliverySelection.outboundId,
                   ...(deliverySelection.returnId ? { return_quote_id: deliverySelection.returnId } : {}),
+                  delivery_quote_ids: deliverySelection.quoteIds,
                   delivery_approved_cents: deliverySelection.totalCents,
                 }
               : { delivery_address: deliverySelection.address }

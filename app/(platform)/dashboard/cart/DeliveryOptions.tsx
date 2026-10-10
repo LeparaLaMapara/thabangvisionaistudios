@@ -16,6 +16,9 @@ import { formatRand } from '@/lib/format/money';
 export interface PublicQuote {
   id: string | null;
   leg: 'outbound' | 'return';
+  /** Phase 8: gear from our studio, or collected from (and returned to) its owner; the owner's suburb at most. */
+  origin?: 'studio' | 'owner';
+  origin_area?: string | null;
   provider_kind: 'courier' | 'own_fleet';
   customer_fee_cents: number;
   expires_at: string | null;
@@ -32,7 +35,7 @@ export interface AddressFields {
 }
 
 export type DeliverySelection =
-  | { kind: 'quote'; outboundId: string; returnId: string | null; totalCents: number; quotes: PublicQuote[]; addressSummary: string }
+  | { kind: 'quote'; outboundId: string; returnId: string | null; quoteIds: string[]; totalCents: number; quotes: PublicQuote[]; addressSummary: string }
   | { kind: 'legacy'; address: AddressFields; totalCents: number; quotes: PublicQuote[]; addressSummary: string };
 
 /** A changed delivery total the server wants the renter to approve (D07). */
@@ -56,7 +59,19 @@ export function selectionFromQuotes(quotes: PublicQuote[], addressSummary: strin
   if (!out) return null;
   const totalCents = quotes.reduce((s, q) => s + q.customer_fee_cents, 0);
   if (!out.id) return legacyAddress ? { kind: 'legacy', address: legacyAddress, totalCents, quotes, addressSummary } : null;
-  return { kind: 'quote', outboundId: out.id, returnId: quotes.find((q) => q.leg === 'return')?.id ?? null, totalCents, quotes, addressSummary };
+  // Phase 8: one quote per trip (leg and origin); the checkout gets every one of them.
+  const quoteIds = quotes.map((q) => q.id).filter((x): x is string => !!x);
+  return { kind: 'quote', outboundId: out.id, returnId: quotes.find((q) => q.leg === 'return')?.id ?? null, quoteIds, totalCents, quotes, addressSummary };
+}
+
+/** What a quote line says: the trip, and where the gear comes from when it is not our studio. */
+export function quoteLineLabel(q: Pick<PublicQuote, 'leg' | 'origin' | 'origin_area'>, several: boolean): string {
+  const trip = q.leg === 'outbound' ? 'Delivery' : 'Return pickup';
+  if (q.origin === 'owner') {
+    const where = q.origin_area ? ` (${q.origin_area})` : '';
+    return q.leg === 'outbound' ? `${trip} from the owner${where}` : `${trip} back to the owner${where}`;
+  }
+  return several ? `${trip}${q.leg === 'outbound' ? ' from our studio' : ' back to our studio'}` : trip;
 }
 
 /** Whether the renter may have this cart delivered (GET /api/delivery/eligibility). */
@@ -254,11 +269,20 @@ export default function DeliveryOptions({
         <div role="status" className="border border-white/10 p-3 space-y-1 text-xs font-mono text-neutral-300" data-testid="delivery-quote">
           {selection.addressSummary && <p className="text-neutral-400">To {selection.addressSummary}</p>}
           {selection.quotes.map((q) => (
-            <p key={q.leg} className="flex justify-between gap-3">
-              <span>{q.leg === 'outbound' ? 'Delivery' : 'Return pickup'}{q.window_label ? `, ${q.window_label}` : ''}</span>
+            <p key={q.id ?? `${q.leg}-${q.origin ?? 'studio'}`} className="flex justify-between gap-3">
+              <span>{quoteLineLabel(q, selection.quotes.some((x) => x.origin === 'owner'))}{q.window_label ? `, ${q.window_label}` : ''}</span>
               <span className="text-white">{centsToRand(q.customer_fee_cents)}</span>
             </p>
           ))}
+          {selection.quotes.length > 2 || selection.quotes.some((q) => q.origin === 'owner') ? (
+            <p className="flex justify-between gap-3 border-t border-white/10 pt-1">
+              <span>Delivery total</span>
+              <span className="text-white">{centsToRand(selection.totalCents)}</span>
+            </p>
+          ) : null}
+          {selection.quotes.some((q) => q.origin === 'owner') && (
+            <p className="text-neutral-500">Some of your gear is collected from its owner, so it travels as its own trip with its own fee.</p>
+          )}
           {selection.quotes[0]?.expires_at && (
             <p className="text-neutral-500">
               Price held until {new Date(selection.quotes[0].expires_at).toLocaleTimeString(STUDIO.currency.locale, { hour: '2-digit', minute: '2-digit', timeZone: DELIVERY_CHECKOUT.timeZone })} (SAST). After that we check it again before you pay.
@@ -271,8 +295,8 @@ export default function DeliveryOptions({
         <div role="alert" className="border border-[#D4A843]/40 bg-[#D4A843]/5 p-3 space-y-2 text-xs font-mono text-neutral-200">
           <p>{approval.message}</p>
           {approval.quotes.map((q) => (
-            <p key={q.leg} className="flex justify-between gap-3">
-              <span>{q.leg === 'outbound' ? 'Delivery' : 'Return pickup'}</span>
+            <p key={q.id ?? `${q.leg}-${q.origin ?? 'studio'}`} className="flex justify-between gap-3">
+              <span>{quoteLineLabel(q, approval.quotes.some((x) => x.origin === 'owner'))}</span>
               <span className="text-white">{centsToRand(q.customer_fee_cents)}</span>
             </p>
           ))}
