@@ -36,6 +36,7 @@ insert into _rls_allow values
   -- (no table may have RLS off today; add ('rls_off', '<table>', '<reason>') only with a reason)
   ('select_true', 'feature_flags', 'Feature flags are public configuration the site reads before sign-in (030).'),
   ('select_true', 'content_embeddings', 'Embeddings of published catalogue text; match_content runs as the visitor (077 E3).'),
+  ('definer_anon', 'busy_creator_ids', 'Ubunye''s creator search runs as the visitor; returns only creator ids with an active gig, at most 100 asked (077 E11).'),
   ('definer_anon', 'is_admin', 'Called by RLS policies granted to public, which run as the querying role (043). Reveals only the caller''s own admin flag.'),
   ('definer_view', 'public_profiles', 'The column filter over profiles: RLS cannot restrict columns (049, 075, 077).');
 

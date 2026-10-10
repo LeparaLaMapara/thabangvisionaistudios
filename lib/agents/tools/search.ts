@@ -1,6 +1,7 @@
 import { sanitiseForPrompt } from '@/lib/ubunye/sanitise';
 import { jsonSchema } from 'ai';
 import { escapeIlike } from '@/lib/search/types';
+import { getBusyCreatorIds } from '@/lib/supabase/queries/crew';
 
 // ─── Search Tools for Assistant Agent ─────────────────────────────────────────
 // Tools focused on searching and browsing platform data.
@@ -48,14 +49,7 @@ export function createSearchTools(
         if (error) return { error: 'Search is unavailable just now.' };
         if (!data || data.length === 0) return { results: [], message: 'No creators found matching your criteria.' };
 
-        const creatorIds = data.map((c: { id: string }) => c.id);
-        const { data: activeGigs } = await supabase
-          .from('crew_requests')
-          .select('creator_id')
-          .in('creator_id', creatorIds)
-          .in('status', ['confirmed', 'paid', 'in_progress']);
-
-        const busyIds = new Set((activeGigs ?? []).map((g: { creator_id: string }) => g.creator_id));
+        const busyIds = await getBusyCreatorIds(supabase, data.map((c: { id: string }) => c.id));
 
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         return { results: data.map((c: any) => ({

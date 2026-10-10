@@ -129,11 +129,13 @@ begin
   if exists (select 1 from public.booking_payments where status = 'complete') then
     raise exception 'FAIL A4: complete rows remain';
   end if;
-  if pg_get_constraintdef((select oid from pg_constraint where conname = 'booking_payments_status_check'
-                            and conrelid = 'public.booking_payments'::regclass)) !~ 'succeeded'
-     or pg_get_constraintdef((select oid from pg_constraint where conname = 'booking_payments_status_check'
-                            and conrelid = 'public.booking_payments'::regclass)) ~ 'complete' then
-    raise exception 'FAIL A4: CHECK is not pending|succeeded|failed|refunded';
+  -- Every status CHECK on the table, whatever its name.
+  if (select count(*) from pg_constraint where conrelid = 'public.booking_payments'::regclass and contype = 'c'
+        and pg_get_constraintdef(oid) ~ '\mstatus\M') <> 1
+     or exists (select 1 from pg_constraint where conrelid = 'public.booking_payments'::regclass and contype = 'c'
+                  and pg_get_constraintdef(oid) ~ '\mstatus\M'
+                  and (pg_get_constraintdef(oid) !~ 'succeeded' or pg_get_constraintdef(oid) ~ 'complete')) then
+    raise exception 'FAIL A4: status CHECKs on booking_payments are not exactly one pending|succeeded|failed|refunded';
   end if;
   raise notice 'PASS A4: no ''complete'' rows; CHECK is pending | succeeded | failed | refunded';
 end $$;
@@ -264,6 +266,19 @@ begin
     raise exception 'FAIL C5: creator/renter misclassified';
   end if;
   raise notice 'PASS C5: profile_is_creator tells a creator from a renter';
+
+  -- C5b: a published production an admin made for someone makes them a creator; a draft does not.
+  insert into public.smart_productions (slug, title, creator_id, is_published)
+  values ('t077-prod-' || current_setting('t077.drafter'), 't077 draft production', current_setting('t077.drafter')::uuid, false);
+  if (select public.profile_is_creator(p) from public.profiles p where id = current_setting('t077.drafter')::uuid) then
+    raise exception 'FAIL C5b: an unpublished production made a creator';
+  end if;
+  update public.smart_productions set is_published = true where slug = 't077-prod-' || current_setting('t077.drafter');
+  if not (select public.profile_is_creator(p) from public.profiles p where id = current_setting('t077.drafter')::uuid) then
+    raise exception 'FAIL C5b: a published production by an admin does not make a creator';
+  end if;
+  update public.smart_productions set is_published = false where slug = 't077-prod-' || current_setting('t077.drafter');
+  raise notice 'PASS C5b: a published production (creator_id) makes a creator; an unpublished one does not';
 end $$;
 
 -- ════════════════════════════════════════════════════════════════════════════
@@ -354,6 +369,39 @@ begin
   raise notice 'PASS E2: anon cannot read, create or change crew requests';
 end $$;
 reset role;
+
+-- E11: Ubunye can still tell busy creators apart, as a visitor, and learns nothing else.
+do $$
+begin
+  perform set_config('t077.busy_before', coalesce((select count(*) from public.busy_creator_ids(array[current_setting('t077.creator')::uuid]))::text, '0'), true);
+end $$;
+reset role;
+update public.crew_requests set status = 'confirmed' where id = current_setting('t077.creq')::uuid;
+set local role anon;
+do $$
+declare
+  n integer;
+begin
+  if current_setting('t077.busy_before') <> '0' then
+    raise exception 'FAIL E11: a creator with only a pending request counts as busy';
+  end if;
+  select count(*) into n from public.busy_creator_ids(array[current_setting('t077.creator')::uuid, current_setting('t077.owner')::uuid]);
+  if n <> 1 then raise exception 'FAIL E11: anon sees % busy creators, expected 1', n; end if;
+  if not exists (select 1 from public.busy_creator_ids(array[current_setting('t077.creator')::uuid])
+                  where creator_id = current_setting('t077.creator')::uuid) then
+    raise exception 'FAIL E11: the busy creator is not returned';
+  end if;
+  if pg_get_function_result('public.busy_creator_ids(uuid[])'::regprocedure) <> 'TABLE(creator_id uuid)' then
+    raise exception 'FAIL E11: busy_creator_ids returns more than creator ids: %',
+      pg_get_function_result('public.busy_creator_ids(uuid[])'::regprocedure);
+  end if;
+  if (select count(*) from public.crew_requests) <> 0 then
+    raise exception 'FAIL E11: anon reads crew requests';
+  end if;
+  raise notice 'PASS E11: a visitor learns which creators are busy (ids only: no names, e-mails or notes), and still reads no request';
+end $$;
+reset role;
+update public.crew_requests set status = 'pending' where id = current_setting('t077.creq')::uuid;
 
 -- The client who sent the request (by e-mail, any case) and the creator see it; another user does not.
 set local role authenticated;

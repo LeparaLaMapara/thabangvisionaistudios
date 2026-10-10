@@ -439,3 +439,38 @@ export function generateCrewSlug(name: string): string {
 function specializationVariants(keywords: string[]): string[] {
   return [...new Set(keywords.flatMap((k) => [k, k.toLowerCase()]))];
 }
+
+// ─── Busy creators ──────────────────────────────────────────────────────────
+
+/** Statuses of a crew request during which the creator is taken. */
+const ACTIVE_GIG_STATUSES = ['confirmed', 'paid', 'in_progress'];
+
+type BusyQueryClient = {
+  rpc: (fn: string, args: Record<string, unknown>) => PromiseLike<{ data: unknown; error: { message: string } | null }>;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  from: (table: string) => any;
+};
+
+/**
+ * Which of these creators have an active gig. Runs with the caller's client
+ * (Ubunye searches as the visitor). Since migration 077 a visitor cannot
+ * read crew_requests, so this asks `busy_creator_ids()`, which returns
+ * creator ids only. If that function is not there yet (077 not applied), the
+ * old direct read still works, because before 077 the table was readable.
+ */
+export async function getBusyCreatorIds(client: BusyQueryClient, creatorIds: string[]): Promise<Set<string>> {
+  const ids = [...new Set(creatorIds.filter(Boolean))].slice(0, 100);
+  if (ids.length === 0) return new Set();
+
+  const { data, error } = await client.rpc('busy_creator_ids', { p_creator_ids: ids });
+  if (!error) {
+    return new Set(((data as { creator_id: string }[] | null) ?? []).map((r) => r.creator_id));
+  }
+
+  const { data: rows } = await client
+    .from('crew_requests')
+    .select('creator_id')
+    .in('creator_id', ids)
+    .in('status', ACTIVE_GIG_STATUSES);
+  return new Set(((rows as { creator_id: string }[] | null) ?? []).map((r) => r.creator_id));
+}

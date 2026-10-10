@@ -27,10 +27,12 @@
 --      (The audit's other item, bookings.payment_status = 'failed', is no
 --      longer written: fulfil.ts records a failed attempt as a history event
 --      instead. Nothing to change in the database.)
---   B. handle_new_user is production's body: insert (id) only, on conflict do
+--   B. handle_new_user is production's body (insert (id) only, on conflict do
 --      nothing, SECURITY DEFINER, pinned search_path, not executable by
---      clients. The trigger is created only if it is missing; one pointing
---      elsewhere is reported, never replaced (auth.users is shared, see
+--      clients), but ONLY where the function is missing or is the broken 006
+--      body; any other body (production's, DEV's Multiversity skip) is kept.
+--      The trigger is created only if it is missing; one pointing elsewhere
+--      is reported, never replaced (auth.users is shared, see
 --      docs/operations/database-isolation.md).
 --   C. "Who is a creator" is decided in one place, profile_is_creator(): the
 --      person finished creator onboarding, or has specializations, a creator
@@ -70,13 +72,16 @@
 --          after E2). authenticated loses TRUNCATE/REFERENCES/TRIGGER, and
 --          INSERT/UPDATE/DELETE wherever no policy for that command reaches
 --          it, a service-role-only policy not counting (RLS refused those
---          writes already; this removes the reliance on RLS alone). Other
---          apps' tables in public are not touched.
---      E6. Functions: every SECURITY DEFINER function in public gets pg_temp
---          last in its search_path (other apps' kb_/blog_/apps_ functions
---          excluded); trigger functions and caller_owns_rental are no longer
---          executable by anon; three invoker trigger functions get a pinned
---          search_path.
+--          writes already; this removes the reliance on RLS alone). Only
+--          ThabangVision's tables (an explicit list) are touched; any other
+--          table in public is reported and left alone.
+--      E11. busy_creator_ids(): Ubunye's creator search can still tell which
+--          creators have an active gig after E2, without reading requests.
+--      E6. Functions (ThabangVision's own only, owned by the migration role):
+--          every SECURITY DEFINER function gets pg_temp last in its
+--          search_path (an empty path becomes pg_catalog, pg_temp); trigger
+--          functions and caller_owns_rental are no longer executable by
+--          anon; three invoker trigger functions get a pinned search_path.
 --      E7. onboarding_progress and portfolio_analysis had RLS on and no
 --          policy, so the onboarding page's progress upsert and the portfolio
 --          agent's analysis insert (both as the signed-in creator) were
@@ -106,12 +111,60 @@
 
 begin;
 
--- Other apps' tables that share production's public schema (BLOCKED
--- isolation, docs/operations/database-isolation.md). Never touched here.
-create temporary table _tv077_foreign (name text primary key) on commit drop;
-insert into _tv077_foreign values
-  ('apps'), ('kb_documents'), ('kb_chunks'), ('kb_conversations'), ('kb_messages'),
-  ('blog_comments'), ('blog_subscribers');
+-- Fail fast instead of queueing behind live traffic: if a lock is not
+-- granted in 5 s, or one statement runs over 2 minutes, the whole
+-- migration rolls back untouched. Retry off-peak (docs/database/README.md).
+set local lock_timeout = '5s';
+set local statement_timeout = '120s';
+
+-- ThabangVision's own objects. Grants (E5) and function hygiene (E6) touch
+-- ONLY these. Production's public schema also holds other apps' tables and
+-- functions (apps, kb_*, blog_*, and whatever else appears: see
+-- docs/operations/database-isolation.md); anything not listed here is left
+-- alone with a NOTICE. Lists = every table and function the repo's
+-- migrations create (base schema, lib/migrations, April files), at 077,
+-- except the generic trigger helpers update_updated_at and
+-- update_updated_at_column: names that common may belong to another app too.
+create temporary table _tv077_tables (name text primary key) on commit drop;
+insert into _tv077_tables select unnest(array[
+  'agent_actions', 'ai_budget_alerts', 'ai_token_usage', 'banking_details', 'booking_payments',
+  'booking_status_history', 'bookings', 'bug_reports', 'careers', 'cart_items', 'chat_conversations',
+  'chat_faqs', 'chat_messages', 'consent_records', 'content_embeddings', 'crew_requests',
+  'delivery_addresses', 'delivery_cancelled_order_notes', 'delivery_custody_events',
+  'delivery_dispatch_intents', 'delivery_events', 'delivery_incidents', 'delivery_manual_tasks',
+  'delivery_proofs', 'delivery_provider_events', 'delivery_quotes', 'delivery_reconciliation',
+  'delivery_shipments', 'dispute_comments', 'disputes', 'equipment_bookings', 'feature_flag_events',
+  'feature_flags', 'invoices', 'ledger_journals', 'ledger_lines', 'listing_private', 'listings',
+  'moderation_log', 'newsletter_subscribers', 'notification_outbox', 'notifications',
+  'onboarding_progress', 'ops_check_runs', 'ops_findings', 'orders', 'owner_payouts',
+  'payment_confirmations', 'payment_events', 'phone_codes', 'platform_events', 'portfolio_analysis',
+  'portfolio_tag_corrections', 'press', 'production_categories', 'profiles', 'rate_limits',
+  'refund_obligations', 'rental_blocks', 'rental_escalations', 'rental_payment_intents', 'reviews',
+  'security_audit_log', 'service_booking_events', 'smart_productions', 'smart_rentals',
+  'subscription_plans', 'subscriptions', 'ubunye_usage', 'unmet_demand', 'welcome_messages'
+]);
+create temporary table _tv077_functions (name text primary key) on commit drop;
+insert into _tv077_functions select unnest(array[
+  'admin_approve_verification', 'admin_get_verification', 'admin_list_verifications',
+  'admin_reject_verification', 'agent_actions_supersede', 'audit_banking_sensitive_changes',
+  'audit_profile_sensitive_changes', 'booking_payments_canonical_status', 'booking_payments_neutral_payment',
+  'bookings_neutral_payment', 'busy_creator_ids', 'caller_owns_rental', 'claim_delivery_provider_events',
+  'claim_outbox', 'claim_payment_events', 'confirm_manual_payment', 'confirm_rental_payment',
+  'consent_records_stamp', 'delivery_apply_transition', 'delivery_cancelled_orders_to_settle',
+  'delivery_claim_dispatch', 'delivery_create_shipment', 'delivery_insert_fee_refund', 'delivery_is_renter',
+  'delivery_list_awaiting_acceptance', 'delivery_mark_quote_paid', 'delivery_note_cancelled_order',
+  'delivery_open_incident', 'delivery_owns_all', 'delivery_owns_any', 'delivery_post',
+  'delivery_redact_address', 'delivery_refund_quote', 'delivery_save_reconciliation',
+  'equipment_bookings_neutral_payment', 'expire_rental_holds', 'guard_banking_sensitive_columns',
+  'guard_phone_verified', 'guard_profile_sensitive_columns', 'guard_review_ownership', 'handle_new_user',
+  'increment_conversation_message_count', 'increment_faq_view', 'is_admin', 'ledger_post',
+  'ledger_refuse_change', 'listing_review_backfill_072', 'log_feature_flag_change', 'notify_signup',
+  'open_return_dispute', 'outbox_enqueue', 'payout_transition', 'profile_is_creator', 'rate_limit_hit',
+  'rate_limits_prune', 'record_failed_payment_attempt', 'record_unallocated_payment',
+  'refund_obligations_cap', 'refund_transition', 'rental_units_blocked', 'reserve_rental_order',
+  'service_booking_events_append_only', 'set_signup_webhook', 'smart_rentals_listing_status_guard',
+  'submit_verification_for_user', 'submit_verification_request', 'transition_rental_booking'
+]);
 
 -- ═══ D. is_admin() ═════════════════════════════════════════════════════════
 -- First, because the policies below call it.
@@ -164,7 +217,21 @@ create trigger booking_payments_canonical_status
   before insert or update of status on public.booking_payments
   for each row execute function public.booking_payments_canonical_status();
 
-alter table public.booking_payments drop constraint if exists booking_payments_status_check;
+-- Drop every CHECK on booking_payments that constrains status, whatever its
+-- name: production may carry one not named booking_payments_status_check,
+-- and any survivor would still refuse 'succeeded'.
+do $$
+declare c record;
+begin
+  for c in
+    select conname from pg_constraint
+     where conrelid = 'public.booking_payments'::regclass and contype = 'c'
+       and pg_get_constraintdef(oid) ~ '\mstatus\M'
+  loop
+    execute format('alter table public.booking_payments drop constraint %I', c.conname);
+    raise notice '077 A: dropped CHECK % on booking_payments', c.conname;
+  end loop;
+end $$;
 update public.booking_payments set status = 'succeeded' where status = 'complete';
 alter table public.booking_payments add constraint booking_payments_status_check
   check (status in ('pending', 'succeeded', 'failed', 'refunded'));
@@ -172,21 +239,44 @@ alter table public.booking_payments add constraint booking_payments_status_check
 comment on column public.booking_payments.status is
   'pending (checkout created) | succeeded (money captured) | failed | refunded. ''complete'' is mapped to succeeded by trigger (077).';
 
--- ═══ B. handle_new_user: production's body ═════════════════════════════════
-create or replace function public.handle_new_user()
-returns trigger
-language plpgsql
-security definer
-set search_path = public, pg_temp
-as $$
+-- ═══ B. handle_new_user: production's body, only where it is broken ═══════
+-- auth.users and this function name are shared with other apps in
+-- production, and DEV's body skips Multiversity users. So the body is
+-- replaced ONLY when the function is missing or is the broken 006 body (it
+-- inserts profiles.email, a column 048 drops, so every sign-up fails).
+-- Any other body is kept as it is.
+do $$
+declare
+  v_def text;
 begin
-  -- Only the id: every other column takes its default, which is exactly what
-  -- 067's INSERT rule allows (role user, unverified, not suspended, ...).
-  insert into public.profiles (id) values (new.id) on conflict (id) do nothing;
-  return new;
-end;
-$$;
-revoke all on function public.handle_new_user() from public, anon, authenticated;
+  if to_regprocedure('public.handle_new_user()') is not null then
+    v_def := pg_get_functiondef('public.handle_new_user()'::regprocedure);
+  end if;
+  if v_def is null or v_def ~* 'insert\s+into\s+(public\.)?profiles\s*\([^)]*\memail\M' then
+    execute $ddl$
+      create or replace function public.handle_new_user()
+      returns trigger
+      language plpgsql
+      security definer
+      set search_path = public, pg_temp
+      as $body$
+      begin
+        -- Only the id: every other column takes its default, which is exactly
+        -- what 067's INSERT rule allows (role user, unverified, not suspended).
+        insert into public.profiles (id) values (new.id) on conflict (id) do nothing;
+        return new;
+      end;
+      $body$
+    $ddl$;
+    raise notice '077 B: handle_new_user % (now inserts only the id)',
+      case when v_def is null then 'created' else 'replaced: it inserted profiles.email' end;
+  else
+    raise notice '077 B: handle_new_user kept as it is (not the broken 006 body)';
+  end if;
+  -- A trigger function needs no client EXECUTE (checked when the trigger is
+  -- created, not when it fires).
+  revoke all on function public.handle_new_user() from public, anon, authenticated;
+end $$;
 
 do $$
 declare v_fn regproc;
@@ -208,24 +298,29 @@ end $$;
 create or replace function public.profile_is_creator(p public.profiles)
 returns boolean
 language sql
-immutable
+stable
 set search_path = public, pg_temp
 as $$
   -- Signals only a creator leaves: finishing creator onboarding (/onboarding,
   -- /api/onboarding/complete), choosing specializations or writing a creator
-  -- bio (onboarding or Creator settings), adding a portfolio project, or
-  -- being featured by the studio. Never available_for_hire: before 077 the
-  -- ID approval switched it on for renters too.
+  -- bio (onboarding or Creator settings), adding a portfolio project, being
+  -- featured by the studio, or having a published production an admin made
+  -- for them (/api/admin/productions sets smart_productions.creator_id).
+  -- Never available_for_hire: before 077 the ID approval switched it on for
+  -- renters too. Runs as the caller: through public_profiles an anonymous
+  -- reader sees only published productions, which is all this asks about.
   select p.onboarding_completed_at is not null
       or coalesce(cardinality(p.specializations), 0) > 0
       or nullif(btrim(coalesce(p.crew_bio, '')), '') is not null
       or coalesce(p.crew_featured, false)
-      or (jsonb_typeof(p.portfolio_projects) = 'array' and jsonb_array_length(p.portfolio_projects) > 0);
+      or (jsonb_typeof(p.portfolio_projects) = 'array' and jsonb_array_length(p.portfolio_projects) > 0)
+      or exists (select 1 from public.smart_productions sp
+                  where sp.creator_id = p.id and sp.is_published and sp.deleted_at is null);
 $$;
 comment on function public.profile_is_creator(public.profiles) is
   'True when this profile belongs to a creator (077). Used by admin_approve_verification and public_profiles.';
--- Pure function of its argument; public_profiles calls it as the reader, so
--- the API roles must be able to execute it.
+-- public_profiles calls it as the reader, so the API roles must be able to
+-- execute it. It reveals nothing a reader could not query directly.
 revoke all on function public.profile_is_creator(public.profiles) from public;
 grant execute on function public.profile_is_creator(public.profiles) to anon, authenticated, service_role;
 
@@ -341,6 +436,28 @@ create policy "Clients can view own requests" on public.crew_requests
   for select to authenticated
   using (client_email is not null and lower(client_email) = lower(auth.jwt() ->> 'email'));
 
+-- Ubunye's creator search runs as the visitor and used to read crew_requests
+-- directly to mark creators busy. After E2 a visitor sees none, so every
+-- creator would look free. This answers only "which of these creators has
+-- an active gig", nothing personal. crew_requests has no structured dates
+-- (preferred_dates is free text), so "active" is the status, as before.
+create or replace function public.busy_creator_ids(p_creator_ids uuid[])
+returns table (creator_id uuid)
+language sql
+stable
+security definer
+set search_path = public, pg_temp
+as $$
+  select distinct r.creator_id
+    from public.crew_requests r
+   where r.creator_id = any (p_creator_ids[1:100])
+     and r.status in ('confirmed', 'paid', 'in_progress');
+$$;
+comment on function public.busy_creator_ids(uuid[]) is
+  'Which of up to 100 creators have an active crew request (077). Returns ids only; used by Ubunye''s creator search.';
+revoke all on function public.busy_creator_ids(uuid[]) from public;
+grant execute on function public.busy_creator_ids(uuid[]) to anon, authenticated, service_role;
+
 -- ═══ E3. content_embeddings ════════════════════════════════════════════════
 do $$
 begin
@@ -390,7 +507,7 @@ begin
     select c.oid, c.relname
       from pg_class c join pg_namespace n on n.oid = c.relnamespace
      where n.nspname = 'public' and c.relkind in ('r', 'p')
-       and c.relname not in (select name from _tv077_foreign)
+       and c.relname in (select name from _tv077_tables)
      order by c.relname
   loop
     -- anon never writes a table directly (every anon write is an API route
@@ -418,6 +535,11 @@ begin
     end loop;
   end loop;
   raise notice '077 E5: authenticated write privileges no policy used, now revoked: %', array_to_string(v_revoked, ', ');
+  raise notice '077 E5: tables in public that are not ThabangVision''s, left untouched: %',
+    coalesce((select string_agg(c.relname, ', ' order by c.relname)
+                from pg_class c join pg_namespace n on n.oid = c.relnamespace
+               where n.nspname = 'public' and c.relkind in ('r', 'p')
+                 and c.relname not in (select name from _tv077_tables)), 'none');
 end $$;
 
 -- ═══ E8. unmet_demand_summary ══════════════════════════════════════════════
@@ -443,51 +565,58 @@ begin
 end $$;
 
 -- ═══ E6. Function hygiene ══════════════════════════════════════════════════
+-- Only ThabangVision's functions (_tv077_functions) owned by the role running
+-- this migration; anything else is reported and left alone.
 do $$
 declare
   f record;
   v_path text;
+  v_skipped text[] := '{}';
 begin
-  -- SECURITY DEFINER: keep the pinned path, put pg_temp last so a temporary
-  -- object can never shadow a name the function uses.
   for f in
-    select p.oid::regprocedure as sig, p.proconfig
+    select p.oid, p.oid::regprocedure as sig, p.proname, p.prosecdef, p.proconfig, p.prorettype,
+           pg_get_userbyid(p.proowner) as owner
       from pg_proc p join pg_namespace n on n.oid = p.pronamespace
-     where n.nspname = 'public' and p.prosecdef
-       and p.proname !~ '^(kb_|match_kb|blog_|apps_)'
+     where n.nspname = 'public'
+       and (p.prosecdef or p.prorettype = 'trigger'::regtype
+            or p.proname in ('guard_phone_verified', 'ledger_refuse_change', 'service_booking_events_append_only'))
   loop
+    if f.proname not in (select name from _tv077_functions) then
+      v_skipped := v_skipped || (f.sig::text || ' (not ThabangVision''s)');
+      continue;
+    end if;
+    if f.owner <> current_user then
+      v_skipped := v_skipped || (f.sig::text || ' (owned by ' || f.owner || ')');
+      continue;
+    end if;
+
+    -- SECURITY DEFINER: keep the pinned path, put pg_temp last so a temporary
+    -- object can never shadow a name the function uses. An empty path means
+    -- "nothing but the catalog": keep that meaning.
+    -- Invoker functions with no search_path (audit D5): pin them.
     select substr(c, length('search_path=') + 1) into v_path
       from unnest(f.proconfig) c where c like 'search_path=%';
-    if v_path is null then
+    if v_path in ('""', '') then
+      execute format('alter function %s set search_path = pg_catalog, pg_temp', f.sig);
+    elsif v_path is null and (f.prosecdef or f.proname in ('guard_phone_verified', 'ledger_refuse_change', 'service_booking_events_append_only')) then
       execute format('alter function %s set search_path = public, pg_temp', f.sig);
-    elsif v_path !~ 'pg_temp' then
+    elsif v_path is not null and v_path !~ 'pg_temp' then
       execute format('alter function %s set search_path = %s, pg_temp', f.sig, v_path);
     end if;
-  end loop;
 
-  -- Trigger functions run as triggers only; nobody needs EXECUTE on them.
-  for f in
-    select p.oid::regprocedure as sig
-      from pg_proc p join pg_namespace n on n.oid = p.pronamespace
-     where n.nspname = 'public' and p.prorettype = 'trigger'::regtype
-       and p.proname !~ '^(kb_|match_kb|blog_|apps_)'
-  loop
-    execute format('revoke all on function %s from public, anon, authenticated', f.sig);
-  end loop;
-
-  -- Invoker trigger functions with no search_path (D5 in the 2026-10-06 audit).
-  for f in
-    select p.oid::regprocedure as sig
-      from pg_proc p join pg_namespace n on n.oid = p.pronamespace
-     where n.nspname = 'public' and not p.prosecdef and p.proconfig is null
-       and p.proname in ('guard_phone_verified', 'ledger_refuse_change', 'service_booking_events_append_only')
-  loop
-    execute format('alter function %s set search_path = public, pg_temp', f.sig);
+    -- Trigger functions run as triggers only; nobody needs EXECUTE on them.
+    if f.prorettype = 'trigger'::regtype then
+      execute format('revoke all on function %s from public, anon, authenticated', f.sig);
+    end if;
   end loop;
 
   if to_regprocedure('public.caller_owns_rental(uuid)') is not null then
     revoke all on function public.caller_owns_rental(uuid) from public, anon;
     grant execute on function public.caller_owns_rental(uuid) to authenticated, service_role;
+  end if;
+
+  if cardinality(v_skipped) > 0 then
+    raise notice '077 E6: functions left untouched: %', array_to_string(v_skipped, ', ');
   end if;
 end $$;
 
@@ -527,6 +656,7 @@ notify pgrst, 'reload schema';
 -- --     drop policy "Creators add own portfolio analysis" on public.portfolio_analysis;
 -- -- E8: grant select on public.unmet_demand_summary to anon, authenticated;
 -- -- E9: grant select on public.reviews to anon, authenticated;
+-- -- E11: drop function if exists public.busy_creator_ids(uuid[]);
 -- -- E10: create policy "Users can create own listings" on public.listings for insert with check (auth.uid() = user_id);
 -- --      create policy "Users can update own listings" on public.listings for update using (auth.uid() = user_id);
 -- --      grant insert, update on public.listings to authenticated;
