@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import { uploadFile, type CloudinaryAsset } from '@/lib/cloudinary/upload';
 import { STUDIO, RENTAL_CATEGORIES as RENTAL_CATEGORIES_CONST } from '@/lib/constants';
+import { dropzoneAccept, uploadAccept } from '@/lib/storage/upload-policy';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -394,7 +395,7 @@ export default function AdminRentalsPage() {
   // ── Dropzone hooks ───────────────────────────────────────────────────────────
 
   const galDropzone = useDropzone({
-    accept:   { 'image/*': [], 'video/*': [] },
+    accept:   dropzoneAccept('media', true),
     multiple: true,
     disabled: galUploading,
     onDrop:   (accepted) => { void doGalleryUpload(accepted); },
@@ -975,7 +976,7 @@ export default function AdminRentalsPage() {
                     <input
                       ref={galInputRef}
                       type="file"
-                      accept="image/*,video/*"
+                      accept={uploadAccept('media', true)}
                       multiple
                       className="hidden"
                       disabled={galUploading}

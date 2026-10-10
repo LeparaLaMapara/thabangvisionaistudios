@@ -14,6 +14,7 @@ import {
   uploadFile,
   type CloudinaryAsset,
 } from '@/lib/cloudinary/upload';
+import { uploadAccept } from '@/lib/storage/upload-policy';
 
 // ─── Types ──────────────────────────────────────────────────────────────────────
 
@@ -720,7 +721,7 @@ export default function ImportRateCardPage() {
                           <input
                             ref={(el) => { galInputRefs.current[item._id] = el; }}
                             type="file"
-                            accept="image/*"
+                            accept={uploadAccept('image', true)}
                             multiple
                             className="hidden"
                             onChange={(e) => handleGalleryUpload(item._id, e.target.files)}

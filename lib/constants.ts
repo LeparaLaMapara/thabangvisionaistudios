@@ -435,6 +435,11 @@ export const STUDIO = {
       imageFormats: ['jpg', 'jpeg', 'png', 'webp', 'heic', 'heif', 'avif', 'gif'],
       // Portfolio project videos (STUDIO.creators.portfolio.acceptedVideoTypes).
       videoFormats: ['mp4'],
+      // Admin uploads (productions, gear, handover/return photos, press) also
+      // take the camera formats the admin tools always accepted. Still no
+      // SVG, HTML, PDF or raw files.
+      adminImageFormats: ['jpg', 'jpeg', 'png', 'webp', 'heic', 'heif', 'avif', 'gif', 'tif', 'tiff', 'bmp'],
+      adminVideoFormats: ['mp4', 'mov', 'webm', 'm4v'],
     },
     // Ubunye chat (lib/ubunye/chat-links.ts, lib/agents/runtime.ts).
     chat: {

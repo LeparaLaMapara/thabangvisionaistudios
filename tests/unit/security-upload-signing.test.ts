@@ -99,3 +99,46 @@ describe('POST /api/cloudinary/sign', () => {
     expect((await sign({ folder: 'x', resource_type: rt })).status).toBe(400);
   });
 });
+
+describe('review fix: admin formats and file pickers match the policy', () => {
+  it('admins can upload the camera formats the admin tools take; never SVG or raw', async () => {
+    const { allowedFormats, uploadPolicy } = await import('@/lib/storage/upload-policy');
+    const img = uploadPolicy(UID, true, { folder: 'thabangvision/handovers/x', resource_type: 'image' })!;
+    const vid = uploadPolicy(UID, true, { folder: 'x', resource_type: 'video' })!;
+    for (const f of ['tiff', 'bmp', 'jpg', 'heic']) expect(img.params.allowed_formats.split(',')).toContain(f);
+    for (const f of ['mov', 'webm', 'mp4']) expect(vid.params.allowed_formats.split(',')).toContain(f);
+    for (const k of ['image', 'video'] as const) {
+      for (const admin of [true, false]) expect(allowedFormats(k, admin)).not.toContain('svg');
+    }
+    // Non-admins are unchanged.
+    expect(uploadPolicy(UID, false, { resource_type: 'video' })!.params.allowed_formats).toBe('mp4');
+    expect(uploadPolicy(UID, false, {})!.params.allowed_formats.split(',')).not.toContain('tiff');
+    expect(uploadPolicy(UID, true, { resource_type: 'raw' })).toBeNull();
+  });
+
+  it('uploadAccept / dropzoneAccept list exactly the allowed formats (mime + extension), never a wildcard', async () => {
+    const { allowedFormats, dropzoneAccept, uploadAccept } = await import('@/lib/storage/upload-policy');
+    const media = uploadAccept('media', true);
+    expect(media).not.toMatch(/\*|svg/);
+    for (const f of [...allowedFormats('image', true), ...allowedFormats('video', true)]) expect(media.split(',')).toContain(`.${f}`);
+    expect(media).toContain('video/quicktime');
+    expect(uploadAccept('image', false)).not.toContain('video/');
+    const dz = dropzoneAccept('image', true);
+    expect(Object.keys(dz)).not.toContain('image/*');
+    expect(dz['image/tiff']).toEqual(['.tif', '.tiff']);
+  });
+
+  it('no Cloudinary uploader offers a wildcard picker (image/* would offer SVG)', async () => {
+    const fs = await import('node:fs');
+    const files = [
+      'app/(platform)/dashboard/profile/page.tsx', 'app/(platform)/dashboard/listings/page.tsx',
+      'app/(admin)/admin/projects/page.tsx', 'app/(admin)/admin/rentals/[id]/handover/page.tsx',
+      'app/(admin)/admin/rentals/[id]/return/page.tsx', 'app/(admin)/admin/rentals/page.tsx',
+      'app/(admin)/admin/rentals/import/page.tsx', 'app/(admin)/admin/press/page.tsx',
+    ];
+    for (const f of files) {
+      const src = fs.readFileSync(f, 'utf8');
+      expect(src, f).not.toMatch(/['"](image|video)\/\*['"]/);
+    }
+  });
+});

@@ -61,6 +61,41 @@ export function uploadKindFor(requested: unknown): UploadKind | null {
   return null;
 }
 
+/** File extensions Cloudinary will accept for this kind of upload (signed as allowed_formats). */
+export function allowedFormats(kind: UploadKind, isAdmin: boolean): readonly string[] {
+  const u = STUDIO.security.uploads;
+  if (kind === 'video') return isAdmin ? u.adminVideoFormats : u.videoFormats;
+  return isAdmin ? u.adminImageFormats : u.imageFormats;
+}
+
+const MIME: Record<string, string> = {
+  jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', webp: 'image/webp', heic: 'image/heic',
+  heif: 'image/heif', avif: 'image/avif', gif: 'image/gif', tif: 'image/tiff', tiff: 'image/tiff',
+  bmp: 'image/bmp', mp4: 'video/mp4', mov: 'video/quicktime', webm: 'video/webm', m4v: 'video/x-m4v',
+};
+
+/**
+ * The file-picker filter that matches the policy: MIME types (so phone
+ * cameras still open with capture="environment") plus extensions.
+ * `media` = images and videos. Never "image/*", which would offer SVG.
+ */
+export function uploadAccept(kind: UploadKind | 'media', isAdmin: boolean): string {
+  const formats = kind === 'media' ? [...allowedFormats('image', isAdmin), ...allowedFormats('video', isAdmin)] : allowedFormats(kind, isAdmin);
+  const mimes = [...new Set(formats.map((f) => MIME[f]).filter(Boolean))];
+  return [...mimes, ...formats.map((f) => `.${f}`)].join(',');
+}
+
+/** The same filter in react-dropzone's shape ({ mime: [extensions] }). */
+export function dropzoneAccept(kind: UploadKind | 'media', isAdmin: boolean): Record<string, string[]> {
+  const formats = kind === 'media' ? [...allowedFormats('image', isAdmin), ...allowedFormats('video', isAdmin)] : allowedFormats(kind, isAdmin);
+  const out: Record<string, string[]> = {};
+  for (const f of formats) {
+    const mime = MIME[f];
+    if (mime) (out[mime] ??= []).push(`.${f}`);
+  }
+  return out;
+}
+
 export function uploadPolicy(
   userId: string,
   isAdmin: boolean,
@@ -70,7 +105,7 @@ export function uploadPolicy(
   const kind = uploadKindFor(requested.resource_type);
   if (!kind) return null;
   const folder = uploadFolderFor(userId, isAdmin, requested.folder);
-  const formats = kind === 'video' ? STUDIO.security.uploads.videoFormats : STUDIO.security.uploads.imageFormats;
+  const formats = allowedFormats(kind, isAdmin);
   return {
     kind,
     folder,

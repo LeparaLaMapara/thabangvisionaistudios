@@ -26,6 +26,7 @@ import {
   isVerifiedProfile,
   isWriteDenied,
 } from '@/lib/supabase/write-denied';
+import { uploadAccept } from '@/lib/storage/upload-policy';
 
 function RequiredLabel({ children }: { children: React.ReactNode }) {
   return (
@@ -448,7 +449,7 @@ export default function ProfileEditPage() {
               </span>
               <input
                 type="file"
-                accept="image/*"
+                accept={uploadAccept('image', false)}
                 onChange={handleAvatarUpload}
                 disabled={uploadingAvatar}
                 className="hidden"

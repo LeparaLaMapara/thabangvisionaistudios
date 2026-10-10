@@ -6,6 +6,7 @@ import { useParams } from 'next/navigation';
 import { ArrowLeft, Camera, Loader2 } from 'lucide-react';
 import { uploadFile } from '@/lib/cloudinary/upload';
 import { formatRand } from '@/lib/format/money';
+import { uploadAccept } from '@/lib/storage/upload-policy';
 
 /**
  * Taking gear back at the counter: the last step of the gear loop. Record the
@@ -257,7 +258,7 @@ export default function TakeBackPage() {
             </select>
             <label className={`flex items-center justify-center gap-2 min-h-[44px] rounded border border-white/20 text-xs font-mono uppercase tracking-widest text-white cursor-pointer ${uploading ? 'opacity-50 pointer-events-none' : ''}`}>
               <Camera className="w-4 h-4" aria-hidden="true" /> Photos of the returned gear
-              <input type="file" accept="image/*" capture="environment" multiple className="sr-only" onChange={(e) => upload(e.target.files)} />
+              <input type="file" accept={uploadAccept('image', true)} capture="environment" multiple className="sr-only" onChange={(e) => upload(e.target.files)} />
             </label>
             {uploading && <p className="text-xs text-neutral-400 flex items-center gap-2"><Loader2 className="w-3 h-3 animate-spin" /> Uploading…</p>}
             {photos.length > 0 && <p className="text-xs text-neutral-400">{photos.length} photo(s) added</p>}
