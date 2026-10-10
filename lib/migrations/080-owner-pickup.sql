@@ -278,6 +278,9 @@ begin
     (select string_agg(quote_literal(t), ', ' order by ord) from unnest(types) with ordinality as u(t, ord)));
 end $$;
 
+-- PostgREST picks up the new columns (delivered at commit).
+notify pgrst, 'reload schema';
+
 commit;
 
 -- ── ROLLBACK (manual; only while no leg from an owner's address exists) ─────

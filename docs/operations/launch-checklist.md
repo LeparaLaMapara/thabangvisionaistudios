@@ -66,7 +66,7 @@ merge only when green.
 - **Rollback:** Vercel → Deployments → previous develop deployment →
   **Promote** / redeploy it, or revert the merge on GitHub.
 
-## 3. Migrations 067 → 079 on DEV (E, F watches)
+## 3. Migrations 067 → 080 on DEV (E, F watches)
 
 The full procedure, with the per-migration notes, is
 [docs/database/README.md "Applying migrations to dev or production by hand"](../database/README.md#applying-migrations-to-dev-or-production-by-hand).
@@ -93,6 +93,7 @@ run 077-database-integrity.sql       && run 077-database-integrity.test.sql   # 
 run 072-listing-review.test.sql      # deferred from above
 run 078-ubunye-usage-reserve.sql     && run 078-ubunye-usage-reserve.test.sql
 run 079-security-phase-6.sql         && run 079-security-phase-6.test.sql   # on a hosted project check B2 passes
+run 080-owner-pickup.sql             && run 080-owner-pickup.test.sql       # Phase 8: collection from the owner's address
 run rls-coverage.test.sql
 ```
 
@@ -256,11 +257,13 @@ GitHub → New PR `develop` → `main` → CI green → merge.
 - **Rollback:** Vercel → Deployments → the previous production deployment →
   **Promote to Production** (instant), then revert the merge.
 
-## 9. Migrations 067 → 079 on PRODUCTION (E runs, F approves)
+## 9. Migrations 067 → 080 on PRODUCTION (E runs, F approves)
 
 Exactly step 3 with `DB` set to the PRODUCTION connection string (check the
 project ref), **without** `070-concurrency.sh` (DEV only), after D-28 is
-approved and the production app from step 8 is live (067 and 077 need it).
+approved and the production app from step 8 is live (067 and 077 need it;
+080 must be applied with the Phase 8 build, which reads `origin_owner_id`:
+apply 080 in the same window as the deploy, and before any owner opts in).
 Off-peak. Name the dump `prod-before-067.dump`.
 Production is shared with other apps (R-1): read `precheck-077.out` with
 care and keep 077's NOTICE output.
