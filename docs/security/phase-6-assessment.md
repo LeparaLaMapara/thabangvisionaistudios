@@ -52,7 +52,7 @@ Status: **FIXED** (exploit no longer works, regression test in place),
 | LLM-6 | Low | rates / bio-writer count usage read-then-write | FIXED | 5c0c273 | `security-agent-usage.test.ts` |
 
 All HTTP-level regressions live in `tests/e2e-local/s-security.journey.ts`
-(11 tests; part of `npm run test:e2e:local`).
+(12 tests; part of `npm run test:e2e:local`).
 
 ### INJ-1 — stored XSS via JSON-LD (Critical, FIXED)
 
@@ -313,16 +313,37 @@ more items, all fixed or accepted on the same branch:
   Any other host the site is served on must be one of these, or POSTs from it
   are refused with 403 "Invalid origin."
 
-## Verification (final build, after the review follow-up)
+## Codex review of PR #66 (2026-10-10)
+
+| # | Sev | Item | Status | Fix commit | Test |
+|---|---|---|---|---|---|
+| C1 | P1 | A suspended admin could sign in again (only sessions were ended) and `requireAdmin()` ignored `is_suspended` | FIXED | 7c9eed8 | `security-admin-auth.test.ts` +6; journey "Codex P1" |
+| C2 | P2 | `[contact](mailto:%)` made `decodeURIComponent` throw while rendering, crashing the chat | FIXED | be03536 | `security-chat-markdown.test.ts` (22 malformed hrefs, 2 000 random strings) |
+| C3 | P2 | Any `tel:` link in a reply was clickable | FIXED | be03536 | same (tel: forms) |
+
+- **C1.** `isAdmin()` reads the profile once for role and suspension; whatever
+  level granted admin (app_metadata, `profiles.role`, the `ADMIN_EMAILS`
+  break-glass), a suspended, unexpired account is refused, and an unreadable
+  profile fails closed. This changes the break-glass: it no longer grants on a
+  database fault (D-78). Suspension also bans the Auth user (`banUser()`,
+  `ban_duration` until `suspension_expires_at`, else 876000 h); reinstatement
+  and the auto-reinstate on expiry lift it (`liftBan()`). The local GoTrue
+  refuses a banned user's password sign-in (journey).
+- **C2.** `chatLinkTarget()` wraps the whole classification (any error →
+  plain text) and decodes with a safe decoder.
+- **C3.** `tel:` is a link only when the normalised number (+27 / 0 / 00
+  prefixes, spaces, dashes, brackets) equals `STUDIO.phone`.
+
+## Verification (final build, after both reviews)
 
 | Check | Result |
 |---|---|
 | `npx tsc --noEmit` | clean |
-| `npx vitest run` | 1 842 passed, 4 skipped (158 files; 13 new security test files) |
+| `npx vitest run` | 1 874 passed, 4 skipped (158 files; 13 new security test files) |
 | eslint on every changed file | no new errors (3 pre-existing in the same files before and after) |
 | `npm run build` with the CI placeholder env + `sec.sh` | build OK; no secrets, no business values, no SDK imports in `app/` |
 | Database from empty: `rebuild-local.sh` + `run-sql-tests.sh` | 86 files applied through 079; 16/16 test files pass (079: 20 checks) |
-| `npm run test:e2e:local` (local stack, final build) | 63/63 passed (52 existing + 11 in `s-security.journey.ts`) |
+| `npm run test:e2e:local` (local stack, final build) | 64/64 passed (52 existing + 12 in `s-security.journey.ts`) |
 | `tests/e2e` incl. a11y and the new `csp.spec.ts`, CSP enforced, CI env | 162 passed, 14 skipped, 8 failed: the same 8 that fail on earlier builds in this env (login against the dummy Supabase, a Gemini route that answers 404, the guest counter text on the Ubunye page, a public-pages timeout); +14 from `csp.spec.ts` |
 | `npm audit --omit=dev` | 1 high (nodemailer, R-80); full audit 13 (dev-only tooling) |
 
