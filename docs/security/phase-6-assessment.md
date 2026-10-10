@@ -52,7 +52,7 @@ Status: **FIXED** (exploit no longer works, regression test in place),
 | LLM-6 | Low | rates / bio-writer count usage read-then-write | FIXED | 5c0c273 | `security-agent-usage.test.ts` |
 
 All HTTP-level regressions live in `tests/e2e-local/s-security.journey.ts`
-(10 tests; part of `npm run test:e2e:local`).
+(11 tests; part of `npm run test:e2e:local`).
 
 ### INJ-1 — stored XSS via JSON-LD (Critical, FIXED)
 
@@ -105,7 +105,7 @@ nonces work. `proxy.ts` makes a 128-bit nonce per request and sets
 `script-src 'self' 'nonce-…' 'strict-dynamic'` (+ the Paystack/Vercel hosts,
 ignored by strict-dynamic browsers; `'unsafe-eval'` only in `next dev`) on
 the request (Next.js stamps its scripts with it) and on the response.
-`next.config.ts` no longer sends its static policy. `style-src` keeps
+`next.config.ts` sends only a fallback policy that cannot touch scripts (R4). `style-src` keeps
 `'unsafe-inline'` (style attributes cannot run script).
 
 **Verified** in Chromium with the CSP enforced: 18 pages boot the Next.js
@@ -248,8 +248,8 @@ Referer on its direct API calls as a browser would. Cron: `secretsEqual()`
 - **LLM-2/3** `components/ubunye/chatMarkdown.tsx` + `lib/ubunye/chat-links.ts`:
   images are never loaded (alt text shown); links only to same-site paths
   (not `//host`), our https site, the `STUDIO.social` hosts and
-  `STUDIO.security.chat.linkHosts` (wa.me, checkout.paystack.com), `tel:` and
-  `mailto:` our addresses; anything else is plain text. Re-attack in Chromium
+  `STUDIO.security.chat.linkHosts` (now empty), the studio's own WhatsApp
+  number (R1), `tel:` and `mailto:` our addresses; anything else is plain text. Re-attack in Chromium
   with CSP bypassed (`EVIL:EXFIL_MD`): reply rendered, no `<img>`, no link and
   no request to the attacker host; raw HTML inert.
 - **LLM-4/5** `lib/agents/request-limits.ts` (`STUDIO.security.chat`): body
@@ -262,17 +262,68 @@ Referer on its direct API calls as a browser would. Cron: `secretsEqual()`
   078 `ubunye_reserve_message` before any work and release it when nothing
   was produced. The counter is still shared with chat, as before.
 
-## Verification (final build)
+## Independent review follow-up (2026-10-10)
+
+An independent review of the branch confirmed the fixes above and found six
+more items, all fixed or accepted on the same branch:
+
+| # | Sev | Item | Status | Fix commit | Test |
+|---|---|---|---|---|---|
+| R1 | Low | LLM-3 incomplete: `[x](/&#9;/evil.com)` / `</\t/evil.com>` gave a path classed internal that browsers turn into `//evil.com`; the allowlist let a hijacked model link its own Paystack page or WhatsApp number | FIXED | 1a3e6b7 | `security-chat-markdown.test.ts` +7 (6 fail reverted) |
+| R2 | Low | 079: an app_metadata-only admin whose profile already said `user` was "demoted" with no role change, so `role_changed_at` stayed null and the old JWT kept admin for up to 1 h | FIXED | 627bbc2 | `079…test.sql` E1/E2 (E1 fails with the old function), journey "AUTH-2 (review)" |
+| R3 | Low | Regression: admin uploads of .mov/.webm/.tiff/.bmp refused by the new signing policy; pickers offered `image/*` (incl. SVG) | FIXED | 01cb6de | `security-upload-signing.test.ts` +3 |
+| R4 | Low | Regression: the proxy matcher skipped every `*.png/.svg/...` path, so `/studio/x.png` rendered the 404 with no CSP | FIXED | 22b2d77 | `security-csp.test.ts`, `tests/e2e/csp.spec.ts` +2 |
+| R5 | Info | `/_global-error` is prerendered without a nonce, so its inline scripts are blocked | ACCEPTED | — | — |
+| R6 | Info | CSRF origin list must keep the founder's hosts working | VERIFIED | 22b2d77 | `security-csrf-cron.test.ts` +4 |
+
+- **R1.** A link is internal only if it contains no whitespace/control
+  characters and `new URL(href, probe).origin` is the probe's origin.
+  react-markdown already percent-encodes such characters (`/%09/evil.com`,
+  same-origin); the function no longer relies on it. `checkout.paystack.com`
+  is no longer linkable from model text (payments go through `/pay` or the
+  server-issued prepared-action card); `wa.me` only for
+  `STUDIO.whatsapp.number`.
+- **R2.** `admin_revoke_user_sessions()` (called on every role change and
+  suspension) also stamps `role_changed_at` through a transaction-local switch
+  the trigger honours only for the platform roles. 079 is applied nowhere yet,
+  so it was amended in place.
+- **R3.** `STUDIO.security.uploads.adminImageFormats` (+ tif, tiff, bmp) and
+  `adminVideoFormats` (mp4, mov, webm, m4v) for admins; users unchanged; never
+  SVG or raw. Every Cloudinary file picker uses `uploadAccept()` /
+  `dropzoneAccept()` built from the same lists (MIME types keep the phone
+  camera working with `capture`).
+- **R4.** The matcher skips only `/_next/static`, `/_next/image` and the real
+  files in `public/` (add a pattern when a file is added there). A static
+  fallback CSP (`object-src 'none'; base-uri 'self'; frame-ancestors 'none'`)
+  is sent on every response by `next.config.ts`; browsers enforce every CSP
+  header, so it holds nothing about scripts, styles, connections or images.
+  On proxied responses only the proxy's policy is sent (checked with curl).
+- **R5 accepted.** `global-error` must be a client component, where route
+  segment config (`dynamic = 'force-dynamic'`) does not apply, and the app
+  uses Next's built-in one. It is only served as HTML for a server error in the
+  root layout; that version's only control is "Reload", a plain `<form>` GET
+  that works without JavaScript ("Back" is shown only for client-side errors,
+  which render inside the already-running, nonce'd client). So the page works
+  with its scripts blocked; the cost is console CSP errors on a page that is
+  already an error.
+- **R6.** `allowedOrigins()`: `NEXT_PUBLIC_APP_URL` and its www/apex twin
+  (production `www.thabangvision.com` + apex; on Preview the nonprod alias
+  `thabangvision-nonprod.vercel.app`), `VERCEL_URL` (per deployment),
+  `VERCEL_BRANCH_URL` (the git-develop alias), `VERCEL_PROJECT_PRODUCTION_URL`.
+  Any other host the site is served on must be one of these, or POSTs from it
+  are refused with 403 "Invalid origin."
+
+## Verification (final build, after the review follow-up)
 
 | Check | Result |
 |---|---|
 | `npx tsc --noEmit` | clean |
-| `npx vitest run` | 1 824 passed, 4 skipped (158 files; 13 new security test files) |
+| `npx vitest run` | 1 842 passed, 4 skipped (158 files; 13 new security test files) |
 | eslint on every changed file | no new errors (3 pre-existing in the same files before and after) |
 | `npm run build` with the CI placeholder env + `sec.sh` | build OK; no secrets, no business values, no SDK imports in `app/` |
-| Database from empty: `rebuild-local.sh` + `run-sql-tests.sh` | 86 files applied through 079; 16/16 test files pass (079: 18 checks) |
-| `npm run test:e2e:local` (local stack, final build) | 62/62 passed (52 existing + 10 in `s-security.journey.ts`) |
-| `tests/e2e` incl. a11y and the new `csp.spec.ts`, CSP enforced, CI env | 160 passed, 14 skipped, 8 failed: the same 8 that fail on earlier builds in this env (login against the dummy Supabase, a Gemini route that answers 404, the guest counter text on the Ubunye page, a public-pages timeout); +12 from `csp.spec.ts` |
+| Database from empty: `rebuild-local.sh` + `run-sql-tests.sh` | 86 files applied through 079; 16/16 test files pass (079: 20 checks) |
+| `npm run test:e2e:local` (local stack, final build) | 63/63 passed (52 existing + 11 in `s-security.journey.ts`) |
+| `tests/e2e` incl. a11y and the new `csp.spec.ts`, CSP enforced, CI env | 162 passed, 14 skipped, 8 failed: the same 8 that fail on earlier builds in this env (login against the dummy Supabase, a Gemini route that answers 404, the guest counter text on the Ubunye page, a public-pages timeout); +14 from `csp.spec.ts` |
 | `npm audit --omit=dev` | 1 high (nodemailer, R-80); full audit 13 (dev-only tooling) |
 
 **Final re-run of every reproduction against the final build** (database
