@@ -11,6 +11,11 @@ const message = (text: string, extra: Record<string, unknown> = {}) => ({
   ...extra,
 });
 
+// The daily ceiling per network address (STUDIO.ai.guestNetworkDailyMessages):
+// every run of these journeys comes from 127.0.0.1, so several runs in one
+// day pass it. A person on their own address would not.
+test.beforeAll(() => clearRateLimit('ai-guest-day:'));
+
 test('the chat fails gracefully: a plain message, no stack trace', async ({ page }) => {
   await page.goto('/ubunye-ai-studio');
   const box = page.getByRole('textbox').first();
