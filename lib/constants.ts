@@ -436,6 +436,21 @@ export const STUDIO = {
       // Portfolio project videos (STUDIO.creators.portfolio.acceptedVideoTypes).
       videoFormats: ['mp4'],
     },
+    // Ubunye chat (lib/ubunye/chat-links.ts, lib/agents/runtime.ts).
+    chat: {
+      // External hosts a chat reply may link to, besides our own site and
+      // the STUDIO.social profiles. Any other link is shown as plain text,
+      // and images in replies are never loaded (no zero-click exfiltration).
+      linkHosts: ['wa.me', 'checkout.paystack.com'],
+      // Inbound request limits for POST /api/ubunye-chat.
+      maxBodyBytes: 64 * 1024,
+      maxMessageChars: 4000,
+      maxHistoryMessages: 40,
+      // Per reply: output tokens per model step, and tool executions in total
+      // (stepCountIs bounds round trips, not calls per step).
+      maxOutputTokens: 1500,
+      maxToolCallsPerMessage: 8,
+    },
   },
 
   ai: {

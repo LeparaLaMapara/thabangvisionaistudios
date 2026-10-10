@@ -6,7 +6,7 @@ import { DefaultChatTransport } from 'ai';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import type { Components } from 'react-markdown';
-import Link from 'next/link';
+import { chatMarkdownComponents } from '@/components/ubunye/chatMarkdown';
 import { createClient } from '@/lib/supabase/client';
 import { STUDIO, UBUNYE_QUICK_ACTIONS } from '@/lib/constants';
 import { GoldenSphere } from '@/components/ubunye/GoldenSphere';
@@ -183,67 +183,10 @@ export default function UbunyeStudioClient({ context }: UbunyeStudioClientProps)
   }, [setMessages]);
 
 
-  // ─── Markdown components (stable ref) ──
-  const mdComponents: Components = useMemo(() => ({
-    a: ({ href, children }) => {
-      if (href?.startsWith('/')) {
-        return (
-          <Link href={href} className="text-[#D4A843] underline decoration-[#D4A843]/30 underline-offset-2 hover:decoration-[#D4A843] transition-colors">
-            {children}
-          </Link>
-        );
-      }
-      const safe = (() => { try { return ['http:', 'https:'].includes(new URL(href ?? '').protocol); } catch { return false; } })();
-      if (!href || !safe) {
-        return <span className="text-[#D4A843]">{children}</span>;
-      }
-      return (
-        <a href={href} className="text-[#D4A843] underline decoration-[#D4A843]/30 underline-offset-2 hover:decoration-[#D4A843] transition-colors" target="_blank" rel="noopener noreferrer">
-          {children}
-        </a>
-      );
-    },
-    strong: ({ children }) => <strong className="text-white font-semibold">{children}</strong>,
-    em: ({ children }) => <em className="text-neutral-200">{children}</em>,
-    p: ({ children }) => <p className="mb-3 last:mb-0 leading-relaxed">{children}</p>,
-    ul: ({ children }) => <ul className="ml-4 mb-3 space-y-1 list-disc">{children}</ul>,
-    ol: ({ children }) => <ol className="ml-4 mb-3 space-y-1 list-decimal">{children}</ol>,
-    li: ({ children }) => <li className="text-neutral-400 leading-relaxed">{children}</li>,
-    h1: ({ children }) => <h1 className="text-white font-semibold text-lg mt-5 mb-2">{children}</h1>,
-    h2: ({ children }) => <h2 className="text-white font-semibold text-base mt-5 mb-2">{children}</h2>,
-    h3: ({ children }) => <h3 className="text-white font-semibold mt-4 mb-2">{children}</h3>,
-    h4: ({ children }) => <h4 className="text-neutral-200 font-semibold mt-3 mb-1">{children}</h4>,
-    code: ({ children, className }) => {
-      if (className?.includes('language-')) {
-        return (
-          <code className="block bg-neutral-900/80 px-4 py-3 my-3 text-[13px] font-mono text-neutral-300 overflow-x-auto border border-white/5">
-            {children}
-          </code>
-        );
-      }
-      return (
-        <code className="bg-neutral-800/80 px-1.5 py-0.5 text-[13px] font-mono text-[#D4A843]">
-          {children}
-        </code>
-      );
-    },
-    pre: ({ children }) => <pre className="my-3">{children}</pre>,
-    blockquote: ({ children }) => (
-      <blockquote className="border-l-2 border-[#D4A843]/30 pl-4 my-3 text-neutral-400">
-        {children}
-      </blockquote>
-    ),
-    hr: () => <hr className="border-neutral-800 my-4" />,
-    table: ({ children }) => (
-      <div className="overflow-x-auto my-3">
-        <table className="w-full text-sm border-collapse">{children}</table>
-      </div>
-    ),
-    thead: ({ children }) => <thead className="border-b border-neutral-700">{children}</thead>,
-    th: ({ children }) => <th className="text-left text-neutral-300 font-semibold px-3 py-2 text-sm">{children}</th>,
-    td: ({ children }) => <td className="px-3 py-2 border-b border-neutral-800/50 text-sm">{children}</td>,
+  // ─── Markdown components (stable ref; links/images are policed, see chatMarkdown.tsx) ──
+  const mdComponents: Components = useMemo(() => chatMarkdownComponents,
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }), []);
+  []);
 
   // ─── Auth & session ──
   const handleAuthUser = useCallback(async (user: { id: string; user_metadata: Record<string, string> } | null) => {
