@@ -30,7 +30,7 @@ export type FetchLike = (input: string, init: RequestInit) => Promise<Response>;
 export type HttpResult = ProviderCallResult<{ status: number; body: unknown }> & { status?: number };
 
 export interface HttpRequest {
-  method: 'GET' | 'POST' | 'PUT' | 'DELETE';
+  method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
   url: string;
   headers?: Record<string, string>;
   /** Already-serialised body (JSON or form). */
