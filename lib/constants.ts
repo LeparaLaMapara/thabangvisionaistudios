@@ -441,7 +441,9 @@ export const STUDIO = {
       // External hosts a chat reply may link to, besides our own site and
       // the STUDIO.social profiles. Any other link is shown as plain text,
       // and images in replies are never loaded (no zero-click exfiltration).
-      linkHosts: ['wa.me', 'checkout.paystack.com'],
+      // wa.me is allowed only for STUDIO.whatsapp.number, and payment pages
+      // are never linked from model text (they come from /pay or the server).
+      linkHosts: [] as string[],
       // Inbound request limits for POST /api/ubunye-chat.
       maxBodyBytes: 256 * 1024,
       maxMessageChars: 4000,

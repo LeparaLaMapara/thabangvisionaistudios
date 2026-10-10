@@ -59,3 +59,37 @@ describe('Ubunye reply rendering (LLM-2/LLM-3)', () => {
     expect(chatLinkTarget('https://instagram.com/thabangvision').kind).toBe('external');
   });
 });
+
+describe('review fixes: control-character paths and model-chosen payment/WhatsApp links', () => {
+  it.each(['/\t/evil.com', '/\n/evil.com', '/ /evil.com', '/\\evil.com', '/\u0000/evil.com', ' //evil.com'])(
+    '%j is not an internal link',
+    (href) => {
+      expect(chatLinkTarget(href).kind).toBe('text');
+    },
+  );
+
+  it('the markdown forms of the bypass never produce an off-site link', () => {
+    const c = renderReply('[x](/&#9;/evil.com) and [a](</\t/evil.com>) and [b](//evil.com)');
+    for (const a of c.querySelectorAll('a')) {
+      // How a browser resolves it (it strips raw tabs/newlines first).
+      const href = (a.getAttribute('href') ?? '').replace(/[\t\n\r]/g, '');
+      expect(new URL(href, 'https://site.invalid').origin).toBe('https://site.invalid');
+    }
+  });
+
+  it('a checkout.paystack.com link chosen by the model is plain text', () => {
+    expect(chatLinkTarget('https://checkout.paystack.com/attacker-page').kind).toBe('text');
+  });
+
+  it("only the studio's own WhatsApp number is a link", async () => {
+    const { STUDIO } = await import('@/lib/constants');
+    expect(chatLinkTarget(`https://wa.me/${STUDIO.whatsapp.number}`).kind).toBe('external');
+    expect(chatLinkTarget(`https://wa.me/${STUDIO.whatsapp.number}?text=hi`).kind).toBe('external');
+    expect(chatLinkTarget('https://wa.me/27820000000').kind).toBe('text');
+    expect(chatLinkTarget('https://api.whatsapp.com/send?phone=27820000000').kind).toBe('text');
+  });
+
+  it('ordinary internal links still work', () => {
+    expect(chatLinkTarget('/rentals?cat=lenses#top')).toEqual({ kind: 'internal', href: '/rentals?cat=lenses#top' });
+  });
+});

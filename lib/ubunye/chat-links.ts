@@ -7,7 +7,10 @@ import { STUDIO } from '@/lib/constants';
  *
  *   internal  a same-site path ("/studio", never "//evil.example")
  *   external  https on our own site or an allowlisted host
- *             (STUDIO.security.chat.linkHosts + STUDIO.social), new tab
+ *             (STUDIO.security.chat.linkHosts + STUDIO.social) or the
+ *             studio's own WhatsApp number, new tab. Payment links are never
+ *             taken from model text: payments go through /pay or the
+ *             prepared-action card, which the server issues.
  *   text      anything else: shown as plain text, not clickable
  *
  * Images are never rendered (chatImageAlt gives the text to show instead).
@@ -16,6 +19,8 @@ export type ChatLink =
   | { kind: 'internal'; href: string }
   | { kind: 'external'; href: string }
   | { kind: 'text' };
+
+const INTERNAL_PROBE = 'https://x.invalid';
 
 function hostOf(url: string): string | null {
   try {
@@ -43,16 +48,31 @@ export function allowedChatHosts(extra: string[] = []): Set<string> {
 
 export function chatLinkTarget(href: string | null | undefined, ownHost?: string): ChatLink {
   if (!href) return { kind: 'text' };
-  const trimmed = href.trim();
-  // A same-site path. "//host" and "/\host" are protocol-relative: off-site.
-  if (trimmed.startsWith('/') && !trimmed.startsWith('//') && !trimmed.startsWith('/\\')) {
-    return { kind: 'internal', href: trimmed };
+  // Browsers strip tabs/newlines and trim spaces from URLs, so "/\t/evil.com"
+  // becomes "//evil.com" (off-site). Any whitespace or control character
+  // makes the link plain text.
+  if (/[\s\u0000-\u001f\u007f]/.test(href)) return { kind: 'text' };
+  // A same-site path must resolve to the same origin as a probe base, so
+  // "//host" and "/\host" (protocol-relative) are off-site.
+  if (href.startsWith('/')) {
+    try {
+      return new URL(href, INTERNAL_PROBE).origin === INTERNAL_PROBE ? { kind: 'internal', href } : { kind: 'text' };
+    } catch {
+      return { kind: 'text' };
+    }
   }
   let url: URL;
   try {
-    url = new URL(trimmed);
+    url = new URL(href);
   } catch {
     return { kind: 'text' };
+  }
+  // WhatsApp: only the studio's own number (a model must not send people to
+  // another number).
+  if (url.protocol === 'https:' && url.hostname === 'wa.me') {
+    return url.pathname === `/${STUDIO.whatsapp.number}` && !url.username && !url.password
+      ? { kind: 'external', href: url.href }
+      : { kind: 'text' };
   }
   if (url.protocol === 'tel:') return { kind: 'external', href: url.href };
   if (url.protocol === 'mailto:') {
