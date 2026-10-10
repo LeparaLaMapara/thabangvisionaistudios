@@ -29,6 +29,23 @@ test.describe('Content-Security-Policy with nonces', () => {
     expect(a).not.toBe(b);
   });
 
+  test('a 404 under an image-looking path still gets the per-request CSP', async ({ request }) => {
+    const res = await request.get('/studio/not-a-real-file.png');
+    expect(res.status()).toBe(404);
+    const csp = res.headers()['content-security-policy'] ?? '';
+    expect(csp).toMatch(/script-src[^;]*'nonce-[^']+'/);
+    expect(csp).toContain("object-src 'none'");
+  });
+
+  test('a real static file gets the fallback CSP', async ({ request }) => {
+    const res = await request.get('/logo-header.png');
+    expect(res.status()).toBe(200);
+    const csp = res.headers()['content-security-policy'] ?? '';
+    expect(csp).toContain("object-src 'none'");
+    expect(csp).toContain("frame-ancestors 'none'");
+    expect(csp).not.toContain('script-src');
+  });
+
   for (const path of PAGES) {
     test(`${path} boots with zero script-src violations`, async ({ page }) => {
       const violations = scriptViolations(page);

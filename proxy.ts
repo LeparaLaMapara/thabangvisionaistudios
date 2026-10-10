@@ -71,22 +71,40 @@ function maintenanceResponse(request: NextRequest): NextResponse | null {
 /** Supabase auth cookie (sb-<ref>-auth-token, possibly chunked .0/.1). */
 const SESSION_COOKIE = /^sb-.+-auth-token(\.\d+)?$/;
 
-/** Origins the app is served from: the app URL (+/- www) and this Vercel deployment's own URLs. */
-function allowedOrigins(): Set<string> {
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000';
-  const parsedUrl = new URL(appUrl);
+export interface OriginEnv {
+  NEXT_PUBLIC_APP_URL?: string;
+  VERCEL_URL?: string;
+  VERCEL_BRANCH_URL?: string;
+  VERCEL_PROJECT_PRODUCTION_URL?: string;
+}
+
+/**
+ * Origins the app is served from (exported for tests):
+ *   - NEXT_PUBLIC_APP_URL, plus its www/apex twin (production is served on
+ *     www, and the apex redirects there; a preview's NEXT_PUBLIC_APP_URL, e.g.
+ *     the nonprod alias, is accepted the same way);
+ *   - this deployment's own hosts, set by Vercel at runtime: VERCEL_URL (the
+ *     per-deployment URL), VERCEL_BRANCH_URL (the git branch alias, e.g. the
+ *     develop preview) and VERCEL_PROJECT_PRODUCTION_URL.
+ * Before, any *.vercel.app origin containing "thabangvision" was trusted,
+ * which anyone can register.
+ */
+export function allowedOrigins(env: OriginEnv = {
+  // Literal process.env reads, so Next.js still inlines NEXT_PUBLIC_APP_URL.
+  NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL,
+  VERCEL_URL: process.env.VERCEL_URL,
+  VERCEL_BRANCH_URL: process.env.VERCEL_BRANCH_URL,
+  VERCEL_PROJECT_PRODUCTION_URL: process.env.VERCEL_PROJECT_PRODUCTION_URL,
+}): Set<string> {
+  const parsedUrl = new URL(env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000');
   const allowed = new Set<string>([parsedUrl.origin]);
-  // Allow both www and non-www variants of the same domain
   if (parsedUrl.hostname.startsWith('www.')) {
-    allowed.add(`${parsedUrl.protocol}//${parsedUrl.hostname.slice(4)}`);
+    allowed.add(`${parsedUrl.protocol}//${parsedUrl.hostname.slice(4)}${parsedUrl.port ? `:${parsedUrl.port}` : ''}`);
   } else if (!['localhost', '127.0.0.1'].includes(parsedUrl.hostname)) {
-    allowed.add(`${parsedUrl.protocol}//www.${parsedUrl.hostname}`);
+    allowed.add(`${parsedUrl.protocol}//www.${parsedUrl.hostname}${parsedUrl.port ? `:${parsedUrl.port}` : ''}`);
   }
-  // Vercel previews: exactly this deployment's own hosts (set by Vercel at
-  // runtime). Before, any *.vercel.app origin containing "thabangvision" was
-  // trusted, which anyone can register.
-  for (const host of [process.env.VERCEL_URL, process.env.VERCEL_BRANCH_URL, process.env.VERCEL_PROJECT_PRODUCTION_URL]) {
-    if (host) allowed.add(`https://${host}`);
+  for (const host of [env.VERCEL_URL, env.VERCEL_BRANCH_URL, env.VERCEL_PROJECT_PRODUCTION_URL]) {
+    if (host) allowed.add(`https://${host.replace(/^https?:\/\//, '').replace(/\/+$/, '')}`);
   }
   return allowed;
 }
@@ -207,9 +225,12 @@ export const config = {
      * Match all paths EXCEPT:
      * - _next/static  (Next.js internals)
      * - _next/image   (image optimisation files)
-     * - favicon.ico
-     * - Public static files (svg, png, jpg, etc.)
+     * - the real files in public/ (favicon.ico, logo-*.png|webp at the root,
+     *   the Google site-verification file).
+     * Before, ANY path ending in .png/.svg/.jpg... skipped the proxy, so e.g.
+     * /studio/x.png rendered the dynamic 404 with no per-request CSP
+     * (security review). Add a pattern here when a new file goes in public/.
      */
-    '/((?!_next/static|_next/image|favicon\\.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)',
+    '/((?!_next/static|_next/image|favicon\\.ico$|logo-[A-Za-z0-9-]+\\.(?:png|webp)$|google[0-9a-f]+\\.html$).*)',
   ],
 };

@@ -51,10 +51,33 @@ describe('proxy sets the CSP per request', () => {
   });
 });
 
-describe('next.config.ts no longer sends the static unsafe-inline policy', () => {
-  it('has no Content-Security-Policy header of its own', async () => {
-    const config = (await import('@/next.config')).default as { headers?: () => Promise<Array<{ headers: Array<{ key: string }> }>> };
+describe('next.config.ts sends only a fallback CSP that can never block scripts', () => {
+  it('fallback: object-src/base-uri/frame-ancestors only, identical to the main policy', async () => {
+    const { FALLBACK_CSP } = await import('@/lib/security/csp');
+    const config = (await import('@/next.config')).default as { headers?: () => Promise<Array<{ source: string; headers: Array<{ key: string; value: string }> }>> };
     const all = (await config.headers?.()) ?? [];
-    expect(all.flatMap((h) => h.headers.map((x) => x.key.toLowerCase()))).not.toContain('content-security-policy');
+    const csp = all.flatMap((h) => h.headers).filter((x) => x.key.toLowerCase() === 'content-security-policy');
+    expect(csp).toHaveLength(1);
+    expect(csp[0].value).toBe(FALLBACK_CSP);
+    expect(all.find((h) => h.headers.some((x) => x.value === FALLBACK_CSP))?.source).toBe('/(.*)');
+    for (const forbidden of ['default-src', 'script-src', 'style-src', 'connect-src', 'img-src', 'unsafe-inline']) {
+      expect(FALLBACK_CSP).not.toContain(forbidden);
+    }
+    const main = buildCsp('n').split(';').map((d) => d.trim());
+    for (const d of FALLBACK_CSP.split(';').map((x) => x.trim())) expect(main).toContain(d);
+  });
+});
+
+describe('proxy matcher (review: image-looking paths skipped the CSP)', () => {
+  it('only _next internals and the real public/ files skip the proxy', async () => {
+    const { config } = await import('@/proxy');
+    const source = config.matcher[0];
+    const re = new RegExp(`^${source}$`);
+    for (const path of ['/studio/x.png', '/x.svg', '/rentals/a.jpg', '/', '/rentals', '/api/cart', '/logo-header.png.html']) {
+      expect(re.test(path), path).toBe(true);
+    }
+    for (const path of ['/_next/static/chunks/a.js', '/_next/image', '/favicon.ico', '/logo-header.png', '/logo-hero-480.webp', '/google142df680c1e2b9cb.html']) {
+      expect(re.test(path), path).toBe(false);
+    }
   });
 });

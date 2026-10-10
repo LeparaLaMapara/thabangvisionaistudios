@@ -5,7 +5,7 @@
  */
 import { afterEach, describe, expect, it } from 'vitest';
 import { NextRequest } from 'next/server';
-import { csrfRejection } from '@/proxy';
+import { allowedOrigins, csrfRejection } from '@/proxy';
 import { secretsEqual, validateCronAuth } from '@/lib/cron/auth';
 
 const APP = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000';
@@ -76,5 +76,40 @@ describe('cron secret comparison (AUTH-5)', () => {
     expect(call('Bearer unit-cron-secret')).toBeNull();
     expect(call('Bearer unit-cron-secreT')?.status).toBe(401);
     expect(call()?.status).toBe(401);
+  });
+});
+
+describe('CSRF origin list (review: legitimate hosts must still work)', () => {
+  it('production: www and apex', () => {
+    const o = allowedOrigins({ NEXT_PUBLIC_APP_URL: 'https://www.thabangvision.com' });
+    expect(o.has('https://www.thabangvision.com')).toBe(true);
+    expect(o.has('https://thabangvision.com')).toBe(true);
+    expect(o.has('https://thabangvision-evil.vercel.app')).toBe(false);
+  });
+
+  it('the founder preview: the nonprod alias (NEXT_PUBLIC_APP_URL on Preview) and the git-develop branch alias', () => {
+    const o = allowedOrigins({
+      NEXT_PUBLIC_APP_URL: 'https://thabangvision-nonprod.vercel.app',
+      VERCEL_URL: 'thabangvision-abc123xyz-team.vercel.app',
+      VERCEL_BRANCH_URL: 'thabangvision-git-develop-team.vercel.app',
+      VERCEL_PROJECT_PRODUCTION_URL: 'www.thabangvision.com',
+    });
+    for (const ok of [
+      'https://thabangvision-nonprod.vercel.app',
+      'https://thabangvision-abc123xyz-team.vercel.app',
+      'https://thabangvision-git-develop-team.vercel.app',
+      'https://www.thabangvision.com',
+    ]) expect(o.has(ok), ok).toBe(true);
+    for (const bad of ['https://thabangvision-git-evil-attacker.vercel.app', 'http://thabangvision-nonprod.vercel.app', 'https://nonprod.vercel.app']) {
+      expect(o.has(bad), bad).toBe(false);
+    }
+  });
+
+  it('a host given with a scheme or trailing slash still matches', () => {
+    expect(allowedOrigins({ VERCEL_BRANCH_URL: 'https://x-git-develop.vercel.app/' }).has('https://x-git-develop.vercel.app')).toBe(true);
+  });
+
+  it('local: the app URL only (no www twin for localhost)', () => {
+    expect([...allowedOrigins({ NEXT_PUBLIC_APP_URL: 'http://localhost:3000' })]).toEqual(['http://localhost:3000']);
   });
 });

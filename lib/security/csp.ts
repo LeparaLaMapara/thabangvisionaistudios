@@ -19,6 +19,15 @@
  * styles cannot run script.
  */
 
+/**
+ * Sent by next.config.ts on EVERY response, as a fallback for responses
+ * proxy.ts does not see. Browsers enforce the intersection of all CSP
+ * headers, so this holds only directives that the per-request policy also
+ * has (identical values) and nothing that touches scripts, styles,
+ * connections or images: it can never block a nonce'd script.
+ */
+export const FALLBACK_CSP = "object-src 'none'; base-uri 'self'; frame-ancestors 'none'";
+
 /** A fresh base64 nonce (128 bits). Works in the Node and Edge runtimes. */
 export function generateNonce(): string {
   const bytes = new Uint8Array(16);

@@ -1,4 +1,5 @@
 import type { NextConfig } from 'next';
+import { FALLBACK_CSP } from './lib/security/csp';
 
 const nextConfig: NextConfig = {
   poweredByHeader: false,
@@ -78,9 +79,14 @@ const nextConfig: NextConfig = {
         { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
         { key: 'Permissions-Policy', value: 'camera=(self), microphone=(), geolocation=()' },
         { key: 'Strict-Transport-Security', value: 'max-age=31536000; includeSubDomains' },
-        // Content-Security-Policy is set per request with a nonce in proxy.ts
-        // (lib/security/csp.ts, security INJ-3). When adding a new external
-        // service, update the directives there.
+        // The full Content-Security-Policy is set per request with a nonce in
+        // proxy.ts (lib/security/csp.ts, security INJ-3): add new external
+        // services there. This is only a FALLBACK for responses the proxy
+        // does not see (static files, anything its matcher skips). Browsers
+        // enforce every CSP header they get, so it must never restrict
+        // scripts, styles, connections or images (no default-src/script-src):
+        // it only adds directives that are the same in the main policy.
+        { key: 'Content-Security-Policy', value: FALLBACK_CSP },
       ],
     },
   ],
