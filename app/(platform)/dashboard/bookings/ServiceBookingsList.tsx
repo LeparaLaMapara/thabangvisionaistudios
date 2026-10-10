@@ -4,6 +4,10 @@ import { useState } from 'react';
 import Link from 'next/link';
 import type { BookingStatus } from '@/types/booking-system';
 import { ShootTimeline } from '@/components/booking/ShootTimeline';
+import { ReportProblemDialog, ReportFiledNote } from '@/components/disputes/ReportProblemDialog';
+import { STUDIO } from '@/lib/constants';
+import { formatRand } from '@/lib/format/money';
+import { clientServiceActions } from '@/lib/bookings/client-actions';
 
 interface ServiceBooking {
   id: string;
@@ -26,6 +30,8 @@ interface ServiceBooking {
   delivery_message: string | null;
   delivered_at: string | null;
   revisions_used?: number | null;
+  revisions_included?: number | null;
+  dispute_window_ends_at?: string | null;
   paid_at?: string | null;
   accepted_at?: string | null;
   arrived_at?: string | null;
@@ -52,14 +58,15 @@ const STATUS_COLORS: Record<string, string> = {
 };
 
 const STATUS_LABELS: Record<string, string> = {
-  pending: 'Pending Payment',
-  paid: 'Paid',
-  accepted: 'Accepted',
-  delivered: 'Delivered — Review Required',
+  pending: 'Waiting for payment',
+  paid: 'Paid: waiting for your creator',
+  accepted: 'Creator confirmed',
+  delivered: 'Delivered: your review',
   completed: 'Completed',
   paid_out: 'Paid Out',
   cancelled: 'Cancelled',
-  disputed: 'Disputed',
+  declined: 'Creator could not take it',
+  disputed: 'Being reviewed',
 };
 
 const TABS: BookingStatus[] = ['delivered', 'paid', 'accepted', 'completed', 'cancelled'];
@@ -75,18 +82,60 @@ export default function ServiceBookingsList({ bookings }: { bookings: ServiceBoo
     ? bookings
     : bookings.filter((b) => b.status === activeTab);
 
-  async function handleApprove(bookingId: string) {
-    if (!confirm('Approve this delivery? Approving confirms the work is complete.')) return;
+  // One note per booking: what the last action did, or why it did not.
+  const [notes, setNotes] = useState<Record<string, { ok: boolean; text: string }>>({});
+  const [busy, setBusy] = useState<string | null>(null);
+  const [changesFor, setChangesFor] = useState<string | null>(null);
+  const [changesText, setChangesText] = useState('');
+  const [reportFor, setReportFor] = useState<string | null>(null);
+  const [reported, setReported] = useState<Record<string, boolean>>({});
+  const note = (id: string, ok: boolean, text: string) => setNotes((n) => ({ ...n, [id]: { ok, text } }));
+
+  /** PATCH the status route; returns the JSON on success, or shows the server's reason. */
+  async function act(bookingId: string, body: Record<string, unknown>): Promise<Record<string, unknown> | null> {
+    setBusy(bookingId);
     try {
       const res = await fetch(`/api/service-bookings/${bookingId}/status`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: 'completed' }),
+        body: JSON.stringify(body),
       });
-      if (res.ok) {
-        setRatingBookingId(bookingId);
+      const data = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+      if (!res.ok) {
+        note(bookingId, false, typeof data.error === 'string' ? data.error : 'That did not go through. Nothing was changed; please try again.');
+        return null;
       }
-    } catch { /* ignore */ }
+      return data;
+    } catch {
+      note(bookingId, false, 'We could not reach the server. Nothing was changed; please try again.');
+      return null;
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function handleApprove(bookingId: string) {
+    if (!confirm(`Approve this work? Approving confirms it is complete. The creator is paid ${STUDIO.booking.payoutDelayHours} hours later; until then you can still report a problem.`)) return;
+    const done = await act(bookingId, { action: 'approve_delivery' });
+    if (done) {
+      note(bookingId, true, 'Approved. Thank you. A short review below helps the next client choose.');
+      setRatingBookingId(bookingId);
+    }
+  }
+
+  async function handleRequestChanges(bookingId: string) {
+    const what = changesText.trim();
+    if (!what) {
+      note(bookingId, false, 'Tell the creator what to change.');
+      return;
+    }
+    const done = await act(bookingId, { action: 'request_revision', reason: what.slice(0, 1000) });
+    if (done) {
+      setChangesFor(null);
+      setChangesText('');
+      note(bookingId, true, 'Sent to your creator. They deliver the changes here, and we let you know.');
+      setTimeout(() => window.location.reload(), 1500);
+    }
   }
 
   async function handleSubmitReview(bookingId: string) {
@@ -100,21 +149,36 @@ export default function ServiceBookingsList({ bookings }: { bookings: ServiceBoo
       if (res.ok) {
         setRatingBookingId(null);
         window.location.reload();
+      } else {
+        const data = (await res.json().catch(() => ({}))) as { error?: string };
+        note(bookingId, false, data.error ?? 'Your review was not saved. Please try again.');
       }
-    } catch { /* ignore */ }
+    } catch {
+      note(bookingId, false, 'We could not reach the server. Your review is still here: please try again.');
+    }
     setSubmitting(false);
   }
 
   async function handleCancel(bookingId: string) {
-    if (!confirm('Are you sure you want to cancel this booking?')) return;
-    try {
-      const res = await fetch(`/api/service-bookings/${bookingId}/status`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: 'cancelled', reason: 'Cancelled by client' }),
-      });
-      if (res.ok) window.location.reload();
-    } catch { /* ignore */ }
+    // The rule, before the decision; the exact amount comes back from the server.
+    if (!confirm(`Cancel this booking?\n\n${STUDIO.booking.cancellationPolicy}\n\nRefunds go back to the card you paid with.`)) return;
+    const done = await act(bookingId, { action: 'cancel', reason: 'Cancelled by client' });
+    if (!done) return;
+    const q = done.cancellation as { totalRefund?: number; refundPercent?: number } | null | undefined;
+    const status = done.refund_status as string | null | undefined;
+    const amount = typeof q?.totalRefund === 'number' ? formatRand(q.totalRefund) : null;
+    note(
+      bookingId,
+      true,
+      status === 'refunded'
+        ? `Cancelled. ${amount} is being refunded to the card you paid with. When it shows depends on your bank.`
+        : status === 'not_required'
+          ? amount && q?.refundPercent === 0
+            ? 'Cancelled. Under the cancellation policy no refund is due this close to the shoot.'
+            : 'Cancelled. Nothing was charged, so there is nothing to refund.'
+          : `Cancelled. ${amount ? `Your refund of ${amount}` : 'Your refund'} could not be sent automatically; a person on our team is completing it and will contact you.`,
+    );
+    setTimeout(() => window.location.reload(), 2500);
   }
 
   return (
@@ -207,46 +271,80 @@ export default function ServiceBookingsList({ bookings }: { bookings: ServiceBoo
                 </div>
               )}
 
-              {/* Actions */}
-              <div className="mt-4 flex gap-3">
-                {/* Approve delivery */}
-                {booking.status === 'delivered' && (
-                  <button
-                    onClick={() => handleApprove(booking.id)}
-                    className="rounded-lg bg-[#D4A843] px-4 py-2 text-sm font-medium text-black hover:bg-[#c49a3a]"
-                  >
-                    Approve delivery
-                  </button>
-                )}
+              {/* What the client can do now: the same rules the server enforces */}
+              {(() => {
+                const can = clientServiceActions(booking, new Date());
+                const btn = 'min-h-[44px] rounded-lg px-4 py-2 text-sm';
+                return (
+                  <>
+                    <div className="mt-4 flex flex-wrap gap-3">
+                      {can.approve && (
+                        <button onClick={() => handleApprove(booking.id)} disabled={busy === booking.id} className={`${btn} bg-[#D4A843] font-medium text-black hover:bg-[#c49a3a] disabled:opacity-50`}>
+                          Approve the work
+                        </button>
+                      )}
+                      {can.changesLeft > 0 && changesFor !== booking.id && (
+                        <button onClick={() => { setChangesFor(booking.id); setChangesText(''); }} className={`${btn} border border-[#D4A843] text-[#D4A843] hover:bg-[#D4A843]/10`}>
+                          Ask for changes ({can.changesLeft} left)
+                        </button>
+                      )}
+                      {can.report && !reported[booking.id] && (
+                        <button onClick={() => setReportFor(booking.id)} className={`${btn} border border-neutral-700 text-neutral-300 hover:bg-neutral-800`}>
+                          Report a problem
+                        </button>
+                      )}
+                      {can.cancel && (
+                        <button onClick={() => handleCancel(booking.id)} disabled={busy === booking.id} className={`${btn} border border-red-600/30 text-red-400 hover:bg-red-600/10 disabled:opacity-50`}>
+                          Cancel
+                        </button>
+                      )}
+                      {booking.client_rating && (
+                        <span className="flex items-center gap-1 text-sm text-yellow-400" aria-label={`You rated ${booking.client_rating} out of 5`}>
+                          {'★'.repeat(booking.client_rating)}{'☆'.repeat(5 - booking.client_rating)}
+                        </span>
+                      )}
+                      {can.rate && ratingBookingId !== booking.id && (
+                        <button onClick={() => setRatingBookingId(booking.id)} className={`${btn} border border-[#D4A843] font-medium text-[#D4A843] hover:bg-[#D4A843]/10`}>
+                          Rate Creator
+                        </button>
+                      )}
+                    </div>
 
-                {/* Cancel: not once the work has been delivered (a revision
-                    request puts it back to 'accepted'); the API refuses it. */}
-                {['paid', 'accepted'].includes(booking.status) && !booking.delivery_url && !((booking.revisions_used ?? 0) > 0) && (
-                  <button
-                    onClick={() => handleCancel(booking.id)}
-                    className="rounded-lg border border-red-600/30 px-4 py-2 text-sm text-red-400 hover:bg-red-600/10"
-                  >
-                    Cancel
-                  </button>
-                )}
+                    {changesFor === booking.id && (
+                      <div className="mt-4 rounded-lg border border-neutral-700 bg-neutral-800 p-4">
+                        <label htmlFor={`changes-${booking.id}`} className="mb-2 block text-sm text-white">What should the creator change?</label>
+                        <textarea
+                          id={`changes-${booking.id}`}
+                          value={changesText}
+                          onChange={(e) => setChangesText(e.target.value)}
+                          maxLength={1000}
+                          rows={3}
+                          placeholder="For example: brighter edits on the reception photos, and remove the blurry ones."
+                          className="w-full rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-2 text-sm text-white placeholder-neutral-500"
+                        />
+                        <p className="mt-1 text-xs text-neutral-400">
+                          This uses one of your {can.changesLeft} revision round{can.changesLeft === 1 ? '' : 's'}. Approval waits until the new delivery.
+                        </p>
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          <button onClick={() => handleRequestChanges(booking.id)} disabled={busy === booking.id} className={`${btn} bg-[#D4A843] font-medium text-black hover:bg-[#c49a3a] disabled:opacity-50`}>
+                            Send to the creator
+                          </button>
+                          <button onClick={() => setChangesFor(null)} className={`${btn} border border-neutral-700 text-neutral-400 hover:bg-neutral-800`}>
+                            Not now
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </>
+                );
+              })()}
 
-                {/* Show rating */}
-                {booking.client_rating && (
-                  <span className="flex items-center gap-1 text-sm text-yellow-400">
-                    {'★'.repeat(booking.client_rating)}{'☆'.repeat(5 - booking.client_rating)}
-                  </span>
-                )}
-
-                {/* Rate after completion (if no rating yet) */}
-                {booking.status === 'completed' && !booking.client_rating && ratingBookingId !== booking.id && (
-                  <button
-                    onClick={() => setRatingBookingId(booking.id)}
-                    className="rounded-lg border border-[#D4A843] px-4 py-2 text-sm font-medium text-[#D4A843] hover:bg-[#D4A843]/10"
-                  >
-                    Rate Creator
-                  </button>
-                )}
-              </div>
+              {notes[booking.id] && (
+                <p role={notes[booking.id].ok ? 'status' : 'alert'} className={`mt-3 text-sm ${notes[booking.id].ok ? 'text-emerald-400' : 'text-red-400'}`}>
+                  {notes[booking.id].text}
+                </p>
+              )}
+              {reported[booking.id] && <div className="mt-4"><ReportFiledNote /></div>}
 
               {/* Rating modal inline */}
               {ratingBookingId === booking.id && (
@@ -257,7 +355,9 @@ export default function ServiceBookingsList({ bookings }: { bookings: ServiceBoo
                       <button
                         key={star}
                         onClick={() => setRating(star)}
-                        className={`text-2xl ${star <= rating ? 'text-yellow-400' : 'text-neutral-400'}`}
+                        aria-label={`${star} star${star === 1 ? '' : 's'}`}
+                        aria-pressed={star <= rating}
+                        className={`min-h-[44px] min-w-[44px] text-2xl ${star <= rating ? 'text-yellow-400' : 'text-neutral-400'}`}
                       >
                         ★
                       </button>
@@ -291,6 +391,19 @@ export default function ServiceBookingsList({ bookings }: { bookings: ServiceBoo
           ))}
         </div>
       )}
+
+      {reportFor && (
+        <ReportProblemDialog
+          kind="service"
+          bookingId={reportFor}
+          isOpen
+          onClose={() => setReportFor(null)}
+          onFiled={() => {
+            setReported((r) => ({ ...r, [reportFor]: true }));
+            setReportFor(null);
+          }}
+        />
+      )}
     </div>
   );
 }
@@ -307,7 +420,7 @@ function TabButton({
   return (
     <button
       onClick={onClick}
-      className={`whitespace-nowrap rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
+      className={`min-h-[44px] whitespace-nowrap rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
         active
           ? 'bg-[#D4A843] text-black'
           : 'border border-neutral-700 text-neutral-400 hover:bg-neutral-800'

@@ -31,7 +31,7 @@ export function ShootTimeline({ booking, viewer }: { booking: TimelineBooking; v
       </ol>
       {current ? (
         <p className="mt-2 text-xs font-mono text-neutral-400">
-          <span className="text-[#D4A843]">Next: {current.label}.</span> {current.detail}
+          <span className="text-[#D4A843]">Next: {current.label}.</span> {current.next}
         </p>
       ) : (
         booking.status !== 'cancelled' && <p className="mt-2 text-xs font-mono text-emerald-400">All done.</p>

@@ -453,7 +453,7 @@ export function createBookingTools(
               shoot_date: b.shoot_date,
               total_zar: b.total,
               status: b.status,
-              next_step: next ? `${next.label}: ${next.detail}` : b.status === 'cancelled' ? 'Cancelled' : 'All done',
+              next_step: next ? `${next.label}: ${next.next}` : b.status === 'cancelled' ? 'Cancelled' : 'All done',
             };
           }),
           gear_bookings: (gear ?? []).map((g: { id: string; status: string; start_date: string; end_date: string; total_price: number; smart_rentals: { title: string } | { title: string }[] | null }) => ({
