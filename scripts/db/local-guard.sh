@@ -11,10 +11,18 @@ require_local_url() {
   case "$url" in
     *host=*|*hostaddr=*|*service=*) echo "refusing: host/hostaddr/service query parameters are not allowed" >&2; return 2 ;;
   esac
+  case "${PGHOST:-}${PGHOSTADDR:-}" in
+    *,*) echo "refusing: PGHOST/PGHOSTADDR lists several hosts" >&2; return 2 ;;
+  esac
   rest="${url#*://}"
   authority="${rest%%/*}"
   authority="${authority%%\?*}"
   hostport="${authority##*@}"
+  # psql tries every host of a list (host1:port,host2:port) in turn: a local
+  # first host must not hide a remote second one.
+  case "$hostport" in
+    *,*) echo "refusing: the URL lists several hosts ($hostport)" >&2; return 2 ;;
+  esac
   case "$hostport" in
     \[*\]*) host="${hostport%%]*}]" ;;
     *) host="${hostport%%:*}" ;;

@@ -11,6 +11,10 @@
 # (ON_ERROR_STOP), so a failure leaves nothing behind. A file passes when psql
 # exits 0; the count is the number of "PASS" notices it printed.
 #
+# Then the shell tests in scripts/db/*.test.sh (local-guard: no database;
+# 077-reapply: re-applies 077 over foreign objects and odd signup bodies,
+# then restores the 077 state).
+#
 # For DEV, run one file at a time by hand with psql (docs/database/README.md);
 # this script, like rebuild-local.sh, refuses any non-local host.
 set -uo pipefail
@@ -39,6 +43,20 @@ for f in $(LC_ALL=C ls "$ROOT"/lib/migrations/*.test.sql | LC_ALL=C sort); do
   else
     printf 'FAIL  %-55s see %s\n' "$name" "$log"
     grep -E 'ERROR|FAIL' "$log" | head -3 | sed 's/^/        /'
+    fail=$((fail + 1))
+  fi
+done
+
+for f in $(LC_ALL=C ls "$ROOT"/scripts/db/*.test.sh | LC_ALL=C sort); do
+  name="$(basename "$f")"
+  case "$name" in *"$FILTER"*) ;; *) continue ;; esac
+  log="$LOG_DIR/${name%.sh}.log"
+  if bash "$f" "$URL" >"$log" 2>&1; then
+    printf 'PASS  %-55s %3s checks\n' "$name" "$(grep -c '^PASS' "$log" || true)"
+    pass=$((pass + 1))
+  else
+    printf 'FAIL  %-55s see %s\n' "$name" "$log"
+    grep -E '^FAIL' "$log" | head -3 | sed 's/^/        /'
     fail=$((fail + 1))
   fi
 done
