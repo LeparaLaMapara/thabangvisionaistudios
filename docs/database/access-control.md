@@ -44,8 +44,8 @@ that fail the build of a database: run it after every migration.
 | Tables anon can SELECT (grant; rows still filtered by RLS) | 43 |
 | Tables anon can write | 0 |
 | Tables authenticated holds a write grant on (each has a policy for that command; most are admin-only `is_admin()` policies) | 22: `booking_payments`, `bug_reports`, `careers`, `cart_items`, `consent_records`, `crew_requests`, `equipment_bookings`, `feature_flags`, `invoices`, `listings`, `notifications`, `onboarding_progress`, `orders`, `portfolio_analysis`, `portfolio_tag_corrections`, `press`, `profiles`, `reviews`, `smart_productions`, `smart_rentals`, `subscription_plans`, `subscriptions` |
-| SECURITY DEFINER functions | 51, all with a pinned `search_path` ending in `pg_temp` |
-| SECURITY DEFINER functions anon can execute | 2, both allow-listed: `is_admin()` (see above) and `busy_creator_ids(uuid[])` (Ubunye's creator search as the visitor; returns creator ids with an active gig, nothing else) |
+| SECURITY DEFINER functions | 52, all with a pinned `search_path` ending in `pg_temp` |
+| SECURITY DEFINER functions anon can execute | 3, all allow-listed: `is_admin()` (see above), `busy_creator_ids(uuid[])` (Ubunye's creator search as the visitor; returns creator ids with an active gig, nothing else) and `profile_is_creator(profiles)` (called by `public_profiles` as the reader; definer so the answer does not depend on who reads) |
 | Client-readable views that bypass RLS | 1: `public_profiles` (the column filter over `profiles`, by design) |
 
 ## Flagged items
@@ -85,11 +85,13 @@ What they mean:
   own rows and admins do the rest. If the marketplace gets an owner editor,
   give it a review gate like `smart_rentals` (072) first (risk R-65).
 - Column-level grants: `authenticated` may UPDATE its own `profiles` row on
-  067's allow-list. That list includes `available_for_hire`,
-  `onboarding_completed_at`, `specializations` and `crew_bio`, i.e. a person
-  can declare themselves a creator, which since 077 puts them in
-  `public_profiles` (display fields only; portfolio masked until verified).
-  Being a creator is self-declared by design (decision D-61).
+  067's allow-list. That list includes `specializations`, `crew_bio` and
+  `portfolio_projects` (via `/api/portfolio`), i.e. a person can declare
+  themselves a creator, which since 077 puts them in `public_profiles`
+  (display fields only; portfolio masked until verified). Being a creator is
+  self-declared by design (decision D-61). `onboarding_completed_at` is on
+  the list too but is NOT a creator signal: generic onboarding sets it for
+  any account.
 
 ## Views
 

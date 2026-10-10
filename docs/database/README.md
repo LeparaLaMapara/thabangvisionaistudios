@@ -66,8 +66,8 @@ optional name filter (`… 077`).
 production.
 
 On 2026-10-10 a rebuild from empty applied 84 files and all 13 test files
-passed: 228 SQL checks (067: 70, 068: 11, 070: 28, 071: 2, 072: 28, 073: 10,
-074: 4, 075: 3, 076: 32, 077: 32, rls-coverage: 8) plus 8 re-apply and 12
+passed: 229 SQL checks (067: 70, 068: 11, 070: 28, 071: 2, 072: 28, 073: 10,
+074: 4, 075: 3, 076: 32, 077: 33, rls-coverage: 8) plus 8 re-apply and 12
 host-guard checks. The 50 local end-to-end journeys (`tests/e2e-local`)
 passed on that database with no shims.
 
@@ -101,7 +101,7 @@ ROLLBACK and creates its own throwaway users and rows.
 | 8 | `074-agent-actions.sql` | `074-…test.sql` | |
 | 9 | `075-public-profiles-mask-unverified-portfolio.sql` | `075-…test.sql` | |
 | 10 | `076-delivery.sql` | `076-…test.sql` | |
-| 11 | `077-database-integrity.sql` | `077-…test.sql`, then `rls-coverage.test.sql` | Run `scripts/db/precheck-077.sql` first (below). Keep the NOTICE output: it lists rewritten payment rows, dropped CHECKs, authenticated grants revoked, objects left untouched, and non-creators marked available for hire |
+| 11 | `077-database-integrity.sql` | `077-…test.sql`, then `rls-coverage.test.sql` | **Deploy the app first** (the build with `getBusyCreatorIds`, see "Deploy order for 077"). Run `scripts/db/precheck-077.sql` first (below). Keep the NOTICE output: it lists rewritten payment rows, dropped CHECKs, authenticated grants revoked, objects left untouched, and non-creators marked available for hire |
 | 12 | — | `notify pgrst, 'reload schema';` | 077 does this itself |
 
 Any time later: `rls-coverage.test.sql` after every new migration.
@@ -142,9 +142,16 @@ is applied in that case: the whole file is one transaction. Check query 8 of
 the pre-checks for long transactions, then apply again off-peak. Do not raise
 the timeouts on production without the integration owner.
 
-Deploy order for 077: none required. The one app change that goes with it
-(`lib/supabase/queries/creatorReviews.ts` prefers the name stored on the
-review) works before and after.
+**Deploy order for 077: APP FIRST, then 077.** Deploy the app build that
+contains `getBusyCreatorIds()` (`lib/supabase/queries/crew.ts`, used by
+`lib/agents/tools/search.ts` and `booking.ts`) before applying 077 to that
+environment. That build calls `busy_creator_ids()` and falls back to the old
+direct read of `crew_requests` while the function does not exist, so it is
+correct on both sides of the migration. The OLD build reads `crew_requests`
+directly with the visitor's session; after 077 (E2) that read silently
+returns no rows, so Ubunye would show every busy creator as available.
+`creatorReviews.ts` (the stored reviewer name first) also ships in that
+build and works before and after 077.
 
 ### After 077: people the old approval made "available for hire"
 

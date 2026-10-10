@@ -152,6 +152,7 @@ only as triggers whatever their grants.
 | `open_return_dispute(uuid,uuid,text,jsonb,text)` | uuid | `public, pg_temp` | service_role |
 | `outbox_enqueue(jsonb)` | integer | `public, pg_temp` | service_role |
 | `payout_transition(uuid,text[],text,jsonb,jsonb,jsonb)` | boolean | `public, pg_temp` | service_role |
+| `profile_is_creator(profiles)` | boolean | `public, pg_temp` | anon, authenticated, service_role |
 | `rate_limit_hit(text,integer,integer)` | boolean | `public, pg_temp` | service_role |
 | `rate_limits_prune(integer)` | integer | `public, pg_temp` | service_role |
 | `record_failed_payment_attempt(text)` | void | `public, pg_temp` | service_role |
@@ -169,6 +170,12 @@ Notes:
 
 - `admin_*` verification RPCs are callable by `authenticated` but start with
   `if not is_admin() then raise`, so only admins get past the first line.
+- `profile_is_creator(profiles)` (077) is SECURITY DEFINER and executable
+  by anon so `public_profiles` answers the same for every reader (an
+  anonymous reader cannot see the unpublished production created at the end
+  of creator onboarding). It returns one boolean about the row it is given.
+  Its signals: specializations, creator bio, portfolio projects, featured,
+  or a production made for the person; never `onboarding_completed_at`.
 - `busy_creator_ids(uuid[])` (077) is executable by anon on purpose:
   Ubunye's creator search runs as the visitor and only needs to know which
   of up to 100 creators have an active crew request. It returns ids only.

@@ -5,6 +5,13 @@
 --   psql "$DATABASE_URL" -X -f scripts/db/precheck-077.sql > precheck-077.out
 --   (or paste into the SQL editor)
 --
+-- ROLLOUT ORDER: APP FIRST. Deploy the app build that contains
+-- getBusyCreatorIds() (lib/supabase/queries/crew.ts) to this environment
+-- BEFORE applying 077. Older builds read crew_requests with the visitor's
+-- session; after 077 that returns nothing and Ubunye shows busy creators as
+-- available. The new build falls back to the old read until 077 is applied.
+-- STOP if the deployed build does not have it yet.
+--
 -- Keep the output with the evidence. Each query says which result means
 -- STOP (do not apply 077; bring the output to the integration owner) and
 -- which results are expected.
@@ -53,7 +60,7 @@ select p.oid::regprocedure as function,
          'delivery_open_incident','delivery_owns_all','delivery_owns_any','delivery_post','delivery_redact_address',
          'delivery_refund_quote','delivery_save_reconciliation','expire_rental_holds','handle_new_user',
          'increment_conversation_message_count','increment_faq_view','is_admin','ledger_post','log_feature_flag_change',
-         'notify_signup','open_return_dispute','outbox_enqueue','payout_transition','rate_limit_hit','rate_limits_prune',
+         'notify_signup','open_return_dispute','outbox_enqueue','payout_transition','profile_is_creator','rate_limit_hit','rate_limits_prune',
          'record_failed_payment_attempt','record_unallocated_payment','refund_obligations_cap','refund_transition',
          'rental_units_blocked','reserve_rental_order','set_signup_webhook','submit_verification_for_user',
          'submit_verification_request','transition_rental_booking']) as is_thabangvision

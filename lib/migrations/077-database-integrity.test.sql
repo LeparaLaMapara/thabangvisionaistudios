@@ -23,6 +23,8 @@ declare
   v_susp    uuid := gen_random_uuid();
   v_x       uuid := gen_random_uuid();
   v_y       uuid := gen_random_uuid();
+  v_onb     uuid := gen_random_uuid();
+  v_prod    uuid := gen_random_uuid();
 begin
   insert into auth.users (id, email) values
     (v_admin,   't077-admin@example.invalid'),
@@ -32,13 +34,16 @@ begin
     (v_drafter, 't077-drafter@example.invalid'),
     (v_susp,    't077-susp@example.invalid'),
     (v_x,       't077-x@example.invalid'),
-    (v_y,       't077-y@example.invalid');
+    (v_y,       't077-y@example.invalid'),
+    (v_onb,     't077-onb@example.invalid'),
+    (v_prod,    't077-prod@example.invalid');
 
   -- B1: the signup trigger made a profile for each, with 067's defaults.
   if (select count(*) from public.profiles
        where id in (v_admin, v_renter, v_creator, v_owner, v_drafter, v_susp, v_x, v_y)
          and role = 'user' and is_verified = false and verification_status = 'unverified'
-         and coalesce(is_suspended, false) = false and coalesce(available_for_hire, false) = false) <> 8 then
+         and coalesce(is_suspended, false) = false and coalesce(available_for_hire, false) = false) <> 8
+     or (select count(*) from public.profiles where id in (v_onb, v_prod)) <> 2 then
     raise exception 'FAIL B1: signup did not create default profiles';
   end if;
   raise notice 'PASS B1: inserting auth.users creates a default profile (signup works on a rebuilt database)';
@@ -49,6 +54,14 @@ begin
          specializations = array['photography'], portfolio_projects = '[{"title":"t077 wedding"}]'::jsonb
    where id = v_creator;
   update public.profiles set display_name = 'Olu Owner' where id = v_owner;
+  -- A renter who went through generic onboarding (POST /api/onboarding sets
+  -- onboarding_completed_at after identity and address) and nothing else.
+  update public.profiles set display_name = 'Ola Onboarded', onboarding_completed_at = now() where id = v_onb;
+  -- A creator whose only signal so far is the unpublished production that
+  -- /api/onboarding/complete creates.
+  update public.profiles set display_name = 'Pru Production' where id = v_prod;
+  insert into public.smart_productions (slug, title, creator_id, is_published)
+  values ('t077-onboarded-' || v_prod, 't077 creator production', v_prod, false);
   update public.profiles set display_name = 'Dee Drafter' where id = v_drafter;
   update public.profiles set display_name = 'Sus Pended', crew_bio = 'creator', is_suspended = true where id = v_susp;
   -- Two other creators already hold the base slug and its "-3" variant.
@@ -69,6 +82,8 @@ begin
   perform set_config('t077.owner', v_owner::text, true);
   perform set_config('t077.drafter', v_drafter::text, true);
   perform set_config('t077.susp', v_susp::text, true);
+  perform set_config('t077.onb', v_onb::text, true);
+  perform set_config('t077.prod', v_prod::text, true);
 end $$;
 
 -- ════════════════════════════════════════════════════════════════════════════
@@ -215,6 +230,9 @@ begin
   end if;
   perform set_config('t077.r_renter', r::text, true);
 
+  r := public.admin_approve_verification(current_setting('t077.onb')::uuid);
+  if (r ->> 'creator')::boolean then raise exception 'FAIL C2b: onboarding_completed_at made a creator (%)', r; end if;
+
   r := public.admin_approve_verification(current_setting('t077.creator')::uuid);
   if (r ->> 'creator')::boolean is not true then raise exception 'FAIL C3: creator not recognised (%)', r; end if;
 end $$;
@@ -232,6 +250,13 @@ begin
   end if;
   if r ->> 'email' <> 't077-renter@example.invalid' then raise exception 'FAIL C2: e-mail not returned (%)', r; end if;
   raise notice 'PASS C2: approving a renter verifies them but does not make them available for hire or give a slug';
+
+  select * into p from public.profiles where id = current_setting('t077.onb')::uuid;
+  if not p.is_verified or p.available_for_hire or p.crew_slug is not null then
+    raise exception 'FAIL C2b: approving a renter with onboarding_completed_at made them bookable (available %, slug %)',
+      p.available_for_hire, p.crew_slug;
+  end if;
+  raise notice 'PASS C2b: onboarding_completed_at alone (generic onboarding) does not make a creator on approval';
 
   select * into p from public.profiles where id = current_setting('t077.creator')::uuid;
   if not p.available_for_hire or p.crew_slug is distinct from 'cebo-creator-2' then
@@ -267,18 +292,20 @@ begin
   end if;
   raise notice 'PASS C5: profile_is_creator tells a creator from a renter';
 
-  -- C5b: a published production an admin made for someone makes them a creator; a draft does not.
-  insert into public.smart_productions (slug, title, creator_id, is_published)
-  values ('t077-prod-' || current_setting('t077.drafter'), 't077 draft production', current_setting('t077.drafter')::uuid, false);
+  -- C5b: a production made for someone (unpublished, as /api/onboarding/complete
+  -- creates it, or published by an admin) makes them a creator; a deleted one does not.
+  if not (select public.profile_is_creator(p) from public.profiles p where id = current_setting('t077.prod')::uuid) then
+    raise exception 'FAIL C5b: the production created at the end of creator onboarding does not make a creator';
+  end if;
+  insert into public.smart_productions (slug, title, creator_id, is_published, deleted_at)
+  values ('t077-prod-' || current_setting('t077.drafter'), 't077 deleted production', current_setting('t077.drafter')::uuid, true, now());
   if (select public.profile_is_creator(p) from public.profiles p where id = current_setting('t077.drafter')::uuid) then
-    raise exception 'FAIL C5b: an unpublished production made a creator';
+    raise exception 'FAIL C5b: a deleted production made a creator';
   end if;
-  update public.smart_productions set is_published = true where slug = 't077-prod-' || current_setting('t077.drafter');
-  if not (select public.profile_is_creator(p) from public.profiles p where id = current_setting('t077.drafter')::uuid) then
-    raise exception 'FAIL C5b: a published production by an admin does not make a creator';
+  if (select public.profile_is_creator(p) from public.profiles p where id = current_setting('t077.onb')::uuid) then
+    raise exception 'FAIL C5b: onboarding_completed_at alone made a creator';
   end if;
-  update public.smart_productions set is_published = false where slug = 't077-prod-' || current_setting('t077.drafter');
-  raise notice 'PASS C5b: a published production (creator_id) makes a creator; an unpublished one does not';
+  raise notice 'PASS C5b: a production made for someone (even unpublished) makes a creator; a deleted one or onboarding_completed_at alone does not';
 end $$;
 
 -- ════════════════════════════════════════════════════════════════════════════
@@ -291,7 +318,10 @@ begin
   if exists (select 1 from public.public_profiles where id = current_setting('t077.renter')::uuid) then
     raise exception 'FAIL C6: a verified renter is listed publicly';
   end if;
-  raise notice 'PASS C6: a renter (even verified) is not in public_profiles';
+  if exists (select 1 from public.public_profiles where id = current_setting('t077.onb')::uuid) then
+    raise exception 'FAIL C6: a renter with onboarding_completed_at is listed publicly';
+  end if;
+  raise notice 'PASS C6: a renter (even verified, even with onboarding_completed_at) is not in public_profiles';
 
   if not exists (select 1 from public.public_profiles where id = current_setting('t077.creator')::uuid) then
     raise exception 'FAIL C7: the creator is missing';
@@ -302,7 +332,10 @@ begin
   if exists (select 1 from public.public_profiles where id = current_setting('t077.drafter')::uuid) then
     raise exception 'FAIL C7: an owner with only a draft listing is listed';
   end if;
-  raise notice 'PASS C7: creators and owners of live listings are listed; draft-only owners are not';
+  if not exists (select 1 from public.public_profiles where id = current_setting('t077.prod')::uuid) then
+    raise exception 'FAIL C7: a creator whose production is still unpublished is missing for an anonymous reader';
+  end if;
+  raise notice 'PASS C7: creators (also one with only an unpublished production) and owners of live listings are listed; draft-only owners are not';
 
   if exists (select 1 from public.public_profiles where id = current_setting('t077.susp')::uuid) then
     raise exception 'FAIL C8: a suspended creator is listed (049)';

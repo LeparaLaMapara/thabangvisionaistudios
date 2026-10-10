@@ -35,8 +35,10 @@
 --      is reported, never replaced (auth.users is shared, see
 --      docs/operations/database-isolation.md).
 --   C. "Who is a creator" is decided in one place, profile_is_creator(): the
---      person finished creator onboarding, or has specializations, a creator
---      bio, a portfolio project, or was featured by the studio.
+--      person has specializations, a creator bio, a portfolio project, a
+--      production made for them (end of creator onboarding, or by an admin),
+--      or was featured by the studio. Not onboarding_completed_at, which
+--      generic onboarding sets for any account.
 --      - admin_approve_verification verifies anyone but turns on
 --        available_for_hire and assigns a crew slug ONLY for creators. It
 --        keeps an existing slug (links stay valid) and finds a free one
@@ -299,28 +301,38 @@ create or replace function public.profile_is_creator(p public.profiles)
 returns boolean
 language sql
 stable
+security definer
 set search_path = public, pg_temp
 as $$
-  -- Signals only a creator leaves: finishing creator onboarding (/onboarding,
-  -- /api/onboarding/complete), choosing specializations or writing a creator
-  -- bio (onboarding or Creator settings), adding a portfolio project, being
-  -- featured by the studio, or having a published production an admin made
-  -- for them (/api/admin/productions sets smart_productions.creator_id).
-  -- Never available_for_hire: before 077 the ID approval switched it on for
-  -- renters too. Runs as the caller: through public_profiles an anonymous
-  -- reader sees only published productions, which is all this asks about.
-  select p.onboarding_completed_at is not null
-      or coalesce(cardinality(p.specializations), 0) > 0
+  -- Only signals a renter never leaves (each checked against the code that
+  -- writes it):
+  --   specializations / crew_bio   creator onboarding (OnboardingFlow skills
+  --                                and bio steps) or Creator settings on the
+  --                                profile page;
+  --   portfolio_projects           /api/portfolio (creator portfolio);
+  --   crew_featured                set by the studio;
+  --   a smart_productions row      created for the creator by
+  --     (creator_id, not deleted)  /api/onboarding/complete (the last step of
+  --                                creator onboarding, unpublished until
+  --                                reviewed) or by an admin
+  --                                (/api/admin/productions).
+  -- NOT onboarding_completed_at: POST /api/onboarding sets it after generic
+  -- identity and address details, for any account. NOT available_for_hire:
+  -- before 077 the ID approval switched it on for renters too.
+  -- SECURITY DEFINER so the answer does not depend on who asks: an anonymous
+  -- reader of public_profiles cannot see unpublished productions. It returns
+  -- one boolean about the row it is given.
+  select coalesce(cardinality(p.specializations), 0) > 0
       or nullif(btrim(coalesce(p.crew_bio, '')), '') is not null
       or coalesce(p.crew_featured, false)
       or (jsonb_typeof(p.portfolio_projects) = 'array' and jsonb_array_length(p.portfolio_projects) > 0)
       or exists (select 1 from public.smart_productions sp
-                  where sp.creator_id = p.id and sp.is_published and sp.deleted_at is null);
+                  where sp.creator_id = p.id and sp.deleted_at is null);
 $$;
 comment on function public.profile_is_creator(public.profiles) is
   'True when this profile belongs to a creator (077). Used by admin_approve_verification and public_profiles.';
 -- public_profiles calls it as the reader, so the API roles must be able to
--- execute it. It reveals nothing a reader could not query directly.
+-- execute it (rls-coverage.test.sql allow-lists it).
 revoke all on function public.profile_is_creator(public.profiles) from public;
 grant execute on function public.profile_is_creator(public.profiles) to anon, authenticated, service_role;
 
