@@ -13,6 +13,10 @@
 -- executable by service_role only: the app calls them with the service-role
 -- client after it has checked who the user is. Idempotent; safe to re-run.
 
+-- One transaction: a failure leaves nothing applied (rollback guidance in
+-- docs/operations/launch-checklist.md relies on it).
+begin;
+
 /**
  * Reserves one of today's messages for p_user, if fewer than p_limit are used.
  * Returns the new count, or NULL when the limit is reached (nothing changed).
@@ -73,3 +77,5 @@ grant execute on function public.ubunye_reserve_message(uuid, date, integer) to 
 grant execute on function public.ubunye_release_message(uuid, date) to service_role;
 
 notify pgrst, 'reload schema';
+
+commit;

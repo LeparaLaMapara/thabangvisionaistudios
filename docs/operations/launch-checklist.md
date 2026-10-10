@@ -83,13 +83,14 @@ run 069-subscription-expected-price.sql
 run 070-gear-pipeline.sql            && run 070-gear-pipeline.test.sql
 DATABASE_URL="$DB" scripts/db/070-concurrency.sh                # DEV only (refuses production)
 run 071-provider-neutral-payments.sql && run 071-provider-neutral-payments.test.sql
-run 072-listing-review.sql           && run 072-listing-review.test.sql   # may fail only on its empty-claims check until 077: re-run after 077
+run 072-listing-review.sql           # its test runs after 077 (its empty-claims check needs 077's is_admin())
 run 073-service-fulfilment.sql       && run 073-service-fulfilment.test.sql
 run 074-agent-actions.sql            && run 074-agent-actions.test.sql
 run 075-public-profiles-mask-unverified-portfolio.sql && run 075-public-profiles-mask-unverified-portfolio.test.sql
 run 076-delivery.sql                 && run 076-delivery.test.sql
 psql "$DB" -X -f scripts/db/precheck-077.sql > precheck-077.out    # read-only; read every STOP note first
 run 077-database-integrity.sql       && run 077-database-integrity.test.sql   # keep the NOTICE output
+run 072-listing-review.test.sql      # deferred from above
 run 078-ubunye-usage-reserve.sql     && run 078-ubunye-usage-reserve.test.sql
 run 079-security-phase-6.sql         && run 079-security-phase-6.test.sql   # on a hosted project check B2 passes
 run rls-coverage.test.sql

@@ -31,6 +31,10 @@
 -- app's requireAdmin, which reads app_metadata FRESH from the Auth server
 -- (never a stale token) and then profiles.role; see lib/auth/supabase.ts.
 
+-- One transaction: a failure leaves nothing applied (rollback guidance in
+-- docs/operations/launch-checklist.md relies on it).
+begin;
+
 alter table public.profiles add column if not exists role_changed_at timestamptz;
 
 comment on column public.profiles.role_changed_at is
@@ -223,3 +227,5 @@ create trigger profiles_reject_markup
   for each row execute function public.profiles_reject_markup();
 
 notify pgrst, 'reload schema';
+
+commit;
