@@ -35,7 +35,9 @@ auth.users INSERT
   └─ on_auth_user_created_notify → public.notify_signup()     POST {user_id} to the signup webhook (Vault secrets); never blocks sign-up
 ```
 
-- `handle_new_user` (codified in 077 from production): SECURITY DEFINER,
+- `handle_new_user` (codified in 077 from production; 077 replaces the body
+  only where it is missing or is the broken 006 body, and keeps any other,
+  such as DEV's, which skips Multiversity users): SECURITY DEFINER,
   `search_path = public, pg_temp`, EXECUTE revoked from `public`, `anon`,
   `authenticated`. It inserts only the id, so every other column takes its
   default, which is exactly what 067's INSERT rule requires (`role = 'user'`,
@@ -52,7 +54,7 @@ auth.users INSERT
 
 | Role | Who | RLS | What it may do |
 |---|---|---|---|
-| `anon` | any request with the public key and no session | applies | Read what public policies allow (published catalogue, flags, `public_profiles`, published reviews without `reviewer_email`). No table writes since 077. Executes `is_admin()` (policies need it) and the non-definer helpers |
+| `anon` | any request with the public key and no session | applies | Read what public policies allow (published catalogue, flags, `public_profiles`, published reviews without `reviewer_email`). No table writes since 077. Executes `is_admin()` (policies need it), `busy_creator_ids()` and the non-definer helpers |
 | `authenticated` | a signed-in user (JWT) | applies | Own rows per policy; `profiles` UPDATE only on 067's column allow-list; cart, consent, bug reports, onboarding progress, portfolio analysis, notification read state. Money tables are read-only (059) |
 | `service_role` | the server (`createAdminClient()`, `SUPABASE_SERVICE_ROLE_KEY`) | **bypassed** | Everything. Every route that uses it must authenticate and authorise the user itself |
 | `postgres` | migrations, SQL editor; owner of every function | bypassed (owner) | 067 treats it (and `service_role`, `supabase_admin`) as a trusted caller for privileged columns |
@@ -116,6 +118,7 @@ only as triggers whatever their grants.
 | `admin_list_verifications()` | jsonb | `public, pg_temp` | authenticated, service_role |
 | `admin_reject_verification(uuid,text)` | jsonb | `public, pg_temp` | authenticated, service_role |
 | `agent_actions_supersede()` | trigger | `public, pg_temp` | service_role |
+| `busy_creator_ids(uuid[])` | uuid | `public, pg_temp` | anon, authenticated, service_role |
 | `caller_owns_rental(uuid)` | boolean | `public, pg_temp` | authenticated, service_role |
 | `claim_delivery_provider_events(integer,integer)` | delivery_provider_events | `public, pg_temp` | service_role |
 | `claim_outbox(integer,integer)` | notification_outbox | `public, pg_temp` | service_role |
@@ -166,6 +169,9 @@ Notes:
 
 - `admin_*` verification RPCs are callable by `authenticated` but start with
   `if not is_admin() then raise`, so only admins get past the first line.
+- `busy_creator_ids(uuid[])` (077) is executable by anon on purpose:
+  Ubunye's creator search runs as the visitor and only needs to know which
+  of up to 100 creators have an active crew request. It returns ids only.
 - `delivery_is_renter`, `delivery_owns_any`, `delivery_owns_all` and
   `caller_owns_rental` are policy helpers (they read tables the caller's own
   RLS would hide) and answer only about `auth.uid()`.

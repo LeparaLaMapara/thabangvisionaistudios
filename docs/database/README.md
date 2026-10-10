@@ -54,18 +54,22 @@ scripts/db/run-sql-tests.sh postgresql://postgres:postgres@127.0.0.1:54322/postg
 stop after a migration, refuses to run over an existing schema unless given
 `--allow-existing`, and asks PostgREST to reload its schema at the end.
 `run-sql-tests.sh` runs every `lib/migrations/*.test.sql` (each in one
-transaction ending in ROLLBACK) and prints PASS/FAIL per file, with an
+transaction ending in ROLLBACK), then the shell tests `scripts/db/*.test.sh`
+(`local-guard.test.sh`: the host guard; `077-reapply.test.sh`: re-applies 077
+over foreign tables and functions, odd signup bodies and a differently named
+CHECK, then restores the 077 state), and prints PASS/FAIL per file, with an
 optional name filter (`… 077`).
 
 **Both scripts refuse any host that is not `localhost`, `127.0.0.1` or
-`::1`** (`scripts/db/local-guard.sh`). They are not a way to reach dev or
+`::1`**, and any URL or `PGHOST` that lists several hosts
+(`scripts/db/local-guard.sh`). They are not a way to reach dev or
 production.
 
-On 2026-10-10 a rebuild from empty applied 84 files and all 11 test files
-passed (226 checks): 067 (70), 068 (11), 070 (28), 071 (2), 072 (28), 073
-(10), 074 (4), 075 (3), 076 (32), 077 (30), rls-coverage (8). The 50 local
-end-to-end journeys (`tests/e2e-local`) passed on that database with no
-shims.
+On 2026-10-10 a rebuild from empty applied 84 files and all 13 test files
+passed: 228 SQL checks (067: 70, 068: 11, 070: 28, 071: 2, 072: 28, 073: 10,
+074: 4, 075: 3, 076: 32, 077: 32, rls-coverage: 8) plus 8 re-apply and 12
+host-guard checks. The 50 local end-to-end journeys (`tests/e2e-local`)
+passed on that database with no shims.
 
 ## Applying migrations to dev or production by hand
 
@@ -97,49 +101,46 @@ ROLLBACK and creates its own throwaway users and rows.
 | 8 | `074-agent-actions.sql` | `074-…test.sql` | |
 | 9 | `075-public-profiles-mask-unverified-portfolio.sql` | `075-…test.sql` | |
 | 10 | `076-delivery.sql` | `076-…test.sql` | |
-| 11 | `077-database-integrity.sql` | `077-…test.sql`, then `rls-coverage.test.sql` | Snapshot first (below). Keep the NOTICE output: it lists rewritten payment rows, authenticated grants revoked, and non-creators marked available for hire |
+| 11 | `077-database-integrity.sql` | `077-…test.sql`, then `rls-coverage.test.sql` | Run `scripts/db/precheck-077.sql` first (below). Keep the NOTICE output: it lists rewritten payment rows, dropped CHECKs, authenticated grants revoked, objects left untouched, and non-creators marked available for hire |
 | 12 | — | `notify pgrst, 'reload schema';` | 077 does this itself |
 
 Any time later: `rls-coverage.test.sql` after every new migration.
 
 ### Before applying 077 to dev or production
 
-077 is written to be a no-op where production already differs (it drops
-policies by the base schema's names, revokes only grants no policy uses, and
-creates the signup trigger only if it is missing). Still, take this read-only
-snapshot first and keep it with the evidence:
+Run the read-only pre-checks and keep the output with the evidence:
 
-```sql
--- 1. Other apps' tables in public. 077 skips apps, kb_*, blog_* by name; add any
---    other non-ThabangVision table here to _tv077_foreign at the top of 077.
-select tablename from pg_tables where schemaname = 'public' order by 1;
-
--- 2. Policies and grants 077 touches.
-select tablename, policyname, cmd, roles, qual, with_check from pg_policies
- where schemaname = 'public'
-   and tablename in ('profiles','crew_requests','orders','listings','content_embeddings',
-                     'onboarding_progress','portfolio_analysis','reviews') order by 1, 2;
-select grantee, table_name, privilege_type from information_schema.role_table_grants
- where table_schema = 'public' and grantee in ('anon','authenticated') order by 2, 1, 3;
-
--- 3. The signup trigger and its function.
-select tgname, tgfoid::regprocedure from pg_trigger where tgrelid = 'auth.users'::regclass and not tgisinternal;
-select pg_get_functiondef('public.handle_new_user'::regproc);
-
--- 4. Payment rows that will be rewritten, and the current CHECK.
-select status, count(*) from public.booking_payments group by 1;
-select pg_get_constraintdef(oid) from pg_constraint where conname = 'booking_payments_status_check';
-
--- 5. Who public_profiles lists today and will list after 077.
-select count(*) as listed_now from public.public_profiles;
-select count(*) as non_creators_available_for_hire
-  from public.profiles p
- where p.available_for_hire and p.onboarding_completed_at is null
-   and coalesce(cardinality(p.specializations), 0) = 0
-   and nullif(btrim(coalesce(p.crew_bio, '')), '') is null
-   and not coalesce(p.crew_featured, false)
-   and jsonb_array_length(coalesce(p.portfolio_projects, '[]'::jsonb)) = 0;
+```bash
+psql "$DEV_DATABASE_URL" -X -f scripts/db/precheck-077.sql > precheck-077.out
 ```
+
+[`scripts/db/precheck-077.sql`](../../scripts/db/precheck-077.sql) writes
+nothing (a READ ONLY transaction, rolled back). Each query says which result
+means **STOP**. It covers: the current `handle_new_user` body and whether 077
+will keep, replace or create it; triggers on `auth.users`; SECURITY DEFINER
+functions with an empty or missing `search_path` or another owner; tables in
+`public` that are not on 077's ThabangVision list; every CHECK on
+`booking_payments` (by table, not by name) and the status values in use;
+write policies anon can reach that depend on nothing; `public_profiles`'
+columns against 075's; and long-running transactions.
+
+What 077 does with what it finds:
+
+- `handle_new_user` is replaced only if it is missing or is the broken 006
+  body (inserts `profiles.email`). Production's and DEV's bodies are kept.
+- Grants (E5) and function hygiene (E6) touch only ThabangVision's own
+  tables and functions (explicit lists at the top of 077), and only
+  functions owned by the role applying it. Anything else is named in a
+  NOTICE and left alone.
+- Every CHECK on `booking_payments` that mentions `status` is dropped,
+  whatever its name, before the new one is added.
+
+**If 077 times out.** It sets `lock_timeout = 5s` and
+`statement_timeout = 120s`, so on a busy database it may stop with
+"canceling statement due to lock timeout" (or "statement timeout"). Nothing
+is applied in that case: the whole file is one transaction. Check query 8 of
+the pre-checks for long transactions, then apply again off-peak. Do not raise
+the timeouts on production without the integration owner.
 
 Deploy order for 077: none required. The one app change that goes with it
 (`lib/supabase/queries/creatorReviews.ts` prefers the name stored on the

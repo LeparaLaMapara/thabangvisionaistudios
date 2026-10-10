@@ -44,8 +44,8 @@ that fail the build of a database: run it after every migration.
 | Tables anon can SELECT (grant; rows still filtered by RLS) | 43 |
 | Tables anon can write | 0 |
 | Tables authenticated holds a write grant on (each has a policy for that command; most are admin-only `is_admin()` policies) | 22: `booking_payments`, `bug_reports`, `careers`, `cart_items`, `consent_records`, `crew_requests`, `equipment_bookings`, `feature_flags`, `invoices`, `listings`, `notifications`, `onboarding_progress`, `orders`, `portfolio_analysis`, `portfolio_tag_corrections`, `press`, `profiles`, `reviews`, `smart_productions`, `smart_rentals`, `subscription_plans`, `subscriptions` |
-| SECURITY DEFINER functions | 50, all with a pinned `search_path` ending in `pg_temp` |
-| SECURITY DEFINER functions anon can execute | 1: `is_admin()` (allow-listed, see above) |
+| SECURITY DEFINER functions | 51, all with a pinned `search_path` ending in `pg_temp` |
+| SECURITY DEFINER functions anon can execute | 2, both allow-listed: `is_admin()` (see above) and `busy_creator_ids(uuid[])` (Ubunye's creator search as the visitor; returns creator ids with an active gig, nothing else) |
 | Client-readable views that bypass RLS | 1: `public_profiles` (the column filter over `profiles`, by design) |
 
 ## Flagged items
@@ -55,14 +55,14 @@ that fail the build of a database: run it after every migration.
 | Flag | Where | What it allowed | 077 |
 |---|---|---|---|
 | Read policy `true` on personal data | `profiles` "Public can view profiles" (base schema; 036 dropped production's *name* for it, not this one) | anyone with the public key read every profile in full: phone, address, ID document hash, verification paths, fraud flags | E1: dropped (with the base schema's "Users can update/insert own profile") |
-| Write policy `true` | `crew_requests` "Admins can manage crew requests" (`USING (true)`, all roles) and "Anyone can submit crew request" (`WITH CHECK (true)`) | anyone read, changed or deleted every crew request (client names, e-mails, phones) and created new ones | E2: admin policy checks `is_admin()`; the open insert is dropped; clients read their own by e-mail |
+| Write policy `true` | `crew_requests` "Admins can manage crew requests" (`USING (true)`, all roles) and "Anyone can submit crew request" (`WITH CHECK (true)`) | anyone read, changed or deleted every crew request (client names, e-mails, phones) and created new ones | E2: admin policy checks `is_admin()`; the open insert is dropped; clients read their own by e-mail. E11: `busy_creator_ids()` keeps Ubunye's "busy" flag working without reading requests |
 | RLS disabled | `content_embeddings` | anyone wrote or deleted the text RAG answers from | E3: RLS on, read kept, writes server only |
 | Client could invent money rows | `orders` "Buyers can create orders" | a buyer created an order naming any seller, any total and status | E4: dropped |
 | Client could self-publish | `listings` "Users can create own listings" / "update own listings" with a table-wide grant | publish an unreviewed listing into the sitemap, search and Ubunye's system prompt | E10: dropped (no app code writes listings as the user) |
 | Personal column readable by anon | `reviews.reviewer_email` | e-mail of every published review's author | E9: column excluded from the client SELECT grant |
-| anon write grants | 42 tables (INSERT/UPDATE), 45 (DELETE, TRUNCATE, REFERENCES, TRIGGER) | nothing while RLS held; one bad policy away from writes (as `crew_requests` showed). TRUNCATE ignores RLS (PostgREST cannot issue it) | E5: all revoked |
+| anon write grants | 42 tables (INSERT/UPDATE), 45 (DELETE, TRUNCATE, REFERENCES, TRIGGER) | nothing while RLS held; one bad policy away from writes (as `crew_requests` showed). TRUNCATE ignores RLS (PostgREST cannot issue it) | E5: all revoked on ThabangVision's tables (explicit list; other apps' tables are reported and left alone) |
 | authenticated write grants no policy used | 73 grants on 27 tables, e.g. `bookings`, `platform_events`, `notifications` INSERT, `disputes` | nothing while RLS held | E5: revoked (the apply prints the list) |
-| SECURITY DEFINER without `pg_temp` last | `is_admin`, `submit_verification_request`, `admin_list/get/approve/reject_verification`, `caller_owns_rental`, `notify_signup`, `set_signup_webhook` | a temporary object could shadow an unqualified name | E6: `pg_temp` appended |
+| SECURITY DEFINER without `pg_temp` last | `is_admin`, `submit_verification_request`, `admin_list/get/approve/reject_verification`, `caller_owns_rental`, `notify_signup`, `set_signup_webhook` | a temporary object could shadow an unqualified name | E6: `pg_temp` appended (ThabangVision's own functions only, owned by the applying role; an empty path becomes `pg_catalog, pg_temp`) |
 | SECURITY DEFINER executable by anon | `caller_owns_rental`, `refund_obligations_cap` (trigger), `agent_actions_supersede` (trigger) | harmless today (`auth.uid()` is null for anon; trigger functions cannot be called directly) | E6: revoked; `is_admin()` remains, allow-listed |
 | Invoker functions with no `search_path` | `guard_phone_verified`, `ledger_refuse_change`, `service_booking_events_append_only` | audit D5 | E6: pinned |
 | RLS on, no policy, but the app writes as the user | `onboarding_progress` (browser upsert), `portfolio_analysis` (portfolio agent insert) | the writes were silently refused: onboarding could not resume, analyses were lost | E7: own-row policies |
