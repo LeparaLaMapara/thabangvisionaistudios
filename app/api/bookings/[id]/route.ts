@@ -23,6 +23,7 @@ import { dispatchOutbox } from '@/lib/rental/notify';
 import { chargeOfBooking } from '@/lib/rental/charges';
 import { paymentReference } from '@/lib/payments/eft';
 import { deliveryCancellationPlan, settleAfterLineCancelled, type DeliveryCancellationPlan } from '@/lib/rental/delivery-settlement';
+import { bookingMoneyView, type IntentFacts, type MoneyView, type PaymentLineFacts, type RefundFacts } from '@/lib/rental/money-view';
 
 type BookingForQuote = {
   id: string;
@@ -172,7 +173,54 @@ export async function GET(
     paymentInfo = { method: data.payment_method, reference: paymentReference(orderId), amountDue: Number(amountDue ?? 0) };
   }
 
-  return NextResponse.json({ ...data, rental_title: rental?.title ?? null, cancellation, delivery_cancellation: deliveryCancellation, payment_info: paymentInfo });
+  // What was charged and refunded, from the records that hold the money.
+  // A lookup that fails shows "could not load" on the page, never "nothing".
+  let money: MoneyView | null = null;
+  try {
+    money = await loadMoneyView(data.id as string, (data.checkout_group_id as string | null) ?? null);
+  } catch (err) {
+    console.error('[bookings/[id]] money view failed:', err instanceof Error ? err.message : 'unknown');
+  }
+
+  return NextResponse.json({ ...data, rental_title: rental?.title ?? null, cancellation, delivery_cancellation: deliveryCancellation, payment_info: paymentInfo, money });
+}
+
+/**
+ * The booking's payments and refunds (lib/rental/money-view.ts). Called only
+ * after the booking was read with the customer's own session, so it is theirs;
+ * the service role is used because refunds may be filed against the order.
+ */
+async function loadMoneyView(bookingId: string, group: string | null): Promise<MoneyView> {
+  const db = createAdminClient();
+  const lineIds: string[] = [bookingId];
+  if (group) {
+    const { data: lines, error } = await db.from('equipment_bookings').select('id').eq('checkout_group_id', group);
+    if (error) throw new Error(error.message);
+    for (const l of (lines ?? []) as { id: string }[]) if (!lineIds.includes(l.id)) lineIds.push(l.id);
+  }
+  const [intentRes, paymentsRes, byBooking, byGroup] = await Promise.all([
+    group
+      ? db.from('rental_payment_intents').select('state, expected_amount_cents, hire_cents, deposit_cents, delivery_cents, paid_at').eq('checkout_group_id', group).maybeSingle()
+      : Promise.resolve({ data: null, error: null }),
+    db.from('booking_payments').select('booking_id, amount, status, created_at').in('booking_id', lineIds),
+    db.from('refund_obligations').select('id, reason, state, amount_cents, booking_ids, created_at, processed_at').contains('booking_ids', [bookingId]),
+    group
+      ? db.from('refund_obligations').select('id, reason, state, amount_cents, booking_ids, created_at, processed_at').eq('booking_group_id', group)
+      : Promise.resolve({ data: [], error: null }),
+  ]);
+  for (const r of [paymentsRes, byBooking, byGroup]) {
+    if (r.error && !isMissingPipeline(r.error)) throw new Error(r.error.message);
+  }
+  if (intentRes.error && !isMissingPipeline(intentRes.error)) throw new Error(intentRes.error.message);
+  const refunds = new Map<string, RefundFacts>();
+  for (const r of [...((byBooking.data ?? []) as RefundFacts[]), ...((byGroup.data ?? []) as RefundFacts[])]) refunds.set(r.id, r);
+  return bookingMoneyView({
+    bookingId,
+    orderLineCount: lineIds.length,
+    intent: (intentRes.data as IntentFacts | null) ?? null,
+    payments: (paymentsRes.data ?? []) as PaymentLineFacts[],
+    refunds: [...refunds.values()],
+  });
 }
 
 export async function PUT(

@@ -55,11 +55,14 @@ export default async function BookPage({ searchParams }: BookPageProps) {
   let creatorRate: number | null = null;
   let creatorSpecializations: string[] = [];
   if (creatorId) {
+    // The public card: a client's session cannot read another person's
+    // profiles row, so this came back empty and the page said "we confirm
+    // who will shoot it" to someone who had just chosen their creator.
     const { data: creator } = await supabase
-      .from('profiles')
+      .from('public_profiles')
       .select('display_name, hourly_rate, specializations')
       .eq('id', creatorId)
-      .single();
+      .maybeSingle();
     creatorName = creator?.display_name ?? null;
     creatorRate = (creator?.hourly_rate as number) ?? null;
     creatorSpecializations = (creator?.specializations as string[]) ?? [];
@@ -72,7 +75,7 @@ export default async function BookPage({ searchParams }: BookPageProps) {
     ? { id: pkg.id, title: pkg.title, price: pkg.price, unit: pkg.priceUnit, unitWords: packageUnitWords(pkg.priceUnit) }
     : null;
   if (pkg && !creatorId && pkg.creatorId) {
-    const { data: creator } = await supabase.from('profiles').select('display_name').eq('id', pkg.creatorId).single();
+    const { data: creator } = await supabase.from('public_profiles').select('display_name').eq('id', pkg.creatorId).maybeSingle();
     creatorName = creator?.display_name ?? null;
   }
 
@@ -82,7 +85,8 @@ export default async function BookPage({ searchParams }: BookPageProps) {
     : category && hours >= STUDIO.booking.minBookingHours && dates;
   if (!hasAllDetails) {
     const { BookingForm } = await import('./BookingForm');
-    const hourlyRate = category ? getHourlyRate(category) : (creatorRate ?? 0);
+    // The rate charged is the shoot type's (POST /api/service-bookings), never the profile's.
+    const hourlyRate = category ? getHourlyRate(category) : 0;
     return (
       <BookingForm
         creatorId={creatorId}

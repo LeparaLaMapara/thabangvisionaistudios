@@ -13,6 +13,8 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import ServiceBookingsList from './ServiceBookingsList';
 import type { EquipmentBooking, BookingStatus } from '@/types/booking';
+import { formatRand } from '@/lib/format/money';
+import { gearStatusLabel } from '@/lib/rental/status-words';
 import { PaymentsOfflineNotice } from '@/components/booking/PaymentsOfflineNotice';
 import { CheckoutConfirmation, type OrderLineView } from './CheckoutConfirmation';
 import { ConfirmPaymentOnReturn } from './ConfirmPaymentOnReturn';
@@ -143,14 +145,15 @@ export default function BookingsPage() {
                 <div className="flex items-start justify-between mb-3">
                   <div>
                     <Badge variant={STATUS_VARIANT[booking.status]}>
-                      {booking.status}
+                      {gearStatusLabel(booking.status)}
                     </Badge>
-                    <h3 className="text-sm font-medium text-black dark:text-white mt-2">
-                      Booking #{booking.id.slice(0, 8)}
+                    <h3 className="text-sm font-medium text-white mt-2">
+                      {(booking as { rental_title?: string | null }).rental_title ?? `Booking #${booking.id.slice(0, 8)}`}
                     </h3>
                   </div>
-                  <p className="text-sm font-mono font-bold text-black dark:text-white">
-                    {booking.currency} {booking.total_price.toLocaleString()}
+                  <p className="text-sm font-mono font-bold text-white text-right">
+                    <span className="block text-xs font-normal text-neutral-400">Hire</span>
+                    {formatRand(Number(booking.total_price))}
                   </p>
                 </div>
 

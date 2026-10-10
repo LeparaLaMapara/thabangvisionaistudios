@@ -24,41 +24,63 @@ export type StepState = 'done' | 'current' | 'upcoming' | 'skipped' | 'stopped';
 export interface TimelineStep {
   key: string;
   label: string;
-  /** What it means, in plain words, for whoever is looking. */
+  /** What it means, in plain words, for whoever is looking (once it has happened). */
   detail: string;
+  /** While this is the current step: what we are waiting for, and who acts. */
+  next: string;
   at: string | null;
   state: StepState;
 }
 
 export function shootTimeline(b: TimelineBooking, viewer: 'client' | 'creator'): TimelineStep[] {
+  const days = STUDIO.booking.autoApproveDeliveryAfterDays;
+  const hours = STUDIO.booking.payoutDelayHours;
+  const client = viewer === 'client';
   const paid = b.payment_status === 'paid' || Boolean(b.paid_at);
   const approved = b.status === 'completed' || Boolean(b.completed_at);
   const steps: Omit<TimelineStep, 'state'>[] = [
-    { key: 'booked', label: 'Booked', at: b.created_at, detail: 'Reserved. It is confirmed once payment is received.' },
-    { key: 'paid', label: 'Paid', at: paid ? (b.paid_at ?? null) : null, detail: viewer === 'client' ? `Payment received by ${STUDIO.name}.` : `The client has paid ${STUDIO.name}.` },
+    { key: 'booked', label: 'Booked', at: b.created_at, detail: 'Reserved. It is confirmed once payment is received.', next: 'Reserved. It is confirmed once payment is received.' },
+    {
+      key: 'paid', label: 'Paid', at: paid ? (b.paid_at ?? null) : null,
+      detail: client ? `Payment received by ${STUDIO.name}.` : `The client has paid ${STUDIO.name}.`,
+      next: client ? 'Waiting for your payment. The booking is confirmed once it is received.' : 'Waiting for the client to pay. You do not need to do anything yet.',
+    },
     {
       key: 'confirmed', label: 'Creator confirmed', at: b.accepted_at ?? null,
-      detail: viewer === 'client' ? 'Your creator has accepted the date.' : 'You accepted the booking.',
+      detail: client ? 'Your creator has accepted the date.' : 'You accepted the booking.',
+      next: client
+        ? 'Waiting for your creator to accept the date. If they cannot take it, you are refunded in full and offered another creator.'
+        : 'Accept or decline this booking. If you decline, the client is refunded in full.',
     },
     {
       key: 'arrived', label: 'Arrived', at: b.arrived_at ?? null,
-      detail: viewer === 'client' ? 'Your creator checked in on the day.' : 'Tap "I’m here" when you arrive.',
+      detail: client ? 'Your creator checked in on the day.' : 'Tap "I’m here" when you arrive.',
+      next: client ? 'Your creator checks in on the day of the shoot.' : 'Tap "I’m here" when you arrive.',
     },
     {
       key: 'delivered', label: 'Delivered', at: b.delivered_at ?? null,
-      detail: viewer === 'client' ? 'Your photos or video are ready to review.' : 'Share the finished work here.',
+      detail: client ? 'Your photos or video are ready to review.' : 'Share the finished work here.',
+      next: client ? 'Your creator shares the finished work here, and we let you know.' : 'Share the finished work here when it is ready.',
     },
     {
       key: 'approved', label: 'Approved', at: approved ? (b.completed_at ?? null) : null,
-      detail: viewer === 'client'
-        ? 'Approving confirms the work is complete. Tell us within 7 days if something is wrong; after 7 days it is approved automatically.'
-        : 'The client approves, or it is approved automatically after 7 days.',
+      detail: client ? 'You approved the work.' : 'The client approved the work.',
+      next: client
+        ? `Review the work, then approve it, ask for changes or report a problem. If we hear nothing within ${days} days, it is approved automatically.`
+        : `Waiting for the client to approve. If they do not answer within ${days} days, it is approved automatically.`,
     },
     {
       key: 'payout', label: 'Creator paid', at: null,
-      detail: viewer === 'creator' ? 'Paid to your bank account after approval.' : 'The creator is paid only after approval.',
+      detail: client ? 'The creator has been paid.' : 'Paid to your bank account.',
+      next: client
+        ? `The creator is paid ${hours} hours after approval, as long as no problem has been raised.`
+        : `Your payout is sent ${hours} hours after approval, as long as no problem has been raised. When it reaches your account depends on your bank.`,
     },
-    { key: 'review', label: 'Reviewed', at: null, detail: 'A short review helps the next client choose.' },
+    {
+      key: 'review', label: 'Reviewed', at: null,
+      detail: 'A short review helps the next client choose.',
+      next: client ? 'A short review helps the next client choose.' : 'The client may leave a review.',
+    },
   ];
 
   const done = new Set<string>(['booked']);

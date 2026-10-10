@@ -95,6 +95,19 @@ export default function UbunyeStudioClient({ context }: UbunyeStudioClientProps)
     })
   );
 
+  // Count a guest's message once it has been answered (see onFinish below).
+  // Reads the ref, not state, because useChat keeps the first onFinish.
+  function countAnsweredGuestMessage(): void {
+    const newCount = guestCountRef.current + 1;
+    guestCountRef.current = newCount;
+    setGuestMessageCount(newCount);
+    try { sessionStorage.setItem(SESSION_STORAGE_KEY, String(newCount)); } catch { /* SSR */ }
+    if (newCount >= GUEST_LIMIT) {
+      setLimitMessage(`You've used your ${GUEST_LIMIT} free messages. Sign in to continue chatting with Ubunye.`);
+      setLimitReached(true);
+    }
+  }
+
   // ─── Vercel AI SDK useChat (v4 API) ──
   const {
     messages,
@@ -106,8 +119,12 @@ export default function UbunyeStudioClient({ context }: UbunyeStudioClientProps)
     error,
   } = useChat({
     transport: transportRef.current,
+    // A message counts against the allowance only once Ubunye has answered
+    // it. A failed or stopped reply costs nothing: the customer retries free.
     onFinish: ({ isError, isAbort }) => {
-      if (isAuthenticatedRef.current && !isError && !isAbort) setDailyUsed(prev => prev + 1);
+      if (isError || isAbort) return;
+      if (isAuthenticatedRef.current) setDailyUsed(prev => prev + 1);
+      else countAnsweredGuestMessage();
     },
     onError: (err) => {
       const failedText = lastSentRef.current;
@@ -165,19 +182,6 @@ export default function UbunyeStudioClient({ context }: UbunyeStudioClientProps)
     } catch { /* SSR or invalid JSON */ }
   }, [setMessages]);
 
-  // Track guest message sends
-  const trackGuestMessage = useCallback(() => {
-    if (!isAuthenticated) {
-      const newCount = guestMessageCount + 1;
-      setGuestMessageCount(newCount);
-      try { sessionStorage.setItem(SESSION_STORAGE_KEY, String(newCount)); } catch { /* SSR */ }
-
-      if (newCount >= GUEST_LIMIT) {
-        setLimitMessage(`You've used your ${GUEST_LIMIT} free messages. Sign in to continue chatting with Ubunye.`);
-        setLimitReached(true);
-      }
-    }
-  }, [isAuthenticated, guestMessageCount]);
 
   // ─── Markdown components (stable ref) ──
   const mdComponents: Components = useMemo(() => ({
@@ -329,10 +333,9 @@ export default function UbunyeStudioClient({ context }: UbunyeStudioClientProps)
       }
     }
 
-    trackGuestMessage();
     void sendMessage({ text });
     return true;
-  }, [limitReached, isLoading, isAuthenticated, guestMessageCount, trackGuestMessage, sendMessage]);
+  }, [limitReached, isLoading, isAuthenticated, guestMessageCount, sendMessage]);
 
   // ─── Form submit ──
   // Clear the box straight away so it feels instant, but put the text back if

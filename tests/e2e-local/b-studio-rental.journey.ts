@@ -177,6 +177,24 @@ test('a replayed webhook has no second effect', async ({ request }) => {
   expect(unbalancedJournals()).toEqual([]);
 });
 
+test('the booking page shows what was paid and what happens next', async () => {
+  const bookingId = value<string>(`select id::text from equipment_bookings where checkout_group_id = ${lit(paidGroup)} limit 1`);
+  await rp.goto(`/dashboard/bookings/${bookingId}`);
+  // From the payment intent: R600 hire + R375 deposit, never "No payments".
+  await expect(rp.getByRole('heading', { name: /payments and refunds/i })).toBeVisible();
+  await expect(rp.getByText(/^Paid on /)).toBeVisible();
+  await expect(rp.getByText('R975', { exact: true })).toBeVisible();
+  await expect(rp.getByText(/no payments/i)).toHaveCount(0);
+  // What happens next: where and when to collect, what to bring.
+  await expect(rp.getByRole('heading', { name: /^collect on /i })).toBeVisible();
+  await expect(rp.getByText(/bring the ID you verified with/i).first()).toBeVisible();
+  // The list names the item, in the same status words.
+  await rp.goto('/dashboard/bookings');
+  await rp.getByRole('button', { name: /equipment rentals/i }).or(rp.getByRole('tab', { name: /equipment rentals/i })).first().click();
+  await expect(rp.getByRole('heading', { name: gear.title }).first()).toBeVisible();
+  await expect(rp.getByText('confirmed', { exact: true }).first()).toBeVisible();
+});
+
 let skipGroup = '';
 test('paid without a webhook: the return trip still confirms the payment', async () => {
   await rp.goto(`/rentals/${gear.category}/${gear.slug}?start=${ymd(15)}&end=${ymd(16)}`);
@@ -201,6 +219,9 @@ test('renter cancels a paid booking: exactly one refund, never more than charged
   await rp.goto(`/dashboard/bookings/${bookingId}`);
   await rp.getByRole('button', { name: /cancel booking/i }).click();
   await expect.poll(() => lineStatuses(skipGroup)[0], { timeout: 15_000 }).toBe('cancelled');
+  // The renter is told what happened to the money, and sees the refund with its status.
+  await expect(rp.getByRole('status').filter({ hasText: /your booking is cancelled/i })).toBeVisible();
+  await expect(rp.getByText(/cancellation refund/i)).toBeVisible();
   // The refund goes out now or on the next pipeline pass.
   if ((await refundsFor(request, reference)).length === 0) {
     const r = await runCron(request, 'rental-pipeline');
@@ -217,6 +238,26 @@ test('renter cancels a paid booking: exactly one refund, never more than charged
   expect(Number(obligations)).toBeLessThanOrEqual(charged);
   expect(Number(obligations)).toBe(refunds[0].amount);
   expect(unbalancedJournals()).toEqual([]);
+});
+
+test('a renter reports a problem from the booking page, and it reaches the team', async () => {
+  // A finished hire of this renter's (seeded: the counter steps are journey C's).
+  exec(`insert into equipment_bookings (user_id, rental_id, start_date, end_date, total_price, deposit_amount, status, quantity, completed_at)
+        values (${lit(renter.id)}, ${lit(gear.id)}, now() - interval '10 days', now() - interval '8 days', 400, 375, 'completed', 1, now() - interval '7 days');`);
+  const bookingId = value<string>(`select id::text from equipment_bookings where user_id = ${lit(renter.id)} and status = 'completed' order by created_at desc limit 1`);
+  await rp.goto(`/dashboard/bookings/${bookingId}`);
+  await rp.getByRole('button', { name: /report a problem/i }).first().click();
+  const dialog = rp.getByRole('dialog', { name: /report a problem/i });
+  await dialog.getByRole('radio', { name: /broken, damaged or missing/i }).check();
+  await dialog.getByRole('textbox').fill('The lens cap and one battery were missing from the bag.');
+  await dialog.getByRole('button', { name: /send to our team/i }).click();
+  await expect(rp.getByText(/we have your report/i)).toBeVisible();
+  const d = one<{ dispute_type: string; status: string; reason: string }>(
+    `select dispute_type, status, reason from disputes where equipment_booking_id = ${lit(bookingId)}`,
+  );
+  expect(d).toMatchObject({ dispute_type: 'gear_damage', status: 'open' });
+  // A second report on the same booking is pointed to the open one.
+  await expect(rp.getByRole('button', { name: /report a problem/i })).toHaveCount(0);
 });
 
 test('over R50,000 is always collected, even for a trusted renter', async ({ browser }) => {

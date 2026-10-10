@@ -266,7 +266,19 @@ export async function GET() {
     return NextResponse.json({ error: 'Failed to fetch bookings' }, { status: 500 });
   }
 
-  return NextResponse.json({ bookings: data ?? [] });
+  // The client's own session cannot read another person's profile row, so the
+  // join above comes back empty and the client never saw who their creator
+  // is. Their public card (public_profiles: name, photo, slug) fills it in.
+  type Row = Record<string, unknown> & { creator_id?: string | null; creator?: unknown };
+  const rows = (data ?? []) as Row[];
+  const missing = [...new Set(rows.filter((r) => r.creator_id && !r.creator).map((r) => r.creator_id as string))];
+  if (missing.length > 0) {
+    const { data: cards } = await supabase.from('public_profiles').select('id, display_name, avatar_url, crew_slug').in('id', missing);
+    const byId = new Map(((cards ?? []) as { id: string }[]).map((c) => [c.id, c]));
+    for (const r of rows) if (!r.creator && r.creator_id) r.creator = byId.get(r.creator_id) ?? null;
+  }
+
+  return NextResponse.json({ bookings: rows });
 }
 
 /**

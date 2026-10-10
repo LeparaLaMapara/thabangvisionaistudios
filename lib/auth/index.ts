@@ -161,7 +161,8 @@ const ADMIN_RATE_LIMITS: Record<AdminRateTier, { maxRequests: number; windowMs: 
  * Returns a 429 NextResponse if rate-limited, or null if allowed.
  *
  * Tiers:
- *  - standard (30/min): CRUD on content (rentals, productions, press, careers)
+ *  - standard (30/min): CRUD on content (rentals, productions, press, careers),
+ *    and recording a delivery's progress (lib/delivery/staff-rate-tier.ts)
  *  - sensitive (5/min): payouts, suspensions, role changes, dispute resolution
  */
 export async function rateLimitAdmin(

@@ -4,6 +4,7 @@ import { useState, useMemo, useId } from 'react';
 import { useRouter } from 'next/navigation';
 import { Calendar, Clock, MapPin, Camera, Package } from 'lucide-react';
 import { quoteHourly, quotePackage } from '@/lib/bookings/pricing';
+import { getHourlyRate } from '@/lib/bookings/rates';
 import { toLocalYmd } from '@/lib/rental/dates';
 import { formatRand, withServiceVat } from '@/lib/format/money';
 import { PaymentsNotOpenNote } from '@/components/booking/PaymentsNotOpenNote';
@@ -44,6 +45,7 @@ const CATEGORIES = [
 interface BookingFormProps {
   creatorId: string | null;
   creatorName: string | null;
+  /** Not used for the price: the server charges the shoot type's rate. */
   creatorRate: number | null;
   creatorSpecializations: string[];
   initialCategory: string;
@@ -61,7 +63,6 @@ interface BookingFormProps {
 export function BookingForm({
   creatorId,
   creatorName,
-  creatorRate,
   creatorSpecializations,
   initialCategory,
   initialHours,
@@ -91,7 +92,10 @@ export function BookingForm({
   const [location, setLocation] = useState(initialLocation);
   const [deliverables, setDeliverables] = useState('');
 
-  const rate = creatorRate ?? defaultRate;
+  // The rate the server charges for the chosen shoot type (lib/bookings/rates),
+  // so the quote here is the price on the next page and the price paid. No
+  // price until a type is chosen: a quote of R0 is never shown.
+  const rate = category ? getHourlyRate(category) : defaultRate > 0 ? defaultRate : 0;
   // A package priced per project/session/event needs no hours and no shoot type.
   const fixedPackage = !!pkg && pkg.unit !== 'hour';
 
@@ -100,7 +104,7 @@ export function BookingForm({
       if (!fixedPackage && (!hours || hours < minHours)) return null;
       return quotePackage(pkg.price, pkg.unit, hours);
     }
-    if (!hours || hours < minHours) return null;
+    if (!rate || !hours || hours < minHours) return null;
     return quoteHourly(rate, hours);
   }, [pkg, fixedPackage, rate, hours, minHours]);
 
@@ -285,7 +289,7 @@ export function BookingForm({
             disabled={!canSubmit}
             className="w-full py-4 text-lg font-bold bg-[#D4A843] text-black transition-colors hover:bg-[#c49a3a] disabled:cursor-not-allowed disabled:opacity-40"
           >
-            {quote ? `Continue, ${formatRand(quote.total)}` : 'Continue to Quote'}
+            {quote ? `Continue, ${formatRand(quote.total)}` : !pkg && !category ? 'Choose the type of shoot to see the price' : 'Continue to Quote'}
           </button>
         </form>
       </div>

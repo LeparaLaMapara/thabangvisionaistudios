@@ -15,7 +15,7 @@ export async function GET() {
 
   const { data, error } = await supabase
     .from('equipment_bookings')
-    .select('*')
+    .select('*, smart_rentals(title)')
     .eq('user_id', user.id)
     .order('start_date', { ascending: false });
 
@@ -24,7 +24,14 @@ export async function GET() {
     return NextResponse.json({ error: 'Failed to fetch bookings.' }, { status: 500 });
   }
 
-  return NextResponse.json(data);
+  // The list names each booking by what was rented, as the booking page does.
+  type Row = Record<string, unknown> & { smart_rentals?: { title?: string | null } | { title?: string | null }[] | null };
+  return NextResponse.json(
+    ((data ?? []) as Row[]).map(({ smart_rentals: rental, ...row }) => ({
+      ...row,
+      rental_title: (Array.isArray(rental) ? rental[0]?.title : rental?.title) ?? null,
+    })),
+  );
 }
 
 /**

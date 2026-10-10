@@ -11,6 +11,11 @@ const message = (text: string, extra: Record<string, unknown> = {}) => ({
   ...extra,
 });
 
+// The daily ceiling per network address (STUDIO.ai.guestNetworkDailyMessages):
+// every run of these journeys comes from 127.0.0.1, so several runs in one
+// day pass it. A person on their own address would not.
+test.beforeAll(() => clearRateLimit('ai-guest-day:'));
+
 test('the chat fails gracefully: a plain message, no stack trace', async ({ page }) => {
   await page.goto('/ubunye-ai-studio');
   const box = page.getByRole('textbox').first();
@@ -18,6 +23,9 @@ test('the chat fails gracefully: a plain message, no stack trace', async ({ page
   await box.press('Enter');
   await expect(page.getByText(/couldn.t get a reply through|ubunye is unavailable right now/i).first()).toBeVisible({ timeout: 60_000 });
   await expect(page.getByRole('button', { name: /retry/i })).toBeVisible();
+  // A reply that never came does not use up one of the guest's free messages.
+  await expect(page.getByText(/5 free messages left/i)).toBeVisible();
+  expect(await page.evaluate(() => sessionStorage.getItem('ubunye_msg_count'))).toBeNull();
   await expectNoStackTrace(page);
 });
 

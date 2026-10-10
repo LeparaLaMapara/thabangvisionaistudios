@@ -3,6 +3,7 @@ import { email as emailProvider } from '@/lib/email';
 import { sms } from '@/lib/sms';
 import { STUDIO } from '@/lib/constants';
 import { formatRand } from '@/lib/format/money';
+import { collectionPointWithCity } from '@/lib/rental/collection-point';
 import type { NotifyPort } from '@/lib/core/ports';
 import type { OutboxMessage, RentalNoticeKind } from '@/lib/core/rental/notifications';
 import { isMissingPipeline } from './repos';
@@ -25,10 +26,20 @@ export function rentalNoticeText(kind: RentalNoticeKind, data: OutboxMessage['da
   switch (kind) {
     case 'payment_received':
       return { title: 'Payment received', body: `We received your payment of ${amount}. Your booking is confirmed.` };
+    // Collection details are in the message itself: the checkout page tells the
+    // renter "you get a message with the collection details".
     case 'booking_confirmed':
-      return { title: 'Booking confirmed', body: `Your gear hire is confirmed. Bring your ID when you collect; we check it at handover.` };
+      return data.delivery === true
+        ? { title: 'Booking confirmed', body: `Your gear hire is confirmed. Delivery updates are on your booking. Have the ID you verified with ready when the gear arrives.` }
+        : {
+            title: 'Booking confirmed',
+            body: `Your gear hire is confirmed. Collect it on your start date at ${collectionPointWithCity()} (${STUDIO.hours.weekday}, ${STUDIO.hours.weekend}). Bring the ID you verified with; we check it and the gear with you at handover.`,
+          };
     case 'collection_reminder':
-      return { title: 'Collection today', body: `Your gear is ready for collection today. Please bring the ID you verified with.` };
+      return {
+        title: 'Collection today',
+        body: `Your gear is ready for collection today at ${collectionPointWithCity()} (${STUDIO.hours.weekday}, ${STUDIO.hours.weekend}). Please bring the ID you verified with.`,
+      };
     case 'handover_completed':
       return { title: 'Gear handed over', body: `Your hire has started. The condition photos and agreement are saved on your booking.` };
     case 'return_reminder':
@@ -114,10 +125,34 @@ function linkFor(m: OutboxMessage): string {
   return m.bookingIds[0] ? `/dashboard/bookings/${m.bookingIds[0]}` : '/dashboard/bookings';
 }
 
+/**
+ * Facts a notice's words depend on that are read when it is sent. "Booking
+ * confirmed" says collection or delivery from the booking's fulfilment_method,
+ * the same field the collection reminder uses (lib/rental/workers.ts), never
+ * from whether a delivery fee was charged.
+ */
+export async function noticeData(
+  db: Pick<ReturnType<typeof createAdminClient>, 'from'>,
+  m: Pick<OutboxMessage, 'kind' | 'bookingIds' | 'data'>,
+): Promise<OutboxMessage['data']> {
+  if (m.kind !== 'booking_confirmed' || m.bookingIds.length === 0) return m.data;
+  const { data, error } = await db.from('equipment_bookings').select('fulfilment_method').in('id', m.bookingIds);
+  // Never guess "collection" on a failed read: the delivery is retried instead.
+  if (error) throw new Error(`fulfilment lookup failed: ${error.message}`);
+  const delivery = ((data ?? []) as { fulfilment_method?: string | null }[]).some((b) => b.fulfilment_method === 'delivery');
+  return { ...m.data, delivery };
+}
+
 export const supabaseNotify: NotifyPort = {
   async deliver(m) {
     const db = createAdminClient();
-    const { title, body } = rentalNoticeText(m.kind, m.data);
+    let facts: OutboxMessage['data'];
+    try {
+      facts = await noticeData(db, m);
+    } catch (err) {
+      return { ok: false, retryable: true, message: err instanceof Error ? err.message : 'notice data unavailable' };
+    }
+    const { title, body } = rentalNoticeText(m.kind, facts);
     const link = linkFor(m);
 
     if (m.channel === 'in_app') {
