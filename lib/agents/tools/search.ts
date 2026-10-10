@@ -1,6 +1,6 @@
 import { sanitiseForPrompt } from '@/lib/ubunye/sanitise';
 import { jsonSchema } from 'ai';
-import { escapeIlike } from '@/lib/search/types';
+import { escapeIlike, filterIlikePattern } from '@/lib/search/types';
 import { getBusyCreatorIds } from '@/lib/supabase/queries/crew';
 
 // ─── Search Tools for Assistant Agent ─────────────────────────────────────────
@@ -88,7 +88,8 @@ export function createSearchTools(
 
         if (category) query = query.eq('category', category);
         if (max_price_per_day) query = query.lte('price_per_day', max_price_per_day);
-        if (search_term) query = query.or(`title.ilike.%${escapeIlike(search_term)}%,brand.ilike.%${escapeIlike(search_term)}%,model.ilike.%${escapeIlike(search_term)}%`);
+        const gearPattern = filterIlikePattern(search_term);
+        if (gearPattern) query = query.or(`title.ilike.${gearPattern},brand.ilike.${gearPattern},model.ilike.${gearPattern}`);
         if (location) query = query.ilike('location', `%${escapeIlike(location)}%`);
 
         const { data, error } = await query;
@@ -127,7 +128,8 @@ export function createSearchTools(
           .limit(10);
 
         if (project_type) query = query.ilike('project_type', `%${escapeIlike(project_type)}%`);
-        if (search_term) query = query.or(`title.ilike.%${escapeIlike(search_term)}%,client.ilike.%${escapeIlike(search_term)}%,description.ilike.%${escapeIlike(search_term)}%`);
+        const workPattern = filterIlikePattern(search_term);
+        if (workPattern) query = query.or(`title.ilike.${workPattern},client.ilike.${workPattern},description.ilike.${workPattern}`);
 
         const { data, error } = await query;
         if (error) return { error: 'Search is unavailable just now.' };
@@ -161,7 +163,8 @@ export function createSearchTools(
           .order('published_at', { ascending: false })
           .limit(10);
 
-        if (search_term) query = query.or(`title.ilike.%${escapeIlike(search_term)}%,excerpt.ilike.%${escapeIlike(search_term)}%`);
+        const pressPattern = filterIlikePattern(search_term);
+        if (pressPattern) query = query.or(`title.ilike.${pressPattern},excerpt.ilike.${pressPattern}`);
 
         const { data, error } = await query;
         if (error) return { error: 'Search is unavailable just now.' };

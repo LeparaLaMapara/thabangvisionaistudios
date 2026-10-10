@@ -5,7 +5,7 @@ import type { Metadata } from 'next';
 import { getProductionBySlug } from '@/lib/supabase/queries/smartProductions';
 import { createClient } from '@/lib/supabase/server';
 import { STUDIO } from '@/lib/constants';
-import { escapeIlike } from '@/lib/search/types';
+import { filterIlikePattern } from '@/lib/search/types';
 import { isRagEnabled, searchSimilar } from '@/lib/rag';
 import ProductionDetailView from './ProductionDetailView';
 import type { MatchedGear } from './ProductionDetailView';
@@ -98,11 +98,12 @@ async function matchGearFromMetadata(
   // Strategy 2: Fuzzy match against title, brand, model
   const orClauses: string[] = [];
   for (const g of gearStrings) {
-    const escaped = escapeIlike(g);
+    const pattern = filterIlikePattern(g);
+    if (!pattern) continue;
     orClauses.push(
-      `title.ilike.%${escaped}%`,
-      `brand.ilike.%${escaped}%`,
-      `model.ilike.%${escaped}%`,
+      `title.ilike.${pattern}`,
+      `brand.ilike.${pattern}`,
+      `model.ilike.${pattern}`,
     );
   }
 

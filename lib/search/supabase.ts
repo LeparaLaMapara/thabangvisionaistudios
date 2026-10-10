@@ -5,7 +5,7 @@ import type {
   SearchResponse,
   SearchOptions,
 } from './types';
-import { escapeIlike } from './types';
+import { filterIlikePattern } from './types';
 
 // ─── Supabase Search Provider ───────────────────────────────────────────────
 
@@ -26,7 +26,9 @@ export const supabaseSearch: SearchProvider = {
 
   async search(query: string, options?: SearchOptions): Promise<SearchResponse> {
     const limit = options?.limitPerCategory ?? 8;
-    const pattern = `%${escapeIlike(query)}%`;
+    // Safe inside the or=() strings below (security INJ-7).
+    const pattern = filterIlikePattern(query);
+    if (!pattern) return { results: [], counts: {} };
 
     const supabase = await createClient();
 
