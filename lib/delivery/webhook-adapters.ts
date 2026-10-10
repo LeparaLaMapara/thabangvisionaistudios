@@ -11,6 +11,7 @@
 import { registerDeliveryWebhookParser } from './webhooks';
 import { uberDirectWebhookParser } from './uber-direct';
 import { wumdropWebhookParser } from './wumdrop';
+import { bobgoWebhookParser } from './bobgo';
 
 type Env = Record<string, string | undefined>;
 
@@ -33,3 +34,8 @@ registerDeliveryWebhookParser('wumdrop', (env: Env) => {
   void env;
   return null;
 });
+
+// Bob Go: the signing scheme is unknown (lib/delivery/bobgo/api-contract.ts),
+// so its webhooks are never accepted (503, nothing stored), whatever is set;
+// orders are followed by reading them instead.
+registerDeliveryWebhookParser('bobgo', (env: Env) => bobgoWebhookParser(env));
