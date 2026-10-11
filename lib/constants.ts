@@ -1327,6 +1327,8 @@ export interface UbunyeStudioApp {
   image: { src: string; alt: string } | null;
   capabilities: readonly string[];
   repoUrl: string;
+  /** The browser version (served from R2 by the ubunye-creative-web Worker). */
+  webUrl: string;
   upstream: { name: string; credit: string; url: string };
 }
 
@@ -1359,7 +1361,7 @@ export const UBUNYE_STUDIO = {
     { id: 'browser', label: 'Browser', note: 'preview' },
   ] as readonly UbunyePlatform[],
   downloads: {
-    /** Future release manifest (downloads.thabangvision.com). Unused until the first release. */
+    /** Future release manifest on downloads.thabangvision.com. Null until the first desktop release. */
     manifestUrl: null as string | null,
   },
   apps: [
@@ -1378,6 +1380,7 @@ export const UBUNYE_STUDIO = {
         'A photo library to import, sort and find your shots',
       ],
       repoUrl: 'https://github.com/ubunye-ai-ecosystems/ubunye-creative-light',
+      webUrl: 'https://light.tools.thabangvision.com',
       upstream: {
         name: 'LightCraft',
         credit: 'Based on LightCraft by the ArtCraft team',
@@ -1400,6 +1403,7 @@ export const UBUNYE_STUDIO = {
         'PSD file support',
       ],
       repoUrl: 'https://github.com/ubunye-ai-ecosystems/ubunye-creative-photo',
+      webUrl: 'https://photo.tools.thabangvision.com',
       upstream: {
         name: 'PhotoCraft',
         credit: 'Based on PhotoCraft by the ArtCraft team',
@@ -1423,6 +1427,7 @@ export const UBUNYE_STUDIO = {
         'Export to common video formats',
       ],
       repoUrl: 'https://github.com/ubunye-ai-ecosystems/ubunye-creative-film',
+      webUrl: 'https://film.tools.thabangvision.com',
       upstream: {
         name: 'FilmCraft',
         credit: 'Based on FilmCraft by the ArtCraft team',

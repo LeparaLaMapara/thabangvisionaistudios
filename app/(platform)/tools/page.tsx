@@ -15,7 +15,7 @@ export const metadata = buildPageMetadata({
     .join(', ')}. ${UBUNYE_STUDIO.statusLabels[UBUNYE_STUDIO.status]} for ${UBUNYE_STUDIO.platforms
     .filter((p) => p.note === null)
     .map((p) => p.label)
-    .join(', ')}.`,
+    .join(', ')}; try each one in your browser now.`,
   path: '/tools',
 });
 
@@ -63,7 +63,7 @@ export default function ToolsPage() {
               <UbunyeAppCard
                 app={app}
                 suiteShortName={UBUNYE_STUDIO.shortName}
-                statusLabel={`${UBUNYE_STUDIO.version} · ${UBUNYE_STUDIO.statusLabels[UBUNYE_STUDIO.status]}`}
+                statusLabel={`${UBUNYE_STUDIO.version} · Try in browser`}
                 index={i}
               />
             </li>

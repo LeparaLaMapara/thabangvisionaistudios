@@ -88,6 +88,18 @@ export default async function ToolPage({ params }: ToolPageProps) {
               <span className="h-2 w-2 rounded-full" style={{ backgroundColor: app.accent }} aria-hidden="true" />
               {UBUNYE_STUDIO.version} · {statusLabel} · Free and open source
             </p>
+            <div className="mt-6">
+              <a
+                href={app.webUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex min-h-[44px] items-center gap-2 rounded-full px-6 font-sans text-xs font-semibold uppercase tracking-[0.2em] text-[var(--ub-bg)] transition-opacity hover:opacity-90"
+                style={{ backgroundColor: app.accent }}
+              >
+                Open in browser
+                <ArrowUpRight className="h-4 w-4" aria-hidden="true" />
+              </a>
+            </div>
           </div>
         </header>
 
@@ -109,7 +121,7 @@ export default async function ToolPage({ params }: ToolPageProps) {
           <section className="rounded-[22px] border border-white/10 bg-[var(--ub-bg-2)] p-6 sm:p-8">
             <h2 className={`${UB_LABEL} text-[var(--ub-text-2)]`}>Download</h2>
             <p className="mt-3 font-sans text-sm text-[var(--ub-text-2)]">
-              No release has been published yet. Downloads will appear here when the first version is out.
+              The browser version is live. Desktop downloads will appear here when the first release is out.
             </p>
             <table className="mt-6 w-full font-sans text-sm">
               <caption className="sr-only">{`${app.name} downloads by platform`}</caption>
@@ -127,6 +139,18 @@ export default async function ToolPage({ params }: ToolPageProps) {
                       {p.note && <span className="ml-2 text-xs text-[var(--ub-text-2)]">({p.note})</span>}
                     </th>
                     <td className="py-3 text-right">
+                      {p.id === 'browser' ? (
+                        <a
+                          href={app.webUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex min-h-[44px] min-w-[132px] items-center justify-center gap-1.5 rounded-full border px-5 text-xs uppercase tracking-[0.2em] text-[var(--ub-text)] transition-colors hover:bg-white/5"
+                          style={{ borderColor: app.accent }}
+                        >
+                          Open
+                          <ArrowUpRight className="h-4 w-4" aria-hidden="true" />
+                        </a>
+                      ) : (
                       <button
                         type="button"
                         disabled
@@ -134,6 +158,7 @@ export default async function ToolPage({ params }: ToolPageProps) {
                       >
                         {statusLabel}
                       </button>
+                      )}
                     </td>
                   </tr>
                 ))}

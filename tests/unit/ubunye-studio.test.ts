@@ -18,6 +18,12 @@ describe('UBUNYE_STUDIO', () => {
     expect(UBUNYE_STUDIO.downloads.manifestUrl).toBeNull();
   });
 
+  it('every app has a browser version on its own tools.thabangvision.com host', () => {
+    for (const app of UBUNYE_STUDIO.apps) {
+      expect(app.webUrl).toBe(`https://${app.slug}.tools.thabangvision.com`);
+    }
+  });
+
   it('every app has an icon, source repo, upstream credit and no card photo yet', () => {
     for (const app of UBUNYE_STUDIO.apps) {
       expect(app.icon).toMatch(/^\/ubunye\/.+\.svg$/);
