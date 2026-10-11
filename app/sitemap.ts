@@ -1,5 +1,5 @@
 import type { MetadataRoute } from 'next';
-import { STUDIO, RENTAL_CATEGORIES, PRODUCTION_CATEGORIES } from '@/lib/constants';
+import { STUDIO, RENTAL_CATEGORIES, PRODUCTION_CATEGORIES, UBUNYE_STUDIO } from '@/lib/constants';
 import { createAdminClient } from '@/lib/supabase/server';
 import { getListedCitySlugs } from '@/lib/seo/cities';
 
@@ -28,6 +28,13 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: `${baseUrl}/refunds`, changeFrequency: 'yearly', priority: 0.2 },
     { url: `${baseUrl}/paia`, changeFrequency: 'yearly', priority: 0.2 },
     { url: `${baseUrl}/unsubscribe`, changeFrequency: 'yearly', priority: 0.1 },
+    // Ubunye Creative Studio: the catalogue and one page per app (constant data).
+    { url: `${baseUrl}/tools`, changeFrequency: 'monthly', priority: 0.6 },
+    ...UBUNYE_STUDIO.apps.map((a) => ({
+      url: `${baseUrl}/tools/${a.slug}`,
+      changeFrequency: 'monthly' as const,
+      priority: 0.5,
+    })),
   ];
 
   // ── Dynamic: Smart Rentals ────────────────────────────────────────────────

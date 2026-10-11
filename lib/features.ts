@@ -12,6 +12,9 @@ export const FEATURE_KEYS = [
   // on still needs verified cover and a non-zero
   // DELIVERY_POLICY.automatedDeliveryMaxItemValueCents (lib/core/delivery/policy.ts).
   'delivery_courier',
+  // Ubunye Creative Studio (/tools): shows "Tools" in the main nav. The page is
+  // reachable by URL either way; the flag only controls the nav entry.
+  'creative_tools',
 ] as const;
 
 export type FeatureKey = typeof FEATURE_KEYS[number];
@@ -21,6 +24,7 @@ const FLAG_DEFAULTS: Partial<Record<FeatureKey, boolean>> = {
   ai_rate_suggestions: true,
   ai_portfolio_tagging: true,
   delivery_courier: false,
+  creative_tools: false,
 };
 
 export interface FeatureFlag {
