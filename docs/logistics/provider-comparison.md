@@ -27,7 +27,7 @@ ThabangVision's own goods-in-transit / all-risks policy must be the primary cove
 |---|---|---|---|---|---|---|---|---|---|
 | **Uber Direct** | Yes, developer.uber.com; test mode and sandbox; self-serve "select regions" (SA: NV) | Johannesburg, Emfuleni (suburbs NV) | 15 min | Same-day, express under 2 h, up to 30 days ahead | Yes, HMAC-SHA256 | PIN (dropoff), signature, photo, ID, barcode. PIN, signature and ID can't be combined with leave-at-door | Return deliveries (`ret_`) | `idempotency_key`, `external_id` in an official example; behaviour NV | **None** (Uber states no insurance); SA Direct value cap NV |
 | **WumDrop** | Yes, wumdrop.readme.io; sandbox key on registration (docs dated) | Johannesburg, Pretoria | NV | Priority (on-demand), Standard (same day) | Status and GPS via third parties; signing NV | Image, signature, or ID plus signature POD; PIN NV; leave-at-door NV | NV | **Yes**: unique `order_reference` (duplicate refused), lookup `/deliveries/ext/:order_reference` | R40,000 default (old source); exclusions apply |
-| **Bob Go** (aggregator: TCG, RAM, Skynet, Fastway, WumDrop, Pargo). **Adapter built, off** (`bobgo.md`) | Yes, developer.bobgo.co.za; sandbox. API reference gated behind Bob Go sales: our contract is unverified | Courier-dependent | NV | Courier-dependent | Subscribe endpoints; signing NV | Proof-of-delivery endpoint; TCG uses OTP or signature | TCG paperless returns | NV | Passes through each courier's cover; second-hand exclusions |
+| **Bob Go** (aggregator: TCG, RAM, Skynet, Fastway, WumDrop, Pargo). **Adapter built, off** (`bobgo.md`) | Yes, developer.bobgo.co.za; sandbox. API reference public as a Postman collection (api-docs.bob.co.za); our contract is checked against the sandbox | Courier-dependent | NV | Courier-dependent | Subscribe endpoints; signing NV | Proof-of-delivery endpoint; TCG uses OTP or signature | TCG paperless returns | NV | Passes through each courier's cover; second-hand exclusions |
 | **The Courier Guy / Ship Logic** | Ship Logic API | National; same-day express 90 min local | Rates can expire | Same-day tiers | Advertised; signing NV | OTP PIN or signature | NV | NV | R30,000 cap; **excludes second-hand goods and used electricals** |
 | **RAM Hand-to-Hand** | No public API (third parties or Bob Go) | Gauteng main centres | NV | Same-day, scheduled | Third parties only | **Face-to-face to the named consignee with ID**, e-POD | NV | NV | **Second-hand goods excluded**; lithium batteries need written consent |
 | **Droppa** | Developer portal, approval needed | Gauteng | NV | Immediate, scheduled | NV | NV | NV | NV | NV (30% cancellation fee) |
@@ -66,7 +66,7 @@ Adapter status (2026-10-10):
 |---|---|---|---|---|
 | Uber Direct | Built, mocked HTTP only | No | Verified features only; `idempotentCreate` false | `uber-direct.md` |
 | WumDrop | Built, mocked HTTP only | No | Verified features only; `pickupConfirmation`, `noLeaveAtDoor` false | `wumdrop.md` |
-| Bob Go | Built against an **unverified** contract, mocked HTTP only | No | **Nothing** (every capability false); quotes refused until approved service levels are set; webhooks closed | `bobgo.md` |
+| Bob Go | Contract checked against Bob Go's reference and **sandbox** (quote, create, lookup, cancel); a second create books a second shipment | Sandbox only | **Nothing** (every capability false); quotes refused until approved service levels are set; webhooks closed | `bobgo.md` |
 
 **Do not use:**
 - Pargo, because handover at a counter breaks custody.

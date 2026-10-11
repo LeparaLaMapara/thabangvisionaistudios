@@ -1,11 +1,12 @@
 /**
  * Bob Go adapter (courier aggregator), against a mocked fetch only: no
- * network, no real keys, and NO claim that the mocked responses match Bob Go
- * (the contract in lib/delivery/bobgo/api-contract.ts is unverified). Covers
- * quote (approved service levels only, rands → cents), create under our
- * merchant reference (a refusal is checked by lookup; a repeat books no second
- * order), find-by-reference (never "none"), cancel, status mapping (unknown
- * words stay 'unknown'), error classification and the not-configured path.
+ * network, no real keys. The mocked answers copy the shapes the Bob Go
+ * sandbox returned on 2026-10-11 (lib/delivery/bobgo/api-contract.ts).
+ * Covers quote (approved courier + service level only, rands → cents),
+ * create under our reference (a refusal is checked by lookup; Bob Go books
+ * duplicates, so the adapter never retries), find-by-reference (never
+ * "none"), read, cancel, status mapping (unknown words stay 'unknown'),
+ * error classification and the not-configured path.
  */
 import { describe, expect, it } from 'vitest';
 import { NO_DELIVERY_CAPABILITIES } from '@/lib/core/delivery/capabilities';
@@ -18,15 +19,17 @@ import {
   bobgoConfigFromEnv,
   bobgoDelivery,
   bobgoRandsToCents,
+  bobgoServiceLevelKey,
   createBobgoAdapter,
   mapBobgoStatus,
+  parseBobgoServiceLevelKey,
   type BobgoConfig,
 } from '@/lib/delivery/bobgo';
 
 const NOW = new Date('2026-10-10T08:00:00.000Z');
 const WINDOW = { start: '2026-10-20T07:00:00.000Z', end: '2026-10-20T12:00:00.000Z' };
 const SB = 'https://api.sandbox.bobgo.co.za';
-const LEVEL = 'TEST_HAND_TO_HAND';
+const LEVEL = 'testcourier:H2H';
 
 interface Call {
   method: string;
@@ -65,11 +68,11 @@ function adapter(routes: Record<string, Handler>, over: Partial<BobgoConfig> = {
   const port = createBobgoAdapter({
     mode: 'sandbox',
     apiKey: 'bg-key',
-    approvedServiceLevelCodes: [LEVEL],
+    approvedServiceLevels: [LEVEL],
     fetchImpl: f.fetch,
     now: () => NOW,
     breaker: new CircuitBreaker('bg-test', { failureThreshold: 100, cooldownMs: 1_000 }),
-    timeoutsMs: { read: 30, create: 30, cancel: 30 },
+    timeoutsMs: { read: 30, quote: 30, create: 30, cancel: 30 },
     ...over,
   });
   return { port, calls: f.calls };
@@ -97,10 +100,33 @@ function createReq(over: Partial<CreateDeliveryRequest> = {}): CreateDeliveryReq
     ...over,
   };
 }
-const order = (over: Record<string, unknown> = {}) => ({ id: 'bg_77', channel_order_number: REF, status: 'submitted', time_created: '2026-10-10T08:00:00Z', ...over });
-const RATES = 'POST /v2/rates-at-checkout';
-const ORDERS = 'POST /v2/orders';
-const LOOKUP = 'GET /v2/orders';
+/** A shipment as the sandbox returns it (trimmed). */
+const shipment = (over: Record<string, unknown> = {}) => ({
+  id: 18978,
+  tracking_reference: 'UASS93F8',
+  custom_tracking_reference: REF,
+  status: 'pending-collection',
+  submission_status: 'success',
+  provider_slug: 'testcourier',
+  service_level_code: 'H2H',
+  rate: 114.95,
+  time_created: '2026-10-10T08:00:00Z',
+  time_modified: '2026-10-10T08:00:01Z',
+  ...over,
+});
+/** A rates answer as the sandbox returns it (trimmed). */
+const ratesBody = (providers: { slug: string; status?: string; rates: [string, unknown, string?][] }[]) => ({
+  id: 525942,
+  provider_rate_requests: providers.map((p) => ({
+    provider_slug: p.slug,
+    status: p.status ?? 'success',
+    responses: p.rates.map(([code, amount, status]) => ({ service_level_code: code, rate_amount: amount, rate_amount_excl_vat: 0, status: status ?? 'success' })),
+  })),
+});
+const RATES = 'POST /v2/rates';
+const CREATE = 'POST /v2/shipments';
+const LIST = 'GET /v2/shipments';
+const CANCEL = 'POST /v2/shipments/cancel';
 
 describe('Bob Go: configuration, contract and capabilities', () => {
   it('reads the key per mode, never the other mode', () => {
@@ -111,20 +137,26 @@ describe('Bob Go: configuration, contract and capabilities', () => {
     expect(bobgoConfigFromEnv({ BOBGO_API_KEY: '  ' }, 'production').apiKey).toBeNull();
   });
 
-  it('claims NO capability: nothing about Bob Go is verified', () => {
+  it('claims NO capability: nothing is confirmed in writing, and creates are proven not idempotent', () => {
     expect(BOBGO_CAPABILITIES).toEqual(NO_DELIVERY_CAPABILITIES);
   });
 
-  it('the contract is unverified by default: no approved service level, no lithium, no webhook signing', () => {
-    expect(BOBGO_CONTRACT.approvedServiceLevelCodes).toEqual([]);
+  it('ships closed: no approved service level, no lithium, no webhook signing', () => {
+    expect(BOBGO_CONTRACT.approvedServiceLevels).toEqual([]);
     expect(BOBGO_CONTRACT.lithiumAccepted).toBe(false);
     expect(BOBGO_CONTRACT.webhookSigning).toBeNull();
     expect(BOBGO_CONTRACT.baseUrl.production).toBe('https://api.bobgo.co.za/v2');
-    // Every item is tagged with where it came from; only paths seen in the plugin are not "assumed".
-    expect(BOBGO_CONTRACT_SOURCES['baseUrl.sandbox']).toBe('assumed');
-    expect(BOBGO_CONTRACT_SOURCES['paths.findByReference']).toBe('assumed');
-    expect(BOBGO_CONTRACT_SOURCES['auth.header']).toBe('assumed');
-    expect(new Set(Object.values(BOBGO_CONTRACT_SOURCES))).toEqual(new Set(['plugin', 'assumed', 'research']));
+    expect(BOBGO_CONTRACT.baseUrl.sandbox).toBe('https://api.sandbox.bobgo.co.za/v2');
+    // Every item is tagged with where it came from; business decisions stay "assumed".
+    expect(BOBGO_CONTRACT_SOURCES['paths.createShipment']).toBe('sandbox');
+    expect(BOBGO_CONTRACT_SOURCES.approvedServiceLevels).toBe('assumed');
+    expect(BOBGO_CONTRACT_SOURCES['baseUrl.production']).toBe('docs');
+  });
+
+  it('service level keys are provider:code', () => {
+    expect(bobgoServiceLevelKey('thecourierguy', 'ECO')).toBe('thecourierguy:ECO');
+    expect(parseBobgoServiceLevelKey('thecourierguy:ECO')).toEqual({ providerSlug: 'thecourierguy', serviceLevelCode: 'ECO' });
+    for (const bad of ['ECO', ':ECO', 'tcg:', 'a:b:c', 'a b:c', '', null, undefined]) expect(parseBobgoServiceLevelKey(bad)).toBeNull();
   });
 
   it('without a key, refuses every call and sends nothing', async () => {
@@ -134,9 +166,9 @@ describe('Bob Go: configuration, contract and capabilities', () => {
     expect(await port.quote(quoteReq)).toMatchObject(notConfigured);
     expect(await port.createDelivery(createReq())).toMatchObject(notConfigured);
     expect(await port.findByMerchantReference(REF)).toMatchObject(notConfigured);
-    expect(await port.getDelivery('bg_77')).toMatchObject(notConfigured);
-    expect(await port.cancelDelivery('bg_77', 'x')).toMatchObject(notConfigured);
-    expect(await port.getTracking('bg_77')).toMatchObject(notConfigured);
+    expect(await port.getDelivery('UASS93F8')).toMatchObject(notConfigured);
+    expect(await port.cancelDelivery('UASS93F8', 'x')).toMatchObject(notConfigured);
+    expect(await port.getTracking('UASS93F8')).toMatchObject(notConfigured);
     expect(calls).toHaveLength(0);
   });
 
@@ -148,14 +180,14 @@ describe('Bob Go: configuration, contract and capabilities', () => {
 
 describe('Bob Go: serviceability and quote', () => {
   it('with the shipped (empty) approved list, nothing is quoted and nothing is sent', async () => {
-    const { port, calls } = adapter({ [RATES]: () => json(200, { rates: [{ service_level_code: 'ANY', total_price: 50 }] }) }, { approvedServiceLevelCodes: undefined });
+    const { port, calls } = adapter({ [RATES]: () => json(200, ratesBody([{ slug: 'any', rates: [['ECO', 50]] }])) }, { approvedServiceLevels: undefined });
     expect(await port.checkServiceability(quoteReq)).toEqual({ ok: true, value: { serviceable: false, reason: 'no_approved_service_level' } });
     expect(await port.quote(quoteReq)).toMatchObject({ ok: false, kind: 'rejected', message: expect.stringContaining('no_approved_service_level') });
     expect(calls).toHaveLength(0);
   });
 
   it('lithium batteries are refused locally until Bob Go confirms them in writing', async () => {
-    const { port, calls } = adapter({ [RATES]: () => json(200, { rates: [] }) });
+    const { port, calls } = adapter({ [RATES]: () => json(200, ratesBody([])) });
     expect(await port.checkServiceability({ ...quoteReq, items: LITHIUM })).toEqual({ ok: true, value: { serviceable: false, reason: 'item_refused' } });
     expect(await port.quote({ ...quoteReq, items: LITHIUM })).toMatchObject({ ok: false, kind: 'rejected', message: expect.stringContaining('lithium') });
     expect(await port.createDelivery(createReq({ items: LITHIUM }))).toMatchObject({ ok: false, kind: 'rejected' });
@@ -169,49 +201,64 @@ describe('Bob Go: serviceability and quote', () => {
     expect(await port.quote(bad)).toMatchObject({ ok: false, kind: 'rejected' });
   });
 
-  it('picks the cheapest APPROVED service level (never a cheaper unapproved one) and converts rands to cents', async () => {
-    const { port, calls } = adapter({
-      [RATES]: () =>
-        json(200, {
-          rates: [
-            { service_level_code: 'PICKUP_POINT', total_price: 30 },
-            { service_level_code: LEVEL, total_price: '89.90' },
-            { service_level_code: 'OTHER_APPROVED', total_price: 120 },
-            { service_level_code: LEVEL, total_price: 95, currency: 'USD' },
-          ],
-        }),
-    }, { approvedServiceLevelCodes: [LEVEL, 'OTHER_APPROVED'] });
+  it('picks the cheapest APPROVED courier + service level (never a cheaper unapproved one) and converts rands to cents', async () => {
+    const { port, calls } = adapter(
+      {
+        [RATES]: () =>
+          json(
+            200,
+            ratesBody([
+              { slug: 'pargo', rates: [['H2H', 30]] }, // same code, unapproved courier
+              { slug: 'testcourier', rates: [['ECO', 20], ['H2H', '89.90'], ['H2H_FAIL', 10, 'failed']] },
+              { slug: 'other', rates: [['FAST', 120]] },
+              { slug: 'slow', status: 'pending', rates: [] },
+            ]),
+          ),
+      },
+      { approvedServiceLevels: [LEVEL, 'other:FAST', 'testcourier:H2H_FAIL'] },
+    );
     expect(await port.quote(quoteReq)).toEqual({
       ok: true,
       value: { providerId: 'bobgo', providerQuoteRef: LEVEL, providerCostCents: 8990, expiresAt: '2026-10-10T08:15:00.000Z', window: WINDOW },
     });
-    expect(calls[0].url).toBe(`${SB}/v2/rates-at-checkout`);
+    expect(calls[0].url).toBe(`${SB}/v2/rates`);
     expect(calls[0].headers.Authorization).toBe('Bearer bg-key');
     const body = JSON.parse(calls[0].body ?? '{}');
     expect(body.collection_address).toMatchObject({ local_area: 'Braamfontein', city: 'Johannesburg', zone: 'Gauteng', code: '2001', country: 'ZA', lat: POINT.lat, lng: POINT.lng });
+    // One parcel per unit carried, each with the unit weight; no quantity field.
     expect(body.parcels).toEqual([
-      { description: 'Camera equipment', quantity: 2, submitted_weight_kg: 2 },
-      { description: 'Camera equipment', quantity: 1 },
+      { description: 'Camera equipment', submitted_weight_kg: 2 },
+      { description: 'Camera equipment', submitted_weight_kg: 2 },
+      { description: 'Camera equipment' },
     ]);
+    // Bob Go is told to wait for the couriers, or a slow one answers "pending".
+    expect(body.timeout).toBe(BOBGO_CONTRACT.courierTimeoutMs.rates);
     // No value ever leaves for a rate request.
-    expect(JSON.stringify(body)).not.toMatch(/1500000|800000|15000|8000/);
+    expect(JSON.stringify(body)).not.toMatch(/1500000|800000|15000|8000|declared/);
+  });
+
+  it('a rate of zero, a pending courier and a failed rate are never chosen', async () => {
+    const { port } = adapter({
+      [RATES]: () => json(200, ratesBody([{ slug: 'testcourier', rates: [['H2H', 0]] }, { slug: 'testcourier', status: 'pending', rates: [['H2H', 50]] }])),
+    });
+    expect(await port.quote(quoteReq)).toMatchObject({ ok: false, kind: 'rejected', message: expect.stringContaining('no approved service level') });
   });
 
   it('only unapproved levels on offer → a definite refusal', async () => {
-    const { port } = adapter({ [RATES]: () => json(200, { rates: [{ service_level_code: 'PICKUP_POINT', total_price: 30 }] }) });
+    const { port } = adapter({ [RATES]: () => json(200, ratesBody([{ slug: 'pargo', rates: [['PICKUP', 30]] }])) });
     expect(await port.quote(quoteReq)).toMatchObject({ ok: false, kind: 'rejected', message: expect.stringContaining('no approved service level') });
   });
 
   it('an unreadable rates answer is unknown; errors are classified', async () => {
     expect(await adapter({ [RATES]: () => json(200, { nothing: true }) }).port.quote(quoteReq)).toMatchObject({ ok: false, kind: 'unknown' });
-    expect(await adapter({ [RATES]: () => json(400, { message: 'bad address' }) }).port.quote(quoteReq)).toMatchObject({ ok: false, kind: 'rejected', message: 'HTTP 400: bad address' });
+    expect(await adapter({ [RATES]: () => json(400, { message: 'Field items is required.' }) }).port.quote(quoteReq)).toMatchObject({ ok: false, kind: 'rejected', message: 'HTTP 400: Field items is required.' });
     expect(await adapter({ [RATES]: () => json(503, {}) }).port.quote(quoteReq)).toMatchObject({ ok: false, kind: 'unknown' });
     expect(await adapter({ [RATES]: () => 'hang' }).port.quote(quoteReq)).toMatchObject({ ok: false, kind: 'unknown', message: expect.stringContaining('timed out') });
   });
 
   it('bobgoRandsToCents', () => {
     expect(bobgoRandsToCents(0.1 + 0.2)).toBe(30);
-    expect(bobgoRandsToCents(89.9)).toBe(8990);
+    expect(bobgoRandsToCents(114.95)).toBe(11495);
     expect(bobgoRandsToCents('120.5')).toBe(12050);
     expect(bobgoRandsToCents('12.345')).toBeNull();
     expect(bobgoRandsToCents(-1)).toBeNull();
@@ -220,74 +267,80 @@ describe('Bob Go: serviceability and quote', () => {
   });
 });
 
-describe('Bob Go: create under our merchant reference', () => {
-  it('sends our reference and the approved service level; generic label, no value, no declared value', async () => {
-    const { port, calls } = adapter({ [ORDERS]: () => json(201, order()) });
+describe('Bob Go: create a shipment under our reference', () => {
+  it('sends our reference, the approved courier and service level; generic label, no value, no declared value', async () => {
+    const { port, calls } = adapter({ [CREATE]: () => json(200, shipment()) });
     expect(await port.createDelivery(createReq())).toEqual({
       ok: true,
-      value: { providerReference: 'bg_77', merchantReference: REF, state: 'unknown', stateAt: '2026-10-10T08:00:00.000Z', trackingUrl: null, courierName: null, proof: [] },
+      value: { providerReference: 'UASS93F8', merchantReference: REF, state: 'unknown', stateAt: '2026-10-10T08:00:01.000Z', trackingUrl: null, courierName: null, proof: [] },
     });
-    expect(calls[0].url).toBe(`${SB}/v2/orders`);
+    expect(calls[0].url).toBe(`${SB}/v2/shipments`);
     const body = JSON.parse(calls[0].body ?? '{}');
     expect(body).toMatchObject({
-      channel_order_number: REF,
-      service_level_code: LEVEL,
-      collection_contact: { name: 'Desk', mobile_number: '+27110000000' },
-      delivery_contact: { name: 'Thandi', mobile_number: '+27110000001' },
-      delivery_instructions: 'Gate 2',
+      custom_tracking_reference: REF,
+      provider_slug: 'testcourier',
+      service_level_code: 'H2H',
+      collection_contact_name: 'Desk',
+      collection_contact_mobile_number: '+27110000000',
+      delivery_contact_name: 'Thandi',
+      delivery_contact_mobile_number: '+27110000001',
+      instructions_delivery: 'Gate 2',
+      timeout: BOBGO_CONTRACT.courierTimeoutMs.create,
     });
+    expect(body).not.toHaveProperty('instructions_collection');
     expect(body.delivery_address.street_address).toBe('1 Test Road, Sandton');
+    expect(body.parcels).toHaveLength(3);
     expect(JSON.stringify(body)).not.toMatch(/1500000|800000|2300000|declared/);
   });
 
   it('refuses, without sending, a quote that is not for an approved service level', async () => {
-    const { port, calls } = adapter({ [ORDERS]: () => json(201, order()) });
+    const { port, calls } = adapter({ [CREATE]: () => json(200, shipment()) });
     const q = createReq().quote;
-    expect(await port.createDelivery(createReq({ quote: { ...q, providerQuoteRef: 'PICKUP_POINT' } }))).toMatchObject({ ok: false, kind: 'rejected' });
-    expect(await port.createDelivery(createReq({ quote: { ...q, providerQuoteRef: null } }))).toMatchObject({ ok: false, kind: 'rejected' });
+    for (const ref of ['pargo:H2H', 'H2H', null, 'testcourier:H2H:x']) {
+      expect(await port.createDelivery(createReq({ quote: { ...q, providerQuoteRef: ref } }))).toMatchObject({ ok: false, kind: 'rejected' });
+    }
     expect(calls).toHaveLength(0);
   });
 
-  it('idempotent through our reference: a repeated create returns the SAME order (one courier)', async () => {
-    const byRef = new Map<string, Record<string, unknown>>();
-    const { port, calls } = adapter({
-      [ORDERS]: (c) => {
-        const ref = JSON.parse(c.body ?? '{}').channel_order_number as string;
-        if (byRef.has(ref)) return json(422, { message: 'channel_order_number already exists' });
-        const o = order({ id: `bg_${byRef.size + 1}`, channel_order_number: ref });
-        byRef.set(ref, o);
-        return json(201, o);
-      },
-      [LOOKUP]: (c) => {
-        const ref = new URL(c.url).searchParams.get('channel_order_number') ?? '';
-        return json(200, { orders: byRef.has(ref) ? [byRef.get(ref)] : [] });
-      },
-    });
-    const first = await port.createDelivery(createReq());
-    const again = await port.createDelivery(createReq());
-    expect(first).toMatchObject({ ok: true, value: { providerReference: 'bg_1', merchantReference: REF } });
-    expect(again).toMatchObject({ ok: true, value: { providerReference: 'bg_1', merchantReference: REF } });
-    expect(byRef.size).toBe(1);
-    expect(calls.map((c) => `${c.method} ${new URL(c.url).pathname}${new URL(c.url).search}`)).toEqual([
-      'POST /v2/orders',
-      'POST /v2/orders',
-      `GET /v2/orders?channel_order_number=${REF}`,
-    ]);
+  it('a shipment Bob Go recorded but did not submit to the courier is unknown (staff check)', async () => {
+    for (const submission of ['', 'pending', 'failed', null]) {
+      const { port } = adapter({ [CREATE]: () => json(200, shipment({ status: '', submission_status: submission, rate: 0 })) });
+      expect(await port.createDelivery(createReq())).toMatchObject({ ok: false, kind: 'unknown', message: expect.stringContaining('did not submit') });
+    }
   });
 
-  it('a refusal with no order of ours in the lookup is a definite refusal', async () => {
-    const { port } = adapter({ [ORDERS]: () => json(400, { message: 'address outside service area' }), [LOOKUP]: () => json(200, { orders: [] }) });
+  it('Bob Go books duplicates, so a create is sent once and never retried', async () => {
+    let n = 0;
+    const { port, calls } = adapter({ [CREATE]: () => json(200, shipment({ tracking_reference: `UAS${++n}` })) });
+    expect(await port.createDelivery(createReq())).toMatchObject({ ok: true, value: { providerReference: 'UAS1' } });
+    expect(calls).toHaveLength(1);
+  });
+
+  it('a refusal that turns out to have booked (an earlier attempt) returns that shipment: one courier', async () => {
+    const { port, calls } = adapter({
+      [CREATE]: () => json(400, { message: 'some refusal' }),
+      [LIST]: () => json(200, { shipments: [shipment()], count: 1 }),
+    });
+    expect(await port.createDelivery(createReq())).toMatchObject({ ok: true, value: { providerReference: 'UASS93F8', merchantReference: REF } });
+    expect(calls.map((c) => `${c.method} ${new URL(c.url).pathname}${new URL(c.url).search}`)).toEqual(['POST /v2/shipments', `GET /v2/shipments?tracking_reference=${REF}`]);
+  });
+
+  it('a refusal with no shipment of ours in the lookup is a definite refusal', async () => {
+    const { port } = adapter({ [CREATE]: () => json(400, { message: 'address outside service area' }), [LIST]: () => json(200, { shipments: [], count: 0 }) });
     expect(await port.createDelivery(createReq())).toMatchObject({ ok: false, kind: 'rejected', message: expect.stringContaining('service area') });
   });
 
-  it('a lookup that ignores our filter cannot hand us someone else’s order', async () => {
-    const { port } = adapter({ [ORDERS]: () => json(400, { message: 'bad' }), [LOOKUP]: () => json(200, { orders: [order({ id: 'bg_other', channel_order_number: 'someone_else' })] }) });
+  it('a lookup that ignores our filter cannot hand us someone else’s shipment', async () => {
+    const { port } = adapter({
+      [CREATE]: () => json(400, { message: 'bad' }),
+      [LIST]: () => json(200, { shipments: [shipment({ tracking_reference: 'UASOTHER', custom_tracking_reference: 'someone_else' })], count: 1 }),
+    });
     expect(await port.createDelivery(createReq())).toMatchObject({ ok: false, kind: 'rejected', message: 'HTTP 400: bad' });
   });
 
   it('a refusal whose lookup does not answer is unknown', async () => {
     for (const h of [(): 'hang' => 'hang', () => json(500, {}), () => json(404, {})] as Handler[]) {
-      const { port } = adapter({ [ORDERS]: () => json(400, { message: 'bad' }), [LOOKUP]: h });
+      const { port } = adapter({ [CREATE]: () => json(400, { message: 'bad' }), [LIST]: h });
       expect(await port.createDelivery(createReq())).toMatchObject({ ok: false, kind: 'unknown' });
     }
   });
@@ -299,36 +352,49 @@ describe('Bob Go: create under our merchant reference', () => {
     ['429', () => json(429, {})],
     ['409', () => json(409, { message: 'duplicate' })],
     ['network error', () => Promise.reject(new TypeError('fetch failed'))],
-    ['201 without an id', () => json(201, { ok: true })],
+    ['200 without a tracking reference', () => json(200, { ok: true })],
   ] as const)('%s on create is unknown, with no retry and no lookup', async (_name, handler) => {
-    const { port, calls } = adapter({ [ORDERS]: handler as Handler });
+    const { port, calls } = adapter({ [CREATE]: handler as Handler });
     expect(await port.createDelivery(createReq())).toMatchObject({ ok: false, kind: 'unknown' });
     expect(calls).toHaveLength(1);
   });
 
   it.each([401, 403])('%s on create is a configuration refusal, without a lookup', async (status) => {
-    const { port, calls } = adapter({ [ORDERS]: () => json(status, { message: 'unauthorised' }) });
+    const { port, calls } = adapter({ [CREATE]: () => json(status, { message: 'Authentication failed, please check your API key.' }) });
     expect(await port.createDelivery(createReq())).toMatchObject({ ok: false, kind: 'rejected', message: expect.stringContaining('configuration') });
     expect(calls).toHaveLength(1);
   });
 });
 
 describe('Bob Go: find by our reference never says "none"', () => {
-  it('an order echoing our reference exactly is returned (list or bare)', async () => {
-    for (const body of [{ orders: [order()] }, [order()], order(), { order: order() }]) {
-      const { port, calls } = adapter({ [LOOKUP]: () => json(200, body) });
-      expect(await port.findByMerchantReference(REF)).toMatchObject({ ok: true, value: { providerReference: 'bg_77', merchantReference: REF } });
-      expect(new URL(calls[0].url).searchParams.get('channel_order_number')).toBe(REF);
+  it('a shipment echoing our reference exactly is returned (list or bare array)', async () => {
+    for (const body of [{ shipments: [shipment()], count: 1 }, [shipment()]]) {
+      const { port, calls } = adapter({ [LIST]: () => json(200, body) });
+      expect(await port.findByMerchantReference(REF)).toMatchObject({ ok: true, value: { providerReference: 'UASS93F8', merchantReference: REF } });
+      expect(new URL(calls[0].url).searchParams.get('tracking_reference')).toBe(REF);
     }
   });
 
-  it('empty, 404, someone else’s order, two of ours, errors and timeouts are all unknown', async () => {
+  it('duplicates: the one live shipment is ours; the cancelled ones book nobody', async () => {
+    const { port } = adapter({
+      [LIST]: () => json(200, { shipments: [shipment({ tracking_reference: 'UASOLD', status: 'cancelled' }), shipment({ tracking_reference: 'UASLIVE' })], count: 2 }),
+    });
+    expect(await port.findByMerchantReference(REF)).toMatchObject({ ok: true, value: { providerReference: 'UASLIVE' } });
+  });
+
+  it('two live shipments under our reference, or two cancelled ones, are unknown', async () => {
+    for (const statuses of [['pending-collection', 'collected'], ['cancelled', 'cancelled']]) {
+      const { port } = adapter({ [LIST]: () => json(200, { shipments: statuses.map((s, i) => shipment({ tracking_reference: `UAS${i}`, status: s })), count: 2 }) });
+      expect(await port.findByMerchantReference(REF)).toMatchObject({ ok: false, kind: 'unknown', message: expect.stringContaining('2 shipments') });
+    }
+  });
+
+  it('empty, 404, someone else’s shipment, errors and timeouts are all unknown', async () => {
     const cases: Handler[] = [
-      () => json(200, { orders: [] }),
+      () => json(200, { shipments: [], count: 0 }),
       () => json(200, []),
       () => json(404, { message: 'not found' }),
-      () => json(200, { orders: [order({ channel_order_number: 'other' })] }),
-      () => json(200, { orders: [order(), order({ id: 'bg_78' })] }),
+      () => json(200, { shipments: [shipment({ custom_tracking_reference: 'other' })], count: 1 }),
       () => json(400, {}),
       () => json(401, {}),
       () => json(500, {}),
@@ -336,9 +402,8 @@ describe('Bob Go: find by our reference never says "none"', () => {
       (): 'hang' => 'hang',
     ];
     for (const h of cases) {
-      const { port } = adapter({ [LOOKUP]: h });
-      const r = await port.findByMerchantReference(REF);
-      expect(r).toMatchObject({ ok: false, kind: 'unknown' });
+      const { port } = adapter({ [LIST]: h });
+      expect(await port.findByMerchantReference(REF)).toMatchObject({ ok: false, kind: 'unknown' });
     }
   });
 });
@@ -353,56 +418,61 @@ describe('Bob Go: status mapping', () => {
   });
 
   it('anything else is unknown, which the core never applies (no regression)', () => {
-    for (const s of ['collected', 'submitted', 'ready', 'open', 'pending-collection', 'out-for-delivery', 'returned', 'exception', 'pending', '', '  ', 'DELIVERED-ish', 3, null, undefined, { status: 'delivered' }]) {
+    for (const s of ['collected', 'submitted', 'collection-assigned', 'pending-collection', 'out-for-delivery', 'returned', 'exception', '', '  ', 'DELIVERED-ish', 3, null, undefined, { status: 'delivered' }]) {
       expect(mapBobgoStatus(s)).toBe('unknown');
     }
   });
 
-  it('the shipment status wins; an unknown shipment word falls back to the order status, never invents one', () => {
-    expect(bobgoDelivery(order({ status: 'submitted', shipments: [{ status: 'delivered', tracking_url: 'https://t.example/1' }] }), null)).toMatchObject({ state: 'delivered', trackingUrl: 'https://t.example/1' });
-    expect(bobgoDelivery(order({ status: 'cancelled', shipments: [{ status: 'weird-new-word' }] }), null)).toMatchObject({ state: 'cancelled' });
-    expect(bobgoDelivery(order({ status: 'weird', shipments: [{ status: 'odd' }] }), null)).toMatchObject({ state: 'unknown' });
-    expect(bobgoDelivery({ status: 'delivered' }, REF)).toBeNull();
+  it('reads a shipment; no tracking reference means nothing to read', () => {
+    expect(bobgoDelivery(shipment({ status: 'delivered' }), null)).toMatchObject({ providerReference: 'UASS93F8', merchantReference: REF, state: 'delivered' });
+    expect(bobgoDelivery(shipment({ custom_tracking_reference: undefined }), 'fallback')).toMatchObject({ merchantReference: 'fallback' });
+    expect(bobgoDelivery({ status: 'delivered', custom_tracking_reference: REF }, REF)).toBeNull();
+    expect(bobgoDelivery(null, REF)).toBeNull();
   });
 
-  it('keeps no names, phone numbers or proof images from the order', async () => {
+  it('keeps no names, phone numbers or proof images from the shipment', async () => {
     const { port } = adapter({
-      'GET /v2/orders/bg_77': () => json(200, order({ status: 'delivered', driver: { name: 'Sipho Ndlovu' }, delivery_contact: { mobile_number: '+27110000001' }, pod: { signature: 'https://img/s.png' } })),
+      [LIST]: () => json(200, { shipments: [shipment({ status: 'delivered', delivery_contact_name: 'Sipho Ndlovu', delivery_contact_mobile_number: '+27110000001', pod: { signature: 'https://img/s.png' } })], count: 1 }),
     });
-    const r = await port.getDelivery('bg_77');
+    const r = await port.getDelivery('UASS93F8');
     expect(r).toMatchObject({ ok: true, value: { state: 'delivered', courierName: null, proof: [] } });
     expect(JSON.stringify(r)).not.toMatch(/Sipho|\+27|img\//);
   });
 });
 
-describe('Bob Go: get, cancel, tracking', () => {
-  it('get: 404 is a definite refusal, 5xx unknown', async () => {
-    expect(await adapter({}).port.getDelivery('nope')).toMatchObject({ ok: false, kind: 'rejected' });
-    expect(await adapter({ 'GET /v2/orders/bg_77': () => json(500, {}) }).port.getDelivery('bg_77')).toMatchObject({ ok: false, kind: 'unknown' });
-    expect(await adapter({ 'GET /v2/orders/bg_77': () => json(200, { nothing: 1 }) }).port.getDelivery('bg_77')).toMatchObject({ ok: false, kind: 'unknown' });
+describe('Bob Go: read, cancel, tracking', () => {
+  it('read: Bob Go’s own reference, exact match only; none is a definite refusal, errors unknown', async () => {
+    const ok = adapter({ [LIST]: () => json(200, { shipments: [shipment({ tracking_reference: 'UASX' }), shipment()], count: 2 }) });
+    expect(await ok.port.getDelivery('UASS93F8')).toMatchObject({ ok: true, value: { providerReference: 'UASS93F8' } });
+    expect(new URL(ok.calls[0].url).searchParams.get('tracking_reference')).toBe('UASS93F8');
+    expect(await adapter({ [LIST]: () => json(200, { shipments: [], count: 0 }) }).port.getDelivery('NOPE')).toMatchObject({ ok: false, kind: 'rejected' });
+    expect(await adapter({ [LIST]: () => json(500, {}) }).port.getDelivery('UASS93F8')).toMatchObject({ ok: false, kind: 'unknown' });
+    expect(await adapter({ [LIST]: () => json(200, { shipments: [{ nothing: 1 }], count: 1 }) }).port.getDelivery('UASS93F8')).toMatchObject({ ok: false, kind: 'unknown' });
   });
 
-  it('cancel: PATCH; only a "cancelled" answer counts', async () => {
-    const ok = adapter({ 'PATCH /v2/orders/bg_77': () => json(200, order({ status: 'cancelled' })) });
-    expect(await ok.port.cancelDelivery('bg_77', 'renter cancelled')).toEqual({ ok: true, value: { cancelled: true, feeCents: 0 } });
-    expect(ok.calls[0]).toMatchObject({ method: 'PATCH', url: `${SB}/v2/orders/bg_77` });
-    expect(JSON.parse(ok.calls[0].body ?? '{}')).toEqual({ status: 'cancelled' });
+  it('cancel: POST with the tracking reference; only a "cancelled" answer counts', async () => {
+    const ok = adapter({ [CANCEL]: () => json(200, shipment({ status: 'cancelled', charged_amount: 0 })) });
+    expect(await ok.port.cancelDelivery('UASS93F8', 'renter cancelled')).toEqual({ ok: true, value: { cancelled: true, feeCents: 0 } });
+    expect(ok.calls[0]).toMatchObject({ method: 'POST', url: `${SB}/v2/shipments/cancel` });
+    expect(JSON.parse(ok.calls[0].body ?? '{}')).toEqual({ tracking_reference: 'UASS93F8' });
     // An empty 2xx or another status proves nothing: unknown (staff check, no refund on a guess).
-    expect(await adapter({ 'PATCH /v2/orders/bg_77': () => new Response(null, { status: 204 }) }).port.cancelDelivery('bg_77', 'x')).toMatchObject({ ok: false, kind: 'unknown' });
-    expect(await adapter({ 'PATCH /v2/orders/bg_77': () => json(200, order({ status: 'in-transit' })) }).port.cancelDelivery('bg_77', 'x')).toMatchObject({ ok: false, kind: 'unknown' });
-    expect(await adapter({ 'PATCH /v2/orders/bg_77': () => json(422, { message: 'already collected' }) }).port.cancelDelivery('bg_77', 'x')).toMatchObject({ ok: false, kind: 'rejected' });
-    expect(await adapter({ 'PATCH /v2/orders/bg_77': () => json(500, {}) }).port.cancelDelivery('bg_77', 'x')).toMatchObject({ ok: false, kind: 'unknown' });
-    expect(await adapter({ 'PATCH /v2/orders/bg_77': () => 'hang' }).port.cancelDelivery('bg_77', 'x')).toMatchObject({ ok: false, kind: 'unknown' });
+    expect(await adapter({ [CANCEL]: () => new Response(null, { status: 204 }) }).port.cancelDelivery('UASS93F8', 'x')).toMatchObject({ ok: false, kind: 'unknown' });
+    expect(await adapter({ [CANCEL]: () => json(200, shipment({ status: 'in-transit' })) }).port.cancelDelivery('UASS93F8', 'x')).toMatchObject({ ok: false, kind: 'unknown' });
+    // The sandbox's own refusals: already cancelled, unknown reference.
+    expect(await adapter({ [CANCEL]: () => json(400, { message: 'The shipment cannot be cancelled, as it has not been submitted successfully.' }) }).port.cancelDelivery('UASS93F8', 'x')).toMatchObject({ ok: false, kind: 'rejected' });
+    expect(await adapter({ [CANCEL]: () => json(400, { message: 'Shipment with tracking reference NOPE not found.' }) }).port.cancelDelivery('NOPE', 'x')).toMatchObject({ ok: false, kind: 'rejected' });
+    expect(await adapter({ [CANCEL]: () => json(500, {}) }).port.cancelDelivery('UASS93F8', 'x')).toMatchObject({ ok: false, kind: 'unknown' });
+    expect(await adapter({ [CANCEL]: () => 'hang' }).port.cancelDelivery('UASS93F8', 'x')).toMatchObject({ ok: false, kind: 'unknown' });
   });
 
-  it('tracking never invents an ETA or location', async () => {
-    const { port } = adapter({ 'GET /v2/orders/bg_77': () => json(200, order({ shipments: [{ status: 'in-transit', tracking_url: 'https://t.example/1' }] })) });
-    expect(await port.getTracking('bg_77')).toEqual({ ok: true, value: { state: 'in_transit', etaAt: null, location: null, trackingUrl: 'https://t.example/1' } });
+  it('tracking never invents an ETA, location or link', async () => {
+    const { port } = adapter({ [LIST]: () => json(200, { shipments: [shipment({ status: 'in-transit' })], count: 1 }) });
+    expect(await port.getTracking('UASS93F8')).toEqual({ ok: true, value: { state: 'in_transit', etaAt: null, location: null, trackingUrl: null } });
   });
 
   it('the production host is used in production mode', async () => {
-    const { port, calls } = adapter({ 'GET /v2/orders/bg_77': () => json(200, order()) }, { mode: 'production' });
-    await port.getDelivery('bg_77');
-    expect(calls[0].url).toBe('https://api.bobgo.co.za/v2/orders/bg_77');
+    const { port, calls } = adapter({ [LIST]: () => json(200, { shipments: [shipment()], count: 1 }) }, { mode: 'production' });
+    await port.getDelivery('UASS93F8');
+    expect(calls[0].url).toBe('https://api.bobgo.co.za/v2/shipments?tracking_reference=UASS93F8');
   });
 });
