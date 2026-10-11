@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { UBUNYE_STUDIO, getUbunyeApp, MAIN_NAVIGATION } from '@/lib/constants';
 import { FEATURE_KEYS, type FeatureKey } from '@/lib/features';
+import { UBUNYE_DOWNLOADS_BASE } from '@/lib/ubunye-release';
 import { filterNavSync } from '@/lib/nav';
 
 describe('UBUNYE_STUDIO', () => {
@@ -13,9 +14,9 @@ describe('UBUNYE_STUDIO', () => {
     expect(getUbunyeApp('studio')).toBeUndefined();
   });
 
-  it('publishes no download URL before the first release', () => {
-    expect(UBUNYE_STUDIO.status).toBe('coming-soon');
-    expect(UBUNYE_STUDIO.downloads.manifestUrl).toBeNull();
+  it('takes downloads from the release manifests, not from hard-coded links', () => {
+    expect(UBUNYE_STUDIO.status).toBe('preview');
+    expect(UBUNYE_STUDIO.downloads.base).toBe(UBUNYE_DOWNLOADS_BASE);
   });
 
   it('every app has a browser version on its own tools.thabangvision.com host', () => {

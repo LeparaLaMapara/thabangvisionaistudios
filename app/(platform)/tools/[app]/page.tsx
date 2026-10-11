@@ -3,9 +3,10 @@ export const revalidate = 60;
 import Image from 'next/image';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { ArrowLeft, ArrowUpRight, Check } from 'lucide-react';
+import { ArrowDown, ArrowLeft, ArrowUpRight, Check } from 'lucide-react';
 import { STUDIO, UBUNYE_STUDIO, getUbunyeApp } from '@/lib/constants';
 import { buildPageMetadata } from '@/lib/seo/metadata';
+import { formatSize, getUbunyeRelease, groupDownloads, type UbunyePlatformId } from '@/lib/ubunye-release';
 import { breadcrumbJsonLd, renderJsonLd } from '@/lib/seo/structured-data';
 import { UB_DISPLAY, UB_LABEL, withAlpha } from '@/components/tools/ubunye-styles';
 
@@ -18,9 +19,13 @@ export async function generateMetadata({ params }: ToolPageProps) {
   const app = getUbunyeApp(slug);
   if (!app) return { title: UBUNYE_STUDIO.suiteName };
 
+  const release = await getUbunyeRelease(app.slug);
+  const availability = release
+    ? 'Free download for Windows, macOS and Linux, or try it in your browser.'
+    : 'Try it in your browser.';
   return buildPageMetadata({
     title: `${app.name}: ${app.category}`,
-    description: `${app.name}, ${app.tagline} A free, open source ${app.category.toLowerCase()} app from ${UBUNYE_STUDIO.suiteName}. ${UBUNYE_STUDIO.statusLabels[UBUNYE_STUDIO.status]}.`,
+    description: `${app.name}, ${app.tagline} A free, open source ${app.category.toLowerCase()} app from ${UBUNYE_STUDIO.suiteName}. ${availability}`,
     path: `/tools/${app.slug}`,
   });
 }
@@ -30,7 +35,10 @@ export default async function ToolPage({ params }: ToolPageProps) {
   const app = getUbunyeApp(slug);
   if (!app) notFound();
 
-  const statusLabel = UBUNYE_STUDIO.statusLabels[UBUNYE_STUDIO.status];
+  const release = await getUbunyeRelease(app.slug);
+  const downloads = release ? groupDownloads(release) : null;
+  const statusLabels = UBUNYE_STUDIO.statusLabels;
+  const statusLabel = release ? statusLabels.preview : statusLabels[UBUNYE_STUDIO.status];
   const others = UBUNYE_STUDIO.apps.filter((a) => a.slug !== app.slug);
   const jsonLd = breadcrumbJsonLd([
     { name: 'Home', url: STUDIO.meta.url },
@@ -121,7 +129,9 @@ export default async function ToolPage({ params }: ToolPageProps) {
           <section className="rounded-[22px] border border-white/10 bg-[var(--ub-bg-2)] p-6 sm:p-8">
             <h2 className={`${UB_LABEL} text-[var(--ub-text-2)]`}>Download</h2>
             <p className="mt-3 font-sans text-sm text-[var(--ub-text-2)]">
-              The browser version is live. Desktop downloads will appear here when the first release is out.
+              {release
+                ? `Version ${release.version}, a preview build. The apps are not code signed yet, so Windows and macOS will warn that the developer is unknown.`
+                : 'The browser version is live. Desktop downloads will appear here when the first release is out.'}
             </p>
             <table className="mt-6 w-full font-sans text-sm">
               <caption className="sr-only">{`${app.name} downloads by platform`}</caption>
@@ -131,38 +141,81 @@ export default async function ToolPage({ params }: ToolPageProps) {
                   <th scope="col">Download</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-white/10">
-                {UBUNYE_STUDIO.platforms.map((p) => (
-                  <tr key={p.id}>
-                    <th scope="row" className="py-3 pr-4 text-left font-normal text-[var(--ub-text)]">
-                      {p.label}
-                      {p.note && <span className="ml-2 text-xs text-[var(--ub-text-2)]">({p.note})</span>}
-                    </th>
-                    <td className="py-3 text-right">
-                      {p.id === 'browser' ? (
-                        <a
-                          href={app.webUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex min-h-[44px] min-w-[132px] items-center justify-center gap-1.5 rounded-full border px-5 text-xs uppercase tracking-[0.2em] text-[var(--ub-text)] transition-colors hover:bg-white/5"
-                          style={{ borderColor: app.accent }}
-                        >
-                          Open
-                          <ArrowUpRight className="h-4 w-4" aria-hidden="true" />
-                        </a>
-                      ) : (
-                      <button
-                        type="button"
-                        disabled
-                        className="inline-flex min-h-[44px] min-w-[132px] cursor-not-allowed items-center justify-center rounded-full border border-white/15 px-5 text-xs uppercase tracking-[0.2em] text-[var(--ub-text-2)]"
-                      >
-                        {statusLabel}
-                      </button>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
+              {UBUNYE_STUDIO.platforms.map((p) => {
+                const d = p.id === 'browser' || !downloads ? null : downloads[p.id as UbunyePlatformId];
+                return (
+                  <tbody key={p.id} className="border-t border-white/10 first:border-t-0">
+                    <tr>
+                      <th scope="row" className="py-3 pr-4 text-left font-normal text-[var(--ub-text)]">
+                        {p.label}
+                        {p.note && <span className="ml-2 text-xs text-[var(--ub-text-2)]">({p.note})</span>}
+                        {d?.primary && (
+                          <span className="block text-xs text-[var(--ub-text-2)]">
+                            {d.primary.label}, {formatSize(d.primary.file.size)}
+                          </span>
+                        )}
+                      </th>
+                      <td className="py-3 text-right">
+                        {p.id === 'browser' ? (
+                          <a
+                            href={app.webUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex min-h-[44px] min-w-[132px] items-center justify-center gap-1.5 rounded-full border px-5 text-xs uppercase tracking-[0.2em] text-[var(--ub-text)] transition-colors hover:bg-white/5"
+                            style={{ borderColor: app.accent }}
+                          >
+                            Open
+                            <ArrowUpRight className="h-4 w-4" aria-hidden="true" />
+                          </a>
+                        ) : d?.primary ? (
+                          <a
+                            href={d.primary.file.url}
+                            download
+                            className="inline-flex min-h-[44px] min-w-[132px] items-center justify-center gap-1.5 rounded-full border px-5 text-xs uppercase tracking-[0.2em] text-[var(--ub-text)] transition-colors hover:bg-white/5"
+                            style={{ borderColor: app.accent }}
+                          >
+                            Download
+                            <ArrowDown className="h-4 w-4" aria-hidden="true" />
+                          </a>
+                        ) : (
+                          <button
+                            type="button"
+                            disabled
+                            className="inline-flex min-h-[44px] min-w-[132px] cursor-not-allowed items-center justify-center rounded-full border border-white/15 px-5 text-xs uppercase tracking-[0.2em] text-[var(--ub-text-2)]"
+                          >
+                            {statusLabels['coming-soon']}
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                    {d && d.others.length > 0 && (
+                      <tr>
+                        <td colSpan={2} className="pb-3">
+                          <details className="group">
+                            <summary className="inline-flex min-h-[44px] cursor-pointer items-center text-xs text-[var(--ub-text-2)] hover:text-[var(--ub-text)]">
+                              Other {p.label} downloads ({d.others.length})
+                            </summary>
+                            <ul className="mt-1 space-y-1">
+                              {d.others.map((o) => (
+                                <li key={o.file.name}>
+                                  <a
+                                    href={o.file.url}
+                                    download
+                                    className="inline-flex min-h-[44px] items-center gap-2 text-sm text-[var(--ub-text)] underline decoration-white/30 underline-offset-4 hover:decoration-white"
+                                  >
+                                    {o.label}
+                                    <span className="text-xs text-[var(--ub-text-2)]">{formatSize(o.file.size)}</span>
+                                  </a>
+                                </li>
+                              ))}
+                            </ul>
+                          </details>
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                );
+              })}
             </table>
           </section>
 

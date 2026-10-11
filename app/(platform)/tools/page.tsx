@@ -12,10 +12,10 @@ export const metadata = buildPageMetadata({
   title: `${UBUNYE_STUDIO.suiteName}: Light, Photo and Film`,
   description: `${UBUNYE_STUDIO.suiteName} is a free, open source suite of three creative tools: ${UBUNYE_STUDIO.apps
     .map((a) => `${a.name} for ${a.category.toLowerCase()}`)
-    .join(', ')}. ${UBUNYE_STUDIO.statusLabels[UBUNYE_STUDIO.status]} for ${UBUNYE_STUDIO.platforms
+    .join(', ')}. Free downloads for ${UBUNYE_STUDIO.platforms
     .filter((p) => p.note === null)
     .map((p) => p.label)
-    .join(', ')}; try each one in your browser now.`,
+    .join(', ')}, or try each one in your browser.`,
   path: '/tools',
 });
 
@@ -63,7 +63,7 @@ export default function ToolsPage() {
               <UbunyeAppCard
                 app={app}
                 suiteShortName={UBUNYE_STUDIO.shortName}
-                statusLabel={`${UBUNYE_STUDIO.version} · Try in browser`}
+                statusLabel={`${UBUNYE_STUDIO.version} · Free download`}
                 index={i}
               />
             </li>

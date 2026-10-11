@@ -1295,10 +1295,9 @@ export type FunnelClientSurface = (typeof FUNNEL_CLIENT_SURFACES)[number];
 
 // ─── UBUNYE CREATIVE STUDIO (/tools) ────────────────────────────────────────
 // The free, open source desktop suite: Ubunye Light, Photo and Film. One
-// source for the /tools catalogue and its detail pages. Nothing has shipped
-// yet, so every download is "coming soon" and no download URL exists.
-// When the first release is published, set `downloads.manifestUrl` (planned
-// home: downloads.thabangvision.com) and per-platform URLs there, not here.
+// source for the /tools catalogue and its detail pages. Download links are
+// never written here: each app page reads <downloads.base>/<slug>/latest.json
+// (lib/ubunye-release.ts) and falls back to "coming soon" if it is missing.
 // Card photos: `image` stays null until the owner's own photos exist; the
 // card then shows an accent-tinted gradient. Use a Cloudinary URL when set.
 
@@ -1339,7 +1338,7 @@ export const UBUNYE_STUDIO = {
   intro: 'Free, open source tools for light, photo and film.',
   footerLine: 'One creative suite. Three powerful tools. A bigger story.',
   version: 'Preview',
-  status: 'coming-soon' as UbunyeReleaseStatus,
+  status: 'preview' as UbunyeReleaseStatus,
   statusLabels: {
     'coming-soon': 'Coming soon',
     preview: 'Preview',
@@ -1361,8 +1360,8 @@ export const UBUNYE_STUDIO = {
     { id: 'browser', label: 'Browser', note: 'preview' },
   ] as readonly UbunyePlatform[],
   downloads: {
-    /** Future release manifest on downloads.thabangvision.com. Null until the first desktop release. */
-    manifestUrl: null as string | null,
+    /** Each app's files are listed in <base>/<slug>/latest.json; see lib/ubunye-release.ts. */
+    base: 'https://downloads.thabangvision.com',
   },
   apps: [
     {
