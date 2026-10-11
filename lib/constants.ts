@@ -1363,21 +1363,6 @@ export const UBUNYE_STUDIO = {
     /** Each app's files are listed in <base>/<slug>/latest.json; see lib/ubunye-release.ts. */
     base: 'https://downloads.thabangvision.com',
   },
-  /**
-   * Windows code signing through the SignPath Foundation programme for open source projects.
-   * Their terms require a page titled "Code signing policy", linked from the home and download
-   * pages, carrying the attribution line below verbatim. Flip `signing` to true only once a
-   * release has actually been signed.
-   */
-  codeSigning: {
-    path: '/tools/code-signing',
-    signing: false,
-    attribution: 'Free code signing provided by SignPath.io, certificate by SignPath Foundation.',
-    signPathUrl: 'https://signpath.io',
-    foundationUrl: 'https://signpath.org',
-    approver: { name: 'Thabang', handle: 'LeparaLaMapara', url: 'https://github.com/LeparaLaMapara' },
-    orgPeopleUrl: 'https://github.com/orgs/ubunye-ai-ecosystems/people',
-  },
   apps: [
     {
       slug: 'light',

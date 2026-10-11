@@ -140,8 +140,6 @@ export default async function ToolPage({ params }: ToolPageProps) {
               webUrl={app.webUrl}
               version={release?.version ?? null}
               files={files}
-              policyHref={UBUNYE_STUDIO.codeSigning.path}
-              signed={UBUNYE_STUDIO.codeSigning.signing}
             />
           </div>
         </section>

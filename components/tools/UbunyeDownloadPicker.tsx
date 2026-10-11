@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import Link from 'next/link';
 import { ArrowDown, ChevronDown, Globe } from 'lucide-react';
 import {
   formatSize,
@@ -17,9 +16,6 @@ interface UbunyeDownloadPickerProps {
   webUrl: string;
   version: string | null;
   files: Record<UbunyePlatformId, UbunyePickerFile[]> | null;
-  /** Link to the code signing policy page; SignPath requires it on download pages. */
-  policyHref: string;
-  signed: boolean;
 }
 
 const OS_TABS: { id: UbunyePlatformId; label: string; long: string }[] = [
@@ -75,7 +71,7 @@ async function detectSystem(): Promise<Detected> {
   return { os, arch, mobile: false };
 }
 
-export function UbunyeDownloadPicker({ appName, accent, webUrl, version, files, policyHref, signed }: UbunyeDownloadPickerProps) {
+export function UbunyeDownloadPicker({ appName, accent, webUrl, version, files }: UbunyeDownloadPickerProps) {
   const [os, setOs] = useState<UbunyePlatformId>('windows');
   const [arch, setArch] = useState<UbunyeArch | null>(null);
   const [detected, setDetected] = useState<Detected | null>(null);
@@ -250,12 +246,7 @@ export function UbunyeDownloadPicker({ appName, accent, webUrl, version, files, 
           )}
 
           <p className="mt-4 font-sans text-xs leading-relaxed text-[var(--ub-text-2)]">
-            {signed
-              ? 'Windows downloads are code signed. macOS is not signed yet, so it will warn that the developer is unknown.'
-              : 'Not code signed yet: Windows and macOS will warn that the developer is unknown.'}{' '}
-            <Link href={policyHref} className="underline decoration-white/30 underline-offset-4 hover:text-[var(--ub-text)]">
-              Code signing policy
-            </Link>
+            Not code signed yet: Windows and macOS will warn that the developer is unknown.
           </p>
         </>
       )}
