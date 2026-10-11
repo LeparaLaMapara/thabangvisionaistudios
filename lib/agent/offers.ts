@@ -19,6 +19,7 @@ import { logEvent } from '@/lib/data/events';
 import type { AgentActionKind } from '@/lib/core/agent/approval';
 import type { ApprovalSummary, Execute, Requote } from '@/lib/core/agent/use-cases';
 import type { CartItemWithRental } from '@/types/cart';
+import { appUrl } from '@/lib/app-url';
 
 /**
  * Server-side quotes and execution for Ubunye proposals. Prices come from the
@@ -301,7 +302,7 @@ async function createServiceBooking(
   if (toCents(q.total) !== approvedAmountCents) return { ok: false, message: PRICE_MOVED };
   const { platformAmount, creatorAmount } = splitServiceBooking({ subtotal: q.subtotal }, STUDIO.booking.platformCommission);
   const reference = `BK-${nanoid(10)}`;
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || STUDIO.meta.url;
+  const baseUrl = appUrl(STUDIO.meta.url);
   // The agreed terms are recorded the same way as on the /book form (spec §8.3).
   const revisionsIncluded = STUDIO.booking.defaultRevisionsIncluded;
   const row: Record<string, unknown> = {

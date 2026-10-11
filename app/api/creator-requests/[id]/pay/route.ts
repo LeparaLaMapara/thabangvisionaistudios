@@ -5,6 +5,7 @@ import { checkRateLimit } from '@/lib/auth';
 import { createClient } from '@/lib/supabase/server';
 import { payments } from '@/lib/payments';
 import { STUDIO } from '@/lib/constants';
+import { appUrl } from '@/lib/app-url';
 
 export async function POST(
   req: NextRequest,
@@ -52,7 +53,7 @@ export async function POST(
   }
 
   try {
-    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || STUDIO.meta.url;
+    const baseUrl = appUrl(STUDIO.meta.url);
     const result = await payments.createCheckout({
       paymentId: request.id,
       amount: request.total_amount,

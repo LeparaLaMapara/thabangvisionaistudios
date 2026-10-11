@@ -96,7 +96,7 @@ export function allowedOrigins(env: OriginEnv = {
   VERCEL_BRANCH_URL: process.env.VERCEL_BRANCH_URL,
   VERCEL_PROJECT_PRODUCTION_URL: process.env.VERCEL_PROJECT_PRODUCTION_URL,
 }): Set<string> {
-  const parsedUrl = new URL(env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000');
+  const parsedUrl = new URL(env.NEXT_PUBLIC_APP_URL?.trim() || 'http://localhost:3000');
   const allowed = new Set<string>([parsedUrl.origin]);
   if (parsedUrl.hostname.startsWith('www.')) {
     allowed.add(`${parsedUrl.protocol}//${parsedUrl.hostname.slice(4)}${parsedUrl.port ? `:${parsedUrl.port}` : ''}`);
