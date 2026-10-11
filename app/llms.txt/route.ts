@@ -1,4 +1,4 @@
-import { STUDIO, PRODUCTION_CATEGORIES, RENTAL_CATEGORIES, RENTAL_POLICY } from '@/lib/constants';
+import { STUDIO, PRODUCTION_CATEGORIES, RENTAL_CATEGORIES, RENTAL_POLICY, UBUNYE_STUDIO } from '@/lib/constants';
 import { LISTED_CITIES } from '@/lib/seo/cities';
 
 export function GET() {
@@ -42,6 +42,7 @@ ${rentals}
 - Equipment Rentals: ${baseUrl}/rentals
 - Pricing: ${baseUrl}/pricing
 - Ubunye AI Studio: ${baseUrl}/ubunye-ai-studio
+- ${UBUNYE_STUDIO.suiteName} (free, open source creative tools, ${UBUNYE_STUDIO.statusLabels[UBUNYE_STUDIO.status].toLowerCase()}): ${baseUrl}/tools
 - Smart Creators: ${baseUrl}/smart-creators
 - Press: ${baseUrl}/press
 - Careers: ${baseUrl}/careers
