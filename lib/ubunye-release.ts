@@ -111,6 +111,49 @@ export function groupDownloads(release: UbunyeRelease): Record<UbunyePlatformId,
   return out;
 }
 
+export type UbunyeArch = 'x64' | 'arm64' | 'x86' | 'universal';
+
+/** One file as the download picker sees it. `main` marks the installer we suggest for its arch. */
+export interface UbunyePickerFile {
+  name: string;
+  url: string;
+  size: number;
+  label: string;
+  arch: UbunyeArch | null;
+  main: boolean;
+}
+
+const ARCH_ID: Record<string, UbunyeArch> = {
+  x64: 'x64',
+  x86_64: 'x64',
+  x86: 'x86',
+  arm64: 'arm64',
+  aarch64: 'arm64',
+  universal: 'universal',
+};
+
+/** Every file per platform, in display order, for the client-side picker on /tools/[app]. */
+export function pickerFiles(release: UbunyeRelease): Record<UbunyePlatformId, UbunyePickerFile[]> {
+  const out: Record<UbunyePlatformId, UbunyePickerFile[]> = { windows: [], macos: [], linux: [] };
+  const described = release.files
+    .map((file) => ({ file, ...describeFile(file.name) }))
+    .filter((d) => d.platform !== null)
+    .sort((a, b) => a.rank - b.rank || a.file.name.localeCompare(b.file.name));
+  for (const d of described) {
+    const arch = d.file.name.match(/-(x64|x86_64|x86|arm64|aarch64|universal)(-portable)?\.[a-zA-Z.]+$/)?.[1];
+    out[d.platform as UbunyePlatformId].push({
+      name: d.file.name,
+      url: d.file.url,
+      size: d.file.size,
+      label: d.label,
+      arch: arch ? ARCH_ID[arch] : null,
+      // rank 0 (x64/universal) or 10 (other archs) = the installer; 50+ = command line tool.
+      main: d.rank === 0 || d.rank === 10,
+    });
+  }
+  return out;
+}
+
 export function formatSize(bytes: number): string {
   return `${Math.round(bytes / 1048576)} MB`;
 }

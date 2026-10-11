@@ -1,3 +1,5 @@
+import { existsSync } from 'node:fs';
+import { join } from 'node:path';
 import { describe, it, expect } from 'vitest';
 import { UBUNYE_STUDIO, getUbunyeApp, MAIN_NAVIGATION } from '@/lib/constants';
 import { FEATURE_KEYS, type FeatureKey } from '@/lib/features';
@@ -25,12 +27,14 @@ describe('UBUNYE_STUDIO', () => {
     }
   });
 
-  it('every app has an icon, source repo, upstream credit and no card photo yet', () => {
+  it('every app has an icon, source repo, upstream credit and a card photo that exists', () => {
     for (const app of UBUNYE_STUDIO.apps) {
       expect(app.icon).toMatch(/^\/ubunye\/.+\.svg$/);
       expect(app.repoUrl).toMatch(/^https:\/\/github\.com\/ubunye-ai-ecosystems\//);
       expect(app.upstream.url).toMatch(/^https:\/\/github\.com\/storytold\//);
-      expect(app.image).toBeNull();
+      expect(app.image?.src).toMatch(/^\/ubunye\/.+\.webp$/);
+      expect(app.image?.alt).toBeTruthy();
+      expect(existsSync(join(process.cwd(), 'public', app.image?.src ?? ''))).toBe(true);
     }
   });
 });

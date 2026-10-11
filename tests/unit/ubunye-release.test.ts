@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { describeFile, formatSize, groupDownloads, parseUbunyeRelease, type UbunyeRelease } from '@/lib/ubunye-release';
+import { describeFile, formatSize, groupDownloads, parseUbunyeRelease, pickerFiles, UBUNYE_DOWNLOADS_BASE, type UbunyeRelease } from '@/lib/ubunye-release';
 
 const B = 'https://downloads.thabangvision.com/light/0.5.0';
 const file = (name: string, size = 80 * 1048576) => ({ name, url: `${B}/${name}`, size, sha256: 'ab' });
@@ -68,5 +68,37 @@ describe('describeFile', () => {
 
   it('formats sizes in MB', () => {
     expect(formatSize(80 * 1048576)).toBe('80 MB');
+  });
+});
+
+describe('pickerFiles', () => {
+  const file = (name: string) => ({ name, url: `${UBUNYE_DOWNLOADS_BASE}/film/0.5.0/${name}`, size: 52 * 1048576, sha256: 'x' });
+  const release = {
+    app: 'film',
+    version: '0.5.0',
+    published: '2026-10-11T07:08:22Z',
+    files: [
+      'ubunye-creative-film-0.5.0-windows-x64.msi',
+      'ubunye-creative-film-0.5.0-windows-arm64.msi',
+      'ubunye-creative-film-0.5.0-windows-x86-portable.zip',
+      'ubunye-creative-film-0.5.0-macos-universal.dmg',
+      'ubunye-creative-film-cli-0.5.0-macos-universal.zip',
+      'ubunye-creative-film-0.5.0-linux-aarch64.AppImage',
+      'ubunye-creative-film-0.5.0-linux-aarch64.AppImage.zsync',
+      'ubunye-creative-film-0.5.0-freebsd-x86_64.tar.gz',
+    ].map(file),
+  };
+
+  it('marks one installer per processor as main and keeps the rest as other formats', () => {
+    const p = pickerFiles(release);
+    expect(p.windows.filter((f) => f.main).map((f) => f.arch)).toEqual(['x64', 'arm64']);
+    expect(p.windows.find((f) => !f.main)?.arch).toBe('x86');
+    expect(p.linux.map((f) => [f.arch, f.main])).toEqual([['arm64', true]]);
+  });
+
+  it('never offers the command line tool as the Mac download', () => {
+    const p = pickerFiles(release);
+    expect(p.macos.filter((f) => f.main).map((f) => f.name)).toEqual(['ubunye-creative-film-0.5.0-macos-universal.dmg']);
+    expect(p.macos.find((f) => f.name.includes('-cli-'))?.main).toBe(false);
   });
 });
