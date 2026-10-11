@@ -1346,7 +1346,7 @@ export const UBUNYE_STUDIO = {
   } as Record<UbunyeReleaseStatus, string>,
   licence: 'MIT OR Apache-2.0',
   maker: 'Ubunye AI Ecosystems',
-  systemRequirements: 'To be published with the first release.',
+  systemRequirements: 'Windows (x64, x86 or Arm), macOS (Apple silicon or Intel) or Linux (x86_64 or Arm64). Or use the browser version.',
   colors: {
     bg: '#0B0D10',
     bgSecondary: '#161A20',

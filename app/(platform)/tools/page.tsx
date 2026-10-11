@@ -126,8 +126,8 @@ export default function ToolsPage() {
         </div>
 
         <p className="mt-12 text-center font-sans text-sm text-[var(--ub-text-2)]">
-          Free and open source ({UBUNYE_STUDIO.licence}), made by {UBUNYE_STUDIO.maker}. No downloads yet:
-          the first release is on its way.
+          Free and open source ({UBUNYE_STUDIO.licence}), made by {UBUNYE_STUDIO.maker}. Download for
+          Windows, macOS and Linux, or open it in your browser.
         </p>
       </section>
     </div>
