@@ -1373,7 +1373,7 @@ export const UBUNYE_STUDIO = {
       accent: '#F6C75B',
       icon: '/ubunye/light-icon.svg',
       iconPng: '/ubunye/light-256.png',
-      image: null,
+      image: { src: '/ubunye/light-card.webp', alt: "Columns of a sandstone hall under an orange storm sky, by Tha'Bang Studios" },
       capabilities: [
         'RAW development for camera files',
         'A photo library to import, sort and find your shots',
@@ -1395,7 +1395,7 @@ export const UBUNYE_STUDIO = {
       accent: '#FF6B4A',
       icon: '/ubunye/photo-icon.svg',
       iconPng: '/ubunye/photo-256.png',
-      image: null,
+      image: { src: '/ubunye/photo-card.webp', alt: "A round glass building lit pink at night, by Tha'Bang Studios" },
       capabilities: [
         'Layers and masks',
         'Retouching tools',
@@ -1418,7 +1418,7 @@ export const UBUNYE_STUDIO = {
       accent: '#13D1C2',
       icon: '/ubunye/film-icon.svg',
       iconPng: '/ubunye/film-256.png',
-      image: null,
+      image: { src: '/ubunye/film-card.webp', alt: "The Union Buildings clock tower under a dark teal sky, by Tha'Bang Studios" },
       capabilities: [
         'Timeline editing',
         'Colour correction',
