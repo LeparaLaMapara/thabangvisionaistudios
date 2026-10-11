@@ -593,6 +593,8 @@ export const MAIN_NAVIGATION: {
     // What things cost and how to reach a person, one tap from every page.
     { label: 'Pricing', href: '/pricing' },
     { label: 'Help', href: '/faq' },
+    // Hidden until the `creative_tools` flag is on (lib/nav.ts). /tools itself is always reachable by URL.
+    { label: 'Tools', href: '/tools' },
   ];
 
 export const FOOTER_SECTIONS = [
@@ -1290,3 +1292,146 @@ export const UBUNYE_EXAMPLE_PROMPTS: readonly string[] = [
 // else is refused, so the funnel tables only hold known page names.
 export const FUNNEL_CLIENT_SURFACES = ['gear_page'] as const;
 export type FunnelClientSurface = (typeof FUNNEL_CLIENT_SURFACES)[number];
+
+// ─── UBUNYE CREATIVE STUDIO (/tools) ────────────────────────────────────────
+// The free, open source desktop suite: Ubunye Light, Photo and Film. One
+// source for the /tools catalogue and its detail pages. Nothing has shipped
+// yet, so every download is "coming soon" and no download URL exists.
+// When the first release is published, set `downloads.manifestUrl` (planned
+// home: downloads.thabangvision.com) and per-platform URLs there, not here.
+// Card photos: `image` stays null until the owner's own photos exist; the
+// card then shows an accent-tinted gradient. Use a Cloudinary URL when set.
+
+export type UbunyeAppSlug = 'light' | 'photo' | 'film';
+export type UbunyePlatformId = 'windows' | 'macos' | 'linux' | 'browser';
+export type UbunyeReleaseStatus = 'coming-soon' | 'preview' | 'released';
+
+export interface UbunyePlatform {
+  id: UbunyePlatformId;
+  label: string;
+  /** Short qualifier shown beside the label, e.g. "preview". */
+  note: string | null;
+}
+
+export interface UbunyeStudioApp {
+  slug: UbunyeAppSlug;
+  name: string;
+  /** The word after "Ubunye", shown in the app's accent colour. */
+  shortName: string;
+  category: string;
+  tagline: string;
+  accent: string;
+  icon: string;
+  iconPng: string;
+  /** Background photo for the catalogue card. Null until the owner's photos exist. */
+  image: { src: string; alt: string } | null;
+  capabilities: readonly string[];
+  repoUrl: string;
+  upstream: { name: string; credit: string; url: string };
+}
+
+export const UBUNYE_STUDIO = {
+  suiteName: 'Ubunye Creative Studio',
+  shortName: 'Ubunye',
+  wordmark: '/ubunye/ubunye-creative-studio-dark.svg',
+  intro: 'Free, open source tools for light, photo and film.',
+  footerLine: 'One creative suite. Three powerful tools. A bigger story.',
+  version: 'Preview',
+  status: 'coming-soon' as UbunyeReleaseStatus,
+  statusLabels: {
+    'coming-soon': 'Coming soon',
+    preview: 'Preview',
+    released: 'Available',
+  } as Record<UbunyeReleaseStatus, string>,
+  licence: 'MIT OR Apache-2.0',
+  maker: 'Ubunye AI Ecosystems',
+  systemRequirements: 'To be published with the first release.',
+  colors: {
+    bg: '#0B0D10',
+    bgSecondary: '#161A20',
+    text: '#F5F0E6',
+    textSecondary: '#A8ADB5',
+  },
+  platforms: [
+    { id: 'windows', label: 'Windows', note: null },
+    { id: 'macos', label: 'macOS', note: null },
+    { id: 'linux', label: 'Linux', note: null },
+    { id: 'browser', label: 'Browser', note: 'preview' },
+  ] as readonly UbunyePlatform[],
+  downloads: {
+    /** Future release manifest (downloads.thabangvision.com). Unused until the first release. */
+    manifestUrl: null as string | null,
+  },
+  apps: [
+    {
+      slug: 'light',
+      name: 'Ubunye Light',
+      shortName: 'Light',
+      category: 'Raw Photography',
+      tagline: 'Capture the world in its purest form.',
+      accent: '#F6C75B',
+      icon: '/ubunye/light-icon.svg',
+      iconPng: '/ubunye/light-256.png',
+      image: null,
+      capabilities: [
+        'RAW development for camera files',
+        'A photo library to import, sort and find your shots',
+      ],
+      repoUrl: 'https://github.com/ubunye-ai-ecosystems/ubunye-creative-light',
+      upstream: {
+        name: 'LightCraft',
+        credit: 'Based on LightCraft by the ArtCraft team',
+        url: 'https://github.com/storytold/lightcraft',
+      },
+    },
+    {
+      slug: 'photo',
+      name: 'Ubunye Photo',
+      shortName: 'Photo',
+      category: 'Image Editing',
+      tagline: 'Shape your vision with precision.',
+      accent: '#FF6B4A',
+      icon: '/ubunye/photo-icon.svg',
+      iconPng: '/ubunye/photo-256.png',
+      image: null,
+      capabilities: [
+        'Layers and masks',
+        'Retouching tools',
+        'PSD file support',
+      ],
+      repoUrl: 'https://github.com/ubunye-ai-ecosystems/ubunye-creative-photo',
+      upstream: {
+        name: 'PhotoCraft',
+        credit: 'Based on PhotoCraft by the ArtCraft team',
+        url: 'https://github.com/storytold/photocraft',
+      },
+    },
+    {
+      slug: 'film',
+      name: 'Ubunye Film',
+      shortName: 'Film',
+      category: 'Video Editing',
+      tagline: 'Turn moments into moving stories.',
+      accent: '#13D1C2',
+      icon: '/ubunye/film-icon.svg',
+      iconPng: '/ubunye/film-256.png',
+      image: null,
+      capabilities: [
+        'Timeline editing',
+        'Colour correction',
+        'Audio editing',
+        'Export to common video formats',
+      ],
+      repoUrl: 'https://github.com/ubunye-ai-ecosystems/ubunye-creative-film',
+      upstream: {
+        name: 'FilmCraft',
+        credit: 'Based on FilmCraft by the ArtCraft team',
+        url: 'https://github.com/storytold/filmcraft',
+      },
+    },
+  ] as readonly UbunyeStudioApp[],
+} as const;
+
+export function getUbunyeApp(slug: string): UbunyeStudioApp | undefined {
+  return UBUNYE_STUDIO.apps.find((a) => a.slug === slug);
+}
