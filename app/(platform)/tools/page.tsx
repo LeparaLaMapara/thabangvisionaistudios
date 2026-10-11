@@ -127,7 +127,13 @@ export default function ToolsPage() {
 
         <p className="mt-12 text-center font-sans text-sm text-[var(--ub-text-2)]">
           Free and open source ({UBUNYE_STUDIO.licence}), made by {UBUNYE_STUDIO.maker}. Download for
-          Windows, macOS and Linux, or open it in your browser.
+          Windows, macOS and Linux, or open it in your browser.{' '}
+          <Link
+            href={UBUNYE_STUDIO.codeSigning.path}
+            className="underline decoration-white/30 underline-offset-4 hover:text-[var(--ub-text)]"
+          >
+            Code signing policy
+          </Link>
         </p>
       </section>
     </div>
