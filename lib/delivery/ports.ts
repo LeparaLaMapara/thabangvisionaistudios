@@ -137,8 +137,9 @@ export function courierFactories(env: Env): Record<string, DeliveryAdapterFactor
 
 /**
  * Courier aggregators (one account, several couriers behind it), behind the
- * same explicit switch. Bob Go's API contract is unverified
- * (lib/delivery/bobgo/api-contract.ts), so it claims no capabilities.
+ * same explicit switch. Bob Go's API contract is checked against its sandbox
+ * (lib/delivery/bobgo/api-contract.ts), but nothing about custody or cover is
+ * confirmed in writing, so it claims no capabilities.
  */
 export function aggregatorCourierFactories(env: Env): Record<string, DeliveryAdapterFactory> {
   return {

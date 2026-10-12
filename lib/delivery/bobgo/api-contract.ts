@@ -2,133 +2,140 @@ import type { DeliveryCapabilities } from '@/lib/core/delivery/capabilities';
 import type { ProviderDeliveryState } from '@/lib/core/delivery/port';
 
 /**
- * Bob Go: the API contract the adapter ASSUMES.
+ * Bob Go: the API contract the adapter uses.
  *
- * ┌────────────────────────────────────────────────────────────────────────┐
- * │ UNVERIFIED — confirm against the official Bob Go API reference before   │
- * │ enabling. The reference is gated behind Bob Go sales                    │
- * │ (sales@bobgo.co.za); nothing here has been checked against it or        │
- * │ exercised in a Bob Go sandbox.                                          │
- * └────────────────────────────────────────────────────────────────────────┘
+ * Source: Bob Go's official API reference, published as a Postman collection
+ * behind https://api-docs.bob.co.za/bobgo (file
+ * /postman-collections/bobgo.postman_collection.json), checked against the
+ * Bob Go SANDBOX on 2026-10-11 with our own sandbox key (quote, create, a
+ * second create under the same reference, lookup, read, tracking, cancel).
  *
  * Every endpoint path, header, request/response field and status word the
  * adapter uses lives in THIS file, so correcting the contract never means
  * hunting through adapter code. Each item is tagged with where it comes from:
  *
- *   [plugin]   seen in a third-party WooCommerce plugin that calls Bob Go
- *              (path and method only; the plugin is not Bob Go's documentation);
- *   [research] docs/logistics/provider-comparison.md (public pages, NV there too);
+ *   [sandbox]  documented in the reference AND exercised against the sandbox;
+ *   [docs]     in the reference, not yet exercised;
+ *   [research] docs/logistics/provider-comparison.md (public pages);
  *   [assumed]  our guess. Treat as wrong until Bob Go confirms it.
  *
- * Questions to send Bob Go: docs/logistics/bobgo.md.
+ * Bob Go's model: a SHIPMENT is a courier booking. (Bob Go "orders" are
+ * shop orders that book nothing, and /rates-at-checkout is a shop checkout
+ * price; neither is used.) A shipment is identified by Bob Go's
+ * `tracking_reference`, and carries ours in `custom_tracking_reference`.
+ *
+ * What the sandbox showed that matters most: Bob Go does NOT refuse a second
+ * shipment under the same custom reference. Two creates = two couriers. The
+ * adapter therefore never retries a create, and the core reconciles by
+ * reference before any retry (use-cases.ts).
+ *
+ * Open questions for Bob Go: docs/logistics/bobgo.md.
  */
 
 export const BOBGO_PROVIDER_ID = 'bobgo';
 
 /** Where each contract item comes from. */
-export type ContractSource = 'plugin' | 'research' | 'assumed';
+export type ContractSource = 'sandbox' | 'docs' | 'research' | 'assumed';
 
 export const BOBGO_CONTRACT = {
   baseUrl: {
-    // [plugin] production host and the /v2 prefix.
+    // [docs] production host. Not exercised: we hold no production key.
     production: 'https://api.bobgo.co.za/v2',
-    // [assumed] a separate sandbox host. Bob Go has a sandbox [research]; its
-    // host is unknown. A sandbox key may instead work against the production
-    // host: confirm before pointing anything at either.
+    // [sandbox] the reference's `host` variable; our sandbox key works here.
     sandbox: 'https://api.sandbox.bobgo.co.za/v2',
   },
 
   auth: {
-    // [assumed] `Authorization: Bearer <merchant API key>`. The plugin
-    // authenticates with the merchant API key [plugin]; the header form is a guess.
+    // [sandbox] bearer token = the merchant API key. A wrong key gets 401.
     header: 'Authorization',
     value: (apiKey: string): string => `Bearer ${apiKey}`,
   },
 
   paths: {
-    // [plugin] POST: rates for a parcel between two addresses.
-    rates: '/rates-at-checkout',
-    // [plugin] POST: create an order (a shipment request).
-    createOrder: '/orders',
-    // [assumed] GET one order by Bob Go's id. The plugin GETs /orders; the
-    // id-in-path form is a guess.
-    getOrder: (id: string): string => `/orders/${encodeURIComponent(id)}`,
-    // [plugin] PATCH /orders exists; [assumed] that cancelling is a PATCH on
-    // the order with `cancelBody` below.
-    cancelOrder: (id: string): string => `/orders/${encodeURIComponent(id)}`,
-    // [assumed] GET /orders filtered by OUR reference. The plugin GETs
-    // /orders [plugin]; the query parameter is a guess. The adapter accepts
-    // only an order that echoes our reference exactly in `fields.merchantReference`
-    // and NEVER reads an empty answer as "no such order" (see adapter.ts).
-    findByReference: (merchantReference: string): string => `/orders?channel_order_number=${encodeURIComponent(merchantReference)}`,
-    // [plugin] GET /tracking and GET/POST/DELETE /webhooks exist. NOT called:
-    // tracking is read from the order, and webhooks are never registered by
-    // code (no signing scheme is known, so they would be refused anyway).
-    tracking: '/tracking',
-    webhooks: '/webhooks',
+    // [sandbox] POST: courier rates for parcels between two addresses.
+    rates: '/rates',
+    // [sandbox] POST: create a shipment (book a courier).
+    createShipment: '/shipments',
+    // [sandbox] GET: shipments filtered by tracking reference. Bob Go matches
+    // both its own reference and our custom one here.
+    shipmentsByReference: (reference: string): string => `/shipments?tracking_reference=${encodeURIComponent(reference)}`,
+    // [sandbox] POST { tracking_reference }: cancel a shipment.
+    cancelShipment: '/shipments/cancel',
+    // [sandbox] GET: tracking events (an array). Not called: status is read from the shipment.
+    tracking: (reference: string): string => `/tracking?tracking_reference=${encodeURIComponent(reference)}`,
+    // [sandbox] GET: proof of delivery ({ count, pods }). Not called yet: proof is not claimed.
+    proofOfDelivery: (reference: string): string => `/shipments/pod?tracking_reference=${encodeURIComponent(reference)}`,
   },
 
-  /** [assumed] Field names in requests and responses. */
+  /** Field names in requests and responses. */
   fields: {
-    // Request: our stable reference for the leg (also what the lookup filters on).
-    merchantReference: 'channel_order_number',
-    // Request: the service level chosen from the rates (the courier + service).
-    serviceLevelCode: 'service_level_code',
+    // ── Requests [sandbox] ──
     collectionAddress: 'collection_address',
     deliveryAddress: 'delivery_address',
-    collectionContact: 'collection_contact',
-    deliveryContact: 'delivery_contact',
-    parcels: 'parcels',
-    collectionInstructions: 'collection_instructions',
-    deliveryInstructions: 'delivery_instructions',
-    // Parcel sub-fields: a generic label, a count and a weight. No value is ever sent.
-    parcel: { description: 'description', quantity: 'quantity', weightKg: 'submitted_weight_kg' },
-    // Address sub-fields.
     address: { street: 'street_address', suburb: 'local_area', city: 'city', province: 'zone', postalCode: 'code', country: 'country', lat: 'lat', lng: 'lng' },
-    contact: { name: 'name', phone: 'mobile_number' },
-    // Response: the order may come bare or wrapped in one of these keys.
-    orderWrappers: ['order', 'data'],
-    // Response: Bob Go's order id, our reference, status, time, tracking.
-    orderId: 'id',
-    orderStatus: 'status',
+    collectionContactName: 'collection_contact_name',
+    collectionContactPhone: 'collection_contact_mobile_number',
+    deliveryContactName: 'delivery_contact_name',
+    deliveryContactPhone: 'delivery_contact_mobile_number',
+    collectionInstructions: 'instructions_collection',
+    deliveryInstructions: 'instructions_delivery',
+    // Our stable reference for the leg (also what the lookup matches on).
+    merchantReference: 'custom_tracking_reference',
+    // The courier and its service level, both from a rate.
+    providerSlug: 'provider_slug',
+    serviceLevelCode: 'service_level_code',
+    parcels: 'parcels',
+    // Parcel sub-fields: a generic label and a weight. No value is ever sent.
+    parcel: { description: 'description', weightKg: 'submitted_weight_kg' },
+    // How long Bob Go waits for the couriers, in ms. Without it a courier can
+    // answer "pending" and its rates are missing.
+    timeout: 'timeout',
+
+    // ── Rates response [sandbox] ──
+    rateProviders: 'provider_rate_requests',
+    rateProviderSlug: 'provider_slug',
+    rateProviderStatus: 'status',
+    rateResponses: 'responses',
+    rateServiceLevelCode: 'service_level_code',
+    rateStatus: 'status',
+    // VAT inclusive: what we are charged.
+    ratePrice: 'rate_amount',
+
+    // ── Shipment [sandbox] ──
+    shipmentList: 'shipments',
+    shipmentReference: 'tracking_reference',
+    shipmentStatus: 'status',
+    // 'success' once the courier has the booking; anything else is not booked.
+    submissionStatus: 'submission_status',
     updatedAt: 'time_modified',
     createdAt: 'time_created',
-    // The order's first shipment carries the courier-side status and tracking.
-    shipments: 'shipments',
-    shipmentStatus: 'status',
-    shipmentTrackingUrl: 'tracking_url',
-    // Rates response: a list, each with a service level code and a price.
-    rates: 'rates',
-    ratePrice: 'total_price',
-    rateServiceLevelCode: 'service_level_code',
-    rateCurrency: 'currency',
-    // Lookup response: a list of orders.
-    orderList: 'orders',
   },
 
-  // [assumed] prices are rands (number or decimal string), converted to integer cents.
+  // [sandbox] rates are rands (number), converted to integer cents.
   priceUnit: 'rands' as const,
-  // [assumed] currency. A rate in another currency is refused.
-  currency: 'ZAR',
-  // [assumed] cancel = PATCH the order with this body.
-  cancelBody: { status: 'cancelled' } as const,
+  // [sandbox] the answer that marks a rate, a courier's rate request and a submission as good.
+  successWord: 'success',
+  // [sandbox] milliseconds Bob Go waits for couriers (the reference's own values).
+  courierTimeoutMs: { rates: 10_000, create: 20_000 },
   // [assumed] quote expiry is unknown. We hold a Bob Go price for 15 minutes at
   // most (the core never charges a quote past its expiry).
   quoteValidityMinutes: 15,
   countryCode: 'ZA',
 
   /**
-   * [assumed] Which Bob Go service levels we may book. EMPTY on purpose.
+   * [assumed] Which couriers and service levels we may book, as
+   * `provider_slug:service_level_code` (e.g. `thecourierguy:ECO`). EMPTY on purpose.
    *
    * Bob Go is an aggregator: one rate request returns options from several
    * couriers, and some break custody (Pargo is a counter hand-over; overnight
    * networks do not suit a same-day rental) [research]. The adapter never
-   * picks a courier on price alone: it quotes and books ONLY service levels
-   * listed here. Until the codes are confirmed with Bob Go and each courier
-   * behind them is approved for hand-to-hand rented gear, the list is empty
-   * and every quote is refused (nothing is sent).
+   * picks a courier on price alone: it quotes and books ONLY entries listed
+   * here. Until each courier behind an entry is approved for hand-to-hand
+   * rented gear, the list is empty and every quote is refused (nothing is sent).
+   * The sandbox's own couriers are `sandbox` and `demo` (service levels ECO,
+   * LOF, LSE, LSX); they are never listed here.
    */
-  approvedServiceLevelCodes: [] as readonly string[],
+  approvedServiceLevels: [] as readonly string[],
 
   /**
    * [research] RAM needs written consent for lithium batteries; other
@@ -137,25 +144,39 @@ export const BOBGO_CONTRACT = {
    */
   lithiumAccepted: false,
 
-  timeoutsMs: { read: 8_000, create: 15_000, cancel: 10_000 },
+  // Our own HTTP timeouts: a little above the courier waits we ask Bob Go for.
+  timeoutsMs: { read: 8_000, quote: 15_000, create: 25_000, cancel: 10_000 },
   breaker: { failureThreshold: 5, cooldownMs: 60_000 },
 
   /**
-   * [assumed] Webhook signing scheme: UNKNOWN. Bob Go has subscription
-   * endpoints [plugin, research]; how a delivery is signed is not known, so
-   * no algorithm is implemented and the parser stays closed (webhook.ts).
+   * [assumed] Webhook signing scheme: UNKNOWN. The reference has no webhook
+   * section; how a delivery is signed is not known, so no algorithm is
+   * implemented and the parser stays closed (webhook.ts).
    */
   webhookSigning: null,
 } as const;
 
+/** `provider_slug:service_level_code`, the key the approved list uses. */
+export function bobgoServiceLevelKey(providerSlug: string, serviceLevelCode: string): string {
+  return `${providerSlug}:${serviceLevelCode}`;
+}
+
+/** Splits an approved-list key back into its courier and service level. Null if malformed. */
+export function parseBobgoServiceLevelKey(key: string | null | undefined): { providerSlug: string; serviceLevelCode: string } | null {
+  const m = /^([^:\s]+):([^:\s]+)$/.exec(key ?? '');
+  return m ? { providerSlug: m[1], serviceLevelCode: m[2] } : null;
+}
+
 /**
- * [assumed] Status words. Only unambiguous words are mapped; everything else
- * is 'unknown', which the core never applies (and the core only ever moves a
- * leg forward, D13), so a wrong or new word cannot move a shipment.
+ * Status words. Only unambiguous words are mapped; everything else is
+ * 'unknown', which the core never applies (and the core only ever moves a leg
+ * forward, D13), so a wrong or new word cannot move a shipment.
  *
- * Deliberately NOT mapped: "collected" (could mean collected from a pickup
- * point by the recipient, or by the courier from us), "submitted",
- * "ready", "open", "pending-collection" and any exception word.
+ * Seen in the sandbox: "pending-collection" (just booked), "cancelled", and in
+ * the reference's example "submitted", "collection-assigned", "collected".
+ * Deliberately NOT mapped: "collected" (from us, or by the recipient from a
+ * pickup point?), "submitted", "pending-collection", "collection-assigned"
+ * and any exception word.
  */
 export const BOBGO_STATUS: Readonly<Record<string, ProviderDeliveryState>> = {
   delivered: 'delivered',
@@ -171,23 +192,22 @@ export function mapBobgoStatus(status: unknown): ProviderDeliveryState {
 }
 
 /**
- * Capabilities for OUR account: NOTHING is verified, so nothing is claimed.
- * Every flag is false until Bob Go confirms it in writing and it is tested in
- * the sandbox:
+ * Capabilities for OUR account: NOTHING is claimed. A flag turns true only
+ * once Bob Go confirms it in writing AND it is tested in the sandbox:
  *
  *  - onDemand, scheduled: same-day and future collections are courier-
  *    dependent [research]; which service levels we may use is not settled;
- *  - reverseLogistics: TCG returns exist [research], not through our account;
- *  - liveTracking, trackingWebhooks: no verified location; webhook signing unknown;
- *  - pickupConfirmation, proofOfDelivery, signature, recipientPin: TCG uses
- *    OTP or signature [research], but whether the API returns it is unknown;
+ *  - reverseLogistics: returns exist (POST /orders/return) [docs], not wired;
+ *  - liveTracking, trackingWebhooks: tracking events have no verified
+ *    location; webhook signing unknown;
+ *  - pickupConfirmation, proofOfDelivery, signature, recipientPin: a POD
+ *    endpoint exists [sandbox], but what a courier puts in it is unknown;
  *  - noLeaveAtDoor: no per-shipment control known;
  *  - declaredValueSupport, verifiedTransitCover: cover passes through each
  *    courier, with second-hand exclusions [research];
- *  - cancellation: the PATCH is implemented but assumed;
- *  - idempotentCreate: duplicate-reference behaviour and the lookup are
- *    assumed. The lookup is still used (a positive, exact match is safe),
- *    but an empty answer is never read as "none".
+ *  - cancellation: works in the sandbox, not yet confirmed in writing;
+ *  - idempotentCreate: FALSE, and proven so: the sandbox booked two
+ *    shipments under one custom reference.
  *
  * With every flag false, the risk gate excludes Bob Go even if every policy
  * gate is opened (policy.ts, DELIVERY_POLICY.requiredCourierCapabilities).
@@ -211,23 +231,21 @@ export const BOBGO_CAPABILITIES: DeliveryCapabilities = {
 
 /** Contract items and their sources, for the docs and the tests (kept in step with the comments above). */
 export const BOBGO_CONTRACT_SOURCES: Readonly<Record<string, ContractSource>> = {
-  'baseUrl.production': 'plugin',
-  'baseUrl.sandbox': 'assumed',
-  'auth.header': 'assumed',
-  'paths.rates': 'plugin',
-  'paths.createOrder': 'plugin',
-  'paths.getOrder': 'assumed',
-  'paths.cancelOrder': 'assumed',
-  'paths.findByReference': 'assumed',
-  'paths.tracking': 'plugin',
-  'paths.webhooks': 'plugin',
-  fields: 'assumed',
-  priceUnit: 'assumed',
-  currency: 'assumed',
-  cancelBody: 'assumed',
+  'baseUrl.production': 'docs',
+  'baseUrl.sandbox': 'sandbox',
+  'auth.header': 'sandbox',
+  'paths.rates': 'sandbox',
+  'paths.createShipment': 'sandbox',
+  'paths.shipmentsByReference': 'sandbox',
+  'paths.cancelShipment': 'sandbox',
+  'paths.tracking': 'sandbox',
+  'paths.proofOfDelivery': 'sandbox',
+  fields: 'sandbox',
+  priceUnit: 'sandbox',
+  courierTimeoutMs: 'sandbox',
   quoteValidityMinutes: 'assumed',
-  approvedServiceLevelCodes: 'assumed',
+  approvedServiceLevels: 'assumed',
   lithiumAccepted: 'research',
   webhookSigning: 'assumed',
-  status: 'assumed',
+  status: 'sandbox',
 };

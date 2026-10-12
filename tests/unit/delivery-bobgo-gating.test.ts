@@ -152,7 +152,8 @@ describe('the shared selection path still excludes Bob Go', () => {
 });
 
 describe('Bob Go webhooks stay closed', () => {
-  const body = JSON.stringify({ order: { id: 'bg_77', channel_order_number: 'tvd_1', status: 'delivered', time_modified: '2026-10-10T09:00:00Z', delivery_contact: { mobile_number: '+27110000001' } } });
+  // A shipment, as the Bob Go API returns it.
+  const body = JSON.stringify({ tracking_reference: 'bg_77', custom_tracking_reference: 'tvd_1', status: 'delivered', time_modified: '2026-10-10T09:00:00Z', delivery_contact_mobile_number: '+27110000001' });
 
   it('is registered with the route', () => {
     expect(registeredDeliveryWebhookProviders()).toEqual(expect.arrayContaining(['bobgo', 'uber_direct', 'wumdrop']));
