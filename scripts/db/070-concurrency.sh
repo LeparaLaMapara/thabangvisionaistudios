@@ -17,10 +17,10 @@ U1=$(uuid); U2=$(uuid); CAM=$(uuid); G1=$(uuid); G2=$(uuid)
 psql "$DATABASE_URL" -q -v ON_ERROR_STOP=1 <<SQL
 insert into auth.users (id, email) values ('$U1', 'race-a@example.invalid'), ('$U2', 'race-b@example.invalid');
 insert into public.profiles (id) values ('$U1'), ('$U2') on conflict (id) do nothing;
-insert into public.smart_rentals (id, slug, title, quantity, is_published) values ('$CAM', 'race-$CAM', 'Race camera', 1, true);
+insert into public.smart_rentals (id, slug, title, quantity, is_published, category) values ('$CAM', 'race-$CAM', 'Race camera', 1, true, 'cameras-optics');
 SQL
 
-line() { echo "jsonb_build_array(jsonb_build_object('user_id','$1','rental_id','$CAM','checkout_group_id','$2','start_date','2031-05-01','end_date','2031-05-03','total_price',1,'quantity',1))"; }
+line() { echo "jsonb_build_array(jsonb_build_object('user_id','$1','rental_id','$CAM','checkout_group_id','$2','start_date','2031-05-01','end_date','2031-05-03','total_price',1,'deposit_amount',0,'quantity',1))"; }
 
 ( psql "$DATABASE_URL" -q -At -v ON_ERROR_STOP=1 -c "begin; select 'A reserved ' || (public.reserve_rental_order($(line "$U1" "$G1"), null, 30) ->> 'booking_ids'); select pg_sleep(2); commit;" 2>&1 | sed 's/^/[A] /' ) &
 sleep 0.5

@@ -30,16 +30,16 @@ declare
 begin
   -- 1. Status vocabulary is enforced.
   begin
-    insert into public.smart_rentals (slug, title, owner_type, listing_status)
-    values ('072-test-bogus-' || c1, 'Bogus', 'community', 'live');
+    insert into public.smart_rentals (slug, title, owner_type, listing_status, category)
+    values ('072-test-bogus-' || c1, 'Bogus', 'community', 'live', 'cameras-optics');
     raise exception 'FAIL: an unknown listing_status was accepted';
   exception when check_violation then
     raise notice 'PASS: unknown listing_status refused';
   end;
 
   -- 2. A community insert that claims is_published=true is stored as a draft.
-  insert into public.smart_rentals (id, slug, title, owner_type, is_published)
-  values (c1, '072-test-c1-' || c1, 'Community camera', 'community', true);
+  insert into public.smart_rentals (id, slug, title, owner_type, is_published, category)
+  values (c1, '072-test-c1-' || c1, 'Community camera', 'community', true, 'cameras-optics');
   select listing_status, is_published into st, pub from public.smart_rentals where id = c1;
   if st <> 'draft' or pub then
     raise exception 'FAIL: community insert went live (status %, published %)', st, pub;
@@ -78,8 +78,8 @@ begin
   raise notice 'PASS: direct unpublish becomes draft';
 
   -- 6. Studio rows: the admin publish toggle still works and stays consistent.
-  insert into public.smart_rentals (id, slug, title, owner_type, is_published)
-  values (s1, '072-test-s1-' || s1, 'Studio light', 'studio', true);
+  insert into public.smart_rentals (id, slug, title, owner_type, is_published, category)
+  values (s1, '072-test-s1-' || s1, 'Studio light', 'studio', true, 'cameras-optics');
   select listing_status into st from public.smart_rentals where id = s1;
   if st <> 'published' then raise exception 'FAIL: published studio insert has status %', st; end if;
   update public.smart_rentals set is_published = false where id = s1;
@@ -124,8 +124,8 @@ begin
   raise notice 'PASS: review/owner-only fields are not on smart_rentals';
 
   -- Seed a draft for the untrusted-caller checks below.
-  insert into public.smart_rentals (id, slug, title, owner_type)
-  values (c2, '072-test-c2-' || c2, 'Community lens', 'community');
+  insert into public.smart_rentals (id, slug, title, owner_type, category)
+  values (c2, '072-test-c2-' || c2, 'Community lens', 'community', 'cameras-optics');
 end $$;
 
 -- Owner + stranger + a private row. The rental's slug is NOT covered by the
@@ -140,8 +140,8 @@ declare
   r uuid := gen_random_uuid();
 begin
   insert into auth.users (id, email) values (o, '072-owner@example.invalid'), (x, '072-stranger@example.invalid');
-  insert into public.smart_rentals (id, slug, title, owner_type, owner_id)
-  values (r, '072-priv-' || r, 'Private test camera', 'community', o);
+  insert into public.smart_rentals (id, slug, title, owner_type, owner_id, category)
+  values (r, '072-priv-' || r, 'Private test camera', 'community', o, 'cameras-optics');
   insert into public.listing_private (rental_id, review_notes, owner_attestations, ai_fields)
   values (r, 'note', '{"owns_or_authorised": true}', '{"title": {"status": "suggested"}}');
   insert into t072 values (o, x, r);
@@ -216,8 +216,8 @@ begin
   end;
 
   begin
-    insert into public.smart_rentals (slug, title, owner_type, listing_status)
-    values ('072-test-c3-' || gen_random_uuid(), 'Sneaky', 'community', 'published');
+    insert into public.smart_rentals (slug, title, owner_type, listing_status, category)
+    values ('072-test-c3-' || gen_random_uuid(), 'Sneaky', 'community', 'published', 'cameras-optics');
     raise exception 'FAIL: a client inserted a published listing';
   exception when insufficient_privilege then
     raise notice 'PASS: client cannot insert a published listing';
@@ -260,14 +260,14 @@ declare
   flags_after jsonb;
   n integer;
 begin
-  insert into public.smart_rentals (id, slug, title, owner_type, listing_status) values
-    (legacy, '072-bf-legacy-' || legacy, 'Legacy camera', 'community', 'published'),
-    (reviewed, '072-bf-reviewed-' || reviewed, 'Reviewed camera', 'community', 'published'),
-    (submitted, '072-bf-submitted-' || submitted, 'Submitted camera', 'community', 'published'),
-    (unstamped, '072-bf-unstamped-' || unstamped, 'Unstamped camera', 'community', 'published'),
-    (studio, '072-bf-studio-' || studio, 'Studio camera', 'studio', 'published');
-  insert into public.smart_rentals (id, slug, title, owner_type, listing_status, is_ai_generated, price_per_day)
-  values (legacy_ai, '072-bf-legacy-ai-' || legacy_ai, 'Legacy AI camera', 'community', 'published', true, 400);
+  insert into public.smart_rentals (id, slug, title, owner_type, listing_status, category) values
+    (legacy, '072-bf-legacy-' || legacy, 'Legacy camera', 'community', 'published', 'cameras-optics'),
+    (reviewed, '072-bf-reviewed-' || reviewed, 'Reviewed camera', 'community', 'published', 'cameras-optics'),
+    (submitted, '072-bf-submitted-' || submitted, 'Submitted camera', 'community', 'published', 'cameras-optics'),
+    (unstamped, '072-bf-unstamped-' || unstamped, 'Unstamped camera', 'community', 'published', 'cameras-optics'),
+    (studio, '072-bf-studio-' || studio, 'Studio camera', 'studio', 'published', 'cameras-optics');
+  insert into public.smart_rentals (id, slug, title, owner_type, listing_status, is_ai_generated, price_per_day, category)
+  values (legacy_ai, '072-bf-legacy-ai-' || legacy_ai, 'Legacy AI camera', 'community', 'published', true, 400, 'cameras-optics');
   insert into public.listing_private (rental_id, reviewed_at) values (reviewed, now());
   insert into public.listing_private (rental_id, submitted_at) values (submitted, now());
   -- Approved under 072, but the review record written after the decision
@@ -276,10 +276,10 @@ begin
   insert into public.listing_private (rental_id, owner_attestations)
   values (unstamped, '{"owns_or_authorised": true, "condition_working": true, "location_accurate": true}');
   insert into public.smart_rentals
-    (id, slug, title, owner_type, is_ai_generated, price_per_day, price_per_week, description, rental_includes)
+    (id, slug, title, owner_type, is_ai_generated, price_per_day, price_per_week, description, rental_includes, category)
   values
-    (ai_draft, '072-bf-ai-' || ai_draft, 'AI camera', 'community', true, 400, 2000, 'Guessed words', '{}'),
-    (ai_flagged, '072-bf-aif-' || ai_flagged, 'AI camera 2', 'community', true, 400, null, null, '{}');
+    (ai_draft, '072-bf-ai-' || ai_draft, 'AI camera', 'community', true, 400, 2000, 'Guessed words', '{}', 'cameras-optics'),
+    (ai_flagged, '072-bf-aif-' || ai_flagged, 'AI camera 2', 'community', true, 400, null, null, '{}', 'cameras-optics');
   insert into public.listing_private (rental_id, ai_fields)
   values (ai_flagged, '{"title": {"status": "confirmed", "suggested_at": "x"}}');
 

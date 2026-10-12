@@ -265,6 +265,9 @@ approved and the production app from step 8 is live (067 and 077 need it;
 080 must be applied with the Phase 8 build, which reads `origin_owner_id`:
 apply 080 in the same window as the deploy, and before any owner opts in).
 Off-peak. Name the dump `prod-before-067.dump`.
+On production, `083-prerelease-fixes.sql` runs FIRST, before 067; the exact
+order, env vars and smoke test are in
+[docs/release/2026-10-apply-order.md](../release/2026-10-apply-order.md).
 Production is shared with other apps (R-1): read `precheck-077.out` with
 care and keep 077's NOTICE output.
 
