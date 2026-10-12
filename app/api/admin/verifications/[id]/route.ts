@@ -160,6 +160,19 @@ export async function PUT(req: NextRequest, context: RouteContext) {
       }
     }
 
+    // Tell them in the app too (types from migration 082; best effort: the decision stands either way).
+    const { error: noticeError } = await db.from('notifications').insert({
+      user_id: id,
+      type: action === 'approve' ? 'verification_approved' : 'verification_rejected',
+      title: action === 'approve' ? 'Your ID is checked' : 'Your ID check was not accepted',
+      body:
+        action === 'approve'
+          ? 'You can now book gear and take bookings.'
+          : `Reason: ${String(reason).slice(0, 300)}. You can send your ID again from your dashboard.`,
+      link: '/dashboard',
+    });
+    if (noticeError) console.error('[admin/verifications] in-app notice failed:', noticeError.message);
+
     // Who decided, and their notes, kept for the record.
     logEvent({
       eventType: action === 'approve' ? 'verification_approved' : 'verification_rejected',
