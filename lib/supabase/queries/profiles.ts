@@ -24,6 +24,9 @@ export type Profile = {
   address_place_id: string | null;
   onboarding_completed_at: string | null;
   is_verified: boolean;
+  /** Read by getProfileById (select *); optional because other selects omit them. */
+  available_for_hire?: boolean | null;
+  portfolio_projects?: unknown[] | null;
   created_at: string;
   updated_at: string;
 };

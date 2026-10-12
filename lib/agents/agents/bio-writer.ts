@@ -49,3 +49,38 @@ Use South African English spelling. Do not use hashtags, emojis, or marketing cl
 Focus on what they actually shoot, where they're based, and one concrete specialty.
 Return only the bio text — no quotes, no preamble, no explanation.`;
 }
+
+export const MAX_BIO_CHARS = 280;
+
+/** What the model returned, made safe to show: no wrapping quotes or labels, never over the cap. */
+export function cleanBio(text: string, max: number = MAX_BIO_CHARS): string {
+  const QUOTES = /^["'\u201C\u2018]+|["'\u201D\u2019]+$/g;
+  let bio = text.trim().replace(QUOTES, '').trim();
+  bio = bio.replace(/^bio:\s*/i, '').replace(QUOTES, '').trim();
+  // No long dashes in what the creator shows the world.
+  bio = bio.replace(/\s*[\u2014\u2013]\s*/g, ', ');
+  if (bio.length <= max) return bio;
+  const cut = bio.slice(0, max);
+  const lastStop = cut.lastIndexOf('.');
+  return (lastStop > max * 0.5 ? cut.slice(0, lastStop + 1) : cut.replace(/\s+\S*$/, '')).trim();
+}
+
+/**
+ * A plain starting bio from what we already know, used when no AI provider
+ * answers (an Anthropic key out of credit with no working fallback). The
+ * creator edits it; it is never empty.
+ */
+export function templateBio(input: BioWriterInput, max: number = MAX_BIO_CHARS): string {
+  const place = input.location?.trim() || 'South Africa';
+  const scenes = input.topSceneTypes.slice(0, 2).map((s) => s.name.trim()).filter(Boolean);
+  const what = scenes.length === 2
+    ? `${scenes[0]} and ${scenes[1]}`
+    : scenes.length === 1
+      ? scenes[0]
+      : 'photo and video work';
+  const years = input.yearsExperience && input.yearsExperience > 0
+    ? ` with ${input.yearsExperience} year${input.yearsExperience === 1 ? '' : 's'} of experience`
+    : '';
+  const bio = `I am a creator based in ${place}${years}. I shoot ${what}, and I care about clear communication and delivering on time. Tell me about your shoot and I will help you plan it.`;
+  return cleanBio(bio, max);
+}

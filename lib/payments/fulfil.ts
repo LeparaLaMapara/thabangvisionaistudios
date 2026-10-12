@@ -11,6 +11,8 @@ import { recordServiceBookingEvent } from '@/lib/supabase/queries/service-bookin
 import { logEvent } from '@/lib/data/events';
 import { STUDIO } from '@/lib/constants';
 import { toCents } from '@/lib/core/pricing/money';
+import { email as emailProvider } from '@/lib/email';
+import { newPaidJobEmail, newPaidJobNoticeBody } from '@/lib/bookings/creator-job-emails';
 
 /**
  * What happens once a payment provider tells us, with a verified signature,
@@ -221,7 +223,7 @@ export async function confirmServiceBookingPayment(webhook: WebhookResult): Prom
 
   const { data: booking, error: lookupErr } = await supabase
     .from('bookings')
-    .select('id, reference, status, payment_status, total, creator_id, client_id, project_category, duration_hours')
+    .select('id, reference, status, payment_status, total, creator_amount, creator_id, client_id, project_category, duration_hours, shoot_date, location, created_at')
     .eq('reference', paymentId)
     .maybeSingle();
 
@@ -314,17 +316,31 @@ export async function confirmServiceBookingPayment(webhook: WebhookResult): Prom
 
   console.log(`[payment-webhook] Service booking confirmed: ref=${paymentId} booking=${booking.id}`);
 
-  // Notify the creator they have a new paid gig
+  // Tell the creator they have a new paid job: what THEY earn
+  // (creator_amount), never the client total, and the answer-by deadline.
   if (booking.creator_id) {
+    const job = { ...booking, paid_at: now };
     try {
       await supabase.from('notifications').insert({
         user_id: booking.creator_id,
         type: 'gig_request',
         title: 'New Paid Gig',
-        body: `You have a new ${booking.project_category} booking (${booking.reference}). R${booking.total} — ${booking.duration_hours}hrs. Accept it in your gigs dashboard.`,
+        body: newPaidJobNoticeBody(job),
         link: '/dashboard/gigs',
       });
     } catch { /* don't block webhook */ }
+    // And by email, so a creator who is not on the site does not lose the
+    // job when the answer window closes.
+    try {
+      const { data: creator } = await supabase.auth.admin.getUserById(String(booking.creator_id));
+      const to = creator?.user?.email;
+      if (to) {
+        const baseUrl = process.env.NEXT_PUBLIC_APP_URL || STUDIO.meta.url;
+        await emailProvider.sendEmail({ to, ...newPaidJobEmail(job, baseUrl) });
+      }
+    } catch (err) {
+      console.error('[payment-webhook] New job email to the creator failed:', err instanceof Error ? err.message : err);
+    }
   }
 
   // Notify the client that payment was confirmed

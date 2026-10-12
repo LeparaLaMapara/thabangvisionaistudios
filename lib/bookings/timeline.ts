@@ -89,20 +89,23 @@ export function shootTimeline(b: TimelineBooking, viewer: 'client' | 'creator'):
   if (b.arrived_at) done.add('arrived');
   if (b.delivered_at || b.status === 'delivered') done.add('delivered');
   if (approved) done.add('approved');
-  if (b.payout_status === 'paid') done.add('payout');
+  if (b.payout_status === 'paid' || b.status === 'paid_out') done.add('payout');
   if (b.client_rating) done.add('review');
   // Later steps imply earlier ones, except "Arrived", which is only ever
   // shown done when the creator really checked in; otherwise it is skipped.
+  // "Creator paid" is never implied either: a review after approval used to
+  // mark the payout done, so the creator saw "All done." while it was still
+  // pending. It stays the current step until the payout is really sent.
   const order = steps.map((s) => s.key);
   const last = Math.max(...order.map((k, i) => (done.has(k) ? i : -1)));
   const skipped = new Set<string>();
   order.slice(0, last + 1).forEach((k) => {
-    if (done.has(k)) return;
+    if (done.has(k) || k === 'payout') return;
     if (k === 'arrived') skipped.add(k);
     else done.add(k);
   });
 
-  const stopped = b.status === 'cancelled';
+  const stopped = b.status === 'cancelled' || b.status === 'declined';
   let currentMarked = false;
   return steps.map((s) => {
     if (done.has(s.key)) return { ...s, state: 'done' as const };

@@ -6,6 +6,7 @@ import { auth } from '@/lib/auth';
 import { getCreatorGigs, expireStaleRequests } from '@/lib/supabase/queries/crew';
 import { getCreatorBookings } from '@/lib/supabase/queries/service-bookings';
 import { getBankingDetails } from '@/lib/supabase/queries/banking';
+import { getReassignedGigNotices } from '@/lib/supabase/queries/notifications';
 import { createClient } from '@/lib/supabase/server';
 import { STUDIO } from '@/lib/constants';
 import GigsList from './GigsList';
@@ -24,10 +25,11 @@ export default async function GigsPage() {
   const supabase = await createClient();
   await expireStaleRequests(supabase);
 
-  const [gigs, serviceGigs, banking] = await Promise.all([
+  const [gigs, serviceGigs, banking, reassigned] = await Promise.all([
     getCreatorGigs(user.id),
     getCreatorBookings(user.id),
     getBankingDetails(user.id),
+    getReassignedGigNotices(user.id),
   ]);
 
   const hasBanking = !!banking;
@@ -65,12 +67,12 @@ export default async function GigsPage() {
       )}
 
       {/* Service bookings (new system — paid upfront) */}
-      {serviceGigs.length > 0 && (
+      {(serviceGigs.length > 0 || reassigned.length > 0) && (
         <div className="mb-10">
           <h3 className="mb-4 text-sm font-medium uppercase tracking-wider text-neutral-400">
             Service Bookings
           </h3>
-          <ServiceGigsList gigs={serviceGigs} />
+          <ServiceGigsList gigs={serviceGigs} reassigned={reassigned} />
         </div>
       )}
 
@@ -84,7 +86,7 @@ export default async function GigsPage() {
         </div>
       )}
 
-      {gigs.length === 0 && serviceGigs.length === 0 && (
+      {gigs.length === 0 && serviceGigs.length === 0 && reassigned.length === 0 && (
         <div className="py-12 text-center text-neutral-400">
           <p>No gigs yet.</p>
           <p className="mt-1 text-sm">When clients book you, their gigs will appear here.</p>

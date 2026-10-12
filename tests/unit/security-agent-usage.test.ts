@@ -96,7 +96,11 @@ describe('bio-writer: daily cap holds under parallel requests', () => {
 
   it('a failed generation gives the slot back', async () => {
     db.failModel = true;
-    expect((await callBio()).status).toBe(500);
+    // Every provider failed: the creator gets a plain starting bio to edit
+    // (not an empty box), and the AI slot is not spent.
+    const res = await callBio();
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ source: 'template' });
     expect(db.count).toBe(0);
     expect(db.rpcCalls).toEqual(['ubunye_reserve_message', 'ubunye_release_message']);
   });
