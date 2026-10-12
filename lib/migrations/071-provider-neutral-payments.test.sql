@@ -13,7 +13,7 @@ declare
 begin
   insert into auth.users (id, email) values (u, 'p2-071-' || u || '@example.invalid');
   insert into public.profiles (id) values (u) on conflict (id) do nothing;
-  insert into public.smart_rentals (id, slug, title, quantity, is_published) values (r, 'p2-071-' || r, 'Test', 1, true);
+  insert into public.smart_rentals (id, slug, title, quantity, is_published, category) values (r, 'p2-071-' || r, 'Test', 1, true, 'cameras-optics');
 
   -- A manual payment: neutral reference copied, provider 'manual'.
   insert into public.equipment_bookings (user_id, rental_id, start_date, end_date, total_price, status, payfast_payment_id)

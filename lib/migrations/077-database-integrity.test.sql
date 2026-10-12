@@ -69,9 +69,9 @@ begin
   update public.profiles set crew_slug = 'cebo-creator-3', crew_bio = 'y' where id = v_y;
 
   -- Community listings go live through review (072): listing_status drives is_published.
-  insert into public.smart_rentals (slug, title, owner_id, owner_type, listing_status, quantity)
-  values ('t077-live-' || v_owner, 't077 live kit', v_owner, 'community', 'published', 1),
-         ('t077-draft-' || v_drafter, 't077 draft kit', v_drafter, 'community', 'draft', 1);
+  insert into public.smart_rentals (slug, title, owner_id, owner_type, listing_status, quantity, category)
+  values ('t077-live-' || v_owner, 't077 live kit', v_owner, 'community', 'published', 1, 'cameras-optics'),
+         ('t077-draft-' || v_drafter, 't077 draft kit', v_drafter, 'community', 'draft', 1, 'cameras-optics');
   if not (select is_published from public.smart_rentals where slug = 't077-live-' || v_owner) then
     raise exception 'FAIL fixtures: the live listing is not published';
   end if;
@@ -100,11 +100,11 @@ declare
   journal jsonb;
   st text;
 begin
-  insert into public.smart_rentals (id, slug, title, quantity, is_published, price_per_day, replacement_value)
-  values (cam, 't077-cam-' || cam, 't077 camera', 1, true, 1000, 10000);
+  insert into public.smart_rentals (id, slug, title, quantity, is_published, price_per_day, replacement_value, category)
+  values (cam, 't077-cam-' || cam, 't077 camera', 1, true, 1000, 10000, 'cameras-optics');
   r := public.reserve_rental_order(
     jsonb_build_array(jsonb_build_object('user_id', u, 'rental_id', cam, 'checkout_group_id', g,
-      'start_date', '2032-03-10', 'end_date', '2032-03-11', 'total_price', 2000, 'quantity', 1)),
+      'start_date', '2032-03-10', 'end_date', '2032-03-11', 'total_price', 2000, 'deposit_amount', 0, 'quantity', 1)),
     jsonb_build_object('reference', g::text, 'provider', 'paystack', 'expected_amount_cents', 200000,
       'hire_cents', 200000, 'deposit_cents', 0, 'delivery_cents', 0),
     30);

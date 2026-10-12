@@ -86,10 +86,10 @@ begin
     (renter, 'p4-renter@example.invalid'), (stranger, 'p4-stranger@example.invalid'),
     (owner_a, 'p4-owner-a@example.invalid'), (owner_b, 'p4-owner-b@example.invalid');
   insert into public.profiles (id) values (renter), (stranger), (owner_a), (owner_b) on conflict (id) do nothing;
-  insert into public.smart_rentals (id, slug, title, quantity, is_published, price_per_day, replacement_value, owner_id, owner_type) values
-    (cam, 'p4-cam-' || cam, 'P4 camera', 1, true, 500, 15000, owner_a, 'community'),
-    (lens, 'p4-lens-' || lens, 'P4 lens', 1, true, 300, 8000, owner_b, 'community'),
-    (other_cam, 'p4-oc-' || other_cam, 'P4 other', 1, true, 300, 8000, owner_b, 'community');
+  insert into public.smart_rentals (id, slug, title, quantity, is_published, price_per_day, replacement_value, owner_id, owner_type, category) values
+    (cam, 'p4-cam-' || cam, 'P4 camera', 1, true, 500, 15000, owner_a, 'community', 'cameras-optics'),
+    (lens, 'p4-lens-' || lens, 'P4 lens', 1, true, 300, 8000, owner_b, 'community', 'cameras-optics'),
+    (other_cam, 'p4-oc-' || other_cam, 'P4 other', 1, true, 300, 8000, owner_b, 'community', 'cameras-optics');
   insert into public.equipment_bookings (id, user_id, rental_id, start_date, end_date, total_price, status, checkout_group_id, owner_id) values
     (bk1, renter, cam, '2030-02-01', '2030-02-03', 1500, 'confirmed', grp, owner_a),
     (bk2, renter, lens, '2030-02-01', '2030-02-03', 900, 'confirmed', grp, owner_b),
