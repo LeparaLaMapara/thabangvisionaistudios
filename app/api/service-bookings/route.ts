@@ -16,6 +16,7 @@ import { checkBookableCreator, CREATOR_NOT_BOOKABLE_MESSAGE } from '@/lib/bookin
 import { reportUnpaidRequest, PAYMENTS_OFF_MESSAGE } from '@/lib/payments/offline';
 import { revisionPolicyText } from '@/lib/core/services/fulfilment';
 import { mentionsFulfilmentSchema, withoutFulfilmentColumns } from '@/lib/supabase/queries/service-bookings';
+import { appUrl } from '@/lib/app-url';
 
 // Writes that touch money or status go through the service role, after the
 // route has checked who the user is and that the record is theirs. The users'
@@ -120,7 +121,7 @@ export async function POST(request: NextRequest) {
   const { platformAmount, creatorAmount } = splitServiceBooking(quote, STUDIO.booking.platformCommission);
 
   const reference = `BK-${nanoid(10)}`;
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || STUDIO.meta.url;
+  const baseUrl = appUrl(STUDIO.meta.url);
 
   try {
     // What was agreed, recorded on the booking at the time it was made

@@ -1,4 +1,5 @@
 import crypto from 'crypto';
+import { appUrl } from '@/lib/app-url';
 import { toCents } from '@/lib/core/pricing/money';
 import type {
   PaymentProvider,
@@ -23,8 +24,24 @@ function getSecretKey(): string {
 
 function resolveUrl(path: string): string {
   if (path.startsWith('http')) return path;
-  const base = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000';
+  const base = appUrl();
   return `${base}${path}`;
+}
+
+export type KeyMode = 'live' | 'test' | 'missing' | 'unrecognised';
+
+/**
+ * Which kind of Paystack key this is, from its prefix alone. The secret key
+ * is a Vercel "Sensitive" variable nobody can read back, so this is how the
+ * owner (and Claude) learn whether production holds live or test keys
+ * without the key itself ever leaving the server.
+ */
+export function paystackKeyMode(key: string | undefined): KeyMode {
+  const k = key?.trim();
+  if (!k) return 'missing';
+  if (k.startsWith('sk_live_') || k.startsWith('pk_live_')) return 'live';
+  if (k.startsWith('sk_test_') || k.startsWith('pk_test_')) return 'test';
+  return 'unrecognised';
 }
 
 /**
