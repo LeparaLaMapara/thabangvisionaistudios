@@ -10,6 +10,7 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { formatRand } from '@/lib/format/money';
 import { STUDIO } from '@/lib/constants';
+import { useAdminUI } from '@/components/admin/shell/AdminUI';
 
 /**
  * Delivery operations (spec Phase 4 §4.18): the queues a person works through
@@ -145,6 +146,7 @@ const inputClass = 'w-full bg-[#050505] border border-white/10 px-3 py-2 text-sm
 // ─── Page ───────────────────────────────────────────────────────────────────
 
 export default function DeliveryOpsPage() {
+  const ui = useAdminUI();
   const [data, setData] = useState<OpsData | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -176,7 +178,7 @@ export default function DeliveryOpsPage() {
 
   /** POST an action; show the server's answer, then reload. Returns the JSON on success. */
   const act = async (body: Row, busyKey: string, confirmText?: string): Promise<Row | null> => {
-    if (confirmText && !window.confirm(confirmText)) return null;
+    if (confirmText && !(await ui.confirm({ title: confirmText, action: 'Yes, go ahead' }))) return null;
     setBusy(busyKey);
     setNotice(null);
     try {

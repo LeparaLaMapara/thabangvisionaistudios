@@ -3,6 +3,7 @@
 import { useState, useTransition } from 'react';
 import type { FeatureFlag } from '@/lib/features';
 import { toggleFlag } from './actions';
+import { useAdminUI } from '@/components/admin/shell/AdminUI';
 
 function formatDate(iso: string): string {
   try {
@@ -20,12 +21,19 @@ function formatDate(iso: string): string {
 }
 
 export function FlagsTable({ flags }: { flags: FeatureFlag[] }) {
+  const ui = useAdminUI();
   const [pending, startTransition] = useTransition();
   const [localFlags, setLocalFlags] = useState(flags);
   const [error, setError] = useState<string | null>(null);
 
-  const onToggle = (key: string, next: boolean) => {
-    const ok = confirm(`Turn ${next ? 'ON' : 'OFF'} flag "${key}"?`);
+  const onToggle = async (key: string, next: boolean) => {
+    const flag = localFlags.find((f) => f.key === key);
+    const ok = await ui.confirm({
+      title: `Turn ${next ? 'on' : 'off'} “${key.replace(/_/g, ' ')}”?`,
+      body: `${flag?.description ? `${flag.description} ` : ''}The site changes within a minute, for everyone.`,
+      action: next ? 'Turn it on' : 'Turn it off',
+      danger: !next,
+    });
     if (!ok) return;
     setError(null);
     setLocalFlags((prev) => prev.map((f) => (f.key === key ? { ...f, enabled: next } : f)));

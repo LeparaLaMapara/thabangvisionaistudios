@@ -11,6 +11,7 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { formatRand } from '@/lib/format/money';
 import { STUDIO } from '@/lib/constants';
+import { useAdminUI } from '@/components/admin/shell/AdminUI';
 
 /**
  * Rental operations (spec §7.15): the queues a person works through when the
@@ -166,6 +167,7 @@ type TabId = (typeof TABS)[number]['id'];
 // ─── Page ───────────────────────────────────────────────────────────────────
 
 export default function RentalOpsPage() {
+  const ui = useAdminUI();
   const [data, setData] = useState<OpsData | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -199,7 +201,7 @@ export default function RentalOpsPage() {
 
   /** POST an action; show the server's answer, then reload the queues. */
   const act = async (body: OpsAction, busyKey: string, confirmText?: string): Promise<boolean> => {
-    if (confirmText && !window.confirm(confirmText)) return false;
+    if (confirmText && !(await ui.confirm({ title: confirmText, action: 'Yes, go ahead' }))) return false;
     setBusy(busyKey);
     setNotice(null);
     try {

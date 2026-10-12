@@ -17,6 +17,7 @@ import { MarkPaid } from '@/components/admin/MarkPaid';
 import { formatRand } from '@/lib/format/money';
 import type { EquipmentBooking } from '@/types/booking';
 import type { BookingStatus as RentalStatus } from '@/lib/core/rental/state';
+import { useAdminUI } from '@/components/admin/shell/AdminUI';
 
 // ─── Extended booking type with joined rental + user info ────────────────────
 
@@ -73,6 +74,7 @@ const TABS = [
 const ITEMS_PER_PAGE = 20;
 
 export default function AdminBookingsPage() {
+  const ui = useAdminUI();
   const [activeTab, setActiveTab] = useState('all');
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
@@ -179,11 +181,21 @@ export default function AdminBookingsPage() {
     const refundCents = cancelTarget.paid ? Math.round(refundRand * 100) : undefined;
     if (
       cancelTarget.paid &&
-      !window.confirm(
+      !(await ui.confirm(
         refundCents && refundCents > 0
-          ? `Cancel this paid booking and refund ${formatRand(refundRand, { decimals: true })}? A card refund is initiated with the payment provider; an EFT or cash payment must be paid back by hand.`
-          : 'Cancel this paid booking with NO refund?',
-      )
+          ? {
+              title: `Cancel and refund ${formatRand(refundRand, { decimals: true })}?`,
+              body: 'A card payment is refunded through the payment provider. An EFT or cash payment must be paid back by hand.',
+              action: `Cancel and refund ${formatRand(refundRand, { decimals: true })}`,
+              danger: true,
+            }
+          : {
+              title: 'Cancel this paid booking with no refund?',
+              body: 'The customer keeps nothing back. Only do this if you agreed it with them.',
+              action: 'Cancel with no refund',
+              danger: true,
+            },
+      ))
     ) {
       return;
     }

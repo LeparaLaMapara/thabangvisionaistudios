@@ -17,6 +17,7 @@ import { Button } from '@/components/ui/Button';
 import { Textarea } from '@/components/ui/Textarea';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { formatRand } from '@/lib/format/money';
+import { useAdminUI } from '@/components/admin/shell/AdminUI';
 
 type DisputeStatus = 'open' | 'investigating' | 'resolved' | 'escalated' | 'dismissed';
 
@@ -141,6 +142,7 @@ function formatType(type: string): string {
 }
 
 export default function AdminDisputeDetailPage() {
+  const ui = useAdminUI();
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const [dispute, setDispute] = useState<DisputeDetail | null>(null);
@@ -189,11 +191,23 @@ export default function AdminDisputeDetailPage() {
     }
     if (selectedResolution === 'full_refund' || selectedResolution === 'partial_refund') {
       const what = selectedResolution === 'partial_refund' ? formatRand(amount, { decimals: true }) : 'what is left of the charge';
-      if (!window.confirm(`Initiate a refund of ${what} with the payment provider? It cannot be taken back once sent.`)) return;
+      const ok = await ui.confirm({
+        title: `Refund ${what}?`,
+        body: 'The refund is sent through the payment provider and cannot be taken back once sent.',
+        action: `Refund ${what}`,
+        danger: true,
+      });
+      if (!ok) return;
     }
     if (selectedResolution === 'user_suspended') {
       const who = dispute ? partiesOf(dispute).find((p) => p.id === suspendUserId)?.label : undefined;
-      if (!window.confirm(`Suspend ${who ?? 'this user'}? Their listings are also taken offline.`)) return;
+      const ok = await ui.confirm({
+        title: `Suspend ${who ?? 'this person'}?`,
+        body: 'They are signed out and cannot book or list. Their listings go offline too.',
+        action: `Suspend ${who ?? 'them'}`,
+        danger: true,
+      });
+      if (!ok) return;
     }
     setResolving(true);
     try {

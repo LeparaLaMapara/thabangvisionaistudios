@@ -7,6 +7,7 @@ import { ArrowLeft, Camera, Loader2 } from 'lucide-react';
 import { uploadFile } from '@/lib/cloudinary/upload';
 import { formatRand } from '@/lib/format/money';
 import { uploadAccept } from '@/lib/storage/upload-policy';
+import { useAdminUI } from '@/components/admin/shell/AdminUI';
 
 /**
  * Taking gear back at the counter: the last step of the gear loop. Record the
@@ -95,6 +96,7 @@ function refundLine(r: TakeBackResult): string {
 }
 
 export default function TakeBackPage() {
+  const ui = useAdminUI();
   const { id } = useParams<{ id: string }>();
   const [data, setData] = useState<TakeBack | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -148,9 +150,11 @@ export default function TakeBackPage() {
 
   const submit = async (dispute: boolean) => {
     if (!dispute && !serialsConfirmed && data?.has_serial !== false) {
-      const go = window.confirm(
-        'You have not confirmed the serial number. If this item has a registered serial, the return will be opened as a dispute and the deposit will not be settled. Continue?',
-      );
+      const go = await ui.confirm({
+        title: 'The serial number is not confirmed',
+        body: 'If this item has a registered serial, the return is opened as a dispute and the deposit is not settled until it is sorted.',
+        action: 'Continue anyway',
+      });
       if (!go) return;
     }
     setSaving(true);

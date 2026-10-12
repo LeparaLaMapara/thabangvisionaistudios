@@ -21,6 +21,7 @@ import { ADMIN_SECTIONS, sectionForPath, type CountKey, type SectionId } from '@
 import { STUDIO } from '@/lib/constants';
 import { LogoutButton } from '@/components/admin/LogoutButton';
 import { AdminSearch } from './AdminSearch';
+import { AdminUIProvider } from './AdminUI';
 
 const ICONS: Record<SectionId, LucideIcon> = {
   today: Sun,
@@ -172,6 +173,7 @@ export function AdminShell({ email, children }: { email: string; children: React
   const current = sectionForPath(pathname);
 
   return (
+    <AdminUIProvider>
     <div className="min-h-screen bg-background text-white">
       {/* Desktop side menu */}
       <aside className="fixed inset-y-0 left-0 z-40 hidden w-64 flex-col border-r border-white/10 bg-[#0a0a0a] lg:flex">
@@ -297,5 +299,6 @@ export function AdminShell({ email, children }: { email: string; children: React
 
       {searchOpen && <AdminSearch onClose={() => setSearchOpen(false)} />}
     </div>
+    </AdminUIProvider>
   );
 }

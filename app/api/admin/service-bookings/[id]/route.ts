@@ -11,6 +11,9 @@ import { claimServiceRefund, sendClaimedServiceRefund, updateBookingWhere, type 
 
 // ─── PATCH — Admin update booking (assign creator, cancel, add notes) ───────
 
+/** Statuses in which an admin may choose or change the creator. */
+const ASSIGNABLE = new Set(['paid', 'pending_reassignment']);
+
 export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
@@ -49,9 +52,41 @@ export async function PATCH(
   const payoutStatusRead = (booking.payout_status ?? null) as string | null;
   const refundStatusRead = (booking.cancellation_refund_status ?? null) as string | null;
 
-  // Assign creator
+  // Assign (or swap) the creator. Only while nobody has started the work:
+  // paid and not yet accepted, or waiting for a new creator after the first
+  // one did not answer (daily-maintenance moves those to pending_reassignment).
+  // The booking goes back to "paid", waiting for the new creator to accept.
+  const previousCreator = (booking.creator_id ?? null) as string | null;
   if (creator_id) {
+    if (typeof creator_id !== 'string' || !/^[0-9a-f-]{36}$/i.test(creator_id)) {
+      return NextResponse.json({ error: 'Choose a creator from the list.' }, { status: 400 });
+    }
+    if (status) {
+      return NextResponse.json({ error: 'Assign a creator on its own, not together with a status change.' }, { status: 400 });
+    }
+    if (!ASSIGNABLE.has(String(booking.status))) {
+      return NextResponse.json(
+        { error: `A creator can only be chosen before the work starts. This booking is ${String(booking.status).replace(/_/g, ' ')}.`, code: 'NOT_ASSIGNABLE' },
+        { status: 409 },
+      );
+    }
+    if (creator_id === booking.client_id) {
+      return NextResponse.json({ error: 'The client cannot be the creator on their own booking.' }, { status: 400 });
+    }
+    if (creator_id === previousCreator) {
+      return NextResponse.json({ error: 'That creator already has this booking.' }, { status: 400 });
+    }
+    const { data: creator } = await supabase
+      .from('profiles')
+      .select('id, verification_status, is_suspended')
+      .eq('id', creator_id)
+      .maybeSingle();
+    if (!creator || creator.verification_status !== 'verified' || creator.is_suspended) {
+      return NextResponse.json({ error: 'That person is not an ID-checked, active creator.' }, { status: 400 });
+    }
     update.creator_id = creator_id;
+    update.status = 'paid';
+    update.accepted_at = null;
   }
 
   // Admin status override
@@ -121,7 +156,7 @@ export async function PATCH(
     written = claim.claimed ? { ok: true, updated: true } : claim.error ? { ok: false, error: claim.error } : { ok: true, updated: false };
   } else {
     const expect: Record<string, string | null> = {};
-    if (status) expect.status = statusRead;
+    if (status || creator_id) expect.status = statusRead;
     if (status === 'cancelled') expect.payout_status = payoutStatusRead;
     written = await updateBookingWhere(supabase, id, expect, update);
   }
@@ -154,6 +189,18 @@ export async function PATCH(
     refundResult = r.outcome;
     recorded = r.recorded;
     if (r.outcome !== 'refunded') console.error('[admin/service-bookings] refund not completed:', r.outcome);
+  }
+
+  if (creator_id && previousCreator) {
+    try {
+      await supabase.from('notifications').insert({
+        user_id: previousCreator,
+        type: 'gig_unassigned',
+        title: 'Gig Unassigned',
+        body: `The ${booking.project_category} booking (${booking.reference}) has been given to another creator.`,
+        link: '/dashboard/gigs',
+      });
+    } catch { /* don't block */ }
   }
 
   if (creator_id) {
@@ -229,6 +276,13 @@ export async function PATCH(
         text: `An admin cancelled booking ${booking.reference}. Its refund is marked '${refundStatusRead}', so no automatic refund was sent. Decide whether the client gets money back, refund by hand if so, and record it.`,
       });
     } catch { /* don't block */ }
+  }
+
+  if (creator_id) {
+    await recordServiceBookingEvent(supabase, {
+      bookingId: id, event: 'admin_assign', from: booking.status, to: 'paid', actor: 'admin', actorId: auth.user.id,
+      reason: previousCreator ? `creator changed from ${previousCreator} to ${creator_id}` : `creator ${creator_id} assigned`,
+    });
   }
 
   if (status && status !== booking.status) {

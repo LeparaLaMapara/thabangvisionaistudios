@@ -15,6 +15,7 @@ import {
   Clock,
   AlertTriangle,
 } from 'lucide-react';
+import { useAdminUI } from '@/components/admin/shell/AdminUI';
 
 type UserProfile = {
   id: string;
@@ -66,6 +67,7 @@ function computeExpiresAt(duration: string, customDate: string): string | null {
 }
 
 export default function AdminUsersPage(): React.ReactElement {
+  const ui = useAdminUI();
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
@@ -121,7 +123,7 @@ export default function AdminUsersPage(): React.ReactElement {
 
       if (!res.ok) {
         const data = await res.json();
-        alert(data.error || 'Failed to update role');
+        ui.notify(data.error || 'Could not change the role.', 'bad');
         return;
       }
 
@@ -129,7 +131,7 @@ export default function AdminUsersPage(): React.ReactElement {
         prev.map(u => (u.id === userId ? { ...u, role: newRole } : u)),
       );
     } catch {
-      alert('Failed to update role. Please try again.');
+      ui.notify('Could not change the role. Please try again.', 'bad');
     } finally {
       setUpdating(null);
     }
@@ -152,7 +154,7 @@ export default function AdminUsersPage(): React.ReactElement {
 
       if (!res.ok) {
         const data = await res.json();
-        alert(data.error || 'Failed to suspend user');
+        ui.notify(data.error || 'Could not suspend this person.', 'bad');
         return;
       }
 
@@ -171,7 +173,7 @@ export default function AdminUsersPage(): React.ReactElement {
       );
       closeSuspendModal();
     } catch {
-      alert('Failed to suspend user. Please try again.');
+      ui.notify('Could not suspend this person. Please try again.', 'bad');
     } finally {
       setSuspendLoading(false);
     }
@@ -190,7 +192,7 @@ export default function AdminUsersPage(): React.ReactElement {
 
       if (!res.ok) {
         const data = await res.json();
-        alert(data.error || 'Failed to reinstate user');
+        ui.notify(data.error || 'Could not restore this person.', 'bad');
         return;
       }
 
@@ -209,7 +211,7 @@ export default function AdminUsersPage(): React.ReactElement {
       );
       closeReinstateModal();
     } catch {
-      alert('Failed to reinstate user. Please try again.');
+      ui.notify('Could not restore this person. Please try again.', 'bad');
     } finally {
       setReinstateLoading(false);
     }
