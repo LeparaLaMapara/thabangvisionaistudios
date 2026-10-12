@@ -108,7 +108,17 @@ export default function AdminBookingsPage() {
     fetch('/api/admin/equipment-bookings')
       .then((res) => (res.ok ? res.json() : []))
       .then((data) => {
-        if (Array.isArray(data)) setBookings(data);
+        if (!Array.isArray(data)) return;
+        setBookings(data);
+        // Links from Today and search: ?open=<booking id> opens that booking, ?q= fills the search.
+        const params = new URLSearchParams(window.location.search);
+        const open = params.get('open');
+        const found = open ? (data as AdminBooking[]).find((b) => b.id === open) : undefined;
+        if (found) setDetailBooking(found);
+        const q = params.get('q');
+        if (q) setSearch(q);
+        // Only the first load: a later refresh must not reopen a booking the person closed.
+        if (open || q) window.history.replaceState(null, '', window.location.pathname);
       })
       .catch(() => {})
       .finally(() => setLoading(false));
@@ -444,7 +454,7 @@ export default function AdminBookingsPage() {
                   Deposit
                 </h4>
                 <p className="text-sm font-mono text-white">
-                  {detailBooking.currency} {detailBooking.deposit_amount.toLocaleString()}
+                  {detailBooking.currency} {(detailBooking.deposit_amount ?? 0).toLocaleString()}
                 </p>
               </div>
             </div>
