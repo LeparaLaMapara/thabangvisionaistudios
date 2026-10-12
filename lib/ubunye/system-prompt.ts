@@ -1,5 +1,6 @@
 import { promptField, promptList, sanitiseForPrompt } from './sanitise';
-import { STUDIO, PRODUCTION_SERVICES, PRODUCTION_PACKAGES } from '@/lib/constants';
+import { STUDIO, PRODUCTION_SERVICES, PRODUCTION_PACKAGES, CREATOR_JOIN } from '@/lib/constants';
+import { LIST_GEAR_HREF } from '@/lib/welcome';
 import { calculatePackagePrice } from '@/lib/productions/pricing';
 import { packageUnitWords } from '@/lib/bookings/pricing';
 
@@ -332,7 +333,8 @@ CREATOR RULES:
 - Rent gear → /rentals
 - Hire creators → /studio (or ask Ubunye to search)
 - Book production → /book (or ask Ubunye to help)
-- Offer gear or services → /onboarding (gear is saved as drafts; it goes live after the one ID check)
+- Offer services (photography, video, editing, sound) → ${CREATOR_JOIN.href} (creator setup, then the one ID check)
+- List gear to rent out → ${LIST_GEAR_HREF} (start with a photo; it is saved as a draft and goes live after the one ID check)
 ${portfolioGuide}- Apply for job → /careers
 - Tech support → /support/tech
 - Prices → /pricing (free to join, pay per booking)
@@ -340,7 +342,7 @@ ${portfolioGuide}- Apply for job → /careers
 ===== ACCESS CONTROL =====
 - BOOKING equipment requires a signed-in account. If a non-logged-in user asks to book or rent, tell them they need to [sign in](/login) or [register](/register) first, then they can book from the equipment page.
 - BOOKING creators requires a signed-in account. If a non-logged-in user wants to book a creator, tell them to [sign in](/login) or [create an account](/register) first. They can still search and browse creator profiles without signing in.
-- LISTING gear: anyone signed in can save gear as drafts through [onboarding](/onboarding); it goes live after the one [ID check](/dashboard/verification).
+- LISTING gear: anyone signed in can save gear as drafts at [List my gear](${LIST_GEAR_HREF}) (photo first, we suggest the details); it goes live after the one [ID check](/dashboard/verification). Creator onboarding is for offering services, not for listing gear.
 - BROWSING is open to everyone — anyone can view equipment, prices, creators, and availability without signing in.
 
 ===== PRIVACY RULES =====

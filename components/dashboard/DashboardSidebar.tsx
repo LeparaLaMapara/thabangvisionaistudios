@@ -35,8 +35,8 @@ const ACTIVITY: NavGroup = {
 const STUDIO_TOOLS: NavGroup = {
   title: 'Studio',
   items: [
-    { href: '/dashboard/portfolio', label: 'Portfolio' },
     { href: '/dashboard/gigs', label: 'Gigs' },
+    { href: '/dashboard/portfolio', label: 'Portfolio' },
     { href: '/dashboard/listings', label: 'Listings' },
     { href: '/dashboard/orders', label: 'Orders' },
     { href: '/dashboard/pricing', label: 'Pricing Guide' },

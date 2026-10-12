@@ -1,8 +1,27 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ShootTimeline } from '@/components/booking/ShootTimeline';
+import { Modal } from '@/components/ui/Modal';
 import { payoutTimingText, revisionsAllowed } from '@/lib/core/services/fulfilment';
+import {
+  answerByAt,
+  canCheckIn,
+  formatSastDateTime,
+  formatShootDate,
+  hoursLeftToAnswer,
+} from '@/lib/bookings/answer-by';
+import { pastGigReason, splitCreatorGigs } from '@/lib/bookings/creator-gigs';
+
+/** A job passed to another creator: the booking is no longer theirs, so it comes from the alert. */
+export interface ReassignedGig {
+  id: string;
+  body: string;
+  created_at: string;
+}
+
+/** Tap targets: at least 44px tall on a phone. */
+const BTN = 'min-h-[44px] rounded-lg px-4 text-sm font-medium disabled:opacity-50';
 
 interface ServiceGig {
   id: string;
@@ -30,6 +49,9 @@ interface ServiceGig {
   revisions_included?: number | null;
   revisions_used?: number | null;
   payout_due_at?: string | null;
+  declined_at?: string | null;
+  decline_reason?: string | null;
+  cancellation_reason?: string | null;
 }
 
 const STATUS_COLORS: Record<string, string> = {
@@ -44,34 +66,50 @@ const STATUS_COLORS: Record<string, string> = {
 };
 
 const STATUS_LABELS: Record<string, string> = {
-  paid: 'New — Accept or Decline',
+  paid: 'New: accept or decline',
   accepted: 'In Progress',
-  delivered: 'Delivered — Awaiting Approval',
+  delivered: 'Delivered, awaiting approval',
   completed: 'Completed',
   paid_out: 'Paid Out',
   cancelled: 'Cancelled',
   declined: 'Declined',
-  disputed: 'Disputed — payout on hold',
+  disputed: 'Disputed, payout on hold',
 };
 
 const PAYOUT_LABELS: Record<string, string> = {
   pending: 'Pending',
   processing: 'Processing',
   paid: 'Paid',
-  failed: 'Failed — Contact Admin',
+  failed: 'Failed, contact us',
 };
 
-export default function ServiceGigsList({ gigs }: { gigs: ServiceGig[] }) {
+/** "Now", set after the first render so server and browser render the same HTML. */
+function useNow(): Date | null {
+  const [now, setNow] = useState<Date | null>(null);
+  useEffect(() => {
+    const tick = () => setNow(new Date());
+    const first = setTimeout(tick, 0);
+    const every = setInterval(tick, 60_000);
+    return () => {
+      clearTimeout(first);
+      clearInterval(every);
+    };
+  }, []);
+  return now;
+}
+
+export default function ServiceGigsList({ gigs, reassigned = [] }: { gigs: ServiceGig[]; reassigned?: ReassignedGig[] }) {
   const [updating, setUpdating] = useState<string | null>(null);
   const [deliveringId, setDeliveringId] = useState<string | null>(null);
   const [deliveryUrl, setDeliveryUrl] = useState('');
   const [deliveryMessage, setDeliveryMessage] = useState('');
   const [deliveryError, setDeliveryError] = useState('');
   const [actionError, setActionError] = useState<{ id: string; message: string } | null>(null);
+  const [declining, setDeclining] = useState<ServiceGig | null>(null);
+  const [declineReason, setDeclineReason] = useState('');
+  const now = useNow();
 
-  const actionable = gigs.filter((g) => g.status === 'paid');
-  const active = gigs.filter((g) => ['accepted', 'delivered', 'disputed'].includes(g.status));
-  const completed = gigs.filter((g) => ['completed', 'paid_out'].includes(g.status));
+  const { actionable, active, completed, past } = splitCreatorGigs(gigs);
 
   async function handleAction(gigId: string, action: 'accept' | 'decline', reason?: string) {
     setUpdating(gigId);
@@ -123,7 +161,7 @@ export default function ServiceGigsList({ gigs }: { gigs: ServiceGig[] }) {
     setUpdating(null);
   }
 
-  if (gigs.length === 0) {
+  if (gigs.length === 0 && reassigned.length === 0) {
     return (
       <div className="py-8 text-center text-neutral-400">
         <p>No service gigs yet.</p>
@@ -138,11 +176,23 @@ export default function ServiceGigsList({ gigs }: { gigs: ServiceGig[] }) {
       {actionable.length > 0 && (
         <section>
           <h3 className="mb-3 text-sm font-medium uppercase tracking-wider text-[#D4A843]">
-            New Gigs — Accept or Decline
+            New Gigs: Accept or Decline
           </h3>
           <div className="space-y-3">
             {actionable.map((gig) => (
-              <GigCard key={gig.id} gig={gig} updating={updating} onAction={handleAction} actionError={actionError?.id === gig.id ? actionError.message : null} showActions />
+              <GigCard
+                key={gig.id}
+                gig={gig}
+                now={now}
+                updating={updating}
+                onAction={handleAction}
+                actionError={actionError?.id === gig.id ? actionError.message : null}
+                showActions
+                onStartDecline={(g) => {
+                  setDeclineReason('');
+                  setDeclining(g);
+                }}
+              />
             ))}
           </div>
         </section>
@@ -157,6 +207,7 @@ export default function ServiceGigsList({ gigs }: { gigs: ServiceGig[] }) {
               <GigCard
                 key={gig.id}
                 gig={gig}
+                now={now}
                 updating={updating}
                 onAction={handleAction}
                 showDeliver={gig.status === 'accepted'}
@@ -186,17 +237,98 @@ export default function ServiceGigsList({ gigs }: { gigs: ServiceGig[] }) {
           <h3 className="mb-3 text-sm font-medium uppercase tracking-wider text-neutral-400">Completed</h3>
           <div className="space-y-3">
             {completed.map((gig) => (
-              <GigCard key={gig.id} gig={gig} updating={updating} onAction={handleAction} />
+              <GigCard key={gig.id} gig={gig} now={now} updating={updating} onAction={handleAction} />
             ))}
           </div>
         </section>
       )}
+
+      {/* Past: cancelled, declined and passed to another creator, so nothing just vanishes */}
+      {(past.length > 0 || reassigned.length > 0) && (
+        <section>
+          <h3 className="mb-3 text-sm font-medium uppercase tracking-wider text-neutral-500">Past</h3>
+          <ul className="space-y-2">
+            {past.map((gig) => (
+              <li key={gig.id} className="rounded-lg border border-neutral-800 bg-neutral-900/30 p-4">
+                <div className="flex flex-wrap items-center gap-3">
+                  <span className="font-mono text-xs text-neutral-500">{gig.reference}</span>
+                  <span className={`rounded-full border px-2 py-0.5 text-xs ${STATUS_COLORS[gig.status] || 'text-neutral-400 border-neutral-600'}`}>
+                    {STATUS_LABELS[gig.status] || gig.status}
+                  </span>
+                </div>
+                <p className="mt-1 text-sm text-neutral-300">{gig.project_category}</p>
+                <p className="mt-1 text-xs text-neutral-500">{pastGigReason(gig)}</p>
+              </li>
+            ))}
+            {reassigned.map((r) => (
+              <li key={r.id} className="rounded-lg border border-neutral-800 bg-neutral-900/30 p-4">
+                <span className="rounded-full border border-neutral-600 px-2 py-0.5 text-xs text-neutral-400">
+                  Passed to another creator
+                </span>
+                <p className="mt-2 text-xs text-neutral-500">{r.body}</p>
+                <p className="mt-1 text-xs text-neutral-600">
+                  {new Date(r.created_at).toLocaleDateString('en-ZA', { timeZone: 'Africa/Johannesburg', day: 'numeric', month: 'short', year: 'numeric' })}
+                </p>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      {/* Decline, in the page instead of browser pop-ups */}
+      <Modal
+        isOpen={declining !== null}
+        onClose={() => setDeclining(null)}
+        title="Decline this job?"
+        size="sm"
+      >
+        {declining && (
+          <div className="space-y-4">
+            <p className="text-sm text-neutral-300">
+              {declining.project_category} ({declining.reference}). The client is refunded in full and we offer them another creator.
+            </p>
+            <label className="block text-xs text-neutral-400">
+              Why can you not take it? (optional, shared with our team only)
+              <textarea
+                value={declineReason}
+                onChange={(e) => setDeclineReason(e.target.value)}
+                rows={3}
+                maxLength={500}
+                className="mt-2 w-full rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-2 text-sm text-white placeholder-neutral-500 focus:border-[#D4A843] focus:outline-none"
+              />
+            </label>
+            <div className="flex flex-wrap gap-3">
+              <button
+                type="button"
+                onClick={() => {
+                  const g = declining;
+                  setDeclining(null);
+                  void handleAction(g.id, 'decline', declineReason.trim());
+                }}
+                disabled={updating === declining.id}
+                className={`${BTN} border border-red-600/40 text-red-400 hover:bg-red-600/10`}
+              >
+                Yes, decline
+              </button>
+              <button
+                type="button"
+                onClick={() => setDeclining(null)}
+                className={`${BTN} border border-neutral-700 text-neutral-300 hover:bg-neutral-800`}
+              >
+                Keep the job
+              </button>
+            </div>
+          </div>
+        )}
+      </Modal>
     </div>
   );
 }
 
 function GigCard({
   gig,
+  now,
+  onStartDecline,
   updating,
   onAction,
   actionError = null,
@@ -213,6 +345,9 @@ function GigCard({
   onSubmitDelivery,
 }: {
   gig: ServiceGig;
+  /** Null until the page is in the browser; time-based bits wait for it. */
+  now: Date | null;
+  onStartDecline?: (gig: ServiceGig) => void;
   updating: string | null;
   onAction: (id: string, action: 'accept' | 'decline', reason?: string) => void;
   actionError?: string | null;
@@ -263,16 +398,41 @@ function GigCard({
 
       <p className="mt-2 text-sm text-neutral-400">{gig.project_description}</p>
 
-      <div className="mt-3 flex flex-wrap gap-4 text-xs text-neutral-400">
+      {/* The booked shoot date (the one check-in and refunds use), not the client's free text */}
+      <p className="mt-3 text-sm text-white">
+        {gig.shoot_date ? (
+          <>Shoot: <span className="font-medium">{formatShootDate(gig.shoot_date)}</span></>
+        ) : (
+          <span className="text-neutral-400">Shoot date to be confirmed by our team</span>
+        )}
+      </p>
+      {!gig.shoot_date && gig.preferred_dates && (
+        <p className="mt-1 text-xs text-neutral-500">Client&apos;s note on dates: {gig.preferred_dates}</p>
+      )}
+
+      <div className="mt-2 flex flex-wrap gap-4 text-xs text-neutral-400">
         <span>{gig.duration_hours}hrs</span>
         {gig.deliverables && <span>{gig.deliverables}</span>}
         {gig.location && <span>{gig.location}</span>}
-        {gig.preferred_dates && <span>{gig.preferred_dates}</span>}
       </div>
+
+      {/* The answer-by deadline: after it, the daily job passes the job to another creator */}
+      {gig.status === 'paid' && !gig.accepted_at && (
+        <p className="mt-3 rounded-lg border border-[#D4A843]/30 bg-[#D4A843]/5 px-3 py-2 text-xs text-[#D4A843]">
+          Answer by {formatSastDateTime(answerByAt(gig))}
+          {now && <> ({hoursLeftToAnswer(gig, now)} hours left)</>}. If you do not accept or decline by then, the job goes to another creator.
+        </p>
+      )}
 
       <ShootTimeline booking={gig} viewer="creator" />
 
-      {gig.status === 'accepted' && !arrived && (
+      {/* "I'm here" only on the shoot day; before it, say when it opens */}
+      {gig.status === 'accepted' && !arrived && now && gig.shoot_date && !canCheckIn(gig.shoot_date, now) && (
+        <p className="mt-3 text-xs text-neutral-400">
+          You can tap &quot;I&apos;m here&quot; on the shoot day, {formatShootDate(gig.shoot_date)}.
+        </p>
+      )}
+      {gig.status === 'accepted' && !arrived && now && canCheckIn(gig.shoot_date, now) && (
         <button
           onClick={checkIn}
           disabled={checkingIn}
@@ -287,7 +447,7 @@ function GigCard({
       {['accepted', 'delivered'].includes(gig.status) && (gig.revisions_used ?? 0) > 0 && (
         <p className="mt-3 text-xs text-yellow-400">
           Revision {gig.revisions_used} of {revisionsAllowed(gig.revisions_included)} requested
-          {gig.status === 'accepted' ? ' — deliver the revised work below.' : '.'}
+          {gig.status === 'accepted' ? '. Deliver the revised work below.' : '.'}
         </p>
       )}
 
@@ -329,18 +489,14 @@ function GigCard({
           <button
             onClick={() => onAction(gig.id, 'accept')}
             disabled={updating === gig.id}
-            className="rounded-lg bg-[#D4A843] px-4 py-2 text-sm font-medium text-black hover:bg-[#c49a3a] disabled:opacity-50"
+            className={`${BTN} bg-[#D4A843] text-black hover:bg-[#c49a3a]`}
           >
             {updating === gig.id ? 'Updating...' : 'Accept Gig'}
           </button>
           <button
-            onClick={() => {
-              if (!confirm('Decline this gig? The client is refunded in full and we offer them another creator.')) return;
-              const reason = prompt('Optional: why can you not take it? (shared with our team)') ?? '';
-              onAction(gig.id, 'decline', reason);
-            }}
+            onClick={() => onStartDecline?.(gig)}
             disabled={updating === gig.id}
-            className="rounded-lg border border-red-600/30 px-4 py-2 text-sm text-red-400 hover:bg-red-600/10 disabled:opacity-50"
+            className={`${BTN} border border-red-600/30 text-red-400 hover:bg-red-600/10`}
           >
             Decline
           </button>
@@ -354,7 +510,7 @@ function GigCard({
         <div className="mt-4">
           <button
             onClick={onStartDeliver}
-            className="rounded-lg bg-[#D4A843] px-4 py-2 text-sm font-medium text-black hover:bg-[#c49a3a]"
+            className={`${BTN} bg-[#D4A843] text-black hover:bg-[#c49a3a]`}
           >
             Deliver Work
           </button>
@@ -386,13 +542,13 @@ function GigCard({
             <button
               onClick={onSubmitDelivery}
               disabled={updating === gig.id}
-              className="rounded-lg bg-[#D4A843] px-4 py-2 text-sm font-medium text-black hover:bg-[#c49a3a] disabled:opacity-50"
+              className={`${BTN} bg-[#D4A843] text-black hover:bg-[#c49a3a]`}
             >
               {updating === gig.id ? 'Submitting...' : 'Submit Delivery'}
             </button>
             <button
               onClick={onCancelDeliver}
-              className="rounded-lg border border-neutral-700 px-4 py-2 text-sm text-neutral-400 hover:bg-neutral-800"
+              className={`${BTN} border border-neutral-700 text-neutral-400 hover:bg-neutral-800`}
             >
               Cancel
             </button>
@@ -404,7 +560,7 @@ function GigCard({
       {gig.status === 'delivered' && (
         <div className="mt-3 rounded-lg border border-cyan-500/20 bg-cyan-500/5 p-3">
           <p className="text-xs text-cyan-400">
-            Delivered — waiting for client approval
+            Delivered, waiting for client approval
           </p>
         </div>
       )}

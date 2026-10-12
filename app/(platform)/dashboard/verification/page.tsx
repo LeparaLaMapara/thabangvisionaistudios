@@ -4,6 +4,7 @@ import { Suspense, useEffect, useState, useRef } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { safeNextPath } from '@/lib/auth/redirect';
+import { verificationNext, type VerificationNext } from '@/lib/verification/return-link';
 import { motion } from 'framer-motion';
 import {
   Upload,
@@ -91,21 +92,72 @@ export default function VerificationPage() {
   );
 }
 
-/** "Back to your booking" when they came from a gear page (with its dates). */
-function BackToBooking({ href }: { href: string }) {
+const NEXT_LINK = 'inline-flex items-center min-h-[44px] text-xs font-mono text-[#D4A843] underline underline-offset-2 hover:opacity-80';
+
+/**
+ * The next step after the ID check: back to the booking for someone who was
+ * renting or booking, the remaining creator steps for someone who came from
+ * creator onboarding, or back to the page they were on.
+ */
+function NextStep({ next, verified = false, linksOnly = false }: { next: VerificationNext; verified?: boolean; linksOnly?: boolean }) {
+  if (!next) return null;
+  if (next.kind === 'booking') {
+    return (
+      <Link href={next.href} className={`${NEXT_LINK} mt-2`}>
+        Back to your booking
+      </Link>
+    );
+  }
+  if (next.kind === 'continue') {
+    return (
+      <Link href={next.href} className={`${NEXT_LINK} mt-2`}>
+        Continue where you were
+      </Link>
+    );
+  }
+  // The creator steps are shown once, on the status card, not in the banner too.
+  if (linksOnly) return null;
   return (
-    <Link
-      href={href}
-      className="inline-block mt-4 text-xs font-mono text-[#D4A843] underline underline-offset-2 hover:opacity-80"
-    >
-      Back to your booking
-    </Link>
+    <div className="mt-4 text-left">
+      <p className="text-xs font-mono text-neutral-300">
+        {verified ? 'Next, get ready to be booked:' : 'While we check, get ready to be booked:'}
+      </p>
+      <ul className="mt-1">
+        <li>
+          <Link href="/dashboard/portfolio" className={NEXT_LINK}>
+            Build your portfolio (one project of 3 photos)
+          </Link>
+        </li>
+        <li>
+          <Link href="/dashboard/banking" className={NEXT_LINK}>
+            Add the bank account you want to be paid into
+          </Link>
+        </li>
+        {next.draftedGear > 0 && (
+          <li>
+            <Link href={`/dashboard/listings?drafted=${next.draftedGear}`} className={NEXT_LINK}>
+              Finish your {next.draftedGear === 1 ? 'gear draft' : `${next.draftedGear} gear drafts`}
+            </Link>
+          </li>
+        )}
+        <li>
+          <Link href="/dashboard" className={NEXT_LINK}>
+            Go to your dashboard
+          </Link>
+        </li>
+      </ul>
+    </div>
   );
 }
 
 function VerificationPageInner() {
   // Where they were booking when they were asked for their ID, if anywhere.
-  const back = safeNextPath(useSearchParams().get('redirect'), '');
+  const searchParams = useSearchParams();
+  const next = verificationNext({
+    redirect: safeNextPath(searchParams.get('redirect'), ''),
+    from: searchParams.get('from'),
+    drafted: searchParams.get('drafted'),
+  });
   const [verification, setVerification] = useState<VerificationData | null>(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -312,7 +364,7 @@ function VerificationPageInner() {
             <p className="text-xs font-mono text-emerald-400/70 mt-1">
               A person checks it, {REVIEW_TIME}. We&apos;ll let you know by email.
             </p>
-            {back && <BackToBooking href={back} />}
+            <NextStep next={next} linksOnly />
           </div>
         </motion.div>
       )}
@@ -333,7 +385,7 @@ function VerificationPageInner() {
           <p className="text-xs font-mono text-neutral-400">
             Your identity has been successfully verified. You have full access to platform features.
           </p>
-          {back && <BackToBooking href={back} />}
+          <NextStep next={next} verified />
           {verification?.verification_reviewed_at && (
             <p className="text-xs font-mono text-neutral-400 mt-4">
               Verified on{' '}
@@ -360,7 +412,7 @@ function VerificationPageInner() {
           <p className="text-xs font-mono text-neutral-400">
             A person checks your documents, {REVIEW_TIME}. We&apos;ll let you know by email.
           </p>
-          {back && <BackToBooking href={back} />}
+          <NextStep next={next} />
           {verification?.verification_submitted_at && (
             <p className="text-xs font-mono text-neutral-400 mt-4">
               Submitted on{' '}

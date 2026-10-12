@@ -18,6 +18,12 @@ import { autoSendWelcomes, draftMissingWelcomes } from '@/lib/greetings/process'
 import { runOverdueLadder } from '@/lib/rental/workers';
 import { buildNotices } from '@/lib/core/rental/notifications';
 import { SupabaseAddressRetention, purgeDeliveryAddresses } from '@/lib/delivery/jobs';
+import { answerWindowPassed, needsAnswerReminder } from '@/lib/bookings/answer-by';
+import {
+  ANSWER_REMINDER_TITLE,
+  answerReminderEmail,
+  answerReminderNoticeBody,
+} from '@/lib/bookings/creator-job-emails';
 
 /**
  * Daily Maintenance — runs at 2am SAST (00:00 UTC)
@@ -30,7 +36,8 @@ import { SupabaseAddressRetention, purgeDeliveryAddresses } from '@/lib/delivery
  * 3b. Alert on payouts still processing after 24 hours
  * 5. Auto-complete stale accepted bookings (30+ days)
  * 6. Expire stale crew requests
- * 7. Auto-reassign unresponsive creators (48h with no acknowledgement)
+ * 7. Auto-reassign unresponsive creators (STUDIO.booking.creatorAnswerHours after payment, no answer)
+ * 7b. Remind creators whose answer is due before the next run (email + in-app)
  * 8. Auto-detect overdue rentals
  * 9. Auto-escalate unreturned gear to disputes (14+ days overdue)
  * 10. Auto-flag/suspend users with 3+ active disputes
@@ -380,19 +387,24 @@ Please contact the client and the creator. They are not paid out or refunded aut
     results.expiredCrewRequestsError = String(err);
   }
 
-  // ─── 7. Auto-reassign unresponsive creators (48h with no acknowledgement) ─
+  // ─── 7. Auto-reassign unresponsive creators (answer window after payment) ─
+  // The window is counted from paid_at (lib/bookings/answer-by.ts), the same
+  // deadline the creator is shown on the job card and in the emails. The
+  // created_at filter only narrows the read: paid_at is never before it.
   try {
-    const responseCutoff = new Date(now.getTime() - 48 * 60 * 60 * 1000).toISOString();
-    const { data: unresponsive } = await supabase
+    const answerHours = STUDIO.booking.creatorAnswerHours;
+    const responseCutoff = new Date(now.getTime() - answerHours * 60 * 60 * 1000).toISOString();
+    const { data: candidates } = await supabase
       .from('bookings')
-      .select('id, reference, creator_id, project_category, client_email')
+      .select('id, reference, creator_id, project_category, client_email, created_at, paid_at')
       .eq('status', 'paid')
       .is('accepted_at', null)
       .lt('created_at', responseCutoff);
 
+    const unresponsive = (candidates ?? []).filter((b) => answerWindowPassed(b, now));
     let reassigned = 0;
 
-    if (unresponsive && unresponsive.length > 0) {
+    if (unresponsive.length > 0) {
       for (const booking of unresponsive) {
         // Unassign the creator only while the booking is still paid and
         // unanswered (compare-and-set): a creator who accepts or declines
@@ -418,7 +430,7 @@ Please contact the client and the creator. They are not paid out or refunded aut
         await emailProvider.sendEmail({
           to: STUDIO.bookingEmail,
           subject: `[Action Required] Creator unresponsive — ${booking.reference}`,
-          text: `Creator did not acknowledge booking ${booking.reference} (${booking.project_category}) within 48 hours.\n\nThe booking has been unassigned and needs manual reassignment.\n\nClient email: ${booking.client_email}\nBooking ID: ${booking.id}\n\nPlease reassign to another creator in the admin panel.`,
+          text: `Creator did not acknowledge booking ${booking.reference} (${booking.project_category}) within ${answerHours} hours of payment.\n\nThe booking has been unassigned and needs manual reassignment.\n\nClient email: ${booking.client_email}\nBooking ID: ${booking.id}\n\nPlease reassign to another creator in the admin panel.`,
         });
 
         // Notify creator they lost the gig
@@ -428,7 +440,7 @@ Please contact the client and the creator. They are not paid out or refunded aut
               user_id: booking.creator_id,
               type: 'gig_unassigned',
               title: 'Gig Unassigned',
-              body: `Booking ${booking.reference} was unassigned because you did not respond within 48 hours.`,
+              body: `Booking ${booking.reference} was unassigned because you did not respond within ${answerHours} hours.`,
               link: '/dashboard/gigs',
             });
           } catch { /* don't block */ }
@@ -441,6 +453,62 @@ Please contact the client and the creator. They are not paid out or refunded aut
     results.autoReassigned = reassigned;
   } catch (err) {
     results.autoReassignedError = String(err);
+  }
+
+  // ─── 7b. Remind creators before a paid job is passed on ──────────────────
+  // This job runs once a day, so the last run before the deadline is the one
+  // where the deadline is less than creatorAnswerReminderHours away: about a
+  // day before release. One in-app row per booking also marks it as sent, so
+  // a manual rerun does not email twice.
+  try {
+    const answerHours = STUDIO.booking.creatorAnswerHours;
+    const earliest = new Date(now.getTime() - answerHours * 60 * 60 * 1000).toISOString();
+    const { data: waiting } = await supabase
+      .from('bookings')
+      .select('id, reference, creator_id, project_category, creator_amount, duration_hours, shoot_date, location, created_at, paid_at, status, accepted_at')
+      .eq('status', 'paid')
+      .is('accepted_at', null)
+      .gte('created_at', earliest);
+
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || STUDIO.meta.url;
+    let reminded = 0;
+    for (const booking of waiting ?? []) {
+      // Read filters are narrowed again here: only a still unanswered paid job.
+      if (booking.status !== 'paid' || booking.accepted_at || !booking.creator_id) continue;
+      if (!needsAnswerReminder(booking, now)) continue;
+      const link = `/dashboard/gigs#gig-${booking.id}`;
+      const { data: already } = await supabase
+        .from('notifications')
+        .select('id')
+        .eq('user_id', booking.creator_id)
+        .eq('title', ANSWER_REMINDER_TITLE)
+        .eq('link', link)
+        .limit(1);
+      if (already && already.length > 0) continue;
+
+      const { error: noticeErr } = await supabase.from('notifications').insert({
+        user_id: booking.creator_id,
+        type: 'gig_request',
+        title: ANSWER_REMINDER_TITLE,
+        body: answerReminderNoticeBody(booking),
+        link,
+      });
+      if (noticeErr) {
+        console.error('[daily-maintenance] answer reminder notice failed:', noticeErr.message);
+        continue;
+      }
+      try {
+        const { data: creator } = await supabase.auth.admin.getUserById(String(booking.creator_id));
+        const to = creator?.user?.email;
+        if (to) await emailProvider.sendEmail({ to, ...answerReminderEmail(booking, baseUrl) });
+      } catch (err) {
+        console.error('[daily-maintenance] answer reminder email failed:', err instanceof Error ? err.message : err);
+      }
+      reminded++;
+    }
+    results.answerReminders = reminded;
+  } catch (err) {
+    results.answerRemindersError = String(err);
   }
 
   // ─── 8–9. Overdue rentals: the escalation ladder ─────────────────────────

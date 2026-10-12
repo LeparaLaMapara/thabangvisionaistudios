@@ -23,7 +23,7 @@ export async function getClientBookings(clientId: string): Promise<(Booking & { 
 export async function getCreatorBookings(creatorId: string) {
   const supabase = await createClient();
   // Creator does NOT see client email/phone for privacy
-  const base = 'id, reference, booking_type, project_category, project_description, deliverables, duration_hours, location, preferred_dates, creator_amount, payment_status, payout_status, status, client_rating, client_review, created_at, updated_at, paid_at, accepted_at, arrived_at, delivered_at, completed_at, shoot_date';
+  const base = 'id, reference, booking_type, project_category, project_description, deliverables, duration_hours, location, preferred_dates, creator_amount, payment_status, payout_status, status, client_rating, client_review, created_at, updated_at, paid_at, accepted_at, arrived_at, delivered_at, completed_at, shoot_date, cancellation_reason';
   const read = (columns: string) => supabase
     .from('bookings')
     .select(columns)
@@ -129,6 +129,7 @@ export interface CreatorBookingRow {
   delivered_at: string | null;
   completed_at: string | null;
   shoot_date: string | null;
+  cancellation_reason?: string | null;
   declined_at?: string | null;
   decline_reason?: string | null;
   revisions_included?: number | null;

@@ -46,7 +46,9 @@ const TABS: Tab[] = [
   },
   {
     id: 'studio',
-    href: '/dashboard/portfolio',
+    // Jobs first: a paid job waiting for an answer is the thing that needs a
+    // creator most, and it used to be a second tap away (Portfolio opened).
+    href: '/dashboard/gigs',
     label: 'Studio',
     icon: Clapperboard,
     matchPaths: [
