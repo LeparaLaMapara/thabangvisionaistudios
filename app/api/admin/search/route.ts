@@ -60,7 +60,7 @@ export async function GET(request: NextRequest) {
   for (const p of (people.data ?? []) as Person[]) {
     const name = p.display_name?.trim() || [p.first_name, p.last_name].filter(Boolean).join(' ') || 'Unnamed person';
     const bits = [p.role === 'admin' ? 'Admin' : null, p.verification_status === 'verified' ? 'ID checked' : p.verification_status === 'pending' ? 'ID waiting' : null, p.phone].filter(Boolean);
-    hits.push({ kind: 'person', label: name, sub: bits.join(' · ') || 'Person', href: '/admin/users' });
+    hits.push({ kind: 'person', label: name, sub: bits.join(' · ') || 'Person', href: `/admin/users?q=${encodeURIComponent(name)}` });
   }
   // One shortcut to the best match's gear bookings, not one per person.
   const top = (people.data ?? [])[0] as Person | undefined;
@@ -74,7 +74,7 @@ export async function GET(request: NextRequest) {
   }
 
   for (const b of (svc.data ?? []) as { id: string; reference: string | null; client_email: string | null; status: string; total: number | null }[]) {
-    hits.push({ kind: 'service-booking', label: `Booking ${b.reference ?? ''}`.trim(), sub: [b.client_email, b.status.replace(/_/g, ' ')].filter(Boolean).join(' · '), href: '/admin/service-bookings' });
+    hits.push({ kind: 'service-booking', label: `Booking ${b.reference ?? ''}`.trim(), sub: [b.client_email, b.status.replace(/_/g, ' ')].filter(Boolean).join(' · '), href: `/admin/service-bookings?open=${b.id}` });
   }
 
   for (const p of (prods.data ?? []) as { id: string; title: string; client: string | null }[]) {

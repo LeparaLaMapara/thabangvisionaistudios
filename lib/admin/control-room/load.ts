@@ -47,7 +47,7 @@ async function rows<T>(label: string, q: PromiseLike<Res<T>>): Promise<T[] | nul
   }
 }
 
-interface ProfileName { id: string; display_name: string | null; first_name: string | null; last_name: string | null }
+interface ProfileName { id: string; display_name: string | null; first_name: string | null; last_name: string | null; verification_status?: string | null }
 
 function nameOf(p: ProfileName | undefined, fallback: string): string {
   if (!p) return fallback;
@@ -61,7 +61,7 @@ async function namesFor(db: Db, ids: Iterable<string>): Promise<Map<string, Prof
   const out = new Map<string, ProfileName>();
   for (let i = 0; i < unique.length; i += 150) {
     const batch = unique.slice(i, i + 150);
-    const { data } = await db.from('profiles').select('id, display_name, first_name, last_name').in('id', batch);
+    const { data } = await db.from('profiles').select('id, display_name, first_name, last_name, verification_status').in('id', batch);
     for (const p of (data ?? []) as ProfileName[]) out.set(p.id, p);
   }
   return out;
@@ -80,7 +80,7 @@ export async function loadTodayFacts(db: Db, now: Date = new Date()): Promise<To
 
   const [
     idChecks, disputes, requests, service, gear, welcomes, bugs, press, findings, lastRun,
-    payouts, refunds, listings, chats, signups, ai,
+    payouts, refunds, listings, chats, signups, ai, payoutTiming, cancelledGear,
   ] = await Promise.all([
     rows('id checks', db.from('profiles')
       .select('id, display_name, first_name, last_name, verification_submitted_at')
@@ -97,7 +97,7 @@ export async function loadTodayFacts(db: Db, now: Date = new Date()): Promise<To
       .or(`status.in.(pending,paid,accepted,delivered,completed,disputed,pending_reassignment),created_at.gte.${twoWeeksAgo},cancellation_refund_status.in.(pending,failed,manual_review)`)
       .order('created_at', { ascending: false }).limit(CAP)),
     rows('gear bookings', db.from('equipment_bookings')
-      .select('id, user_id, rental_id, status, payment_method, fulfilment_method, start_date, end_date, total_price, amount_due, created_at')
+      .select('id, user_id, rental_id, status, payment_method, fulfilment_method, start_date, end_date, total_price, amount_due, created_at, payfast_payment_id, cancellation_refund_status, cancellation_refund_amount')
       .or(`status.in.(pending,confirmed,active,return_pending,overdue,disputed),created_at.gte.${twoWeeksAgo},end_date.gte.${fortnightBack}`)
       .neq('status', 'cancelled')
       .order('created_at', { ascending: false }).limit(CAP)),
@@ -118,16 +118,29 @@ export async function loadTodayFacts(db: Db, now: Date = new Date()): Promise<To
     rows('chats', db.from('chat_conversations').select('agent_id, started_at').gte('started_at', monthStart).limit(5000)),
     rows('signups', db.from('profiles').select('id, display_name, first_name, last_name, created_at').order('created_at', { ascending: false }).limit(10)),
     checkAiBudget(db, 0, now).then((v) => ({ spent: v.spent, budget: v.budget })).catch(() => null),
+    // Payout timing (migration 073); read on its own so the page works without it.
+    rows('payout timing', db.from('bookings').select('id, payout_due_at, payout_last_error').in('status', ['completed', 'delivered']).limit(CAP)),
+    // Cancelled gear bookings with a refund still to settle (paid back by hand for EFT and cash).
+    rows('cancelled gear', db.from('equipment_bookings')
+      .select('id, user_id, rental_id, status, payment_method, fulfilment_method, start_date, end_date, total_price, amount_due, created_at, payfast_payment_id, cancellation_refund_status, cancellation_refund_amount')
+      .eq('status', 'cancelled').eq('cancellation_refund_status', 'pending').limit(CAP)),
   ]);
 
   type SvcRaw = { id: string; reference: string | null; client_id: string | null; client_email: string | null; creator_id: string | null; status: string; payout_status: string | null; cancellation_refund_status: string | null; cancellation_refund_amount: number | null; total: number | null; creator_amount: number | null; shoot_date: string | null; location: string | null; paid_at: string | null; created_at: string; updated_at: string | null };
-  type GearRaw = { id: string; user_id: string | null; rental_id: string | null; status: string; payment_method: string | null; fulfilment_method: string | null; start_date: string; end_date: string; total_price: number | null; amount_due: number | null; created_at: string };
+  type GearRaw = {
+    id: string; user_id: string | null; rental_id: string | null; status: string; payment_method: string | null; fulfilment_method: string | null;
+    start_date: string; end_date: string; total_price: number | null; amount_due: number | null; created_at: string;
+    payfast_payment_id: string | null; cancellation_refund_status: string | null; cancellation_refund_amount: number | null;
+  };
   type PayoutRaw = { id: string; owner_id: string; owner_amount_cents: number; hold_reasons: string[] | null; scheduled_at: string };
   type ListingRaw = { id: string; title: string; owner_id: string | null; created_at: string };
   type DisputeRaw = { id: string; dispute_type: string; reason: string | null; filed_by: string | null; filed_at: string | null; status: string };
 
   const svc = service as SvcRaw[] | null;
-  const gr = gear as GearRaw[] | null;
+  const gr = gear === null ? null : [...(gear as GearRaw[]), ...((cancelledGear as GearRaw[] | null) ?? [])];
+  const timing = new Map(
+    ((payoutTiming as { id: string; payout_due_at: string | null; payout_last_error: string | null }[] | null) ?? []).map((t) => [t.id, t]),
+  );
   const po = payouts as PayoutRaw[] | null;
   const li = listings as ListingRaw[] | null;
   const di = disputes as DisputeRaw[] | null;
@@ -187,6 +200,8 @@ export async function loadTodayFacts(db: Db, now: Date = new Date()): Promise<To
       paidAt: s.paid_at,
       createdAt: s.created_at,
       updatedAt: s.updated_at,
+      payoutDueAt: timing.get(s.id)?.payout_due_at ?? null,
+      payoutError: timing.get(s.id)?.payout_last_error ?? null,
     })) ?? null,
     gearBookings: gr?.map((g): GearBookingRow => ({
       id: g.id,
@@ -200,6 +215,10 @@ export async function loadTodayFacts(db: Db, now: Date = new Date()): Promise<To
       total: Number(g.total_price) || 0,
       amountDue: g.amount_due == null ? null : Number(g.amount_due),
       createdAt: g.created_at,
+      renterVerified: people.get(g.user_id ?? '')?.verification_status === 'verified',
+      refundStatus: g.cancellation_refund_status,
+      refundAmount: g.cancellation_refund_amount == null ? null : Number(g.cancellation_refund_amount),
+      handPaid: Boolean(g.payfast_payment_id?.startsWith('manual:')),
     })) ?? null,
     welcomeDrafts: welcomes ? welcomes.length : null,
     bugs: (bugs as { id: string; title: string; severity: string | null; created_at: string }[] | null)?.map(
@@ -216,7 +235,7 @@ export async function loadTodayFacts(db: Db, now: Date = new Date()): Promise<To
       id: p.id,
       owner: nameOf(people.get(p.owner_id), 'An owner'),
       amountCents: p.owner_amount_cents,
-      holdReasons: (p.hold_reasons ?? []).map((r) => r.replace(/_/g, ' ')),
+      holdReasons: p.hold_reasons ?? [],
       scheduledAt: p.scheduled_at,
     })) ?? null,
     refunds: (refunds as { id: string; state: string; amount_cents: number; reason: string | null; created_at: string }[] | null)?.map(

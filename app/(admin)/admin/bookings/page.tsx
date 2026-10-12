@@ -18,6 +18,7 @@ import { formatRand } from '@/lib/format/money';
 import type { EquipmentBooking } from '@/types/booking';
 import type { BookingStatus as RentalStatus } from '@/lib/core/rental/state';
 import { useAdminUI } from '@/components/admin/shell/AdminUI';
+import { DELIVERY_CHECKOUT } from '@/lib/constants';
 
 // ─── Extended booking type with joined rental + user info ────────────────────
 
@@ -29,7 +30,24 @@ type AdminBooking = Omit<EquipmentBooking, 'status'> & {
   user_name: string | null;
   /** Set by the risk checks; the handover then needs a manager's sign-off. Absent before the migration. */
   requires_manual_approval?: boolean | null;
+  user_phone?: string | null;
+  /** The renter's ID check: only 'verified' may take gear away. */
+  user_verification?: string | null;
+  open_dispute_id?: string | null;
+  cancellation_refund_status?: string | null;
+  cancellation_refund_amount?: number | null;
 };
+
+/** Whole days from a to b (YYYY-MM-DD); positive when b is later. */
+function daysBetween(a: string, b: string): number {
+  return Math.round((Date.parse(`${b}T12:00:00Z`) - Date.parse(`${a}T12:00:00Z`)) / 86_400_000);
+}
+
+function todayInSA(): string {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: DELIVERY_CHECKOUT.timeZone, year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
+}
+
+const isHandPaid = (ref: string | null | undefined): boolean => Boolean(ref && ref.startsWith('manual:'));
 
 type BadgeVariant = 'default' | 'warning' | 'success' | 'info' | 'error';
 
@@ -101,10 +119,35 @@ export default function AdminBookingsPage() {
   const openCancel = (b: AdminBooking) => {
     setCancelTarget({ id: b.id, title: b.rental_title, paid: Boolean(b.payfast_payment_id) });
     setCancelReason('');
-    setCancelRefund('');
+    // Suggest the full amount paid; staff lower it for a cancellation fee.
+    setCancelRefund(b.payfast_payment_id ? String(Number(b.total_price ?? 0) + Number(b.deposit_amount ?? 0)) : '');
     setCancelRefundDelivery(false);
     setCancelError(null);
   };
+
+  async function recordManualRefund(b: AdminBooking, owed: number) {
+    const reference = await ui.ask({
+      title: `Record the ${formatRand(owed, { decimals: true })} refund to ${b.user_name ?? b.user_email}?`,
+      body: 'Only after the money has left the bank. The booking is then closed.',
+      label: 'Bank reference of the payment you made',
+      placeholder: 'For example: TV refund Lerato 12 Oct',
+      action: 'Record refund',
+    });
+    if (!reference) return;
+    const r = await fetch(`/api/admin/equipment-bookings/${b.id}/manual-refund`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ reference }),
+    });
+    const d = (await r.json().catch(() => ({}))) as { error?: string };
+    if (!r.ok) {
+      ui.notify(d.error ?? 'Could not record the refund.', 'bad');
+      return;
+    }
+    ui.notify(`Refund of ${formatRand(owed, { decimals: true })} recorded.`, 'good');
+    setDetailBooking(null);
+    fetchBookings();
+  }
 
   const fetchBookings = () => {
     fetch('/api/admin/equipment-bookings')
@@ -119,8 +162,10 @@ export default function AdminBookingsPage() {
         if (found) setDetailBooking(found);
         const q = params.get('q');
         if (q) setSearch(q);
+        const done = params.get('done');
+        if (done === 'handover') ui.notify('Gear handed over. The hire has started.', 'good');
         // Only the first load: a later refresh must not reopen a booking the person closed.
-        if (open || q) window.history.replaceState(null, '', window.location.pathname);
+        if (open || q || done) window.history.replaceState(null, '', window.location.pathname);
       })
       .catch(() => {})
       .finally(() => setLoading(false));
@@ -410,6 +455,63 @@ export default function AdminBookingsPage() {
               </p>
             </div>
 
+            {/* What needs attention on this booking, in plain words */}
+            {(() => {
+              const b = detailBooking;
+              const today = todayInSA();
+              const late = ['active', 'overdue'].includes(b.status) ? daysBetween(b.end_date.slice(0, 10), today) : 0;
+              const notChecked = b.user_verification !== 'verified' && ['pending', 'confirmed'].includes(b.status);
+              const owed =
+                b.status === 'cancelled' && b.cancellation_refund_status === 'pending' && isHandPaid(b.payfast_payment_id)
+                  ? Number(b.cancellation_refund_amount ?? 0)
+                  : 0;
+              if (late <= 0 && !notChecked && !b.open_dispute_id && !owed) return null;
+              return (
+                <div className="space-y-2 rounded-lg border border-amber-500/30 bg-amber-500/5 p-4 text-sm">
+                  {late > 0 && (
+                    <p className="text-amber-100">
+                      <strong>
+                        {late} day{late === 1 ? '' : 's'} late.
+                      </strong>{' '}
+                      It was due back on {new Date(b.end_date).toLocaleDateString('en-ZA', { day: 'numeric', month: 'long' })}. Call
+                      the renter{b.user_phone ? ' (number below)' : ''} and agree when it comes back.
+                    </p>
+                  )}
+                  {notChecked && (
+                    <p className="text-amber-100">
+                      <strong>The renter&apos;s ID is not checked.</strong> The gear cannot be handed over until it is.{' '}
+                      <Link href="/admin/verifications" className="underline">
+                        Open ID checks
+                      </Link>
+                    </p>
+                  )}
+                  {b.open_dispute_id && (
+                    <p className="text-amber-100">
+                      <strong>There is an open dispute on this booking.</strong>{' '}
+                      <Link href={`/admin/disputes/${b.open_dispute_id}`} className="underline">
+                        Open the dispute
+                      </Link>
+                    </p>
+                  )}
+                  {owed > 0 && (
+                    <div className="space-y-2">
+                      <p className="text-amber-100">
+                        <strong>Pay back {formatRand(owed, { decimals: true })} by hand.</strong> This booking was paid by EFT or
+                        cash, so the refund goes from the bank. Record it here once it is paid.
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => void recordManualRefund(b, owed)}
+                        className="min-h-[44px] rounded-full bg-foreground px-5 text-sm font-semibold text-background"
+                      >
+                        I&apos;ve paid it back
+                      </button>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
+
             {/* Customer */}
             <div>
               <h4 className="text-xs font-mono font-bold uppercase tracking-widest text-neutral-400 mb-2">
@@ -417,9 +519,22 @@ export default function AdminBookingsPage() {
               </h4>
               <p className="text-sm text-white">
                 {detailBooking.user_name ?? 'Unknown'}
+                {detailBooking.user_verification === 'verified' ? (
+                  <span className="ml-2 text-xs text-emerald-300">ID checked</span>
+                ) : (
+                  <span className="ml-2 text-xs text-amber-300">ID not checked</span>
+                )}
               </p>
               <p className="text-xs font-mono text-neutral-400">
                 {detailBooking.user_email}
+                {detailBooking.user_phone && (
+                  <>
+                    {' · '}
+                    <a href={`tel:${detailBooking.user_phone}`} className="underline">
+                      {detailBooking.user_phone}
+                    </a>
+                  </>
+                )}
               </p>
             </div>
 
@@ -520,7 +635,7 @@ export default function AdminBookingsPage() {
             )}
 
             {/* Hand over or take back the gear, in person */}
-            {detailBooking.status === 'confirmed' && (
+            {detailBooking.status === 'confirmed' && detailBooking.user_verification === 'verified' && (
               <Link
                 href={`/admin/rentals/${detailBooking.id}/handover`}
                 className="flex items-center justify-center gap-2 bg-[#D4A843] text-[#050505] py-2.5 text-xs font-mono font-bold uppercase tracking-widest"

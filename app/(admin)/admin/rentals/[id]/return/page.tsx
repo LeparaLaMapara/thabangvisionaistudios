@@ -186,7 +186,9 @@ export default function TakeBackPage() {
     setResult(json as TakeBackResult);
   };
 
-  const ready = condition && photos.length > 0 && !uploading && !saving && (!needsMethod || method) && (damageFee === 0 || note.trim());
+  // Damage worth more than the deposit is claimed through a dispute, not here.
+  const damageOverDeposit = data ? damageFee > data.deposit : false;
+  const ready = condition && photos.length > 0 && !uploading && !saving && (!needsMethod || method) && (damageFee === 0 || note.trim()) && !damageOverDeposit;
 
   return (
     <div className="max-w-2xl mx-auto p-6 md:p-10 space-y-8">
@@ -342,6 +344,12 @@ export default function TakeBackPage() {
               <div className="flex justify-between"><dt className="text-neutral-400">Damage</dt><dd className="text-white">{rand(Math.min(damageFee, data.deposit))}</dd></div>
               <div className="flex justify-between border-t border-white/10 pt-1"><dt className="text-white">Back to the renter</dt><dd className="text-[#D4A843]">{rand(release)}</dd></div>
             </dl>
+            {damageOverDeposit && (
+              <p role="alert" className="rounded border border-red-500/40 bg-red-500/10 p-3 text-sm text-red-200">
+                The damage ({rand(damageFee)}) is more than the deposit ({rand(data.deposit)}). Only the deposit can be kept here, so open a
+                dispute below to claim the rest from the renter.
+              </p>
+            )}
             {release > 0 && data.deposit_on_card && (
               <p className="text-xs text-neutral-400">
                 A refund to the card they paid with is initiated with the payment provider. It is not instant; Rental ops tracks it until the provider confirms.

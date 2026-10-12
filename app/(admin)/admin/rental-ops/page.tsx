@@ -106,6 +106,7 @@ type OpsData =
   | { pipeline: false; message: string }
   | {
       pipeline: true;
+      names?: Names;
       refunds: RefundRow[];
       payouts: PayoutRow[];
       events: EventRow[];
@@ -142,7 +143,26 @@ const when = (iso: string | null | undefined): string => {
 };
 
 const short = (id: string | null | undefined): string => (id ? id.slice(0, 8).toUpperCase() : '—');
+
+/** Names for the ids in the queues (from the API), so rows read as people and gear. */
+interface Names {
+  bookings: Record<string, { gear: string; renter: string; phone: string | null }>;
+  orders: Record<string, { gear: string; renter: string }>;
+  people: Record<string, { name: string; phone: string | null }>;
+}
+const NO_NAMES: Names = { bookings: {}, orders: {}, people: {} };
 const label = (s: string): string => s.replace(/_/g, ' ');
+
+/** What a refund or payout attempt came back with, for the person who pressed the button. */
+const OUTCOME_WORDS: Record<string, string> = {
+  submitted: 'Sent to the payment provider. It shows as done once they confirm.',
+  reconciled: 'The provider already had it; it is now recorded here.',
+  waiting: 'Waiting for the payment provider to answer. Check again later.',
+  escalated: 'It did not go through, so it needs a person: check the payment provider, then retry or settle it by hand.',
+  nothing_to_do: 'Nothing to do: it is already settled.',
+  lost_race: 'Someone else handled it at the same moment. Reloaded.',
+  unknown_outcome: 'No clear answer from the provider. Check their dashboard before trying again.',
+};
 
 function stateVariant(state: string): BadgeVariant {
   if (['failed', 'dead', 'needs_attention', 'mismatch', 'reversed', 'rejected', 'blocked'].includes(state)) return 'error';
@@ -177,6 +197,17 @@ export default function RentalOpsPage() {
   const [pipelineResult, setPipelineResult] = useState<unknown>(null);
   // One open inline form at a time: "<kind>:<id>".
   const [openForm, setOpenForm] = useState<string | null>(null);
+
+  const NAMES: Names = (data && data.pipeline && data.names) || NO_NAMES;
+  const bookingName = (id: string | null | undefined): string => {
+    const b = id ? NAMES.bookings[id] : undefined;
+    return b ? `${b.gear} for ${b.renter}` : `Booking ${short(id)}`;
+  };
+  const orderName = (id: string | null | undefined): string => {
+    const o = id ? NAMES.orders[id] : undefined;
+    return o ? `${o.gear} for ${o.renter}` : `Order ${short(id)}`;
+  };
+  const personName = (id: string | null | undefined): string => (id && NAMES.people[id]?.name) || 'an owner';
 
   const load = useCallback(async () => {
     setLoadError(null);
@@ -228,14 +259,20 @@ export default function RentalOpsPage() {
           reasons: errs.length ? errs.map((k) => `${k}: ${String((json.errors as Record<string, unknown>)[k])}`) : undefined,
         });
       } else {
+        const outcome = json.outcome !== undefined ? String(json.outcome) : null;
+        const said = outcome ? OUTCOME_WORDS[outcome] : undefined;
         const detail = [
-          json.outcome !== undefined ? `Outcome: ${label(String(json.outcome))}` : null,
-          json.created !== undefined ? `Refund obligations created: ${String(json.created)}` : null,
+          outcome && !said ? `Result: ${label(outcome)}` : null,
+          json.created !== undefined ? `Refunds created: ${String(json.created)}` : null,
           json.result !== undefined ? `Inbox: ${JSON.stringify(json.result)}` : null,
         ]
           .filter(Boolean)
           .join(' · ');
-        setNotice({ kind: 'ok', title: 'Done.', detail: detail || undefined });
+        setNotice({
+          kind: outcome === 'escalated' || outcome === 'unknown_outcome' ? 'error' : 'ok',
+          title: said ?? 'Done.',
+          detail: detail || undefined,
+        });
       }
       setOpenForm(null);
       await load();
@@ -371,7 +408,7 @@ export default function RentalOpsPage() {
                     <Meta
                       items={[
                         ['Attempts', String(r.attempts)],
-                        ['Bookings', (r.booking_ids ?? []).map(short).join(', ') || '—'],
+                        ['For', (r.booking_ids ?? []).map(bookingName).join(', ') || '—'],
                         ['Created', when(r.created_at)],
                         ['Updated', when(r.updated_at)],
                       ]}
@@ -412,13 +449,13 @@ export default function RentalOpsPage() {
                     <RowHead>
                       <Badge variant={stateVariant(p.state)}>{label(p.state)}</Badge>
                       <span className="text-sm font-mono text-white">{money(p.owner_amount_cents)}</span>
-                      <span className="text-xs font-mono text-neutral-400">to owner {short(p.owner_id)}</span>
+                      <span className="text-xs text-neutral-400">to {personName(p.owner_id)}</span>
                     </RowHead>
                     <Meta
                       items={[
                         ['Scheduled', when(p.scheduled_at)],
                         ['Commission', money(p.platform_commission_cents)],
-                        ['Booking', short(p.booking_id)],
+                        ['For', bookingName(p.booking_id)],
                         ['Transfer ref', p.transfer_reference ?? '—'],
                       ]}
                     />
@@ -442,7 +479,7 @@ export default function RentalOpsPage() {
                             act(
                               { action: 'approve_payout', id: p.id },
                               `approve:${p.id}`,
-                              `Approve and send ${money(p.owner_amount_cents)} to owner ${short(p.owner_id)}? The transfer is submitted to the payment provider now.`,
+                              `Approve and send ${money(p.owner_amount_cents)} to ${personName(p.owner_id)}? The transfer is submitted to the payment provider now.`,
                             )
                           }
                         >
@@ -535,10 +572,11 @@ export default function RentalOpsPage() {
                       <Badge variant="warning">{label(x.stage)}</Badge>
                       <span className="text-sm font-mono text-white">{x.hours_late ?? 0}h late</span>
                       <Link
-                        href="/admin/bookings"
+                        href={`/admin/bookings?open=${x.booking_id}`}
                         className="text-xs font-mono uppercase tracking-widest text-[#D4A843] underline underline-offset-4 min-h-[44px] inline-flex items-center"
                       >
-                        Booking {short(x.booking_id)}
+                        {bookingName(x.booking_id)}
+                        {NAMES.bookings[x.booking_id]?.phone ? ` · ${NAMES.bookings[x.booking_id].phone}` : ''}
                       </Link>
                     </RowHead>
                     <Meta items={[['Raised', when(x.created_at)]]} />
@@ -591,7 +629,7 @@ export default function RentalOpsPage() {
                     <Meta
                       items={[
                         ['Expected', i.expected_amount_cents != null ? money(i.expected_amount_cents) : '—'],
-                        ['Order', short(i.checkout_group_id)],
+                        ['Order', orderName(i.checkout_group_id)],
                         ['Updated', when(i.updated_at)],
                       ]}
                     />
@@ -657,9 +695,9 @@ export default function RentalOpsPage() {
                     <RowHead>
                       <Badge variant="featured">Needs risk approval</Badge>
                       <Badge variant={b.status === 'confirmed' ? 'info' : 'warning'}>{label(b.status)}</Badge>
-                      <span className="text-sm font-mono text-white">Booking {short(b.id)}</span>
+                      <span className="text-sm text-white">{bookingName(b.id)}</span>
                     </RowHead>
-                    <Meta items={[['Dates', `${b.start_date} to ${b.end_date}`], ['Renter', short(b.user_id)]]} />
+                    <Meta items={[['Dates', `${b.start_date} to ${b.end_date}`], ['Renter', NAMES.bookings[b.id]?.renter ?? short(b.user_id)]]} />
                     <Actions>
                       <Link
                         href={`/admin/rentals/${b.id}/handover`}
@@ -682,7 +720,7 @@ export default function RentalOpsPage() {
                       <Badge variant="default">{label(j.kind)}</Badge>
                       <span className="text-xs font-mono text-neutral-300 break-all">{j.idempotency_key}</span>
                     </RowHead>
-                    <Meta items={[['Order', short(j.booking_group_id)], ['At', when(j.created_at)]]} />
+                    <Meta items={[['Order', orderName(j.booking_group_id)], ['At', when(j.created_at)]]} />
                     {j.memo && <p className="text-xs text-neutral-400">{j.memo}</p>}
                   </Row>
                 ))}

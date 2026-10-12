@@ -60,6 +60,12 @@ export function WelcomeQueue() {
   }, [fetchQueue]);
 
   const backfill = async () => {
+    const ok = await ui.confirm({
+      title: 'Draft a welcome for everyone not yet welcomed?',
+      body: 'Ubunye writes a draft for every account that has none, including people who joined long ago. Nothing is sent: each draft waits here for you.',
+      action: 'Draft welcomes',
+    });
+    if (!ok) return;
     setBusy('backfill');
     setError(null);
     const res = await fetch('/api/admin/welcomes', { method: 'POST' });

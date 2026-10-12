@@ -77,17 +77,43 @@ export async function GET(
         // payment_reference does not exist on equipment_bookings; asking for it
         // failed the whole select, so the page never saw the booking. The
         // gateway reference lives in payfast_payment_id (legacy name).
-        .select('id, user_id, rental_id, status, total_price, start_date, end_date, checkout_photos, return_photos, condition_at_checkout, condition_at_return, payfast_payment_id, smart_rentals(owner_id)')
+        .select('id, user_id, rental_id, status, total_price, start_date, end_date, checkout_photos, return_photos, condition_at_checkout, condition_at_return, payfast_payment_id, smart_rentals(owner_id, title)')
         .eq('id', dispute.equipment_booking_id)
         .single();
-      const owner = data ? ((Array.isArray(data.smart_rentals) ? data.smart_rentals[0] : data.smart_rentals) as { owner_id?: string | null } | null) : null;
+      const owner = data ? ((Array.isArray(data.smart_rentals) ? data.smart_rentals[0] : data.smart_rentals) as { owner_id?: string | null; title?: string | null } | null) : null;
       equipmentBookingDetails = data
-        ? { ...data, payment_reference: (data as { payfast_payment_id?: string | null }).payfast_payment_id ?? null, owner_id: owner?.owner_id ?? null }
+        ? {
+            ...data,
+            payment_reference: (data as { payfast_payment_id?: string | null }).payfast_payment_id ?? null,
+            owner_id: owner?.owner_id ?? null,
+            gear_title: owner?.title ?? null,
+          }
         : null;
     }
 
     // Fetch filer profile
     const filerProfile = await profileWithEmail(dispute.filed_by);
+
+    // Names of everyone in the dispute, so the page never shows a bare id.
+    const partyIds = [
+      dispute.filed_by,
+      (equipmentBookingDetails as { user_id?: string | null; owner_id?: string | null } | null)?.user_id,
+      (equipmentBookingDetails as { owner_id?: string | null } | null)?.owner_id,
+      (bookingDetails as { client_id?: string | null } | null)?.client_id,
+      (bookingDetails as { creator_id?: string | null } | null)?.creator_id,
+      ...((comments ?? []) as { author_id: string | null }[]).map((c) => c.author_id),
+    ].filter((x): x is string => Boolean(x));
+    const partyNames: Record<string, string> = {};
+    if (partyIds.length) {
+      const { data: people } = await supabase
+        .from('profiles')
+        .select('id, display_name, first_name, last_name')
+        .in('id', [...new Set(partyIds)]);
+      for (const p of (people ?? []) as { id: string; display_name: string | null; first_name: string | null; last_name: string | null }[]) {
+        const n = p.display_name?.trim() || [p.first_name, p.last_name].filter(Boolean).join(' ').trim();
+        if (n) partyNames[p.id] = n;
+      }
+    }
 
     return NextResponse.json({
       ...dispute,
@@ -95,6 +121,7 @@ export async function GET(
       booking: bookingDetails,
       equipment_booking: equipmentBookingDetails,
       filer: filerProfile,
+      party_names: partyNames,
     });
   } catch (err) {
     console.error('[admin/disputes/[id]] GET error:', err);
@@ -121,7 +148,7 @@ export async function PATCH(
     return NextResponse.json({ error: 'Invalid JSON body.' }, { status: 400 });
   }
 
-  const { status, resolution, resolution_amount, resolution_notes, internal_notes, suspend_user_id } = body as {
+  const { status, resolution: askedResolution, resolution_amount, resolution_notes, internal_notes, suspend_user_id } = body as {
     status?: string;
     resolution?: string;
     resolution_amount?: number;
@@ -134,9 +161,23 @@ export async function PATCH(
   if (status && !VALID_STATUSES.includes(status)) {
     return NextResponse.json({ error: 'Invalid status.' }, { status: 400 });
   }
-  if (resolution && !VALID_RESOLUTIONS.includes(resolution)) {
+  if (askedResolution && !VALID_RESOLUTIONS.includes(askedResolution)) {
     return NextResponse.json({ error: 'Invalid resolution.' }, { status: 400 });
   }
+
+  // A decision (refund, forfeit, warning, suspension...) is only made when the
+  // dispute is closed. Moving it to "investigating" or "escalated" records no
+  // outcome and tells nobody it was resolved. (The form used to send its
+  // default "no action" with every status change, which marked the dispute
+  // resolved and told the customer so.)
+  const closing = status === 'resolved' || status === 'dismissed';
+  if (askedResolution && !closing && askedResolution !== 'no_action') {
+    return NextResponse.json(
+      { error: 'A decision is made when the dispute is closed. Choose "Resolved" to apply it, or change only the status for now.', code: 'DECISION_NEEDS_CLOSE' },
+      { status: 400 },
+    );
+  }
+  const resolution = closing ? askedResolution : undefined;
 
   try {
     const supabase = createAdminClient();
@@ -191,7 +232,7 @@ export async function PATCH(
     // settled here in one transaction: refund obligation, ledger, owner payout
     // and closing the booking (default money rules: disputeMoney, D-19).
     let settledEquipment = false;
-    const moneyResolution = resolution === 'full_refund' || resolution === 'partial_refund';
+    const moneyResolution = resolution === 'full_refund' || resolution === 'partial_refund' || resolution === 'deposit_forfeit';
     // With migration 070 a gear refund only happens through the settlement
     // below: line-scoped, with its journal, and with the owner's share
     // adjusted. Anything else would refund the whole order with no ledger
@@ -213,13 +254,16 @@ export async function PATCH(
       if ('skipped' in settled) {
         pipelineApplied = settled.skipped !== 'missing_pipeline';
         if (settled.skipped === 'not_disputed_return' && moneyResolution) {
-          // Say what can actually be done for this booking.
+          // Say, in plain words, what can actually be done for this booking.
+          const what = resolution === 'deposit_forfeit' ? 'keep the deposit' : 'send a refund';
           const how =
             settled.bookingStatus === 'pending' || settled.bookingStatus === 'confirmed'
-              ? 'Cancel the booking from its booking screen with the refund amount: that refund is capped at the charge and recorded in the ledger. Then resolve this dispute without a refund.'
-              : 'The hire has started or is complete, so its earnings (and any owner share) are already booked; the system has no safe automatic refund for this yet. Resolve this dispute without a refund, escalate the refund to the founder, and record it with finance (risk R-25).';
+              ? 'The gear has not gone out yet: cancel the booking from its booking screen with the refund amount instead, then close this dispute with "No action".'
+              : settled.bookingStatus === 'active' || settled.bookingStatus === 'overdue'
+                ? 'The gear is still with the renter. Take it back with the return checklist first (open a dispute there if it came back damaged); the deposit is settled from that return.'
+                : 'This booking is already settled, so money cannot be moved from here. Close this dispute with "No action" and arrange the refund by hand with finance.';
           return NextResponse.json(
-            { error: `This booking is not a disputed return waiting to be settled, so it cannot be refunded here. ${how}`, code: 'REFUND_NEEDS_A_PERSON' },
+            { error: `This booking is not a return waiting to be settled, so this dispute cannot ${what}. ${how}`, code: 'REFUND_NEEDS_A_PERSON' },
             { status: 409 },
           );
         }
@@ -432,16 +476,24 @@ export async function PATCH(
       }
 
       const uniqueIds = [...new Set(notifyIds)];
-      const statusLabel = status === 'resolved' ? 'resolved' : 'updated';
+      const stateNow = status ?? dispute.status;
+      const title = stateNow === 'resolved' ? 'Dispute resolved' : stateNow === 'dismissed' ? 'Dispute closed' : 'Dispute update';
+      const message = resolution
+        ? `Your dispute has been ${stateNow === 'dismissed' ? 'closed' : 'resolved'}: ${resolution.replace(/_/g, ' ')}.`
+        : stateNow === 'investigating'
+          ? 'We are looking into your dispute and will come back to you.'
+          : stateNow === 'escalated'
+            ? 'Your dispute has been passed to a senior member of the team.'
+            : stateNow === 'dismissed'
+              ? 'Your dispute has been closed.'
+              : `Your dispute is now ${String(stateNow).replace(/_/g, ' ')}.`;
 
       for (const userId of uniqueIds) {
         await supabase.from('notifications').insert({
           user_id: userId,
           type: 'dispute_updated',
-          title: `Dispute ${statusLabel.charAt(0).toUpperCase() + statusLabel.slice(1)}`,
-          body: resolution
-            ? `Your dispute has been resolved: ${resolution.replace(/_/g, ' ')}.`
-            : `Your dispute status has been updated to: ${status ?? dispute.status}.`,
+          title,
+          body: message,
           link: `/dashboard/disputes/${id}`,
         });
       }

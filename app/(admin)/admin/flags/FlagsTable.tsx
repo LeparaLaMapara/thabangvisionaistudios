@@ -58,7 +58,7 @@ export function FlagsTable({ flags }: { flags: FeatureFlag[] }) {
         {localFlags.map((flag) => (
           <div key={flag.key} className="flex items-start gap-4 p-4 hover:bg-white/[0.02]">
             <div className="flex-1 min-w-0">
-              <div className="font-mono text-sm text-white">{flag.key}</div>
+              <div className="text-sm font-medium text-white first-letter:uppercase">{flag.key.replace(/_/g, ' ')}</div>
               {flag.description && (
                 <p className="mt-1 text-xs text-neutral-400">{flag.description}</p>
               )}
@@ -71,6 +71,7 @@ export function FlagsTable({ flags }: { flags: FeatureFlag[] }) {
               type="button"
               role="switch"
               aria-checked={flag.enabled}
+              aria-label={flag.key.replace(/_/g, ' ')}
               disabled={pending}
               onClick={() => onToggle(flag.key, !flag.enabled)}
               className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full border transition-colors disabled:opacity-50 ${

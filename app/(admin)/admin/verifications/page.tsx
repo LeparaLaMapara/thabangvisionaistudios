@@ -319,12 +319,12 @@ export default function AdminVerificationsPage() {
       </div>
 
       {/* Filter Tabs */}
-      <div className="flex items-center gap-px mb-6 bg-white/[0.04]">
+      <div className="flex items-center gap-px mb-6 bg-white/[0.04] overflow-x-auto">
         {TABS.map((tab) => (
           <button
             key={tab.key}
             onClick={() => setActiveTab(tab.key)}
-            className={`flex-1 sm:flex-none px-5 py-3 text-xs font-mono uppercase tracking-widest transition-colors ${
+            className={`flex-1 sm:flex-none flex-shrink-0 px-3 sm:px-5 py-3 text-xs font-mono uppercase tracking-widest transition-colors ${
               activeTab === tab.key
                 ? 'bg-neutral-800 text-white'
                 : 'bg-neutral-900 text-neutral-400 hover:text-neutral-400'

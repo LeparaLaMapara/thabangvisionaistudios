@@ -171,6 +171,8 @@ export default function AdminServiceBookingsPage() {
   const [tab, setTab] = useState('todo');
   const [busyId, setBusyId] = useState<string | null>(null);
   const [picking, setPicking] = useState<Booking | null>(null);
+  /** A booking opened from a link (?open=<id>): shown first and outlined. */
+  const [focusId, setFocusId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -186,7 +188,14 @@ export default function AdminServiceBookingsPage() {
 
   useEffect(() => {
     // Fetched after the page shows; the list fills in when it arrives.
-    void load();
+    void load().then(() => {
+      const open = new URLSearchParams(window.location.search).get('open');
+      if (!open) return;
+      setFocusId(open);
+      setTab('all');
+      window.history.replaceState(null, '', window.location.pathname);
+      setTimeout(() => document.getElementById(`booking-${open}`)?.scrollIntoView({ block: 'center' }), 50);
+    });
   }, [load]);
 
   const counts = useMemo(() => Object.fromEntries(TABS.map((t) => [t.id, (bookings ?? []).filter(t.match).length])), [bookings]);
@@ -315,7 +324,11 @@ export default function AdminServiceBookingsPage() {
           const canPay = b.status === 'completed' && (b.payout_status === 'pending' || b.payout_status === 'failed') && Boolean(b.creator_id);
           const canCancel = ['paid', 'accepted', 'pending_reassignment'].includes(b.status);
           return (
-            <li key={b.id} className="rounded-2xl border border-white/10 bg-white/[0.02] p-5">
+            <li
+              key={b.id}
+              id={`booking-${b.id}`}
+              className={`rounded-2xl border bg-white/[0.02] p-5 ${focusId === b.id ? 'border-accent-gold' : 'border-white/10'}`}
+            >
               <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                 <div className="min-w-0">
                   <span className={`inline-block rounded-full px-2.5 py-0.5 text-xs ${st.cls}`}>{st.label}</span>

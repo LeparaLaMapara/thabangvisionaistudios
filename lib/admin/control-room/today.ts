@@ -1,5 +1,6 @@
 import { DELIVERY_CHECKOUT } from '@/lib/constants';
 import { formatRand } from '@/lib/format/money';
+import { PAYOUT_BLOCK_WORDS } from '@/lib/core/services/fulfilment';
 import type { CountKey, SectionId } from './sections';
 
 /**
@@ -35,6 +36,10 @@ export interface ServiceBookingRow {
   paidAt: string | null;
   createdAt: string;
   updatedAt: string | null;
+  /** When the creator's payout may go (after the client's dispute window). Null where not recorded. */
+  payoutDueAt?: string | null;
+  /** Why the last payout attempt was refused, as recorded by the payout run. */
+  payoutError?: string | null;
 }
 export interface GearBookingRow {
   id: string;
@@ -52,6 +57,14 @@ export interface GearBookingRow {
   /** Rands still to pay, when the booking is paid in parts or by EFT. */
   amountDue: number | null;
   createdAt: string;
+  /** The renter passed the ID check; only then may gear leave. */
+  renterVerified?: boolean;
+  /** For a cancelled booking: the refund still to settle. */
+  refundStatus?: string | null;
+  /** Rands. */
+  refundAmount?: number | null;
+  /** Paid by EFT or cash (a manual: payment reference). */
+  handPaid?: boolean;
 }
 export interface BugRow { id: string; title: string; severity: string | null; createdAt: string }
 export interface DraftRow { id: string; title: string; updatedAt: string | null }
@@ -111,6 +124,8 @@ export interface Movement {
   how: string;
   late: boolean;
   href: string;
+  /** Something to sort before this can happen, e.g. "ID not checked". */
+  warn?: string;
 }
 
 export interface MoneyTile {
@@ -198,12 +213,35 @@ export function ago(now: Date, iso: string | null | undefined): string {
 }
 
 const rand = (n: number): string => formatRand(n);
+
+const HOLD_WORDS: Record<string, string> = {
+  ...PAYOUT_BLOCK_WORDS,
+  owner_not_verified: 'the owner has not passed the ID check',
+  inspection_not_completed: 'the returned gear is not checked yet',
+  deposit_not_settled: 'the deposit is not settled yet',
+  payout_already_started: 'a payout is already under way',
+  delay_not_elapsed: 'the waiting period after the return has not passed',
+};
+
+/** Turns codes like payout_account_not_validated into plain words, leaving other text alone. */
+export function payoutWords(text: string): string {
+  return text.replace(/\b[a-z]+(?:_[a-z]+)+\b/g, (code) => HOLD_WORDS[code] ?? code.replace(/_/g, ' '));
+}
 const randCents = (c: number): string => formatRand(c / 100);
 const plural = (n: number, one: string, many = `${one}s`): string => `${n} ${n === 1 ? one : many}`;
 
 // ─── Needs you ───────────────────────────────────────────────────────────────
 
 const URGENCY_ORDER: Record<Urgency, number> = { now: 0, today: 1, soon: 2 };
+
+/** Why a rental refund exists (refund_obligations.reason), in plain words. */
+const REFUND_REASON: Record<string, string> = {
+  deposit_settlement: 'The deposit back after a return',
+  cancellation: 'A refund for a cancelled booking',
+  late_payment: 'A refund for a payment that came in too late',
+  overpayment: 'A refund of money paid twice or too much',
+  manual: 'A refund staff gave on a cancellation',
+};
 
 /**
  * Everything that waits on a person, one line each with one button.
@@ -226,6 +264,20 @@ export function buildNeeds(f: TodayFacts): NeedItem[] {
   }
 
   for (const b of f.gearBookings ?? []) {
+    if (b.status === 'cancelled') {
+      if (b.refundStatus === 'pending' && b.handPaid && (b.refundAmount ?? 0) > 0) {
+        out.push({
+          id: `handrefund:${b.id}`,
+          urgency: 'today',
+          area: 'money',
+          title: `Pay ${b.renter} back ${rand(b.refundAmount ?? 0)}`,
+          detail: `Their ${b.gear} booking was cancelled and they paid by EFT or cash, so the refund goes from the bank. Record it once paid.`,
+          action: { label: 'Record refund', href: `/admin/bookings?open=${b.id}` },
+          since: null,
+        });
+      }
+      continue;
+    }
     if (b.status === 'return_pending') {
       out.push({
         id: `return:${b.id}`,
@@ -269,7 +321,7 @@ export function buildNeeds(f: TodayFacts): NeedItem[] {
         area: 'bookings',
         title: `Find a new creator for ${s.client}`,
         detail: `${s.creator} cannot do this booking${ref}.`,
-        action: { label: 'Choose creator', href: '/admin/service-bookings' },
+        action: { label: 'Choose creator', href: `/admin/service-bookings?open=${s.id}` },
         since: s.updatedAt,
       });
     }
@@ -280,18 +332,26 @@ export function buildNeeds(f: TodayFacts): NeedItem[] {
         area: 'money',
         title: `Refund ${s.client}${s.refundAmount ? ` ${rand(s.refundAmount)}` : ''}`,
         detail: s.refundStatus === 'failed' ? `The automatic refund failed${ref}.` : `This refund needs a person to decide${ref}.`,
-        action: { label: 'Sort refund', href: '/admin/service-bookings' },
+        action: { label: 'Sort refund', href: `/admin/service-bookings?open=${s.id}` },
         since: s.updatedAt,
       });
     }
-    if ((s.status === 'completed' || s.status === 'delivered') && (s.payoutStatus === 'pending' || s.payoutStatus === 'failed')) {
+    // A creator is paid once the client's dispute window has passed (payout_due_at).
+    // Before that nothing needs doing; a refused attempt says why in plain words.
+    const payoutDue = !s.payoutDueAt || new Date(s.payoutDueAt).getTime() <= f.now.getTime();
+    if (s.status === 'completed' && (s.payoutStatus === 'pending' || s.payoutStatus === 'failed') && (payoutDue || s.payoutStatus === 'failed')) {
+      const blocked = Boolean(s.payoutError) || s.payoutStatus === 'failed';
       out.push({
         id: `spayout:${s.id}`,
-        urgency: s.payoutStatus === 'failed' ? 'now' : 'today',
+        urgency: blocked ? 'now' : 'today',
         area: 'money',
-        title: `Pay ${s.creator} ${rand(s.creatorAmount)}`,
-        detail: s.payoutStatus === 'failed' ? `The last payout attempt failed${ref}.` : `The work for ${s.client} is done${ref}.`,
-        action: { label: s.payoutStatus === 'failed' ? 'Try again' : 'Pay creator', href: '/admin/service-bookings' },
+        title: blocked ? `${s.creator}'s payout of ${rand(s.creatorAmount)} is held up` : `Pay ${s.creator} ${rand(s.creatorAmount)}`,
+        detail: s.payoutError
+          ? `Waiting for: ${payoutWords(s.payoutError.replace(/^[^:]*:\s*/, ''))}${ref}.`
+          : s.payoutStatus === 'failed'
+            ? `The last payout attempt failed${ref}.`
+            : `The work for ${s.client} is done and the client's time to complain has passed${ref}.`,
+        action: { label: blocked ? 'See why' : 'Pay creator', href: `/admin/service-bookings?open=${s.id}` },
         since: s.updatedAt,
       });
     }
@@ -302,7 +362,7 @@ export function buildNeeds(f: TodayFacts): NeedItem[] {
         area: 'bookings',
         title: `${s.creator} has not accepted ${s.client}'s booking`,
         detail: `Paid ${ago(f.now, s.paidAt)}${ref}. Remind them or find someone else.`,
-        action: { label: 'Open booking', href: '/admin/service-bookings' },
+        action: { label: 'Open booking', href: `/admin/service-bookings?open=${s.id}` },
         since: s.paidAt,
       });
     }
@@ -315,7 +375,7 @@ export function buildNeeds(f: TodayFacts): NeedItem[] {
       urgency: ready ? 'today' : 'soon',
       area: 'money',
       title: ready ? `Approve ${p.owner}'s payout of ${randCents(p.amountCents)}` : `${p.owner}'s payout of ${randCents(p.amountCents)} is on hold`,
-      detail: ready ? 'Every check passed. It goes out once you approve.' : `Waiting for: ${p.holdReasons.join(', ')}.`,
+      detail: ready ? 'Every check passed. It goes out once you approve.' : `Waiting for: ${p.holdReasons.map(payoutWords).join(', ')}.`,
       action: { label: ready ? 'Approve' : 'See why', href: '/admin/rental-ops' },
       since: p.scheduledAt,
     });
@@ -328,7 +388,7 @@ export function buildNeeds(f: TodayFacts): NeedItem[] {
       urgency: 'now',
       area: 'money',
       title: `A refund of ${randCents(r.amountCents)} did not go through`,
-      detail: r.reason ? `Reason: ${r.reason.replace(/_/g, ' ')}.` : 'It needs a person to retry it.',
+      detail: `${REFUND_REASON[r.reason] ?? 'A refund'} could not be sent. Retry it, or check the payment provider first.`,
       action: { label: 'Retry refund', href: '/admin/rental-ops' },
       since: r.createdAt,
     });
@@ -353,7 +413,7 @@ export function buildNeeds(f: TodayFacts): NeedItem[] {
       area: 'bookings',
       title: `${r.client} wants to book a creator`,
       detail: r.what,
-      action: { label: 'Reply', href: '/admin/creator-requests' },
+      action: { label: 'Reply', href: `/admin/creator-requests?open=${r.id}` },
       since: r.createdAt,
     });
   }
@@ -444,6 +504,7 @@ export function buildMovements(f: TodayFacts): Movement[] {
     if (!LIVE_GEAR.has(b.status)) continue;
     const delivery = b.fulfilment === 'delivery';
     if ((b.start === today || b.start === tomorrow) && b.status === 'confirmed') {
+      const checked = b.renterVerified !== false;
       out.push({
         id: `out:${b.id}`,
         day: b.start === today ? 'today' : 'tomorrow',
@@ -452,7 +513,9 @@ export function buildMovements(f: TodayFacts): Movement[] {
         who: b.renter,
         how: delivery ? 'We deliver' : 'They collect',
         late: false,
-        href: `/admin/rentals/${b.id}/handover`,
+        // A collection is handed over at the counter; a delivery and anything to sort first open the booking.
+        href: delivery || !checked ? `/admin/bookings?open=${b.id}` : `/admin/rentals/${b.id}/handover`,
+        ...(checked ? {} : { warn: 'ID not checked' }),
       });
     }
     if (b.end === today || b.end === tomorrow || (b.end < today && b.start <= today)) {
@@ -464,7 +527,7 @@ export function buildMovements(f: TodayFacts): Movement[] {
         who: b.renter,
         how: delivery ? 'We collect' : 'They drop off',
         late: b.end < today || b.status === 'overdue',
-        href: `/admin/rentals/${b.id}/return`,
+        href: delivery ? `/admin/bookings?open=${b.id}` : `/admin/rentals/${b.id}/return`,
       });
     }
   }
@@ -481,7 +544,8 @@ export function buildMovements(f: TodayFacts): Movement[] {
       who: s.creator,
       how: s.location ?? (s.status === 'paid' ? 'Not accepted yet' : 'Confirmed'),
       late: false,
-      href: '/admin/service-bookings',
+      href: `/admin/service-bookings?open=${s.id}`,
+      ...(s.status === 'paid' ? { warn: 'Not accepted yet' } : {}),
     });
   }
 
@@ -536,7 +600,8 @@ export function buildMoney(f: TodayFacts): MoneyTile[] {
     label: 'Owed to creators and owners',
     value: rand(owed),
     note: owedCount ? plural(owedCount, 'payout') + ' waiting' : 'Nobody is waiting to be paid',
-    href: owedCount ? '/admin/rental-ops' : '/admin/service-bookings',
+    // Owner payouts live in Payouts and refunds; creator payouts on the crew bookings page.
+    href: (f.ownerPayouts ?? []).length ? '/admin/rental-ops' : '/admin/service-bookings',
     tone: owedCount ? 'watch' : 'quiet',
   });
 
@@ -545,6 +610,12 @@ export function buildMoney(f: TodayFacts): MoneyTile[] {
   for (const s of f.serviceBookings ?? []) {
     if (s.refundStatus === 'pending' || s.refundStatus === 'failed' || s.refundStatus === 'manual_review') {
       refunds += s.refundAmount ?? 0;
+      refundCount++;
+    }
+  }
+  for (const b of f.gearBookings ?? []) {
+    if (b.status === 'cancelled' && b.refundStatus === 'pending' && b.handPaid) {
+      refunds += b.refundAmount ?? 0;
       refundCount++;
     }
   }
@@ -634,12 +705,12 @@ export function buildActivity(f: TodayFacts, limit = 12): ActivityItem[] {
   const out: ActivityItem[] = [];
   for (const s of f.signups ?? []) out.push({ id: `signup:${s.id}`, at: s.createdAt, text: `${s.name} joined`, href: '/admin/users' });
   for (const b of f.gearBookings ?? []) {
-    out.push({ id: `gear:${b.id}`, at: b.createdAt, text: `${b.renter} booked ${b.gear} for ${rand(b.total)}`, href: '/admin/bookings' });
+    out.push({ id: `gear:${b.id}`, at: b.createdAt, text: `${b.renter} booked ${b.gear} for ${rand(b.total)}`, href: `/admin/bookings?open=${b.id}` });
   }
   for (const s of f.serviceBookings ?? []) {
-    out.push({ id: `svc:${s.id}`, at: s.createdAt, text: `${s.client} booked ${s.creator} for ${rand(s.total)}`, href: '/admin/service-bookings' });
+    out.push({ id: `svc:${s.id}`, at: s.createdAt, text: `${s.client} booked ${s.creator} for ${rand(s.total)}`, href: `/admin/service-bookings?open=${s.id}` });
   }
-  for (const r of f.requests ?? []) out.push({ id: `req:${r.id}`, at: r.createdAt, text: `${r.client} asked to book a creator`, href: '/admin/creator-requests' });
+  for (const r of f.requests ?? []) out.push({ id: `req:${r.id}`, at: r.createdAt, text: `${r.client} asked to book a creator`, href: `/admin/creator-requests?open=${r.id}` });
   for (const b of f.bugs ?? []) out.push({ id: `bug:${b.id}`, at: b.createdAt, text: `Bug reported: ${b.title}`, href: '/admin/bug-reports' });
   return out
     .filter((a) => a.at && Number.isFinite(new Date(a.at).getTime()))
@@ -694,7 +765,7 @@ export function buildToday(f: TodayFacts, agentNames: Record<string, string>): T
       requests: count('request:'),
       returns: count('return:'),
       payouts: count('opayout:') + count('spayout:'),
-      refunds: count('refund:') + count('srefund:'),
+      refunds: count('refund:') + count('srefund:') + count('handrefund:'),
       welcomes: f.welcomeDrafts ?? 0,
       bugs: count('bug:'),
       pressDrafts: count('press:'),

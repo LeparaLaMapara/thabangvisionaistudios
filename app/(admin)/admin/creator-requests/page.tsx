@@ -4,20 +4,19 @@ import { getAllCrewRequests } from '@/lib/supabase/queries/crew';
 import CreatorRequestsManager from './CreatorRequestsManager';
 
 export const metadata = {
-  title: 'Creator Requests — Admin',
+  title: 'Booking requests',
 };
 
 export default async function AdminCreatorRequestsPage() {
   const requests = await getAllCrewRequests();
 
   return (
-    <div>
+    <div className="mx-auto max-w-5xl px-4 py-6 sm:px-6 lg:py-10">
       <div className="mb-8">
-        <h1 className="text-2xl font-display font-medium uppercase text-white">
-          Creator Requests
-        </h1>
-        <p className="text-xs font-mono text-neutral-400 mt-2">
-          Manage creator booking requests. You are the middleman between clients and creators.
+        <p className="text-sm text-neutral-400">Bookings</p>
+        <h1 className="mt-1 font-display text-3xl text-white">Booking requests</h1>
+        <p className="mt-2 text-neutral-300">
+          People asking to book a creator. Write to them, send a quote, and confirm once the creator is free.
         </p>
       </div>
 

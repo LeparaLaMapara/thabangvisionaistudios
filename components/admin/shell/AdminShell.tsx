@@ -17,7 +17,7 @@ import {
   X,
   type LucideIcon,
 } from 'lucide-react';
-import { ADMIN_SECTIONS, sectionForPath, type CountKey, type SectionId } from '@/lib/admin/control-room/sections';
+import { ADMIN_SECTIONS, sectionForPath, toolForPath, type CountKey, type SectionId } from '@/lib/admin/control-room/sections';
 import { STUDIO } from '@/lib/constants';
 import { LogoutButton } from '@/components/admin/LogoutButton';
 import { AdminSearch } from './AdminSearch';
@@ -59,6 +59,8 @@ function Badge({ n, quiet }: { n: number; quiet?: boolean }) {
 }
 
 function isActiveTool(pathname: string, href: string, all: string[]): boolean {
+  const owner = toolForPath(pathname);
+  if (owner) return owner.href === href;
   if (!(pathname === href || pathname.startsWith(`${href}/`))) return false;
   // A longer link that also matches wins (Import a rate card beats All gear).
   return !all.some((h) => h !== href && h.length > href.length && (pathname === h || pathname.startsWith(`${h}/`)));

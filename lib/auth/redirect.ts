@@ -45,3 +45,15 @@ export function signInErrorMessage(code: string | null | undefined): string | nu
   }
   return 'Something went wrong signing you in. Please try again.';
 }
+
+/**
+ * A suspended account is banned in Supabase Auth, which answers "User is
+ * banned". Said plainly, with where to ask, instead.
+ */
+export function bannedMessage(err: { message?: string; code?: string } | null | undefined, contactEmail: string): string | null {
+  if (!err) return null;
+  if (err.code === 'user_banned' || /banned/i.test(err.message ?? '')) {
+    return `This account is suspended, so it cannot sign in. If you think this is a mistake, email ${contactEmail}.`;
+  }
+  return null;
+}

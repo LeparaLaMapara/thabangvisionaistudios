@@ -29,6 +29,8 @@ export interface AdminTool {
   countKey?: CountKey;
   /** Extra words the search box should match. */
   keywords?: string;
+  /** Other pages that belong to this screen (they win over a plain prefix match). */
+  also?: RegExp[];
 }
 
 export interface AdminSection {
@@ -54,7 +56,15 @@ export const ADMIN_SECTIONS: AdminSection[] = [
     hint: 'Gear hire, crew and studio bookings, pickups and deliveries',
     href: '/admin/bookings',
     tools: [
-      { label: 'Gear hire bookings', href: '/admin/bookings', hint: 'Every rental: hand over, check returns, mark EFT paid', countKey: 'returns', keywords: 'rentals equipment handover return eft' },
+      {
+        label: 'Gear hire bookings',
+        href: '/admin/bookings',
+        hint: 'Every rental: hand over, check returns, mark EFT paid',
+        countKey: 'returns',
+        keywords: 'rentals equipment handover return eft',
+        // The handover and take-back checklists live under /admin/rentals/<booking>/.
+        also: [/^\/admin\/rentals\/[^/]+\/(handover|return)\/?$/],
+      },
       { label: 'Crew and studio bookings', href: '/admin/service-bookings', hint: 'Photographers, videographers and shoots', keywords: 'service creator shoot studio' },
       { label: 'Booking requests', href: '/admin/creator-requests', hint: 'People asking to book a creator', countKey: 'requests', keywords: 'crew request enquiry quote' },
       { label: 'Pickups and deliveries', href: '/admin/delivery-ops', hint: 'Couriers, collections and drop-offs', keywords: 'delivery courier pickup collection bob go' },
@@ -80,7 +90,7 @@ export const ADMIN_SECTIONS: AdminSection[] = [
       { label: 'Everyone', href: '/admin/users', hint: 'Find a person, suspend or restore an account', keywords: 'users customers creators accounts suspend' },
       { label: 'ID checks', href: '/admin/verifications', hint: 'Approve or decline identity documents', countKey: 'idChecks', keywords: 'verification identity kyc' },
       { label: 'Welcome messages', href: '/admin/welcomes', hint: 'Check and send welcome notes to new people', countKey: 'welcomes', keywords: 'welcome email onboarding' },
-      { label: 'Outreach', href: '/admin/outreach', hint: 'Invite creators and gear owners to join', keywords: 'outreach invite marketing' },
+      { label: 'Outreach', href: '/admin/outreach', hint: 'Draft emails to win new business clients', keywords: 'outreach clients marketing email agencies' },
     ],
   },
   {
@@ -129,9 +139,20 @@ export const ADMIN_SECTIONS: AdminSection[] = [
   },
 ];
 
+function aliasFor(pathname: string): { section: SectionId; tool: AdminTool } | null {
+  for (const s of ADMIN_SECTIONS) {
+    for (const t of s.tools) {
+      if (t.also?.some((re) => re.test(pathname))) return { section: s.id, tool: t };
+    }
+  }
+  return null;
+}
+
 /** The section a page belongs to, for highlighting the menu. */
 export function sectionForPath(pathname: string): SectionId {
   if (pathname === '/admin' || pathname === '/admin/') return 'today';
+  const alias = aliasFor(pathname);
+  if (alias) return alias.section;
   let best: { id: SectionId; len: number } = { id: 'today', len: 0 };
   for (const s of ADMIN_SECTIONS) {
     for (const t of s.tools) {
@@ -145,6 +166,8 @@ export function sectionForPath(pathname: string): SectionId {
 
 /** The one tool a page belongs to, if any (the longest matching link). */
 export function toolForPath(pathname: string): AdminTool | null {
+  const alias = aliasFor(pathname);
+  if (alias) return alias.tool;
   let best: AdminTool | null = null;
   for (const s of ADMIN_SECTIONS) {
     for (const t of s.tools) {

@@ -56,6 +56,9 @@ export function MovementsBoard({ items }: { items: Movement[] }) {
                   {m.late && (
                     <span className="flex-shrink-0 rounded-full bg-red-500/15 px-2 py-0.5 text-xs font-semibold text-red-300">Late</span>
                   )}
+                  {m.warn && (
+                    <span className="flex-shrink-0 rounded-full bg-amber-500/15 px-2 py-0.5 text-xs font-semibold text-amber-200">{m.warn}</span>
+                  )}
                 </Link>
               </li>
             );

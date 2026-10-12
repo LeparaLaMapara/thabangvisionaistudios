@@ -125,7 +125,34 @@ describe('buildNeeds', () => {
     expect(done[0].urgency).toBe('today');
     const failed = buildNeeds(facts({ serviceBookings: [service({ status: 'completed', payoutStatus: 'failed' })] }));
     expect(failed[0].urgency).toBe('now');
-    expect(failed[0].action.label).toBe('Try again');
+    expect(failed[0].action.label).toBe('See why');
+  });
+
+  it('waits for the payout date, and says in plain words why a payout is held up', () => {
+    const notDue = buildNeeds(facts({ serviceBookings: [service({ status: 'completed', payoutDueAt: new Date(NOW.getTime() + 86_400_000).toISOString() })] }));
+    expect(notDue).toEqual([]);
+    const held = buildNeeds(
+      facts({
+        serviceBookings: [
+          service({ status: 'completed', payoutDueAt: hoursAgo(1), payoutError: 'blocked: payout_account_not_validated, payment_not_confirmed' }),
+        ],
+      }),
+    );
+    expect(held[0].title).toMatch(/payout of .* is held up$/);
+    expect(held[0].detail).toContain('the creator has no validated bank account');
+    expect(held[0].detail).toContain('the payment provider does not confirm the payment');
+    expect(held[0].action.href).toBe('/admin/service-bookings?open=s1');
+  });
+
+  it('asks to pay back a cancelled booking that was paid by hand', () => {
+    const needs = buildNeeds(
+      facts({ gearBookings: [gear({ id: 'c1', status: 'cancelled', refundStatus: 'pending', refundAmount: 600, handPaid: true })] }),
+    );
+    expect(needs).toHaveLength(1);
+    expect(needs[0].title).toMatch(/^Pay Lerato M back R/);
+    expect(needs[0].action.href).toBe('/admin/bookings?open=c1');
+    // A card refund is the provider's job, not a hand payment.
+    expect(buildNeeds(facts({ gearBookings: [gear({ status: 'cancelled', refundStatus: 'pending', refundAmount: 600, handPaid: false })] }))).toEqual([]);
   });
 
   it('nudges when a creator has not accepted a paid booking after a day', () => {
@@ -179,6 +206,22 @@ describe('buildMovements', () => {
     expect(moves[0].late).toBe(true);
     expect(moves[1].how).toBe('We deliver');
     expect(moves[2].day).toBe('tomorrow');
+  });
+
+  it('flags a handover whose renter is not ID-checked, and sends deliveries to the booking', () => {
+    const moves = buildMovements(
+      facts({
+        gearBookings: [
+          gear({ id: 'u', start: TODAY, renterVerified: false }),
+          gear({ id: 'd', start: TODAY, fulfilment: 'delivery', renterVerified: true }),
+        ],
+      }),
+    );
+    const byId = Object.fromEntries(moves.map((m) => [m.id, m]));
+    expect(byId['out:u'].warn).toBe('ID not checked');
+    expect(byId['out:u'].href).toBe('/admin/bookings?open=u');
+    expect(byId['out:d'].warn).toBeUndefined();
+    expect(byId['out:d'].href).toBe('/admin/bookings?open=d');
   });
 
   it('includes shoots on the day', () => {
@@ -274,7 +317,10 @@ describe('admin sections', () => {
 
   it('finds the section and screen for a page, preferring the longest link', () => {
     expect(sectionForPath('/admin')).toBe('today');
-    expect(sectionForPath('/admin/rentals/abc/return')).toBe('gear');
+    // The handover and take-back checklists belong to bookings, not to the gear editor.
+    expect(sectionForPath('/admin/rentals/abc/return')).toBe('bookings');
+    expect(toolForPath('/admin/rentals/abc/handover')?.label).toBe('Gear hire bookings');
+    expect(sectionForPath('/admin/rentals')).toBe('gear');
     expect(toolForPath('/admin/rentals/import')?.label).toBe('Import a rate card');
     expect(sectionForPath('/admin/verifications')).toBe('people');
   });

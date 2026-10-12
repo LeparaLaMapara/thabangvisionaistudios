@@ -121,6 +121,15 @@ export async function PATCH(
         } else {
           refundResult = check.code === 'REFUND_ALREADY_STARTED' ? 'already_started' : 'not_claimed';
         }
+      } else if (booking.payment_status === 'paid' && !refundStatusRead) {
+        // Paid, but no payment reference to refund against (recorded by hand,
+        // or a payment the provider never linked). Nothing can be sent
+        // automatically, so it is handed to a person with the amount instead
+        // of being cancelled with no refund and no word.
+        update.cancellation_refund_status = 'manual_review';
+        update.cancellation_refund_amount = Math.round(Number(booking.total ?? 0));
+        update.cancellation_refund_percent = 100;
+        refundResult = 'manual_review';
       }
     }
 
@@ -252,10 +261,10 @@ export async function PATCH(
         to: STUDIO.bookingEmail,
         subject: `[Action Required] Refund ${refundResult === 'unknown' ? 'outcome unknown' : refundResult === 'failed' ? 'failed' : 'to make by hand'} — ${booking.reference}`,
         text: refundResult === 'unknown'
-          ? `An admin cancelled booking ${booking.reference}. The refund of R${claimAmount} got no clear answer from the payment provider, so it MAY already have gone through.\n\nCHECK the provider first (its refunds for payment reference ${booking.paystack_reference}, or the dashboard). Refund by hand ONLY if no refund is there, then record it. Cancelling again will not send another refund.`
+          ? `An admin cancelled booking ${booking.reference}. The refund of R${claimAmount ?? Math.round(Number(booking.total ?? 0))} got no clear answer from the payment provider, so it MAY already have gone through.\n\nCHECK the provider first (its refunds for payment reference ${booking.paystack_reference}, or the dashboard). Refund by hand ONLY if no refund is there, then record it. Cancelling again will not send another refund.`
           : refundResult === 'failed'
-            ? `An admin cancelled booking ${booking.reference}. The payment provider refused the refund of R${claimAmount}; nothing was refunded. Refund it by hand and record it.`
-            : `An admin cancelled booking ${booking.reference}. It was paid by EFT or cash, so the refund of R${claimAmount} is made by hand. Record it once paid.`,
+            ? `An admin cancelled booking ${booking.reference}. The payment provider refused the refund of R${claimAmount ?? Math.round(Number(booking.total ?? 0))}; nothing was refunded. Refund it by hand and record it.`
+            : `An admin cancelled booking ${booking.reference}. It has no payment reference to refund automatically (paid by EFT or cash, or recorded by hand), so the refund of R${claimAmount ?? Math.round(Number(booking.total ?? 0))} is made by hand. Record it once paid.`,
       });
     } catch { /* don't block */ }
   } else if (refundResult === 'already_started') {

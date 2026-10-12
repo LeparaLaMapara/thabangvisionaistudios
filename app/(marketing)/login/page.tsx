@@ -5,7 +5,7 @@ import { useSearchParams } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { createClient } from '@/lib/supabase/client';
 import { STUDIO } from '@/lib/constants';
-import { authCallbackUrl, signInErrorMessage } from '@/lib/auth/redirect';
+import { authCallbackUrl, bannedMessage, signInErrorMessage } from '@/lib/auth/redirect';
 import { readNextParam } from '@/lib/auth/next-path';
 import { destinationAfterSignIn } from '@/components/auth/afterSignIn';
 import { GoogleIcon } from '@/components/auth/GoogleIcon';
@@ -159,6 +159,8 @@ function LoginForm() {
       options: { emailRedirectTo: authCallbackUrl(window.location.origin, next) },
     });
     if (otpError) {
+      const banned = bannedMessage(otpError, STUDIO.email);
+      if (banned) return fail(banned, 'email');
       const tooSoon =
         otpError.status === 429 ||
         otpError.code === 'over_email_send_rate_limit' ||
@@ -188,7 +190,7 @@ function LoginForm() {
     const supabase = createClient();
     const { data, error: authError } = await supabase.auth.signInWithPassword({ email: address, password });
     if (authError || !data.user) {
-      return fail(authError?.message ?? 'Sign-in failed. Please try again.', 'password');
+      return fail(bannedMessage(authError, STUDIO.email) ?? authError?.message ?? 'Sign-in failed. Please try again.', 'password');
     }
     await finish(data.user);
   };
@@ -210,6 +212,8 @@ function LoginForm() {
     const supabase = createClient();
     const { data, error: verifyError } = await supabase.auth.verifyOtp({ email: email.trim(), token, type: 'email' });
     if (verifyError || !data.user) {
+      const banned = bannedMessage(verifyError, STUDIO.email);
+      if (banned) return fail(banned, 'code');
       return fail(
         "That code didn't work. It may have expired, or a newer email may have replaced it. Check your latest email, or send a new one.",
         'code',

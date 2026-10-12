@@ -38,7 +38,11 @@ const PAGES: (Hit & { words: string })[] = ADMIN_SECTIONS.flatMap((s) =>
 function matchPages(q: string): Hit[] {
   const words = q.toLowerCase().split(/\s+/).filter(Boolean);
   if (!words.length) return PAGES.slice(0, 8);
-  return PAGES.filter((p) => words.every((w) => p.words.includes(w))).slice(0, 5);
+  // Each typed word must start a word on the page ("id" finds "ID checks", not "paid").
+  return PAGES.filter((p) => {
+    const tokens = p.words.split(/[^a-z0-9]+/);
+    return words.every((w) => tokens.some((t) => t.startsWith(w)));
+  }).slice(0, 5);
 }
 
 /** Mounted only while open, so every opening starts empty. */
