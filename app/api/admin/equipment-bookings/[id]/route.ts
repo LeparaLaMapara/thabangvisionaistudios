@@ -139,6 +139,8 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   const refunds: unknown[] = [];
   const journals: unknown[] = [];
   const notices = [];
+  /** What the customer gets back, in cents, kept on the booking so it can be seen and settled. */
+  let refundTotalCents = 0;
   if (to === 'cancelled' && booking.payfast_payment_id) {
     const refundCents = Number(body.refundCents);
     if (!Number.isSafeInteger(refundCents) || refundCents < 0) {
@@ -201,8 +203,22 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         });
       }
     } else if (refundCents > 0) {
-      notices.push(...buildNotices({ kind: 'staff_alert', userId: 'staff', bookingIds: [id], discriminator: `manual-refund:${id}`, data: { what: 'manual_refund_due', reference: id } }));
+      // Paid by hand (EFT or cash): the refund is paid back by hand too. It is
+      // capped at what was paid like a card refund, and its amount is kept on
+      // the booking (cancellation_refund_amount, status 'pending') so Today
+      // lists it until staff record it as paid back (./manual-refund).
+      let charge: { totalCents: number; remainderCents: number };
+      try {
+        charge = await chargeOfBooking(db, booking);
+      } catch {
+        return NextResponse.json({ error: 'Could not check the payment just now. Nothing was changed; try again.' }, { status: 503 });
+      }
+      if (refundCents > charge.totalCents) {
+        return NextResponse.json({ error: `The refund is more than was paid (R${(charge.totalCents / 100).toFixed(2)}).`, code: 'REFUND_TOO_LARGE' }, { status: 400 });
+      }
+      notices.push(...buildNotices({ kind: 'staff_alert', userId: 'staff', bookingIds: [id], discriminator: `manual-refund:${id}`, data: { what: 'manual_refund_due', reference: id, amountCents: refundCents } }));
     }
+    refundTotalCents = refundCents;
   }
 
   const moved = await transitionBookings(db, {
@@ -212,7 +228,14 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     actor: 'staff',
     actorId: auth.user.id,
     reason,
-    patch: to === 'cancelled' ? { cancel_reason: 'staff', cancellation_refund_status: refunds.length || notices.length ? 'pending' : 'not_required' } : {},
+    patch:
+      to === 'cancelled'
+        ? {
+            cancel_reason: 'staff',
+            cancellation_refund_status: refunds.length || notices.length ? 'pending' : 'not_required',
+            ...(refundTotalCents > 0 ? { cancellation_refund_amount: refundTotalCents / 100 } : {}),
+          }
+        : {},
     journals,
     refunds,
     notices,

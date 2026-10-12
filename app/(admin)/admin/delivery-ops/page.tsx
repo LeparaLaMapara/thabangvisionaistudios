@@ -10,6 +10,7 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { formatRand } from '@/lib/format/money';
 import { STUDIO } from '@/lib/constants';
+import { useAdminUI } from '@/components/admin/shell/AdminUI';
 
 /**
  * Delivery operations (spec Phase 4 §4.18): the queues a person works through
@@ -145,6 +146,7 @@ const inputClass = 'w-full bg-[#050505] border border-white/10 px-3 py-2 text-sm
 // ─── Page ───────────────────────────────────────────────────────────────────
 
 export default function DeliveryOpsPage() {
+  const ui = useAdminUI();
   const [data, setData] = useState<OpsData | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -176,7 +178,7 @@ export default function DeliveryOpsPage() {
 
   /** POST an action; show the server's answer, then reload. Returns the JSON on success. */
   const act = async (body: Row, busyKey: string, confirmText?: string): Promise<Row | null> => {
-    if (confirmText && !window.confirm(confirmText)) return null;
+    if (confirmText && !(await ui.confirm({ title: confirmText, action: 'Yes, go ahead' }))) return null;
     setBusy(busyKey);
     setNotice(null);
     try {
@@ -930,27 +932,71 @@ function SimpleForm({ fields, submitLabel, busy, danger, onSubmit, onCancel }: {
 
 /** An order paid by EFT/cash at checkout: dispatch its delivery after "Mark paid". */
 function ManualOrderForm({ busy, act }: { busy: string | null; act: Act }) {
-  const [group, setGroup] = useState('');
-  const valid = /^[0-9a-f-]{36}$/i.test(group.trim());
+  // The owner knows the order by the payment reference on the booking (TV-1A2B3C), not by its id.
+  const [ref, setRef] = useState('');
+  const [found, setFound] = useState<{ group: string; who: string } | null>(null);
+  const [lookupError, setLookupError] = useState<string | null>(null);
+  const [looking, setLooking] = useState(false);
+
+  async function lookUp(): Promise<void> {
+    const want = ref.trim().toUpperCase();
+    setFound(null);
+    setLookupError(null);
+    if (!/^TV-[0-9A-F]{6}$/.test(want)) {
+      setLookupError('Type the payment reference from the booking, like TV-1A2B3C.');
+      return;
+    }
+    setLooking(true);
+    try {
+      const res = await fetch('/api/admin/equipment-bookings', { cache: 'no-store' });
+      const rows = (res.ok ? await res.json() : []) as {
+        checkout_group_id: string | null; id: string; payment_reference?: string; user_name?: string | null; rental_title?: string;
+      }[];
+      const match = rows.filter((r) => (r.payment_reference ?? '').toUpperCase() === want);
+      if (!match.length) {
+        setLookupError(`No booking has the reference ${want}.`);
+        return;
+      }
+      const group = match[0].checkout_group_id ?? match[0].id;
+      setFound({ group, who: `${match.map((m) => m.rental_title).join(', ')} for ${match[0].user_name ?? 'the customer'}` });
+    } catch {
+      setLookupError('Could not look it up. Try again.');
+    } finally {
+      setLooking(false);
+    }
+  }
+
   return (
     <form
       className="p-4 space-y-3"
       onSubmit={(e) => {
         e.preventDefault();
-        if (!valid) return;
+        if (!found) {
+          void lookUp();
+          return;
+        }
         act(
-          { action: 'dispatch_manual_paid', bookingGroupId: group.trim() },
+          { action: 'dispatch_manual_paid', bookingGroupId: found.group },
           'manual-order',
-          'Dispatch this order’s delivery? Only if its payment was recorded with Mark paid: the server checks the order, its delivery quotes and the delivery total recorded at checkout.',
+          `Send the delivery for ${found.who}? Only if its payment was recorded with Mark paid: the server checks the order and its delivery fee.`,
         );
       }}
     >
       <p className="text-xs font-mono uppercase tracking-widest text-neutral-400">Order paid by hand at checkout</p>
-      <Field label="Order id (checkout group)">
-        <input className={inputClass} value={group} onChange={(e) => setGroup(e.target.value)} />
+      <Field label="Payment reference (on the booking, like TV-1A2B3C)">
+        <input
+          className={inputClass}
+          value={ref}
+          onChange={(e) => {
+            setRef(e.target.value);
+            setFound(null);
+          }}
+        />
       </Field>
-      <Button type="submit" variant="accent" size="sm" className="min-h-[44px]" loading={busy === 'manual-order'} disabled={!valid || busy !== null}>
-        Dispatch paid delivery
+      {lookupError && <p className="text-sm text-red-300">{lookupError}</p>}
+      {found && <p className="text-sm text-white">Found: {found.who}</p>}
+      <Button type="submit" variant="accent" size="sm" className="min-h-[44px]" loading={busy === 'manual-order' || looking} disabled={busy !== null || looking || !ref.trim()}>
+        {found ? 'Send the delivery' : 'Find the order'}
       </Button>
     </form>
   );

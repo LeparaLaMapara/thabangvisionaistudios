@@ -11,7 +11,7 @@ export async function toggleFlag(key: string, enabled: boolean): Promise<{ ok: t
   if (!isFeatureKey(key)) return { ok: false, error: `Unknown flag: ${key}` };
 
   try {
-    await setFlag(key, enabled);
+    await setFlag(key, enabled, auth.user.id);
     updateTag(FEATURE_FLAGS_CACHE_TAG);
     revalidatePath('/admin/flags');
     return { ok: true };

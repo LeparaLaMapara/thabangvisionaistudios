@@ -4,6 +4,7 @@ import { useState, useTransition } from 'react';
 import { Eye, EyeOff, Pencil, Trash2, X } from 'lucide-react';
 import type { Faq } from './page';
 import { togglePublish, updateFaq, deleteFaq } from './actions';
+import { useAdminUI } from '@/components/admin/shell/AdminUI';
 
 // ─── Constants ─────────────────────────────────────────────────────────────────
 
@@ -44,6 +45,7 @@ function truncate(text: string, max: number): string {
 // ─── Component ─────────────────────────────────────────────────────────────────
 
 export function FaqsAdmin({ faqs }: { faqs: Faq[] }) {
+  const ui = useAdminUI();
   const [pending, startTransition] = useTransition();
   const [localFaqs, setLocalFaqs] = useState(faqs);
   const [error, setError] = useState<string | null>(null);
@@ -119,8 +121,13 @@ export function FaqsAdmin({ faqs }: { faqs: Faq[] }) {
     });
   };
 
-  const onDelete = (faq: Faq) => {
-    const ok = confirm(`Delete FAQ: "${truncate(faq.question, 60)}"?\n\nThis cannot be undone.`);
+  const onDelete = async (faq: Faq) => {
+    const ok = await ui.confirm({
+      title: 'Delete this question?',
+      body: `“${truncate(faq.question, 80)}” is removed from the site for good. To hide it for now, unpublish it instead.`,
+      action: 'Delete question',
+      danger: true,
+    });
     if (!ok) return;
 
     setError(null);

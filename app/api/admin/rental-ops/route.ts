@@ -44,8 +44,23 @@ export async function GET() {
     db.from('ledger_journals').select('idempotency_key, kind, booking_group_id, memo, created_at').order('created_at', { ascending: false }).limit(50),
   ]);
 
+  const names = await describe(db, {
+    bookingIds: [
+      ...((refunds.data ?? []) as { booking_ids: string[] | null }[]).flatMap((r) => r.booking_ids ?? []),
+      ...((payouts.data ?? []) as { booking_id: string }[]).map((p) => p.booking_id),
+      ...((escalations.data ?? []) as { booking_id: string }[]).map((e) => e.booking_id),
+      ...((approvals.data ?? []) as { id: string }[]).map((a) => a.id),
+    ],
+    orderIds: [
+      ...((intents.data ?? []) as { checkout_group_id: string | null }[]).map((i) => i.checkout_group_id ?? ''),
+      ...((journals.data ?? []) as { booking_group_id: string | null }[]).map((j) => j.booking_group_id ?? ''),
+    ],
+    peopleIds: ((payouts.data ?? []) as { owner_id: string }[]).map((p) => p.owner_id),
+  });
+
   return NextResponse.json({
     pipeline: true,
+    names,
     refunds: refunds.data ?? [],
     payouts: payouts.data ?? [],
     events: events.data ?? [],
@@ -55,6 +70,59 @@ export async function GET() {
     risk_approvals: approvals.data ?? [],
     recent_journals: journals.data ?? [],
   });
+}
+
+/** Names for the ids the queues hold, so the page shows people and gear, not ids. */
+interface Names {
+  bookings: Record<string, { gear: string; renter: string; phone: string | null }>;
+  orders: Record<string, { gear: string; renter: string }>;
+  people: Record<string, { name: string; phone: string | null }>;
+}
+
+async function describe(
+  db: ReturnType<typeof createAdminClient>,
+  ids: { bookingIds: string[]; orderIds: string[]; peopleIds: string[] },
+): Promise<Names> {
+  const out: Names = { bookings: {}, orders: {}, people: {} };
+  const bookingIds = [...new Set(ids.bookingIds.filter(Boolean))].slice(0, 300);
+  const orderIds = [...new Set(ids.orderIds.filter(Boolean))].slice(0, 300);
+  type Line = { id: string; user_id: string | null; rental_id: string | null; checkout_group_id: string | null };
+  const lines: Line[] = [];
+  if (bookingIds.length) {
+    const { data } = await db.from('equipment_bookings').select('id, user_id, rental_id, checkout_group_id').in('id', bookingIds);
+    lines.push(...((data ?? []) as Line[]));
+  }
+  if (orderIds.length) {
+    const { data } = await db.from('equipment_bookings').select('id, user_id, rental_id, checkout_group_id').in('checkout_group_id', orderIds);
+    lines.push(...((data ?? []) as Line[]));
+  }
+  const rentalIds = [...new Set(lines.map((l) => l.rental_id).filter((x): x is string => Boolean(x)))];
+  const personIds = [...new Set([...lines.map((l) => l.user_id ?? ''), ...ids.peopleIds].filter(Boolean))];
+  const [rentals, people] = await Promise.all([
+    rentalIds.length ? db.from('smart_rentals').select('id, title').in('id', rentalIds) : Promise.resolve({ data: [] }),
+    personIds.length
+      ? db.from('profiles').select('id, display_name, first_name, last_name, phone').in('id', personIds)
+      : Promise.resolve({ data: [] }),
+  ]);
+  const title = new Map(((rentals.data ?? []) as { id: string; title: string }[]).map((r) => [r.id, r.title]));
+  for (const p of (people.data ?? []) as { id: string; display_name: string | null; first_name: string | null; last_name: string | null; phone: string | null }[]) {
+    out.people[p.id] = {
+      name: p.display_name?.trim() || [p.first_name, p.last_name].filter(Boolean).join(' ').trim() || 'Unnamed person',
+      phone: p.phone,
+    };
+  }
+  for (const l of lines) {
+    const person = out.people[l.user_id ?? ''];
+    const gear = title.get(l.rental_id ?? '') ?? 'Gear';
+    out.bookings[l.id] = { gear, renter: person?.name ?? 'A customer', phone: person?.phone ?? null };
+    if (l.checkout_group_id) {
+      const prev = out.orders[l.checkout_group_id];
+      out.orders[l.checkout_group_id] = prev
+        ? { ...prev, gear: prev.gear.includes(gear) ? prev.gear : `${prev.gear}, ${gear}` }
+        : { gear, renter: person?.name ?? 'A customer' };
+    }
+  }
+  return out;
 }
 
 type Action =

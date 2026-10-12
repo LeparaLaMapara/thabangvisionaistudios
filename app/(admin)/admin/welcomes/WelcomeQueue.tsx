@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { describeActivity, type SignupActivity } from '@/lib/greetings/welcome';
+import { useAdminUI } from '@/components/admin/shell/AdminUI';
 
 interface Welcome {
   user_id: string;
@@ -25,6 +26,7 @@ const STATUS_STYLE: Record<Welcome['status'], string> = {
 };
 
 export function WelcomeQueue() {
+  const ui = useAdminUI();
   const [welcomes, setWelcomes] = useState<Welcome[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
@@ -58,6 +60,12 @@ export function WelcomeQueue() {
   }, [fetchQueue]);
 
   const backfill = async () => {
+    const ok = await ui.confirm({
+      title: 'Draft a welcome for everyone not yet welcomed?',
+      body: 'Ubunye writes a draft for every account that has none, including people who joined long ago. Nothing is sent: each draft waits here for you.',
+      action: 'Draft welcomes',
+    });
+    if (!ok) return;
     setBusy('backfill');
     setError(null);
     const res = await fetch('/api/admin/welcomes', { method: 'POST' });
@@ -68,7 +76,15 @@ export function WelcomeQueue() {
   };
 
   const act = async (userId: string, action: 'save' | 'send' | 'discard', edit?: { subject: string; body: string }) => {
-    if (action === 'send' && !confirm('Send this welcome now?')) return;
+    if (action === 'send') {
+      const w = (welcomes ?? []).find((x) => x.user_id === userId);
+      const ok = await ui.confirm({
+        title: `Send the welcome to ${w?.first_name ?? 'this person'}?`,
+        body: w?.email ? `It is emailed to ${w.email} now.` : 'It is emailed now.',
+        action: 'Send welcome',
+      });
+      if (!ok) return;
+    }
     setBusy(userId);
     setError(null);
     const res = await fetch(`/api/admin/welcomes/${userId}`, {

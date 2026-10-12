@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient, createAdminClient } from '@/lib/supabase/server';
 import { sendVerificationApproved, sendVerificationRejected } from '@/lib/email';
 import { requireAdmin, rateLimitAdmin } from '@/lib/auth';
+import { logEvent } from '@/lib/data/events';
 
 type RouteContext = {
   params: Promise<{ id: string }>;
@@ -80,7 +81,8 @@ export async function PUT(req: NextRequest, context: RouteContext) {
   const { id } = await context.params;
 
   try {
-    const { action, reason } = await req.json();
+    const { action, reason, notes } = await req.json();
+    const adminNotes = typeof notes === 'string' ? notes.trim().slice(0, 2000) : '';
 
     if (action !== 'approve' && action !== 'reject') {
       return NextResponse.json(
@@ -97,6 +99,24 @@ export async function PUT(req: NextRequest, context: RouteContext) {
     }
 
     const supabase = await createClient();
+
+    // Only a check that is waiting, with ID photos to look at, can be approved.
+    const db = createAdminClient();
+    const { data: subject } = await db
+      .from('profiles')
+      .select('verification_status, id_front_path, selfie_with_id_path')
+      .eq('id', id)
+      .maybeSingle();
+    if (!subject) return NextResponse.json({ error: 'Person not found.' }, { status: 404 });
+    if (action === 'approve' && subject.verification_status !== 'pending') {
+      return NextResponse.json({ error: `This ID check is ${subject.verification_status ?? 'not started'}, not waiting for a decision.` }, { status: 409 });
+    }
+    if (action === 'approve' && !subject.id_front_path && !subject.selfie_with_id_path) {
+      return NextResponse.json(
+        { error: 'They have not sent any ID photos, so there is nothing to approve. Ask them to submit their ID first.', code: 'NO_DOCUMENTS' },
+        { status: 409 },
+      );
+    }
 
     if (action === 'approve') {
       const { data: result, error: rpcError } = await supabase.rpc('admin_approve_verification', {
@@ -138,6 +158,36 @@ export async function PUT(req: NextRequest, context: RouteContext) {
           reason,
         });
       }
+    }
+
+    // Tell them in the app too (types from migration 082; best effort: the decision stands either way).
+    const { error: noticeError } = await db.from('notifications').insert({
+      user_id: id,
+      type: action === 'approve' ? 'verification_approved' : 'verification_rejected',
+      title: action === 'approve' ? 'Your ID is checked' : 'Your ID check was not accepted',
+      body:
+        action === 'approve'
+          ? 'You can now book gear and take bookings.'
+          : `Reason: ${String(reason).slice(0, 300)}. You can send your ID again from your dashboard.`,
+      link: '/dashboard',
+    });
+    if (noticeError) console.error('[admin/verifications] in-app notice failed:', noticeError.message);
+
+    // Who decided, and their notes, kept for the record.
+    logEvent({
+      eventType: action === 'approve' ? 'verification_approved' : 'verification_rejected',
+      eventCategory: 'admin',
+      userId: auth.user.id,
+      metadata: { subjectId: id, reason: action === 'reject' ? reason : null, notes: adminNotes || null },
+    });
+    if (action === 'reject') {
+      await db.from('moderation_log').insert({
+        user_id: id,
+        action: 'verification_rejected',
+        reason: String(reason).slice(0, 1000),
+        admin_id: auth.user.id,
+        metadata: adminNotes ? { notes: adminNotes } : {},
+      });
     }
 
     const { data: updated } = await supabase.rpc('admin_get_verification', {

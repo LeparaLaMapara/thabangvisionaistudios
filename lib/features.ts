@@ -86,6 +86,7 @@ export async function getFlags(
 export async function setFlag(
   key: FeatureKey,
   enabled: boolean,
+  changedBy?: string,
 ): Promise<void> {
   const supabase = createAdminClient();
   const { error } = await supabase
@@ -94,6 +95,18 @@ export async function setFlag(
     .eq('key', key);
 
   if (error) throw new Error(`Failed to toggle flag ${key}: ${error.message}`);
+
+  // The audit trigger records auth.uid(), which is empty for this service-role
+  // write, so the event row it just made is stamped with the admin here.
+  if (changedBy) {
+    const { error: auditError } = await supabase
+      .from('feature_flag_events')
+      .update({ changed_by: changedBy })
+      .eq('flag_key', key)
+      .is('changed_by', null)
+      .gte('changed_at', new Date(Date.now() - 60_000).toISOString());
+    if (auditError) console.error(`[features] could not record who changed ${key}:`, auditError.message);
+  }
 }
 
 export const FEATURE_FLAGS_CACHE_TAG = FLAGS_CACHE_TAG;

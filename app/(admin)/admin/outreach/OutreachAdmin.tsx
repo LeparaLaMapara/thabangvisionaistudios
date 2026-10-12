@@ -305,11 +305,35 @@ export function OutreachAdmin() {
             </button>
           </div>
 
-          <div className="bg-neutral-950 border border-white/5 p-4 md:p-6 overflow-x-auto">
-            <pre className="text-sm font-mono text-neutral-300 whitespace-pre-wrap leading-relaxed">
-              {result.emails}
-            </pre>
-          </div>
+          {(() => {
+            const drafts = splitDrafts(result.emails);
+            if (!drafts.length) {
+              return (
+                <div className="bg-neutral-950 border border-white/5 p-4 md:p-6 overflow-x-auto">
+                  <pre className="text-sm text-neutral-300 whitespace-pre-wrap leading-relaxed">{result.emails}</pre>
+                </div>
+              );
+            }
+            return (
+              <div className="space-y-4">
+                {drafts.map((d, i) => (
+                  <div key={i} className="bg-neutral-950 border border-white/5 p-4 md:p-6">
+                    <p className="text-xs text-neutral-400">Email {i + 1} · Subject</p>
+                    <p className="mt-1 text-base text-white">{d.subject}</p>
+                    <p className="mt-4 text-xs text-neutral-400">Message</p>
+                    <p className="mt-1 text-sm text-neutral-200 whitespace-pre-wrap leading-relaxed">{d.body}</p>
+                    <button
+                      type="button"
+                      onClick={() => navigator.clipboard.writeText(`${d.subject}\n\n${d.body}`).catch(() => {})}
+                      className="mt-4 inline-flex min-h-[44px] items-center gap-2 border border-white/20 px-4 text-xs text-neutral-300 hover:text-white"
+                    >
+                      <Copy className="w-3 h-3" /> Copy this email
+                    </button>
+                  </div>
+                ))}
+              </div>
+            );
+          })()}
         </div>
       )}
     </div>
@@ -345,4 +369,16 @@ function Field({
       />
     </div>
   );
+}
+
+/** The helper answers "SUBJECT_1: ... BODY_1: ..."; split that into separate emails. */
+function splitDrafts(text: string): { subject: string; body: string }[] {
+  const out: { subject: string; body: string }[] = [];
+  const re = /SUBJECT_(\d+)\s*:\s*([\s\S]*?)\n\s*BODY_\1\s*:\s*([\s\S]*?)(?=\n\s*SUBJECT_\d+\s*:|$)/g;
+  for (const m of text.matchAll(re)) {
+    const subject = m[2].replace(/\*\*/g, '').trim();
+    const body = m[3].replace(/\*\*/g, '').trim();
+    if (subject && body) out.push({ subject, body });
+  }
+  return out;
 }
