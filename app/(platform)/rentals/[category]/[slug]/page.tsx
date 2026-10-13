@@ -35,6 +35,7 @@ export async function generateMetadata({
     title: rental.title,
     description: metaDescription(rental.description, fallback),
     path: rentalPath(rental),
+    markdown: true,
     imageUrl: rental.thumbnail_url ?? undefined,
     imageAlt: rental.title,
   });

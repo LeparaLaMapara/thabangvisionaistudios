@@ -15,6 +15,8 @@ import {
   toReviewInput,
 } from '@/app/api/listings/_lib/server';
 import { cleanListingImages, discardUploadedImages, type CleanImagesResult } from '@/app/api/listings/_lib/images';
+import { notifyDiscovery } from '@/lib/discovery/notify';
+import { rentalPaths } from '@/lib/discovery/paths';
 
 /**
  * POST /api/listings/[id]/submit — the owner asks for their listing to go live.
@@ -159,6 +161,7 @@ export async function POST(
     });
     if (decision.to === 'published') {
       trackFunnel('listing_published', { userId: auth.user.id, meta: { listingId: row.id, source: 'auto' } });
+      notifyDiscovery(rentalPaths(row));
     }
 
     const listing = await loadOwnListing(admin, row.id, auth.user.id);

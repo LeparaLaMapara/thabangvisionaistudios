@@ -22,6 +22,7 @@ export async function generateMetadata({ params }: Props) {
     title: article.title,
     description: article.excerpt ?? `${article.title} — ${STUDIO.name} Press`,
     path: `/press/${slug}`,
+    markdown: true,
     imageUrl: article.cover_url ?? undefined,
     type: 'article',
   });

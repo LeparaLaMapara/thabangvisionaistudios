@@ -7,6 +7,8 @@ import { sendAccountSuspended } from '@/lib/email';
 import { STUDIO } from '@/lib/constants';
 import { profileWithEmail } from '@/lib/supabase/profile-email';
 import { banUser, revokeUserSessions } from '@/lib/auth/sessions';
+import { notifyDiscovery } from '@/lib/discovery/notify';
+import { memberPathsById } from '@/lib/discovery/paths';
 
 // ─── POST — Suspend a user (admin only) ─────────────────────────────────────
 
@@ -111,6 +113,8 @@ export async function POST(
       .from('smart_rentals')
       .update({ is_available: false })
       .eq('owner_id', targetUserId);
+    // Their gear pages and creator profile change (or go).
+    notifyDiscovery(memberPathsById(targetUserId));
 
     // Insert moderation log entry
     const { error: logError } = await supabase

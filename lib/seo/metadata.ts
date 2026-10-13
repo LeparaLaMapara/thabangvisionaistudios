@@ -10,6 +10,11 @@ interface PageMetaOpts {
   type?: 'website' | 'article' | 'product';
   ogType?: string;
   noIndex?: boolean;
+  /**
+   * The page has a markdown twin at <path>.md (lib/discovery/markdown.ts):
+   * advertise it with <link rel="alternate" type="text/markdown">.
+   */
+  markdown?: boolean;
 }
 
 function buildOgImageUrl(title: string, subtitle?: string, type?: string): string {
@@ -31,7 +36,10 @@ export function buildPageMetadata(opts: PageMetaOpts): Metadata {
     // repeated here or every page with a canonical would lose it.
     alternates: {
       canonical: url,
-      types: { 'application/rss+xml': `${STUDIO.meta.url}/feed.xml` },
+      types: {
+        'application/rss+xml': `${STUDIO.meta.url}/feed.xml`,
+        ...(opts.markdown && opts.path !== '/' ? { 'text/markdown': `${url}.md` } : {}),
+      },
     },
     ...(opts.noIndex && { robots: { index: false, follow: true } }),
     openGraph: {

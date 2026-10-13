@@ -22,6 +22,7 @@ export async function generateMetadata({
     title: `${cat.label} Rentals — Equipment Hire`,
     description: `${cat.description} Collect at ${collectionPointWithCity()}; delivery within ${STUDIO.fulfilment.delivery.maxRadiusKm} km after your first hire. Daily rates, book online with ${STUDIO.name}.`,
     path: `/rentals/${category}`,
+    markdown: true,
   });
 }
 

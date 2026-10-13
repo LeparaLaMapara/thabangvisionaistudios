@@ -29,6 +29,7 @@ export async function generateMetadata({ params }: ToolPageProps) {
     title: `${app.name}: ${app.category}`,
     description: `${app.name}: ${app.category}. ${app.tagline} Free, from ${UBUNYE_STUDIO.suiteName}. ${availability}`,
     path: `/tools/${app.slug}`,
+    markdown: true,
   });
 }
 

@@ -115,6 +115,18 @@ export function coreFaqs(opts: { paymentsOpen?: boolean } = {}): CoreFaq[] {
       answer: `Yes, when you rent them together through the cart: ${bulk}.`,
     },
     {
+      id: 'core-city',
+      category: 'equipment',
+      question: `Can I rent camera gear in ${STUDIO.location.city}?`,
+      answer: `Yes. ${STUDIO.name} is based in ${STUDIO.location.city}. Collect your gear at ${collectionPointWithCity()}, or after your first hire have it delivered within ${delivery.maxRadiusKm} km. Every item shows its price per day and its deposit before you book, and the calendar shows which dates are free.`,
+    },
+    {
+      id: 'core-verified',
+      category: 'creators',
+      question: `What does "verified" mean on ${STUDIO.shortName}?`,
+      answer: `It means a person at ${STUDIO.shortName} has checked who they are: a photo of their ID and a selfie holding it. A creator you can book has passed that check, is open for work and has at least one complete portfolio project. A member who lists their own gear must pass the same ID check and add a bank account we have validated before the listing can go live.`,
+    },
+    {
       id: 'core-photographer',
       category: 'creators',
       question: 'How do I book a photographer or videographer?',

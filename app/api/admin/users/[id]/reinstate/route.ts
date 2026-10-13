@@ -6,6 +6,8 @@ import { createAdminClient } from '@/lib/supabase/server';
 import { liftBan } from '@/lib/auth/sessions';
 import { sendAccountReinstated } from '@/lib/email';
 import { profileWithEmail } from '@/lib/supabase/profile-email';
+import { notifyDiscovery } from '@/lib/discovery/notify';
+import { memberPathsById } from '@/lib/discovery/paths';
 
 // ─── POST — Reinstate a suspended user (admin only) ─────────────────────────
 
@@ -106,6 +108,7 @@ export async function POST(
       // Email failure shouldn't block the response
     }
 
+    notifyDiscovery(memberPathsById(targetUserId));
     return NextResponse.json({ success: true, message: 'User reinstated.', sign_in_restored: unbanned });
   } catch (err) {
     console.error('[admin/users/reinstate] Error:', err);

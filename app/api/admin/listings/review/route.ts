@@ -27,6 +27,8 @@ import {
   type ListingNotificationType,
   type OwnerListingRow,
 } from '@/app/api/listings/_lib/server';
+import { notifyDiscovery } from '@/lib/discovery/notify';
+import { rentalPaths } from '@/lib/discovery/paths';
 
 /**
  * Admin review of community listings.
@@ -242,6 +244,9 @@ export async function PATCH(request: NextRequest): Promise<NextResponse> {
       const m = messages[action.notify];
       await notifyListingOwner(admin, row.owner_id, action.notify, m.title, m.body);
     }
+
+    // Published, rejected, suspended: the public page appeared or went.
+    notifyDiscovery(rentalPaths(row));
 
     const listing = await loadCommunityListing(admin, row.id);
     return NextResponse.json({ listing, ...(warning && { warning }) });

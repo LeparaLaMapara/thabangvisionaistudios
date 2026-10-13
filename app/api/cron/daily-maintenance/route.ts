@@ -10,6 +10,7 @@ import { recordServiceBookingEvent, updateServiceBooking } from '@/lib/supabase/
 import { email as emailProvider } from '@/lib/email';
 import { STUDIO } from '@/lib/constants';
 import { autoPublishCreatorProductions } from '@/lib/supabase/queries/smartProductions';
+import { runDiscoverySweep } from '@/lib/discovery/sweep';
 import { effectiveHoldMinutes } from '@/lib/rental/availability-server';
 import { notifyClient } from '@/lib/bookings/notify-client';
 import { loadNoticeBookings, sendGearNotice } from '@/lib/rental/notices';
@@ -44,6 +45,7 @@ import {
  * 9. Auto-escalate unreturned gear to disputes (14+ days overdue)
  * 10. Auto-flag/suspend users with 3+ active disputes
  * 11. Auto-suspend users with gear overdue 30+ days
+ * 19. Discovery sweep: ping IndexNow with pages changed in the last day
  */
 export async function GET(request: NextRequest): Promise<NextResponse> {
   const authError = validateCronAuth(request);
@@ -808,6 +810,17 @@ Please contact the client and the creator. They are not paid out or refunded aut
     results.engagement = await runLifecycle({ now });
   } catch (err) {
     results.engagement = { error: String(err) };
+  }
+
+  // ─── 19. Discovery sweep (lib/discovery/sweep.ts) ────────────────────────
+  // Pings IndexNow with public pages whose last change falls in the past day,
+  // as a safety net for changes no write path announced. Runs after step 13,
+  // so creator productions published above are included. Capped; skipped
+  // outside production or without INDEXNOW_KEY.
+  try {
+    results.discoverySweep = await runDiscoverySweep(now);
+  } catch (err) {
+    results.discoverySweep = { error: String(err) };
   }
 
   console.log('[daily-maintenance] Results:', JSON.stringify(results));

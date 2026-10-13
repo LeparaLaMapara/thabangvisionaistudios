@@ -12,6 +12,7 @@ export const metadata = buildPageMetadata({
   title: 'Frequently Asked Questions',
   description: `Answers about ${STUDIO.shortName}: renting gear, paying, prices, deposits, where we work, collection and delivery, the ID check, shoots by request and cancelling.`,
   path: '/faq',
+  markdown: true,
 });
 
 const FAQ_CATEGORIES: Record<string, string> = {
