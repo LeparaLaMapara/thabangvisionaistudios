@@ -1,4 +1,4 @@
-import { nanoid } from 'nanoid';
+import { newServiceBookingReference } from '@/lib/payments/booking-reference';
 import { STUDIO } from '@/lib/constants';
 import { createAdminClient } from '@/lib/supabase/server';
 import { payments } from '@/lib/payments';
@@ -301,7 +301,7 @@ async function createServiceBooking(
   if (q.creatorId && q.creatorId === user.id) return { ok: false, message: 'You cannot book yourself.' };
   if (toCents(q.total) !== approvedAmountCents) return { ok: false, message: PRICE_MOVED };
   const { platformAmount, creatorAmount } = splitServiceBooking({ subtotal: q.subtotal }, STUDIO.booking.platformCommission);
-  const reference = `BK-${nanoid(10)}`;
+  const reference = newServiceBookingReference();
   const baseUrl = appUrl(STUDIO.meta.url);
   // The agreed terms are recorded the same way as on the /book form (spec §8.3).
   const revisionsIncluded = STUDIO.booking.defaultRevisionsIncluded;
@@ -348,7 +348,7 @@ async function createServiceBooking(
     itemDescription: `${q.category} — ${q.hours}hrs`,
     email: user.email ?? '',
     returnUrl: `${baseUrl}/api/service-bookings/callback?reference=${reference}`,
-    cancelUrl: `${baseUrl}/dashboard/bookings?status=cancelled`,
+    cancelUrl: `${baseUrl}/dashboard/bookings?status=cancelled&ref=${reference}`,
     metadata: { customStr1: 'service_booking', customStr2: (booking as { id: string }).id },
   });
   // Not needed to confirm the payment (the webhook finds the booking by `reference`): log a failure, keep the link.

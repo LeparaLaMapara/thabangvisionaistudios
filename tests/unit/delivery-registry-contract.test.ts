@@ -73,8 +73,11 @@ function uberCtx(): Ctx {
     if (m === 'POST' && path.endsWith('/deliveries')) {
       if (refuse) return json(400, { message: 'address undeliverable' });
       const body = JSON.parse(String(init.body));
+      // As Uber's sandbox answered on 2026-10-13: the same idempotency_key twice is a 409.
+      const dup = [...jobs.values()].find((j) => j.idempotency_key === body.idempotency_key);
+      if (dup) return json(409, { code: 'duplicate_delivery', message: 'An active delivery like this already exists.', metadata: { delivery_id: dup.id } });
       const id = `del_${jobs.size + 1}`;
-      const job = { id, external_id: body.external_id, status: 'pending', created: NOW.toISOString() };
+      const job = { id, external_id: body.external_id, idempotency_key: body.idempotency_key, status: 'pending', created: NOW.toISOString() };
       jobs.set(id, job);
       return json(200, job);
     }
@@ -84,6 +87,10 @@ function uberCtx(): Ctx {
       if (!job) return json(404, { message: 'not found' });
       job.status = 'canceled';
       return json(200, job);
+    }
+    if (m === 'GET' && path.endsWith('/deliveries')) {
+      const ext = new URL(url).searchParams.get('external_id');
+      return json(200, { data: [...jobs.values()].filter((j) => j.external_id === ext) });
     }
     const get = /\/deliveries\/([^/]+)$/.exec(path);
     if (m === 'GET' && get) return jobs.has(get[1]) ? json(200, jobs.get(get[1])) : json(404, { message: 'not found' });
@@ -182,8 +189,10 @@ describe.each(HARNESSES)('DeliveryPort contract: %s', (name, make) => {
     expect(['sandbox', 'production']).toContain(ctx.port.mode);
     expect(Object.keys(ctx.port.capabilities).sort()).toEqual(Object.keys(NO_DELIVERY_CAPABILITIES).sort());
     for (const v of Object.values(ctx.port.capabilities)) expect(typeof v).toBe('boolean');
-    // Nobody has verified transit cover today (D-40, D-41).
-    expect(ctx.port.capabilities.verifiedTransitCover).toBe(false);
+    // Our own vehicle is covered by the owner's policy (D-40, 2026-10-13). A
+    // courier never claims cover itself: the owner's policy is answered by the
+    // insurance port (D-41), not by the courier's capabilities.
+    expect(ctx.port.capabilities.verifiedTransitCover).toBe(ctx.port.kind === 'own_fleet');
   });
 
   it('quotes in integer cents with a future expiry', async () => {

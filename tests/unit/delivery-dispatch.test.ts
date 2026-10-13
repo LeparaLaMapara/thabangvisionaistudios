@@ -3,7 +3,15 @@
  * idempotency (spec §4.7–4.8, §4.15). In-memory fakes; the fake courier keeps
  * jobs by our merchant reference, so "jobs at the provider" is observable.
  */
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+
+// These tests check the money MECHANICS with the courier's price alone. The
+// R20 platform fee per leg (D-38, 2026-10-13) is covered in
+// delivery-pricing.test.ts.
+vi.mock('@/lib/constants', async (orig) => {
+  const m = await orig<typeof import('@/lib/constants')>();
+  return { ...m, DELIVERY_POLICY: { ...m.DELIVERY_POLICY, platformFeeCents: 0 } };
+});
 import { DEFAULT_DELIVERY_POLICY } from '@/lib/core/delivery/policy';
 import { balances } from '@/lib/core/rental/ledger';
 import {

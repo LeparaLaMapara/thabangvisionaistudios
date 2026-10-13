@@ -57,7 +57,11 @@ export default function RefundsPage() {
           <Section title="2. Security Deposits on Equipment Hire">
             <p>Every equipment hire carries a refundable security deposit of {DEPOSIT_PERCENT}% of each item&rsquo;s replacement value, shown on the listing and in your cart before you pay. It is held against late return, damage, and loss, and it is refundable after the equipment is returned and inspected. A booking made before this version of the policy keeps the deposit shown when it was made.</p>
             {paymentsOpen ? (
-              <p>At checkout you choose how to pay: everything online, or, when you collect, the deposit online to hold the equipment and the hire charge when you collect. Checkout shows the amounts before you pay.</p>
+              STUDIO.fulfilment.collection.allowBalanceOnCollection ? (
+                <p>At checkout you choose how to pay: everything online, or, when you collect, the deposit online to hold the equipment and the hire charge when you collect. Checkout shows the amounts before you pay.</p>
+              ) : (
+                <p>You pay the whole order, the hire charge and the deposit together, by card at checkout. Checkout shows the amounts before you pay.</p>
+              )
             ) : (
               <p>You pay the whole order, deposit included, by EFT within {STUDIO.bank.payWithinHours} hours of booking, using the reference on your booking, or in cash when you collect; we confirm your booking when the payment arrives.</p>
             )}
@@ -99,7 +103,9 @@ export default function RefundsPage() {
             <p><span className="text-white">A deposit you paid online is always refunded in full when you cancel</span>, whatever notice you give. It secures equipment against damage and late return, and on a cancellation no equipment ever left us. A deposit due at collection is simply never taken.</p>
             <p>Where you had a bulk discount, the refund is worked out on the discounted price you actually paid.</p>
             <p>Where you chose delivery, the delivery fee is refunded in full when you cancel the whole order before the equipment is sent out. If you cancel only some items, the delivery still goes ahead for the rest, so the fee stays.</p>
-            <p>Where you chose to pay the deposit online and settle the hire charge on collection, cancelling before collection means there is no hire charge to refund. Your deposit comes back in full.</p>
+            {STUDIO.fulfilment.collection.allowBalanceOnCollection && (
+              <p>Where you chose to pay the deposit online and settle the hire charge on collection, cancelling before collection means there is no hire charge to refund. Your deposit comes back in full.</p>
+            )}
             <p>If the automatic refund fails for any reason, your booking is still cancelled and we complete the refund by hand. We will tell you if that happens.</p>
           </Section>
 

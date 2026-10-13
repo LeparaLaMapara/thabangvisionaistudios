@@ -18,6 +18,25 @@ import type { ProviderDeliveryState } from '@/lib/core/delivery/port';
  *     (their BEHAVIOUR is not verified);
  *   - Uber states it carries no insurance for loss, damage or theft.
  *
+ * VERIFIED against our own account on 2026-10-13 (test keys, South Africa;
+ * docs/logistics/uber-direct.md "Sandbox results"):
+ *   - token: auth.uber.com/oauth/v2/token, client_credentials, scope
+ *     eats.deliveries, expires_in 2592000 (30 days); same host for test keys;
+ *   - quote: POST /v1/customers/{id}/delivery_quotes with the address JSON
+ *     below, answers { id: "dqt_...", fee: cents, currency: "zar",
+ *     expires: +15 min }; too far answers 400 code "address_undeliverable";
+ *   - Uber's radius: 6.21 miles (10 km) from the pickup point;
+ *   - create, get and cancel at the paths below; a cancel answers status
+ *     "canceled"; the test robot courier went pending, pickup, dropoff,
+ *     delivered;
+ *   - a second create with the same `idempotency_key` is refused with 409
+ *     "duplicate_delivery" (also after a cancel); a new key makes a new
+ *     delivery even with identical content;
+ *   - GET /deliveries?external_id=... returns exactly the deliveries with
+ *     that external_id (an empty list when there are none);
+ *   - proof comes back as pickup/dropoff.verification.{picture,signature}
+ *     .image_url, which is "" until the proof exists.
+ *
  * Every `// VERIFY:` below is a detail NOT confirmed by our research. Check it
  * against the live docs (and in sandbox) before enabling the provider.
  */
@@ -25,30 +44,35 @@ import type { ProviderDeliveryState } from '@/lib/core/delivery/port';
 export const UBER_DIRECT_PROVIDER_ID = 'uber_direct';
 
 export const UBER_DIRECT_API = {
-  // VERIFY: token endpoint host and path (Uber's authentication guide).
+  // Verified 2026-10-13.
   tokenUrl: 'https://auth.uber.com/oauth/v2/token',
   // Verified: the scope Direct uses for deliveries.
   scope: 'eats.deliveries',
-  // VERIFY: API base. Customer-scoped paths follow it: /v1/customers/{customer_id}/...
-  // VERIFY: whether sandbox uses the same host (test credentials) or a separate one.
+  // Verified 2026-10-13: one host for both; the test keys make test deliveries
+  // (live_mode false). Customer-scoped paths: /v1/customers/{customer_id}/...
   baseUrl: { sandbox: 'https://api.uber.com', production: 'https://api.uber.com' },
   paths: {
-    // VERIFY: each path and method.
+    // Verified 2026-10-13 (quote, create, get, cancel, list by external_id).
     quote: (customerId: string): string => `/v1/customers/${encodeURIComponent(customerId)}/delivery_quotes`,
     create: (customerId: string): string => `/v1/customers/${encodeURIComponent(customerId)}/deliveries`,
     get: (customerId: string, id: string): string => `/v1/customers/${encodeURIComponent(customerId)}/deliveries/${encodeURIComponent(id)}`,
     cancel: (customerId: string, id: string): string => `/v1/customers/${encodeURIComponent(customerId)}/deliveries/${encodeURIComponent(id)}/cancel`,
-    // Deliberately absent: a lookup by external_id. None is verified, so
-    // findByMerchantReference answers "unknown" and a person checks.
+    byExternalId: (customerId: string, externalId: string): string =>
+      `/v1/customers/${encodeURIComponent(customerId)}/deliveries?external_id=${encodeURIComponent(externalId)}`,
   },
-  // Verified: 15-minute quote expiry.
+  // Verified: 15-minute quote expiry (and in our sandbox, 2026-10-13).
   quoteValidityMinutes: 15,
-  // VERIFY: address JSON shape and the country code field.
+  // Verified 2026-10-13: { street_address: [..], city, state, zip_code, country: "ZA" } as a JSON string.
   countryCode: 'ZA',
-  // VERIFY: `fee` is in the currency's smallest unit (cents) and `currency` is "zar".
+  // Verified 2026-10-13: `fee` is cents (6038 = R60.38) and `currency` is "zar".
   currency: 'ZAR',
-  // VERIFY: field values. Hand-to-hand: meet at the door, and on failure bring
-  // the parcel back rather than leaving it.
+  // Verified 2026-10-13: Uber refuses a drop-off more than 6.21 miles from the
+  // pickup ("Max Radius: 6.21 miles"). We skip Uber above this straight-line
+  // distance; Uber's own answer still decides near the edge.
+  maxRadiusKm: 10,
+  // Hand-to-hand: meet at the door (verified: echoed back on create), and on
+  // failure bring the parcel back rather than leaving it (VERIFY: the create
+  // answer shows undeliverable_action as "", so check a failed test delivery).
   deliverableActionMeetAtDoor: 'deliverable_action_meet_at_door',
   undeliverableActionReturn: 'return',
   // VERIFY: webhook signature header names (both are cited by Uber's docs).
@@ -62,7 +86,8 @@ export const UBER_DIRECT_API = {
 } as const;
 
 /**
- * VERIFY: Uber's status names. Mapped conservatively: anything not listed is
+ * Seen in our sandbox 2026-10-13: pending, pickup, dropoff, delivered,
+ * canceled. VERIFY: pickup_complete and returned (not seen yet). Mapped conservatively: anything not listed is
  * 'unknown', which the core never applies (it reconciles instead).
  */
 export const UBER_DIRECT_STATUS: Readonly<Record<string, ProviderDeliveryState>> = {
@@ -97,11 +122,13 @@ export function mapUberStatus(status: unknown): ProviderDeliveryState {
  *    an open question (provider-comparison.md). The adapter still sends a PIN
  *    when the core supplies one.
  *  - declaredValueSupport: false. The SA per-delivery value cap is not verified.
- *  - cancellation: false. The cancel endpoint and SA cancellation fees are not
- *    in our verified research; the call is implemented, flip after sandbox.
- *  - idempotentCreate: false. `idempotency_key` / `external_id` behaviour is
- *    not verified and no lookup by our reference is documented. The core's
- *    risk gate therefore excludes Uber Direct until this is confirmed.
+ *  - cancellation: true. Verified in our sandbox (2026-10-13): the cancel call
+ *    answers "canceled". SA cancellation FEES are still not verified: any fee
+ *    is picked up from the invoice (reconcileDelivery).
+ *  - idempotentCreate: true. Verified in our sandbox (2026-10-13): a repeated
+ *    create with the same idempotency_key is refused (409 duplicate_delivery),
+ *    never a second courier, and the adapter then finds the first delivery by
+ *    external_id (the same reference).
  *  - verifiedTransitCover: false. Uber states it carries no insurance.
  */
 export const UBER_DIRECT_CAPABILITIES: DeliveryCapabilities = {
@@ -116,7 +143,7 @@ export const UBER_DIRECT_CAPABILITIES: DeliveryCapabilities = {
   recipientPin: false,
   declaredValueSupport: false,
   verifiedTransitCover: false,
-  cancellation: false,
+  cancellation: true,
   noLeaveAtDoor: true,
-  idempotentCreate: false,
+  idempotentCreate: true,
 };

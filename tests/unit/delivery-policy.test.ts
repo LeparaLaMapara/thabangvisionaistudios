@@ -36,10 +36,17 @@ describe('delivery eligibility (spec §4.2)', () => {
     expect(mid.ok && mid.courierBlockedBy).toContain('value_threshold');
   });
 
-  it('D02 - with the shipped default (0) automated courier delivery is off for every item', () => {
-    expect(DELIVERY_POLICY.automatedDeliveryMaxItemValueCents).toBe(0);
-    const r = evaluateDeliveryEligibility({ ...base, policy: DEFAULT_DELIVERY_POLICY, facts: cleanRenter, lines: [line(1)] });
-    expect(r.ok && r.modes).toEqual(['own_fleet']);
+  it('D02 - the shipped courier limit is the Sony A7 III (R35,000, set 2026-10-13): at the limit a courier is offered, above it own vehicle only', () => {
+    expect(DELIVERY_POLICY.automatedDeliveryMaxItemValueCents).toBe(3_500_000);
+    const trusted = { ...cleanRenter, cleanReturns: 6, cleanReturnValueCents: 9_000_000, firstCleanReturnAt: '2025-01-01T00:00:00Z' };
+    const a7iii = evaluateDeliveryEligibility({ ...base, policy: DEFAULT_DELIVERY_POLICY, facts: trusted, lines: [line(3_500_000)] });
+    expect(a7iii.ok && a7iii.modes).toContain('courier');
+    const above = evaluateDeliveryEligibility({ ...base, policy: DEFAULT_DELIVERY_POLICY, facts: trusted, lines: [line(3_500_001)] });
+    expect(above.ok && above.modes).toEqual(['own_fleet']);
+    expect(above.ok && above.courierBlockedBy).toContain('value_threshold');
+    // A 0 limit still switches couriers off for every item.
+    const off = evaluateDeliveryEligibility({ ...base, policy: { ...DEFAULT_DELIVERY_POLICY, automatedDeliveryMaxItemValueCents: 0 }, facts: cleanRenter, lines: [line(1)] });
+    expect(off.ok && off.modes).toEqual(['own_fleet']);
   });
 
   it('D03 - trust-tier limits are enforced through the rental rules (not re-implemented)', () => {

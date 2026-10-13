@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { crewRequestIdFromReference } from '@/lib/payments/crew-reference';
 import { createAdminClient } from '@/lib/supabase/server';
 import type { WebhookResult } from '@/lib/payments';
 import { payfast } from '@/lib/payments/payfast';
@@ -144,10 +145,11 @@ async function handlePaymentComplete(webhook: WebhookResult) {
       updatePayload.commission_amount = commissionAmount;
     }
 
+    // References are "<request id>.<attempt>" (lib/payments/crew-reference).
     const { error: crewErr } = await supabase
       .from('crew_requests')
       .update(updatePayload)
-      .eq('id', paymentId);
+      .eq('id', crewRequestIdFromReference(paymentId) ?? paymentId);
 
     if (crewErr) {
       console.error('[webhook] Failed to update crew request payment:', crewErr.message);

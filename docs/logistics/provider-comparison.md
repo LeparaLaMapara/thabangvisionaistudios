@@ -60,13 +60,21 @@ Judged against the spec's priority order (legal → verified cover → custody �
 
 **Fallback route: Bob Go.** It reaches WumDrop, RAM and TCG for scheduled, non-urgent moves.
 
-Adapter status (2026-10-10):
+**Update 2026-10-13 (owner):** Bob Go's live API needs a paid plan (R249 to
+R1,999 a month, excl. VAT; Pay as you go has no API key), so Bob Go stays on
+its sandbox only. **Uber Direct is chosen:** the owner opened the account
+(pay per delivery, no monthly fee), and the adapter was checked against our
+own Uber sandbox (`uber-direct.md`, "Sandbox results"). Uber delivers only
+within 10 km (6.21 miles) of the pickup; longer trips go by our own vehicle or
+are quoted by hand. WumDrop stays the next courier to add.
+
+Adapter status (2026-10-13):
 
 | Provider | Adapter | Switched on | Claims | Doc |
 |---|---|---|---|---|
-| Uber Direct | Built, mocked HTTP only | No | Verified features only; `idempotentCreate` false | `uber-direct.md` |
+| Uber Direct | Checked against **our Uber sandbox** (quote, create, duplicate refusal, lookup by external_id, get, cancel, robot courier) | Previews only, test keys (courier trial); production off | Verified features; `idempotentCreate` and `cancellation` true since 2026-10-13; no transit cover | `uber-direct.md` |
 | WumDrop | Built, mocked HTTP only | No | Verified features only; `pickupConfirmation`, `noLeaveAtDoor` false | `wumdrop.md` |
-| Bob Go | Contract checked against Bob Go's reference and **sandbox** (quote, create, lookup, cancel); a second create books a second shipment | Sandbox only | **Nothing** (every capability false); quotes refused until approved service levels are set; webhooks closed | `bobgo.md` |
+| Bob Go | Contract checked against Bob Go's reference and **sandbox** (quote, create, lookup, cancel); a second create books a second shipment | Sandbox only (live API needs a paid plan, declined 2026-10-13) | **Nothing** (every capability false); quotes refused until approved service levels are set; webhooks closed | `bobgo.md` |
 
 **Do not use:**
 - Pargo, because handover at a counter breaks custody.

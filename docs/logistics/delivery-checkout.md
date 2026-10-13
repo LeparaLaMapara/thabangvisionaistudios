@@ -2,9 +2,20 @@
 
 How a renter gets a delivery price, pays for it, sees it, cancels it, and how
 settlement treats it. Built on the Phase 4 core (`lib/core/delivery/use-cases.ts`,
-see `delivery-architecture.md`). Today delivery is **our own vehicle only**:
-no courier is offered (D-37 threshold 0, D-41 no verified cover, flag
-`delivery_courier` off), and no shipment insurance is advertised (§4.13).
+see `delivery-architecture.md`). On production delivery is **our own vehicle
+only**: no courier is offered (D-37 threshold 0, D-41 no verified cover, flag
+`delivery_courier` off), and no shipment insurance is advertised (§4.13). On
+previews, Uber Direct on test keys can be tried (`uber-direct.md`, courier trial).
+
+Owner decisions of 2026-10-13:
+
+- **R20 per courier trip** (`DELIVERY_POLICY.platformFeeCents`, D-38), on top of
+  the courier's price; stored apart. Our own vehicle adds nothing.
+- **Both trips quoted up front.** The return pickup is ticked by default, so the
+  renter sees "Delivery and collection: R..." before paying; unticking it means
+  they bring the gear back themselves.
+- **The cheaper option wins** (`providerPreferences.rankBy` starts with price,
+  comparing courier price + R20 against the own-vehicle price).
 
 ## The geocoding fix (security and money)
 
@@ -67,8 +78,8 @@ below).
    all mean **Collection in person only**, with the reason.
 2. "Collect in person: Free" or "Deliver to me: Get a quote". For delivery the
    renter enters the address, who receives it, a phone number, a window on the
-   first hire day (`DELIVERY_CHECKOUT.windows`, SAST) and, optionally, a return
-   pickup on the last hire day.
+   first hire day (`DELIVERY_CHECKOUT.windows`, SAST) and a return pickup on
+   the last hire day (ticked by default since 2026-10-13; it can be unticked).
 3. `POST /api/delivery/quote` verifies the address, stores it, and calls
    `quoteDelivery` per leg (our site to the renter, and back). Each quote is
    stored with its expiry (`delivery_quotes`, `DELIVERY_POLICY.quoteTtlMinutes`).

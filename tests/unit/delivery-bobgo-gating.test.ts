@@ -112,7 +112,7 @@ describe('the shared selection path still excludes Bob Go', () => {
     const r = await quoteDelivery(input, w.deps);
     if (!r.ok) throw new Error(`expected own-vehicle quote, got ${r.code}`);
     expect(r.quotes.map((q) => q.providerId)).toEqual(['manual']);
-    expect(r.excluded).toEqual(expect.arrayContaining([{ providerId: 'bobgo', reasons: expect.arrayContaining(['courier_flag_off', 'courier_value_threshold']) }]));
+    expect(r.excluded).toEqual(expect.arrayContaining([{ providerId: 'bobgo', reasons: expect.arrayContaining(['courier_flag_off']) }]));
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
