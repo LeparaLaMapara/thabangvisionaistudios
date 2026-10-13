@@ -1,7 +1,9 @@
 # Uber Direct adapter (Phase 4, milestone 4B)
 
-Uber Direct is the primary courier candidate (see `provider-comparison.md`).
-The adapter is built and tested against mocked HTTP only. It is **off**:
+Uber Direct is the courier we chose (2026-10-13, see `provider-comparison.md`).
+The owner opened the account; test and live keys are in Vercel (live keys on
+Production only). The adapter was checked against **our own Uber sandbox** on
+2026-10-13 (results below). On production it is **off**:
 
 - it is not listed in `DELIVERY_PROVIDERS`;
 - it needs an explicit `DELIVERY_PROVIDER_UBER_DIRECT_ENABLED=true`;
@@ -11,8 +13,29 @@ Even when it is switched on, the core does not offer it to customers today:
 
 - the `delivery_courier` flag is off;
 - `DELIVERY_POLICY.automatedDeliveryMaxItemValueCents` is 0;
-- no transit-cover policy is verified (`DELIVERY_POLICY.insurance`);
-- `idempotentCreate` is false (below), and the risk gate requires it.
+- no transit-cover policy is verified (`DELIVERY_POLICY.insurance`).
+
+On previews (test keys only) the courier trial lets the whole flow be tried;
+see "Switching it on" below.
+
+## Sandbox results (2026-10-13, our account, test keys)
+
+| Call | What Uber answered |
+|---|---|
+| Token | 200, `expires_in` 2592000 (30 days), scope `eats.deliveries`; same host as live |
+| Quote, Braamfontein to Rosebank | 200, `dqt_...`, `fee` 6038 (R60.38) without coordinates, 8855 with them; `currency` "zar"; `expires` +15 min |
+| Quote, Braamfontein to Bryanston | 400 `address_undeliverable`: "Max Radius: 6.21 miles, Calculated Distance: 6.74 miles" |
+| Create (meet at door, signature + photo, photo at pickup, manifest "Camera equipment") | 200, `del_...`, status `pending`, `live_mode` false, tracking link, signer-name requirement echoed. `undeliverable_action` came back as "" (still to check on a failed delivery) |
+| Create again, same `idempotency_key` | 409 `duplicate_delivery`, `metadata.delivery_id` = the first one. Also after a cancel, and also when other fields differ. A new key with the same content makes a new delivery |
+| List `?external_id=` | Exactly the deliveries with that external_id; `[]` for an unknown one |
+| Get | 200; proof under `pickup/dropoff.verification.{picture,signature}.image_url`, which is "" until the proof exists |
+| Cancel | 200, status `canceled` |
+| Robot courier (`test_specifications.robo_courier_specification.mode = auto`) | pending, pickup, dropoff, delivered in about 3 minutes; stub proof images; courier location 0,0 |
+
+Changes made from these results: `idempotentCreate` and `cancellation` are
+now true; `findByMerchantReference` lists by external_id; a 409 on create
+returns the first delivery; an empty `image_url` no longer counts as proof;
+trips over 10 km straight-line are not sent to Uber.
 
 ## Files
 
@@ -154,9 +177,9 @@ route calls `receiveDeliveryWebhook({ rawBody, headers, parser, deps })`.
 | signature | true | Documented |
 | recipientPin | false | Documented, but whether it works in SA is unconfirmed |
 | declaredValueSupport | false | The SA value cap is not verified |
-| cancellation | false | The endpoint is implemented but not in our verified research, and SA fees are unknown |
+| cancellation | true | Verified in our sandbox. SA cancellation fees are still unknown: they come from the invoice |
 | noLeaveAtDoor | true | PIN, signature and ID exclude leave-at-door; meet-at-door is requested |
-| idempotentCreate | **false** | `idempotency_key`/`external_id` behaviour is NV, and there is no lookup by our reference. **The gate excludes Uber until this is confirmed** |
+| idempotentCreate | true | Verified in our sandbox: a repeated `idempotency_key` is refused with 409 `duplicate_delivery`, and a delivery can be listed by `external_id` |
 | verifiedTransitCover | **false** | Uber states it carries no insurance |
 
 ## Verified vs VERIFY
@@ -174,18 +197,18 @@ route calls `receiveDeliveryWebhook({ rawBody, headers, parser, deps })`.
 - `idempotency_key` and `external_id` exist in an official example;
 - no insurance.
 
-**VERIFY** (each is marked in `api.ts` / `adapter.ts`):
-1. The token URL, and that scope `eats.deliveries` works for Direct in SA.
-2. The API host, and whether sandbox uses a separate host or only test credentials.
-3. The exact paths for quotes, create, get and cancel.
-4. That `fee` is in cents and `currency_type`/`currency` reads `ZAR`.
-5. The address JSON shape (`street_address`, `city`, `state`, `zip_code`, `country: "ZA"`).
-6. The field names `deliverable_action`, `undeliverable_action`, `pickup_verification`, `dropoff_verification.signature_requirement`, `picture` and `pincode`.
-7. The status names (table above).
-8. The webhook header names, the event kind `event.delivery_status`, and the payload fields (`delivery_id`, `data.external_id`, `live_mode`, `created`).
-9. **How `idempotency_key` / `external_id` behave on a repeated create, and whether a delivery can be listed or looked up by `external_id`.** This decides `idempotentCreate`.
-10. The proof fields in the delivery object (`pickup.verification`, `dropoff.verification`).
-11. Cancellation fees in the cancel response, if any.
+**Verified in our sandbox on 2026-10-13:** the token URL and scope, one host
+for test and live, the paths (quote, create, get, cancel, list by
+external_id), cents and "zar", the address JSON, the status names pending,
+pickup, dropoff, delivered and canceled, the duplicate and lookup behaviour,
+and the proof fields.
+
+**Still VERIFY** (marked in `api.ts` / `adapter.ts`):
+1. `undeliverable_action: "return"` (the create answer shows ""): check on a failed test delivery.
+2. The `pincode` field (not sent yet: the core sends no PIN).
+3. The status names `pickup_complete` and `returned` (not seen yet).
+4. Webhooks: header names, the event kind `event.delivery_status`, and the payload fields. Needs the webhook set up in the Uber Direct dashboard (below).
+5. Cancellation fees in SA.
 
 ## Questions to confirm with Uber before enabling
 
@@ -204,31 +227,35 @@ From `provider-comparison.md`:
 
 ## Onboarding
 
-1. Create a developer account at developer.uber.com and request Direct access for South Africa.
-2. Create a sandbox (test) app and note its client id, secret and customer id.
-3. In the Direct dashboard, create a webhook pointing at the delivery webhook route (built by the routes workstream) and copy its signing key.
-4. Work through the VERIFY list in sandbox, and correct `api.ts` where it differs.
-5. Get written answers to the questions above.
+1. Done 2026-10-13: the owner opened Uber Direct; test and live keys are on Vercel.
+2. Next: in the Direct dashboard, create a webhook pointing at
+   `/api/webhooks/delivery/uber_direct` on the preview (test) and live sites,
+   and set its signing key as `UBER_DIRECT_SANDBOX_WEBHOOK_SIGNING_KEY` /
+   `UBER_DIRECT_WEBHOOK_SIGNING_KEY`.
+3. Get written answers to the questions above.
 
 ## Switching it on
 
-### Sandbox (preview or development only)
+### Sandbox (preview or development only), set on Vercel 2026-10-13
 
-1. Set `UBER_DIRECT_SANDBOX_CLIENT_ID`, `_CLIENT_SECRET`, `_CUSTOMER_ID` and `_WEBHOOK_SIGNING_KEY`.
-2. Set:
-   - `DELIVERY_PROVIDERS=uber_direct,manual`;
+1. `UBER_DIRECT_SANDBOX_CLIENT_ID`, `_CLIENT_SECRET`, `_CUSTOMER_ID` (set).
+   `_WEBHOOK_SIGNING_KEY`: not yet (needs the webhook in the Uber dashboard).
+2. On Preview and Development:
+   - `DELIVERY_PROVIDERS=manual,uber_direct`;
    - `DELIVERY_PROVIDER_UBER_DIRECT_ENABLED=true`;
    - `DELIVERY_PROVIDER_UBER_DIRECT_MODE=sandbox`;
-   - `DELIVERY_ALLOW_SANDBOX=true`.
+   - `DELIVERY_ALLOW_SANDBOX=true`;
+   - `DELIVERY_SANDBOX_TRIAL=true`.
 
    Sandbox is refused when `VERCEL_ENV=production`.
-3. Customers will still not see Uber until the policy gates pass. To exercise it end to end in a **non-production** environment you also need:
-   - the `delivery_courier` flag;
-   - a non-zero `automatedDeliveryMaxItemValueCents`;
-   - a test insurance entry;
-   - `idempotentCreate` confirmed (item 9).
-
-   Each of these is a founder decision. Do not change them on production for a test.
+3. `DELIVERY_SANDBOX_TRIAL` (`lib/delivery/sandbox-trial.ts`) lifts, for
+   couriers on TEST keys only, the three gates that keep couriers off: the
+   `delivery_courier` flag, `automatedDeliveryMaxItemValueCents` = 0 and the
+   missing transit cover (it answers "covered" with the reference
+   `sandbox-trial-not-insurance`). It returns nothing on `VERCEL_ENV=production`,
+   without sandbox providers allowed, or for a courier on live keys, and the
+   rental rules (first hire, high value, trust tier) are untouched. Tests:
+   `tests/unit/delivery-pricing.test.ts`.
 4. Run quotes, create, webhook, cancel and tracking in sandbox. Confirm statuses and proofs arrive as mapped.
 
 ### Production (only after all of the following)
@@ -236,7 +263,7 @@ From `provider-comparison.md`:
 1. Founder approval, recorded in the decision register.
 2. A goods-in-transit / all-risks policy confirmed **in writing**, covering third-party-owned rented camera gear carried by Uber couriers. Record it in `DELIVERY_POLICY.insurance`: `verifiedPolicyRef`, `coveredProviders: ['uber_direct']` and `maxItemValueCents`.
 3. Founder sets `DELIVERY_POLICY.automatedDeliveryMaxItemValueCents` (D-37). It can be no higher than the cover limit, the Uber value cap and R50,000.
-4. Every VERIFY item resolved, and `idempotentCreate` set to true **only** if a duplicate is refused or a lookup by our reference exists. Implement `findByMerchantReference` with that lookup first, and update the contract test.
+4. Every remaining VERIFY item resolved (idempotency and lookup are done).
 5. Set the production credentials and `DELIVERY_PROVIDER_UBER_DIRECT_MODE=production`.
 6. Set `DELIVERY_PROVIDER_UBER_DIRECT_PRODUCTION_APPROVED=true`.
 7. Turn on the `delivery_courier` flag.

@@ -868,10 +868,12 @@ export const DELIVERY_POLICY = {
   // is OFF for every item. Our own vehicle (manual adapter) is not affected:
   // it follows the existing own-vehicle rules.
   automatedDeliveryMaxItemValueCents: 0,
-  // FOUNDER DECISION (D-38): what we add to a courier's price for a leg. The
-  // customer pays provider cost + this fee, and the two are stored apart.
-  // Delivery money is never part of the owner's 80% hire share.
-  platformFeeCents: 0,
+  // FOUNDER DECISION (D-38, set 2026-10-13): what we add to a courier's price
+  // for a leg: R20 per trip (covers the card fee and packing). The customer
+  // sees one delivery total; provider cost + this fee are stored apart.
+  // Delivery money is never part of the owner's 80% hire share. Our own
+  // vehicle adds nothing: its formula already is the customer price.
+  platformFeeCents: 2000,
   // How long a customer delivery quote can be paid. Shorter than the provider
   // quote is fine; the customer price can never outlive the provider price.
   quoteTtlMinutes: 30,
@@ -883,8 +885,11 @@ export const DELIVERY_POLICY = {
   // Ordering among providers that pass every safety gate (spec §4.6 items
   // 6–8). Reliability is a 0–100 score from operations history; unknown
   // providers score 0. Edit here, never in code.
+  // FOUNDER DECISION (2026-10-13): the cheaper option for the customer wins
+  // (courier price + platformFeeCents against the own-vehicle price); the
+  // safety gates above still decide who may carry it at all.
   providerPreferences: {
-    rankBy: ['reliability', 'speed', 'price'] as const,
+    rankBy: ['price', 'reliability', 'speed'] as const,
     reliability: { manual: 80 } as Record<string, number>,
   },
   // FOUNDER DECISION (D-39): a renter who cancels after a courier is booked
