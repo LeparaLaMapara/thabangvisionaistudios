@@ -1,16 +1,15 @@
-import { getRentalCategoryCounts } from '@/lib/supabase/queries/smartRentals';
-import SmartRentalsClient from './SmartRentalsClient';
+import { fetchAllPublishedRentals } from '@/lib/supabase/queries/smartRentals';
+import AllGearClient from './AllGearClient';
 import { AskUbunyeButton } from '@/components/ubunye/AskUbunyeButton';
 
 export const revalidate = 60;
 
 export default async function SmartRentalsPage() {
-  // Only the per-category counts: this page used to load every rental, with
-  // its whole gallery, just to count them.
-  const { counts, failed } = await getRentalCategoryCounts();
+  // All the gear on one page; categories are a filter on it, not a door.
+  const { rentals, failed } = await fetchAllPublishedRentals();
   return (
     <>
-      <SmartRentalsClient categories={counts} loadFailed={failed} />
+      <AllGearClient rentals={rentals} loadFailed={failed} />
       <AskUbunyeButton prompt="Help me find the right equipment for my shoot" label="Need gear advice?" />
     </>
   );
