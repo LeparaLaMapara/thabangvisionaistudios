@@ -45,8 +45,6 @@ export type SmartProduction = {
 /**
  * Returns all published productions ordered by year descending.
  * Safe to call in Server Components — never exposes the service key.
- *
- * Note: add .eq('is_archived', false) here once that column exists.
  */
 export async function getPublishedProductions(): Promise<SmartProduction[]> {
   const supabase = await createClient();
@@ -93,21 +91,24 @@ export async function getFeaturedProductions(limit = 6): Promise<SmartProduction
 }
 
 /**
- * Returns all archived productions ordered by created_at DESC.
- * If `is_archived` column doesn't exist yet, returns empty array silently.
+ * Returns past work for /archive: published, not deleted productions from an
+ * earlier year than `now`, newest first. smart_productions has no archive
+ * flag (and no admin control to set one), so "archived" means "from a
+ * previous year" (that work also stays on /studio).
  */
-export async function getArchivedProductions(): Promise<SmartProduction[]> {
+export async function getArchivedProductions(now: Date = new Date()): Promise<SmartProduction[]> {
   const supabase = await createClient();
 
   const { data, error } = await supabase
     .from('smart_productions')
     .select('*')
     .eq('is_published', true)
-    .eq('is_archived', true)
+    .is('deleted_at', null)
+    .lt('year', now.getFullYear())
+    .order('year', { ascending: false })
     .order('created_at', { ascending: false });
 
   if (error) {
-    // Column may not exist yet — fail silently
     console.error('[getArchivedProductions]', error.message);
     return [];
   }

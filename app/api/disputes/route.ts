@@ -7,6 +7,15 @@ import { requireAuth, checkNotSuspended } from '@/lib/auth';
 import { createClient, createAdminClient } from '@/lib/supabase/server';
 import { sendDisputeFiled } from '@/lib/email';
 import { profileWithEmail } from '@/lib/supabase/profile-email';
+import {
+  CLOSED_DISPUTE_STATUSES,
+  holdServiceBookingForDispute,
+  recordServiceBookingEvent,
+} from '@/lib/supabase/queries/service-bookings';
+
+const DUPLICATE_DISPUTE_MESSAGE = 'There is already an open dispute for this booking.';
+/** Postgres unique_violation: a second live dispute (085's index). */
+const UNIQUE_VIOLATION = '23505';
 
 const VALID_DISPUTE_TYPES = [
   'gear_damage',
@@ -107,6 +116,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       }
     }
 
+    let bookingStatus: string | null = null;
+    let bookingActor: 'client' | 'creator' = 'client';
     if (booking_id) {
       const { data: bk, error: bkErr } = await supabase
         .from('bookings')
@@ -123,28 +134,27 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       if (['cancelled', 'disputed'].includes(bk.status)) {
         return NextResponse.json({ error: 'This booking is not in a disputable state.' }, { status: 400 });
       }
+      bookingStatus = bk.status;
+      bookingActor = bk.client_id === auth.user.id ? 'client' : 'creator';
     }
 
-    // Check for duplicate open disputes
-    const duplicateQuery = adminClient
+    // One live dispute per booking (open, investigating or escalated), for
+    // either party. Migration 085 enforces it with a unique index; this read
+    // only gives the usual case a clear answer before anything is written.
+    let duplicateQuery = adminClient
       .from('disputes')
       .select('id')
-      .eq('filed_by', auth.user.id)
-      .in('status', ['open', 'investigating']);
+      .not('status', 'in', `(${CLOSED_DISPUTE_STATUSES.join(',')})`);
+    if (equipment_booking_id) duplicateQuery = duplicateQuery.eq('equipment_booking_id', equipment_booking_id);
+    if (booking_id) duplicateQuery = duplicateQuery.eq('booking_id', booking_id);
 
-    if (equipment_booking_id) {
-      duplicateQuery.eq('equipment_booking_id', equipment_booking_id);
+    const { data: existing, error: duplicateError } = await duplicateQuery.limit(1);
+    if (duplicateError) {
+      console.error('[disputes] Duplicate check error:', duplicateError.message);
+      return NextResponse.json({ error: 'Failed to file dispute.' }, { status: 500 });
     }
-    if (booking_id) {
-      duplicateQuery.eq('booking_id', booking_id);
-    }
-
-    const { data: existing } = await duplicateQuery.maybeSingle();
-    if (existing) {
-      return NextResponse.json(
-        { error: 'You already have an open dispute for this booking.' },
-        { status: 409 },
-      );
+    if (existing && existing.length > 0) {
+      return NextResponse.json({ error: DUPLICATE_DISPUTE_MESSAGE }, { status: 409 });
     }
 
     // Create dispute record
@@ -164,12 +174,25 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       .single();
 
     if (insertError || !dispute) {
+      // Two filings at once: the unique index (085) lets only one through.
+      if ((insertError as { code?: string } | null)?.code === UNIQUE_VIOLATION) {
+        return NextResponse.json({ error: DUPLICATE_DISPUTE_MESSAGE }, { status: 409 });
+      }
       console.error('[disputes] Insert error:', insertError?.message);
       return NextResponse.json({ error: 'Failed to file dispute.' }, { status: 500 });
     }
 
+    // If the booking cannot be marked, take the dispute back out so nothing
+    // half-filed is left behind, and tell the user nothing was filed.
+    const undo = async (message: string, status: number): Promise<NextResponse> => {
+      const { error: undoError } = await adminClient.from('disputes').delete().eq('id', dispute.id);
+      if (undoError) console.error('[disputes] Could not remove the half-filed dispute', dispute.id, undoError.message);
+      return NextResponse.json({ error: message }, { status });
+    };
+
     // Update booking status to 'disputed'
-    const now = new Date().toISOString();
+    const nowDate = new Date();
+    const now = nowDate.toISOString();
     if (equipment_booking_id) {
       // Only a return awaiting inspection moves to `disputed` (spec §7.3). A
       // hire still out stays active (the gear is with the renter), and a
@@ -187,22 +210,37 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       });
       if (moved.result !== 'moved' && moved.result !== 'already') {
         // Not awaiting inspection (or 070 not applied): record the dispute on the booking without changing where the gear is.
-        await adminClient
+        const { error: markError } = await adminClient
           .from('equipment_bookings')
           .update({ dispute_reason: reason.trim(), disputed_at: now, updated_at: now })
           .eq('id', equipment_booking_id);
+        if (markError) {
+          console.error('[disputes] Could not mark the gear booking:', markError.message);
+          return undo('Failed to file dispute. Nothing was filed; please try again.', 500);
+        }
       }
     }
-    if (booking_id) {
-      await adminClient
-        .from('bookings')
-        .update({
-          status: 'disputed',
-          dispute_reason: reason.trim(),
-          disputed_at: now,
-          updated_at: now,
-        })
-        .eq('id', booking_id);
+    if (booking_id && bookingStatus) {
+      // Holds the creator payout twice over: the booking is no longer
+      // 'completed', and the open dispute row blocks it (lib/payments/payout.ts).
+      const held = await holdServiceBookingForDispute(adminClient, { id: booking_id, status: bookingStatus }, nowDate);
+      if (!held.ok) {
+        console.error('[disputes] Could not mark the booking disputed:', held.error);
+        return held.changed
+          ? undo('This booking changed while you were filing. Nothing was filed; refresh and try again.', 409)
+          : undo('Failed to file dispute. Nothing was filed; please try again.', 500);
+      }
+      if (held.moved) {
+        await recordServiceBookingEvent(adminClient, {
+          bookingId: booking_id,
+          event: 'dispute_opened',
+          from: bookingStatus,
+          to: 'disputed',
+          actor: bookingActor,
+          actorId: auth.user.id,
+          reason: `dispute ${dispute.id}`,
+        });
+      }
     }
 
     // Notify admin

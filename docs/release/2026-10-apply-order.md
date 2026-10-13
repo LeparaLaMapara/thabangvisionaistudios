@@ -67,7 +67,8 @@ of `verifications` objects by anyone other than their owner.
 | 16 | `081-creative-tools-flag.sql` | |
 | 17 | `082-verification-notifications.sql` | `082-…test.sql` (082 comes with the admin control room branch) |
 | 18 | `084-embeddings-768.sql` | `084-…test.sql`, then POST `/api/admin/reindex` once `RAG_ENABLED=true` |
-| 19 | `notify pgrst, 'reload schema';` | `rls-coverage.test.sql` |
+| 19 | `085-disputes-and-reviews-wiring.sql` | `085-…test.sql`. Apply with (or before) the build that writes `bookings.status_before_dispute` and `reviews.booking_id` (branch fix/audit-a-disputes-wiring); stops with a message if a booking already has two live disputes |
+| 20 | `notify pgrst, 'reload schema';` | `rls-coverage.test.sql` |
 
 ### Why 083 runs first although its number is last
 
