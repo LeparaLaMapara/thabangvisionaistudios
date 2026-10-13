@@ -73,3 +73,46 @@ function emptyMetadata(): PhotoMetadata {
     imageHeight: null,
   };
 }
+
+// ─── Metadata the browser read before shrinking a photo ─────────────────────
+
+function cleanText(v: unknown): string | null {
+  return typeof v === 'string' && v.trim() ? v.trim().slice(0, 120) : null;
+}
+
+function cleanNumber(v: unknown): number | null {
+  return typeof v === 'number' && Number.isFinite(v) ? v : null;
+}
+
+/**
+ * The page reads a photo's EXIF before shrinking it (a resized photo has none)
+ * and sends it beside the file. It is no less trustworthy than EXIF inside an
+ * uploaded file, which the sender controls just the same. Anything malformed
+ * becomes null.
+ */
+export function sanitizeClientMetadata(raw: unknown): PhotoMetadata | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const r = raw as Record<string, unknown>;
+  const date = cleanText(r.dateTaken);
+  const gpsRaw = r.gps as Record<string, unknown> | null | undefined;
+  const lat = cleanNumber(gpsRaw?.latitude);
+  const lon = cleanNumber(gpsRaw?.longitude);
+  return {
+    dateTaken: date && !Number.isNaN(Date.parse(date)) ? new Date(date).toISOString() : null,
+    gps: lat !== null && lon !== null && Math.abs(lat) <= 90 && Math.abs(lon) <= 180 ? { latitude: lat, longitude: lon } : null,
+    device: cleanText(r.device),
+    software: cleanText(r.software),
+    imageWidth: cleanNumber(r.imageWidth),
+    imageHeight: cleanNumber(r.imageHeight),
+  };
+}
+
+/** True when nothing useful came out of a photo's EXIF. */
+export function isEmptyMetadata(m: PhotoMetadata): boolean {
+  return !m.dateTaken && !m.device && !m.gps && !m.software;
+}
+
+/** The file's own EXIF when it has any, else what the browser read before shrinking. */
+export function preferFileMetadata(fromFile: PhotoMetadata, fromBrowser: PhotoMetadata | null): PhotoMetadata {
+  return isEmptyMetadata(fromFile) && fromBrowser ? fromBrowser : fromFile;
+}
