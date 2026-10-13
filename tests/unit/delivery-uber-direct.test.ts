@@ -233,12 +233,31 @@ describe('Uber Direct: create', () => {
       idempotency_key: 'tvd_group1_o1',
       deliverable_action: 'deliverable_action_meet_at_door',
       undeliverable_action: 'return',
-      pickup_verification: { picture: true },
-      dropoff_verification: { signature_requirement: { enabled: true }, picture: true, pincode: { enabled: true, value: '4821' } },
+      pickup_verification: { picture: true, signature_requirement: { enabled: true, collect_signer_name: true } },
+      dropoff_verification: { signature_requirement: { enabled: true, collect_signer_name: true }, picture: true, pincode: { enabled: true }, identification: { min_age: 18 } },
       manifest_items: [{ name: 'Camera equipment', quantity: 1, weight: 2000 }],
     });
+    // Uber makes the PIN: ours is never sent.
+    expect(body.dropoff_verification.pincode).toEqual({ enabled: true });
     expect(body).not.toHaveProperty('manifest_total_value');
     expect(JSON.stringify(body)).not.toContain('1500000');
+  });
+
+  it('a return leg drops off at our studio or the owner: PIN, signature and photo, no ID check', async () => {
+    const { port, calls } = adapter({ 'POST /deliveries': () => json(200, delivery()) });
+    await port.createDelivery({ ...createReq(), leg: 'return' });
+    const body = JSON.parse(calls.find((c) => c.method === 'POST' && c.url.endsWith('/deliveries'))?.body ?? '{}');
+    expect(body.dropoff_verification).toEqual({ signature_requirement: { enabled: true, collect_signer_name: true }, picture: true, pincode: { enabled: true } });
+  });
+
+  it("reads Uber's drop-off PIN back (sandbox shape and the guide's top-level shape)", async () => {
+    const nested = delivery({ dropoff: { verification_requirements: { pincode: { enabled: true, value: '6066' } } } });
+    expect(await adapter({ 'POST /deliveries': () => json(200, nested) }).port.createDelivery(createReq())).toMatchObject({ ok: true, value: { recipientPin: '6066' } });
+    const top = delivery({ verification_requirements: { pincode: { enabled: true, value: '0412' } } });
+    expect(await adapter({ 'POST /deliveries': () => json(200, top) }).port.createDelivery(createReq())).toMatchObject({ ok: true, value: { recipientPin: '0412' } });
+    const junk = delivery({ dropoff: { verification_requirements: { pincode: { enabled: true, value: '12ab' } } } });
+    const r = await adapter({ 'POST /deliveries': () => json(200, junk) }).port.createDelivery(createReq());
+    expect(r.ok && r.value.recipientPin).toBeFalsy();
   });
 
   it('never asks for leave-at-door', async () => {

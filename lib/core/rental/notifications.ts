@@ -33,6 +33,11 @@ export const RENTAL_NOTICE_KINDS = [
   'delivery_courier_at_pickup',
   'delivery_collected',
   'delivery_in_transit',
+  // One email when the gear starts moving (driver assigned, collected or on
+  // the way: whichever comes first): tracking link, PIN, drop-off address,
+  // driver's first name and who to contact. Email only; the in-app updates
+  // above also go to the phone as push.
+  'delivery_on_the_way',
   'delivery_delivered',
   'delivery_attempt_failed',
   'delivery_return_reminder',
@@ -53,7 +58,11 @@ export const RENTAL_NOTICE_KINDS = [
 export type RentalNoticeKind = (typeof RENTAL_NOTICE_KINDS)[number];
 export type NoticeChannel = 'in_app' | 'email' | 'sms';
 
-/** Which channels each kind goes to. SMS only where timing matters. */
+/**
+ * Which channels each kind goes to. SMS only where timing matters. Every
+ * in_app delivery update is also pushed to the renter's phone straight away
+ * (lib/rental/notify.ts, DELIVERY_PUSH_KINDS).
+ */
 export const NOTICE_CHANNELS: Record<RentalNoticeKind, readonly NoticeChannel[]> = {
   payment_received: ['in_app', 'email'],
   booking_confirmed: ['in_app', 'email'],
@@ -79,6 +88,7 @@ export const NOTICE_CHANNELS: Record<RentalNoticeKind, readonly NoticeChannel[]>
   delivery_courier_at_pickup: ['in_app'],
   delivery_collected: ['in_app'],
   delivery_in_transit: ['in_app'],
+  delivery_on_the_way: ['email'],
   delivery_delivered: ['in_app', 'email', 'sms'],
   delivery_attempt_failed: ['in_app', 'email', 'sms'],
   delivery_return_reminder: ['in_app', 'email', 'sms'],
