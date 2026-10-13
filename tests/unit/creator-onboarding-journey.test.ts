@@ -125,8 +125,8 @@ describe('dashboard home for creators', () => {
 });
 
 describe('a way in for creators', () => {
-  it('the main menu and the footer link to creator onboarding', () => {
-    expect(MAIN_NAVIGATION.some((i) => i.href === CREATOR_JOIN.href && i.label === CREATOR_JOIN.navLabel)).toBe(true);
+  it('the footer links to creator onboarding; the header keeps one door (Sign In)', () => {
+    expect(MAIN_NAVIGATION.some((i) => i.href === CREATOR_JOIN.href)).toBe(false);
     const links = FOOTER_SECTIONS.flatMap((s) => s.links);
     expect(links.some((l) => l.href === CREATOR_JOIN.href && l.label === CREATOR_JOIN.footerLabel)).toBe(true);
   });

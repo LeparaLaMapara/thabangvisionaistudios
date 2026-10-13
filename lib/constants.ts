@@ -590,12 +590,17 @@ export const SITE_COPYRIGHT = `© ${new Date().getFullYear()} ${STUDIO.legal.com
 export const SHOW_CAREERS = true;
 
 // ─── CREATOR JOIN ────────────────────────────────────────────────────────────
-// The one way in for a creator who wants to offer their services: the main
-// menu, the footer and the empty creator directory all use these words.
+// The way in for a creator who wants to offer their services: the home page,
+// the sign-in page, the footer and the empty creator directory all use these
+// words. Not in the header: signed out, it went to the same sign-in page as
+// "Sign In", so the header keeps one door.
 // /onboarding sends someone signed out to sign up first, then back.
 export const CREATOR_JOIN = {
   href: '/onboarding',
-  navLabel: 'Offer Your Services',
+  ctaLabel: 'Join as a Creator',
+  homeTitle: 'Get Booked',
+  homeText: 'Photographer, videographer, editor or sound person? Join free, set up your profile and get booked for shoots.',
+  loginLine: 'Want to get booked?',
   footerLabel: `Earn with ${STUDIO.shortName}`,
   emptyDirectoryTitle: 'No creators yet',
   emptyDirectoryText:
@@ -613,7 +618,7 @@ export const MAIN_NAVIGATION: {
     // The free Ubunye apps. Hidden until the `creative_tools` flag is on (lib/nav.ts); /tools itself is always reachable by URL.
     { label: 'Apps', href: '/tools' },
     { label: 'Help', href: '/faq' },
-    { label: CREATOR_JOIN.navLabel, href: CREATOR_JOIN.href },
+    // No "Offer Your Services": see CREATOR_JOIN.
     // No "Pricing" item: every listing and package shows its own price, and the
     // one promise (free to join, pay when you book) sits on the home and rentals
     // pages. /pricing stays in the footer next to How to Pay.

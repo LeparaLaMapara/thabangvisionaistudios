@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { MAIN_NAVIGATION, FOOTER_SECTIONS, UBUNYE_STUDIO } from '@/lib/constants';
+import { MAIN_NAVIGATION, FOOTER_SECTIONS, UBUNYE_STUDIO, CREATOR_JOIN } from '@/lib/constants';
 import { filterNavSync } from '@/lib/nav';
 
 describe('main navigation', () => {
@@ -13,6 +13,12 @@ describe('main navigation', () => {
     expect(MAIN_NAVIGATION.some((i) => i.href === '/pricing')).toBe(false);
     const footerLinks = FOOTER_SECTIONS.flatMap((s) => s.links);
     expect(footerLinks.some((l) => l.href === '/pricing')).toBe(true);
+  });
+
+  it('keeps one account door in the header: no creator join item', () => {
+    expect(MAIN_NAVIGATION.some((i) => i.href === CREATOR_JOIN.href)).toBe(false);
+    const footerLinks = FOOTER_SECTIONS.flatMap((s) => s.links);
+    expect(footerLinks.some((l) => l.href === CREATOR_JOIN.href)).toBe(true);
   });
 
   it('shows Apps only when the creative_tools switch is on', () => {

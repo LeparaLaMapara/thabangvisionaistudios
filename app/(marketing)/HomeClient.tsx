@@ -7,7 +7,7 @@ import { ServiceGrid } from '@/components/cinematic/ServiceGrid';
 import { LatestWorkCarousel, type CarouselItem } from '@/components/cinematic/LatestWorkCarousel';
 import { ArrowRight, Calendar, Search, MapPin, RotateCcw, MessageCircle, ShieldCheck } from 'lucide-react';
 import Image from 'next/image';
-import { STUDIO, UBUNYE_STUDIO } from '@/lib/constants';
+import { STUDIO, UBUNYE_STUDIO, CREATOR_JOIN } from '@/lib/constants';
 import { formatRand } from '@/lib/format/money';
 import { PaymentsNotOpenNote } from '@/components/booking/PaymentsNotOpenNote';
 
@@ -220,6 +220,33 @@ const BookingCTA = () => (
   </section>
 );
 
+// ─── Creator Join ────────────────────────────────────────────────────────────
+// The creator's way in, now that it is not in the header (see CREATOR_JOIN).
+
+const CreatorJoin = () => (
+  <section className="py-24 bg-[#050505] border-t border-white/5">
+    <div className="container mx-auto px-6">
+      <motion.div
+        initial={{ opacity: 0, x: -20 }}
+        whileInView={{ opacity: 1, x: 0 }}
+        viewport={{ once: true }}
+        className="max-w-2xl"
+      >
+        <span className="text-xs font-mono text-[#D4A843] uppercase tracking-[0.3em] mb-4 block">For Creators</span>
+        <h2 className="text-4xl md:text-5xl font-display font-medium text-white tracking-tighter uppercase mb-6 leading-[0.95]">
+          {CREATOR_JOIN.homeTitle}
+        </h2>
+        <p className="text-neutral-400 font-light leading-relaxed mb-8 max-w-md">
+          {CREATOR_JOIN.homeText}
+        </p>
+        <Link href={CREATOR_JOIN.href} className="inline-flex items-center gap-2 min-h-[44px] bg-[#D4A843] text-black px-8 py-4 text-xs font-mono font-bold uppercase tracking-widest hover:opacity-80 transition-opacity">
+          {CREATOR_JOIN.ctaLabel} <ArrowRight className="w-3 h-3" />
+        </Link>
+      </motion.div>
+    </div>
+  </section>
+);
+
 // ─── Trust Signals ───────────────────────────────────────────────────────────
 
 /**
@@ -353,6 +380,7 @@ export default function HomeClient({
       <ServiceGrid />
       <TrustSignals />
       <BookingCTA />
+      <CreatorJoin />
       {showApps && <AppsStrip />}
       <UbunyeSection />
       {/* Final CTA */}
