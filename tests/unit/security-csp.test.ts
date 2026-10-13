@@ -20,7 +20,10 @@ describe('buildCsp', () => {
     expect(s).toContain("'nonce-abc123=='");
     expect(s).toContain("'strict-dynamic'");
     expect(s).not.toContain('unsafe-inline');
-    expect(s).not.toContain('unsafe-eval');
+    // JS eval stays off. WebAssembly compilation alone is allowed: the ID
+    // check's HEIC photo decoder is wasm ('wasm-unsafe-eval' enables nothing else).
+    expect(s.split(' ')).not.toContain("'unsafe-eval'");
+    expect(s.split(' ')).toContain("'wasm-unsafe-eval'");
     expect(scriptSrc(buildCsp('n', { dev: true }))).toContain("'unsafe-eval'");
   });
 

@@ -15,7 +15,6 @@ import {
   ShieldCheck,
   Camera,
   AlertTriangle,
-  FileText,
 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
@@ -24,15 +23,9 @@ import { STUDIO } from '@/lib/constants';
 import { createClient } from '@/lib/supabase/client';
 import { DashboardSubTabs, ACCOUNT_TABS_USER } from '@/components/dashboard/DashboardSubTabs';
 import { ConsentStep } from '@/components/verification/ConsentStep';
-import { extractPhotoMetadata, type PhotoMetadata } from '@/lib/metadata/verification';
-import {
-  MAX_ORIGINAL_PHOTO_BYTES,
-  UPLOAD_BUDGET_BYTES,
-  canShrink,
-  fitsUploadBudget,
-  shrinkPhoto,
-  submitErrorMessage,
-} from '@/lib/verification/upload-size';
+import type { PhotoMetadata } from '@/lib/metadata/verification';
+import { ID_PHOTO_ACCEPT, submitErrorMessage, validateIdPhoto } from '@/lib/verification/photo-format';
+import { preparePhoto } from '@/lib/verification/prepare-photo';
 
 type VerificationStatus = 'unverified' | 'pending' | 'verified' | 'rejected';
 
@@ -51,53 +44,16 @@ interface FileSlot {
   mode: 'upload' | 'camera';
   file: File | null;
   preview: string | null;
+  /** EXIF read from the original before any conversion (lib/verification/prepare-photo.ts). */
+  meta: PhotoMetadata | null;
 }
 
 const REVIEW_TIME = STUDIO.verification.reviewTime;
 const MAX_ATTEMPTS = 3;
 
-const ACCEPTED_IMAGE_TYPES = [
-  'image/jpeg',
-  'image/png',
-  'image/webp',
-  'image/heic',
-  'image/heif',
-  'image/bmp',
-  'image/tiff',
-];
-
-const ACCEPTED_DOC_TYPES = [
-  ...ACCEPTED_IMAGE_TYPES,
-  'application/pdf',
-];
-
-function validateFile(file: File, allowPdf: boolean): { valid: boolean; error?: string } {
-  const allowed = allowPdf ? ACCEPTED_DOC_TYPES : ACCEPTED_IMAGE_TYPES;
-  if (!allowed.includes(file.type)) {
-    return { valid: false, error: allowPdf
-      ? 'Unsupported format. Please use JPG, PNG, WebP, HEIC, or PDF.'
-      : 'Unsupported image format. Please use JPG, PNG, WebP, or HEIC.'
-    };
-  }
-  if (file.size < 50 * 1024) {
-    return { valid: false, error: 'File is too small (under 50KB). Please use a higher quality scan or photo.' };
-  }
-  // Large photos are shrunk in the browser before upload; other files go as they are.
-  if (canShrink(file.type)) {
-    if (file.size > MAX_ORIGINAL_PHOTO_BYTES) {
-      return { valid: false, error: 'This photo is too large. Please take it again with your phone camera.' };
-    }
-    return { valid: true };
-  }
-  const maxSize = Math.min((STUDIO.verification.maxFileSizeMB ?? 5) * 1024 * 1024, UPLOAD_BUDGET_BYTES / 2);
-  if (file.size > maxSize) {
-    return { valid: false, error: `File is too large. Maximum ${Math.floor(maxSize / (1024 * 1024))}MB, or use a JPG photo instead.` };
-  }
-  return { valid: true };
-}
-
+// Photos only, in any format a phone saves (lib/verification/photo-format.ts).
 function validateImage(file: File): { valid: boolean; error?: string } {
-  return validateFile(file, false);
+  return validateIdPhoto(file);
 }
 
 export default function VerificationPage() {
@@ -177,6 +133,7 @@ function VerificationPageInner() {
   const [verification, setVerification] = useState<VerificationData | null>(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [preparing, setPreparing] = useState(false);
   const [justSubmitted, setJustSubmitted] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [confirmed, setConfirmed] = useState(false);
@@ -189,6 +146,7 @@ function VerificationPageInner() {
       mode: 'upload',
       file: null,
       preview: null,
+      meta: null,
     },
     {
       label: 'Selfie with your ID',
@@ -197,6 +155,7 @@ function VerificationPageInner() {
       mode: 'camera',
       file: null,
       preview: null,
+      meta: null,
     },
   ]);
 
@@ -264,7 +223,7 @@ function VerificationPageInner() {
     setLoading(false);
   }
 
-  const handleFileChange = (index: number, file: File | null) => {
+  const setSlot = (index: number, file: File | null, meta: PhotoMetadata | null) => {
     setFiles((prev) =>
       prev.map((slot, i) => {
         if (i !== index) return slot;
@@ -273,11 +232,29 @@ function VerificationPageInner() {
         return {
           ...slot,
           file,
+          meta,
           preview: file ? URL.createObjectURL(file) : null,
         };
       }),
     );
+  };
+
+  // Read the photo's details from the original, and turn an iPhone (HEIC)
+  // photo into a JPEG so it can be previewed and checked.
+  const handleFileChange = async (index: number, file: File | null) => {
     setError(null);
+    if (!file) {
+      setSlot(index, null, null);
+      return;
+    }
+    setPreparing(true);
+    try {
+      const prepared = await preparePhoto(file);
+      setSlot(index, prepared.file, prepared.meta);
+    } catch {
+      setError('We could not open this photo. Please take it again with your phone camera.');
+    }
+    setPreparing(false);
   };
 
   const handleSubmit = async () => {
@@ -304,36 +281,36 @@ function VerificationPageInner() {
         return;
       }
 
-      // Read each photo's EXIF first (shrinking drops it), then shrink large
-      // photos so the whole submission fits the host's upload limit.
-      const prepared = await Promise.all(
-        files.map(async (slot) => {
-          const original = slot.file as File;
-          const meta: PhotoMetadata | null = original.type.startsWith('image/')
-            ? await extractPhotoMetadata(await original.arrayBuffer())
-            : null;
-          return { key: slot.key, file: await shrinkPhoto(original), meta };
-        }),
-      );
+      // 1. One-time upload links from our server (it picks the paths).
+      const linkRes = await fetch('/api/verifications/upload', { method: 'POST' });
+      const links = await linkRes.json().catch(() => ({}));
+      if (!linkRes.ok) throw new Error(submitErrorMessage(linkRes.status, links.error));
 
-      if (!fitsUploadBudget(prepared.map((p) => p.file.size))) {
-        setError(submitErrorMessage(413, undefined));
-        setSubmitting(false);
-        return;
-      }
-
-      const formData = new FormData();
+      // 2. The photos go straight to private storage, not through our server,
+      //    so their size no longer matters (Vercel caps requests at 4.5 MB).
       const clientMetadata: Record<string, PhotoMetadata> = {};
-      for (const p of prepared) {
-        formData.append(p.key, p.file);
-        if (p.meta) clientMetadata[p.key] = p.meta;
+      const paths: Record<string, string> = {};
+      for (const slot of files) {
+        const link = links.uploads?.[slot.key] as { path: string; token: string } | undefined;
+        if (!link || !slot.file) throw new Error(submitErrorMessage(500, undefined));
+        const { error: upErr } = await supabase.storage
+          .from(links.bucket)
+          .uploadToSignedUrl(link.path, link.token, slot.file, { contentType: slot.file.type || 'image/jpeg' });
+        if (upErr) throw new Error('The upload did not finish. Please check your connection and try again.');
+        paths[slot.key] = link.path;
+        if (slot.meta) clientMetadata[slot.key] = slot.meta;
       }
-      formData.append('client_metadata', JSON.stringify(clientMetadata));
-      formData.append('confirmed', 'true');
 
+      // 3. The server reads the originals, keeps small copies and checks them.
       const res = await fetch('/api/verifications', {
         method: 'POST',
-        body: formData,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id_copy_path: paths.id_copy,
+          selfie_path: paths.selfie_with_id,
+          client_metadata: clientMetadata,
+          confirmed: true,
+        }),
       });
 
       if (!res.ok) {
@@ -507,7 +484,7 @@ function VerificationPageInner() {
                 onConfirmedChange={setConfirmed}
                 onFileChange={handleFileChange}
                 onSubmit={handleSubmit}
-                submitting={submitting}
+                submitting={submitting || preparing}
               />
             ) : null
           )}
@@ -525,7 +502,7 @@ function VerificationPageInner() {
             onConfirmedChange={setConfirmed}
             onFileChange={handleFileChange}
             onSubmit={handleSubmit}
-            submitting={submitting}
+            submitting={submitting || preparing}
           />
         ) : null
       )}
@@ -631,15 +608,9 @@ function PhotoPreview({
   onRemove: () => void;
 }) {
   if (!slot.file) return null;
-  const isPdf = slot.file.type === 'application/pdf';
   return (
     <div className="space-y-3">
-      {isPdf ? (
-        <div className="flex flex-col items-center gap-2 py-6">
-          <FileText className="w-12 h-12 text-[#D4A843]" />
-          <p className="text-xs font-mono text-neutral-400">{slot.file.name}</p>
-        </div>
-      ) : slot.preview ? (
+      {slot.preview ? (
         /* eslint-disable-next-line @next/next/no-img-element */
         <img
           src={slot.preview}
@@ -679,7 +650,7 @@ function UploadDropzone({
   const [validationError, setValidationError] = useState<string | null>(null);
 
   const handleFile = (file: File) => {
-    const result = validateFile(file, true);
+    const result = validateImage(file);
     if (!result.valid) {
       setValidationError(result.error ?? 'Invalid file.');
       return;
@@ -715,7 +686,7 @@ function UploadDropzone({
         <input
           ref={inputRef}
           type="file"
-          accept="image/jpeg,image/png,image/webp,image/heic,image/heif,image/bmp,image/tiff,application/pdf"
+          accept={ID_PHOTO_ACCEPT}
           onChange={(e) => {
             const f = e.target.files?.[0];
             if (f) handleFile(f);
