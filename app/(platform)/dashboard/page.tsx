@@ -11,6 +11,7 @@ import { getBankingDetails } from '@/lib/supabase/queries/banking';
 import { hasCompletePortfolio } from '@/lib/portfolio/validation';
 import { CREATOR_JOB_STATUSES, showsCreatorChecklist } from '@/lib/creators/dashboard';
 import CreatorBookableChecklist from '@/components/onboarding/CreatorBookableChecklist';
+import PushPrompt from '@/components/notifications/PushPrompt';
 import type { PortfolioProject } from '@/types/portfolio';
 import { Calendar, Package, ShoppingBag, ArrowRight, Users, Search, ShieldCheck, Clock, Briefcase, FileText, Settings, Camera } from 'lucide-react';
 
@@ -153,6 +154,11 @@ export default async function DashboardPage() {
             : 'Rent equipment, hire photographers, and explore the platform. Check your ID once to rent gear or to list your own gear and services.'}
         </p>
       </div>
+
+      {/* Notifications: only for someone with something to hear about */}
+      <PushPrompt
+        eligible={bookingsCount + listingsCount + ordersCount + creatorJobsCount + requestsCount > 0 || verificationStatus === 'pending'}
+      />
 
       {/* Get Verified CTA (unverified users only) — first thing they see */}
       {!isVerified && verificationStatus !== 'pending' && (

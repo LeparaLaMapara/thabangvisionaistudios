@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 import { requireAdmin } from '@/lib/auth';
+import { STUDIO } from '@/lib/constants';
 import { WelcomeQueue } from './WelcomeQueue';
 
 export const metadata: Metadata = { title: 'Welcomes — Admin' };
@@ -17,7 +18,10 @@ export default async function WelcomesPage() {
         <h1 className="text-2xl md:text-3xl font-display text-white tracking-tight">Welcomes</h1>
         <p className="text-sm text-neutral-400 mt-2">
           Everyone who signs up gets one welcome, drafted by Ubunye from their first name and what they have done
-          on the site. Nothing is sent until you press Send.
+          on the site.{' '}
+          {STUDIO.welcomes.autoSendAfterHours === null
+            ? 'Nothing is sent until you press Send.'
+            : `It goes out by itself once their email is confirmed (people who joined in the last ${STUDIO.welcomes.autoSendMaxAgeDays} days). Edit a draft before then, or send older ones by hand. Sent ones are under Sent.`}
         </p>
       </header>
       <WelcomeQueue />

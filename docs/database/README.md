@@ -123,6 +123,7 @@ in name order and changes nothing. Full production order:
 | 16 | `082-verification-notifications.sql` | `082-…test.sql` | Notification types `verification_approved` / `verification_rejected`, sent when staff decide an ID check. Before it, those in-app notices are refused (logged) and only the email goes |
 | 17 | `084-embeddings-768.sql` | `084-…test.sql` | Search (RAG) index back to 768 dimensions with an HNSW index. Dev and prod had run the 1536 OpenAI variant of 001, so every embedding write and search failed. Deletes the (derived) rows; reindex from `/api/admin/reindex`. Applied to dev 2026-10-13 |
 | 18 | — | `notify pgrst, 'reload schema';` | 077–080 do this themselves |
+| 19 | `087-customer-engagement.sql` | `087-…test.sql`, then `rls-coverage.test.sql` | Customer engagement (lib/engagement): `profiles.email_lifecycle_opt_out` (+ `_at`, server-only), outbox channel `push`, `claim_engagement_outbox()` for `engage_*` rows while `claim_outbox()` now skips them, `push_subscriptions` (owner-only RLS), and a trigger that queues a push for each bell item of someone with push on. Needs 070. Applied to dev 2026-10-13 (test and rls-coverage pass; dev's `_tv_scripts` table of another tool fails rls-coverage check 2 on its own) |
 
 Any time later: `rls-coverage.test.sql` after every new migration.
 

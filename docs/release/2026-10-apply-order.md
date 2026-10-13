@@ -67,6 +67,7 @@ of `verifications` objects by anyone other than their owner.
 | 16 | `081-creative-tools-flag.sql` | |
 | 17 | `082-verification-notifications.sql` | `082-…test.sql` (082 comes with the admin control room branch) |
 | 18 | `084-embeddings-768.sql` | `084-…test.sql`, then POST `/api/admin/reindex` once `RAG_ENABLED=true` |
+| 18b | `087-customer-engagement.sql` (needs 070) | `087-…test.sql`, `rls-coverage.test.sql`. Set `ENGAGEMENT_SIGNING_SECRET` and the VAPID keys on Vercel first; with `ENGAGEMENT_DRY_RUN=true` the daily run only logs |
 | 19 | `notify pgrst, 'reload schema';` | `rls-coverage.test.sql` |
 
 ### Why 083 runs first although its number is last
@@ -108,8 +109,13 @@ per migration.
 - `Orders: buyer update` and `Orders: seller update` stay, because
   `app/api/orders/[id]/route.ts` still updates orders with the user's
   session. Move that route to the service role, then drop both policies.
-- The signup webhook's last call on prod (2026-10-03) timed out. Check that the
-  vault secret equals `SIGNUP_WEBHOOK_SECRET` and why it timed out.
+- The signup webhook's last call on prod (2026-10-03) timed out. Diagnosed
+  2026-10-13 (feature/customer-engagement): the URL and secret are right (the
+  welcome was drafted 6.5 seconds after that signup, as for every signup since
+  09-30), but pg_net gives up after its default 5 seconds while the route
+  drafted with AI and sent the owner email before answering. The work finished;
+  only the log said "timed out". Fixed in code: the route now answers 202 at
+  once and works in `after()`. No migration needed.
 - DEV drift: apply 083 on dev too (035's column and indexes are missing
   there as well). Separately, dev has `_tv_exec(text)`, a SECURITY DEFINER
   function that runs any SQL, and `submit_verification_request` is still
