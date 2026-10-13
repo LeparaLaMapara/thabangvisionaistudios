@@ -24,7 +24,10 @@ export function MarkPaid({ bookingId, suggestedAmount, onDone }: { bookingId: st
     const json = await res.json().catch(() => ({}));
     setBusy(false);
     if (!res.ok) setError(json.error ?? 'Could not record the payment.');
-    else onDone();
+    else {
+      if (typeof json.warning === 'string') window.alert(json.warning);
+      onDone();
+    }
   };
 
   return (

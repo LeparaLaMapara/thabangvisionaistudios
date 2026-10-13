@@ -348,6 +348,15 @@ export async function getRelatedRentals(
 // SmartRental shape so they can be displayed alongside official rentals.
 
 /**
+ * True only when the table itself is missing (Postgres 42P01, or PostgREST
+ * PGRST205 "Could not find the table"). A missing column (42703) is not.
+ */
+export function isMissingTableError(error: { code?: string | null; message?: string | null }): boolean {
+  if (error.code === '42P01' || error.code === 'PGRST205') return true;
+  return /relation "[^"]+" does not exist/.test(error.message ?? '');
+}
+
+/**
  * Maps a community listing row to the SmartRental shape.
  */
 function mapListingToRental(row: Record<string, unknown>): SmartRental {
@@ -360,7 +369,8 @@ function mapListingToRental(row: Record<string, unknown>): SmartRental {
     sub_category: (row.condition as string) ?? null,
     brand: null,
     model: null,
-    price_per_day: (row.price_per_day as number) ?? (row.price as number) ?? null,
+    // listings has a single price column; it is shown as the day rate.
+    price_per_day: (row.price as number) ?? null,
     price_per_week: null,
     deposit_amount: null,
     currency: (row.currency as string) ?? STUDIO.currency.code,
@@ -396,14 +406,14 @@ export async function getCommunityListings(): Promise<SmartRental[]> {
 
   const { data, error } = await supabase
     .from('listings')
-    .select('id, slug, title, description, category, price_per_day, price, currency, thumbnail_url, condition, location, tags, is_published, created_at')
+    .select('id, slug, title, description, category, price, currency, thumbnail_url, condition, location, tags, is_published, created_at')
     .eq('is_published', true)
     .is('deleted_at', null)
     .order('created_at', { ascending: false });
 
   if (error) {
-    // Table may not exist yet — fail silently
-    if (!error.message.includes('does not exist')) {
+    // Only a missing table is quiet; a missing column is a bug and is logged.
+    if (!isMissingTableError(error)) {
       console.error('[getCommunityListings]', error.message);
     }
     return [];

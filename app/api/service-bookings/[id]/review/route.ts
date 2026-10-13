@@ -3,6 +3,7 @@ export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
 import { checkRateLimit } from '@/lib/auth';
 import { createClient, createAdminClient } from '@/lib/supabase/server';
+import { publicReviewerName, saveServiceBookingReview } from '@/lib/supabase/queries/creatorReviews';
 
 // Writes that touch money or status go through the service role, after the
 // route has checked who the user is and that the record is theirs. The users'
@@ -32,14 +33,14 @@ export async function POST(
   const body = await request.json();
   const { rating, review } = body;
 
-  if (!rating || typeof rating !== 'number' || rating < 1 || rating > 5) {
-    return NextResponse.json({ error: 'Rating must be between 1 and 5' }, { status: 400 });
+  if (typeof rating !== 'number' || !Number.isInteger(rating) || rating < 1 || rating > 5) {
+    return NextResponse.json({ error: 'Rating must be a whole number from 1 to 5' }, { status: 400 });
   }
 
   // Fetch booking — client only
   const { data: booking, error: fetchError } = await supabase
     .from('bookings')
-    .select('id, client_id, status, client_rating')
+    .select('id, client_id, creator_id, status, client_rating')
     .eq('id', id)
     .single();
 
@@ -59,16 +60,46 @@ export async function POST(
     return NextResponse.json({ error: 'Already reviewed' }, { status: 409 });
   }
 
-  const { error: updateError } = await admin()
+  const comment = typeof review === 'string' && review.trim() ? review.trim() : null;
+  const db = admin();
+
+  // 1. The public review (what creator ratings read). Upsert on booking_id,
+  //    so a retry after step 2 failed updates the same row.
+  if (booking.creator_id) {
+    const { data: profile, error: profileError } = await db
+      .from('profiles')
+      .select('display_name')
+      .eq('id', user.id)
+      .maybeSingle();
+    if (profileError) console.error('[service-bookings/review] profile read failed:', profileError.message);
+
+    const saved = await saveServiceBookingReview(db, {
+      bookingId: id,
+      reviewerId: user.id,
+      reviewerName: publicReviewerName((profile as { display_name?: string | null } | null)?.display_name),
+      creatorId: booking.creator_id,
+      rating,
+      comment,
+    });
+    if (!saved.ok) {
+      console.error('[service-bookings/review] review write failed:', saved.error);
+      return NextResponse.json({ error: 'Failed to save review' }, { status: 500 });
+    }
+  }
+
+  // 2. The booking's own copy (dashboards read it). Only while still unrated.
+  const { error: updateError } = await db
     .from('bookings')
     .update({
       client_rating: rating,
-      client_review: review || null,
+      client_review: comment,
       updated_at: new Date().toISOString(),
     })
-    .eq('id', id);
+    .eq('id', id)
+    .is('client_rating', null);
 
   if (updateError) {
+    console.error('[service-bookings/review] booking update failed:', updateError.message);
     return NextResponse.json({ error: 'Failed to save review' }, { status: 500 });
   }
 

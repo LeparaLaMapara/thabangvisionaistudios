@@ -18,7 +18,8 @@ export async function POST() {
     .eq('is_read', false);
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error('[notifications] mark all read error:', error.message);
+    return NextResponse.json({ error: 'Failed to update notifications.' }, { status: 500 });
   }
 
   return NextResponse.json({ success: true });

@@ -1,8 +1,9 @@
-import { NextResponse } from 'next/server';
+import { NextResponse, after } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { checkConsents, requiredConsents } from '@/lib/consent';
 import { afterSignInPath, cleanNextPath, type ConsentState } from '@/lib/auth/next-path';
 import { homeFor } from '@/lib/welcome';
+import { sendWelcomeSoon } from '@/lib/engagement/runner';
 
 /**
  * Where Google and email sign-in links land.
@@ -33,6 +34,10 @@ export async function GET(request: Request): Promise<NextResponse> {
         if (isAdmin) {
           return NextResponse.redirect(new URL(afterSignInPath({ isAdmin, consent: 'ok', next }), origin));
         }
+
+        // A just-confirmed email: their welcome can go now (no-op once sent).
+        const welcomeId = user.id;
+        after(() => sendWelcomeSoon(welcomeId));
 
         const check = await checkConsents(supabase, user.id, requiredConsents('onboarding'));
         const consent: ConsentState =

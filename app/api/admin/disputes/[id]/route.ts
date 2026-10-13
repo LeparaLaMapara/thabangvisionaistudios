@@ -21,6 +21,7 @@ import { SupabaseRefunds, isMissingPipeline, transitionBookings } from '@/lib/re
 import { chargeOfBooking } from '@/lib/rental/charges';
 import { sendDisputeResolved } from '@/lib/email';
 import { profileWithEmail } from '@/lib/supabase/profile-email';
+import { releaseServiceBookingFromDispute } from '@/lib/supabase/queries/service-bookings';
 
 const VALID_STATUSES = ['open', 'investigating', 'resolved', 'escalated', 'dismissed'];
 const VALID_RESOLUTIONS = [
@@ -442,6 +443,17 @@ export async function PATCH(
       return NextResponse.json({ error: 'Failed to update dispute.' }, { status: 500 });
     }
 
+    // A closed dispute puts a 'disputed' service booking back where it was
+    // (085), so the payout rules decide again; a recorded refund still holds it.
+    let bookingWarning: string | null = null;
+    if (dispute.booking_id && (status === 'resolved' || status === 'dismissed')) {
+      const released = await releaseServiceBookingFromDispute(supabase, dispute.booking_id as string, new Date(now));
+      if (!released.ok) {
+        console.error('[admin/disputes/[id]] Could not release the booking:', released.error);
+        bookingWarning = 'The dispute is closed, but the booking is still marked disputed. Check it on the booking page.';
+      }
+    }
+
     // Add internal note as comment if provided
     if (internal_notes && internal_notes.trim()) {
       await supabase.from('dispute_comments').insert({
@@ -538,7 +550,7 @@ export async function PATCH(
       }
     }
 
-    return NextResponse.json({ success: true });
+    return NextResponse.json(bookingWarning ? { success: true, warning: bookingWarning } : { success: true });
   } catch (err) {
     console.error('[admin/disputes/[id]] PATCH error:', err);
     return NextResponse.json({ error: 'Internal server error.' }, { status: 500 });

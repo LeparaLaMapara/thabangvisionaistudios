@@ -351,7 +351,9 @@ async function createServiceBooking(
     cancelUrl: `${baseUrl}/dashboard/bookings?status=cancelled`,
     metadata: { customStr1: 'service_booking', customStr2: (booking as { id: string }).id },
   });
-  await admin().from('bookings').update({ paystack_reference: reference, paystack_access_code: accessCode || null }).eq('id', (booking as { id: string }).id);
+  // Not needed to confirm the payment (the webhook finds the booking by `reference`): log a failure, keep the link.
+  const { error: refError } = await admin().from('bookings').update({ paystack_reference: reference, paystack_access_code: accessCode || null }).eq('id', (booking as { id: string }).id);
+  if (refError) console.error('[agent/offers] Could not save the payment reference:', reference, refError.message);
 
   try {
     await emailProvider.sendEmail({

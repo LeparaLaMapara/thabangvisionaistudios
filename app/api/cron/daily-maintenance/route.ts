@@ -15,9 +15,11 @@ import { notifyClient } from '@/lib/bookings/notify-client';
 import { loadNoticeBookings, sendGearNotice } from '@/lib/rental/notices';
 import { paymentReference } from '@/lib/payments/eft';
 import { autoSendWelcomes, draftMissingWelcomes } from '@/lib/greetings/process';
+import { runLifecycle } from '@/lib/engagement/runner';
 import { runOverdueLadder } from '@/lib/rental/workers';
 import { buildNotices } from '@/lib/core/rental/notifications';
 import { SupabaseAddressRetention, purgeDeliveryAddresses } from '@/lib/delivery/jobs';
+import { pruneLogs } from '@/lib/cron/retention';
 import { answerWindowPassed, needsAnswerReminder } from '@/lib/bookings/answer-by';
 import {
   ANSWER_REMINDER_TITLE,
@@ -789,6 +791,23 @@ Please contact the client and the creator. They are not paid out or refunded aut
     results.deliveryAddressPurge = await purgeDeliveryAddresses(new SupabaseAddressRetention(supabase), now);
   } catch (err) {
     results.deliveryAddressPurge = { error: String(err) };
+  }
+
+  // ─── 17. Log retention (086) ─────────────────────────────────────────────
+  // platform_events, ai_token_usage, security_audit_log, payment_events
+  // (finished only) and read notifications past STUDIO.retention, in bounded
+  // batches. Never chat history or the ledger.
+  try {
+    results.logRetention = await pruneLogs(supabase);
+  } catch (err) {
+    results.logRetention = { error: String(err) };
+  }
+
+  // ─── 18. Lifecycle emails and push (lib/engagement) ──────────────────────
+  try {
+    results.engagement = await runLifecycle({ now });
+  } catch (err) {
+    results.engagement = { error: String(err) };
   }
 
   console.log('[daily-maintenance] Results:', JSON.stringify(results));

@@ -660,6 +660,30 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Failed to create bookings.' }, { status: 500 });
   }
 
+  // Create payment records. These are the reconciliation record: their sum is
+  // exactly what we asked the gateway to charge, which is what the webhook
+  // checks the receipt against.
+  // Split in integer cents with a deterministic remainder, so the lines sum to
+  // exactly what the gateway charges (a per-line round() could drift by a few
+  // cents and trip the webhook's amount check).
+  // Written BEFORE the payment link exists: without them a paid order could
+  // not be confirmed (lib/payments/fulfil.ts), so a failed write releases the
+  // hold and no link is handed out. Releasing deletes these rows too (cascade).
+  const lineAmounts = splitAcrossLines(amountDueNow, bookings.length);
+  const paymentRecords = bookings.map((b, i) => ({
+    booking_id: b.id,
+    amount: lineAmounts[i],
+    currency,
+    status: 'pending' as const,
+  }));
+
+  const { error: paymentRecordError } = await adminClient.from('booking_payments').insert(paymentRecords);
+  if (paymentRecordError) {
+    console.error('[cart/checkout] Payment record insert error:', paymentRecordError.message);
+    await releaseUnpaidReservation(adminClient, checkoutGroupId);
+    return NextResponse.json({ error: 'Failed to create bookings.' }, { status: 500 });
+  }
+
   // Create payment checkout (retry up to 2 times on failure)
   let paymentUrl: string | null = null;
 
@@ -711,22 +735,6 @@ export async function POST(request: NextRequest) {
       { status: 503 },
     );
   }
-
-  // Create payment records. These are the reconciliation record: their sum is
-  // exactly what we asked the gateway to charge, which is what the webhook
-  // checks the receipt against.
-  // Split in integer cents with a deterministic remainder, so the lines sum to
-  // exactly what the gateway charges (a per-line round() could drift by a few
-  // cents and trip the webhook's amount check).
-  const lineAmounts = splitAcrossLines(amountDueNow, bookings.length);
-  const paymentRecords = bookings.map((b, i) => ({
-    booking_id: b.id,
-    amount: lineAmounts[i],
-    currency,
-    status: 'pending' as const,
-  }));
-
-  await adminClient.from('booking_payments').insert(paymentRecords);
 
   // Clear cart
   await clearCart(user.id);

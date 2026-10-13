@@ -96,6 +96,8 @@ export interface TodayFacts {
   chats: ChatRow[] | null;
   signups: SignupRow[] | null;
   payments: 'live' | 'test' | 'off';
+  /** Lifecycle emails and push (087). Undefined or null: not on this database. */
+  engagement?: { sentToday: number; waiting: number; failed: number } | null;
 }
 
 // ─── What the page shows ─────────────────────────────────────────────────────
@@ -685,6 +687,16 @@ export function buildHealth(f: TodayFacts): HealthLight[] {
           ? 'Stopped: this month’s AI limit is used up.'
           : `${Math.round(ratio * 100)}% of this month’s limit used.`,
       href: '/admin/ai',
+    });
+  }
+
+  if (f.engagement) {
+    const e = f.engagement;
+    lights.push({
+      label: 'Customer emails',
+      tone: e.failed > 0 ? 'watch' : 'good',
+      detail: `${e.sentToday} sent in the last day, ${e.waiting} waiting${e.failed ? `, ${e.failed} failed` : ''}.`,
+      href: '/admin/engagement',
     });
   }
 

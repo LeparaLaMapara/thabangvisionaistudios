@@ -32,7 +32,8 @@ environment. `develop` deploys to **Preview** (dev Supabase), `main` to
 | `PAYSTACK_SECRET_KEY` / `NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY` | `sk_test_…` / `pk_test_…` | test keys until step 10, then `sk_live_…` / `pk_live_…` (production **refuses** test keys: payments show as closed) |
 | `PAYMENTS_OFF` | unset | unset (with test keys, production shows payments closed anyway until step 10) |
 | `MAINTENANCE_MODE`, `MAINTENANCE_BYPASS_TOKEN` | unset | `true` and a long random token until step 12 |
-| `CRON_SECRET`, `AGENT_APPROVAL_SECRET`, `PHONE_CODE_SECRET`, `CONSENT_IP_HASH_SECRET`, `SIGNUP_WEBHOOK_SECRET` | own random values | **different** random values (`openssl rand -hex 32`) |
+| `CRON_SECRET`, `AGENT_APPROVAL_SECRET`, `PHONE_CODE_SECRET`, `CONSENT_IP_HASH_SECRET`, `SIGNUP_WEBHOOK_SECRET`, `ENGAGEMENT_SIGNING_SECRET` | own random values | **different** random values (`openssl rand -hex 32`) |
+| `VAPID_PUBLIC_KEY`, `NEXT_PUBLIC_VAPID_PUBLIC_KEY` (same value), `VAPID_PRIVATE_KEY`, optional `VAPID_SUBJECT` | own key pair (`npx web-push generate-vapid-keys`) | a **different** key pair; changing it later drops every saved push subscription |
 | `EMAIL_PROVIDER=gmail`, `GMAIL_USER`, `GMAIL_APP_PASSWORD` | set (needed for the email check in step 6) | set |
 | `STORAGE_PROVIDER=cloudinary`, `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET` | set | set |
 | `AI_PROVIDER=anthropic`, `ANTHROPIC_API_KEY`, `GOOGLE_GENERATIVE_AI_API_KEY`, `GEMINI_API_KEY` | set | set |

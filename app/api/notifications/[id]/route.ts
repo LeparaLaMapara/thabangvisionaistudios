@@ -22,7 +22,8 @@ export async function PATCH(
     .eq('user_id', user.id);
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error('[notifications] mark read error:', error.message);
+    return NextResponse.json({ error: 'Failed to update the notification.' }, { status: 500 });
   }
 
   return NextResponse.json({ success: true });

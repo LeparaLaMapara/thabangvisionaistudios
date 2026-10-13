@@ -9,7 +9,7 @@ import { collectionPoint } from '@/lib/rental/collection-point';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-/** The fields of an order line this banner reads (GET /api/bookings returns the whole row). */
+/** The fields of an order line this banner reads (GET /api/bookings returns the renter's columns). */
 export interface OrderLineView {
   id: string;
   status: string;

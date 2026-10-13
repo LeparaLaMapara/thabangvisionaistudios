@@ -264,10 +264,37 @@ export const STUDIO = {
   },
 
   // Welcomes for new people (TASK-065, /admin/welcomes). null = the owner sends
-  // each one by hand. A number = drafts still unsent after that many hours are
-  // sent by the daily job. Off until the owner trusts the drafts.
+  // each one by hand. 0 = sent straight away by the lifecycle engine
+  // (lib/engagement) once the person's email is confirmed; a number = drafts
+  // still unsent after that many hours are sent by the daily job. Owner
+  // 2026-10-13: nobody approves welcomes; they all go automatically. Drafts
+  // for people who joined more than autoSendMaxAgeDays ago are skipped (a
+  // welcome months late reads as a mistake); 30 days covers everyone whose
+  // draft was waiting for a hand send when auto-send started.
   welcomes: {
-    autoSendAfterHours: null as number | null,
+    autoSendAfterHours: 0 as number | null,
+    autoSendMaxAgeDays: 30,
+  },
+
+  // Lifecycle emails and push (lib/engagement): welcome, "finish your signup"
+  // nudges, and tailored suggestions once a profile is complete.
+  engagement: {
+    // At most this many lifecycle emails per person (welcome included).
+    maxEmailsPerDay: 1,
+    maxEmailsPerWeek: 3,
+    // "Finish your signup" nudges: days after the person stopped. Then we stop.
+    nudgeAfterDays: [1, 3] as readonly number[],
+    // People who stopped longer ago than this get no first nudge.
+    nudgeLookbackDays: 14,
+    // A cart counts as left behind after this many hours.
+    cartAfterHours: 24,
+    // Tailored suggestions written by the AI per daily run (cost and time bound:
+    // the daily job has 60 seconds for everything).
+    tailoredPerRun: 3,
+    // Messages delivered per dispatcher run (the rest go the next day).
+    dispatchPerRun: 20,
+    // A push older than this is no longer news and is dropped.
+    pushStaleHours: 26,
   },
 
   verification: {
@@ -481,6 +508,21 @@ export const STUDIO = {
   // then deleted by the daily maintenance job.
   analytics: {
     funnelRetentionDays: 180,
+  },
+
+  // Log retention: rows older than this are deleted by the daily maintenance
+  // job (lib/cron/retention.ts, migration 086 prune_log_retention). Chat
+  // history and the money ledger are never pruned here. The database refuses
+  // less than 365 days for the audit log, payment events and AI cost history,
+  // and less than 30 for the rest.
+  retention: {
+    platformEventsDays: 180,
+    aiTokenUsageDays: 365, // AI cost history
+    securityAuditLogDays: 365,
+    paymentEventsDays: 365, // processed or ignored webhook events only
+    readNotificationsDays: 180, // read notices only; unread ones stay
+    batchSize: 1000, // rows per delete
+    maxBatchesPerTable: 5, // per daily run, so the job cannot time out
   },
 
   booking: {

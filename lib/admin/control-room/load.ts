@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { checkAiBudget } from '@/lib/ai/budget';
 import { isMissingPipeline } from '@/lib/rental/repos';
+import { summarise as summariseEngagement } from '@/lib/engagement/admin';
 import type {
   BugRow,
   ChatRow,
@@ -163,6 +164,10 @@ export async function loadTodayFacts(db: Db, now: Date = new Date()): Promise<To
   const asName = (p: { id: string; display_name: string | null; first_name: string | null; last_name: string | null }): string =>
     nameOf(p, 'Someone');
 
+  // Customer emails (087); read on its own so the page works without it.
+  const engagementRows = await rows<{ status: string; created_at: string; sent_at: string | null }>('customer emails',
+    db.from('notification_outbox').select('status, created_at, sent_at').like('kind', 'engage_%').gte('created_at', twoWeeksAgo).limit(CAP));
+
   return {
     now,
     idChecks: (idChecks as (ProfileName & { verification_submitted_at: string | null })[] | null)?.map(
@@ -255,5 +260,6 @@ export async function loadTodayFacts(db: Db, now: Date = new Date()): Promise<To
       (p): SignupRow => ({ id: p.id, name: asName(p), createdAt: p.created_at }),
     ) ?? null,
     payments: paymentsMode(),
+    engagement: engagementRows ? summariseEngagement(engagementRows, now) : null,
   };
 }
