@@ -341,7 +341,7 @@ export async function refundPayment(reference: string, amount?: number): Promise
 }> {
   try {
     const body: Record<string, unknown> = { transaction: reference };
-    if (amount) body.amount = Math.round(amount * 100); // ZAR → cents
+    if (amount) body.amount = toCents(amount); // ZAR → cents (same conversion as the charge)
 
     const res = await fetch(`${PAYSTACK_API}/refund`, {
       method: 'POST',

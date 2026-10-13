@@ -67,8 +67,9 @@ of `verifications` objects by anyone other than their owner.
 | 16 | `081-creative-tools-flag.sql` | |
 | 17 | `082-verification-notifications.sql` | `082-…test.sql` (082 comes with the admin control room branch) |
 | 18 | `084-embeddings-768.sql` | `084-…test.sql`, then POST `/api/admin/reindex` once `RAG_ENABLED=true` |
-| 18b | `087-customer-engagement.sql` (needs 070) | `087-…test.sql`, `rls-coverage.test.sql`. Set `ENGAGEMENT_SIGNING_SECRET` and the VAPID keys on Vercel first; with `ENGAGEMENT_DRY_RUN=true` the daily run only logs |
-| 19 | `notify pgrst, 'reload schema';` | `rls-coverage.test.sql` |
+| 19 | `085-disputes-and-reviews-wiring.sql` | `085-…test.sql`. Apply with (or before) the build that writes `bookings.status_before_dispute` and `reviews.booking_id` (branch fix/audit-a-disputes-wiring); stops with a message if a booking already has two live disputes |
+| 19b | `087-customer-engagement.sql` (needs 070) | `087-…test.sql`, `rls-coverage.test.sql`. Set `ENGAGEMENT_SIGNING_SECRET` and the VAPID keys on Vercel first; with `ENGAGEMENT_DRY_RUN=true` the daily run only logs |
+| 20 | `notify pgrst, 'reload schema';` | `rls-coverage.test.sql` |
 
 ### Why 083 runs first although its number is last
 
@@ -88,6 +89,38 @@ applies it after 082, where it changes nothing.
 
 If 083 stops with "creator(s) have more than one live smart_productions row",
 nothing in it was applied: resolve the duplicates, then run it again.
+
+## 2b. After the release: 086 (database performance)
+
+A separate step, any time after step 19 has run and been checked; it is not
+needed for the launch. Same founder go as the rest.
+
+| Step | Run | Then |
+|---|---|---|
+| 20 | `086-db-performance.sql` | `086-db-performance.test.sql`, `rls-coverage.test.sql` |
+
+What it does (details in the file header): every ThabangVision policy calls
+`auth.uid()`, `auth.jwt()`, `is_admin()` and `current_user_is_suspended()`
+once per query instead of once per row, except `profiles`' three read
+policies, which must stay as they are; the four no-op "Service role full
+access" policies go; the chat and welcome admin reads use `is_admin()`, so a
+suspended admin no longer reads every chat; 14 indexes are added and the
+exact duplicates (and three covered indexes) dropped; `prune_log_retention()`
+is created for the daily maintenance job.
+
+- Expect NOTICE lines "no policy … here (the other database's name),
+  skipped": the file lists both production's and dev's policy names.
+- It stops (and applies nothing) if any rewritten policy would differ from
+  the old one apart from the `(select …)` wrappers, or if a policy calling
+  those functions per row is left. Send the output back rather than editing
+  the file on the spot.
+- Rehearsed on DEV 2026-10-13 with production's 25 differently named
+  policies recreated in the same rolled-back transaction, then applied to DEV
+  twice (the second run changes nothing).
+- App: the build with daily maintenance step 17 (`lib/cron/retention.ts`)
+  may go before or after. Before 086 that step logs one error per table and
+  deletes nothing. Day counts: `STUDIO.retention` in `lib/constants.ts`.
+- Rollback: the block at the bottom of the file.
 
 ## 3. Smoke test (maintenance bypass)
 

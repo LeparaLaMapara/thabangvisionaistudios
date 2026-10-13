@@ -16,7 +16,10 @@ export async function GET() {
     .select('user_id, email, first_name, signup_method, activity, subject, body, drafted_by, status, sent_at, created_at')
     .order('created_at', { ascending: false })
     .limit(200);
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) {
+    console.error('[admin/welcomes] GET error:', error.message);
+    return NextResponse.json({ error: 'Failed to load welcome messages.' }, { status: 500 });
+  }
   return NextResponse.json({ welcomes: data ?? [] });
 }
 

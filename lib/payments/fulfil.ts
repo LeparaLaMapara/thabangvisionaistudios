@@ -37,12 +37,17 @@ export async function handlePaymentComplete(webhook: WebhookResult) {
     const checkoutGroupId = paymentId;
     const userId = raw.custom_str2 ?? raw.customStr2 ?? '';
 
-    const { data: groupBookings } = await supabase
+    const { data: groupBookings, error: groupErr } = await supabase
       .from('equipment_bookings')
       .select('id, total_price')
       .eq('checkout_group_id', checkoutGroupId)
       .eq('user_id', userId);
 
+    // A read error is not "no bookings": throw so the provider retries.
+    if (groupErr) {
+      console.error('[payment-webhook] Could not load the checkout group; not confirmed:', checkoutGroupId, groupErr.message);
+      throw new Error('cart checkout lookup failed');
+    }
     if (!groupBookings || groupBookings.length === 0) {
       console.error('[payment-webhook] No bookings found for checkout group:', checkoutGroupId);
       return;
@@ -54,10 +59,15 @@ export async function handlePaymentComplete(webhook: WebhookResult) {
     // discount and any delivery fee, so a correct payment looked like a
     // mismatch and the booking was pushed back to pending.
     const bookingIds = groupBookings.map((b) => b.id);
-    const { data: groupPayments } = await supabase
+    const { data: groupPayments, error: paymentsErr } = await supabase
       .from('booking_payments')
       .select('amount')
       .in('booking_id', bookingIds);
+
+    if (paymentsErr) {
+      console.error('[payment-webhook] Could not load the payment records; not confirmed:', checkoutGroupId, paymentsErr.message);
+      throw new Error('cart payment records lookup failed');
+    }
 
     const expectedTotal = (groupPayments ?? []).reduce(
       (sum, p) => sum + Number(p.amount ?? 0),
@@ -74,7 +84,7 @@ export async function handlePaymentComplete(webhook: WebhookResult) {
         received: amountGross,
         checkoutGroupId,
       });
-      await supabase
+      const { error: flagErr } = await supabase
         .from('equipment_bookings')
         .update({
           status: 'pending',
@@ -84,6 +94,11 @@ export async function handlePaymentComplete(webhook: WebhookResult) {
         .eq('checkout_group_id', checkoutGroupId)
         // A booking already confirmed by another payment is never pushed back.
         .eq('status', 'pending');
+      // The note is how a person finds the mismatch: retry until it is written.
+      if (flagErr) {
+        console.error('[payment-webhook] Could not flag the amount mismatch:', checkoutGroupId, flagErr.message);
+        throw new Error('cart mismatch flag failed');
+      }
       return;
     }
 
@@ -102,20 +117,48 @@ export async function handlePaymentComplete(webhook: WebhookResult) {
       .eq('status', 'pending')
       .select('id');
 
+    // A paid order must never stay pending because a write failed: throw so
+    // the provider retries (the confirm is guarded, so a retry is safe).
     if (updateErr) {
       console.error('[payment-webhook] Failed to confirm cart bookings:', updateErr.message);
-    } else if (!confirmed || confirmed.length === 0) {
-      console.error('[payment-webhook] Cart payment matched no pending bookings; needs manual review:', checkoutGroupId);
-    } else {
-      for (const booking of groupBookings) {
-        await supabase
-          .from('booking_payments')
-          .update({ status: 'succeeded', payfast_payment_id: providerPaymentId })
-          .eq('booking_id', booking.id)
-          .eq('status', 'pending');
+      throw new Error('cart checkout confirmation failed');
+    }
+
+    // Close the payment lines in one write. Retried on failure: the retry finds
+    // the bookings already confirmed by this payment and finishes this step.
+    const markGroupPaid = async (ids: string[]) => {
+      const { error: payErr } = await supabase
+        .from('booking_payments')
+        .update({ status: 'succeeded', payfast_payment_id: providerPaymentId })
+        .in('booking_id', ids)
+        .eq('status', 'pending');
+      if (payErr) {
+        console.error('[payment-webhook] Bookings confirmed but payment records not updated:', checkoutGroupId, payErr.message);
+        throw new Error('cart payment records update failed');
       }
+    };
+
+    if (!confirmed || confirmed.length === 0) {
+      // A retry of a payment already applied: finish closing its payment lines.
+      const { data: mine, error: mineErr } = await supabase
+        .from('equipment_bookings')
+        .select('id')
+        .eq('checkout_group_id', checkoutGroupId)
+        .eq('payfast_payment_id', providerPaymentId);
+      if (mineErr) {
+        console.error('[payment-webhook] Could not re-read the checkout group:', checkoutGroupId, mineErr.message);
+        throw new Error('cart checkout re-read failed');
+      }
+      if (mine && mine.length > 0) {
+        await markGroupPaid(mine.map((b: { id: string }) => b.id));
+        console.log(`[payment-webhook] Cart checkout already confirmed by this payment: group=${checkoutGroupId}`);
+      } else {
+        console.error('[payment-webhook] Cart payment matched no pending bookings; needs manual review:', checkoutGroupId);
+      }
+    } else {
       console.log(`[payment-webhook] Cart checkout confirmed: group=${checkoutGroupId} count=${groupBookings.length}`);
       await sendGearNotice('confirmed', await loadNoticeBookings(groupBookings.map((b: { id: string }) => b.id)));
+      await markGroupPaid(bookingIds);
     }
   } else if (paymentType === 'equipment_booking') {
     // Reconcile payment amount before confirming
@@ -136,7 +179,7 @@ export async function handlePaymentComplete(webhook: WebhookResult) {
         received: amountGross,
         bookingId: paymentId,
       });
-      await supabase
+      const { error: flagErr } = await supabase
         .from('equipment_bookings')
         .update({
           status: 'pending',
@@ -145,6 +188,10 @@ export async function handlePaymentComplete(webhook: WebhookResult) {
         })
         .eq('id', paymentId)
         .eq('status', 'pending');
+      if (flagErr) {
+        console.error('[payment-webhook] Could not flag the amount mismatch:', paymentId, flagErr.message);
+        throw new Error('equipment mismatch flag failed');
+      }
       return;
     }
 
@@ -162,29 +209,60 @@ export async function handlePaymentComplete(webhook: WebhookResult) {
 
     if (bookingErr) {
       console.error('[payment-webhook] Failed to confirm booking:', bookingErr.message);
-    } else if (!confirmedRow || confirmedRow.length === 0) {
-      console.error('[payment-webhook] Payment matched no pending booking; needs manual review:', paymentId);
-    } else {
-      await sendGearNotice('confirmed', await loadNoticeBookings([paymentId]));
-      const { data: existingPayment } = await supabase
+      throw new Error('equipment booking confirmation failed');
+    }
+
+    // Record the payment once. Retried on failure: the retry finds the booking
+    // already confirmed by this payment and finishes this step.
+    const recordPayment = async () => {
+      const { data: existingPayment, error: existingErr } = await supabase
         .from('booking_payments')
         .select('id')
         .eq('booking_id', paymentId)
         .eq('payfast_payment_id', providerPaymentId)
         .maybeSingle();
-
+      if (existingErr) {
+        console.error('[payment-webhook] Could not check the payment record:', paymentId, existingErr.message);
+        throw new Error('equipment payment record lookup failed');
+      }
       if (existingPayment) {
         console.log(`[payment-webhook] Payment already recorded: booking=${paymentId} provider=${providerPaymentId}`);
-      } else {
-        await supabase.from('booking_payments').insert({
-          booking_id: paymentId,
-          payfast_payment_id: providerPaymentId,
-          amount: amountGross,
-          currency: 'ZAR',
-          status: 'succeeded',
-        });
+        return;
       }
+      const { error: insertErr } = await supabase.from('booking_payments').insert({
+        booking_id: paymentId,
+        payfast_payment_id: providerPaymentId,
+        amount: amountGross,
+        currency: 'ZAR',
+        status: 'succeeded',
+      });
+      // 23505: a concurrent delivery recorded it first (unique index, 040).
+      if (insertErr && (insertErr as { code?: string }).code !== '23505') {
+        console.error('[payment-webhook] Booking confirmed but payment not recorded:', paymentId, insertErr.message);
+        throw new Error('equipment payment record insert failed');
+      }
+    };
 
+    if (!confirmedRow || confirmedRow.length === 0) {
+      const { data: mine, error: mineErr } = await supabase
+        .from('equipment_bookings')
+        .select('id')
+        .eq('id', paymentId)
+        .eq('payfast_payment_id', providerPaymentId)
+        .maybeSingle();
+      if (mineErr) {
+        console.error('[payment-webhook] Could not re-read the booking:', paymentId, mineErr.message);
+        throw new Error('equipment booking re-read failed');
+      }
+      if (mine) {
+        await recordPayment();
+        console.log(`[payment-webhook] Booking already confirmed by this payment: ref=${paymentId}`);
+      } else {
+        console.error('[payment-webhook] Payment matched no pending booking; needs manual review:', paymentId);
+      }
+    } else {
+      await sendGearNotice('confirmed', await loadNoticeBookings([paymentId]));
+      await recordPayment();
       console.log(`[payment-webhook] Booking confirmed: ref=${paymentId}`);
     }
   } else if (paymentType === 'service_booking') {
@@ -261,7 +339,7 @@ export async function confirmServiceBookingPayment(webhook: WebhookResult): Prom
   if (!Number.isSafeInteger(expectedCents) || expectedCents <= 0 || receivedCents !== expectedCents) {
     // Flag a booking still awaiting payment for review; never touch one that
     // has moved on.
-    await supabase
+    const { error: flagErr } = await supabase
       .from('bookings')
       .update({
         admin_notes: `AMOUNT MISMATCH: expected ${expectedCents} cents, received ${receivedCents} cents (${providerPaymentId}). Manual review required.`,
@@ -270,6 +348,10 @@ export async function confirmServiceBookingPayment(webhook: WebhookResult): Prom
       .eq('id', booking.id)
       .eq('status', 'pending')
       .eq('payment_status', 'unpaid');
+    if (flagErr) {
+      // Not confirmed either way; reject() below still records the rejection as an event.
+      console.error('[payment-webhook] Could not flag the service amount mismatch:', paymentId, flagErr.message);
+    }
     return reject(`amount mismatch: expected ${expectedCents} cents, received ${receivedCents} cents`);
   }
 
@@ -382,9 +464,11 @@ export async function confirmSubscriptionPayment(
     .eq('provider_reference', paymentId)
     .maybeSingle();
 
+  // A database error is not a rejection: throw so the provider retries,
+  // or a paid subscription would stay pending.
   if (readErr) {
     console.error('[payment-webhook] Subscription lookup failed:', readErr.message);
-    return 'rejected';
+    throw new Error('subscription lookup failed');
   }
 
   const decision = decideSubscriptionConfirmation(
@@ -427,7 +511,7 @@ export async function confirmSubscriptionPayment(
 
   if (subErr) {
     console.error('[payment-webhook] Failed to activate subscription:', subErr.message);
-    return 'rejected';
+    throw new Error('subscription activation failed');
   }
   if (!activated || activated.length === 0) {
     console.log(`[payment-webhook] Subscription no longer pending, nothing changed: ref=${paymentId}`);
@@ -482,11 +566,14 @@ export async function handlePaymentFailed(webhook: WebhookResult) {
   } else if (paymentType === 'subscription') {
     // Only a still-pending attempt is cancelled; a failed charge event can
     // never cancel an active subscription.
-    await supabase
+    const { error: cancelErr } = await supabase
       .from('subscriptions')
       .update({ status: 'cancelled', updated_at: new Date().toISOString() })
       .eq('provider_reference', paymentId)
       .eq('status', 'pending');
+    if (cancelErr) {
+      console.error('[payment-webhook] Could not close the failed subscription attempt:', paymentId, cancelErr.message);
+    }
   }
 }
 

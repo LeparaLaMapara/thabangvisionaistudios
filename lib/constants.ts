@@ -509,6 +509,21 @@ export const STUDIO = {
     funnelRetentionDays: 180,
   },
 
+  // Log retention: rows older than this are deleted by the daily maintenance
+  // job (lib/cron/retention.ts, migration 086 prune_log_retention). Chat
+  // history and the money ledger are never pruned here. The database refuses
+  // less than 365 days for the audit log, payment events and AI cost history,
+  // and less than 30 for the rest.
+  retention: {
+    platformEventsDays: 180,
+    aiTokenUsageDays: 365, // AI cost history
+    securityAuditLogDays: 365,
+    paymentEventsDays: 365, // processed or ignored webhook events only
+    readNotificationsDays: 180, // read notices only; unread ones stay
+    batchSize: 1000, // rows per delete
+    maxBatchesPerTable: 5, // per daily run, so the job cannot time out
+  },
+
   booking: {
     platformCommission: 15,
     vatRate: 15,

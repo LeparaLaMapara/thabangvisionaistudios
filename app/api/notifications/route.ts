@@ -20,7 +20,8 @@ export async function GET() {
     .limit(50);
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error('[notifications] GET error:', error.message);
+    return NextResponse.json({ error: 'Failed to load notifications.' }, { status: 500 });
   }
 
   // Crons run once a day, so queued pushes (bell items for people with push

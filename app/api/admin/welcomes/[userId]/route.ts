@@ -32,7 +32,10 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       .eq('user_id', userId)
       .eq('status', 'draft')
       .select('user_id');
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    if (error) {
+      console.error('[admin/welcomes] edit error:', error.message);
+      return NextResponse.json({ error: 'Failed to save the draft.' }, { status: 500 });
+    }
     if (!data?.length) return NextResponse.json({ error: 'Only a draft can be edited.' }, { status: 409 });
     return NextResponse.json({ ok: true });
   }
@@ -48,7 +51,10 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       .update({ status: 'discarded', updated_at: now })
       .eq('user_id', userId)
       .eq('status', 'draft');
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    if (error) {
+      console.error('[admin/welcomes] discard error:', error.message);
+      return NextResponse.json({ error: 'Failed to discard the draft.' }, { status: 500 });
+    }
     return NextResponse.json({ ok: true });
   }
 
