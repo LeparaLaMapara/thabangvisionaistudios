@@ -420,10 +420,24 @@ export async function createCreatorProduction(userId: string): Promise<{ success
 }
 
 /**
+ * Off on purpose. The rule is to auto-publish only creator productions an
+ * admin never looked at, but nothing records an admin's decision:
+ * smart_productions has no reviewed or hidden column, and the publish toggle
+ * on /admin/projects only flips is_published. "Unpublished and older than 7
+ * days" therefore also matches every page an admin hid on purpose, and turning
+ * this on would publish all of them on the next daily run. Turn it back on
+ * only once an admin decision is stored (for example a reviewed_at column set
+ * by the toggle) and the read below skips reviewed rows.
+ */
+export const AUTO_PUBLISH_CREATOR_PRODUCTIONS = false;
+
+/**
  * Auto-publishes creator productions that have been pending review for 7+ days.
- * Called by the daily maintenance cron.
+ * Called by the daily maintenance cron. Does nothing (returns 0) while
+ * AUTO_PUBLISH_CREATOR_PRODUCTIONS is off.
  */
 export async function autoPublishCreatorProductions(): Promise<number> {
+  if (!AUTO_PUBLISH_CREATOR_PRODUCTIONS) return 0;
   const supabase = createAdminClient();
   const cutoff = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
 

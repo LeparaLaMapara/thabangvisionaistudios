@@ -13,13 +13,14 @@
 --       hand-made duplicates "Users view own verification docs" and "Users
 --       upload own verification docs" (same rules as 003's "Users can read /
 --       upload own verification docs", which stay and which 067 manages).
---       F1 is also run on its own on prod as a hotfix, ahead of the release;
---       running it again here is harmless.
+--       F1 was run on its own on prod as a hotfix on 2026-10-13 (recorded
+--       there as hotfix_close_verification_docs_leak); running it again here
+--       is harmless.
 --   F2. smart_productions: migration 035 never reached prod or dev. Add
---       submitted_at and its two indexes. The develop code writes and filters
---       on submitted_at (lib/supabase/queries/smartProductions.ts), so creator
---       production submit and the 7-day auto-publish fail without it. The
---       unique index refuses with a clear message if a creator has two live
+--       submitted_at and its two indexes. Since #73 the code no longer reads
+--       or writes submitted_at (lib/supabase/queries/smartProductions.ts uses
+--       created_at), so F2 is schema catch-up only; it stays because it is
+--       harmless. The unique index refuses with a clear message if a creator has two live
 --       rows (prod and dev had none on 2026-10-12). That refusal rolls back
 --       the whole file, F1 included, which is one more reason F1 also runs on
 --       its own first.
