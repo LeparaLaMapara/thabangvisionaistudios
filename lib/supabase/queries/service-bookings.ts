@@ -261,3 +261,79 @@ export async function countOpenServiceDisputes(db: SupabaseClient, bookingId: st
     return null;
   }
 }
+
+// ─── Disputes on service bookings (085) ─────────────────────────────────────
+
+/** Statuses a dispute moves to 'disputed' (and back from, once it is closed). */
+export const DISPUTE_HOLDABLE_SERVICE_STATUSES = ['paid', 'accepted', 'delivered', 'completed'] as const;
+
+/** Dispute statuses that are finished; anything else is live. */
+export const CLOSED_DISPUTE_STATUSES = ['resolved', 'dismissed'] as const;
+
+export type DisputeHoldResult =
+  | { ok: true; moved: boolean }
+  | { ok: false; error: string; changed?: boolean };
+
+/**
+ * Moves a service booking to 'disputed', remembering the status it had so
+ * staff can put it back when the dispute is closed. Compare-and-set on the
+ * status read by the caller. A booking in any other status (unpaid, paid
+ * out, declined) keeps its status: the open dispute row still holds the
+ * payout (countOpenServiceDisputes), and a person handles it.
+ */
+export async function holdServiceBookingForDispute(
+  db: SupabaseClient,
+  booking: { id: string; status: string },
+  now: Date,
+): Promise<DisputeHoldResult> {
+  if (!(DISPUTE_HOLDABLE_SERVICE_STATUSES as readonly string[]).includes(booking.status)) {
+    return { ok: true, moved: false };
+  }
+  const r = await updateServiceBooking(db, booking.id, booking.status, {
+    status: 'disputed',
+    status_before_dispute: booking.status,
+    disputed_at: now.toISOString(),
+    updated_at: now.toISOString(),
+  });
+  if (!r.ok) return { ok: false, error: r.error };
+  if (!r.updated) return { ok: false, error: 'The booking changed while the dispute was being filed.', changed: true };
+  return { ok: true, moved: true };
+}
+
+export type DisputeReleaseResult =
+  | { ok: true; restoredTo: string | null }
+  | { ok: false; error: string };
+
+/**
+ * After staff close a dispute: a 'disputed' service booking with no other
+ * live dispute goes back to the status it had before. Nothing happens when
+ * it is not 'disputed', another dispute is still live, or the earlier status
+ * is unknown (a person moves it then). Money rules are unchanged: a refund
+ * recorded on the booking still holds the payout.
+ */
+export async function releaseServiceBookingFromDispute(
+  db: SupabaseClient,
+  bookingId: string,
+  now: Date,
+): Promise<DisputeReleaseResult> {
+  const { data, error } = await db
+    .from('bookings')
+    .select('id, status, status_before_dispute')
+    .eq('id', bookingId)
+    .maybeSingle();
+  if (error) return { ok: false, error: error.message };
+  const row = data as { status: string; status_before_dispute: string | null } | null;
+  if (!row || row.status !== 'disputed' || !row.status_before_dispute) return { ok: true, restoredTo: null };
+
+  const live = await countOpenServiceDisputes(db, bookingId);
+  if (live === null) return { ok: false, error: 'Could not check for other open disputes.' };
+  if (live > 0) return { ok: true, restoredTo: null };
+
+  const r = await updateServiceBooking(db, bookingId, 'disputed', {
+    status: row.status_before_dispute,
+    status_before_dispute: null,
+    updated_at: now.toISOString(),
+  });
+  if (!r.ok) return { ok: false, error: r.error };
+  return { ok: true, restoredTo: r.updated ? row.status_before_dispute : null };
+}
