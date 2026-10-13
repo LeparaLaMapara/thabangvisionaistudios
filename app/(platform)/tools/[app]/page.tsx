@@ -8,6 +8,7 @@ import { STUDIO, UBUNYE_STUDIO, getUbunyeApp } from '@/lib/constants';
 import { buildPageMetadata } from '@/lib/seo/metadata';
 import { getUbunyeRelease, pickerFiles } from '@/lib/ubunye-release';
 import { breadcrumbJsonLd, renderJsonLd } from '@/lib/seo/structured-data';
+import { ubunyeAppJsonLd } from '@/lib/seo/ubunye-app-jsonld';
 import { UB_DISPLAY, UB_LABEL, withAlpha } from '@/components/tools/ubunye-styles';
 import { UbunyeDownloadPicker } from '@/components/tools/UbunyeDownloadPicker';
 
@@ -28,6 +29,7 @@ export async function generateMetadata({ params }: ToolPageProps) {
     title: `${app.name}: ${app.category}`,
     description: `${app.name}: ${app.category}. ${app.tagline} Free, from ${UBUNYE_STUDIO.suiteName}. ${availability}`,
     path: `/tools/${app.slug}`,
+    markdown: true,
   });
 }
 
@@ -54,6 +56,7 @@ export default async function ToolPage({ params }: ToolPageProps) {
   return (
     <div className="pb-20 pt-28 sm:pt-32">
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: renderJsonLd(jsonLd) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: renderJsonLd(ubunyeAppJsonLd(app, release)) }} />
 
       <div className="container mx-auto px-4 sm:px-6">
         <Link

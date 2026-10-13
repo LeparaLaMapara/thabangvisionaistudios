@@ -18,9 +18,8 @@ describe('renderJsonLd escaping (INJ-1)', () => {
     const out = renderJsonLd(
       personJsonLd({
         display_name: PAYLOAD,
-        crew_slug: 'x',
+        url: 'https://example.test/studio/category/photography/x',
         specializations: ['Photography'],
-        hourly_rate: 100,
         location: PAYLOAD,
         avatar_url: null,
       }),

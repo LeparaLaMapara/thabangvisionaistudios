@@ -10,6 +10,7 @@ import {
 import { recordServiceBookingEvent } from '@/lib/supabase/queries/service-bookings';
 import { logEvent } from '@/lib/data/events';
 import { STUDIO } from '@/lib/constants';
+import { appUrl } from '@/lib/app-url';
 import { toCents } from '@/lib/core/pricing/money';
 import { email as emailProvider } from '@/lib/email';
 import { newPaidJobEmail, newPaidJobNoticeBody } from '@/lib/bookings/creator-job-emails';
@@ -417,7 +418,7 @@ export async function confirmServiceBookingPayment(webhook: WebhookResult): Prom
       const { data: creator } = await supabase.auth.admin.getUserById(String(booking.creator_id));
       const to = creator?.user?.email;
       if (to) {
-        const baseUrl = process.env.NEXT_PUBLIC_APP_URL || STUDIO.meta.url;
+        const baseUrl = appUrl(STUDIO.meta.url);
         await emailProvider.sendEmail({ to, ...newPaidJobEmail(job, baseUrl) });
       }
     } catch (err) {

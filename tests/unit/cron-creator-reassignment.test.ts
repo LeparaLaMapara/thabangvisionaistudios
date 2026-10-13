@@ -140,4 +140,13 @@ describe('daily maintenance: unresponsive creator reassignment', () => {
     expect(tables.bookings[0]).toMatchObject({ status: 'declined', creator_id: 'creator-1' });
     expect(unresponsiveMails()).toHaveLength(0);
   });
+
+  it('a creator an admin assigns between the read and the write keeps the job', async () => {
+    seed();
+    afterCandidateRead = () => Object.assign(tables.bookings[0], { creator_id: 'creator-2' });
+    await runCron();
+    expect(tables.bookings[0]).toMatchObject({ status: 'paid', creator_id: 'creator-2' });
+    expect(unresponsiveMails()).toHaveLength(0);
+    expect(unassignedNotices()).toHaveLength(0);
+  });
 });

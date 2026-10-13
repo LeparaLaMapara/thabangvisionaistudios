@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { MapPin, Star } from 'lucide-react';
 import type { CreatorProfile } from '@/lib/supabase/queries/smartProductions';
 import { STUDIO } from '@/lib/constants';
+import { creatorProfilePath } from '@/lib/seo/creator-url';
 
 interface CreatorCardProps {
   member: CreatorProfile;
@@ -24,9 +25,7 @@ export default function CreatorCard({ member, avgRating, totalReviews = 0 }: Cre
 
   const primarySpec = member.specializations?.[0] || 'Creative Professional';
 
-  const href = member.crew_slug
-    ? `/studio/category/photography/${member.crew_slug}`
-    : `/studio/category/photography/${member.id}`;
+  const href = creatorProfilePath(member);
 
   return (
     <Link href={href} className="group block">

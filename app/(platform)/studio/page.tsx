@@ -4,11 +4,13 @@ import SmartProductionClient from './SmartProductionClient';
 import { STUDIO } from '@/lib/constants';
 import { AskUbunyeButton } from '@/components/ubunye/AskUbunyeButton';
 import { getPublishedProductions } from '@/lib/supabase/queries/smartProductions';
+import { buildPageMetadata } from '@/lib/seo/metadata';
 
-export const metadata = {
+export const metadata = buildPageMetadata({
   title: 'Photo and Video Shoots by Request',
   description: `Photo and video shoots in ${STUDIO.serviceArea.province}, by request. ${STUDIO.serviceArea.outsideProvinceNote} Choose a package and send a request; we confirm who will shoot it, the date and the price before you pay.`,
-};
+  path: '/studio',
+});
 
 /**
  * The work itself is the page.

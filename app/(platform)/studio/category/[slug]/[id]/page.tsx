@@ -1,11 +1,13 @@
 export const revalidate = 60;
 
-import { notFound } from 'next/navigation';
+import { notFound, permanentRedirect } from 'next/navigation';
 import { PRODUCTION_CATEGORIES, PRODUCTION_PACKAGES, STUDIO } from '@/lib/constants';
 import { getCrewBySlug, getCrewPortfolio, getCrewReviews } from '@/lib/supabase/queries/crew';
 import { getProductionsByType } from '@/lib/supabase/queries/smartProductions';
 import { buildPageMetadata } from '@/lib/seo/metadata';
-import { personJsonLd, aggregateRatingJsonLd, breadcrumbJsonLd, renderJsonLd } from '@/lib/seo/structured-data';
+import { personJsonLd, breadcrumbJsonLd, renderJsonLd } from '@/lib/seo/structured-data';
+import { creatorProfilePath } from '@/lib/seo/creator-url';
+import { metaDescription } from '@/lib/seo/metadata';
 import ProductionPackageDetailView from './ProductionPackageDetailView';
 import ProductionCreatorDetailView from './ProductionCreatorDetailView';
 import { AskUbunyeButton } from '@/components/ubunye/AskUbunyeButton';
@@ -33,8 +35,12 @@ export async function generateMetadata({ params }: Props) {
     const spec = crew.specializations.join(', ') || 'Creative Professional';
     return buildPageMetadata({
       title: `${name} — ${spec}`,
-      description: `Book ${name} for ${spec.toLowerCase()} in ${crew.location ?? STUDIO.serviceArea.province}. View portfolio, reviews, and rates on ${STUDIO.shortName}.`,
-      path: `/studio/category/${slug}/${id}`,
+      description: metaDescription(
+        crew.crew_bio ?? crew.bio,
+        `Book ${name} for ${spec.toLowerCase()} in ${crew.location ?? STUDIO.serviceArea.province}. View portfolio, reviews, and rates on ${STUDIO.shortName}.`,
+      ),
+      path: creatorProfilePath(crew),
+      markdown: true,
       imageUrl: crew.avatar_url ?? undefined,
     });
   }
@@ -78,37 +84,33 @@ export default async function ProductionDetailPage({ params }: Props) {
   const crew = await getCrewBySlug(id);
   if (!crew) notFound();
 
+  // One address per creator (lib/seo/creator-url.ts): their own category and
+  // their crew slug. Any other category, or the id instead of the slug,
+  // redirects there.
+  const canonicalPath = creatorProfilePath(crew);
+  if (`/studio/category/${slug}/${encodeURIComponent(id)}` !== canonicalPath) {
+    permanentRedirect(canonicalPath);
+  }
+
   const [portfolio, reviews] = await Promise.all([
     getCrewPortfolio(crew.id),
     getCrewReviews(crew.id),
   ]);
 
-  const creatorUrl = `${STUDIO.meta.url}/studio/category/${slug}/${id}`;
+  const creatorUrl = `${STUDIO.meta.url}${canonicalPath}`;
   const creatorName = crew.display_name ?? 'Creator';
   const jsonLd = [
     personJsonLd({
       display_name: crew.display_name,
-      crew_slug: crew.crew_slug,
+      url: creatorUrl,
       specializations: crew.specializations,
-      hourly_rate: crew.hourly_rate,
       location: crew.location,
       avatar_url: crew.avatar_url,
-    }),
-    breadcrumbJsonLd([
-      { name: 'Home', url: STUDIO.meta.url },
-      { name: 'Studio', url: `${STUDIO.meta.url}/studio` },
-      { name: category.name, url: `${STUDIO.meta.url}/studio/category/${slug}` },
-      { name: creatorName, url: creatorUrl },
-    ]),
-    ...(reviews.length > 0
-      ? [
-          aggregateRatingJsonLd({
-            name: creatorName,
-            url: creatorUrl,
+      description: crew.crew_bio ?? crew.bio,
+      rating: reviews.length > 0
+        ? {
             ratingValue:
-              Math.round(
-                (reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length) * 10,
-              ) / 10,
+              Math.round((reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length) * 10) / 10,
             reviewCount: reviews.length,
             reviews: reviews.map((r) => ({
               rating: r.rating,
@@ -116,9 +118,15 @@ export default async function ProductionDetailPage({ params }: Props) {
               comment: r.comment,
               date: r.created_at,
             })),
-          }),
-        ]
-      : []),
+          }
+        : null,
+    }),
+    breadcrumbJsonLd([
+      { name: 'Home', url: STUDIO.meta.url },
+      { name: 'Studio', url: `${STUDIO.meta.url}/studio` },
+      { name: category.name, url: `${STUDIO.meta.url}/studio/category/${slug}` },
+      { name: creatorName, url: creatorUrl },
+    ]),
   ];
 
   return (

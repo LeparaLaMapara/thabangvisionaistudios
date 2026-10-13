@@ -6,6 +6,7 @@ import { auth } from '@/lib/auth';
 import { createClient } from '@/lib/supabase/server';
 import { ArrowLeft, Calendar, MapPin, Briefcase, Clock } from 'lucide-react';
 import PayButton from './PayButton';
+import { creatorProfilePath } from '@/lib/seo/creator-url';
 
 export const metadata = { title: 'Request Details' };
 
@@ -98,7 +99,7 @@ export default async function CreatorRequestDetailPage({
             )}
             <div>
               <Link
-                href={`/studio/category/photography/${creator?.crew_slug || creator?.id}`}
+                href={creator ? creatorProfilePath(creator) : '/smart-creators'}
                 className="text-sm font-mono text-white hover:text-[#D4A843] transition-colors"
               >
                 {creator?.display_name || 'Unknown'}

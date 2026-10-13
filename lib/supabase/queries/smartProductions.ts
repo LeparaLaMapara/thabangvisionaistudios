@@ -1,4 +1,5 @@
 import { createClient, createAdminClient } from '@/lib/supabase/server';
+import { isListedCreator } from '@/lib/seo/creator-url';
 import { PRODUCTION_CATEGORIES } from '@/lib/constants';
 
 // ─── DB row type ─────────────────────────────────────────────────────────────
@@ -225,39 +226,82 @@ export type CreatorProfile = {
   portfolio_projects: import('@/types/portfolio').PortfolioProject[] | null;
 };
 
+/**
+ * Creators listed on /smart-creators (and the about page): ID check passed and
+ * either open for hire with a complete portfolio (the rule every bookable
+ * creator page uses, lib/seo/creator-url.ts isListedCreator) or credited on a
+ * published production.
+ *
+ * It used to need a production linked by creator_id, and none are, so the
+ * page showed nobody while a verified, bookable creator existed.
+ */
 export async function getPublishedCreatorProfiles(limit?: number): Promise<CreatorProfile[]> {
   const supabase = await createClient();
 
-  const { data: prods } = await supabase
-    .from('smart_productions')
-    .select('creator_id')
-    .not('creator_id', 'is', null)
-    .eq('is_published', true)
-    .is('deleted_at', null);
+  const columns = 'id, display_name, crew_slug, avatar_url, crew_bio, bio, specializations, hourly_rate, location, years_experience, crew_featured, skills, social_links, portfolio_projects, available_for_hire, verification_status, created_at';
 
-  if (!prods?.length) return [];
+  const [forHire, prods] = await Promise.all([
+    supabase
+      .from('public_profiles')
+      .select(columns)
+      .eq('verification_status', 'verified')
+      .eq('available_for_hire', true)
+      .order('crew_featured', { ascending: false })
+      .order('created_at', { ascending: false })
+      .limit(200),
+    supabase
+      .from('smart_productions')
+      .select('creator_id')
+      .not('creator_id', 'is', null)
+      .eq('is_published', true)
+      .is('deleted_at', null),
+  ]);
 
-  const creatorIds = [...new Set(prods.map((p: { creator_id: string }) => p.creator_id))];
+  if (forHire.error) console.error('[getPublishedCreatorProfiles]', forHire.error.message);
 
-  // Only creators whose ID check passed: a creator may build a portfolio
-  // before verification, and it must not be shown until then.
-  let query = supabase
-    .from('public_profiles')
-    .select('id, display_name, crew_slug, avatar_url, crew_bio, bio, specializations, hourly_rate, location, years_experience, crew_featured, skills, social_links, portfolio_projects')
-    .in('id', creatorIds)
-    .eq('verification_status', 'verified')
-    .order('crew_featured', { ascending: false })
-    .order('created_at', { ascending: false });
-
-  if (limit) query = query.limit(limit);
-
-  const { data, error } = await query;
-  if (error) {
-    console.error('[getPublishedCreatorProfiles]', error.message);
-    return [];
+  type Row = CreatorProfile & { available_for_hire: boolean | null; verification_status: string | null; created_at: string };
+  const rows = new Map<string, Row>();
+  for (const r of ((forHire.data ?? []) as unknown as Row[])) {
+    if (isListedCreator(r)) rows.set(r.id, r);
   }
 
-  return (data as unknown as CreatorProfile[]) ?? [];
+  const producerIds = [
+    ...new Set(((prods.data ?? []) as { creator_id: string }[]).map((p) => p.creator_id)),
+  ].filter((id) => !rows.has(id));
+  if (producerIds.length > 0) {
+    // Only creators whose ID check passed: a creator may build a portfolio
+    // before verification, and it must not be shown until then.
+    const { data, error } = await supabase
+      .from('public_profiles')
+      .select(columns)
+      .in('id', producerIds)
+      .eq('verification_status', 'verified');
+    if (error) console.error('[getPublishedCreatorProfiles:producers]', error.message);
+    for (const r of ((data ?? []) as unknown as Row[])) rows.set(r.id, r);
+  }
+
+  const sorted = [...rows.values()].sort(
+    (x, y) =>
+      Number(y.crew_featured) - Number(x.crew_featured) ||
+      (y.created_at ?? '').localeCompare(x.created_at ?? ''),
+  );
+  const list: CreatorProfile[] = sorted.map((r) => ({
+    id: r.id,
+    display_name: r.display_name,
+    crew_slug: r.crew_slug,
+    avatar_url: r.avatar_url,
+    crew_bio: r.crew_bio,
+    bio: r.bio,
+    specializations: r.specializations ?? [],
+    hourly_rate: r.hourly_rate,
+    location: r.location,
+    years_experience: r.years_experience,
+    crew_featured: r.crew_featured,
+    skills: r.skills,
+    social_links: r.social_links,
+    portfolio_projects: r.portfolio_projects,
+  }));
+  return limit ? list.slice(0, limit) : list;
 }
 
 // ─── Creator Production Queries ──────────────────────────────────────────────
@@ -420,10 +464,24 @@ export async function createCreatorProduction(userId: string): Promise<{ success
 }
 
 /**
+ * Off on purpose. The rule is to auto-publish only creator productions an
+ * admin never looked at, but nothing records an admin's decision:
+ * smart_productions has no reviewed or hidden column, and the publish toggle
+ * on /admin/projects only flips is_published. "Unpublished and older than 7
+ * days" therefore also matches every page an admin hid on purpose, and turning
+ * this on would publish all of them on the next daily run. Turn it back on
+ * only once an admin decision is stored (for example a reviewed_at column set
+ * by the toggle) and the read below skips reviewed rows.
+ */
+export const AUTO_PUBLISH_CREATOR_PRODUCTIONS = false;
+
+/**
  * Auto-publishes creator productions that have been pending review for 7+ days.
- * Called by the daily maintenance cron.
+ * Called by the daily maintenance cron. Does nothing (returns 0) while
+ * AUTO_PUBLISH_CREATOR_PRODUCTIONS is off.
  */
 export async function autoPublishCreatorProductions(): Promise<number> {
+  if (!AUTO_PUBLISH_CREATOR_PRODUCTIONS) return 0;
   const supabase = createAdminClient();
   const cutoff = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
 

@@ -9,6 +9,7 @@ import {
   MAINTENANCE_RETRY_AFTER_SECONDS,
 } from '@/lib/maintenance';
 import { buildCsp, generateNonce } from '@/lib/security/csp';
+import { discoveryRoute } from '@/lib/discovery/proxy-rewrite';
 
 /** Applies maintenance mode (lib/maintenance.ts). Returns null to continue normally. */
 function maintenanceResponse(request: NextRequest): NextResponse | null {
@@ -162,6 +163,18 @@ export async function proxy(request: NextRequest) {
   // M1 / security AUTH-4: CSRF protection for state-changing /api requests.
   const csrf = csrfRejection(request);
   if (csrf) return csrf;
+
+  // Discovery surfaces (lib/discovery/proxy-rewrite.ts): markdown twins at
+  // <page>.md and the IndexNow key file are rewritten to their handlers; the
+  // machine endpoints (/v1, /mcp, llms.txt...) carry no session, so they skip
+  // the session refresh below.
+  const discovery = discoveryRoute(request.nextUrl.pathname, process.env.INDEXNOW_KEY);
+  if (discovery?.kind === 'rewrite') {
+    const target = request.nextUrl.clone();
+    target.pathname = discovery.to;
+    return NextResponse.rewrite(target);
+  }
+  if (discovery?.kind === 'machine') return NextResponse.next();
 
   // Content-Security-Policy with a per-request nonce (security INJ-3). On
   // the REQUEST so Next.js puts the nonce on its scripts, and on every

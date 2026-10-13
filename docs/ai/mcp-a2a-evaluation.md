@@ -1,6 +1,8 @@
 # MCP and A2A evaluation (Phase 2, spec §8.10)
 
-**Status: evaluated, NOT enabled.** No MCP or A2A endpoint is exposed.
+**Status: evaluated, NOT enabled** for anything that acts for a signed-in user. No such MCP or A2A endpoint is exposed.
+
+Since the discovery engine (docs/discovery/README.md) there is one public, read-only MCP server at `/mcp`. It covers only the catalogue (what public pages show), needs no OAuth, has no prepare or commit tools, and answers with page links so people book on the site. Everything below still applies to a user-acting server.
 
 ## Why not now
 Every channel must call the same core use cases. Those now exist: `lib/core/agent/use-cases.ts` and the prepare and approval endpoints. An MCP server would be a thin adapter over them. Exposing it safely needs several things that do not exist yet:

@@ -3,11 +3,13 @@ import Link from 'next/link';
 import { STUDIO } from '@/lib/constants';
 import { BankDetails } from '@/components/payments/BankDetails';
 import { ContactButtons } from '@/components/payments/ContactButtons';
+import { buildPageMetadata } from '@/lib/seo/metadata';
 
-export const metadata: Metadata = {
+export const metadata: Metadata = buildPageMetadata({
   title: 'How to pay',
   description: `Pay ${STUDIO.shortName} by EFT to our business account, or in cash when you collect at ${STUDIO.fulfilment.dispatchFrom.meetingPoint}, ${STUDIO.fulfilment.dispatchFrom.name}.`,
-};
+  path: '/pay',
+});
 
 /**
  * How paying works, and the one place a customer can always check the real
