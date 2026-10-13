@@ -1,4 +1,5 @@
 import { STUDIO, RENTAL_CATEGORIES } from '@/lib/constants';
+import { SIGNATURE_MARKER, SIGNATURE_TEXT, signatureHtml, stripOldTextSignOff } from '@/lib/email/signature';
 import type { Intent, NudgeReason } from './types';
 
 /**
@@ -23,7 +24,7 @@ export interface EmailContent {
   cta?: Link;
   /** Extra links shown as a short list (tailored steps). */
   links?: Link[];
-  /** Paragraphs after the links and button, before the sign-off. */
+  /** Paragraphs after the links and button, before the signature. */
   closing?: string[];
 }
 
@@ -31,11 +32,6 @@ export interface RenderedEmail {
   subject: string;
   text: string;
   html: string;
-}
-
-/** Who signs our emails: the first name of the information officer. */
-export function signer(): string {
-  return `${STUDIO.legal.informationOfficer.name.split(' ')[0] || 'The team'}, ${STUDIO.name}`;
 }
 
 /** Any em or en dash, the house style bans them in what people read. */
@@ -98,7 +94,7 @@ export function nudgeContent(params: {
     subject: c.subject,
     preheader: c.preheader,
     cta: c.cta,
-    paragraphs: [hi(firstName), ...c.body, signer()],
+    paragraphs: [hi(firstName), ...c.body],
     closing: [reply, ...(last ? [last] : [])],
   });
 
@@ -260,7 +256,7 @@ export function tailoredTemplate(p: TailoredProfile): EmailContent {
   return {
     subject: tailoredSubject(p),
     preheader: steps[0]?.label ?? 'Your next steps',
-    paragraphs: [hi(p.firstName), intro, signer()],
+    paragraphs: [hi(p.firstName), intro],
     links: steps,
     closing: ['If you have a question, reply to this email and a person will answer.'],
   };
@@ -288,17 +284,17 @@ export function renderEmail(c: EmailContent, opts: { baseUrl: string; unsubscrib
   const cta = c.cta ? { label: c.cta.label, url: absolute(c.cta.href, opts.baseUrl) } : null;
   const links = (c.links ?? []).map((l) => ({ label: l.label, url: absolute(l.href, opts.baseUrl) }));
 
-  // The last paragraph is the sign-off and goes under the links; a one-paragraph
-  // body (a hand-written welcome) has none.
-  const body = c.paragraphs.length > 1 ? c.paragraphs.slice(0, -1) : c.paragraphs;
-  const signoff = c.paragraphs.length > 1 ? c.paragraphs[c.paragraphs.length - 1] : null;
+  // Every paragraph is body; the one signature (lib/email/signature.ts)
+  // closes the email, above the footer.
+  const body = c.paragraphs;
 
   const text = [
     ...body.flatMap((p) => [p, '']),
     ...(links.length ? [...links.map((l, i) => `${i + 1}. ${l.label}: ${l.url}`), ''] : []),
     ...(cta ? [`${cta.label}: ${cta.url}`, ''] : []),
     ...(c.closing ?? []).flatMap((p) => [p, '']),
-    ...(signoff ? [signoff, ''] : []),
+    SIGNATURE_TEXT,
+    '',
     '',
     why,
     `Stop these emails: ${opts.unsubscribeUrl}`,
@@ -306,7 +302,9 @@ export function renderEmail(c: EmailContent, opts: { baseUrl: string; unsubscrib
 
   const para = (p: string) => `<p style="margin:0 0 16px 0;font-size:16px;line-height:1.6;color:#E5E5E5;">${escapeHtml(p).replace(/\n/g, '<br>')}</p>`;
   const bodyParas = body.map(para).join('');
-  const sign = (c.closing ?? []).map(para).join('') + (signoff ? para(signoff) : '');
+  const sign =
+    (c.closing ?? []).map(para).join('') +
+    signatureHtml({ pStyle: 'margin:0 0 16px 0;font-size:16px;line-height:1.6;color:#E5E5E5;', linkStyle: 'color:#E5E5E5;text-decoration:underline;' });
   const linkList = links.length
     ? `<table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 0 20px 0;width:100%;">${links
         .map(
@@ -333,8 +331,23 @@ export function renderEmail(c: EmailContent, opts: { baseUrl: string; unsubscrib
   return { subject: c.subject, text, html };
 }
 
-/** A plain-text body (a welcome the owner wrote or edited) as email content. */
+/**
+ * A plain-text body (a welcome the owner wrote or edited) as email content.
+ * Its sign-off is dropped, an old one ("Thabang, ThabangVision") or the
+ * signature typed in by hand, since renderEmail adds the signature.
+ */
 export function contentFromText(subject: string, body: string): EmailContent {
+  body = withoutSignOff(body);
   const parts = body.split(/\n\s*\n/).map((p) => p.trim()).filter(Boolean);
   return { subject, preheader: parts[1]?.slice(0, 120) ?? '', paragraphs: parts.length ? parts : [body] };
+}
+
+/** A text body without its closing sign-off or a hand-typed signature. */
+function withoutSignOff(body: string): string {
+  const at = body.lastIndexOf(SIGNATURE_MARKER);
+  if (at === -1) return stripOldTextSignOff(body);
+  // Cut from the "Warm regards," just above the marker, or the marker itself.
+  const regards = body.lastIndexOf('Warm regards,', at);
+  const from = regards !== -1 && at - regards <= 20 ? regards : at;
+  return body.slice(0, from).trimEnd();
 }

@@ -6,7 +6,6 @@ import { promptField, promptList } from '@/lib/ubunye/sanitise';
 import { lifecycleAgent } from '@/lib/agents/agents/lifecycle';
 import {
   hasDash,
-  signer,
   stripDashes,
   tailoredSteps,
   tailoredSubject,
@@ -95,7 +94,7 @@ export async function draftTailored(p: TailoredProfile): Promise<{ content: Emai
       if (isUsableTailoredDraft(body)) {
         const paragraphs = body.split(/\n\s*\n/).map((x) => x.trim()).filter(Boolean);
         return {
-          content: { ...template, subject: tailoredSubject(p), paragraphs: [...paragraphs, signer()] },
+          content: { ...template, subject: tailoredSubject(p), paragraphs },
           draftedBy: `ai:${out.servedBy}`,
         };
       }

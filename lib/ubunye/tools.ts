@@ -1,4 +1,5 @@
 import { jsonSchema } from 'ai';
+import { SIGNATURE_TEXT } from '@/lib/email/signature';
 import { STUDIO, PRODUCTION_SERVICES } from '@/lib/constants';
 import { email as emailProvider } from '@/lib/email';
 import { escapeIlike } from '@/lib/search/types';
@@ -353,7 +354,7 @@ export function createCrewTools(
           await emailProvider.sendEmail({
             to: params.client_email,
             subject: `Booking Confirmation — ${STUDIO.name}`,
-            text: `Hi ${params.client_name},\n\nYour creator booking request has been submitted successfully!\n\nBooking Reference: ${data.id.slice(0, 8).toUpperCase()}\nProject Type: ${params.project_type}\nPreferred Dates: ${params.preferred_dates || 'To be confirmed'}\nLocation: ${params.location || 'To be confirmed'}\n\nDescription:\n${params.description}\n\nWe will review your request and reply ${STUDIO.responseTime} to confirm details and next steps. Your booking is confirmed only once payment is received.\n\nIf you have any questions, email ${STUDIO.email} or WhatsApp ${STUDIO.whatsapp.display} (messages only).\n\nThank you for choosing ${STUDIO.name}!\n\n—\n${STUDIO.name}\n${STUDIO.meta.url}`,
+            text: `Hi ${params.client_name},\n\nYour creator booking request has been submitted successfully!\n\nBooking Reference: ${data.id.slice(0, 8).toUpperCase()}\nProject Type: ${params.project_type}\nPreferred Dates: ${params.preferred_dates || 'To be confirmed'}\nLocation: ${params.location || 'To be confirmed'}\n\nDescription:\n${params.description}\n\nWe will review your request and reply ${STUDIO.responseTime} to confirm details and next steps. Your booking is confirmed only once payment is received.\n\nIf you have any questions, email ${STUDIO.email} or WhatsApp ${STUDIO.whatsapp.display} (messages only).\n\nThank you for choosing ${STUDIO.name}!\n\n${SIGNATURE_TEXT}`,
           });
         } catch { /* Email failure shouldn't block */ }
 
