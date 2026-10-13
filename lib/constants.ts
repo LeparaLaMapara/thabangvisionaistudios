@@ -675,6 +675,7 @@ export const FOOTER_SECTIONS = [
       { label: 'About', href: '/about' },
       ...(SHOW_CAREERS ? [{ label: 'Careers', href: '/careers' }] : []),
       { label: 'Press & News', href: '/press' },
+      { label: 'Share (QR code)', href: '/qr' },
     ],
   },
   {
