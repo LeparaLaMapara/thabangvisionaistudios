@@ -112,7 +112,7 @@ async function handleTransferProblem(reference: string, what: 'failed' | 'revers
 
   try {
     await emailProvider.sendEmail({
-      to: STUDIO.bookingEmail,
+      to: STUDIO.billingEmail,
       subject: `[Action] Creator payout ${what} — ${booking.reference}`,
       text: `The payment provider reports the creator payout for ${booking.reference} (R${booking.creator_amount}) as ${what}.\n\nTransfer reference: ${reference}\n\nIt will NOT be re-sent automatically under a new reference. Check the transfer in the provider dashboard (for example, a wrong or closed bank account), then pay the creator by hand and record it in admin.`,
     });
