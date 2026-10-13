@@ -24,6 +24,15 @@ import { STUDIO } from '@/lib/constants';
 import { createClient } from '@/lib/supabase/client';
 import { DashboardSubTabs, ACCOUNT_TABS_USER } from '@/components/dashboard/DashboardSubTabs';
 import { ConsentStep } from '@/components/verification/ConsentStep';
+import { extractPhotoMetadata, type PhotoMetadata } from '@/lib/metadata/verification';
+import {
+  MAX_ORIGINAL_PHOTO_BYTES,
+  UPLOAD_BUDGET_BYTES,
+  canShrink,
+  fitsUploadBudget,
+  shrinkPhoto,
+  submitErrorMessage,
+} from '@/lib/verification/upload-size';
 
 type VerificationStatus = 'unverified' | 'pending' | 'verified' | 'rejected';
 
@@ -73,9 +82,16 @@ function validateFile(file: File, allowPdf: boolean): { valid: boolean; error?: 
   if (file.size < 50 * 1024) {
     return { valid: false, error: 'File is too small (under 50KB). Please use a higher quality scan or photo.' };
   }
-  const maxSize = (STUDIO.verification.maxFileSizeMB ?? 5) * 1024 * 1024;
+  // Large photos are shrunk in the browser before upload; other files go as they are.
+  if (canShrink(file.type)) {
+    if (file.size > MAX_ORIGINAL_PHOTO_BYTES) {
+      return { valid: false, error: 'This photo is too large. Please take it again with your phone camera.' };
+    }
+    return { valid: true };
+  }
+  const maxSize = Math.min((STUDIO.verification.maxFileSizeMB ?? 5) * 1024 * 1024, UPLOAD_BUDGET_BYTES / 2);
   if (file.size > maxSize) {
-    return { valid: false, error: `File is too large. Maximum ${STUDIO.verification.maxFileSizeMB}MB.` };
+    return { valid: false, error: `File is too large. Maximum ${Math.floor(maxSize / (1024 * 1024))}MB, or use a JPG photo instead.` };
   }
   return { valid: true };
 }
@@ -288,12 +304,31 @@ function VerificationPageInner() {
         return;
       }
 
+      // Read each photo's EXIF first (shrinking drops it), then shrink large
+      // photos so the whole submission fits the host's upload limit.
+      const prepared = await Promise.all(
+        files.map(async (slot) => {
+          const original = slot.file as File;
+          const meta: PhotoMetadata | null = original.type.startsWith('image/')
+            ? await extractPhotoMetadata(await original.arrayBuffer())
+            : null;
+          return { key: slot.key, file: await shrinkPhoto(original), meta };
+        }),
+      );
+
+      if (!fitsUploadBudget(prepared.map((p) => p.file.size))) {
+        setError(submitErrorMessage(413, undefined));
+        setSubmitting(false);
+        return;
+      }
+
       const formData = new FormData();
-      files.forEach((slot) => {
-        if (slot.file) {
-          formData.append(slot.key, slot.file);
-        }
-      });
+      const clientMetadata: Record<string, PhotoMetadata> = {};
+      for (const p of prepared) {
+        formData.append(p.key, p.file);
+        if (p.meta) clientMetadata[p.key] = p.meta;
+      }
+      formData.append('client_metadata', JSON.stringify(clientMetadata));
       formData.append('confirmed', 'true');
 
       const res = await fetch('/api/verifications', {
@@ -303,7 +338,7 @@ function VerificationPageInner() {
 
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
-        throw new Error(body.error || 'Failed to submit documents.');
+        throw new Error(submitErrorMessage(res.status, body.error));
       }
 
       setJustSubmitted(true);

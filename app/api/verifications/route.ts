@@ -4,7 +4,12 @@ import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'node:crypto';
 import { checkRateLimit } from '@/lib/auth';
 import { createClient, createAdminClient } from '@/lib/supabase/server';
-import { extractPhotoMetadata, type VerificationMetadata } from '@/lib/metadata/verification';
+import {
+  extractPhotoMetadata,
+  preferFileMetadata,
+  sanitizeClientMetadata,
+  type VerificationMetadata,
+} from '@/lib/metadata/verification';
 import { detectFraudFlags } from '@/lib/metadata/fraud-detection';
 import { matchFaces } from '@/lib/agents/tools';
 import { STUDIO } from '@/lib/constants';
@@ -209,11 +214,26 @@ export async function POST(req: NextRequest) {
     const idCopyBuffer = await idCopy.arrayBuffer();
     const selfieBuffer = await selfie.arrayBuffer();
 
-    const idCopyMeta = await extractPhotoMetadata(idCopyBuffer);
+    // The page shrinks large photos first, which drops their EXIF; it sends
+    // what it read beforehand in client_metadata (lib/verification/upload-size.ts).
+    let clientMeta: Record<string, unknown> = {};
+    try {
+      const raw = formData.get('client_metadata');
+      if (typeof raw === 'string' && raw.length < 10_000) clientMeta = JSON.parse(raw) ?? {};
+    } catch {
+      clientMeta = {};
+    }
+    const idCopyMeta = preferFileMetadata(
+      await extractPhotoMetadata(idCopyBuffer),
+      sanitizeClientMetadata(clientMeta.id_copy),
+    );
     const metadata: VerificationMetadata = {
       id_front: idCopyMeta,
       id_back: idCopyMeta,
-      selfie: await extractPhotoMetadata(selfieBuffer),
+      selfie: preferFileMetadata(
+        await extractPhotoMetadata(selfieBuffer),
+        sanitizeClientMetadata(clientMeta.selfie_with_id),
+      ),
       face_match: null,
     };
 
