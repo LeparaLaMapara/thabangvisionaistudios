@@ -77,13 +77,20 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   if (ids.length === 0) return NextResponse.json({ error: 'Nothing was waiting for payment.' }, { status: 409 });
 
   await recordConfirmation({ provider: 'manual', reference, paymentId: booking.checkout_group_id ?? id, amount, status: 'COMPLETE', eventType: `manual.${method}` });
-  await admin.from('booking_payments').insert({
+  // The booking is already confirmed, so a failed write cannot be undone by
+  // retrying this route (nothing is pending any more): log it and tell staff.
+  const { error: paymentRecordError } = await admin.from('booking_payments').insert({
     booking_id: id,
     payfast_payment_id: reference,
     amount,
     currency: booking.currency ?? 'ZAR',
     status: 'succeeded',
   });
+  // 23505: this reference is already recorded for the booking.
+  const paymentRecorded = !paymentRecordError || (paymentRecordError as { code?: string }).code === '23505';
+  if (!paymentRecorded) {
+    console.error('[admin/mark-paid] Booking confirmed but payment record not written:', id, paymentRecordError?.message);
+  }
 
   logEvent({ eventType: 'payment_complete', eventCategory: 'payment', userId: auth.user.id, metadata: { provider: 'manual', method, bookings: ids, amount } });
   trackFunnel('payment_confirmed', { userId: (booking as { user_id?: string | null }).user_id ?? null, meta: { groupId: booking.checkout_group_id ?? id, source: 'manual', code: method } });
@@ -93,5 +100,10 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   // the ops queue that a person must arrange the delivery. Never fails this route.
   if (booking.checkout_group_id) await afterRentalPayment(booking.checkout_group_id, 'manual');
 
-  return NextResponse.json({ ok: true, confirmed: ids.length, reference });
+  return NextResponse.json({
+    ok: true,
+    confirmed: ids.length,
+    reference,
+    ...(paymentRecorded ? {} : { warning: 'The booking is confirmed, but the payment record was not saved. Record it by hand before any refund or payout.' }),
+  });
 }

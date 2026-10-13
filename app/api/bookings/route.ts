@@ -2,6 +2,7 @@ export const dynamic = 'force-dynamic';
 
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { RENTER_EQUIPMENT_BOOKING_COLUMNS } from '@/lib/supabase/queries/columns';
 
 export async function GET() {
   const supabase = await createClient();
@@ -15,7 +16,7 @@ export async function GET() {
 
   const { data, error } = await supabase
     .from('equipment_bookings')
-    .select('*, smart_rentals(title)')
+    .select(`${RENTER_EQUIPMENT_BOOKING_COLUMNS}, smart_rentals(title)`)
     .eq('user_id', user.id)
     .order('start_date', { ascending: false });
 
@@ -27,7 +28,7 @@ export async function GET() {
   // The list names each booking by what was rented, as the booking page does.
   type Row = Record<string, unknown> & { smart_rentals?: { title?: string | null } | { title?: string | null }[] | null };
   return NextResponse.json(
-    ((data ?? []) as Row[]).map(({ smart_rentals: rental, ...row }) => ({
+    ((data ?? []) as unknown as Row[]).map(({ smart_rentals: rental, ...row }) => ({
       ...row,
       rental_title: (Array.isArray(rental) ? rental[0]?.title : rental?.title) ?? null,
     })),

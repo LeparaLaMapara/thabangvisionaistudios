@@ -17,6 +17,7 @@ import { reportUnpaidRequest, PAYMENTS_OFF_MESSAGE } from '@/lib/payments/offlin
 import { revisionPolicyText } from '@/lib/core/services/fulfilment';
 import { mentionsFulfilmentSchema, withoutFulfilmentColumns } from '@/lib/supabase/queries/service-bookings';
 import { appUrl } from '@/lib/app-url';
+import { CLIENT_SERVICE_BOOKING_COLUMNS } from '@/lib/supabase/queries/columns';
 
 // Writes that touch money or status go through the service role, after the
 // route has checked who the user is and that the record is theirs. The users'
@@ -211,10 +212,13 @@ export async function POST(request: NextRequest) {
     });
 
     // Save access code + reference
-    await admin()
+    // Not needed to confirm the payment (the webhook finds the booking by
+    // `reference`), so a failure is logged and the client still gets the link.
+    const { error: refError } = await admin()
       .from('bookings')
       .update({ paystack_reference: reference, paystack_access_code: accessCode || null })
       .eq('id', booking.id);
+    if (refError) console.error('[service-bookings] Could not save the payment reference:', booking.id, refError.message);
 
     // Email admin about new booking
     try {
@@ -258,7 +262,7 @@ export async function GET() {
 
   const { data, error } = await supabase
     .from('bookings')
-    .select('*, creator:profiles!creator_id(id, display_name, avatar_url, crew_slug)')
+    .select(`${CLIENT_SERVICE_BOOKING_COLUMNS}, creator:profiles!creator_id(id, display_name, avatar_url, crew_slug)`)
     .eq('client_id', user.id)
     .order('created_at', { ascending: false });
 
@@ -271,7 +275,7 @@ export async function GET() {
   // join above comes back empty and the client never saw who their creator
   // is. Their public card (public_profiles: name, photo, slug) fills it in.
   type Row = Record<string, unknown> & { creator_id?: string | null; creator?: unknown };
-  const rows = (data ?? []) as Row[];
+  const rows = (data ?? []) as unknown as Row[];
   const missing = [...new Set(rows.filter((r) => r.creator_id && !r.creator).map((r) => r.creator_id as string))];
   if (missing.length > 0) {
     const { data: cards } = await supabase.from('public_profiles').select('id, display_name, avatar_url, crew_slug').in('id', missing);
