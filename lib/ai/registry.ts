@@ -148,8 +148,10 @@ export function modelRegistry(): Record<string, ModelEntry> {
     'deepseek': { provider: 'local', modelId: env('AI_DEEPSEEK_MODEL') ?? 'deepseek-r1',     tier: 'smart', openWeight: true, tools: true },
     'mistral':  { provider: 'local', modelId: env('AI_MISTRAL_MODEL')  ?? 'mistral-small',   tier: 'smart', openWeight: true, tools: true },
     'gpt-oss':  { provider: 'local', modelId: env('AI_GPT_OSS_MODEL')  ?? 'gpt-oss:20b',     tier: 'smart', openWeight: true, tools: true },
-    // gemma id must be validated against the live Google model list before use.
-    'gemma':    { provider: 'google', modelId: env('AI_GEMMA_MODEL')   ?? 'gemma-3-27b-it',  tier: 'fast',  openWeight: true, tools: false },
+    // Served Gemma ids, from the live Google model list on 2026-10-13:
+    // gemma-4-26b-a4b-it (fast, mixture of experts) and gemma-4-31b-it (the
+    // vision agents' model). gemma-3 ids are not served for text generation.
+    'gemma':    { provider: 'google', modelId: env('AI_GEMMA_MODEL')   ?? 'gemma-4-26b-a4b-it', tier: 'fast', openWeight: true, tools: false },
     // Groq — hosted, OpenAI-compatible, serves open-weight Qwen fast and cheap.
     'groq':     { provider: 'groq',  modelId: env('AI_GROQ_MODEL')     ?? 'qwen/qwen3.8-27b',  tier: 'smart', openWeight: true, tools: true },
   };

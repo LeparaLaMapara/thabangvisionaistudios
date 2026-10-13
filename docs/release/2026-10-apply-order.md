@@ -66,7 +66,8 @@ of `verifications` objects by anyone other than their owner.
 | 15 | `080-owner-pickup.sql` | `080-…test.sql`, `rls-coverage.test.sql` |
 | 16 | `081-creative-tools-flag.sql` | |
 | 17 | `082-verification-notifications.sql` | `082-…test.sql` (082 comes with the admin control room branch) |
-| 18 | `notify pgrst, 'reload schema';` | `rls-coverage.test.sql` |
+| 18 | `084-embeddings-768.sql` | `084-…test.sql`, then POST `/api/admin/reindex` once `RAG_ENABLED=true` |
+| 19 | `notify pgrst, 'reload schema';` | `rls-coverage.test.sql` |
 
 ### Why 083 runs first although its number is last
 
