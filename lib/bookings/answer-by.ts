@@ -7,6 +7,13 @@
  * have gone by. The clock starts when the client PAID (paid_at). Before this
  * it started at created_at, so a booking paid a day or two after it was made
  * could be taken away from the creator on the next run, with no time to answer.
+ *
+ * When an admin gives the job to a creator (assign or swap), the clock starts
+ * again at that moment (assigned_at). The time comes from the latest
+ * 'admin_assign' row in service_booking_events (getAssignTimes in
+ * lib/supabase/queries/service-bookings.ts); bookings has no column for it.
+ * Without this a creator assigned two days after payment was passed on at the
+ * next daily run, with no reminder and a card showing 0 hours left.
  */
 
 import { STUDIO } from '@/lib/constants';
@@ -17,12 +24,20 @@ const HOUR_MS = 60 * 60 * 1000;
 export interface AnswerClock {
   created_at: string;
   paid_at?: string | null;
+  /** When an admin last gave this job to the current creator, if ever. */
+  assigned_at?: string | null;
 }
 
-/** The moment the creator's answer is due (paid_at, or created_at for older rows, plus the answer window). */
+/** When the creator's answer window starts: the later of the assignment and the payment (created_at for older rows). */
+export function answerClockStart(b: AnswerClock): Date {
+  const paid = Date.parse(b.paid_at ?? b.created_at);
+  const assigned = b.assigned_at ? Date.parse(b.assigned_at) : NaN;
+  return new Date(Number.isFinite(assigned) && assigned > paid ? assigned : paid);
+}
+
+/** The moment the creator's answer is due: the clock start (assignment, payment or creation) plus the answer window. */
 export function answerByAt(b: AnswerClock, hours: number = STUDIO.booking.creatorAnswerHours): Date {
-  const start = new Date(b.paid_at ?? b.created_at);
-  return new Date(start.getTime() + hours * HOUR_MS);
+  return new Date(answerClockStart(b).getTime() + hours * HOUR_MS);
 }
 
 /** True once the answer window has passed: the daily job may pass the job on. */

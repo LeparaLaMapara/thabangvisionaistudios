@@ -61,6 +61,16 @@ vi.mock('@/lib/supabase/queries/smartRentals', () => ({
     failed: false,
     hasMore: false,
   }),
+  // The category page reads the whole list (develop's all gear page).
+  fetchAllPublishedRentals: async () => ({
+    rentals: RENTAL_CATEGORIES.filter((c) => c.value !== 'data-storage').map((c) => ({
+      id: `r-${c.value}`,
+      slug: `r-${c.value}`,
+      category: c.value,
+    })),
+    failed: false,
+    hasMore: false,
+  }),
 }));
 vi.mock('@/lib/supabase/queries/productionCategories', () => ({ getCategoryBySlug: async () => null }));
 vi.mock('@/lib/supabase/queries/smartProductions', () => ({
