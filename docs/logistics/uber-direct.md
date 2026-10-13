@@ -3,17 +3,19 @@
 Uber Direct is the courier we chose (2026-10-13, see `provider-comparison.md`).
 The owner opened the account; test and live keys are in Vercel (live keys on
 Production only). The adapter was checked against **our own Uber sandbox** on
-2026-10-13 (results below). On production it is **off**:
+2026-10-13 (results below).
 
-- it is not listed in `DELIVERY_PROVIDERS`;
-- it needs an explicit `DELIVERY_PROVIDER_UBER_DIRECT_ENABLED=true`;
-- production mode also needs `DELIVERY_PROVIDER_UBER_DIRECT_PRODUCTION_APPROVED=true`.
+On production (2026-10-13) the policy gates are set but bookings stay **off**:
 
-Even when it is switched on, the core does not offer it to customers today:
-
-- the `delivery_courier` flag is off;
-- `DELIVERY_POLICY.automatedDeliveryMaxItemValueCents` is 0;
-- no transit-cover policy is verified (`DELIVERY_POLICY.insurance`).
+- set: `DELIVERY_PROVIDERS=manual,uber_direct`,
+  `DELIVERY_PROVIDER_UBER_DIRECT_ENABLED=true`,
+  `DELIVERY_PROVIDER_UBER_DIRECT_MODE=production`;
+- set: the courier limit (D-37) is R35,000, the Sony A7 III, and the owner's own
+  policy covers the gear with Uber (D-41, `owner-policy-2026-10-13`);
+- **not set**: `DELIVERY_PROVIDER_UBER_DIRECT_PRODUCTION_APPROVED`. Without it the
+  registry hands the core a refusing adapter with no capabilities, so Uber is
+  excluded from every quote and never called; checkout offers our own vehicle;
+- **off**: the `delivery_courier` feature flag.
 
 On previews (test keys only) the courier trial lets the whole flow be tried;
 see "Switching it on" below.
@@ -260,9 +262,9 @@ From `provider-comparison.md`:
 
 ### Production (only after all of the following)
 
-1. Founder approval, recorded in the decision register.
-2. A goods-in-transit / all-risks policy confirmed **in writing**, covering third-party-owned rented camera gear carried by Uber couriers. Record it in `DELIVERY_POLICY.insurance`: `verifiedPolicyRef`, `coveredProviders: ['uber_direct']` and `maxItemValueCents`.
-3. Founder sets `DELIVERY_POLICY.automatedDeliveryMaxItemValueCents` (D-37). It can be no higher than the cover limit, the Uber value cap and R50,000.
+1. Founder approval, recorded in the decision register. **Done 2026-10-13.**
+2. Cover: the owner confirmed (2026-10-13) that their own policy covers all the gear in transit with a courier and at the renter's. Recorded as `verifiedPolicyRef: 'owner-policy-2026-10-13'`, `coveredProviders: ['uber_direct']`, `maxItemValueCents: 3_500_000`. **Open:** replace the placeholder with the insurer and policy number.
+3. Courier limit (D-37): **R35,000** (Sony A7 III), set 2026-10-13. Values come from `docs/operations/replacement-values-2026-10.md`. Uber's own value cap in South Africa is still to be confirmed.
 4. Every remaining VERIFY item resolved (idempotency and lookup are done).
 5. Set the production credentials and `DELIVERY_PROVIDER_UBER_DIRECT_MODE=production`.
 6. Set `DELIVERY_PROVIDER_UBER_DIRECT_PRODUCTION_APPROVED=true`.
