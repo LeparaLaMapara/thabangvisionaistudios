@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server';
+import { RENTER_EQUIPMENT_BOOKING_COLUMNS } from '@/lib/supabase/queries/columns';
 import type {
   EquipmentBooking,
   BookingPayment,
@@ -21,7 +22,7 @@ export async function getBookingsByUser(userId: string): Promise<EquipmentBookin
 
   const { data, error } = await supabase
     .from('equipment_bookings')
-    .select('*')
+    .select(RENTER_EQUIPMENT_BOOKING_COLUMNS)
     .eq('user_id', userId)
     .order('start_date', { ascending: false });
 
@@ -30,7 +31,7 @@ export async function getBookingsByUser(userId: string): Promise<EquipmentBookin
     return [];
   }
 
-  return (data as EquipmentBooking[]) ?? [];
+  return (data as unknown as EquipmentBooking[]) ?? [];
 }
 
 /**

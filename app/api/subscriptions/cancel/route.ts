@@ -48,7 +48,8 @@ export async function POST() {
     .single();
 
   if (updateError) {
-    return NextResponse.json({ error: updateError.message }, { status: 500 });
+    console.error('[subscriptions/cancel] update error:', updateError.message);
+    return NextResponse.json({ error: 'Failed to cancel the subscription.' }, { status: 500 });
   }
 
   return NextResponse.json(updated);

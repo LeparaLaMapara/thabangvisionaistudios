@@ -22,7 +22,6 @@ interface ServiceBooking {
   subtotal: number;
   vat: number;
   total: number;
-  creator_amount: number;
   payment_status: string;
   payout_status: string;
   status: BookingStatus;
