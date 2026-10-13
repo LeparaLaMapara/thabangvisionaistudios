@@ -64,3 +64,29 @@ export function buildReportRequest(kind: ReportKind, bookingId: string, type: st
       : { dispute_type: option.type, reason, booking_id: bookingId },
   };
 }
+
+/** Most evidence photos one report may carry. */
+export const MAX_EVIDENCE_PHOTOS = 10;
+
+/**
+ * Evidence photos as sent by the browser: a list of our own Cloudinary image
+ * links, or null when it is anything else. They are shown to staff as links
+ * and images, so a link to any other site is refused (stored phishing).
+ */
+export function evidencePhotoList(raw: unknown): string[] | null {
+  if (raw === undefined || raw === null) return [];
+  if (!Array.isArray(raw) || raw.length > MAX_EVIDENCE_PHOTOS) return null;
+  const out: string[] = [];
+  for (const v of raw) {
+    if (typeof v !== 'string' || v.length > 500) return null;
+    let url: URL;
+    try {
+      url = new URL(v);
+    } catch {
+      return null;
+    }
+    if (url.protocol !== 'https:' || url.hostname !== 'res.cloudinary.com' || url.username || url.password || url.port) return null;
+    out.push(url.href);
+  }
+  return out;
+}

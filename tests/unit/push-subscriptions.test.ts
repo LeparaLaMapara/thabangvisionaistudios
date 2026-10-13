@@ -8,9 +8,9 @@ const env = { ...process.env };
 process.env.VAPID_PUBLIC_KEY = 'B'.repeat(87);
 process.env.VAPID_PRIVATE_KEY = 'p'.repeat(43);
 
-const { parseSubscription, parseEndpoint } = await import('@/lib/push/subscriptions');
+const { parseSubscription, parseEndpoint, isPushEndpoint, mayMoveSubscription } = await import('@/lib/push/subscriptions');
 const { sendPush, safePushUrl, isPushConfigured } = await import('@/lib/push');
-const { pushToUser } = await import('@/lib/engagement/dispatch');
+const { pushToUser, PUSH_MAX_FAILURES } = await import('@/lib/engagement/dispatch');
 
 afterAll(() => {
   process.env = env;
@@ -80,11 +80,15 @@ describe('sending a push', () => {
     const admin = {
       from: () => ({
         select: () => ({
-          eq: async () => ({
-            data: [
-              { id: 'live', endpoint: 'https://push.example/live', p256dh: 'k', auth: 'a' },
-              { id: 'dead', endpoint: 'https://push.example/dead', p256dh: 'k', auth: 'a' },
-            ],
+          eq: () => ({
+            order: () => ({
+              limit: async () => ({
+                data: [
+                  { id: 'live', endpoint: 'https://fcm.googleapis.com/fcm/send/live', p256dh: 'k', auth: 'a' },
+                  { id: 'dead', endpoint: 'https://fcm.googleapis.com/fcm/send/dead', p256dh: 'k', auth: 'a' },
+                ],
+              }),
+            }),
           }),
         }),
         delete: () => ({ eq: async (_c: string, id: string) => { deleted.push(id); return {}; } }),
@@ -99,5 +103,82 @@ describe('sending a push', () => {
     expect(r).toEqual({ sent: 1, gone: 1, error: undefined });
     expect(deleted).toEqual(['dead']);
     expect(updated).toEqual(['live']);
+  });
+});
+
+describe('security fixes 2026-10-13 (088)', () => {
+  it('only real push services are accepted (no SSRF to private or metadata addresses)', () => {
+    for (const ok of [
+      'https://fcm.googleapis.com/fcm/send/abc',
+      'https://updates.push.services.mozilla.com/wpush/v2/abc',
+      'https://web.push.apple.com/abc',
+      'https://api.push.apple.com/abc',
+      'https://wns2-par02p.notify.windows.com/w/?token=abc',
+    ]) expect(isPushEndpoint(ok)).toBe(true);
+    for (const bad of [
+      'https://169.254.169.254/latest/meta-data/iam',
+      'https://localhost:5432/x',
+      'https://10.0.0.1/admin',
+      'https://evil.example/x',
+      'https://fcm.googleapis.com.evil.example/x',
+      'https://notify.windows.com.evil.example/x',
+      'https://evilnotify.windows.com/x',
+      'https://fcm.googleapis.com:8443/x',
+      'http://fcm.googleapis.com/x',
+      'https://fcm.googleapis.com/a\\b',
+    ]) expect(isPushEndpoint(bad)).toBe(false);
+    expect(parseSubscription({ ...good, endpoint: 'https://169.254.169.254/x' })).toBeNull();
+  });
+
+  it('a subscription moves to another account only with the same browser keys', () => {
+    const stored = { user_id: 'a', p256dh: 'K1', auth: 'A1' };
+    expect(mayMoveSubscription(stored, { userId: 'a', p256dh: 'X', auth: 'Y' })).toBe(true);
+    expect(mayMoveSubscription(stored, { userId: 'b', p256dh: 'K1', auth: 'A1' })).toBe(true);
+    expect(mayMoveSubscription(stored, { userId: 'b', p256dh: 'X', auth: 'A1' })).toBe(false);
+  });
+
+  it('notification links refuse tabs, newlines and other control characters', () => {
+    expect(safePushUrl('/\t/evil.example')).toBe('/dashboard');
+    expect(safePushUrl('/\n/evil.example')).toBe('/dashboard');
+    expect(safePushUrl('/\r/evil.example')).toBe('/dashboard');
+    expect(safePushUrl('/a b')).toBe('/dashboard');
+    expect(safePushUrl('/dashboard?x=1#y')).toBe('/dashboard?x=1#y');
+  });
+
+  it('never sends to an endpoint that is not a push service', async () => {
+    sendNotification.mockReset();
+    const r = await sendPush({ endpoint: 'https://169.254.169.254/x', p256dh: 'k', auth: 'a' }, { title: 't', body: 'b', url: '/' });
+    expect(r).toMatchObject({ ok: false, gone: true });
+    expect(sendNotification).not.toHaveBeenCalled();
+  });
+
+  it('sends to all browsers at once and drops one that keeps failing', async () => {
+    const deleted: string[] = [];
+    const counts: Record<string, number> = {};
+    let inFlight = 0;
+    let maxInFlight = 0;
+    const rows = [
+      { id: 's1', endpoint: 'https://fcm.googleapis.com/fcm/send/1', p256dh: 'k', auth: 'a', failure_count: 0 },
+      { id: 's2', endpoint: 'https://fcm.googleapis.com/fcm/send/2', p256dh: 'k', auth: 'a', failure_count: PUSH_MAX_FAILURES - 1 },
+    ];
+    const admin = {
+      from: () => ({
+        select: () => ({ eq: () => ({ order: () => ({ limit: async () => ({ data: rows }) }) }) }),
+        delete: () => ({ eq: async (_c: string, id: string) => { deleted.push(id); return {}; } }),
+        update: (v: { failure_count: number }) => ({ eq: async (_c: string, id: string) => { counts[id] = v.failure_count; return {}; } }),
+      }),
+    };
+    sendNotification.mockImplementation(async () => {
+      inFlight++;
+      maxInFlight = Math.max(maxInFlight, inFlight);
+      await new Promise((r) => setTimeout(r, 5));
+      inFlight--;
+      throw Object.assign(new Error('busy'), { statusCode: 503 });
+    });
+    const r = await pushToUser(admin as never, 'u1', { title: 't', body: 'b', url: '/' });
+    expect(maxInFlight).toBe(2);
+    expect(r.sent).toBe(0);
+    expect(deleted).toEqual(['s2']);
+    expect(counts.s1).toBe(1);
   });
 });

@@ -274,6 +274,12 @@ export const STUDIO = {
   welcomes: {
     autoSendAfterHours: 0 as number | null,
     autoSendMaxAgeDays: 30,
+    // Signup is open to anyone with the public key, so a script making
+    // accounts must not flood the owner's inbox or the AI budget. Past these
+    // per-hour caps the owner note is skipped (the daily list in
+    // /admin/welcomes still shows everyone) and the welcome uses the template.
+    ownerNotesPerHour: 20,
+    aiDraftsPerHour: 30,
   },
 
   // Lifecycle emails and push (lib/engagement): welcome, "finish your signup"

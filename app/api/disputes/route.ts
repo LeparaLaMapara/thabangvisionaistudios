@@ -6,6 +6,7 @@ import { buildNotices } from '@/lib/core/rental/notifications';
 import { requireAuth, checkNotSuspended } from '@/lib/auth';
 import { createClient, createAdminClient } from '@/lib/supabase/server';
 import { sendDisputeFiled } from '@/lib/email';
+import { REPORT_MAX_CHARS, evidencePhotoList } from '@/lib/disputes/report';
 import { profileWithEmail } from '@/lib/supabase/profile-email';
 import {
   CLOSED_DISPUTE_STATUSES,
@@ -61,8 +62,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     booking_id?: string;
     equipment_booking_id?: string;
     reason?: string;
-    evidence_photos?: string[];
-    evidence_notes?: string;
+    evidence_photos?: unknown;
+    evidence_notes?: unknown;
   };
 
   // Validate required fields
@@ -77,6 +78,13 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       { error: 'Reason is required and must be at least 10 characters.' },
       { status: 400 },
     );
+  }
+  if (reason.trim().length > REPORT_MAX_CHARS || (typeof evidence_notes === 'string' && evidence_notes.length > REPORT_MAX_CHARS)) {
+    return NextResponse.json({ error: `Keep it under ${REPORT_MAX_CHARS} characters.` }, { status: 400 });
+  }
+  const photos = evidencePhotoList(evidence_photos);
+  if (!photos) {
+    return NextResponse.json({ error: 'Evidence photos must be uploaded through the site.' }, { status: 400 });
   }
   if (!booking_id && !equipment_booking_id) {
     return NextResponse.json(
@@ -166,8 +174,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         equipment_booking_id: equipment_booking_id || null,
         filed_by: auth.user.id,
         reason: reason.trim(),
-        evidence_photos: evidence_photos ?? [],
-        evidence_notes: evidence_notes?.trim() || null,
+        evidence_photos: photos,
+        evidence_notes: typeof evidence_notes === 'string' ? evidence_notes.trim() || null : null,
         status: 'open',
       })
       .select('id')
