@@ -19,6 +19,7 @@ function maintenanceResponse(request: NextRequest): NextResponse | null {
     bypassCookie: request.cookies.get(MAINTENANCE_BYPASS_COOKIE)?.value,
     maintenanceMode: process.env.MAINTENANCE_MODE,
     bypassToken: process.env.MAINTENANCE_BYPASS_TOKEN,
+    openNightsUntil: process.env.MAINTENANCE_OPEN_NIGHTS_UNTIL,
   });
 
   switch (decision.action) {
