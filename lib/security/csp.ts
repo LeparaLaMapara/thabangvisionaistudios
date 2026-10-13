@@ -45,17 +45,19 @@ export function buildCsp(nonce: string, opts: { dev?: boolean } = {}): string {
     // Ignored by browsers that support 'strict-dynamic'; kept for older ones.
     'https://js.paystack.co',
     'https://va.vercel-scripts.com',
+    // Google's sign-in button (components/auth/GoogleSignInButton.tsx).
+    'https://accounts.google.com/gsi/client',
     // React Refresh in `next dev` only.
     ...(opts.dev ? ["'unsafe-eval'"] : []),
   ];
   return [
     "default-src 'self'",
     `script-src ${script.join(' ')}`,
-    "style-src 'self' 'unsafe-inline'",
+    "style-src 'self' 'unsafe-inline' https://accounts.google.com/gsi/style",
     "img-src 'self' https://res.cloudinary.com https://*.supabase.co https://images.unsplash.com https://i.ytimg.com https://img.youtube.com data: blob:",
     "font-src 'self'",
-    "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.anthropic.com https://api.paystack.co https://js.paystack.co https://api.cloudinary.com https://va.vercel-scripts.com https://vitals.vercel-insights.com https://nominatim.openstreetmap.org",
-    "frame-src https://checkout.paystack.com https://www.youtube.com https://player.vimeo.com",
+    "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.anthropic.com https://api.paystack.co https://js.paystack.co https://api.cloudinary.com https://va.vercel-scripts.com https://vitals.vercel-insights.com https://nominatim.openstreetmap.org https://accounts.google.com/gsi/",
+    "frame-src https://accounts.google.com/gsi/ https://checkout.paystack.com https://www.youtube.com https://player.vimeo.com",
     "frame-ancestors 'none'",
     "media-src 'self' https://res.cloudinary.com",
     "object-src 'none'",
