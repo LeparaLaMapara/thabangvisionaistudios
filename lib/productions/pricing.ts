@@ -1,9 +1,11 @@
 import { PRODUCTION_SERVICES } from '@/lib/constants';
+import { serviceVat } from '@/lib/bookings/pricing';
 import type { ProductionPackage, PackagePriceResult } from '@/types/production';
 
 /**
  * Calculates the total price for a production package from PRODUCTION_SERVICES rates.
  * Prices are never hardcoded — they derive from hourly rates in constants.
+ * `total` is what the customer pays; no VAT is added on top.
  */
 export function calculatePackagePrice(pkg: ProductionPackage): PackagePriceResult {
   const lineItems: PackagePriceResult['lineItems'] = [];
@@ -27,10 +29,12 @@ export function calculatePackagePrice(pkg: ProductionPackage): PackagePriceResul
     });
   }
 
-  const vat = Math.round(subtotal * (PRODUCTION_SERVICES.billing.vatRate / 100));
-  const total = subtotal + vat;
+  // VAT from the tax core, the same rule the booking API charges by: 0 while
+  // not VAT-registered, so total = the sum of the lines. After a registration
+  // the price is treated as VAT-inclusive (subtotal becomes the net amount).
+  const priced = serviceVat(subtotal);
 
-  return { subtotal, vat, total, lineItems };
+  return { subtotal: priced.subtotal, vat: priced.vat, total: priced.total, lineItems };
 }
 
 /** Format a ZAR price for display: "R12,500" or "R 12,500.00" with decimals */

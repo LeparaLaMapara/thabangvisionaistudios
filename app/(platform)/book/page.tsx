@@ -1,5 +1,7 @@
 export const dynamic = 'force-dynamic';
 
+export const metadata = { title: 'Request a Shoot', robots: { index: false, follow: true } };
+
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import { STUDIO } from '@/lib/constants';
@@ -7,6 +9,7 @@ import { getHourlyRate } from '@/lib/supabase/queries/service-bookings';
 import BookConfirmation from './BookConfirmation';
 import { getBookablePackage } from '@/lib/bookings/packages';
 import { quoteHourly, quotePackage, packageUnitWords } from '@/lib/bookings/pricing';
+import { onlinePaymentsOpen } from '@/lib/payments/status';
 
 interface BookPageProps {
   searchParams: Promise<{
@@ -36,7 +39,7 @@ export default async function BookPage({ searchParams }: BookPageProps) {
     // logged in, lost all of it but the first field.
     const query = new URLSearchParams(params as Record<string, string>).toString();
     const target = query ? `/book?${query}` : '/book';
-    redirect(`/login?redirect=${encodeURIComponent(target)}`);
+    redirect(`/login?redirect=${encodeURIComponent(target)}&reason=book`);
   }
 
   const category = params.category || '';
@@ -52,11 +55,14 @@ export default async function BookPage({ searchParams }: BookPageProps) {
   let creatorRate: number | null = null;
   let creatorSpecializations: string[] = [];
   if (creatorId) {
+    // The public card: a client's session cannot read another person's
+    // profiles row, so this came back empty and the page said "we confirm
+    // who will shoot it" to someone who had just chosen their creator.
     const { data: creator } = await supabase
-      .from('profiles')
+      .from('public_profiles')
       .select('display_name, hourly_rate, specializations')
       .eq('id', creatorId)
-      .single();
+      .maybeSingle();
     creatorName = creator?.display_name ?? null;
     creatorRate = (creator?.hourly_rate as number) ?? null;
     creatorSpecializations = (creator?.specializations as string[]) ?? [];
@@ -69,7 +75,7 @@ export default async function BookPage({ searchParams }: BookPageProps) {
     ? { id: pkg.id, title: pkg.title, price: pkg.price, unit: pkg.priceUnit, unitWords: packageUnitWords(pkg.priceUnit) }
     : null;
   if (pkg && !creatorId && pkg.creatorId) {
-    const { data: creator } = await supabase.from('profiles').select('display_name').eq('id', pkg.creatorId).single();
+    const { data: creator } = await supabase.from('public_profiles').select('display_name').eq('id', pkg.creatorId).maybeSingle();
     creatorName = creator?.display_name ?? null;
   }
 
@@ -79,7 +85,8 @@ export default async function BookPage({ searchParams }: BookPageProps) {
     : category && hours >= STUDIO.booking.minBookingHours && dates;
   if (!hasAllDetails) {
     const { BookingForm } = await import('./BookingForm');
-    const hourlyRate = category ? getHourlyRate(category) : (creatorRate ?? 0);
+    // The rate charged is the shoot type's (POST /api/service-bookings), never the profile's.
+    const hourlyRate = category ? getHourlyRate(category) : 0;
     return (
       <BookingForm
         creatorId={creatorId}
@@ -91,10 +98,10 @@ export default async function BookPage({ searchParams }: BookPageProps) {
         initialLocation={location}
         initialDates={dates}
         hourlyRate={hourlyRate}
-        vatRate={STUDIO.booking.vatRate}
         minHours={STUDIO.booking.minBookingHours}
         maxHours={STUDIO.booking.maxBookingHours}
         pkg={pkgInfo}
+        paymentsOpen={onlinePaymentsOpen()}
       />
     );
   }
@@ -103,9 +110,9 @@ export default async function BookPage({ searchParams }: BookPageProps) {
   const bookedHours = pkg && pkg.priceUnit !== 'hour' ? (pkg.hours ?? STUDIO.booking.minBookingHours) : hours;
   const hourlyRate = pkg ? 0 : getHourlyRate(category);
   const quote = pkg
-    ? quotePackage(pkg.price, pkg.priceUnit, bookedHours, STUDIO.booking.vatRate)
-    : quoteHourly(hourlyRate, hours, STUDIO.booking.vatRate);
-  const { subtotal, vat, total } = quote;
+    ? quotePackage(pkg.price, pkg.priceUnit, bookedHours)
+    : quoteHourly(hourlyRate, hours);
+  const { total } = quote;
 
   return (
     <BookConfirmation
@@ -120,11 +127,9 @@ export default async function BookPage({ searchParams }: BookPageProps) {
       creatorId={creatorId}
       creatorName={creatorName}
       hourlyRate={hourlyRate}
-      subtotal={subtotal}
-      vat={vat}
       total={total}
-      vatRate={STUDIO.booking.vatRate}
       cancellationPolicy={STUDIO.booking.cancellationPolicy}
+      paymentsOpen={onlinePaymentsOpen()}
     />
   );
 }

@@ -20,6 +20,8 @@ type SignResponse = {
   signature: string;
   cloudName: string;
   apiKey: string;
+  /** The parameters the server signed; posted with the file as they are. */
+  params: Record<string, string>;
 };
 
 async function getSignature(
@@ -54,15 +56,16 @@ export function uploadFile(
   onProgress?: (pct: number) => void,
 ): Promise<CloudinaryAsset> {
   return new Promise((resolve, reject) => {
-    const timestamp = Math.round(Date.now() / 1000).toString();
-    const paramsToSign: Record<string, string> = { folder, timestamp };
+    // The server decides the final folder and what is signed (it may place
+    // the file under the user's own namespace); post exactly what it signed.
+    const resourceType = file.type.startsWith('video/') ? 'video' : 'image';
+    const paramsToSign: Record<string, string> = { folder, resource_type: resourceType };
 
     getSignature(paramsToSign)
-      .then(({ signature, cloudName, apiKey }) => {
+      .then(({ signature, cloudName, apiKey, params }) => {
         const fd = new FormData();
         fd.append('file',      file);
-        fd.append('folder',    folder);
-        fd.append('timestamp', timestamp);
+        for (const [k, v] of Object.entries(params)) fd.append(k, v);
         fd.append('api_key',   apiKey);
         fd.append('signature', signature);
 

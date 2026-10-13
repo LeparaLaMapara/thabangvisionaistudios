@@ -1,6 +1,7 @@
 import { createAdminClient } from '@/lib/supabase/server';
 import { email as emailProvider } from '@/lib/email';
 import { STUDIO } from '@/lib/constants';
+import { bankDetailsText, BANK_DETAILS_NEVER_CHANGE } from '@/lib/payments/eft';
 
 /**
  * The messages a renter gets along the gear journey (the Apple pickup model:
@@ -8,7 +9,14 @@ import { STUDIO } from '@/lib/constants';
  * Terms and the dashboard. Each is an email plus a dashboard notification.
  */
 
-export type GearNotice = 'confirmed' | 'collect_tomorrow' | 'return_tomorrow' | 'settled';
+export type GearNotice =
+  | 'awaiting_payment'
+  | 'payment_reminder'
+  | 'payment_released'
+  | 'confirmed'
+  | 'collect_tomorrow'
+  | 'return_tomorrow'
+  | 'settled';
 
 const where = (): string => {
   const f = STUDIO.fulfilment.dispatchFrom;
@@ -27,11 +35,52 @@ export interface NoticeBooking {
 }
 
 /** Subject and body for a notice. Pure, so the wording is tested. */
-export function gearNoticeText(kind: GearNotice, items: NoticeBooking[], extra: { depositBack?: number; refundMethod?: string | null; kept?: number } = {}): { title: string; body: string } {
+export function gearNoticeText(
+  kind: GearNotice,
+  items: NoticeBooking[],
+  extra: { depositBack?: number; refundMethod?: string | null; kept?: number; amountDue?: number; reference?: string; method?: string } = {},
+): { title: string; body: string } {
   const list = items.map((i) => i.title).join(', ');
   const first = items[0];
   const delivery = first?.fulfilment_method === 'delivery';
+  const amount = `R${(extra.amountDue ?? 0).toLocaleString(STUDIO.currency.locale)}`;
+  const ref = extra.reference ?? '';
+  const payBy = STUDIO.bank.payWithinHours;
   switch (kind) {
+    case 'awaiting_payment':
+      return extra.method === 'cash'
+        ? {
+            title: 'Your gear is reserved',
+            body: `Reserved: ${list}, ${first.start_date} to ${first.end_date}. Pay ${amount} in cash when you collect at ${where()} on ${first.start_date}. Bring your ID card. Your reference is ${ref}.`,
+          }
+        : {
+            title: `Pay ${amount} by EFT to confirm your booking`,
+            body: [
+              `Reserved: ${list}, ${first.start_date} to ${first.end_date}.`,
+              `To confirm, pay ${amount} by EFT within ${payBy} hours, using ${ref} as the reference:`,
+              '',
+              bankDetailsText(ref),
+              '',
+              `Then send your proof of payment on WhatsApp (${STUDIO.whatsapp.display}) or to ${STUDIO.bookingEmail}. We confirm as soon as it arrives.`,
+              BANK_DETAILS_NEVER_CHANGE,
+            ].join('\n'),
+          };
+    case 'payment_reminder':
+      return {
+        title: `Reminder: pay ${amount} to keep your booking`,
+        body: [
+          `Your ${list} for ${first.start_date} is still waiting for payment. Pay ${amount} by EFT with the reference ${ref} to keep your dates:`,
+          '',
+          bankDetailsText(ref),
+          '',
+          `Already paid? Send your proof on WhatsApp (${STUDIO.whatsapp.display}) or to ${STUDIO.bookingEmail}.`,
+        ].join('\n'),
+      };
+    case 'payment_released':
+      return {
+        title: 'Your reserved gear has been released',
+        body: `We did not receive payment for ${list} (${first.start_date} to ${first.end_date}, reference ${ref}), so the dates are open again and nothing was charged. If you paid, send your proof on WhatsApp (${STUDIO.whatsapp.display}) and we will sort it out straight away.`,
+      };
     case 'confirmed':
       return {
         title: 'Your gear is booked',
@@ -82,7 +131,7 @@ export async function sendGearNotice(kind: GearNotice, items: NoticeBooking[], e
       await emailProvider.sendEmail({
         to: data.user.email,
         subject: `${title} — ${STUDIO.name}`,
-        text: `${body}\n\nYour booking: ${STUDIO.meta.url}${link}\nQuestions? Reply to this email or call ${STUDIO.phone}.\n\n${STUDIO.name}`,
+        text: `${body}\n\nYour booking: ${STUDIO.meta.url}${link}\nQuestions? Reply to this email or WhatsApp ${STUDIO.whatsapp.display}.\n\n${STUDIO.name}`,
       });
     }
   } catch (err) {

@@ -1,4 +1,5 @@
 import crypto from 'crypto';
+import { appUrl } from '@/lib/app-url';
 import type {
   PaymentProvider,
   CheckoutParams,
@@ -32,7 +33,7 @@ function getSecretKey(): string {
 
 function resolveUrl(path: string): string {
   if (path.startsWith('http')) return path;
-  const base = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000';
+  const base = appUrl();
   return `${base}${path}`;
 }
 
@@ -86,6 +87,7 @@ export const yoco: PaymentProvider = {
   allowedHosts: ['c.yoco.com', 'pay.yoco.com', 'payments.yoco.com'],
 
   isConfigured(): boolean {
+    if (process.env.PAYMENTS_OFF === 'true') return false;
     return Boolean(process.env.YOCO_SECRET_KEY);
   },
 

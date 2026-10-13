@@ -1,10 +1,13 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useId } from 'react';
 import { useRouter } from 'next/navigation';
 import { Calendar, Clock, MapPin, Camera, Package } from 'lucide-react';
 import { quoteHourly, quotePackage } from '@/lib/bookings/pricing';
+import { getHourlyRate } from '@/lib/bookings/rates';
 import { toLocalYmd } from '@/lib/rental/dates';
+import { formatRand, withServiceVat } from '@/lib/format/money';
+import { PaymentsNotOpenNote } from '@/components/booking/PaymentsNotOpenNote';
 
 /** A studio package booked at its own price (see app/(platform)/book/page.tsx). */
 export interface BookingPackage {
@@ -42,6 +45,7 @@ const CATEGORIES = [
 interface BookingFormProps {
   creatorId: string | null;
   creatorName: string | null;
+  /** Not used for the price: the server charges the shoot type's rate. */
   creatorRate: number | null;
   creatorSpecializations: string[];
   initialCategory: string;
@@ -49,46 +53,60 @@ interface BookingFormProps {
   initialLocation: string;
   initialDates: string;
   hourlyRate: number;
-  vatRate: number;
   minHours: number;
   maxHours: number;
   pkg?: BookingPackage | null;
+  /** onlinePaymentsOpen() from the server. */
+  paymentsOpen: boolean;
 }
 
 export function BookingForm({
   creatorId,
   creatorName,
-  creatorRate,
   creatorSpecializations,
   initialCategory,
   initialHours,
   initialLocation,
   initialDates,
   hourlyRate: defaultRate,
-  vatRate,
   minHours,
   maxHours,
   pkg = null,
+  paymentsOpen,
 }: BookingFormProps) {
   const router = useRouter();
+  // Every label is tied to its control (htmlFor/id), so tapping the label
+  // focuses the field and a screen reader announces the field by name.
+  const fieldId = useId();
+  const ids = {
+    category: `${fieldId}-category`,
+    hours: `${fieldId}-hours`,
+    hoursHint: `${fieldId}-hours-hint`,
+    date: `${fieldId}-date`,
+    location: `${fieldId}-location`,
+    deliverables: `${fieldId}-deliverables`,
+  };
   const [category, setCategory] = useState(initialCategory);
   const [hours, setHours] = useState(initialHours);
   const [date, setDate] = useState(initialDates);
   const [location, setLocation] = useState(initialLocation);
   const [deliverables, setDeliverables] = useState('');
 
-  const rate = creatorRate ?? defaultRate;
+  // The rate the server charges for the chosen shoot type (lib/bookings/rates),
+  // so the quote here is the price on the next page and the price paid. No
+  // price until a type is chosen: a quote of R0 is never shown.
+  const rate = category ? getHourlyRate(category) : defaultRate > 0 ? defaultRate : 0;
   // A package priced per project/session/event needs no hours and no shoot type.
   const fixedPackage = !!pkg && pkg.unit !== 'hour';
 
   const quote = useMemo(() => {
     if (pkg) {
       if (!fixedPackage && (!hours || hours < minHours)) return null;
-      return quotePackage(pkg.price, pkg.unit, hours, vatRate);
+      return quotePackage(pkg.price, pkg.unit, hours);
     }
-    if (!hours || hours < minHours) return null;
-    return quoteHourly(rate, hours, vatRate);
-  }, [pkg, fixedPackage, rate, hours, vatRate, minHours]);
+    if (!rate || !hours || hours < minHours) return null;
+    return quoteHourly(rate, hours);
+  }, [pkg, fixedPackage, rate, hours, minHours]);
 
   const canSubmit = pkg ? date && (fixedPackage || hours >= minHours) : category && hours >= minHours && date;
 
@@ -118,7 +136,7 @@ export function BookingForm({
       <div className="mx-auto max-w-lg">
         {/* Header */}
         <h1 className="mb-2 text-2xl font-bold text-white">
-          {pkg ? `Book: ${pkg.title}` : creatorName ? `Book ${creatorName}` : 'Book a Session'}
+          {pkg ? `Request: ${pkg.title}` : creatorName ? `Request ${creatorName}` : 'Request a Shoot'}
         </h1>
         {creatorName && creatorSpecializations.length > 0 && (
           <p className="mb-2 text-sm text-neutral-400">
@@ -127,11 +145,11 @@ export function BookingForm({
         )}
         {pkg ? (
           <p className="mb-8 text-[#D4A843] font-mono text-sm">
-            R{pkg.price.toLocaleString()} {pkg.unitWords}, excl. VAT
+            {formatRand(withServiceVat(pkg.price))} {pkg.unitWords}
           </p>
         ) : rate > 0 && (
           <p className="mb-8 text-[#D4A843] font-mono text-sm">
-            R{rate.toLocaleString()}/hour, excl. VAT
+            {formatRand(withServiceVat(rate))} an hour
           </p>
         )}
 
@@ -139,15 +157,16 @@ export function BookingForm({
           {/* Category (a package already says what the shoot is) */}
           {!pkg && (
           <div>
-            <label className="flex items-center gap-2 text-xs font-mono uppercase tracking-widest text-neutral-400 mb-2">
-              <Camera className="w-3.5 h-3.5" />
+            <label htmlFor={ids.category} className="flex items-center gap-2 text-xs font-mono uppercase tracking-widest text-neutral-400 mb-2">
+              <Camera className="w-3.5 h-3.5" aria-hidden="true" />
               Type of shoot
             </label>
             <select
+              id={ids.category}
               value={category}
               onChange={(e) => setCategory(e.target.value)}
               required
-              className="w-full bg-neutral-900 border border-neutral-800 text-white text-sm font-mono px-4 py-3 focus:outline-none focus:border-[#D4A843]/50"
+              className="w-full bg-neutral-900 border border-neutral-800 text-white text-base md:text-sm font-mono px-4 py-3 min-h-[44px] focus:outline-none focus:border-[#D4A843]/50"
             >
               <option value="">Select...</option>
               {CATEGORIES.map((c) => (
@@ -161,21 +180,24 @@ export function BookingForm({
           {/* Hours (not asked for a fixed-price package) */}
           {!fixedPackage && (
           <div>
-            <label className="flex items-center gap-2 text-xs font-mono uppercase tracking-widest text-neutral-400 mb-2">
-              <Clock className="w-3.5 h-3.5" />
+            <label htmlFor={ids.hours} className="flex items-center gap-2 text-xs font-mono uppercase tracking-widest text-neutral-400 mb-2">
+              <Clock className="w-3.5 h-3.5" aria-hidden="true" />
               How many hours?
             </label>
             <div className="flex items-center gap-3">
               <input
+                id={ids.hours}
+                aria-describedby={ids.hoursHint}
                 type="number"
+                inputMode="numeric"
                 min={minHours}
                 max={maxHours}
                 value={hours}
                 onChange={(e) => setHours(parseInt(e.target.value, 10) || minHours)}
                 required
-                className="w-24 bg-neutral-900 border border-neutral-800 text-white text-sm font-mono px-4 py-3 text-center focus:outline-none focus:border-[#D4A843]/50"
+                className="w-24 bg-neutral-900 border border-neutral-800 text-white text-base md:text-sm font-mono px-4 py-3 min-h-[44px] text-center focus:outline-none focus:border-[#D4A843]/50"
               />
-              <span className="text-neutral-400 text-sm font-mono">
+              <span id={ids.hoursHint} className="text-neutral-400 text-sm font-mono">
                 hours (min {minHours})
               </span>
             </div>
@@ -185,32 +207,35 @@ export function BookingForm({
 
           {/* Date */}
           <div>
-            <label className="flex items-center gap-2 text-xs font-mono uppercase tracking-widest text-neutral-400 mb-2">
-              <Calendar className="w-3.5 h-3.5" />
+            <label htmlFor={ids.date} className="flex items-center gap-2 text-xs font-mono uppercase tracking-widest text-neutral-400 mb-2">
+              <Calendar className="w-3.5 h-3.5" aria-hidden="true" />
               When?
             </label>
             <input
+              id={ids.date}
               type="date"
               value={date}
               min={minDate}
               onChange={(e) => setDate(e.target.value)}
               required
-              className="w-full bg-neutral-900 border border-neutral-800 text-white text-sm font-mono px-4 py-3 focus:outline-none focus:border-[#D4A843]/50"
+              className="w-full bg-neutral-900 border border-neutral-800 text-white text-base md:text-sm font-mono px-4 py-3 min-h-[44px] focus:outline-none focus:border-[#D4A843]/50"
             />
           </div>
 
           {/* Location */}
           <div>
-            <label className="flex items-center gap-2 text-xs font-mono uppercase tracking-widest text-neutral-400 mb-2">
-              <MapPin className="w-3.5 h-3.5" />
+            <label htmlFor={ids.location} className="flex items-center gap-2 text-xs font-mono uppercase tracking-widest text-neutral-400 mb-2">
+              <MapPin className="w-3.5 h-3.5" aria-hidden="true" />
               Where? <span className="text-neutral-400">(optional)</span>
             </label>
             <input
+              id={ids.location}
               type="text"
+              autoComplete="street-address"
               value={location}
               onChange={(e) => setLocation(e.target.value)}
               placeholder="Studio, venue, or city..."
-              className="w-full bg-neutral-900 border border-neutral-800 text-white text-sm font-mono px-4 py-3 placeholder-neutral-600 focus:outline-none focus:border-[#D4A843]/50"
+              className="w-full bg-neutral-900 border border-neutral-800 text-white text-base md:text-sm font-mono px-4 py-3 min-h-[44px] placeholder-neutral-400 focus:outline-none focus:border-[#D4A843]/50"
             />
           </div>
 
@@ -220,14 +245,15 @@ export function BookingForm({
               asked here rather than guessed later. Optional on purpose: it must
               never be the reason a booking does not happen. */}
           <div>
-            <label className="flex items-center gap-2 text-xs font-mono uppercase tracking-widest text-neutral-400 mb-2">
-              <Package className="w-3.5 h-3.5" />
+            <label htmlFor={ids.deliverables} className="flex items-center gap-2 text-xs font-mono uppercase tracking-widest text-neutral-400 mb-2">
+              <Package className="w-3.5 h-3.5" aria-hidden="true" />
               What do you need back? <span className="text-neutral-400">(optional)</span>
             </label>
             <select
+              id={ids.deliverables}
               value={deliverables}
               onChange={(e) => setDeliverables(e.target.value)}
-              className="w-full bg-neutral-900 border border-neutral-800 text-white text-sm font-mono px-4 py-3 focus:outline-none focus:border-[#D4A843]/50"
+              className="w-full bg-neutral-900 border border-neutral-800 text-white text-base md:text-sm font-mono px-4 py-3 min-h-[44px] focus:outline-none focus:border-[#D4A843]/50"
             >
               <option value="">We can decide later...</option>
               {DELIVERABLES.map((d) => (
@@ -238,26 +264,24 @@ export function BookingForm({
 
           {/* Live quote */}
           {quote && (
-            <div className="border border-neutral-800 bg-neutral-900/50 p-5 mt-6">
+            <div className="border border-neutral-800 bg-neutral-900/50 p-5 mt-6" aria-live="polite">
               <p className="text-xs font-mono uppercase tracking-widest text-neutral-400 mb-3">
                 Quote
               </p>
               <div className="space-y-2 text-sm font-mono">
                 <div className="flex justify-between text-neutral-400">
                   <span>{quote.line}</span>
-                  <span>R{quote.subtotal.toLocaleString()}</span>
-                </div>
-                <div className="flex justify-between text-neutral-400">
-                  <span>VAT ({vatRate}%)</span>
-                  <span>R{quote.vat.toLocaleString()}</span>
+                  <span>{formatRand(quote.total)}</span>
                 </div>
                 <div className="flex justify-between border-t border-neutral-700 pt-2 text-lg font-bold text-white">
                   <span>Total</span>
-                  <span>R{quote.total.toLocaleString()}</span>
+                  <span>{formatRand(quote.total)}</span>
                 </div>
               </div>
             </div>
           )}
+
+          <PaymentsNotOpenNote open={paymentsOpen} />
 
           {/* Submit */}
           <button
@@ -265,7 +289,7 @@ export function BookingForm({
             disabled={!canSubmit}
             className="w-full py-4 text-lg font-bold bg-[#D4A843] text-black transition-colors hover:bg-[#c49a3a] disabled:cursor-not-allowed disabled:opacity-40"
           >
-            {quote ? `Continue — R${quote.total.toLocaleString()}` : 'Continue to Quote'}
+            {quote ? `Continue, ${formatRand(quote.total)}` : !pkg && !category ? 'Choose the type of shoot to see the price' : 'Continue to Quote'}
           </button>
         </form>
       </div>

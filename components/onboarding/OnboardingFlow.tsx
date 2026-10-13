@@ -10,17 +10,21 @@ import OnboardingProgress from './OnboardingProgress';
 import StepPortfolioUpload from './StepPortfolioUpload';
 import StepSkillsDetection from './StepSkillsDetection';
 import StepBioReview from './StepBioReview';
-import StepGearRentals from './StepGearRentals';
+import StepGearRentals, { type GearDraftResult } from './StepGearRentals';
+import { mergeSpecializations } from '@/lib/creators/specializations';
 import type { SceneAnalysisResult, SkillDetectionResult } from '@/lib/agents/types';
+import { ONBOARDING_TOTAL_STEPS, resumeStep } from '@/lib/onboarding/progress';
 
 // The ID check is not a step here: it is the one check on the verification
 // page, done once, before gear goes live or a first payout (it used to be
 // asked here and the details were then thrown away).
-const TOTAL_STEPS = 4;
+const TOTAL_STEPS = ONBOARDING_TOTAL_STEPS;
 const STEP_LABELS = ['Portfolio', 'Skills', 'Bio & Review', 'Gear'];
 
 interface OnboardingData {
   analyses: SceneAnalysisResult[];
+  /** The creator went on without a usable AI analysis: choose skills from the full list. */
+  manualSkills: boolean;
   skills: SkillDetectionResult | null;
   bio: string | null;
   gear: unknown[];
@@ -33,6 +37,7 @@ export default function OnboardingFlow() {
   const [error, setError] = useState<string | null>(null);
   const [data, setData] = useState<OnboardingData>({
     analyses: [],
+    manualSkills: false,
     skills: null,
     bio: null,
     gear: [],
@@ -42,7 +47,8 @@ export default function OnboardingFlow() {
     const supabase = createClient();
     supabase.auth.getUser().then(async ({ data: { user } }) => {
       if (!user) {
-        window.location.href = '/login';
+        // Sign up (or in), then straight back here.
+        window.location.href = `/login?mode=signup&next=${encodeURIComponent('/onboarding')}`;
         return;
       }
 
@@ -54,13 +60,17 @@ export default function OnboardingFlow() {
           .single();
 
         if (progress) {
-          // Map old 6-step progress to new 5-step flow
-          const oldStep = progress.current_step || 1;
-          const mapped = oldStep <= 2 ? 1 : oldStep <= 3 ? 2 : oldStep <= 4 ? 3 : 4;
-          setStep(mapped);
-          if (progress.detected_skills) {
-            setData(prev => ({ ...prev, skills: progress.detected_skills as SkillDetectionResult }));
-          }
+          // current_step is the last step they finished: resume at the next one.
+          const next = resumeStep(progress);
+          setStep(next);
+          setData(prev => ({
+            ...prev,
+            // The photo analyses are not kept in the browser, so a creator
+            // resuming at Skills picks from the full list instead of waiting
+            // on detection with nothing to detect from.
+            manualSkills: next === 2,
+            ...(progress.detected_skills ? { skills: progress.detected_skills as SkillDetectionResult } : {}),
+          }));
         }
       } catch {
         // No existing progress, start from step 1
@@ -88,8 +98,8 @@ export default function OnboardingFlow() {
       .upsert(progressData, { onConflict: 'creator_id' });
   }, []);
 
-  const handlePortfolioComplete = useCallback(async (analyses: SceneAnalysisResult[]) => {
-    setData(prev => ({ ...prev, analyses }));
+  const handlePortfolioComplete = useCallback(async (analyses: SceneAnalysisResult[], opts?: { manualSkills?: boolean }) => {
+    setData(prev => ({ ...prev, analyses, manualSkills: opts?.manualSkills === true }));
     await saveProgress(1);
     setStep(2);
   }, [saveProgress]);
@@ -97,6 +107,38 @@ export default function OnboardingFlow() {
   const handleSkillsComplete = useCallback(async (skills: SkillDetectionResult) => {
     setData(prev => ({ ...prev, skills }));
     await saveProgress(2, { detected_skills: skills });
+
+    // The skills the creator confirmed go on the profile, where search and
+    // the public profile read them: specializations on the shared vocabulary
+    // (CREATOR_SPECIALIZATIONS), and the skill names as profile skills.
+    // Best effort: the step still completes if this write fails, and the
+    // profile page lets them set both by hand.
+    try {
+      const supabase = createClient();
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const names = skills.skills.map(s => s.name);
+        const { data: current } = await supabase
+          .from('profiles')
+          .select('specializations, skills')
+          .eq('id', user.id)
+          .maybeSingle();
+        const existingSkills = ((current?.skills as string[] | null) ?? []).filter(Boolean);
+        const mergedSkills = [...existingSkills];
+        for (const n of names) if (n && !mergedSkills.includes(n)) mergedSkills.push(n);
+        await supabase
+          .from('profiles')
+          .update({
+            specializations: mergeSpecializations(current?.specializations as string[] | null, names),
+            skills: mergedSkills,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', user.id);
+      }
+    } catch {
+      // Not worth stopping onboarding for.
+    }
+
     setStep(3);
   }, [saveProgress]);
 
@@ -106,7 +148,7 @@ export default function OnboardingFlow() {
     setStep(4);
   }, [saveProgress]);
 
-  const completeOnboarding = useCallback(async (gear?: unknown[]) => {
+  const completeOnboarding = useCallback(async (gear?: unknown[], drafts?: GearDraftResult | null) => {
     setSaving(true);
     setError(null);
 
@@ -114,31 +156,36 @@ export default function OnboardingFlow() {
       if (gear) {
         setData(prev => ({ ...prev, gear }));
       }
+
+      const res = await fetch('/api/onboarding/complete', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ draftedGear: drafts?.created ?? 0 }),
+      });
+
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(body.error || 'We could not finish your setup just now. Please try again.');
+      }
+
+      // Recorded as finished only once the server has saved it.
       await saveProgress(4, {
         ...(gear ? { detected_gear: gear } : {}),
         completed_at: new Date().toISOString(),
       });
 
-      const res = await fetch('/api/onboarding/complete', {
-        method: 'POST',
-        credentials: 'include',
-      });
-
-      if (!res.ok) {
-        const body = await res.json();
-        throw new Error(body.error || 'Failed to complete onboarding.');
-      }
-
-      // One next step: the ID check, then back to the dashboard.
-      window.location.assign('/dashboard/verification?redirect=%2Fdashboard');
+      // Next: the ID check (the page then shows the remaining creator steps,
+      // including any gear drafts), or the dashboard if it has passed.
+      window.location.assign(typeof body.next === 'string' && body.next.startsWith('/') && !body.next.startsWith('//') ? body.next : '/dashboard');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save.');
       setSaving(false);
     }
   }, [saveProgress]);
 
-  const handleGearComplete = useCallback(async (gear: unknown[]) => {
-    await completeOnboarding(gear);
+  const handleGearComplete = useCallback(async (gear: unknown[], drafts: GearDraftResult | null) => {
+    await completeOnboarding(gear, drafts);
   }, [completeOnboarding]);
 
   const handleGearSkip = useCallback(async () => {
@@ -208,6 +255,7 @@ export default function OnboardingFlow() {
               {step === 2 && (
                 <StepSkillsDetection
                   analyses={data.analyses}
+                  manualSkills={data.manualSkills}
                   onComplete={handleSkillsComplete}
                 />
               )}
@@ -231,7 +279,7 @@ export default function OnboardingFlow() {
 
           {/* Error */}
           {error && (
-            <div className="bg-red-500/10 border border-red-500/30 px-4 py-3 mt-4">
+            <div className="bg-red-500/10 border border-red-500/30 px-4 py-3 mt-4" role="alert">
               <p className="text-xs text-red-400 font-mono">{error}</p>
             </div>
           )}

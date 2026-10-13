@@ -8,6 +8,13 @@ export const FEATURE_KEYS = [
   'voice_onboarding',
   'ai_rate_suggestions',
   'ai_portfolio_tagging',
+  // Phase 4: automated third-party courier delivery. Off by default; turning it
+  // on still needs verified cover and a non-zero
+  // DELIVERY_POLICY.automatedDeliveryMaxItemValueCents (lib/core/delivery/policy.ts).
+  'delivery_courier',
+  // Ubunye Apps (/tools): shows "Apps" in the main nav. The page is
+  // reachable by URL either way; the flag only controls the nav entry.
+  'creative_tools',
 ] as const;
 
 export type FeatureKey = typeof FEATURE_KEYS[number];
@@ -16,6 +23,8 @@ const FLAG_DEFAULTS: Partial<Record<FeatureKey, boolean>> = {
   smart_productions: true,
   ai_rate_suggestions: true,
   ai_portfolio_tagging: true,
+  delivery_courier: false,
+  creative_tools: false,
 };
 
 export interface FeatureFlag {
@@ -77,6 +86,7 @@ export async function getFlags(
 export async function setFlag(
   key: FeatureKey,
   enabled: boolean,
+  changedBy?: string,
 ): Promise<void> {
   const supabase = createAdminClient();
   const { error } = await supabase
@@ -85,6 +95,18 @@ export async function setFlag(
     .eq('key', key);
 
   if (error) throw new Error(`Failed to toggle flag ${key}: ${error.message}`);
+
+  // The audit trigger records auth.uid(), which is empty for this service-role
+  // write, so the event row it just made is stamped with the admin here.
+  if (changedBy) {
+    const { error: auditError } = await supabase
+      .from('feature_flag_events')
+      .update({ changed_by: changedBy })
+      .eq('flag_key', key)
+      .is('changed_by', null)
+      .gte('changed_at', new Date(Date.now() - 60_000).toISOString());
+    if (auditError) console.error(`[features] could not record who changed ${key}:`, auditError.message);
+  }
 }
 
 export const FEATURE_FLAGS_CACHE_TAG = FLAGS_CACHE_TAG;

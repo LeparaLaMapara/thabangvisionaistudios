@@ -1,4 +1,5 @@
 import { STUDIO } from '@/lib/constants';
+import { INVENTORY_BLOCKING_STATUSES } from '@/lib/core/rental/state';
 
 /**
  * How many units of a listing are genuinely spoken for on a set of dates.
@@ -27,11 +28,42 @@ export interface BookingHold {
   createdAt: string;
   /** Gateway reference. Null means nobody has paid yet. */
   paymentReference: string | null;
+  /** 'cash' = paid at collection: holds its dates until then, not for the short window. */
+  method?: string | null;
+  /** Explicit hold expiry (migration 070). When present it decides, not createdAt. */
+  holdExpiresAt?: string | null;
 }
 
-/** Statuses that occupy stock. Anything else has released it. */
-// 'overdue' gear has not come back, so it still occupies stock.
-const OCCUPYING = new Set(['pending', 'confirmed', 'active', 'overdue']);
+/**
+ * Statuses that occupy stock. Anything else has released it. Same list as
+ * INVENTORY_BLOCKING_STATUSES in lib/core/rental/state.ts and the database
+ * function rental_units_blocked (070). Overdue gear has not come back,
+ * returned gear is being inspected, and disputed gear is held for the
+ * dispute, so none of them can be hired out again yet (T24, T25).
+ */
+const OCCUPYING = new Set(INVENTORY_BLOCKING_STATUSES as readonly string[]);
+
+/** Statuses whose gear is not back on the shelf: they block until a person records it back, whatever the booked dates. */
+export const OPEN_ENDED_STATUSES: readonly string[] = ['overdue', 'return_pending', 'return_reviewed', 'disputed'];
+
+/**
+ * The last date a booking keeps its unit, inclusive. Gear is due back by the
+ * end of its end date, so that day is not sold again. Gear not yet back
+ * blocks open-endedly (null). That includes an `active` hire whose end date
+ * has passed but which the overdue job has not marked yet.
+ */
+export function effectiveEndDate(row: { status: string; end_date: string }, todaySast: string): string | null {
+  if (OPEN_ENDED_STATUSES.includes(row.status)) return null;
+  if (row.status === 'active' && row.end_date < todaySast) return null;
+  return row.end_date;
+}
+
+/** Whether a booking's (inclusive) dates touch the requested (inclusive) range. */
+export function overlapsRange(row: { status: string; start_date: string; end_date: string }, start: string, end: string, todaySast: string): boolean {
+  if (row.start_date > end) return false;
+  const until = effectiveEndDate(row, todaySast);
+  return until === null || until >= start;
+}
 
 /**
  * An unpaid `pending` row is a checkout someone started. It holds stock only
@@ -49,6 +81,11 @@ export function isExpiredHold(
 ): boolean {
   if (hold.status !== 'pending') return false;
   if (hold.paymentReference) return false;
+  if (hold.holdExpiresAt) {
+    const until = new Date(hold.holdExpiresAt).getTime();
+    return !Number.isNaN(until) && until <= now.getTime();
+  }
+  if (hold.method === 'cash') return false;
 
   const created = new Date(hold.createdAt).getTime();
   // An unparseable timestamp must not silently free stock.
@@ -82,10 +119,10 @@ export interface AvailabilityResult {
 /**
  * Whether `requested` units can be booked over the given dates.
  *
- * Overbooking is possible in principle if two checkouts race, since this reads
- * and then writes. At this volume the window is small and the consequence is a
- * conversation rather than a loss; a database-level exclusion constraint is
- * the answer if that ever stops being true.
+ * This is a read, so on its own two checkouts could race. Since migration 070
+ * the checkout reserves through reserve_rental_order, which locks the listing
+ * and re-checks inside the transaction. This function only produces the
+ * friendly message before that.
  */
 export function checkAvailability(params: {
   stock: number;

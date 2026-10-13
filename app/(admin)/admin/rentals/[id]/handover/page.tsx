@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { ArrowLeft, Camera, Loader2 } from 'lucide-react';
 import { uploadFile } from '@/lib/cloudinary/upload';
+import { uploadAccept } from '@/lib/storage/upload-policy';
 
 /**
  * Staff handover at the counter (TASK-067), like an Apple Store pickup:
@@ -13,7 +14,15 @@ import { uploadFile } from '@/lib/cloudinary/upload';
  */
 
 interface HandoverData {
-  booking: { id: string; status: string; start_date: string; end_date: string; quantity: number | null; handover: unknown };
+  booking: {
+    id: string;
+    status: string;
+    start_date: string;
+    end_date: string;
+    quantity: number | null;
+    handover: unknown;
+    requires_manual_approval?: boolean;
+  };
   rental: { title: string; serial_number: string | null; tracker_fitted: boolean | null } | null;
   renter: { name: string; verification: string; selfieUrl: string | null };
   agreement: { version: string; lines: string[] };
@@ -26,12 +35,32 @@ const CONDITIONS = [
   { value: 'fair', label: 'Fair (visible wear, works fully)' },
 ];
 
+/** Comma- or line-separated text to a clean list. */
+const toList = (text: string): string[] =>
+  text
+    .split(/[\n,]/)
+    .map((x) => x.trim())
+    .filter(Boolean);
+
+/** Friendlier guidance for the refusals staff can fix at the counter. */
+const CODE_HINTS: Record<string, string> = {
+  SERIAL_MISMATCH: 'Read the serial number off the gear itself and type it exactly. If it does not match, do not hand over: this may not be the registered unit.',
+  RISK_APPROVAL_REQUIRED: 'A manager must tick the risk approval in step 4 and write why it is acceptable.',
+};
+
 export default function HandoverPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const [data, setData] = useState<HandoverData | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [idChecked, setIdChecked] = useState(false);
+  const [collectorIsRenter, setCollectorIsRenter] = useState(false);
+  const [location, setLocation] = useState('');
+  const [serials, setSerials] = useState('');
+  const [accessories, setAccessories] = useState('');
+  const [riskApproved, setRiskApproved] = useState(false);
+  const [riskNote, setRiskNote] = useState('');
+  const [errorHint, setErrorHint] = useState<string | null>(null);
   const [condition, setCondition] = useState('');
   const [photos, setPhotos] = useState<string[]>([]);
   const [renterPhoto, setRenterPhoto] = useState<string | null>(null);
@@ -47,8 +76,10 @@ export default function HandoverPage() {
       .then(async (res) => ({ ok: res.ok, json: await res.json() }))
       .then(({ ok, json }) => {
         if (!alive) return;
-        if (ok) setData(json);
-        else setError(json.error ?? 'Could not load the booking.');
+        if (ok) {
+          setData(json);
+          setSerials((json as HandoverData).rental?.serial_number ?? '');
+        } else setError(json.error ?? 'Could not load the booking.');
       });
     return () => {
       alive = false;
@@ -111,28 +142,50 @@ export default function HandoverPage() {
     if (!data) return;
     setSaving(true);
     setError(null);
+    setErrorHint(null);
     const res = await fetch(`/api/admin/rentals/${id}/handover`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         idChecked,
+        collectorIsRenter,
         condition,
         conditionPhotos: photos,
         renterPhoto,
         signature: canvasRef.current?.toDataURL('image/png'),
         agreementVersion: data.agreement.version,
+        location: location.trim(),
+        serials: toList(serials),
+        accessories: toList(accessories),
+        ...(needsRisk ? { riskApproved, riskNote: riskNote.trim() } : {}),
       }),
-    });
-    const json = await res.json().catch(() => ({}));
+    }).catch(() => null);
+    const json = res ? await res.json().catch(() => ({})) : {};
     setSaving(false);
-    if (!res.ok) {
+    if (!res || !res.ok) {
       setError(json.error ?? 'Could not save the handover.');
+      setErrorHint(typeof json.code === 'string' ? CODE_HINTS[json.code] ?? null : null);
       return;
     }
-    router.push('/admin/bookings');
+    router.push(`/admin/bookings?open=${id}&done=handover`);
   };
 
-  const ready = idChecked && condition && photos.length > 0 && signed && !uploading && !saving;
+  const registeredSerial = data?.rental?.serial_number?.trim() || null;
+  const needsRisk = data?.booking.requires_manual_approval === true;
+  // The server refuses a handover to a renter whose ID is not checked; say so up front.
+  const renterVerified = data?.renter.verification === 'verified';
+  const ready =
+    renterVerified &&
+    idChecked &&
+    collectorIsRenter &&
+    location.trim().length >= 3 &&
+    (!registeredSerial || toList(serials).length > 0) &&
+    (!needsRisk || (riskApproved && riskNote.trim().length >= 5)) &&
+    condition &&
+    photos.length > 0 &&
+    signed &&
+    !uploading &&
+    !saving;
 
   return (
     <div className="max-w-2xl mx-auto p-6 md:p-10 space-y-8">
@@ -154,7 +207,28 @@ export default function HandoverPage() {
         )}
       </header>
 
-      {error && <p className="text-sm text-red-400">{error}</p>}
+      {error && (
+        <div role="alert" className="space-y-1">
+          <p className="text-sm text-red-400">{error}</p>
+          {errorHint && <p className="text-xs text-neutral-400">{errorHint}</p>}
+        </div>
+      )}
+      {needsRisk && (
+        <p className="text-sm text-[#D4A843] border border-[#D4A843]/30 rounded p-3">
+          This booking is flagged for risk. A manager must approve it, with a note, before the gear leaves (step 4).
+        </p>
+      )}
+      {data && !renterVerified && (
+        <div role="alert" className="rounded border border-red-500/40 bg-red-500/10 p-4 text-sm text-red-200">
+          <p>
+            <strong>{data.renter.name}&apos;s ID is not checked</strong>, so this gear cannot be handed over yet. Approve their ID check
+            first, or cancel the booking if they cannot be verified.
+          </p>
+          <Link href="/admin/verifications" className="mt-2 inline-block underline">
+            Open ID checks
+          </Link>
+        </div>
+      )}
       {data && data.booking.status !== 'confirmed' && (
         <p className="text-sm text-[#D4A843]">This booking is {data.booking.status}. Only a confirmed (paid) booking can be handed over.</p>
       )}
@@ -178,6 +252,21 @@ export default function HandoverPage() {
               <input type="checkbox" checked={idChecked} onChange={(e) => setIdChecked(e.target.checked)} className="w-5 h-5" />
               I checked their ID card: the face and the name match.
             </label>
+            <label className="flex items-center gap-3 min-h-[44px] text-sm text-white">
+              <input type="checkbox" checked={collectorIsRenter} onChange={(e) => setCollectorIsRenter(e.target.checked)} className="w-5 h-5" />
+              The person collecting is the renter named on the booking.
+            </label>
+            <p className="text-xs text-neutral-400">Gear is handed only to the renter. If someone else came to collect, do not hand over.</p>
+            <label className="block text-xs text-neutral-400 space-y-1">
+              <span className="font-mono uppercase tracking-widest">Where is the handover happening?</span>
+              <input
+                value={location}
+                onChange={(e) => setLocation(e.target.value)}
+                placeholder="e.g. the studio counter, the collection point"
+                maxLength={200}
+                className="w-full min-h-[44px] bg-[#050505] border border-white/10 rounded px-3 text-sm text-white"
+              />
+            </label>
           </section>
 
           <section className="space-y-3">
@@ -196,6 +285,32 @@ export default function HandoverPage() {
             {photos.length > 0 && <p className="text-xs text-neutral-400">{photos.length} photo(s) added</p>}
             <PhotoButton label={renterPhoto ? 'Retake renter photo' : 'Photo of the renter with the gear'} disabled={uploading} onFiles={(f) => upload(f, 'renter')} />
             {uploading && <p className="text-xs text-neutral-400 flex items-center gap-2"><Loader2 className="w-3 h-3 animate-spin" /> Uploading…</p>}
+            <label className="block text-xs text-neutral-400 space-y-1">
+              <span className="font-mono uppercase tracking-widest">Serial number(s) read off the gear</span>
+              <textarea
+                value={serials}
+                onChange={(e) => setSerials(e.target.value)}
+                rows={2}
+                placeholder={registeredSerial ? 'Type what is printed on the gear' : 'Optional: no serial is registered for this item'}
+                className="w-full bg-[#050505] border border-white/10 rounded px-3 py-2 text-sm text-white font-mono"
+              />
+              <span className="block">
+                {registeredSerial
+                  ? `Registered serial: ${registeredSerial}. Check it against the gear; one must match. Separate several with commas or new lines.`
+                  : 'Separate several with commas or new lines.'}
+              </span>
+            </label>
+            <label className="block text-xs text-neutral-400 space-y-1">
+              <span className="font-mono uppercase tracking-widest">Accessories going out</span>
+              <textarea
+                value={accessories}
+                onChange={(e) => setAccessories(e.target.value)}
+                rows={2}
+                placeholder="e.g. 2 batteries, charger, lens cap, case"
+                className="w-full bg-[#050505] border border-white/10 rounded px-3 py-2 text-sm text-white"
+              />
+              <span className="block">Comma or line separated. Checked off again at return.</span>
+            </label>
           </section>
 
           <section className="space-y-3">
@@ -221,6 +336,27 @@ export default function HandoverPage() {
             </button>
           </section>
 
+          {needsRisk && (
+            <section className="space-y-3">
+              <h2 className="text-xs font-mono uppercase tracking-widest text-white">4. Manager risk approval</h2>
+              <label className="flex items-center gap-3 min-h-[44px] text-sm text-white">
+                <input type="checkbox" checked={riskApproved} onChange={(e) => setRiskApproved(e.target.checked)} className="w-5 h-5" />
+                I am a manager and I approve this handover despite the risk flag.
+              </label>
+              <label className="block text-xs text-neutral-400 space-y-1">
+                <span className="font-mono uppercase tracking-widest">Why it is acceptable (kept on record)</span>
+                <textarea
+                  value={riskNote}
+                  onChange={(e) => setRiskNote(e.target.value)}
+                  rows={2}
+                  maxLength={500}
+                  placeholder="At least 5 characters"
+                  className="w-full bg-[#050505] border border-white/10 rounded px-3 py-2 text-sm text-white"
+                />
+              </label>
+            </section>
+          )}
+
           <button
             onClick={submit}
             disabled={!ready || data.booking.status !== 'confirmed'}
@@ -239,7 +375,7 @@ function PhotoButton({ label, onFiles, multiple, disabled }: { label: string; on
     <label className={`flex items-center justify-center gap-2 min-h-[44px] rounded border border-white/20 text-xs font-mono uppercase tracking-widest text-white cursor-pointer ${disabled ? 'opacity-50 pointer-events-none' : ''}`}>
       <Camera className="w-4 h-4" aria-hidden="true" />
       {label}
-      <input type="file" accept="image/*" capture="environment" multiple={multiple} className="sr-only" onChange={(e) => onFiles(e.target.files)} />
+      <input type="file" accept={uploadAccept('image', true)} capture="environment" multiple={multiple} className="sr-only" onChange={(e) => onFiles(e.target.files)} />
     </label>
   );
 }

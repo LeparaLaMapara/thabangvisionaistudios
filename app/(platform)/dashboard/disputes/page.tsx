@@ -98,7 +98,8 @@ export default function DisputesPage() {
         <EmptyState
           icon={<Clock className="w-10 h-10 text-neutral-400" />}
           title="No disputes"
-          description="You have no disputes in this category."
+          description="Something wrong with a hire or a shoot? Open the booking and tap Report a problem. A person on our team looks at every report."
+          action={{ label: 'My bookings', href: '/dashboard/bookings' }}
         />
       ) : (
         <div className="space-y-3">

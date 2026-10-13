@@ -1,4 +1,5 @@
 import crypto from 'crypto';
+import { appUrl as publicAppUrl, envFlag } from '@/lib/app-url';
 
 // ─── Config ─────────────────────────────────────────────────────────────────
 
@@ -10,7 +11,7 @@ const PAYFAST_PRODUCTION_VALIDATE_URL = 'https://www.payfast.co.za/eng/query/val
 const merchantId = process.env.PAYFAST_MERCHANT_ID;
 const merchantKey = process.env.PAYFAST_MERCHANT_KEY;
 const passphrase = process.env.PAYFAST_PASSPHRASE ?? '';
-const isSandbox = process.env.NEXT_PUBLIC_PAYFAST_SANDBOX === 'true';
+const isSandbox = envFlag(process.env.NEXT_PUBLIC_PAYFAST_SANDBOX);
 
 if (!merchantId || !merchantKey) {
   console.warn(
@@ -134,7 +135,7 @@ export function buildPaymentData(params: BuildPaymentParams): PayFastPaymentData
     throw new Error('PayFast merchant credentials not configured');
   }
 
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000';
+  const appUrl = publicAppUrl();
 
   // M6: Warn if notify_url will point to localhost in production
   if (!isSandbox && appUrl.includes('localhost')) {

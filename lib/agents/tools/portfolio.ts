@@ -1,17 +1,12 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { trackedCompletion } from '@/lib/ai/tracked';
+import { fetchImageAsBase64Safe } from '@/lib/security/safe-fetch';
 import { mapScenesToSkills } from '@/lib/ubunye/skill-taxonomy';
 import type { SceneAnalysisResult, SkillDetectionResult } from '../types';
 
 const MODEL_ID = 'gemma-4-31b-it';
 const client = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
 const model = client.getGenerativeModel({ model: MODEL_ID });
-
-async function fetchImageAsBase64(url: string): Promise<string> {
-  const response = await fetch(url);
-  const buffer = await response.arrayBuffer();
-  return Buffer.from(buffer).toString('base64');
-}
 
 function fallbackAnalysis(reason: string): SceneAnalysisResult {
   return {
@@ -29,7 +24,7 @@ export async function analyzeScene(
 ): Promise<SceneAnalysisResult> {
   let imageData: string;
   try {
-    imageData = await fetchImageAsBase64(imageUrl);
+    imageData = await fetchImageAsBase64Safe(imageUrl);
   } catch (err) {
     console.warn('[analyzeScene] fetch failed', err);
     return fallbackAnalysis('image could not be loaded');

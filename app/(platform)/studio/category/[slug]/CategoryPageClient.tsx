@@ -11,7 +11,10 @@ import {
 import type { ProductionCategory, ProductionPackage } from '@/types/production';
 import type { SmartProduction } from '@/lib/supabase/queries/smartProductions';
 import type { CrewMember } from '@/lib/supabase/queries/crew';
-import { calculatePackagePrice, formatZAR } from '@/lib/productions/pricing';
+import { calculatePackagePrice } from '@/lib/productions/pricing';
+import { formatRand, withServiceVat } from '@/lib/format/money';
+import { categoryFromPrice } from '@/lib/productions/from-price';
+import { displayTag } from '@/lib/content/tags';
 import { PRODUCTION_SERVICES } from '@/lib/constants';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -175,7 +178,7 @@ function ProductionCard({ production }: { production: SmartProduction }) {
                   key={tag}
                   className="text-xs font-mono text-neutral-400 border border-white/10 px-1.5 py-0.5 bg-white/5 uppercase"
                 >
-                  {tag}
+                  {displayTag(tag)}
                 </span>
               ))}
             </div>
@@ -219,11 +222,6 @@ function PackageCard({
           : 'border-neutral-800 bg-neutral-900/50 hover:border-neutral-700'
       }`}
     >
-      {isFeatured && (
-        <span className="absolute top-3 left-3 z-20 bg-[#D4A843] text-black text-xs font-mono font-bold px-2 py-0.5 uppercase tracking-widest">
-          Most Popular
-        </span>
-      )}
 
       {/* Preview image from matching production */}
       <div className="relative aspect-[16/9] overflow-hidden bg-neutral-900">
@@ -253,10 +251,7 @@ function PackageCard({
         {/* Price overlay on image */}
         <div className="absolute bottom-3 left-4 z-10">
           <span className="text-2xl font-bold text-white font-mono">
-            {formatZAR(price.total)}
-          </span>
-          <span className="block text-white/60 text-xs mt-0.5">
-            incl. {vatRate}% VAT
+            {formatRand(price.total)}
           </span>
         </div>
       </div>
@@ -283,7 +278,7 @@ function PackageCard({
               : 'bg-neutral-800 text-white hover:bg-neutral-700'
           }`}
         >
-          Book This Package
+          Request This Package
         </a>
       </div>
     </div>
@@ -331,7 +326,7 @@ function CreatorCard({ creator, categorySlug }: { creator: CrewMember; categoryS
         )}
         {creator.hourly_rate != null && (
           <p className="text-xs font-mono text-[#D4A843] mt-0.5">
-            From {formatZAR(creator.hourly_rate)}/hr
+            From {formatRand(withServiceVat(creator.hourly_rate))} an hour
           </p>
         )}
       </div>
@@ -352,6 +347,7 @@ interface Props {
 
 export default function CategoryPageClient({ category, packages, productions, creators, locationName }: Props) {
   const vatRate = PRODUCTION_SERVICES.billing.vatRate;
+  const fromPrice = categoryFromPrice(packages);
 
   // Sub-category filter
   const subCategories = useMemo(() => {
@@ -514,9 +510,14 @@ export default function CategoryPageClient({ category, packages, productions, cr
             ))}
           </motion.div>
 
-          <div className="text-xs font-mono text-[#D4A843]">
-            From {formatZAR(category.startingRate)} per {category.startingUnit}
-          </div>
+          {fromPrice !== null && (
+            <div className="text-xs font-mono text-[#D4A843]">
+              From {formatRand(fromPrice)}
+            </div>
+          )}
+          <p className="text-xs font-mono text-neutral-400 mt-2">
+            Shoots are by request. Choose a package and send a request; we reply to confirm who will shoot it, the date and the price.
+          </p>
         </div>
       </div>
 
@@ -589,7 +590,7 @@ export default function CategoryPageClient({ category, packages, productions, cr
             {showPackages && packages.length > 0 && (
               <div className="mb-12">
                 <h2 className="text-xs font-mono text-[#D4A843] uppercase tracking-[0.3em] mb-2">
-                  Book a Package
+                  Request a Package
                 </h2>
                 <h3 className="text-xl font-bold uppercase tracking-tight mb-6">
                   {category.name} Packages
@@ -600,7 +601,7 @@ export default function CategoryPageClient({ category, packages, productions, cr
                       key={pkg.id}
                       pkg={pkg}
                       previewImage={packagePreviewImages[pkg.id]}
-                      isFeatured={pkg.popular ?? false}
+                      isFeatured={false}
                       vatRate={vatRate}
                     />
                   ))}
@@ -623,7 +624,7 @@ export default function CategoryPageClient({ category, packages, productions, cr
                         Tailored to your vision and budget
                       </p>
                       <ul className="flex-1 space-y-2 mb-5">
-                        {['Bespoke scope & timeline', 'Dedicated project manager', 'Flexible deliverables'].map((item) => (
+                        {['Scope and timeline agreed with you', 'Deliverables agreed with you'].map((item) => (
                           <li key={item} className="flex items-start gap-2 text-sm text-neutral-300">
                             <span className="text-[#D4A843] mt-0.5 shrink-0">&#10003;</span>
                             {item}
@@ -631,10 +632,10 @@ export default function CategoryPageClient({ category, packages, productions, cr
                         ))}
                       </ul>
                       <Link
-                        href={`/ubunye-ai-studio?prompt=I need a custom ${category.name.toLowerCase()} quote`}
+                        href="/contact?type=production_brief"
                         className="block w-full text-center py-3 text-xs font-mono font-bold uppercase tracking-widest border border-[#D4A843] text-[#D4A843] hover:bg-[#D4A843]/10 transition-colors"
                       >
-                        Ask Ubunye for a Quote
+                        Send Us a Brief
                       </Link>
                     </div>
                   </div>
@@ -669,10 +670,7 @@ export default function CategoryPageClient({ category, packages, productions, cr
               ) : (
                 <div className="py-16 text-center border border-dashed border-white/10">
                   <p className="text-neutral-400 font-mono text-sm uppercase tracking-widest mb-2">
-                    No {category.name.toLowerCase()} productions uploaded yet.
-                  </p>
-                  <p className="text-neutral-400 text-sm">
-                    Check back soon — we&apos;re adding new work every week.
+                    No example work in {category.name} yet.
                   </p>
                 </div>
               )}
@@ -688,7 +686,7 @@ export default function CategoryPageClient({ category, packages, productions, cr
                   Creators Who Do This Work
                 </h3>
                 <p className="text-neutral-400 text-sm mb-6 max-w-lg">
-                  Verified professionals with experience in {category.name.toLowerCase()}.
+                  Professionals with experience in {category.name.toLowerCase()}.
                 </p>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   {creators.map((creator) => (
@@ -720,16 +718,16 @@ export default function CategoryPageClient({ category, packages, productions, cr
           </p>
           <div className="flex flex-wrap justify-center gap-3">
             <Link
-              href={`/ubunye-ai-studio?prompt=I need a custom ${category.name.toLowerCase()} quote`}
+              href="/contact?type=production_brief"
               className="inline-flex items-center gap-2 text-xs font-mono font-bold uppercase tracking-widest bg-[#D4A843] text-black px-6 py-3 hover:opacity-80 transition-opacity"
             >
-              Ask Ubunye for a Quote <ChevronRight className="w-3 h-3" />
+              Send Us a Brief <ChevronRight className="w-3 h-3" />
             </Link>
             <Link
-              href="/contact?type=production_brief"
-              className="inline-flex items-center gap-2 text-xs font-mono font-bold uppercase tracking-widest bg-white text-black px-6 py-3 hover:opacity-80 transition-opacity"
+              href={`/ubunye-ai-studio?prompt=I need a custom ${category.name.toLowerCase()} quote`}
+              className="inline-flex items-center gap-2 text-xs font-mono font-bold uppercase tracking-widest border border-white/20 text-white px-6 py-3 hover:bg-white/5 transition-colors"
             >
-              Send Us a Brief <ChevronRight className="w-3 h-3" />
+              Ask Ubunye <ChevronRight className="w-3 h-3" />
             </Link>
           </div>
         </div>

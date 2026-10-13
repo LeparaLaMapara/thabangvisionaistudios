@@ -3,6 +3,7 @@
 import { useState, useMemo, useEffect, Suspense } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import Link from 'next/link';
+import { STUDIO } from '@/lib/constants';
 import { useSearchParams } from 'next/navigation';
 import {
   Calculator,
@@ -26,9 +27,6 @@ import {
   XCircle,
   Banknote,
   MapPin,
-  Sun,
-  Wind,
-  Cloud,
   FileText
 } from 'lucide-react';
 
@@ -562,12 +560,15 @@ const BudgetEstimator = () => {
          <div className="lg:col-span-7 flex flex-col items-center justify-center bg-black dark:bg-white text-white dark:text-black p-10 text-center relative overflow-hidden">
              <Banknote className="absolute -bottom-10 -right-10 w-64 h-64 opacity-5 rotate-12" />
              <div className="relative z-10">
-               <div className="text-xs font-mono uppercase tracking-widest opacity-60 mb-4">Estimated Total</div>
-               <div className="text-5xl md:text-7xl font-display font-medium mb-8">
+               <div className="text-xs font-mono uppercase tracking-widest opacity-60 mb-4">Rough Planning Estimate</div>
+               <div className="text-5xl md:text-7xl font-display font-medium mb-6">
                   R{total.toLocaleString()}
                </div>
-               <Link href="/contact" className="inline-block border border-white/20 dark:border-black/20 px-8 py-3 text-xs font-mono font-bold uppercase tracking-widest hover:bg-white hover:text-black dark:hover:bg-black dark:hover:text-white transition-colors">
-                  Request Custom Quote
+               <p className="text-xs opacity-60 max-w-sm mx-auto mb-8">
+                  Ballpark industry figures for planning only. They are not {STUDIO.name} prices, and we do not hire out these packages.
+               </p>
+               <Link href="/rentals" className="inline-block border border-white/20 dark:border-black/20 px-8 py-3 text-xs font-mono font-bold uppercase tracking-widest hover:bg-white hover:text-black dark:hover:bg-black dark:hover:text-white transition-colors">
+                  See Our Gear And Prices
                </Link>
              </div>
          </div>
@@ -578,10 +579,10 @@ const BudgetEstimator = () => {
 const LocationScout = () => {
    const [selectedLoc, setSelectedLoc] = useState('soweto');
    const locations = {
-      soweto: { name: 'Soweto - Orlando Towers', temp: '24°C', cond: 'Sunny', wind: '12km/h', img: 'https://images.unsplash.com/photo-1577083288073-40892c0860a4?q=80&w=2000&auto=format&fit=crop' },
-      maboneng: { name: 'Maboneng Precinct', temp: '22°C', cond: 'Cloudy', wind: '8km/h', img: 'https://images.unsplash.com/photo-1550948396-9ee82b13c77d?q=80&w=2000&auto=format&fit=crop' },
-      sandton: { name: 'Sandton Central', temp: '25°C', cond: 'Clear', wind: '5km/h', img: 'https://images.unsplash.com/photo-1576487248805-cf45f6bcc67f?q=80&w=2000&auto=format&fit=crop' },
-      braam: { name: 'Braamfontein - Mandela Bridge', temp: '23°C', cond: 'Partly Cloudy', wind: '15km/h', img: 'https://images.unsplash.com/photo-1534270804882-6b5048b1c1fc?q=80&w=2000&auto=format&fit=crop' }
+      soweto: { name: 'Soweto - Orlando Towers', img: 'https://images.unsplash.com/photo-1577083288073-40892c0860a4?q=80&w=2000&auto=format&fit=crop' },
+      maboneng: { name: 'Maboneng Precinct', img: 'https://images.unsplash.com/photo-1550948396-9ee82b13c77d?q=80&w=2000&auto=format&fit=crop' },
+      sandton: { name: 'Sandton Central', img: 'https://images.unsplash.com/photo-1576487248805-cf45f6bcc67f?q=80&w=2000&auto=format&fit=crop' },
+      braam: { name: 'Braamfontein - Mandela Bridge', img: 'https://images.unsplash.com/photo-1534270804882-6b5048b1c1fc?q=80&w=2000&auto=format&fit=crop' }
    };
 
    const loc = locations[selectedLoc as keyof typeof locations];
@@ -605,27 +606,9 @@ const LocationScout = () => {
             <div className="bg-neutral-100 dark:bg-neutral-900 p-6 border border-black/5 dark:border-white/5">
                <div className="flex items-center gap-2 mb-4">
                   <FileText className="w-4 h-4" />
-                  <span className="text-xs font-bold uppercase tracking-widest">Permit Requirements</span>
+                  <span className="text-xs font-bold uppercase tracking-widest">Permits</span>
                </div>
-               <p className="text-xs text-neutral-400 mb-4">Commercial shoots in {loc.name} require a JOC permit filed 14 days in advance.</p>
-               <a href="#" className="text-xs font-mono font-bold underline decoration-1 underline-offset-4 hover:text-neutral-400">
-                  Download City of Joburg Permit Forms
-               </a>
-            </div>
-
-            <div className="grid grid-cols-3 gap-4">
-               <div className="bg-blue-50 dark:bg-blue-900/20 p-4 border border-blue-100 dark:border-blue-900/30 text-center">
-                  <Sun className="w-6 h-6 mx-auto mb-2 text-blue-500" />
-                  <div className="text-sm font-bold">{loc.temp}</div>
-               </div>
-               <div className="bg-neutral-50 dark:bg-neutral-800 p-4 border border-neutral-100 dark:border-neutral-700 text-center">
-                  <Cloud className="w-6 h-6 mx-auto mb-2 text-neutral-400" />
-                  <div className="text-sm font-bold">{loc.cond}</div>
-               </div>
-               <div className="bg-neutral-50 dark:bg-neutral-800 p-4 border border-neutral-100 dark:border-neutral-700 text-center">
-                  <Wind className="w-6 h-6 mx-auto mb-2 text-neutral-400" />
-                  <div className="text-sm font-bold">{loc.wind}</div>
-               </div>
+               <p className="text-xs text-neutral-400">Filming in public places such as {loc.name} may need a permit. Check the requirements with the City of Johannesburg before you shoot.</p>
             </div>
          </div>
 
@@ -634,7 +617,7 @@ const LocationScout = () => {
             <img src={loc.img} alt={loc.name} className="w-full h-full object-cover grayscale opacity-80" />
             <div className="absolute inset-0 flex items-center justify-center">
                <div className="bg-black/50 backdrop-blur-md px-4 py-2 text-white text-xs font-mono uppercase tracking-widest border border-white/20">
-                  <MapPin className="w-3 h-3 inline mr-2" /> Live View
+                  <MapPin className="w-3 h-3 inline mr-2" /> Illustrative photo
                </div>
             </div>
          </div>
@@ -908,7 +891,7 @@ function ToolsInner() {
                    <ArrowLeft className="w-3 h-3" /> Back to Dashboard
                 </button>
              ) : (
-                '04 // Resources'
+                'Resources'
              )}
           </div>
           <h1 className="text-4xl md:text-6xl font-display font-medium tracking-tight uppercase">
@@ -935,14 +918,14 @@ function ToolsInner() {
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                   <ToolCard
                     title="Budget Estimator"
-                    description="Calculate rough rental costs for camera, lighting, and crew."
+                    description="Ballpark planning costs for camera, lighting, and crew."
                     icon={Banknote}
                     onClick={() => setActiveTool('budget')}
                     delay={0}
                   />
                   <ToolCard
                     title="Location Scout"
-                    description="Joburg specific location data, permits, and conditions."
+                    description="Joburg location ideas and a permit reminder."
                     icon={MapPin}
                     onClick={() => setActiveTool('location')}
                     delay={0.1}
@@ -999,14 +982,14 @@ function ToolsInner() {
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                   <ToolCard
                     title="Lens Comparator"
-                    description="Side-by-side spec comparison of rental lenses."
+                    description="Side-by-side specs of common cinema lenses (reference only, not our stock)."
                     icon={Scale}
                     onClick={() => setActiveTool('lens_compare')}
                     delay={0.4}
                   />
                   <ToolCard
                     title="Camera Matrix"
-                    description="Filterable specs for all rental camera systems."
+                    description="Filterable specs of common cinema cameras (reference only, not our stock)."
                     icon={Table2}
                     onClick={() => setActiveTool('camera_matrix')}
                     delay={0.5}

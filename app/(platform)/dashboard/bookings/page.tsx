@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useEffect, useState } from 'react';
+import { Suspense, useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { motion } from 'framer-motion';
@@ -13,13 +13,21 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import ServiceBookingsList from './ServiceBookingsList';
 import type { EquipmentBooking, BookingStatus } from '@/types/booking';
+import { formatRand } from '@/lib/format/money';
+import { gearStatusLabel } from '@/lib/rental/status-words';
 import { PaymentsOfflineNotice } from '@/components/booking/PaymentsOfflineNotice';
+import { CheckoutConfirmation, type OrderLineView } from './CheckoutConfirmation';
+import { ConfirmPaymentOnReturn } from './ConfirmPaymentOnReturn';
 
 const STATUS_VARIANT: Record<BookingStatus, 'default' | 'warning' | 'success' | 'info' | 'error'> = {
   pending: 'warning',
   confirmed: 'info',
   active: 'success',
+  overdue: 'error',
+  return_pending: 'warning',
+  return_reviewed: 'info',
   completed: 'default',
+  disputed: 'error',
   cancelled: 'error',
 };
 
@@ -47,6 +55,20 @@ export default function BookingsPage() {
     }).finally(() => setLoading(false));
   }, []);
 
+  // After a gear checkout: show the gear tab, and re-read while the payment is confirmed.
+  const showEquipment = useCallback(() => {
+    setBookingType('equipment');
+    setActiveTab('upcoming');
+  }, []);
+  const refreshEquipment = useCallback(() => {
+    fetch('/api/bookings')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (Array.isArray(data)) setBookings(data);
+      })
+      .catch(() => undefined);
+  }, []);
+
   if (loading) {
     return <LoadingSpinner label="Loading bookings..." className="py-20" />;
   }
@@ -67,6 +89,12 @@ export default function BookingsPage() {
       <DashboardSubTabs tabs={ACTIVITY_TABS} />
       <Suspense fallback={null}>
         <PaymentsOfflineNotice />
+        <ConfirmPaymentOnReturn onConfirmed={refreshEquipment} />
+        <CheckoutConfirmation
+          bookings={bookings as unknown as OrderLineView[]}
+          onOrder={showEquipment}
+          onRefresh={refreshEquipment}
+        />
       </Suspense>
       <h2 className="text-lg font-display font-medium uppercase text-white mb-6">
         My Rentals
@@ -117,14 +145,15 @@ export default function BookingsPage() {
                 <div className="flex items-start justify-between mb-3">
                   <div>
                     <Badge variant={STATUS_VARIANT[booking.status]}>
-                      {booking.status}
+                      {gearStatusLabel(booking.status)}
                     </Badge>
-                    <h3 className="text-sm font-medium text-black dark:text-white mt-2">
-                      Booking #{booking.id.slice(0, 8)}
+                    <h3 className="text-sm font-medium text-white mt-2">
+                      {(booking as { rental_title?: string | null }).rental_title ?? `Booking #${booking.id.slice(0, 8)}`}
                     </h3>
                   </div>
-                  <p className="text-sm font-mono font-bold text-black dark:text-white">
-                    {booking.currency} {booking.total_price.toLocaleString()}
+                  <p className="text-sm font-mono font-bold text-white text-right">
+                    <span className="block text-xs font-normal text-neutral-400">Hire</span>
+                    {formatRand(Number(booking.total_price))}
                   </p>
                 </div>
 

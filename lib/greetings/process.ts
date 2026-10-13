@@ -40,7 +40,7 @@ export async function loadWelcomeContext(
   const meta = (user.user_metadata ?? {}) as Record<string, unknown>;
   const intentRaw = meta.intent;
   const intent: SignupActivity['intent'] =
-    intentRaw === 'rent' || intentRaw === 'hire' || intentRaw === 'supply' || intentRaw === 'browse' ? intentRaw : null;
+    intentRaw === 'rent' || intentRaw === 'hire' || intentRaw === 'list' || intentRaw === 'supply' || intentRaw === 'browse' ? intentRaw : null;
   const status = profile?.verification_status;
 
   const [cartItems, gearBookings, serviceBookings, ubunyeChats] = await Promise.all([
@@ -151,6 +151,11 @@ export async function processSignup(
 
 /** Sends a queued welcome. Only a draft is ever sent, and only once. */
 export async function sendWelcome(userId: string, sentBy: string | null): Promise<{ ok: boolean; error?: string }> {
+  // With no email set up the provider skips the send without an error, so the
+  // welcome would be marked sent although nobody got it. Say so instead.
+  if (!emailProvider.isConfigured()) {
+    return { ok: false, error: 'Email is not set up on this site, so nothing was sent. The welcome stays a draft.' };
+  }
   const admin = createAdminClient();
 
   // Claim it first, so two clicks cannot send two emails.

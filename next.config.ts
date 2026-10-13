@@ -1,4 +1,5 @@
 import type { NextConfig } from 'next';
+import { FALLBACK_CSP } from './lib/security/csp';
 
 const nextConfig: NextConfig = {
   poweredByHeader: false,
@@ -78,24 +79,14 @@ const nextConfig: NextConfig = {
         { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
         { key: 'Permissions-Policy', value: 'camera=(self), microphone=(), geolocation=()' },
         { key: 'Strict-Transport-Security', value: 'max-age=31536000; includeSubDomains' },
-        {
-          key: 'Content-Security-Policy',
-          value: [
-            "default-src 'self'",
-            "script-src 'self' 'unsafe-inline' https://js.paystack.co https://va.vercel-scripts.com https://accounts.google.com/gsi/client",
-            "style-src 'self' 'unsafe-inline' https://accounts.google.com/gsi/style",
-            "img-src 'self' https://res.cloudinary.com https://*.supabase.co https://images.unsplash.com https://i.ytimg.com https://img.youtube.com data: blob:",
-            "font-src 'self'",
-            "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.anthropic.com https://api.paystack.co https://js.paystack.co https://api.cloudinary.com https://va.vercel-scripts.com https://vitals.vercel-insights.com https://nominatim.openstreetmap.org https://accounts.google.com/gsi/",
-            "frame-src https://accounts.google.com/gsi/ https://checkout.paystack.com https://www.youtube.com https://player.vimeo.com",
-            "frame-ancestors 'none'",
-            "media-src 'self' https://res.cloudinary.com",
-            "object-src 'none'",
-            "base-uri 'self'",
-            "form-action 'self' https://checkout.paystack.com",
-            "upgrade-insecure-requests",
-          ].join('; '),
-        },
+        // The full Content-Security-Policy is set per request with a nonce in
+        // proxy.ts (lib/security/csp.ts, security INJ-3): add new external
+        // services there. This is only a FALLBACK for responses the proxy
+        // does not see (static files, anything its matcher skips). Browsers
+        // enforce every CSP header they get, so it must never restrict
+        // scripts, styles, connections or images (no default-src/script-src):
+        // it only adds directives that are the same in the main policy.
+        { key: 'Content-Security-Policy', value: FALLBACK_CSP },
       ],
     },
   ],

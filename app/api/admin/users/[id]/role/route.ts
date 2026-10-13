@@ -3,6 +3,8 @@ export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin, rateLimitAdmin } from '@/lib/auth';
 import { createAdminClient } from '@/lib/supabase/server';
+import { revokeUserSessions } from '@/lib/auth/sessions';
+import { logEvent } from '@/lib/data/events';
 
 const VALID_ROLES = ['user', 'admin', 'moderator'] as const;
 
@@ -64,7 +66,16 @@ export async function PATCH(
       return NextResponse.json({ error: 'Failed to update profile role.' }, { status: 500 });
     }
 
-    return NextResponse.json(data);
+    // 3. End the user's sessions so the change takes effect now, not when
+    //    their current token expires (security AUTH-2: a demoted admin kept
+    //    admin over the REST API with the old token). Not for a no-op change
+    //    of the caller's own role.
+    const sessions = targetUserId === auth.user.id ? { revoked: false, sessions: 0 } : await revokeUserSessions(targetUserId);
+
+    // Who changed whose role, for the record.
+    logEvent({ eventType: 'admin_role_changed', eventCategory: 'admin', userId: auth.user.id, metadata: { subjectId: targetUserId, role: newRole } });
+
+    return NextResponse.json({ ...data, sessions_revoked: sessions.revoked });
   } catch (err) {
     console.error('[admin/users/role] Error:', err);
     return NextResponse.json({ error: 'Internal server error.' }, { status: 500 });

@@ -4,9 +4,14 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { isWelcomeIntent } from '@/lib/welcome';
 import { STUDIO } from '@/lib/constants';
-import { createClient } from '@/lib/supabase/server';
+import { createClient, createAdminClient } from '@/lib/supabase/server';
 import { auth } from '@/lib/auth';
 import { getProfileById } from '@/lib/supabase/queries/profiles';
+import { getBankingDetails } from '@/lib/supabase/queries/banking';
+import { hasCompletePortfolio } from '@/lib/portfolio/validation';
+import { CREATOR_JOB_STATUSES, showsCreatorChecklist } from '@/lib/creators/dashboard';
+import CreatorBookableChecklist from '@/components/onboarding/CreatorBookableChecklist';
+import type { PortfolioProject } from '@/types/portfolio';
 import { Calendar, Package, ShoppingBag, ArrowRight, Users, Search, ShieldCheck, Clock, Briefcase, FileText, Settings, Camera } from 'lucide-react';
 
 export const metadata = {
@@ -46,18 +51,23 @@ export default async function DashboardPage() {
 
 
   // Fetch real counts from Supabase
-  const [bookingsResult, listingsResult, ordersResult, gigsResult, requestsResult] = await Promise.all([
+  const [bookingsResult, listingsResult, ordersResult, gigsResult, requestsResult, serviceJobsResult, awaitingResult, banking] = await Promise.all([
     user
       ? supabase
           .from('equipment_bookings')
           .select('id', { count: 'exact', head: true })
           .eq('user_id', user.id)
       : { count: 0 },
-    user && isVerified
-      ? supabase
-          .from('listings')
+    // The owner's own community gear listings (any status, drafts too: they
+    // can be saved before the ID check). Read with the service role and an
+    // explicit owner filter, as /api/listings does: smart_rentals has no
+    // owner RLS policy, so the session client sees only published rows.
+    user
+      ? createAdminClient()
+          .from('smart_rentals')
           .select('id', { count: 'exact', head: true })
-          .eq('user_id', user.id)
+          .eq('owner_id', user.id)
+          .eq('owner_type', 'community')
           .is('deleted_at', null)
       : { count: 0 },
     user && isVerified
@@ -78,6 +88,26 @@ export default async function DashboardPage() {
           .select('id', { count: 'exact', head: true })
           .eq('client_email', authUser.email)
       : { count: 0 },
+    // The creator's own jobs: paid service bookings where they are the
+    // creator. The Gigs tile used to count only the old crew_requests, so a
+    // creator with paid bookings saw "0 Gigs".
+    user
+      ? supabase
+          .from('bookings')
+          .select('id', { count: 'exact', head: true })
+          .eq('creator_id', user.id)
+          .in('status', [...CREATOR_JOB_STATUSES])
+      : { count: 0 },
+    // Paid jobs still waiting for the creator's answer.
+    user
+      ? supabase
+          .from('bookings')
+          .select('id', { count: 'exact', head: true })
+          .eq('creator_id', user.id)
+          .eq('status', 'paid')
+          .is('accepted_at', null)
+      : { count: 0 },
+    user ? getBankingDetails(user.id) : null,
   ]);
 
   const bookingsCount = ('count' in bookingsResult ? bookingsResult.count : 0) ?? 0;
@@ -85,6 +115,17 @@ export default async function DashboardPage() {
   const ordersCount = ('count' in ordersResult ? ordersResult.count : 0) ?? 0;
   const gigsCount = ('count' in gigsResult ? gigsResult.count : 0) ?? 0;
   const requestsCount = ('count' in requestsResult ? requestsResult.count : 0) ?? 0;
+  const serviceJobsCount = ('count' in serviceJobsResult ? serviceJobsResult.count : 0) ?? 0;
+  const awaitingAnswerCount = ('count' in awaitingResult ? awaitingResult.count : 0) ?? 0;
+  const creatorJobsCount = serviceJobsCount + gigsCount;
+  const showJobs = isVerified || creatorJobsCount > 0;
+
+  const showBookable = !!profile && showsCreatorChecklist({
+    intent: authUser?.user_metadata?.intent,
+    onboardingCompletedAt: profile.onboarding_completed_at,
+    creatorJobs: creatorJobsCount,
+    availableForHire: profile.available_for_hire,
+  });
 
   const displayName = profile?.display_name || user?.email?.split('@')[0] || 'there';
   const hasRequiredProfile = profile && (profile.display_name && profile.phone);
@@ -108,8 +149,8 @@ export default async function DashboardPage() {
         </h1>
         <p className="text-sm text-neutral-400 dark:text-neutral-400 font-mono mt-3">
           {isVerified
-            ? 'You are a verified creator. List gear, book equipment, and manage your orders.'
-            : 'Rent equipment, hire photographers, and explore the platform. Get verified to list your own gear and services.'}
+            ? 'Your ID is checked. Rent gear, list your own gear or offer your services, and follow all of it here.'
+            : 'Rent equipment, hire photographers, and explore the platform. Check your ID once to rent gear or to list your own gear and services.'}
         </p>
       </div>
 
@@ -166,16 +207,51 @@ export default async function DashboardPage() {
         </div>
       )}
 
+      {/* Paid jobs waiting for an answer come first: they are passed on if unanswered. */}
+      {awaitingAnswerCount > 0 && (
+        <Link
+          href="/dashboard/gigs"
+          className="flex items-center gap-4 bg-[#0A0A0B] border border-[#D4A843]/50 p-5 mb-10 min-h-[44px] hover:border-[#D4A843] transition-colors"
+        >
+          <Briefcase className="w-6 h-6 text-[#D4A843] flex-shrink-0" />
+          <div className="flex-1">
+            <p className="text-sm font-mono font-bold text-white">
+              {awaitingAnswerCount === 1 ? '1 new paid job is' : `${awaitingAnswerCount} new paid jobs are`} waiting for your answer
+            </p>
+            <p className="text-xs font-mono text-neutral-400 mt-1">
+              Accept or decline within {STUDIO.booking.creatorAnswerHours} hours of payment, or the job goes to another creator.
+            </p>
+          </div>
+          <ArrowRight className="w-4 h-4 text-[#D4A843]" />
+        </Link>
+      )}
+
+      {/* "What makes you bookable" for anyone offering their services */}
+      {showBookable && profile && (
+        <CreatorBookableChecklist
+          className="mb-10"
+          facts={{
+            verificationStatus,
+            portfolioComplete: hasCompletePortfolio(profile.portfolio_projects as PortfolioProject[] | null),
+            hasPayoutAccount: !!banking,
+            availableForHire: !!profile.available_for_hire,
+          }}
+        />
+      )}
+
       {/* Stat cards */}
-      <div className={`grid grid-cols-1 gap-4 mb-10 ${isVerified ? 'sm:grid-cols-5' : 'sm:grid-cols-2'}`}>
-        <StatCard label="Bookings" value={String(bookingsCount)} icon={Calendar} href="/dashboard/bookings" />
+      <div className={`grid grid-cols-1 gap-4 mb-10 ${isVerified ? 'sm:grid-cols-5' : (listingsCount > 0 ? 1 : 0) + (showJobs ? 1 : 0) === 2 ? 'sm:grid-cols-4' : listingsCount > 0 || showJobs ? 'sm:grid-cols-3' : 'sm:grid-cols-2'}`}>
+        {showJobs && (
+          <StatCard label="My Jobs" value={String(creatorJobsCount)} icon={Briefcase} href="/dashboard/gigs" />
+        )}
+        {/* Gear this person rented (equipment_bookings.user_id): their rentals, not jobs. */}
+        <StatCard label="Gear Rentals" value={String(bookingsCount)} icon={Calendar} href="/dashboard/bookings" />
         <StatCard label="My Requests" value={String(requestsCount)} icon={FileText} href="/dashboard/creator-requests" />
+        {(isVerified || listingsCount > 0) && (
+          <StatCard label="Listings" value={String(listingsCount)} icon={Package} href="/dashboard/listings" />
+        )}
         {isVerified && (
-          <>
-            <StatCard label="Gigs" value={String(gigsCount)} icon={Briefcase} href="/dashboard/gigs" />
-            <StatCard label="Listings" value={String(listingsCount)} icon={Package} href="/dashboard/listings" />
-            <StatCard label="Orders" value={String(ordersCount)} icon={ShoppingBag} href="/dashboard/orders" />
-          </>
+          <StatCard label="Orders" value={String(ordersCount)} icon={ShoppingBag} href="/dashboard/orders" />
         )}
       </div>
 
@@ -227,14 +303,14 @@ export default async function DashboardPage() {
                   ? 'Verification pending'
                   : verificationStatus === 'rejected'
                     ? 'Resubmit verification'
-                    : 'Get verified (become a creator)'
+                    : 'Check your ID once'
               }
               description={
                 verificationStatus === 'pending'
                   ? `A person is checking your documents, ${STUDIO.verification.reviewTime}.`
                   : verificationStatus === 'rejected'
                     ? 'Verification was rejected. Please resubmit.'
-                    : 'Verification lets you list gear, accept gigs, and earn on the platform.'
+                    : 'Needed before your first gear rental, before your gear or services go live, and before a first payout.'
               }
               href="/dashboard/verification"
             />
@@ -249,15 +325,15 @@ export default async function DashboardPage() {
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <QuickAction
           icon={Camera}
-          title="Book a Shoot"
-          description="Hire a creator for your next production."
-          href="/studio"
-        />
-        <QuickAction
-          icon={Search}
           title="Rent Equipment"
           description="Browse and reserve professional gear."
           href="/rentals"
+        />
+        <QuickAction
+          icon={Search}
+          title="Request a Shoot"
+          description="Photo and video shoots, by request."
+          href="/studio"
         />
         {isVerified ? (
           <QuickAction
@@ -269,9 +345,9 @@ export default async function DashboardPage() {
         ) : (
           <QuickAction
             icon={Users}
-            title="Hire a Creator"
-            description="Find verified creators for your project."
-            href="/studio"
+            title="Your Cart"
+            description="Check your dates and send your booking."
+            href="/dashboard/cart"
           />
         )}
       </div>

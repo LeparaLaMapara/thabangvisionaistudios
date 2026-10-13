@@ -2,16 +2,11 @@ export const dynamic = 'force-dynamic';
 export const maxDuration = 30;
 
 import { NextRequest, NextResponse } from 'next/server';
-import { generateText } from 'ai';
-import { anthropic } from '@ai-sdk/anthropic';
 import { requireAuth, checkNotSuspended, checkRateLimit } from '@/lib/auth';
-import { trackedCompletion } from '@/lib/ai/tracked';
 import {
   listingDescriberAgent,
-  buildListingDescriberPrompt,
-  parseListingDescriberOutput,
+  describeListing,
   type ListingDescriberInput,
-  type ListingDescriberOutput,
 } from '@/lib/agents/agents/listing-describer';
 
 const DAILY_LIMIT = listingDescriberAgent.rateLimit.free;
@@ -61,26 +56,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       city: city?.trim() ?? null,
     };
 
-    const output = await trackedCompletion<ListingDescriberOutput>({
-      agentId: listingDescriberAgent.id,
-      provider: 'anthropic',
-      model: listingDescriberAgent.model,
-      userId: auth.user.id,
-      call: async () => {
-        const res = await generateText({
-          model: anthropic(listingDescriberAgent.model),
-          prompt: buildListingDescriberPrompt(input),
-          temperature: 0.6,
-        });
-        return {
-          result: parseListingDescriberOutput(res.text),
-          usage: {
-            inputTokens: res.usage.inputTokens ?? 0,
-            outputTokens: res.usage.outputTokens ?? 0,
-          },
-        };
-      },
-    });
+    const output = await describeListing(input, auth.user.id);
 
     return NextResponse.json(output);
   } catch (err) {

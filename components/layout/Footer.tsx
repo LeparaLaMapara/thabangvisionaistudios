@@ -3,6 +3,7 @@
 import React, { useState, useCallback } from 'react';
 import Link from 'next/link';
 import { Youtube, Instagram, Facebook, Twitter, Linkedin, Mail, Loader2, CheckCircle2 } from 'lucide-react';
+import { ContactButtons } from '@/components/payments/ContactButtons';
 import { FOOTER_SECTIONS, SOCIAL_LINKS, SITE_COPYRIGHT, SITE_NAME } from '@/lib/constants';
 
 const IconMap: Record<string, React.ElementType> = {
@@ -75,7 +76,7 @@ export const Footer = () => {
           <div className="col-span-1 md:col-span-2">
             <h2 className="text-sm font-bold tracking-widest text-black dark:text-white mb-6 uppercase">Newsletter</h2>
             <p className="text-neutral-400 dark:text-neutral-400 text-sm mb-6 max-w-md">
-              Subscribe to receive the latest technical updates, product releases, and cinematic stories from the {SITE_NAME} world.
+              Subscribe to hear when new gear is added, and other news from {SITE_NAME}.
             </p>
             {status === 'success' ? (
               <div className="flex items-center gap-2 text-green-600 dark:text-green-400 text-sm font-mono mb-10 max-w-md">
@@ -120,6 +121,8 @@ export const Footer = () => {
                 </p>
               </form>
             )}
+
+            <ContactButtons message="Hi, I have a question about ThabangVision" className="mb-8" />
 
             <div className="flex gap-6">
               {SOCIAL_LINKS.map((social) => {

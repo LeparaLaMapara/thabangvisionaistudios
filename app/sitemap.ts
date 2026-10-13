@@ -1,7 +1,7 @@
 import type { MetadataRoute } from 'next';
-import { STUDIO, RENTAL_CATEGORIES, PRODUCTION_CATEGORIES } from '@/lib/constants';
+import { STUDIO, RENTAL_CATEGORIES, PRODUCTION_CATEGORIES, UBUNYE_STUDIO } from '@/lib/constants';
 import { createAdminClient } from '@/lib/supabase/server';
-import { SA_CITIES, RENTAL_CITIES, COUNTRY_SLUG } from '@/lib/seo/cities';
+import { getListedCitySlugs } from '@/lib/seo/cities';
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const baseUrl = STUDIO.meta.url;
@@ -23,11 +23,18 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: `${baseUrl}/ubunye-ai-studio`, changeFrequency: 'monthly', priority: 0.7 },
     { url: `${baseUrl}/faq`, changeFrequency: 'weekly', priority: 0.7 },
     { url: `${baseUrl}/login`, changeFrequency: 'yearly', priority: 0.3 },
-    { url: `${baseUrl}/register`, changeFrequency: 'yearly', priority: 0.3 },
     { url: `${baseUrl}/legal`, changeFrequency: 'yearly', priority: 0.2 },
     { url: `${baseUrl}/privacy`, changeFrequency: 'yearly', priority: 0.2 },
     { url: `${baseUrl}/refunds`, changeFrequency: 'yearly', priority: 0.2 },
+    { url: `${baseUrl}/paia`, changeFrequency: 'yearly', priority: 0.2 },
     { url: `${baseUrl}/unsubscribe`, changeFrequency: 'yearly', priority: 0.1 },
+    // Ubunye Creative Studio: the catalogue and one page per app (constant data).
+    { url: `${baseUrl}/tools`, changeFrequency: 'monthly', priority: 0.6 },
+    ...UBUNYE_STUDIO.apps.map((a) => ({
+      url: `${baseUrl}/tools/${a.slug}`,
+      changeFrequency: 'monthly' as const,
+      priority: 0.5,
+    })),
   ];
 
   // ── Dynamic: Smart Rentals ────────────────────────────────────────────────
@@ -107,16 +114,18 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   }));
 
   // ── Location Pages: Rentals × Cities ──────────────────────────────────────
-  const locationSlugs = [...SA_CITIES.map((c) => c.slug), COUNTRY_SLUG];
+  // Only the listed Gauteng cities (STUDIO.serviceArea, lib/seo/cities.ts),
+  // for rentals and studio alike. Other city slugs and the old country slug
+  // redirect to the category page, so they are never listed here.
+  const locationSlugs = getListedCitySlugs();
   const rentalLocationPages: MetadataRoute.Sitemap = [];
-  // Only the cities gear reaches (lib/seo/cities.ts deliversRentals).
-  const rentalLocationSlugs = [...RENTAL_CITIES.map((c) => c.slug), COUNTRY_SLUG];
+  const rentalLocationSlugs = locationSlugs;
   for (const cat of RENTAL_CATEGORIES) {
     for (const loc of rentalLocationSlugs) {
       rentalLocationPages.push({
         url: `${baseUrl}/rentals/${encodeURIComponent(cat.value)}/in/${loc}`,
         changeFrequency: 'weekly',
-        priority: loc === COUNTRY_SLUG ? 0.8 : 0.7,
+        priority: 0.7,
       });
     }
   }
@@ -128,7 +137,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       studioLocationPages.push({
         url: `${baseUrl}/studio/category/${encodeURIComponent(cat.slug)}/in/${loc}`,
         changeFrequency: 'weekly',
-        priority: loc === COUNTRY_SLUG ? 0.8 : 0.7,
+        priority: 0.7,
       });
     }
   }

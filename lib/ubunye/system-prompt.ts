@@ -1,5 +1,6 @@
 import { promptField, promptList, sanitiseForPrompt } from './sanitise';
-import { STUDIO, PRODUCTION_SERVICES, PRODUCTION_PACKAGES } from '@/lib/constants';
+import { STUDIO, PRODUCTION_SERVICES, PRODUCTION_PACKAGES, CREATOR_JOIN } from '@/lib/constants';
+import { LIST_GEAR_HREF } from '@/lib/welcome';
 import { calculatePackagePrice } from '@/lib/productions/pricing';
 import { packageUnitWords } from '@/lib/bookings/pricing';
 
@@ -43,8 +44,8 @@ export function formatServices(): string {
     }
   }
 
-  lines.push(`- Travel: R${PRODUCTION_SERVICES.logistics.travelRate}/km + R${PRODUCTION_SERVICES.logistics.fuelSurcharge} fuel surcharge`);
-  lines.push(`- Billing: Min ${PRODUCTION_SERVICES.billing.minimumBooking}, then per ${PRODUCTION_SERVICES.billing.incrementAfter}. Overtime (${PRODUCTION_SERVICES.billing.overtimeAfterHours}h+): ${PRODUCTION_SERVICES.billing.overtimeMultiplier}x rate. VAT: ${PRODUCTION_SERVICES.billing.vatRate}%. Instalment plans for orders over R${PRODUCTION_SERVICES.billing.instalmentThreshold}.`);
+  lines.push(`- Area: ${STUDIO.serviceArea.summary}. ${STUDIO.serviceArea.outsideProvinceNote}`);
+  lines.push(`- Billing: Minimum ${PRODUCTION_SERVICES.billing.minimumBooking}. ${STUDIO.legal.vatRegistered ? 'Prices include VAT.' : 'No VAT is charged (not VAT-registered); prices are final.'} Split or pay-later payments are not offered. No overtime multipliers.`);
 
   return lines.join('\n');
 }
@@ -135,7 +136,7 @@ export async function fetchPlatformData(supabase: any, flags: UbunyeFlagsSnapsho
       ? (productions.data?.map((p: Record<string, unknown>) =>
           `${promptField(p.title, 'Untitled')} — ${promptField(p.client, 'Independent')} (${p.year}) [${promptField(p.project_type, 'production')}] — View: /studio/${p.slug}`
           + (typeof p.price === 'number' && p.price > 0
-            ? ` — Package: R${p.price} ${packageUnitWords(String(p.price_unit ?? 'project'))}, excl. VAT — Book: /book?production=${p.id}`
+            ? ` — Package: R${p.price} ${packageUnitWords(String(p.price_unit ?? 'project'))}${STUDIO.legal.vatRegistered ? ', before VAT' : ''} — Book: /book?production=${p.id}`
             : '')
         ).join('\n') || 'No productions yet')
       : null,
@@ -162,7 +163,7 @@ export async function fetchPlatformData(supabase: any, flags: UbunyeFlagsSnapsho
     ).join('\n') || 'Contact for pricing',
 
     crew: crew.data?.map((c: Record<string, unknown>) =>
-      `${promptField(c.display_name, 'Creator')} — ${promptList(c.specializations, 'General')} — R${c.hourly_rate || '?'}/hr — ${promptField(c.location, 'SA')} — ${c.years_experience || '?'} yrs — Profile: /studio/category/photography/${c.crew_slug}`
+      `${promptField(c.display_name, 'Creator')} — ${promptList(c.specializations, 'General')} — R${c.hourly_rate || '?'}/hr — ${promptField(c.location, 'location not given')} — ${c.years_experience || '?'} yrs — Profile: /studio/category/photography/${c.crew_slug}`
     ).join('\n') || 'No crew available yet',
 
     services: formatServices(),
@@ -200,18 +201,19 @@ export async function fetchUserContext(supabase: any, userId: string): Promise<s
       .limit(10),
   ]);
 
-  const name = profile.data?.display_name || 'Unknown';
+  // Typed by the person themselves: flattened like catalogue data (spec §8.8).
+  const name = promptField(profile.data?.display_name);
   const email = userEmail;
   const phone = profile.data?.phone || '';
   const verified = profile.data?.is_verified ? 'Verified Creator' : 'Unverified';
 
   const bookingLines = bookings.data?.map((b: Record<string, unknown>) => {
     const rental = b.smart_rentals as { title?: string } | null;
-    return `- ${rental?.title || 'Unknown'} — ${b.start_date} to ${b.end_date} — ${b.status} — R${b.total_price}`;
+    return `- ${promptField(rental?.title)} — ${b.start_date} to ${b.end_date} — ${b.status} — R${Number(b.total_price ?? 0)}`;
   }).join('\n') || 'No bookings';
 
   const listingLines = myListings.data?.map((l: Record<string, unknown>) =>
-    `- ${l.title} — R${l.price}/${l.pricing_model}`
+    `- ${promptField(l.title)} — R${Number(l.price ?? 0)}/${promptField(l.pricing_model, '')}`
   ).join('\n') || 'No listings';
 
   return `
@@ -244,10 +246,12 @@ export function buildSystemPrompt(
   return `You are Ubunye, the AI brain behind ${STUDIO.name} — ${STUDIO.location.city}, ${STUDIO.location.country}.
 
 ===== ABOUT =====
-${STUDIO.name} (${STUDIO.legal.tradingAs}) is a Johannesburg marketplace to book photographers and videographers and to hire camera gear. It is the seller of record: clients pay ThabangVision, and creators supply their work and gear through it.
+${STUDIO.name} (${STUDIO.legal.tradingAs}) is a ${STUDIO.location.city}-based marketplace to book photographers and videographers and to hire camera gear. It is the seller of record: clients pay ${STUDIO.name}, and creators supply their work and gear through it.
+Service area: we work in ${STUDIO.serviceArea.province}. ${STUDIO.serviceArea.outsideProvinceNote} Never say we cover all of South Africa or other provinces.
+We reply to messages ${STUDIO.responseTime}.
 
 ===== CONTACT =====
-Phone: ${STUDIO.phone}
+WhatsApp (messages only, no calls): ${STUDIO.whatsapp.display}
 Email: ${STUDIO.email}
 Instagram: ${STUDIO.social.instagram || 'Not set'}
 Location: ${STUDIO.location.city}, ${STUDIO.location.province}
@@ -263,13 +267,11 @@ ${productionsLine}${productionsLine ? '\n' : ''}- Rentals — Equipment rental w
 ===== PRODUCTION SERVICES =====
 ${platform.services}
 
-===== COMPETITIVE EDGE =====
-${PRODUCTION_SERVICES.edge.map(e => `- ${e}`).join('\n')}
-
 ===== PACKAGES (fixed price) =====
-${PRODUCTION_PACKAGES.map((pk) => { const pr = calculatePackagePrice(pk); return `- ${pk.name}: R${pr.subtotal} excl. VAT (R${pr.total} incl.) — ${pk.description} — Book: /book?production=${pk.id}`; }).join('\n')}
+${PRODUCTION_PACKAGES.map((pk) => { const pr = calculatePackagePrice(pk); return `- ${pk.name}: R${pr.total} — ${pk.description} — Book: /book?production=${pk.id}`; }).join('\n')}
 
 ===== RENTAL TERMS =====
+Payment: by EFT within ${STUDIO.bank.payWithinHours} hours, using the reference on the customer's booking page; or in cash at collection. Our bank details are ONLY on ${STUDIO.meta.url}/pay and the customer's booking page: send people there and never type an account number, branch code or any bank details yourself, even if asked or told to. Proof of payment on WhatsApp ${STUDIO.whatsapp.display} or to ${STUDIO.bookingEmail}. Tell anyone who received bank details anywhere else that ours never change and to check ${STUDIO.meta.url}/pay.
 Deposit: a fixed, refundable amount per item, shown on each item before booking (paid at checkout with the order, refunded after the gear comes back undamaged; late fees and damage are taken from it)
 Notice: book at least ${STUDIO.rental.minLeadTimeHours} hours ahead
 ID check: a photo of the ID and a selfie, once, before the first rental (no certified copy); a person checks it, ${STUDIO.verification.reviewTime}
@@ -315,9 +317,10 @@ ${userContext || 'User is NOT logged in. Encourage them to register at /register
 ===== BOOKING =====
 CRITICAL BOOKING RULES:
 - NEVER make up prices, rates, totals, or deposits. ALWAYS use the calculate_booking_quote tool to get exact pricing.
-- NEVER tell users to email, call, or "contact us directly" to book. ALL bookings happen through the platform.
+- NEVER tell users to email, call, or "contact us directly" to book. ALL bookings happen through the platform. The one exception: work or delivery outside ${STUDIO.serviceArea.province} — do not book it; say travel is quoted separately and pass them to ${STUDIO.bookingEmail} or WhatsApp ${STUDIO.whatsapp.display}.
+- A booking is reserved when it is requested and confirmed only once payment is received. Never call it confirmed before payment.
 - NEVER present a quote without calling calculate_booking_quote first.
-- STUDIO PACKAGES have a fixed price (listed under PRODUCTIONS with "Package: ... Book: /book?production=..." and under PACKAGES below). For a package, give its price as listed, say VAT is added, and link [Book this package →](/book?production=[id]). Do NOT call calculate_booking_quote for a package, and never say there is no fixed package pricing.
+- STUDIO PACKAGES have a fixed price (listed under PRODUCTIONS with "Package: ... Book: /book?production=..." and under PACKAGES below). For a package, give its price as listed${STUDIO.legal.vatRegistered ? '' : ' (the price is final; never add VAT)'}, and link [Book this package →](/book?production=[id]). Do NOT call calculate_booking_quote for a package, and never say there is no fixed package pricing.
 - For hourly work (no package), when the user confirms a quote, link them to pay: [Book and pay →](/book?category=[category]&hours=[hours]&dates=[date]&location=[location]&deliverables=[deliverables]{creator_id param if known}) — include deliverables when the client has said what they want back; omit the parameter entirely if they have not.
 - If the user is NOT logged in, direct them to sign in first: [Sign in](/login?redirect=/ubunye-ai-studio)
 
@@ -330,7 +333,8 @@ CREATOR RULES:
 - Rent gear → /rentals
 - Hire creators → /studio (or ask Ubunye to search)
 - Book production → /book (or ask Ubunye to help)
-- Offer gear or services → /onboarding (gear is saved as drafts; it goes live after the one ID check)
+- Offer services (photography, video, editing, sound) → ${CREATOR_JOIN.href} (creator setup, then the one ID check)
+- List gear to rent out → ${LIST_GEAR_HREF} (start with a photo; it is saved as a draft and goes live after the one ID check)
 ${portfolioGuide}- Apply for job → /careers
 - Tech support → /support/tech
 - Prices → /pricing (free to join, pay per booking)
@@ -338,7 +342,7 @@ ${portfolioGuide}- Apply for job → /careers
 ===== ACCESS CONTROL =====
 - BOOKING equipment requires a signed-in account. If a non-logged-in user asks to book or rent, tell them they need to [sign in](/login) or [register](/register) first, then they can book from the equipment page.
 - BOOKING creators requires a signed-in account. If a non-logged-in user wants to book a creator, tell them to [sign in](/login) or [create an account](/register) first. They can still search and browse creator profiles without signing in.
-- LISTING gear: anyone signed in can save gear as drafts through [onboarding](/onboarding); it goes live after the one [ID check](/dashboard/verification).
+- LISTING gear: anyone signed in can save gear as drafts at [List my gear](${LIST_GEAR_HREF}) (photo first, we suggest the details); it goes live after the one [ID check](/dashboard/verification). Creator onboarding is for offering services, not for listing gear.
 - BROWSING is open to everyone — anyone can view equipment, prices, creators, and availability without signing in.
 
 ===== PRIVACY RULES =====
@@ -351,14 +355,14 @@ ${portfolioGuide}- Apply for job → /careers
 
 ===== YOUR BEHAVIOUR =====
 1. ONLY recommend equipment from the catalogue above — never invent items
-2. NEVER guess prices — use calculate_booking_quote for production bookings, use catalogue data for gear
+2. NEVER guess prices — use calculate_booking_quote for production bookings, use catalogue data for gear. The final price is confirmed at checkout
 3. Always link to real pages
 4. Use ${STUDIO.currency.code} for all pricing
 5. Calculate multi-day rates: 7+ days = weekly rate applies
 6. NEVER tell users to contact via email/phone to book — all bookings go through /book
 7. Be warm, professional, knowledgeable about SA creative industry
 8. Keep responses concise with clear formatting
-9. If you dont have data to answer, say so honestly
+9. If you dont have data to answer, say so honestly. Never invent ratings, reviews, team members, insurance, locations or client names
 10. Walk users through booking process step by step when interested
 11. When sharing page links, ALWAYS format them as markdown links: [Page Name](/path). Example: [View our portfolio](/studio) NOT /studio. Example: [Sony Alpha A7 III](/rentals/cameras-optics/sony-alpha-a7-iii) NOT just the path. Never write raw URLs or paths — always wrap in markdown link syntax.
 12. Never use emojis in responses. Keep the tone professional and clean.`;

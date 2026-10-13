@@ -1,12 +1,11 @@
 import { redirect } from 'next/navigation';
-import { getPublishedRentalsByCategory } from '@/lib/supabase/queries/smartRentals';
+import { fetchPublishedRentalsByCategory } from '@/lib/supabase/queries/smartRentals';
 import { RENTAL_CATEGORIES, STUDIO } from '@/lib/constants';
 import { buildPageMetadata } from '@/lib/seo/metadata';
 import { serviceJsonLd, breadcrumbJsonLd, renderJsonLd } from '@/lib/seo/structured-data';
 import RentalCategoryClient from './RentalCategoryClient';
-import { AlsoAvailableIn } from '@/components/seo/AlsoAvailableIn';
-import { RENTAL_CITIES } from '@/lib/seo/cities';
 import { RelatedCategories } from '@/components/seo/RelatedCategories';
+import { collectionPointWithCity } from '@/lib/rental/collection-point';
 
 export const revalidate = 60;
 
@@ -21,7 +20,7 @@ export async function generateMetadata({
 
   return buildPageMetadata({
     title: `${cat.label} Rentals — Equipment Hire`,
-    description: `${cat.description} Collect in Johannesburg or have it delivered within ${STUDIO.fulfilment.delivery.maxRadiusKm} km. Daily rates, book online with ThabangVision.`,
+    description: `${cat.description} Collect at ${collectionPointWithCity()}; delivery within ${STUDIO.fulfilment.delivery.maxRadiusKm} km after your first hire. Daily rates, book online with ${STUDIO.name}.`,
     path: `/rentals/${category}`,
   });
 }
@@ -38,7 +37,7 @@ export default async function RentalCategoryPage({
   }
 
   const cat = RENTAL_CATEGORIES.find((c) => c.value === category);
-  const rentals = await getPublishedRentalsByCategory(category);
+  const { rentals, failed, hasMore } = await fetchPublishedRentalsByCategory(category);
 
   const jsonLd = cat ? [
     serviceJsonLd({
@@ -62,8 +61,7 @@ export default async function RentalCategoryPage({
           dangerouslySetInnerHTML={{ __html: renderJsonLd(ld) }}
         />
       ))}
-      <RentalCategoryClient rentals={rentals} category={category} />
-      <AlsoAvailableIn basePath={`/rentals/${category}`} cities={RENTAL_CITIES} />
+      <RentalCategoryClient rentals={rentals} category={category} loadFailed={failed} hasMore={hasMore} />
       <RelatedCategories currentSlug={category} type="rentals" />
     </>
   );

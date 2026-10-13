@@ -1,17 +1,26 @@
 export const dynamic = 'force-dynamic';
-export const maxDuration = 30;
+export const maxDuration = 60;
 
 import { NextRequest, NextResponse } from 'next/server';
-import { generateText } from 'ai';
-import { anthropic } from '@ai-sdk/anthropic';
 import { requireAuth, checkNotSuspended, checkRateLimit } from '@/lib/auth';
 import { createAdminClient } from '@/lib/supabase/server';
+import { generateWithFallback } from '@/lib/ai';
 import { trackedCompletion } from '@/lib/ai/tracked';
+import { releaseMessage, reserveMessage } from '@/lib/agents/usage';
 import {
   bioWriterAgent,
   buildBioWriterPrompt,
+  cleanBio,
+  templateBio,
   type BioWriterInput,
 } from '@/lib/agents/agents/bio-writer';
+
+/** Shown with the starter bio when no AI provider could write one. */
+const TEMPLATE_NOTICE =
+  'Our bio writer is busy right now, so here is a simple starting point. Make it yours: say what you shoot, where you work and what clients can expect.';
+
+/** Per provider attempt, so the whole failover chain fits in maxDuration. */
+const ATTEMPT_TIMEOUT_MS = 15_000;
 
 const DAILY_LIMIT = bioWriterAgent.rateLimit.free;
 
@@ -85,66 +94,76 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     );
   }
 
-  // Daily limit via ubunye_usage
+  // Daily limit via ubunye_usage: one slot RESERVED atomically before the
+  // model is called (078), given back if no bio is produced. The old
+  // read-then-write let parallel requests pass the cap (security LLM-6).
   const supabase = createAdminClient();
-  const today = getTodaySAST();
-  const { data: usage } = await supabase
-    .from('ubunye_usage')
-    .select('id, message_count')
-    .eq('user_id', auth.user.id)
-    .eq('date', today)
-    .single();
-
-  const currentCount = usage?.message_count ?? 0;
-  if (currentCount >= DAILY_LIMIT) {
+  const slot = { userId: auth.user.id, date: getTodaySAST() };
+  let reservation;
+  try {
+    reservation = await reserveMessage(supabase, { ...slot, limit: DAILY_LIMIT });
+  } catch (err) {
+    console.error('[agents/bio-writer] usage reserve failed:', err);
+    return NextResponse.json({ error: 'Bio generation is unavailable just now.' }, { status: 503 });
+  }
+  if (reservation.kind === 'limit_reached') {
     return NextResponse.json(
       { error: 'Daily bio-generation limit reached.', limit: DAILY_LIMIT },
       { status: 429 },
     );
   }
 
+  let input: BioWriterInput | null = null;
   try {
-    const input = await loadBioInput(auth.user.id);
+    input = await loadBioInput(auth.user.id);
 
-    const bio = await trackedCompletion<string>({
+    // Through the gateway (lib/ai/resilient): the bio writer's own model
+    // first, then the configured failover chain, so an Anthropic key that is
+    // out of credit hands over to Gemini instead of failing the step. Cost is
+    // recorded against the agent's model (an upper bound when a cheaper
+    // fallback answered).
+    const text = await trackedCompletion<string>({
       agentId: bioWriterAgent.id,
-      provider: 'anthropic',
+      provider: bioWriterAgent.provider,
       model: bioWriterAgent.model,
       userId: auth.user.id,
       call: async () => {
-        const res = await generateText({
-          model: anthropic(bioWriterAgent.model),
-          prompt: buildBioWriterPrompt(input),
+        const out = await generateWithFallback({
+          ref: `${bioWriterAgent.provider}:${bioWriterAgent.model}`,
+          prompt: buildBioWriterPrompt(input as BioWriterInput),
           temperature: 0.7,
+          timeoutMs: ATTEMPT_TIMEOUT_MS,
         });
-        return {
-          result: res.text.trim(),
-          usage: {
-            inputTokens: res.usage.inputTokens ?? 0,
-            outputTokens: res.usage.outputTokens ?? 0,
-          },
-        };
+        if (out.servedBy !== bioWriterAgent.provider) {
+          console.warn(`[agents/bio-writer] served by ${out.servedBy}/${out.modelId} after: ${out.attempts.map((a) => a.provider).join(', ')}`);
+        }
+        return { result: out.text, usage: out.usage };
       },
     });
 
-    // Increment daily counter (fire-and-forget, after success)
-    if (usage) {
-      await supabase
-        .from('ubunye_usage')
-        .update({ message_count: currentCount + 1 })
-        .eq('id', usage.id);
-    } else {
-      await supabase
-        .from('ubunye_usage')
-        .insert({ user_id: auth.user.id, date: today, message_count: 1 });
-    }
-
-    return NextResponse.json({ bio, samples: input.topSceneTypes.length });
+    const bio = cleanBio(text);
+    if (!bio) throw new Error('empty bio');
+    return NextResponse.json({ bio, samples: input.topSceneTypes.length, source: 'ai' });
   } catch (err) {
-    console.error('[agents/bio-writer] error:', err);
+    console.error('[agents/bio-writer] error:', err instanceof Error ? err.message : err);
+    // No AI bio was produced: the slot is given back.
+    try {
+      await releaseMessage(supabase, slot);
+    } catch (releaseErr) {
+      console.error('[agents/bio-writer] usage release failed:', releaseErr);
+    }
+    if (input) {
+      // Never an empty box: a plain starting bio the creator can edit.
+      return NextResponse.json({
+        bio: templateBio(input),
+        samples: input.topSceneTypes.length,
+        source: 'template',
+        notice: TEMPLATE_NOTICE,
+      });
+    }
     return NextResponse.json(
-      { error: 'Failed to generate bio. Please try again.' },
-      { status: 500 },
+      { error: 'We could not draft a bio just now. Write a line or two about what you shoot and where you work.' },
+      { status: 503 },
     );
   }
 }

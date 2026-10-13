@@ -1,9 +1,11 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-import { ArrowRight, Mail, Phone, MapPin, Send, Loader2 } from 'lucide-react';
+import { ArrowRight, Mail, MapPin, Send, Loader2, MessageCircle } from 'lucide-react';
 import { STUDIO } from '@/lib/constants';
+import { ContactButtons } from '@/components/payments/ContactButtons';
+import { whatsappLink } from '@/lib/payments/eft';
 
 export default function ContactPage() {
   const [formState, setFormState] = useState({ name: '', email: '', subject: 'Project Inquiry', message: '', _hp_company: '' });
@@ -11,6 +13,15 @@ export default function ContactPage() {
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // "/contact?type=production_brief" (the "Need a photographer? Send us a
+  // brief" link) opens the form as a shoot request. Read once in the browser,
+  // so the page needs no Suspense boundary.
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get('type') === 'production_brief') {
+      setFormState((s) => ({ ...s, subject: 'Shoot Request' }));
+    }
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -59,7 +70,7 @@ export default function ContactPage() {
                     <Send className="text-black w-6 h-6" />
                  </div>
                  <h3 className="text-2xl font-display uppercase mb-2 text-white">Message Sent</h3>
-                 <p className="text-neutral-400 font-mono text-sm">We&apos;ll get back to you within 24 hours.</p>
+                 <p className="text-neutral-400 font-mono text-sm">We&apos;ll get back to you {STUDIO.responseTime}.</p>
                  <button
                    onClick={() => setIsSubmitted(false)}
                    className="mt-8 text-xs font-mono font-bold uppercase tracking-widest text-[#D4A843] hover:text-[#D4A843]/80 transition-colors"
@@ -121,7 +132,7 @@ export default function ContactPage() {
                   >
                     <option className="bg-[#050505]">Project Inquiry</option>
                     <option className="bg-[#050505]">Equipment Rental</option>
-                    <option className="bg-[#050505]">Hire a Creator</option>
+                    <option className="bg-[#050505]">Shoot Request</option>
                     <option className="bg-[#050505]">Press / Media</option>
                     <option className="bg-[#050505]">Other</option>
                   </select>
@@ -190,14 +201,15 @@ export default function ContactPage() {
                    <div className="border-t border-white/5 pt-4 space-y-3">
                      {STUDIO.phone && (
                        <div className="flex items-center gap-4">
-                         <Phone className="w-4 h-4 flex-shrink-0 text-[#D4A843]" />
-                         <a href={`tel:${STUDIO.phone}`} className="hover:text-white transition-colors">{STUDIO.phone}</a>
+                         <MessageCircle className="w-4 h-4 flex-shrink-0 text-[#D4A843]" />
+                         <a href={whatsappLink()} target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors">WhatsApp {STUDIO.whatsapp.display}</a>
                        </div>
                      )}
                      <div className="flex items-center gap-4">
                        <Mail className="w-4 h-4 flex-shrink-0 text-[#D4A843]" />
                        <a href={`mailto:${STUDIO.email}`} className="hover:text-white transition-colors">{STUDIO.email}</a>
                      </div>
+                     <ContactButtons message="Hi, I have a question" className="pt-2" />
                    </div>
                 </address>
              </div>

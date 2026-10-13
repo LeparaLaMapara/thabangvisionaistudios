@@ -24,6 +24,9 @@ export type Profile = {
   address_place_id: string | null;
   onboarding_completed_at: string | null;
   is_verified: boolean;
+  /** Read by getProfileById (select *); optional because other selects omit them. */
+  available_for_hire?: boolean | null;
+  portfolio_projects?: unknown[] | null;
   created_at: string;
   updated_at: string;
 };
@@ -114,7 +117,7 @@ export async function getVerifiedProfiles(): Promise<PublicProfile[]> {
     return [];
   }
 
-  return (data as PublicProfile[]) ?? [];
+  return ((data as PublicProfile[]) ?? []).map(withoutUnverifiedPortfolio);
 }
 
 /**
@@ -137,5 +140,14 @@ export async function getPublicProfileById(id: string): Promise<PublicProfile | 
     return null;
   }
 
-  return data as PublicProfile;
+  return withoutUnverifiedPortfolio(data as PublicProfile);
+}
+
+/**
+ * A creator's portfolio is public only once their ID check has passed (they
+ * may build it before). Migration 075 masks it in the view; this also holds
+ * on a database where 075 is not applied yet.
+ */
+export function withoutUnverifiedPortfolio<T extends { verification_status?: string | null; portfolio_projects?: unknown }>(p: T): T {
+  return p.verification_status === 'verified' ? p : { ...p, portfolio_projects: null };
 }

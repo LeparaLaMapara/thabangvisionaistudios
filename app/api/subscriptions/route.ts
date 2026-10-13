@@ -1,162 +1,22 @@
 export const dynamic = 'force-dynamic';
 
-import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
-import { payments } from '@/lib/payments';
-import { checkRateLimit } from '@/lib/auth';
-import { STUDIO } from '@/lib/constants';
+import { NextResponse } from 'next/server';
 
-export async function POST(request: NextRequest) {
-  // Subscriptions are switched off (STUDIO.subscriptions.enabled). While off,
-  // nothing may create or change one: these routes used to accept a plan and a
-  // price from the browser and write the subscription with the user's session.
-  if (!STUDIO.subscriptions.enabled) {
-    return NextResponse.json({ error: 'Subscriptions are not available.' }, { status: 404 });
-  }
-
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
-  // H3: Rate limit subscription creation — 3 requests per minute per user
-  if (!(await checkRateLimit(`subscription:${user.id}`, 3, 60_000))) {
-    return NextResponse.json(
-      { error: 'Too many requests. Please wait before trying again.' },
-      { status: 429 },
-    );
-  }
-
-  const body = await request.json();
-  const { plan_id } = body;
-
-  if (!plan_id) {
-    return NextResponse.json(
-      { error: 'plan_id is required.' },
-      { status: 400 },
-    );
-  }
-
-  // Fetch the plan
-  const { data: plan, error: planError } = await supabase
-    .from('subscription_plans')
-    .select('*')
-    .eq('id', plan_id)
-    .eq('is_active', true)
-    .single();
-
-  if (planError || !plan) {
-    return NextResponse.json(
-      { error: 'Subscription plan not found.' },
-      { status: 404 },
-    );
-  }
-
-  // Check for existing active subscription
-  const { data: existing } = await supabase
-    .from('subscriptions')
-    .select('id')
-    .eq('user_id', user.id)
-    .eq('status', 'active')
-    .single();
-
-  if (existing) {
-    return NextResponse.json(
-      { error: 'You already have an active subscription.' },
-      { status: 409 },
-    );
-  }
-
-  // M9: Deduplication — reject if same user+plan was created in last 60 seconds
-  const recentCutoff = new Date(Date.now() - 60_000).toISOString();
-  const { data: recentSub } = await supabase
-    .from('subscriptions')
-    .select('id')
-    .eq('user_id', user.id)
-    .eq('plan_id', plan_id)
-    .gte('created_at', recentCutoff)
-    .limit(1);
-
-  if (recentSub && recentSub.length > 0) {
-    return NextResponse.json(
-      { error: 'Duplicate request detected. Please wait before trying again.' },
-      { status: 409 },
-    );
-  }
-
-  // Verify profile exists
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('id')
-    .eq('id', user.id)
-    .single();
-
-  if (!profile) {
-    return NextResponse.json(
-      { error: 'Profile not found. Please complete your profile first.' },
-      { status: 400 },
-    );
-  }
-
-  const now = new Date();
-  const periodEnd = new Date(now);
-  if (plan.interval === 'year') {
-    periodEnd.setFullYear(periodEnd.getFullYear() + 1);
-  } else {
-    periodEnd.setMonth(periodEnd.getMonth() + 1);
-  }
-
-  // Create subscription record (status: pending until payment confirms)
-  const { data: sub, error: insertError } = await supabase
-    .from('subscriptions')
-    .insert({
-      user_id: user.id,
-      plan_id,
-      status: 'pending',
-      current_period_start: now.toISOString(),
-      current_period_end: periodEnd.toISOString(),
-    })
-    .select()
-    .single();
-
-  if (insertError) {
-    console.error('[subscriptions] Insert error:', insertError.message);
-    return NextResponse.json({ error: 'Failed to create subscription.' }, { status: 500 });
-  }
-
-  // Build payment checkout URL if configured
-  let paymentUrl: string | null = null;
-
-  if (payments.isConfigured() && plan.price > 0) {
-    try {
-      const interval = plan.interval === 'year' ? 'annual' : 'monthly';
-      const checkout = await payments.createSubscriptionCheckout({
-        subscriptionId: sub.id,
-        amount: plan.price,
-        planName: plan.name,
-        planDescription: plan.description ?? undefined,
-        email: user.email ?? undefined,
-        returnUrl: '/dashboard?subscription=success',
-        cancelUrl: '/pricing?subscription=cancelled',
-        interval,
-        metadata: {
-          customStr1: 'subscription',
-          customStr2: user.id,
-          customStr3: plan_id,
-        },
-      });
-      paymentUrl = checkout.paymentUrl;
-    } catch (err) {
-      console.error('[subscriptions] Payment error:', err);
-    }
-  }
-
+/**
+ * Retired subscription initiation path (Phase 0, 2026-10-08).
+ *
+ * This route used to create a subscription with the user's own session and
+ * without recording the price the server expected, so a webhook could never
+ * check the amount paid against it. Every subscription now starts at
+ * POST /api/payfast/checkout, which resolves the plan and price on the server
+ * and records the expected amount for the webhook to verify.
+ *
+ * GET /api/subscriptions/me, /plans and /cancel are separate routes and are
+ * unaffected.
+ */
+export async function POST() {
   return NextResponse.json(
-    { ...sub, payment_url: paymentUrl },
-    { status: 201 },
+    { error: 'This endpoint is retired. Start a subscription from the pricing page.' },
+    { status: 410 },
   );
 }

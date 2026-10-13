@@ -2,13 +2,10 @@ export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
 import { checkRateLimit } from '@/lib/auth';
-import { createClient } from '@/lib/supabase/server';
-
-const PAYSTACK_API = 'https://api.paystack.com';
-
-function getPaystackKey(): string | null {
-  return process.env.PAYSTACK_SECRET_KEY ?? null;
-}
+import { createClient, createAdminClient } from '@/lib/supabase/server';
+import { createPayoutRecipient, payoutRecipientsConfigured } from '@/lib/payments/payout';
+import { logEvent } from '@/lib/data/events';
+import { identityPort } from '@/lib/payments/ports';
 
 export async function GET(): Promise<NextResponse> {
   try {
@@ -54,7 +51,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     }
 
     const body = await req.json();
-    const { bank_name, bank_code, account_number, account_type, account_holder } = body;
+    const { bank_name, bank_code, account_number, account_type, account_holder, id_number } = body;
 
     if (!bank_name || !bank_code || !account_number || !account_type || !account_holder) {
       return NextResponse.json({ error: 'All banking fields are required' }, { status: 400 });
@@ -69,9 +66,8 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       return NextResponse.json({ error: 'Invalid account number' }, { status: 400 });
     }
 
-    const secretKey = getPaystackKey();
-    if (!secretKey) {
-      console.error('[banking] PAYSTACK_SECRET_KEY not configured');
+    if (!payoutRecipientsConfigured()) {
+      console.error('[banking] Payout provider not configured');
       return NextResponse.json(
         { error: 'Payouts are not configured on this environment. Please contact support.' },
         { status: 503 },
@@ -84,50 +80,78 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     // record, leaving a creator with banking details that could never be paid
     // and no sign of it until a payout failed weeks later.
     //
-    // It doubles as validation: Paystack checks the account number against the
-    // bank, so a typo is caught here rather than at payout time.
-    let recipientCode: string | null = null;
-    try {
-      const res = await fetch(`${PAYSTACK_API}/transferrecipient`, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${secretKey}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          type: 'nuban',
-          name: account_holder,
-          account_number,
-          bank_code,
-          currency: 'ZAR',
-        }),
-      });
+    // It doubles as validation: the provider checks the account number against
+    // the bank, so a typo is caught here rather than at payout time. The
+    // account number goes to the provider only; it is never logged.
+    const recipient = await createPayoutRecipient({
+      name: account_holder,
+      accountNumber: account_number,
+      bankCode: bank_code,
+    });
 
-      const data = await res.json().catch(() => null);
-
-      if (res.ok && data?.status && data?.data?.recipient_code) {
-        recipientCode = data.data.recipient_code as string;
-      } else {
-        const reason = typeof data?.message === 'string'
-          ? data.message
-          : 'Your bank could not verify these details.';
+    if (!recipient.success) {
+      if (recipient.unreachable) {
         return NextResponse.json(
-          { error: `${reason} Please check the account number and bank, then try again.` },
-          { status: 400 },
+          { error: 'We could not reach our payment provider. Please try again in a moment.' },
+          { status: 502 },
         );
       }
-    } catch (err) {
-      console.error('[banking] Paystack recipient creation failed:', err);
       return NextResponse.json(
-        { error: 'We could not reach our payment provider. Please try again in a moment.' },
-        { status: 502 },
+        { error: `${recipient.error} Please check the account number and bank, then try again.` },
+        { status: 400 },
       );
+    }
+    const recipientCode = recipient.recipientCode;
+
+    // Bank account validation (IdentityPort, spec §7.10): does this account
+    // belong to this person? It needs the account holder's SA ID number, which
+    // is sent to the provider for this check only. It is never stored or
+    // logged. Without it, or if the names don't match the verified profile,
+    // the account is saved but not marked validated. That caps the renter's
+    // trust tier and keeps owner payouts on hold until a person reviews it.
+    // Changing bank details always clears an earlier validation.
+    let validated = false;
+    let validationMessage: string | null = null;
+    const admin = createAdminClient();
+    const { data: profile } = await admin
+      .from('profiles')
+      .select('first_name, last_name, verification_status')
+      .eq('id', user.id)
+      .maybeSingle();
+    const norm = (v: string) => v.toLowerCase().replace(/[^a-z]/g, '');
+    const legalName = [profile?.first_name, profile?.last_name].filter(Boolean).join(' ');
+    const nameMatches = Boolean(legalName) && norm(String(account_holder)) === norm(legalName);
+    if (typeof id_number === 'string' && /^\d{13}$/.test(id_number) && profile?.verification_status === 'verified' && nameMatches) {
+      const check = await identityPort.validateBankAccount({
+        bankCode: String(bank_code),
+        accountNumber: String(account_number),
+        accountName: String(account_holder),
+        accountType: 'personal',
+        documentType: 'identityNumber',
+        documentNumber: id_number,
+      });
+      if (check.ok) {
+        validated = check.value.verified;
+        validationMessage = check.value.verified ? null : 'The bank could not confirm this account belongs to you.';
+      } else {
+        validationMessage = 'We could not validate the account just now. It is saved; you can try again later.';
+      }
+    } else if (!nameMatches) {
+      validationMessage = 'The account holder must match the name on your verified ID for the account to be validated.';
+    } else if (profile?.verification_status !== 'verified') {
+      validationMessage = 'Complete identity verification first; then the account can be validated.';
+    } else {
+      validationMessage = 'Add your SA ID number to validate the account.';
     }
 
     // Store the token and the last four digits. The full account number is
     // deliberately NOT persisted — Paystack holds it against the recipient
     // code, and nothing in this codebase reads it back. See migration 039.
-    const { error } = await supabase
+    //
+    // Written with the service role, scoped to the signed-in user's own row:
+    // paystack_recipient_code and account_holder are server-only columns
+    // (migration 067 rejects user-session writes to them).
+    const { error } = await admin
       .from('banking_details')
       .upsert({
         user_id: user.id,
@@ -137,15 +161,27 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         account_type,
         account_holder,
         paystack_recipient_code: recipientCode,
+        is_verified: validated,
         updated_at: new Date().toISOString(),
       }, { onConflict: 'user_id' });
 
     if (error) {
       console.error('[banking] Save error:', error.message);
+      // A denial from the column guard (migration 067) is logged as a separate
+      // statement; the failed write itself rolled back. No PII, no account numbers.
+      if (error.code === '42501' || error.code === 'P0001') {
+        logEvent({
+          eventType: 'security_write_denied',
+          eventCategory: 'security',
+          userId: user.id,
+          metadata: { table: 'banking_details', code: error.code },
+        });
+      }
       return NextResponse.json({ error: 'Failed to save banking details' }, { status: 500 });
     }
 
-    return NextResponse.json({ success: true, has_recipient: true });
+    logEvent({ eventType: validated ? 'bank_account_validated' : 'bank_account_saved_unvalidated', eventCategory: 'payout', userId: user.id, metadata: { provider: identityPort.provider } });
+    return NextResponse.json({ success: true, has_recipient: true, validated, message: validationMessage });
   } catch (err) {
     console.error('[banking POST]', err);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

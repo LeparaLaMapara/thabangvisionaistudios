@@ -2,6 +2,19 @@ import { STUDIO, PRODUCTION_SERVICES } from '@/lib/constants';
 
 type JsonLd = Record<string, unknown>;
 
+/**
+ * Where we work, for every `areaServed`: the province in STUDIO.serviceArea
+ * (Gauteng). Outside it, travel is quoted separately, so the country is never
+ * claimed as the service area.
+ */
+export function serviceAreaJsonLd(): JsonLd {
+  return {
+    '@type': 'AdministrativeArea',
+    name: STUDIO.serviceArea.province,
+    containedInPlace: { '@type': 'Country', name: STUDIO.location.country },
+  };
+}
+
 export function organizationJsonLd(): JsonLd {
   return {
     '@context': 'https://schema.org',
@@ -11,7 +24,6 @@ export function organizationJsonLd(): JsonLd {
     logo: `${STUDIO.meta.url}/logo-black-bg.png`,
     description: STUDIO.meta.description,
     email: STUDIO.supportEmail,
-    telephone: STUDIO.phone,
     address: {
       '@type': 'PostalAddress',
       addressLocality: STUDIO.location.city,
@@ -25,10 +37,7 @@ export function organizationJsonLd(): JsonLd {
       STUDIO.social?.facebook,
       STUDIO.social?.linkedin,
     ].filter(Boolean),
-    areaServed: {
-      '@type': 'Country',
-      name: 'South Africa',
-    },
+    areaServed: serviceAreaJsonLd(),
   };
 }
 
@@ -59,7 +68,6 @@ export function localBusinessJsonLd(priceRange?: { min: number; max: number } | 
     image: `${STUDIO.meta.url}/logo-black-bg.png`,
     description: STUDIO.meta.description,
     email: STUDIO.supportEmail,
-    telephone: STUDIO.phone,
     address: {
       '@type': 'PostalAddress',
       addressLocality: STUDIO.location.city,
@@ -77,6 +85,7 @@ export function localBusinessJsonLd(priceRange?: { min: number; max: number } | 
     ...(priceRange
       ? { priceRange: `R${zar(priceRange.min)} - R${zar(priceRange.max)}` }
       : {}),
+    areaServed: serviceAreaJsonLd(),
     currenciesAccepted: 'ZAR',
     paymentAccepted: 'Credit Card, Debit Card, EFT',
   };
@@ -135,8 +144,8 @@ export function serviceJsonLd(opts: {
       url: STUDIO.meta.url,
     },
     areaServed: opts.city
-      ? { '@type': 'City', name: opts.city }
-      : { '@type': 'Country', name: 'South Africa' },
+      ? { '@type': 'City', name: opts.city, containedInPlace: serviceAreaJsonLd() }
+      : serviceAreaJsonLd(),
     ...(opts.startingRate && {
       offers: {
         '@type': 'Offer',
@@ -235,6 +244,20 @@ export function breadcrumbJsonLd(items: { name: string; url: string }[]): JsonLd
   };
 }
 
+/**
+ * JSON for a `<script type="application/ld+json">` element written with
+ * dangerouslySetInnerHTML. Plain JSON.stringify is NOT safe there: a value
+ * holding `</script>` (a creator's location, a review) closes the element and
+ * the rest runs as script (Phase 6 security finding INJ-1). Escaping `<`, `>`
+ * and `&` as \uXXXX keeps the JSON identical to a JSON parser while the HTML
+ * parser never sees a tag; U+2028/U+2029 are escaped for old JS parsers.
+ * Every JSON-LD caller goes through here.
+ */
 export function renderJsonLd(data: JsonLd): string {
-  return JSON.stringify(data);
+  return JSON.stringify(data)
+    .replace(/</g, '\\u003c')
+    .replace(/>/g, '\\u003e')
+    .replace(/&/g, '\\u0026')
+    .replace(/\u2028/g, '\\u2028')
+    .replace(/\u2029/g, '\\u2029');
 }

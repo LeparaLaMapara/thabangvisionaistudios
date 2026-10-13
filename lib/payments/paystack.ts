@@ -1,4 +1,6 @@
 import crypto from 'crypto';
+import { appUrl } from '@/lib/app-url';
+import { toCents } from '@/lib/core/pricing/money';
 import type {
   PaymentProvider,
   CheckoutParams,
@@ -10,7 +12,9 @@ import type {
 
 // ─── Config ──────────────────────────────────────────────────────────────────
 
-const PAYSTACK_API = 'https://api.paystack.com';
+// Paystack's API host is api.paystack.co (https://paystack.com/docs/api/).
+// Hosted checkout pages are on checkout.paystack.com — a different host.
+export const PAYSTACK_API = 'https://api.paystack.co';
 
 function getSecretKey(): string {
   const key = process.env.PAYSTACK_SECRET_KEY;
@@ -20,8 +24,24 @@ function getSecretKey(): string {
 
 function resolveUrl(path: string): string {
   if (path.startsWith('http')) return path;
-  const base = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000';
+  const base = appUrl();
   return `${base}${path}`;
+}
+
+export type KeyMode = 'live' | 'test' | 'missing' | 'unrecognised';
+
+/**
+ * Which kind of Paystack key this is, from its prefix alone. The secret key
+ * is a Vercel "Sensitive" variable nobody can read back, so this is how the
+ * owner (and Claude) learn whether production holds live or test keys
+ * without the key itself ever leaving the server.
+ */
+export function paystackKeyMode(key: string | undefined): KeyMode {
+  const k = key?.trim();
+  if (!k) return 'missing';
+  if (k.startsWith('sk_live_') || k.startsWith('pk_live_')) return 'live';
+  if (k.startsWith('sk_test_') || k.startsWith('pk_test_')) return 'test';
+  return 'unrecognised';
 }
 
 /**
@@ -74,7 +94,7 @@ async function initializeTransaction(params: {
     },
     body: JSON.stringify({
       email: params.email,
-      amount: Math.round(params.amount * 100), // ZAR → cents
+      amount: toCents(params.amount), // ZAR → cents (same conversion the payment intent uses)
       reference: params.reference,
       callback_url: params.callback_url,
       metadata: params.metadata,
@@ -106,7 +126,7 @@ async function initializeTransaction(params: {
  * The signature is in the `x-paystack-signature` header.
  * Docs: https://paystack.com/docs/payments/webhooks/#verify-event-origin
  */
-function verifySignature(body: string, signature: string): boolean {
+export function verifySignature(body: string, signature: string): boolean {
   const hash = crypto
     .createHmac('sha512', getSecretKey())
     .update(body)
@@ -147,6 +167,9 @@ export const paystack: PaymentProvider = {
   refund: (reference: string, amount?: number) => refundPayment(reference, amount),
 
   isConfigured(): boolean {
+    // PAYMENTS_OFF=true switches online payment off on purpose (the nonprod
+    // site uses it to show exactly what production customers see).
+    if (process.env.PAYMENTS_OFF === 'true') return false;
     return paystackReady(process.env.PAYSTACK_SECRET_KEY, process.env.VERCEL_ENV);
   },
 
@@ -166,6 +189,10 @@ export const paystack: PaymentProvider = {
         item_description: params.itemDescription,
         cancel_url: resolveUrl(params.cancelUrl),
         ...flattenMetadata(params.metadata),
+        // Paystack sends a customer who abandons the payment page to
+        // metadata.cancel_action (https://paystack.com/docs/payments/metadata/).
+        // cancel_url alone was ignored, so a cancel landed on the return URL.
+        cancel_action: resolveUrl(params.cancelUrl),
       },
     });
 
@@ -188,6 +215,10 @@ export const paystack: PaymentProvider = {
         interval: params.interval,
         cancel_url: resolveUrl(params.cancelUrl),
         ...flattenMetadata(params.metadata),
+        // Paystack sends a customer who abandons the payment page to
+        // metadata.cancel_action (https://paystack.com/docs/payments/metadata/).
+        // cancel_url alone was ignored, so a cancel landed on the return URL.
+        cancel_action: resolveUrl(params.cancelUrl),
       },
     });
 
@@ -354,7 +385,7 @@ export async function initiateTransfer(params: {
       },
       body: JSON.stringify({
         source: 'balance',
-        amount: Math.round(params.amount * 100), // ZAR → cents
+        amount: toCents(params.amount), // ZAR → cents (same conversion the payment intent uses)
         recipient: params.recipientCode,
         reason: params.reason,
         reference: params.reference,
@@ -372,6 +403,61 @@ export async function initiateTransfer(params: {
   } catch (err) {
     return { success: false, error: err instanceof Error ? err.message : 'Transfer failed' };
   }
+}
+
+// ─── Transfer recipients ─────────────────────────────────────────────────────
+
+export type TransferRecipientResult =
+  | { success: true; recipientCode: string }
+  | { success: false; error: string; unreachable?: boolean };
+
+/**
+ * Register a South African bank account as a Paystack transfer recipient.
+ * Docs: https://paystack.com/docs/transfers/creating-transfer-recipients/
+ *
+ * South African accounts use type 'basa' (Banking Association South Africa)
+ * and currency 'ZAR'; 'nuban' is for Nigerian accounts and is refused for
+ * ZAR. Paystack checks the account number against the bank, so this doubles
+ * as validation. The account number is sent to Paystack only: it is never
+ * logged or returned.
+ */
+export async function createTransferRecipient(params: {
+  name: string;
+  accountNumber: string;
+  bankCode: string;
+}): Promise<TransferRecipientResult> {
+  let res: Response;
+  try {
+    res = await fetch(`${PAYSTACK_API}/transferrecipient`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${getSecretKey()}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        type: 'basa',
+        name: params.name,
+        account_number: params.accountNumber,
+        bank_code: params.bankCode,
+        currency: 'ZAR',
+      }),
+    });
+  } catch (err) {
+    console.error('[Paystack] transferrecipient request failed:', err instanceof Error ? err.message : 'unknown error');
+    return { success: false, error: 'Payment provider unreachable', unreachable: true };
+  }
+
+  const data = (await res.json().catch(() => null)) as
+    | { status?: boolean; message?: unknown; data?: { recipient_code?: unknown } }
+    | null;
+
+  if (res.ok && data?.status && typeof data.data?.recipient_code === 'string') {
+    return { success: true, recipientCode: data.data.recipient_code };
+  }
+  return {
+    success: false,
+    error: typeof data?.message === 'string' ? data.message : 'Your bank could not verify these details.',
+  };
 }
 
 // ─── Utilities ───────────────────────────────────────────────────────────────

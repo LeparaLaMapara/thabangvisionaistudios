@@ -25,6 +25,8 @@ import {
   Image as ImageIcon,
 } from 'lucide-react';
 
+import { verificationPhotos } from '@/lib/metadata/photo-metadata-view';
+
 // ─── Types ───────────────────────────────────────────────────────────────────
 
 type VerificationStatus = 'pending' | 'verified' | 'rejected';
@@ -317,12 +319,12 @@ export default function AdminVerificationsPage() {
       </div>
 
       {/* Filter Tabs */}
-      <div className="flex items-center gap-px mb-6 bg-white/[0.04]">
+      <div className="flex items-center gap-px mb-6 bg-white/[0.04] overflow-x-auto">
         {TABS.map((tab) => (
           <button
             key={tab.key}
             onClick={() => setActiveTab(tab.key)}
-            className={`flex-1 sm:flex-none px-5 py-3 text-xs font-mono uppercase tracking-widest transition-colors ${
+            className={`flex-1 sm:flex-none flex-shrink-0 px-3 sm:px-5 py-3 text-xs font-mono uppercase tracking-widest transition-colors ${
               activeTab === tab.key
                 ? 'bg-neutral-800 text-white'
                 : 'bg-neutral-900 text-neutral-400 hover:text-neutral-400'
@@ -552,13 +554,13 @@ export default function AdminVerificationsPage() {
                               Photo Metadata
                             </SectionLabel>
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                              <MetadataCard label="Selfie with ID" metadata={sub.verification_metadata.selfie} />
-                              <MetadataCard label="ID Front" metadata={sub.verification_metadata.id_front} />
-                              <MetadataCard label="ID Back" metadata={sub.verification_metadata.id_back} />
+                              <MetadataCard label="Selfie with ID" metadata={verificationPhotos(sub.verification_metadata).selfie} />
+                              <MetadataCard label="ID Front" metadata={verificationPhotos(sub.verification_metadata).id_front} />
+                              <MetadataCard label="ID Back" metadata={verificationPhotos(sub.verification_metadata).id_back} />
                             </div>
 
                             {/* Consistency checks */}
-                            <ConsistencyChecks metadata={sub.verification_metadata} />
+                            <ConsistencyChecks metadata={verificationPhotos(sub.verification_metadata)} />
 
                             {/* Face match result */}
                             {sub.verification_metadata.face_match && (

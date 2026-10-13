@@ -46,6 +46,11 @@ export interface StreamFallbackParams {
   maxOutputTokens?: number;
   /** Called once, with the entry that actually served the response. */
   onServed?: (entry: ModelEntry, failovers: number) => void;
+  /**
+   * Called once when the stream is done, with whether any provider served a
+   * reply. Awaited before the stream closes (so a short reply cannot outrun it).
+   */
+  onSettled?: (served: boolean) => void | Promise<void>;
   /** streamText onFinish, attached only to the committed provider's stream. */
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   onFinish?: (event: any) => void;
@@ -71,100 +76,110 @@ export function streamWithFallback(params: StreamFallbackParams): Response {
 
   const stream = createUIMessageStream({
     execute: async ({ writer }) => {
-      let lastError: unknown;
-
-      for (let i = 0; i < order.length; i++) {
-        const entry = order[i];
-        const isLast = i === order.length - 1;
-        let model: LanguageModel;
-        try {
-          model = buildModel(entry);
-        } catch (err) {
-          lastError = err;
-          continue;
-        }
-
-        // The caller always supplies messages; the optional spreads and the
-        // heterogeneous tool/stop types make the literal awkward to type, so
-        // the argument object is assembled and passed as the SDK's input type.
-        const streamArgs = {
-          model,
-          messages: params.messages,
-          tools: params.tools,
-          ...(params.system ? { system: params.system } : {}),
-          ...(params.stopWhen ? { stopWhen: params.stopWhen } : {}),
-          ...(params.maxOutputTokens ? { maxOutputTokens: params.maxOutputTokens } : {}),
-          // onFinish only matters for the provider we commit to; a failed
-          // attempt never reaches a finish.
-          ...(params.onFinish ? { onFinish: params.onFinish } : {}),
-        } as Parameters<typeof streamText>[0];
-        const result = streamText(streamArgs);
-
-        const reader = result.toUIMessageStream().getReader();
-        const buffered: UIMessageChunk[] = [];
-        let committed = false;
-        let failed = false;
-
-        try {
-          for (;;) {
-            const { done, value } = await reader.read();
-            if (done) break;
-
-            if (value.type === 'error' && !committed) {
-              // Errored before producing content: safe to try the next
-              // provider, since nothing content-bearing was forwarded.
-              failed = true;
-              lastError = new Error(String((value as { errorText?: string }).errorText ?? 'stream error'));
-              break;
-            }
-
-            if (committed) {
-              writer.write(value);
-              continue;
-            }
-
-            // Not yet committed: hold the opening parts, and commit the moment
-            // real content appears — then flush what we held.
-            buffered.push(value);
-            if (isContent(value)) {
-              committed = true;
-              markHealthy(entry.provider);
-              // Announce the served model at commit, BEFORE the provider's own
-              // onFinish fires at stream end, so cost logging records the model
-              // that actually answered rather than the one first routed to.
-              params.onServed?.(entry, i);
-              for (const c of buffered) writer.write(c);
-              buffered.length = 0;
-            }
-          }
-        } catch (err) {
-          if (!committed) {
-            failed = true;
-            lastError = err;
-          } else {
-            // A mid-stream failure after content: cannot fail over cleanly, so
-            // surface it on this stream rather than duplicating a reply.
-            throw err;
-          }
-        } finally {
-          reader.releaseLock();
-        }
-
-        if (!failed) {
-          // Committed streams already announced via onServed. A clean finish
-          // with no content (rare empty completion) never committed; nothing
-          // was sent, so just return.
-          return;
-        }
-        markFailed(entry.provider, lastError);
-        console.error(`[ai] ${entry.provider}:${entry.modelId} failed, ${isLast ? 'no provider left' : 'handing over'}: ${errorText(lastError).slice(0, 300)}`);
-        if (isLast || !shouldFailover(lastError)) break;
-        // else: try the next provider.
+      let served = false;
+      try {
+        await runProviders();
+      } finally {
+        await params.onSettled?.(served);
       }
 
-      throw new Error(
-        `[ai] all streaming providers failed (${order.map((e) => e.provider).join(', ')}) — ${errorText(lastError).slice(0, 300)}`,
-      );
+      async function runProviders(): Promise<void> {
+        let lastError: unknown;
+
+        for (let i = 0; i < order.length; i++) {
+          const entry = order[i];
+          const isLast = i === order.length - 1;
+          let model: LanguageModel;
+          try {
+            model = buildModel(entry);
+          } catch (err) {
+            lastError = err;
+            continue;
+          }
+
+          // The caller always supplies messages; the optional spreads and the
+          // heterogeneous tool/stop types make the literal awkward to type, so
+          // the argument object is assembled and passed as the SDK's input type.
+          const streamArgs = {
+            model,
+            messages: params.messages,
+            tools: params.tools,
+            ...(params.system ? { system: params.system } : {}),
+            ...(params.stopWhen ? { stopWhen: params.stopWhen } : {}),
+            ...(params.maxOutputTokens ? { maxOutputTokens: params.maxOutputTokens } : {}),
+            // onFinish only matters for the provider we commit to; a failed
+            // attempt never reaches a finish.
+            ...(params.onFinish ? { onFinish: params.onFinish } : {}),
+          } as Parameters<typeof streamText>[0];
+          const result = streamText(streamArgs);
+
+          const reader = result.toUIMessageStream().getReader();
+          const buffered: UIMessageChunk[] = [];
+          let committed = false;
+          let failed = false;
+
+          try {
+            for (;;) {
+              const { done, value } = await reader.read();
+              if (done) break;
+
+              if (value.type === 'error' && !committed) {
+                // Errored before producing content: safe to try the next
+                // provider, since nothing content-bearing was forwarded.
+                failed = true;
+                lastError = new Error(String((value as { errorText?: string }).errorText ?? 'stream error'));
+                break;
+              }
+
+              if (committed) {
+                writer.write(value);
+                continue;
+              }
+
+              // Not yet committed: hold the opening parts, and commit the moment
+              // real content appears — then flush what we held.
+              buffered.push(value);
+              if (isContent(value)) {
+                committed = true;
+                served = true;
+                markHealthy(entry.provider);
+                // Announce the served model at commit, BEFORE the provider's own
+                // onFinish fires at stream end, so cost logging records the model
+                // that actually answered rather than the one first routed to.
+                params.onServed?.(entry, i);
+                for (const c of buffered) writer.write(c);
+                buffered.length = 0;
+              }
+            }
+          } catch (err) {
+            if (!committed) {
+              failed = true;
+              lastError = err;
+            } else {
+              // A mid-stream failure after content: cannot fail over cleanly, so
+              // surface it on this stream rather than duplicating a reply.
+              throw err;
+            }
+          } finally {
+            reader.releaseLock();
+          }
+
+          if (!failed) {
+            // Committed streams already announced via onServed. A clean finish
+            // with no content (rare empty completion) never committed; nothing
+            // was sent, so just return.
+            return;
+          }
+          markFailed(entry.provider, lastError);
+          console.error(`[ai] ${entry.provider}:${entry.modelId} failed, ${isLast ? 'no provider left' : 'handing over'}: ${errorText(lastError).slice(0, 300)}`);
+          if (isLast || !shouldFailover(lastError)) break;
+          // else: try the next provider.
+        }
+
+        throw new Error(
+          `[ai] all streaming providers failed (${order.map((e) => e.provider).join(', ')}) — ${errorText(lastError).slice(0, 300)}`,
+        );
+      }
     },
     // The details are in the server log; a customer never sees a provider's
     // raw error (it once showed Anthropic's billing message on the live site).

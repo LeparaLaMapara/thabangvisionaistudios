@@ -3,7 +3,9 @@ export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin, rateLimitAdmin } from '@/lib/auth';
 import { createAdminClient } from '@/lib/supabase/server';
+import { liftBan } from '@/lib/auth/sessions';
 import { sendAccountReinstated } from '@/lib/email';
+import { profileWithEmail } from '@/lib/supabase/profile-email';
 
 // ─── POST — Reinstate a suspended user (admin only) ─────────────────────────
 
@@ -72,6 +74,9 @@ export async function POST(
       return NextResponse.json({ error: 'Failed to reinstate user.' }, { status: 500 });
     }
 
+    // Let them sign in again (the suspension's Auth ban, Codex P1).
+    const unbanned = await liftBan(targetUserId);
+
     // Insert moderation log entry
     const { error: logError } = await supabase
       .from('moderation_log')
@@ -89,11 +94,7 @@ export async function POST(
 
     // Send reinstatement email
     try {
-      const { data: userProfile } = await supabase
-        .from('profiles')
-        .select('email, display_name')
-        .eq('id', targetUserId)
-        .single();
+      const userProfile = await profileWithEmail(targetUserId);
 
       if (userProfile?.email) {
         await sendAccountReinstated({
@@ -105,7 +106,7 @@ export async function POST(
       // Email failure shouldn't block the response
     }
 
-    return NextResponse.json({ success: true, message: 'User reinstated.' });
+    return NextResponse.json({ success: true, message: 'User reinstated.', sign_in_restored: unbanned });
   } catch (err) {
     console.error('[admin/users/reinstate] Error:', err);
     return NextResponse.json({ error: 'Internal server error.' }, { status: 500 });

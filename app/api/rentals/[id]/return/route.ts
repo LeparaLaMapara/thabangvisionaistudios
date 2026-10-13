@@ -97,18 +97,39 @@ export async function POST(
       );
     }
 
-    const { error: updateError } = await supabase
+    // The renter tells us the gear is on its way back or was dropped off. That
+    // is a report, not a return: the booking moves to return_pending only when
+    // a member of staff receives the gear and checks it (spec §7.12,
+    // /admin/rentals/[id]/return). The report is kept on the booking for them.
+    const report = {
+      customer_report: {
+        condition,
+        photos,
+        notes: notes ?? null,
+        reported_at: now.toISOString(),
+        estimated_late_fee: lateFee,
+      },
+    };
+    let { error: updateError } = await supabase
       .from('equipment_bookings')
-      .update({
-        condition_at_return: condition,
-        return_photos: photos,
-        return_notes: notes ?? null,
-        returned_at: now.toISOString(),
-        late_fee: lateFee,
-        status: 'return_pending',
-        updated_at: now.toISOString(),
-      })
-      .eq('id', id);
+      .update({ return_evidence: report, updated_at: now.toISOString() })
+      .eq('id', id)
+      .in('status', ['active', 'overdue']);
+    if (updateError && /return_evidence/.test(updateError.message ?? '')) {
+      // Migration 070 not applied yet: the earlier behaviour.
+      ({ error: updateError } = await supabase
+        .from('equipment_bookings')
+        .update({
+          condition_at_return: condition,
+          return_photos: photos,
+          return_notes: notes ?? null,
+          returned_at: now.toISOString(),
+          late_fee: lateFee,
+          status: 'return_pending',
+          updated_at: now.toISOString(),
+        })
+        .eq('id', id));
+    }
 
     if (updateError) {
       console.error('[return] Update failed:', updateError);
@@ -130,9 +151,9 @@ export async function POST(
         await supabase.from('notifications').insert({
           user_id: admin.id,
           type: 'rental_return_pending',
-          title: 'Gear return submitted',
-          body: `A renter has submitted a gear return for booking ${id}. Please review.`,
-          link: `/admin/rentals/${id}/review-return`,
+          title: 'Renter reported a return',
+          body: `A renter says they have returned the gear for booking ${id}. Receive and check it at the counter.`,
+          link: `/admin/rentals/${id}/return`,
         });
       }
     } catch {

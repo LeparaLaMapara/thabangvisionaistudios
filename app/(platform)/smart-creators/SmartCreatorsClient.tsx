@@ -6,7 +6,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { MapPin, Star, ArrowUpRight, Search, Filter, X, Command } from 'lucide-react';
 import type { CreatorProfile } from '@/lib/supabase/queries/smartProductions';
-import { STUDIO } from '@/lib/constants';
+import { STUDIO, CREATOR_JOIN } from '@/lib/constants';
 import { EmptyState } from '@/components/ui/EmptyState';
 
 // ─── Helpers ───────────────────────────────────────────────────────────────────
@@ -271,8 +271,9 @@ export default function SmartCreatorsClient({
         ) : creators.length === 0 ? (
           <EmptyState
             icon={<Star className="w-10 h-10 text-[#D4A843]/40" />}
-            title="No creators yet"
-            description="Verified creators will appear here once they complete their profiles and portfolios."
+            title={CREATOR_JOIN.emptyDirectoryTitle}
+            description={CREATOR_JOIN.emptyDirectoryText}
+            action={{ label: CREATOR_JOIN.emptyDirectoryCta, href: CREATOR_JOIN.href }}
           />
         ) : (
           <EmptyState

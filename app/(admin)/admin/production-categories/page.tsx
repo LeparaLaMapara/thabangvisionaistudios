@@ -5,6 +5,7 @@ import {
   ArrowDown, ArrowUp, Eye, EyeOff, Loader2, Pencil, Plus, Trash2, X,
 } from 'lucide-react';
 import type { ProductionCategoryRow } from '@/types/production';
+import { useAdminUI } from '@/components/admin/shell/AdminUI';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -41,6 +42,7 @@ const UNITS = ['session', 'project', 'package', 'event'];
 // ─── Page ────────────────────────────────────────────────────────────────────
 
 export default function AdminProductionCategoriesPage() {
+  const ui = useAdminUI();
   const [items, setItems] = useState<ProductionCategoryRow[]>([]);
   const [form, setForm] = useState<Form>(EMPTY);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -161,7 +163,14 @@ export default function AdminProductionCategoriesPage() {
   // ─── Delete ────────────────────────────────────────────────────────────────
 
   async function handleDelete(id: string) {
-    if (!confirm('Delete this category? Productions using it must be reassigned first.')) return;
+    const cat = items.find((c) => c.id === id);
+    const ok = await ui.confirm({
+      title: `Delete ${cat ? `“${cat.name}”` : 'this production type'}?`,
+      body: 'It disappears from the site. Productions that use it must be moved to another type first.',
+      action: 'Delete it',
+      danger: true,
+    });
+    if (!ok) return;
 
     try {
       const res = await fetch(`/api/admin/production-categories?id=${id}`, { method: 'DELETE' });

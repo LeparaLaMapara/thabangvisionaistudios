@@ -9,11 +9,12 @@ import {
 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { STUDIO, RENTAL_CATEGORIES } from '@/lib/constants';
-import { escapeIlike } from '@/lib/search/types';
+import { escapeIlike, sanitizeFilterTerm } from '@/lib/search/types';
 import {
   uploadFile,
   type CloudinaryAsset,
 } from '@/lib/cloudinary/upload';
+import { uploadAccept } from '@/lib/storage/upload-policy';
 
 // ─── Types ──────────────────────────────────────────────────────────────────────
 
@@ -201,7 +202,7 @@ export default function ImportRateCardPage() {
       const { data: existing } = await supabase
         .from('smart_rentals')
         .select('id, title, slug')
-        .or(`slug.eq.${slug},title.ilike.${escapeIlike(item.title)}`)
+        .or(`slug.eq.${sanitizeFilterTerm(slug)},title.ilike.${escapeIlike(sanitizeFilterTerm(item.title))}`)
         .is('deleted_at', null)
         .limit(1);
 
@@ -720,7 +721,7 @@ export default function ImportRateCardPage() {
                           <input
                             ref={(el) => { galInputRefs.current[item._id] = el; }}
                             type="file"
-                            accept="image/*"
+                            accept={uploadAccept('image', true)}
                             multiple
                             className="hidden"
                             onChange={(e) => handleGalleryUpload(item._id, e.target.files)}

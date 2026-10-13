@@ -33,7 +33,7 @@ export async function generateMetadata({ params }: Props) {
     const spec = crew.specializations.join(', ') || 'Creative Professional';
     return buildPageMetadata({
       title: `${name} — ${spec}`,
-      description: `Book ${name} for ${spec.toLowerCase()} in ${crew.location ?? 'South Africa'}. View portfolio, reviews, and rates on ${STUDIO.shortName}.`,
+      description: `Book ${name} for ${spec.toLowerCase()} in ${crew.location ?? STUDIO.serviceArea.province}. View portfolio, reviews, and rates on ${STUDIO.shortName}.`,
       path: `/studio/category/${slug}/${id}`,
       imageUrl: crew.avatar_url ?? undefined,
     });

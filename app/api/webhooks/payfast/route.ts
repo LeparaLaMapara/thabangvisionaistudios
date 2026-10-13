@@ -3,6 +3,7 @@ import { createAdminClient } from '@/lib/supabase/server';
 import type { WebhookResult } from '@/lib/payments';
 import { payfast } from '@/lib/payments/payfast';
 import { STUDIO } from '@/lib/constants';
+import { confirmSubscriptionPayment } from '@/lib/payments/fulfil';
 
 export const dynamic = 'force-dynamic';
 
@@ -123,23 +124,9 @@ async function handlePaymentComplete(webhook: WebhookResult) {
       console.log(`[webhook] Booking confirmed: ref=${paymentId}`);
     }
   } else if (paymentType === 'subscription') {
-    const userId = raw.custom_str2 ?? '';
-
-    const { error: subErr } = await supabase
-      .from('subscriptions')
-      .update({
-        status: 'active',
-        payfast_token: providerPaymentId,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', paymentId)
-      .eq('user_id', userId);
-
-    if (subErr) {
-      console.error('[webhook] Failed to activate subscription:', subErr.message);
-    } else {
-      console.log(`[webhook] Subscription activated: ref=${paymentId}`);
-    }
+    // Shared, guarded confirmation: activates only when amount, currency,
+    // reference, plan and user match the pending row, and only once.
+    await confirmSubscriptionPayment(webhook);
   } else if (paymentType === 'crew_request' || paymentType === 'crew_request_deposit') {
     const commissionRate = STUDIO.creators.commissionRate;
     const commissionAmount = amountGross * (commissionRate / 100);
@@ -178,7 +165,13 @@ async function handlePaymentComplete(webhook: WebhookResult) {
       .eq('reference', paymentId)
       .single();
 
-    if (booking && Math.abs(booking.total - amountGross) > 0.01) {
+    // Never confirm blind (security MONEY-1): no booking, no confirmation.
+    if (!booking) {
+      console.error('[webhook] Service payment for an unknown reference; nothing changed:', paymentId);
+      return;
+    }
+
+    if (Math.abs(booking.total - amountGross) > 0.01) {
       console.error('[webhook] Service booking amount mismatch:', {
         expected: booking.total,
         received: amountGross,
@@ -191,11 +184,15 @@ async function handlePaymentComplete(webhook: WebhookResult) {
           admin_notes: `AMOUNT MISMATCH: expected ${booking.total}, received ${amountGross}. Manual review required.`,
           updated_at: new Date().toISOString(),
         })
-        .eq('reference', paymentId);
+        .eq('reference', paymentId)
+        .eq('status', 'pending')
+        .eq('payment_status', 'unpaid');
       return;
     }
 
-    const { error: bookingErr } = await supabase
+    // Compare-and-set from awaiting payment only (security MONEY-2): a
+    // duplicate is a no-op and a cancelled/refunded booking is never revived.
+    const { data: confirmedRows, error: bookingErr } = await supabase
       .from('bookings')
       .update({
         payment_status: 'paid',
@@ -204,15 +201,20 @@ async function handlePaymentComplete(webhook: WebhookResult) {
         paystack_reference: providerPaymentId,
         updated_at: new Date().toISOString(),
       })
-      .eq('reference', paymentId);
+      .eq('reference', paymentId)
+      .eq('status', 'pending')
+      .eq('payment_status', 'unpaid')
+      .select('id');
 
     if (bookingErr) {
       console.error('[webhook] Failed to confirm service booking:', bookingErr.message);
+    } else if (!confirmedRows || confirmedRows.length === 0) {
+      console.error('[webhook] Service payment for a booking no longer awaiting payment; needs manual review:', paymentId);
     } else {
       console.log(`[webhook] Service booking paid: ref=${paymentId} booking=${bookingId}`);
 
       // Notify client
-      if (booking) {
+      {
         await supabase.from('notifications').insert({
           user_id: booking.client_id,
           type: 'payment_confirmed',

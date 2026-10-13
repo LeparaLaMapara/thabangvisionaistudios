@@ -11,11 +11,11 @@ export function HeaderUbunyeBubble() {
   return (
     <Link
       href="/ubunye-ai-studio"
-      className="ubunye-presence group flex items-center gap-3 relative"
+      className="ubunye-presence group flex items-center gap-3 relative min-h-[44px] min-w-[44px]"
       aria-label="Ask Ubunye"
     >
       {/* Orb container */}
-      <div className="relative w-8 h-8 md:w-9 md:h-9 flex items-center justify-center">
+      <div className="relative w-8 h-8 md:w-9 md:h-9 flex items-center justify-center" aria-hidden="true">
         {/* Ambient glow — always visible */}
         <div className="absolute inset-0 rounded-full bg-[#D4A843]/10 group-hover:bg-[#D4A843]/20 blur-md transition-all duration-700 scale-150 group-hover:scale-[1.8]" />
 

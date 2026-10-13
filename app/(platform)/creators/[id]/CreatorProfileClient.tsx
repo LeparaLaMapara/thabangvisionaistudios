@@ -22,6 +22,7 @@ import { Badge } from '@/components/ui/Badge';
 import { Card } from '@/components/ui/Card';
 import { Rating } from '@/components/ui/Rating';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { STUDIO } from '@/lib/constants';
 
 interface ReviewData {
   id: string;
@@ -176,13 +177,14 @@ export default function CreatorProfileClient({
                 </p>
               )}
 
-              {/* Contact Creator button */}
+              {/* Enquiries go to us: we are the seller of record, and creator
+                  contact details are never shared. */}
               <a
-                href={`mailto:contact@thabangvision.com?subject=Inquiry about ${profile.display_name ?? 'Creator'}`}
+                href={`mailto:${STUDIO.bookingEmail}?subject=${encodeURIComponent(`Enquiry about ${profile.display_name ?? 'a creator'}`)}`}
                 className="inline-flex items-center gap-2 text-xs font-mono font-bold uppercase tracking-widest bg-accent-gold text-black px-6 py-3 hover:bg-accent-gold-light transition-colors"
               >
                 <Mail className="w-3.5 h-3.5" />
-                Contact Creator
+                Ask us about this creator
               </a>
             </div>
           </motion.div>

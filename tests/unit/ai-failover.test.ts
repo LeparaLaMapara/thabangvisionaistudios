@@ -154,6 +154,28 @@ describe('streaming chat takes over', () => {
     expect(body).toContain(ASSISTANT_UNAVAILABLE.slice(0, 30));
     expect(body).not.toContain('credit balance');
   });
+
+  it('tells the caller once, before the stream closes, whether a reply was served (Phase 5 usage slots)', async () => {
+    process.env.ANTHROPIC_API_KEY = 'a';
+    process.env.GOOGLE_GENERATIVE_AI_API_KEY = 'g';
+    process.env.AI_SMART_PROVIDER = 'anthropic';
+    models.anthropic = failing(creditError);
+    models.google = answering('Short.');
+    const settled: boolean[] = [];
+    // A slow settle: the stream must not close before it has finished.
+    await readAll(streamWithFallback({
+      ref: 'smart',
+      messages: [{ role: 'user', content: 'hi' }],
+      onSettled: async (served) => { await new Promise((r) => setTimeout(r, 30)); settled.push(served); },
+    }));
+    expect(settled).toEqual([true]);
+
+    models.google = failing(creditError);
+    resetHealth();
+    const failed: boolean[] = [];
+    await readAll(streamWithFallback({ ref: 'smart', messages: [{ role: 'user', content: 'hi' }], onSettled: async (served) => { failed.push(served); } }));
+    expect(failed).toEqual([false]);
+  });
 });
 
 describe('non-streaming calls (WhatsApp) take over too', () => {

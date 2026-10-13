@@ -1,5 +1,6 @@
 {
   "framework": "nextjs",
+  "regions": ["lhr1"],
   "crons": [
     {
       "path": "/api/cron/daily-maintenance",
@@ -20,6 +21,10 @@
     {
       "path": "/api/cron/ai-budget-checks",
       "schedule": "0 12 * * *"
+    },
+    {
+      "path": "/api/cron/rental-pipeline",
+      "schedule": "45 5 * * *"
     }
   ]
 }

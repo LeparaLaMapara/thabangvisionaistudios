@@ -34,6 +34,28 @@ export function hashIp(ip: string): string {
   return crypto.createHash('sha256').update(ip).digest('hex').slice(0, 16);
 }
 
+/**
+ * Whether a conversation id sent by the browser belongs to this person (or,
+ * for a guest, to this network address and no account). Fails closed: an
+ * unknown id or a lookup error means "not theirs".
+ */
+export async function conversationBelongsTo(conversationId: string, userId: string | null, guestIpHash: string | null): Promise<boolean> {
+  if (!/^[0-9a-f-]{36}$/i.test(conversationId)) return false;
+  try {
+    const { data, error } = await createAdminClient()
+      .from('chat_conversations')
+      .select('user_id, guest_ip_hash')
+      .eq('id', conversationId)
+      .maybeSingle();
+    if (error || !data) return false;
+    const row = data as { user_id: string | null; guest_ip_hash: string | null };
+    if (userId) return row.user_id === userId;
+    return row.user_id === null && row.guest_ip_hash !== null && row.guest_ip_hash === guestIpHash;
+  } catch {
+    return false;
+  }
+}
+
 // ─── Fire-and-forget loggers (following events.ts pattern) ─────────────────────
 
 export function createConversation(data: ChatConversationInsert): Promise<string | null> {

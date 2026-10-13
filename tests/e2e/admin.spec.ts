@@ -4,6 +4,8 @@ test.describe('Admin area', () => {
   test('admin login page is accessible', async ({ page }) => {
     await page.goto('/login');
     await expect(page.locator('input[type="email"]').first()).toBeVisible();
+    // Passwordless by default; password sign-in (used by admins) is one tap away.
+    await page.getByRole('button', { name: /use a password instead/i }).click();
     await expect(page.locator('input[type="password"]')).toBeVisible();
   });
 

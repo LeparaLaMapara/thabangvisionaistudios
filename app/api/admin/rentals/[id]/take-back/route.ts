@@ -5,9 +5,23 @@ import { requireAdmin, rateLimitAdmin } from '@/lib/auth';
 import { createAdminClient } from '@/lib/supabase/server';
 import { isManualReference, refundPayment } from '@/lib/payments/routing';
 import { paidOnlineForLine } from '@/lib/rental/cancellation';
-import { depositSettlement, lateFeeFor } from '@/lib/rental/late-fee';
+import { depositSettlement, lateFeeAfterDelivery, lateFeeFor } from '@/lib/rental/late-fee';
+import { NO_DELIVERY_HOLD, deliverySettlement, settlementHoldMessage, usesPhase4Delivery } from '@/lib/rental/delivery-settlement';
 import { loadNoticeBookings, sendGearNotice } from '@/lib/rental/notices';
 import { logEvent } from '@/lib/data/events';
+import { trackFunnel } from '@/lib/analytics/funnel';
+import { RENTAL_POLICY } from '@/lib/constants';
+import { fromCents, toCents } from '@/lib/core/pricing/money';
+import { planDepositRefund, refundObligationKey } from '@/lib/core/rental/refunds';
+import { chargeOfBooking } from '@/lib/rental/charges';
+import { deliveryEarned, depositSettled, hireEarned } from '@/lib/core/rental/ledger';
+import { payoutReference } from '@/lib/core/rental/payouts';
+import { buildNotices } from '@/lib/core/rental/notifications';
+import { submitRefund } from '@/lib/core/rental/use-cases';
+import { systemClock } from '@/lib/core/ports';
+import { paymentPort } from '@/lib/payments/ports';
+import { SupabaseRefunds, isMissingPipeline, transitionBookings } from '@/lib/rental/repos';
+import { dispatchOutbox } from '@/lib/rental/notify';
 
 /**
  * Taking gear back at the counter (the last step of the gear loop): record the
@@ -23,15 +37,33 @@ type Row = {
   id: string; user_id: string; status: string; end_date: string; quantity: number | null;
   deposit_amount: number | null; total_price: number | null; payment_plan: string | null;
   checkout_group_id: string | null; payfast_payment_id: string | null; notes: string | null;
+  balance_due: number | null; delivery_fee: number | null; returned_at: string | null;
 };
 
 async function load(id: string): Promise<Row | null> {
   const { data } = await createAdminClient()
     .from('equipment_bookings')
-    .select('id, user_id, status, end_date, quantity, deposit_amount, total_price, payment_plan, checkout_group_id, payfast_payment_id, notes')
+    .select('id, user_id, status, end_date, quantity, deposit_amount, total_price, payment_plan, checkout_group_id, payfast_payment_id, notes, balance_due, delivery_fee, returned_at')
     .eq('id', id)
     .maybeSingle();
   return (data as Row | null) ?? null;
+}
+
+/**
+ * The moment the renter gave the gear back: a return pickup's collection, or
+ * the time they reported handing it back (a booking already in
+ * return_pending), whichever is earliest; otherwise now. Lateness is never
+ * counted for the time the gear waited for staff to check it.
+ */
+function handedBackAt(now: Date, returnCollectedAt: string | null, b?: Pick<Row, 'status' | 'returned_at'>): Date {
+  let at = now;
+  const candidates = [returnCollectedAt, b?.status === 'return_pending' ? b.returned_at : null];
+  for (const c of candidates) {
+    if (!c) continue;
+    const t = new Date(c);
+    if (!Number.isNaN(t.getTime()) && t.getTime() < at.getTime()) at = t;
+  }
+  return at;
 }
 
 /** Whether the deposit went through a payment provider, so it can go back to the card. */
@@ -52,12 +84,41 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   const b = await load(id);
   if (!b) return NextResponse.json({ error: 'Booking not found' }, { status: 404 });
   const deposit = Number(b.deposit_amount ?? 0);
-  const late = lateFeeFor({ endDate: b.end_date, returnedAt: new Date(), quantity: b.quantity, deposit });
+  // Phase 4 (R-40): a delivery incident holds settlement; a provider-caused
+  // delay on the return delivery stops the automatic late fee.
+  let delivery = NO_DELIVERY_HOLD;
+  let deliveryUnknown = false;
+  try {
+    delivery = await deliverySettlement({ bookingGroupId: b.checkout_group_id, bookingId: id });
+  } catch {
+    deliveryUnknown = true;
+  }
+  // A return pickup that took the gear from the renter is when they gave it back (D-49).
+  const late = lateFeeAfterDelivery({ endDate: b.end_date, returnedAt: handedBackAt(new Date(), delivery.returnCollectedAt, b), quantity: b.quantity, deposit }, delivery);
   const [notice] = await loadNoticeBookings([id]);
+  const { data: serialRow } = await createAdminClient().from('equipment_bookings').select('smart_rentals(serial_number)').eq('id', id).maybeSingle();
+  const serialRental = serialRow ? ((Array.isArray(serialRow.smart_rentals) ? serialRow.smart_rentals[0] : serialRow.smart_rentals) as { serial_number?: string | null } | null) : null;
   return NextResponse.json({
+    has_serial: Boolean(serialRental?.serial_number?.trim()),
     id: b.id, status: b.status, title: notice?.title ?? 'Equipment', end_date: b.end_date, quantity: b.quantity ?? 1,
     deposit, late_fee: late.fee, days_late: late.daysLate, deposit_on_card: depositOnCard(b),
+    late_fee_waived_for_delivery: late.waivedForDelivery,
+    delivery_hold: deliveryUnknown ? 'Could not check the delivery records just now.' : delivery.allowed ? null : settlementHoldMessage(delivery.reasons),
   });
+}
+
+interface TakeBackBody {
+  condition?: string;
+  photos?: string[];
+  damageFee?: number;
+  note?: string;
+  refundMethod?: 'card' | 'eft' | 'cash';
+  dispute?: boolean;
+  serialsConfirmed?: boolean;
+  accessoriesReturned?: string[];
+  missingComponents?: string[];
+  functionalCheck?: 'working' | 'faulty' | 'not_tested';
+  receivedBy?: string;
 }
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -67,10 +128,334 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   if (limited) return limited;
   const { id } = await params;
 
-  const body = (await request.json().catch(() => ({}))) as {
-    condition?: string; photos?: string[]; damageFee?: number; note?: string;
-    refundMethod?: 'card' | 'eft' | 'cash'; dispute?: boolean;
+  const body = (await request.json().catch(() => ({}))) as TakeBackBody;
+  if (!body.condition || !CONDITIONS.includes(body.condition as (typeof CONDITIONS)[number])) {
+    return NextResponse.json({ error: 'Choose the condition it came back in.' }, { status: 400 });
+  }
+  const photos = (body.photos ?? []).filter((u) => typeof u === 'string' && u.startsWith('https://'));
+  if (photos.length === 0) return NextResponse.json({ error: 'Take at least one photo of the returned gear.' }, { status: 400 });
+  const damageFee = Math.max(0, Number(body.damageFee ?? 0) || 0);
+  const note = (body.note ?? '').trim().slice(0, 2000);
+  if (damageFee > 0 && !note) {
+    return NextResponse.json({ error: 'Say what the damage charge is for; the renter sees it.' }, { status: 400 });
+  }
+  const list = (xs: unknown): string[] =>
+    Array.isArray(xs) ? xs.filter((x): x is string => typeof x === 'string').map((x) => x.trim().slice(0, 120)).filter(Boolean).slice(0, 30) : [];
+  const missing = list(body.missingComponents);
+
+  const b = await load(id);
+  if (!b) return NextResponse.json({ error: 'Booking not found' }, { status: 404 });
+  if (!OUT.includes(b.status)) {
+    return NextResponse.json({ error: `This booking is ${b.status}; only gear that is out can be taken back.` }, { status: 409 });
+  }
+  // Only the deposit can be kept here. Damage worth more is claimed through a
+  // dispute, never quietly cut down to the deposit.
+  if (!body.dispute && damageFee > Math.max(0, Number(b.deposit_amount ?? 0))) {
+    return NextResponse.json(
+      {
+        error: `The damage (R${damageFee.toFixed(2)}) is more than the deposit (R${Number(b.deposit_amount ?? 0).toFixed(2)}). Open a dispute instead, so the rest can be claimed from the renter.`,
+        code: 'DAMAGE_OVER_DEPOSIT',
+      },
+      { status: 400 },
+    );
+  }
+
+  const db = createAdminClient();
+  const retryLater = (): NextResponse =>
+    NextResponse.json({ error: 'Could not load this booking just now. Nothing was changed; try again in a moment.' }, { status: 503 });
+  // Not being able to check the serial is not "no serial": a mismatched unit must not slip through.
+  const { data: serialRow, error: serialErr } = await db.from('equipment_bookings').select('smart_rentals(serial_number)').eq('id', id).maybeSingle();
+  if (serialErr) return retryLater();
+  const serialRental = serialRow ? ((Array.isArray(serialRow.smart_rentals) ? serialRow.smart_rentals[0] : serialRow.smart_rentals) as { serial_number?: string | null } | null) : null;
+  const hasSerial = Boolean(serialRental?.serial_number?.trim());
+  const pipeline = await db
+    .from('equipment_bookings')
+    .select('hire_cents, deposit_cents, owner_share_cents, platform_share_cents, ownership, owner_id')
+    .eq('id', id)
+    .maybeSingle();
+  if (pipeline.error && isMissingPipeline(pipeline.error)) return legacyTakeBack(id, auth.user.id, body);
+  if (pipeline.error || !pipeline.data) return retryLater();
+  const snap = (pipeline.data ?? {}) as {
+    hire_cents?: number | null; deposit_cents?: number | null; owner_share_cents?: number | null;
+    platform_share_cents?: number | null; ownership?: string | null; owner_id?: string | null;
   };
+
+  // Phase 4 delivery (R-39, R-40), read before anything changes: whether the
+  // order earns its delivery fee per leg, whether an open delivery incident or
+  // an uninspected courier return holds settlement (D17, D29), and whether a
+  // provider-caused delay stops the automatic late fee (D19).
+  let delivery = NO_DELIVERY_HOLD;
+  let phase4Delivery = false;
+  try {
+    [delivery, phase4Delivery] = await Promise.all([
+      deliverySettlement({ bookingGroupId: b.checkout_group_id, bookingId: id }),
+      usesPhase4Delivery(db, b.checkout_group_id),
+    ]);
+  } catch {
+    return NextResponse.json({ error: 'Could not check the delivery records just now. Nothing was changed; try again in a moment.' }, { status: 503 });
+  }
+
+  const now = new Date();
+  const iso = now.toISOString();
+  const depositRands = Number(b.deposit_amount ?? 0);
+  const depositCents = snap.deposit_cents ?? toCents(depositRands);
+  // A return pickup that took the gear from the renter is when they gave it back (D-49).
+  const late = lateFeeAfterDelivery({ endDate: b.end_date, returnedAt: handedBackAt(now, delivery.returnCollectedAt, b), quantity: b.quantity, deposit: depositRands }, delivery);
+  const lateFeeCents = toCents(late.fee);
+  const damageCents = Math.min(toCents(damageFee), depositCents);
+
+  const outcome: 'clean' | 'damage' | 'missing_parts' | 'late' =
+    // Late is late even when no fee can be kept (no deposit to take it from), unless the courier caused it.
+    missing.length > 0 ? 'missing_parts' : damageCents > 0 || body.functionalCheck === 'faulty' ? 'damage' : lateFeeCents > 0 || (late.daysLate > 0 && !late.waivedForDelivery) ? 'late' : 'clean';
+  const evidence = {
+    received_by: auth.user.id,
+    received_name: typeof body.receivedBy === 'string' ? body.receivedBy.trim().slice(0, 120) : null,
+    serials_confirmed: body.serialsConfirmed === true,
+    accessories_returned: list(body.accessoriesReturned),
+    missing_components: missing,
+    functional_check: body.functionalCheck ?? 'not_tested',
+    days_late: late.daysLate,
+    late_fee_waived_for_delivery: late.waivedForDelivery,
+    photos,
+    at: iso,
+  };
+
+  // Keep the time the renter actually handed it back, when that is known and earlier.
+  const returnedIso = handedBackAt(now, delivery.returnCollectedAt, b).toISOString();
+  const returnPatch = { condition_at_return: body.condition, return_photos: photos, return_notes: note || null, returned_at: returnedIso, return_evidence: evidence, late_fee: late.fee };
+
+  // Step 1: the gear is back. Recorded whatever happens next, so the unit is
+  // accounted for even if settlement needs a person.
+  // (A booking already in return_pending, e.g. from the old self-reported
+  // return, goes straight to inspection: the move below reports `already`.)
+  const back = await transitionBookings(db, {
+    ids: [id],
+    from: b.status === 'return_pending' ? ['return_pending'] : ['active', 'overdue'],
+    to: 'return_pending',
+    actor: 'staff',
+    actorId: auth.user.id,
+    reason: 'returned at the counter',
+    patch: returnPatch,
+    notices: buildNotices({ kind: 'return_recorded', userId: b.user_id, bookingIds: [id], discriminator: id }),
+  });
+  if (back.result === 'missing_pipeline') return legacyTakeBack(id, auth.user.id, body);
+  if (back.result === 'conflict') return NextResponse.json({ error: 'The booking changed while you were working. Reload and try again.' }, { status: 409 });
+  if (back.result === 'moved') trackFunnel('rental_returned', { userId: b.user_id, meta: { bookingId: id, groupId: b.checkout_group_id } });
+
+  // Step 2a: disputed return. Nothing is settled, the gear stays off sale (T24).
+  // A registered serial that cannot be confirmed means it may not be our unit.
+  if (body.dispute || (hasSerial && !evidence.serials_confirmed)) {
+    const reason = body.dispute ? note || 'Opened at return' : 'Serial number not confirmed at return';
+    // The dispute record comes first: it is how the case is worked and settled
+    // (/admin/disputes → settleDisputedReturn). A booking must never be
+    // 'disputed' without one. open_return_dispute locks the booking row, so
+    // concurrent requests share one open record instead of creating two.
+    const { data: disputeRow, error: disputeErr } = await db.rpc('open_return_dispute', {
+      p_booking: id,
+      p_by: auth.user.id,
+      p_reason: reason,
+      p_photos: photos,
+      p_note: note || null,
+    });
+    if (disputeErr || !disputeRow) return NextResponse.json({ error: 'Could not open the dispute just now. Nothing was changed; try again.' }, { status: 503 });
+    const disputeId = disputeRow as string;
+    const d = await transitionBookings(db, {
+      ids: [id], from: ['return_pending'], to: 'disputed', actor: 'staff', actorId: auth.user.id, reason,
+      patch: { ...returnPatch, dispute_reason: reason, disputed_at: iso, inspection_outcome: outcome },
+      notices: buildNotices({ kind: 'dispute_opened', userId: b.user_id, bookingIds: [id], discriminator: id }),
+    });
+    if (d.result === 'conflict') {
+      // The booking moved on without being disputed. The record stays open for
+      // staff to review (it may be shared with a concurrent request) and is
+      // closed through /admin/disputes like any other.
+      return NextResponse.json({ error: 'The booking changed while you were working. Reload and try again.', dispute_id: disputeId }, { status: 409 });
+    }
+    logEvent({ eventType: 'return_disputed', eventCategory: 'booking', userId: b.user_id, metadata: { bookingId: id } });
+    await dispatchOutbox(10).catch(() => undefined);
+    return NextResponse.json({ ok: true, disputed: true, dispute_id: disputeId, late_fee: late.fee });
+  }
+
+  // Step 2b: settle the deposit under the documented rules (no evidence, no deduction).
+  // A delivery hold (open incident, return delivery not yet received and
+  // inspected) stops here: the gear is recorded as back, nothing is settled,
+  // and the deposit is not released (D17, D29).
+  if (!delivery.allowed) {
+    return NextResponse.json({ error: settlementHoldMessage(delivery.reasons), code: 'DELIVERY_SETTLEMENT_HELD', reasons: delivery.reasons, recorded: true }, { status: 409 });
+  }
+  const onCard = depositOnCard(b);
+  let charge: { totalCents: number; remainderCents: number };
+  try {
+    charge = onCard ? await chargeOfBooking(db, b) : { totalCents: depositCents, remainderCents: depositCents };
+  } catch {
+    return NextResponse.json({ error: 'Could not check the payment just now. The return is recorded; finish the inspection again in a moment.' }, { status: 503 });
+  }
+  const plan = planDepositRefund({
+    depositCents,
+    inspection: outcome === 'late' ? 'clean' : outcome,
+    disputed: false,
+    damageCents,
+    damageEvidenceCount: damageCents > 0 ? photos.length + (note ? 1 : 0) : 0,
+    lateFeeCents: Math.min(lateFeeCents, depositCents - damageCents),
+    refundableRemainderCents: charge.remainderCents,
+  });
+  if (!plan.ok) return NextResponse.json({ error: plan.message, code: plan.code }, { status: 400 });
+
+  let refundMethod: string = 'none';
+  const refunds: unknown[] = [];
+  if (plan.refundCents > 0) {
+    if (onCard) {
+      refundMethod = 'card';
+      refunds.push({
+        obligationKey: refundObligationKey('deposit_settlement', id),
+        reason: 'deposit_settlement',
+        amountCents: plan.refundCents,
+        chargedCents: charge.totalCents,
+        transactionReference: b.payfast_payment_id,
+        userId: b.user_id,
+        bookingGroupId: b.checkout_group_id,
+        bookingIds: [id],
+        evidence: { damage_cents: plan.damageCents, late_fee_cents: plan.lateFeeCents, photos: photos.length },
+      });
+    } else if (body.refundMethod === 'eft' || body.refundMethod === 'cash') {
+      refundMethod = body.refundMethod;
+    } else {
+      return NextResponse.json({ error: 'The deposit was not paid by card here. Choose EFT or cash for paying it back.' }, { status: 400 });
+    }
+  }
+
+  // Ledger only for orders paid through the provider (manual payments are outside it).
+  // A deposit-only order (no longer offered) paid its hire at the counter with
+  // no recorded payment: the hire is outside the ledger, and the owner's share
+  // is not scheduled automatically. A person settles it.
+  const hireUnrecorded = b.payment_plan === 'deposit_only' && Number(b.balance_due ?? 0) > 0;
+  // The order is in the ledger when its payment intent was paid through the
+  // provider, whatever the deposit was (a zero-deposit hire still captured hire).
+  let inLedger = false;
+  if (b.checkout_group_id && b.payfast_payment_id && !isManualReference(b.payfast_payment_id)) {
+    const { data: intent, error: intentErr } = await db.from('rental_payment_intents').select('state').eq('checkout_group_id', b.checkout_group_id).maybeSingle();
+    // Not knowing is not "manual payment": stop before settling (the gear stays recorded as back).
+    if (intentErr) return NextResponse.json({ error: 'Could not check the payment just now. The return is recorded; finish the inspection again in a moment.' }, { status: 503 });
+    inLedger = (intent as { state?: string } | null)?.state === 'paid';
+  }
+  // A deposit refund on an order the ledger never held posts no journal when it completes.
+  for (const r of refunds) (r as Record<string, unknown>).ledgered = inLedger;
+  const journals: unknown[] = [];
+  const groupId = b.checkout_group_id ?? id;
+  if (inLedger && snap.hire_cents != null && !hireUnrecorded) {
+    const community = snap.ownership === 'community' && snap.owner_id && snap.owner_share_cents != null && snap.platform_share_cents != null;
+    // A journal needs money in it: a zero hire has nothing to recognise.
+    if (snap.hire_cents > 0) {
+      journals.push(hireEarned({
+        bookingId: id,
+        bookingGroupId: groupId,
+        hireCents: snap.hire_cents,
+        ownership: community ? 'community' : 'studio',
+        ownerShareCents: community ? (snap.owner_share_cents as number) : 0,
+        platformShareCents: community ? (snap.platform_share_cents as number) : 0,
+      }));
+    }
+    // The order's delivery fee is stored on one line (whichever line that is,
+    // even a cancelled one). It is earned once per order, when the first line
+    // completes; the journal key makes a second completion a no-op.
+    // R-39: an order with Phase 4 delivery earns its fee per leg (the delivery
+    // use cases post `delivery:{group}:{leg}`); the order-level journal would
+    // earn it a second time.
+    let deliveryCents = 0;
+    if (!phase4Delivery) {
+      try {
+        deliveryCents = await groupDeliveryCents(db, b);
+      } catch {
+        return NextResponse.json({ error: 'Could not load the order just now. The return is recorded; finish the inspection again in a moment.' }, { status: 503 });
+      }
+    }
+    if (deliveryCents > 0) journals.push(deliveryEarned({ bookingGroupId: groupId, deliveryCents }));
+  }
+  if (inLedger && depositCents > 0) {
+    journals.push(depositSettled({ bookingId: id, bookingGroupId: groupId, depositCents, damageCents: plan.damageCents, lateFeeCents: plan.lateFeeCents }));
+  }
+
+  // Owner payout for community gear, 48h after a clean completion (spec §7.8).
+  const payouts: unknown[] = [];
+  const notices = buildNotices({ kind: 'inspection_completed', userId: b.user_id, bookingIds: [id], discriminator: id, data: { amountCents: plan.refundCents } });
+  if (hireUnrecorded && snap.ownership === 'community' && snap.owner_id) {
+    notices.push(...buildNotices({ kind: 'staff_alert', userId: 'staff', bookingIds: [id], discriminator: `deposit-only-payout:${id}`, data: { what: 'owner_payout_needs_manual_check_balance_paid_at_counter', reference: id } }));
+  } else if (!inLedger && snap.ownership === 'community' && snap.owner_id && (snap.owner_share_cents ?? 0) > 0) {
+    // Paid by EFT or cash: the money is not at the payment provider and not in
+    // the ledger, so no automatic transfer (it would book an owner_payable that
+    // was never credited). A person pays the owner.
+    notices.push(...buildNotices({ kind: 'staff_alert', userId: 'staff', bookingIds: [id], discriminator: `manual-payout:${id}`, data: { what: 'owner_payout_manual_payment_order', reference: id } }));
+  } else if (inLedger && snap.ownership === 'community' && snap.owner_id && (snap.owner_share_cents ?? 0) > 0 && snap.hire_cents != null) {
+    payouts.push({
+      bookingId: id,
+      ownerId: snap.owner_id,
+      bookingGroupId: groupId,
+      grossCents: snap.hire_cents,
+      platformCents: snap.platform_share_cents,
+      ownerCents: snap.owner_share_cents,
+      transferReference: payoutReference(id),
+      scheduledAt: new Date(now.getTime() + RENTAL_POLICY.ownerPayoutDelayHours * 3_600_000).toISOString(),
+    });
+    notices.push(...buildNotices({ kind: 'payout_scheduled', userId: snap.owner_id, bookingIds: [id], discriminator: id, data: { amountCents: snap.owner_share_cents ?? 0 } }));
+  }
+
+  const done = await transitionBookings(db, {
+    ids: [id],
+    from: ['return_pending'],
+    to: 'completed',
+    actor: 'staff',
+    actorId: auth.user.id,
+    reason: `inspection: ${outcome}`,
+    patch: {
+      ...returnPatch,
+      inspection_outcome: outcome,
+      damage_fee: fromCents(plan.damageCents),
+      deposit_released: fromCents(plan.refundCents),
+      deposit_released_at: plan.refundCents > 0 && refundMethod !== 'card' ? iso : null,
+      deposit_refund_method: refundMethod,
+      return_reviewed_by: auth.user.id,
+      return_reviewed_at: iso,
+    },
+    journals,
+    refunds,
+    payouts,
+    notices,
+  });
+  if (done.result === 'conflict') return NextResponse.json({ error: 'The booking changed while you were working. Reload and try again.' }, { status: 409 });
+  // Deposit settled and, for community gear, the owner payout scheduled.
+  if (done.result === 'moved') trackFunnel('rental_settled', { userId: b.user_id, meta: { bookingId: id, groupId: b.checkout_group_id, code: outcome } });
+
+  // Submit the card refund now; if the provider is slow or down, the daily
+  // pipeline reconciles and retries it (never twice, T13).
+  let refundStatus: string | null = null;
+  if (refundMethod === 'card') {
+    const { data: ob } = await db.from('refund_obligations').select('id').eq('obligation_key', refundObligationKey('deposit_settlement', id)).maybeSingle();
+    if (ob) refundStatus = await submitRefund((ob as { id: string }).id, { refunds: new SupabaseRefunds(db), payments: paymentPort, clock: systemClock }).catch(() => 'unknown_outcome');
+  }
+  await dispatchOutbox(10).catch(() => undefined);
+
+  logEvent({ eventType: 'gear_returned', eventCategory: 'booking', userId: b.user_id, metadata: { bookingId: id, outcome, lateFeeCents: plan.lateFeeCents, damageCents: plan.damageCents, refundCents: plan.refundCents, refundMethod, refundStatus } });
+  return NextResponse.json({
+    ok: true,
+    outcome,
+    late_fee: fromCents(plan.lateFeeCents),
+    kept: fromCents(plan.keptCents),
+    released: fromCents(plan.refundCents),
+    refund_method: refundMethod,
+    refund_status: refundStatus,
+  });
+}
+
+/** The delivery fee charged for this booking's order (stored on one of its lines). */
+async function groupDeliveryCents(db: ReturnType<typeof createAdminClient>, b: Row): Promise<number> {
+  if (!b.checkout_group_id) return toCents(Number(b.delivery_fee ?? 0));
+  const { data, error } = await db.from('equipment_bookings').select('delivery_fee').eq('checkout_group_id', b.checkout_group_id);
+  // A failed lookup is not "no delivery": the caller stops so the fee is not left unearned.
+  if (error) throw new Error(`groupDeliveryCents: ${error.message}`);
+  return ((data ?? []) as { delivery_fee: number | null }[]).reduce((sum, r) => sum + toCents(Number(r.delivery_fee ?? 0)), 0);
+}
+
+/** The pre-070 take-back, used only while migration 070 is not applied. */
+async function legacyTakeBack(id: string, adminId: string, body: TakeBackBody): Promise<NextResponse> {
   if (!body.condition || !CONDITIONS.includes(body.condition as (typeof CONDITIONS)[number])) {
     return NextResponse.json({ error: 'Choose the condition it came back in.' }, { status: 400 });
   }
@@ -122,16 +507,18 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       deposit_released: body.dispute ? 0 : release,
       deposit_released_at: !body.dispute && release > 0 ? iso : null,
       deposit_refund_method: body.dispute ? null : refundMethod,
-      return_reviewed_by: auth.user.id,
+      return_reviewed_by: adminId,
       return_reviewed_at: iso,
       ...(body.dispute ? { dispute_reason: note || 'Opened at return', disputed_at: iso } : {}),
       updated_at: iso,
     })
     .eq('id', id)
     .in('status', OUT);
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) return NextResponse.json({ error: 'Could not record the return.' }, { status: 500 });
 
   logEvent({ eventType: body.dispute ? 'return_disputed' : 'gear_returned', eventCategory: 'booking', userId: b.user_id, metadata: { bookingId: id, lateFee: late.fee, damageFee, release, refundMethod } });
+  trackFunnel('rental_returned', { userId: b.user_id, meta: { bookingId: id, groupId: b.checkout_group_id, source: 'legacy' } });
+  if (!body.dispute) trackFunnel('rental_settled', { userId: b.user_id, meta: { bookingId: id, groupId: b.checkout_group_id, source: 'legacy' } });
   if (!body.dispute) {
     await sendGearNotice('settled', await loadNoticeBookings([id]), { depositBack: release, refundMethod, kept });
   }

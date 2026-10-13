@@ -31,6 +31,20 @@ export default defineConfig({
       },
       testMatch: 'mobile.spec.ts',
     },
+    {
+      // Accessibility checks again at phone size (the desktop run comes from
+      // the chromium project above).
+      name: 'a11y-mobile',
+      use: {
+        ...devices['Desktop Chrome'],
+        viewport: { width: 393, height: 852 },
+        deviceScaleFactor: 3,
+        isMobile: true,
+        hasTouch: true,
+        userAgent: devices['iPhone 14'].userAgent,
+      },
+      testMatch: 'a11y.spec.ts',
+    },
   ],
   webServer: {
     command: 'npm run build && npm start',

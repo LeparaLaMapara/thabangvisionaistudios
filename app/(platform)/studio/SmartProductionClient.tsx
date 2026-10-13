@@ -6,6 +6,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { Camera, ArrowRight } from 'lucide-react';
 import type { SmartProduction } from '@/lib/supabase/queries/smartProductions';
+import { formatRand, withServiceVat } from '@/lib/format/money';
 
 // ─── Image shimmer skeleton ───────────────────────────────────────────────────
 function ImageSkeleton(): React.ReactElement {
@@ -51,10 +52,14 @@ function useSequentialReveal(total: number) {
 
 // ─── Formatting ───────────────────────────────────────────────────────────────
 
-/** "R1 800 / project", or null when the project carries no price. */
+/**
+ * "R2 070, per project", or null when the project carries no price. The
+ * amount goes through withServiceVat, which adds VAT only when it is charged
+ * (we are not VAT-registered: STUDIO.legal.vatRegistered).
+ */
 function priceLabel(production: SmartProduction): string | null {
   if (production.price === null || production.price <= 0) return null;
-  return `R${production.price.toLocaleString('en-ZA')} / ${production.price_unit}`;
+  return `${formatRand(withServiceVat(production.price))}, per ${production.price_unit}`;
 }
 
 /** "Photography · 2026" from whichever of the two exists. */
@@ -153,40 +158,23 @@ export default function SmartProductionClient({ productions }: Props) {
           transition={{ duration: 0.8 }}
         >
           <div className="border-l border-white/20 pl-8 md:pl-16 py-4">
-            <span className="text-xs font-mono text-[#D4A843] uppercase tracking-[0.3em] mb-4 block">
-              01 // Production Services
-            </span>
             <h1 className="text-5xl md:text-8xl font-display font-medium text-white tracking-tight leading-[0.9] mb-8 uppercase">
-              Our <br />
-              <span className="text-neutral-400">Studio</span>
+              Shoots <br />
+              <span className="text-neutral-400">By Request</span>
             </h1>
             <p className="max-w-2xl text-lg text-neutral-300 font-light leading-relaxed">
-              Hire trusted photographers, videographers, and production teams from our in-house studio or verified creator network.
+              Photo and video shoots, by request. Choose a package and send a request. We reply to confirm who will shoot it, the date and the price before you pay.
             </p>
 
-            {/* Two ways in, both always present.
-                The booking form at /book has existed all along, but the only
-                link to it anywhere in the codebase was inside Ubunye's system
-                prompt — so if the assistant was down, slow, or simply going
-                nowhere, there was no route to a booking at all.
-                Deliberately not a fallback that appears when the AI fails:
-                detecting "failure" is harder than it looks (a slow or vague
-                answer never triggers an error handler, the customer just
-                leaves), and someone who already knows they want six hours on
-                the 14th should not have to hold a conversation to say so. */}
+            {/* One way in: the request form at /book. The "instant AI quote"
+                button was removed (2026-09-28); Ubunye is still one tap away
+                in the corner for questions. */}
             <div className="flex flex-wrap gap-4 mt-10">
               <Link
                 href="/book"
                 className="inline-flex items-center gap-2 min-h-[44px] bg-white text-black px-8 py-4 text-xs font-mono font-bold uppercase tracking-widest hover:opacity-80 transition-opacity"
               >
-                Book A Shoot <ArrowRight className="w-3 h-3" />
-              </Link>
-              <Link
-                href="/ubunye-ai-studio?prompt=I%20need%20a%20quote%20for%20a%20production"
-                className="inline-flex items-center gap-2 min-h-[44px] border border-white/20 text-white px-8 py-4 text-xs font-mono font-bold uppercase tracking-widest hover:bg-white/5 transition-colors"
-              >
-                <span className="w-1.5 h-1.5 rounded-full bg-[#D4A843]" />
-                Get An Instant AI Quote
+                Request A Shoot <ArrowRight className="w-3 h-3" />
               </Link>
             </div>
           </div>
@@ -205,7 +193,7 @@ export default function SmartProductionClient({ productions }: Props) {
                 No projects published yet.
               </p>
               <p className="text-sm text-neutral-400 font-light">
-                Talk to us about your shoot and we will put a team together.
+                Tell us about your shoot and we will reply to confirm what we can do.
               </p>
               <Link
                 href="/contact"

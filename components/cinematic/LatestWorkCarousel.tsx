@@ -5,6 +5,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { ChevronRight, Clapperboard, Package, Newspaper } from 'lucide-react';
 import { STUDIO } from '@/lib/constants';
+import { displayTag } from '@/lib/content/tags';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -43,13 +44,13 @@ const CATEGORY_CONFIG = {
 const PLACEHOLDER_ITEMS: CarouselItem[] = [
   {
     id: 'ph-1', slug: '', title: 'Studio',
-    description: 'Cinematic storytelling powered by cutting-edge technology and South African creative talent.',
+    description: 'Photo and video shoots by request, with the price shown before you book.',
     thumbnail_url: null, video_url: null, tags: ['Film', 'Photography'],
     category: 'production', meta: STUDIO.shortName, created_at: new Date().toISOString(),
   },
   {
     id: 'ph-2', slug: '', title: 'Professional Gear',
-    description: 'Cinema cameras, optics, lighting, audio, and grip equipment available for rent.',
+    description: 'Cameras, optics, lighting, audio and grip equipment available for rent.',
     thumbnail_url: null, video_url: null, tags: ['Cameras', 'Lighting'],
     category: 'rental', meta: 'Rentals', created_at: new Date().toISOString(),
   },
@@ -125,11 +126,8 @@ export function LatestWorkCarousel({ items }: { items: CarouselItem[] }) {
       {/* Header */}
       <div className="container mx-auto px-6 mb-16 flex justify-between items-end">
         <div>
-          <span className="text-xs font-mono text-neutral-400 dark:text-accent uppercase tracking-widest mb-4 block">
-            01 // Showcase
-          </span>
           <h2 className="text-4xl md:text-5xl font-display font-medium text-black dark:text-white uppercase">
-            From Our <span className="text-neutral-400 dark:text-neutral-400">Network</span>
+            Our Gear <span className="text-neutral-400 dark:text-neutral-400">And Recent Shoots</span>
           </h2>
         </div>
         {/* Two destinations, because the rail carries both hire stock and
@@ -249,7 +247,7 @@ const CarouselCard = memo(function CarouselCard({
               key={tag}
               className="text-xs font-mono bg-white/90 dark:bg-black/80 text-black dark:text-white border border-black/10 dark:border-white/20 px-2 py-1 uppercase tracking-wider backdrop-blur-md"
             >
-              {tag}
+              {displayTag(tag)}
             </span>
           ))}
         </div>

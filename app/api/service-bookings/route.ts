@@ -12,7 +12,11 @@ import { logEvent } from '@/lib/data/events';
 import { validateBookingRequest } from '@/lib/bookings/validate';
 import { quoteHourly, quotePackage, splitServiceBooking } from '@/lib/bookings/pricing';
 import { getBookablePackage } from '@/lib/bookings/packages';
+import { checkBookableCreator, CREATOR_NOT_BOOKABLE_MESSAGE } from '@/lib/bookings/creator';
 import { reportUnpaidRequest, PAYMENTS_OFF_MESSAGE } from '@/lib/payments/offline';
+import { revisionPolicyText } from '@/lib/core/services/fulfilment';
+import { mentionsFulfilmentSchema, withoutFulfilmentColumns } from '@/lib/supabase/queries/service-bookings';
+import { appUrl } from '@/lib/app-url';
 
 // Writes that touch money or status go through the service role, after the
 // route has checked who the user is and that the record is theirs. The users'
@@ -77,6 +81,25 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Cannot book yourself as creator' }, { status: 400 });
   }
 
+  // A named creator (chosen in the form, or the one a package names) must be
+  // bookable: ID verified, available for hire, not suspended. The Ubunye
+  // path already checks this (lib/agent/offers.ts); this route did not. The
+  // read fails closed. No creator named means our team assigns one.
+  if (creator_id) {
+    if (typeof creator_id !== 'string') {
+      return NextResponse.json({ error: CREATOR_NOT_BOOKABLE_MESSAGE, code: 'creator_not_bookable' }, { status: 400 });
+    }
+    try {
+      const creator = await checkBookableCreator(admin(), creator_id);
+      if (!creator.ok) {
+        return NextResponse.json({ error: CREATOR_NOT_BOOKABLE_MESSAGE, code: 'creator_not_bookable' }, { status: 409 });
+      }
+    } catch (err) {
+      console.error('[service-bookings] creator check failed:', err);
+      return NextResponse.json({ error: 'Could not check the creator just now. Please try again.' }, { status: 503 });
+    }
+  }
+
   // Validation lives in lib/bookings/validate.ts so it can be tested. It was
   // worth testing: this check used to require `deliverables`, which neither
   // Ubunye's link template nor the booking form has ever supplied, so every
@@ -98,39 +121,56 @@ export async function POST(request: NextRequest) {
   const { platformAmount, creatorAmount } = splitServiceBooking(quote, STUDIO.booking.platformCommission);
 
   const reference = `BK-${nanoid(10)}`;
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || STUDIO.meta.url;
+  const baseUrl = appUrl(STUDIO.meta.url);
 
   try {
+    // What was agreed, recorded on the booking at the time it was made
+    // (spec §8.3): deliverables, duration, the revision allowance and the
+    // cancellation terms. Packages have no structured revision count yet, so
+    // every booking gets the default allowance.
+    const revisionsIncluded = STUDIO.booking.defaultRevisionsIncluded;
+    const terms = {
+      revisions_included: revisionsIncluded,
+      revision_policy: revisionPolicyText(revisionsIncluded),
+      cancellation_policy: STUDIO.booking.cancellationPolicy,
+    };
+
+    const row: Record<string, unknown> = {
+      reference,
+      client_id: user.id,
+      client_email: user.email,
+      creator_id: creator_id || null,
+      booking_type: booking_type || 'production',
+      project_category,
+      project_description: descriptionText,
+      deliverables: deliverablesText,
+      duration_hours,
+      location: location || null,
+      preferred_dates: preferred_dates || null,
+      // The booking form sends an ISO date. Promote it to a real column so
+      // cancellation notice can actually be measured (migration 040).
+      // The AI assistant may send free text, which stays null here.
+      shoot_date: toShootDate(preferred_dates),
+      subtotal,
+      vat,
+      total,
+      platform_commission: STUDIO.booking.platformCommission,
+      platform_amount: platformAmount,
+      creator_amount: creatorAmount,
+      status: 'pending',
+      payment_status: 'unpaid',
+      ...terms,
+    };
+
     // Create booking record
-    const { data: booking, error } = await admin()
+    const insert = (values: Record<string, unknown>) => admin()
       .from('bookings')
-      .insert({
-        reference,
-        client_id: user.id,
-        client_email: user.email,
-        creator_id: creator_id || null,
-        booking_type: booking_type || 'production',
-        project_category,
-        project_description: descriptionText,
-        deliverables: deliverablesText,
-        duration_hours,
-        location: location || null,
-        preferred_dates: preferred_dates || null,
-        // The booking form sends an ISO date. Promote it to a real column so
-        // cancellation notice can actually be measured (migration 040).
-        // The AI assistant may send free text, which stays null here.
-        shoot_date: toShootDate(preferred_dates),
-        subtotal,
-        vat,
-        total,
-        platform_commission: STUDIO.booking.platformCommission,
-        platform_amount: platformAmount,
-        creator_amount: creatorAmount,
-        status: 'pending',
-        payment_status: 'unpaid',
-      })
+      .insert(values)
       .select('id, reference')
       .single();
+    let { data: booking, error } = await insert(row);
+    // Before migration 073 the terms columns do not exist yet.
+    if (error && mentionsFulfilmentSchema(error.message)) ({ data: booking, error } = await insert(withoutFulfilmentColumns(row)));
 
     if (error || !booking) {
       console.error('[service-bookings] Insert error:', error?.message);
@@ -152,6 +192,7 @@ export async function POST(request: NextRequest) {
         booking: { id: booking.id, reference, total },
         payments_offline: true,
         message: PAYMENTS_OFF_MESSAGE,
+        terms,
       });
     }
 
@@ -195,6 +236,7 @@ export async function POST(request: NextRequest) {
       success: true,
       booking: { id: booking.id, reference, total },
       paymentUrl,
+      terms,
     });
   } catch (err) {
     console.error('[service-bookings] Unexpected error:', err);
@@ -225,7 +267,19 @@ export async function GET() {
     return NextResponse.json({ error: 'Failed to fetch bookings' }, { status: 500 });
   }
 
-  return NextResponse.json({ bookings: data ?? [] });
+  // The client's own session cannot read another person's profile row, so the
+  // join above comes back empty and the client never saw who their creator
+  // is. Their public card (public_profiles: name, photo, slug) fills it in.
+  type Row = Record<string, unknown> & { creator_id?: string | null; creator?: unknown };
+  const rows = (data ?? []) as Row[];
+  const missing = [...new Set(rows.filter((r) => r.creator_id && !r.creator).map((r) => r.creator_id as string))];
+  if (missing.length > 0) {
+    const { data: cards } = await supabase.from('public_profiles').select('id, display_name, avatar_url, crew_slug').in('id', missing);
+    const byId = new Map(((cards ?? []) as { id: string }[]).map((c) => [c.id, c]));
+    for (const r of rows) if (!r.creator && r.creator_id) r.creator = byId.get(r.creator_id) ?? null;
+  }
+
+  return NextResponse.json({ bookings: rows });
 }
 
 /**

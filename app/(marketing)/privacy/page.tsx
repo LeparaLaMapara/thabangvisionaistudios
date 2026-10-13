@@ -1,13 +1,15 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { STUDIO } from '@/lib/constants';
+import { formatDocumentDate } from '@/lib/consent/documents';
+import { AI_PROVIDERS_DISCLOSED, listInProse } from '@/lib/consent/legal-facts';
 
 export const metadata: Metadata = {
   title: 'Privacy Policy',
   description: `${STUDIO.shortName} Privacy Policy — what personal information we collect, who processes it, how long we keep it, and your rights under POPIA.`,
 };
 
-const LAST_UPDATED = '28 September 2026';
+const LAST_UPDATED = formatDocumentDate(STUDIO.legal.documents.privacy.version);
 
 export default function PrivacyPage() {
   const link = 'text-[#D4A843] hover:text-[#D4A843]/80 transition-colors';
@@ -28,7 +30,7 @@ export default function PrivacyPage() {
           <div className="w-8 h-px bg-[#D4A843] mt-6" />
         </div>
 
-        <p className="text-sm font-mono text-neutral-400 mb-10">Last Updated: {LAST_UPDATED}</p>
+        <p className="text-sm font-mono text-neutral-400 mb-10">Last updated {LAST_UPDATED}</p>
 
         <div className="space-y-10 text-sm font-mono text-neutral-400 leading-relaxed">
           <Section title="1. Who Is Responsible for Your Information">
@@ -53,7 +55,7 @@ export default function PrivacyPage() {
 
           <Section title="2. What We Collect">
             <p><span className="text-white">Account and profile.</span> Name, email address, phone number, display name, bio, skills, and avatar photo. If you sign in with Google, Google shares your name, email address and profile photo with us.</p>
-            <p><span className="text-white">Address and location.</span> Street address, city, province, postal code, and the geographic coordinates of the address you give us. Coordinates are used to match you with nearby crew and equipment.</p>
+            <p><span className="text-white">Address and location.</span> Street address, city, province, postal code, and the geographic coordinates of the address you give us. Coordinates are used to estimate the delivery distance and fee for your address.</p>
             <p><span className="text-white">Identity verification.</span> Photographs of your identity document and a selfie holding it. We also record technical detail extracted from those images, including the date they were taken, device make and model, and any GPS coordinates embedded in them, together with your IP address and browser at the time of submission. We do not ask for or store your ID number as a separate field, but the document image itself contains it.</p>
             <p><span className="text-white">Banking details</span>, if you receive payouts as a creator: bank name, branch code, account type, account holder name, and the last four digits of your account number. Your full account number is passed straight to our payment provider to set up your payouts and is not kept on our systems.</p>
             <p><span className="text-white">Bookings and transactions.</span> What you booked, when, for how long, project descriptions, deliverables, amounts paid, and equipment condition records and photographs at collection and return.</p>
@@ -69,10 +71,13 @@ export default function PrivacyPage() {
             <p>With your consent: identity verification processing, and marketing. Consent for verification is captured explicitly before you upload anything, and recorded with a version and timestamp. You can withdraw consent at any time, though we cannot verify your identity, and therefore cannot let you hire equipment, publish gear, or receive a first payout, without it.</p>
           </Section>
 
-          <Section title="4. Identity Verification in Detail">
+          <Section id="identity-verification" title="4. Identity Verification in Detail">
             <p>This is the most sensitive information we hold, so we set it out separately.</p>
-            <p><span className="text-white">Where it is stored.</span> Your identity document and selfie are stored in a private, access-controlled storage bucket on our Supabase infrastructure. They are not public, and staff view them through signed links that expire after one hour.</p>
-            <p><span className="text-white">Automated checks.</span> To check that the face in your selfie matches the face on your ID, both images are sent to Google&rsquo;s AI service (the Gemma model) for an automated comparison. This means copies of your identity document and selfie are processed by Google, outside South Africa. We do this only for verification, and we keep the match result, a confidence score and a one-sentence reason. A person then reviews every submission, {STUDIO.verification.reviewTime}, and we email you the outcome. The automated check never approves or rejects you on its own.</p>
+            <p><span className="text-white">Where it is stored.</span> Your identity document and selfie are stored in a private, access-controlled storage bucket on our Supabase infrastructure. They are not public, and staff view them through signed links that expire after one hour or less.</p>
+            <p><span className="text-white">Automated checks.</span> To check that the face in your selfie matches the face on your ID, both images are sent to an AI service provider we use (currently Google) for an automated comparison. Our AI service provider may process them outside South Africa. We do this only for verification, and we keep the match result, a confidence score and a one-sentence reason. A person then reviews every submission, {STUDIO.verification.reviewTime}, and we email you the outcome. The automated check never approves or rejects you on its own. When you collect equipment, our staff may look at your selfie to check that it is you.</p>
+            <p><span className="text-white">Your consent.</span> We ask for a separate consent for this check before you upload anything, and record it with the version of the notice you saw and the time. You can withdraw it at any time by emailing{' '}
+              <a href={`mailto:${STUDIO.privacyEmail}`} className={link}>{STUDIO.privacyEmail}</a>; we then stop processing your ID and selfie and delete the images, but we cannot complete your verification without them.
+            </p>
             <p><span className="text-white">Duplicate detection.</span> We store a one-way cryptographic fingerprint of the document file so that the same document cannot be used to verify several accounts. The fingerprint cannot be reversed to recreate the document.</p>
             <p><span className="text-white">How long we keep it.</span> The document and selfie images are deleted automatically {STUDIO.legal.popia.retentionDays} days after your verification has been reviewed. If you submit again after a rejection, your earlier images are deleted straight away. The technical detail described in section 2, the document fingerprint, and the outcome of the review are kept for longer, for fraud prevention and to show that we verified you properly. Your verification status and consent record are kept for the life of your account plus five years for tax and legal audit purposes.</p>
           </Section>
@@ -81,12 +86,11 @@ export default function PrivacyPage() {
             <p>We use the following operators. Each processes only what it needs to, under our instruction.</p>
             <ul className="list-disc pl-5 space-y-1">
               <li><span className="text-white">Supabase</span> — database, authentication, and file storage. Holds effectively everything described above.</li>
-              <li><span className="text-white">Paystack</span> — payments and creator payouts. Receives your email address and transaction detail, and for payouts, the account holder name, bank account number, and branch code.</li>
-              <li><span className="text-white">PayFast</span> — an alternative payment provider we keep available. Not currently active.</li>
+              <li><span className="text-white">Paystack</span> — our current payment provider, for online payments, refunds and creator payouts. Receives your email address and transaction detail, and for payouts, the account holder name, bank account number, and branch code.</li>
+              <li><span className="text-white">Yoco and PayFast</span> — alternative payment providers our system supports. Not currently used for new payments. We will update this list before switching.</li>
               <li><span className="text-white">Cloudinary</span> — image hosting for avatars, portfolios, and listing photographs. Verification documents are <span className="text-white">not</span> stored here.</li>
-              <li><span className="text-white">Google</span> — AI services used for the verification checks in section 4, for Ubunye&rsquo;s answers (Gemini), for text processing behind site search, and for sign-in with Google.</li>
-              <li><span className="text-white">Anthropic</span> — its Claude model takes over Ubunye&rsquo;s answers automatically when Google is unavailable.</li>
-              <li>Ubunye&rsquo;s messages, and when you are signed in, relevant context from your profile and bookings, go to whichever of these AI providers is answering at the time (if one is unavailable, another takes over). They process them outside South Africa. We list any AI provider here before we use it.</li>
+              <li><span className="text-white">Google</span> — the automated face comparison in section 4, image tagging for gear and portfolio photos, and sign-in with Google.</li>
+              <li><span className="text-white">AI providers</span> — Ubunye&rsquo;s answers and our drafting tools (listing descriptions, bios, rate suggestions) are generated by third-party AI providers, which may include {listInProse(AI_PROVIDERS_DISCLOSED)}, depending on our configuration and their availability. Your messages, and when you are signed in, relevant context from your profile and bookings, go to whichever provider is answering at the time. They may process them outside South Africa. We list any AI provider here before we use it.</li>
               <li><span className="text-white">Vercel</span> — hosting, and cookie-free page-view analytics (Web Analytics), which count visits without identifying you.</li>
               <li><span className="text-white">Google Workspace (Gmail)</span> — outbound email. Receives recipient addresses and message contents.</li>
               <li><span className="text-white">Twilio</span> — WhatsApp messaging. Not currently active.</li>
@@ -102,7 +106,7 @@ export default function PrivacyPage() {
 
           <Section title="7. Cross-Border Transfers">
             <p>Several of the operators above process personal information outside South Africa. Where that happens we rely on section 72 of POPIA: the recipient is bound by an agreement or by laws that provide a comparable level of protection to POPIA, or the transfer is necessary to perform our contract with you.</p>
-            <p>The transfer that matters most to you is the one described in section 4: your identity document and selfie are processed by Google outside South Africa as part of verification.</p>
+            <p>The transfer that matters most to you is the one described in section 4: your identity document and selfie are sent to our AI service provider for the automated comparison, and may be processed outside South Africa.</p>
           </Section>
 
           <Section title="8. How Long We Keep Things">
@@ -151,6 +155,9 @@ export default function PrivacyPage() {
               from the address on your account. There is currently no self-service delete button in the dashboard, so account deletion is handled by us on request. We respond within 30 days, and we may need to confirm your identity first.
             </p>
             <p>Some information we must keep even after you ask us to delete it, in particular transaction records required by tax law. We will tell you what we are keeping and why.</p>
+            <p>How to make an access, correction or deletion request is set out on our{' '}
+              <Link href="/paia" className={link}>access requests page</Link>.
+            </p>
           </Section>
 
           <Section title="13. Children">
@@ -159,7 +166,7 @@ export default function PrivacyPage() {
 
           <Section title="14. Complaints">
             <p>Raise a privacy concern with us first at{' '}
-              <a href={`mailto:${STUDIO.privacyEmail}`} className={link}>{STUDIO.privacyEmail}</a>. We acknowledge within 2 business days and aim to resolve within 10.
+              <a href={`mailto:${STUDIO.privacyEmail}`} className={link}>{STUDIO.privacyEmail}</a>. We acknowledge {STUDIO.responseTime} and aim to resolve within 10 business days.
             </p>
             <p>If you are not satisfied, you may complain to the {regulator.name}:</p>
             <p>
@@ -185,9 +192,9 @@ export default function PrivacyPage() {
   );
 }
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
+function Section({ title, id, children }: { title: string; id?: string; children: React.ReactNode }) {
   return (
-    <div>
+    <div id={id} className="scroll-mt-32">
       <h3 className="text-xs font-mono font-bold uppercase tracking-widest text-white mb-3">{title}</h3>
       <div className="space-y-3">{children}</div>
     </div>

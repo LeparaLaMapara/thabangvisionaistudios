@@ -1,6 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { checkRateLimit } from '@/lib/auth';
 import { createClient } from '@/lib/supabase/server';
+import { logEvent } from '@/lib/data/events';
+import { validatePlaceName, validatePlainText } from '@/lib/security/text';
+import {
+  NAME_LOCKED_MESSAGE,
+  PLATFORM_ONLY_MESSAGE,
+  isNameLocked,
+  isVerifiedProfile,
+  isWriteDenied,
+  nameChanged,
+  writeDeniedEvent,
+} from '@/lib/supabase/write-denied';
 
 // ─── Name validation ────────────────────────────────────────────────────────
 
@@ -60,19 +71,31 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       return NextResponse.json({ error: `Last name: ${lastNameResult.error}` }, { status: 400 });
     }
 
-    if (!streetAddress?.trim()) {
+    if (typeof streetAddress !== 'string' || !streetAddress.trim()) {
       return NextResponse.json({ error: 'Street address is required.' }, { status: 400 });
     }
 
-    if (!city?.trim()) {
-      return NextResponse.json({ error: 'City is required.' }, { status: 400 });
+    // City and province are shown publicly (creator pages, JSON-LD), so they
+    // are held to a place-name charset like validateName (security INJ-1).
+    for (const [value, label] of [[city, 'City'], [province, 'Province']] as const) {
+      const placeResult = validatePlaceName(value, label);
+      if (!placeResult.valid) {
+        return NextResponse.json({ error: placeResult.error }, { status: 400 });
+      }
     }
 
-    if (!province?.trim()) {
-      return NextResponse.json({ error: 'Province is required.' }, { status: 400 });
+    for (const [value, label, max] of [
+      [streetAddress, 'Street address', 200],
+      [postalCode ?? '', 'Postal code', 12],
+      [country ?? '', 'Country', 60],
+    ] as const) {
+      const textResult = validatePlainText(value, label, max);
+      if (!textResult.valid) {
+        return NextResponse.json({ error: textResult.error }, { status: 400 });
+      }
     }
 
-    if (!phone?.trim() || phone.trim().length < 10) {
+    if (typeof phone !== 'string' || !phone.trim() || phone.trim().length < 10) {
       return NextResponse.json({ error: 'A valid phone number is required.' }, { status: 400 });
     }
 
@@ -85,14 +108,37 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     const displayName = `${firstName.trim()} ${lastName.trim()}`;
     const locationLegacy = `${city.trim()}, ${province.trim()}`;
 
+    // ── Verified names are locked (migration 067) ─────────────────────────
+    // Refuse a change with a clear message; an unchanged name is simply not
+    // re-sent, so the rest of the profile still saves.
+    const { data: current } = await supabase
+      .from('profiles')
+      .select('first_name, last_name, verification_status, is_verified')
+      .eq('id', user.id)
+      .maybeSingle();
+
+    const nameLocked = isVerifiedProfile(current);
+    if (
+      nameLocked &&
+      (nameChanged(current?.first_name, firstName) || nameChanged(current?.last_name, lastName))
+    ) {
+      return NextResponse.json({ error: NAME_LOCKED_MESSAGE }, { status: 409 });
+    }
+
+    const namePayload = nameLocked
+      ? {}
+      : {
+          first_name: firstName.trim(),
+          last_name: lastName.trim(),
+          display_name: displayName,
+        };
+
     // ── Update profile ────────────────────────────────────────────────────
 
     const { error } = await supabase
       .from('profiles')
       .update({
-        first_name: firstName.trim(),
-        last_name: lastName.trim(),
-        display_name: displayName,
+        ...namePayload,
         phone: phone.trim(),
         street_address: streetAddress.trim(),
         city: city.trim(),
@@ -112,6 +158,18 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
     if (error) {
       console.error('[POST /api/onboarding]', error.message);
+      if (isWriteDenied(error)) {
+        logEvent(writeDeniedEvent({
+          userId: user.id,
+          route: 'POST /api/onboarding',
+          table: 'profiles',
+          error,
+        }));
+        return NextResponse.json(
+          { error: isNameLocked(error) ? NAME_LOCKED_MESSAGE : PLATFORM_ONLY_MESSAGE },
+          { status: 403 },
+        );
+      }
       return NextResponse.json({ error: 'Failed to save profile.' }, { status: 500 });
     }
 

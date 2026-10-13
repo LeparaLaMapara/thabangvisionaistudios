@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { CheckCircle2 } from 'lucide-react';
+import { STUDIO } from '@/lib/constants';
 
 /**
  * Confirm a phone number with a one-time SMS code (TASK-069). Creators and
@@ -17,31 +18,39 @@ export function PhoneCheck({ phone, verified }: { phone: string; verified: boole
   const call = async (path: string, body: object) => {
     setBusy(true);
     setNote(null);
-    const res = await fetch(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-    const json = await res.json().catch(() => ({}));
-    setBusy(false);
-    return { ok: res.ok, json };
+    try {
+      const res = await fetch(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      const json = await res.json().catch(() => ({}));
+      return { ok: res.ok, status: res.status, json };
+    } catch {
+      return { ok: false, status: 0, json: { error: 'Could not reach us. Check your connection and try again.' } };
+    } finally {
+      setBusy(false);
+    }
   };
 
   if (step === 'done') {
     return (
-      <p className="flex items-center gap-2 text-xs font-mono text-emerald-400 mt-2">
+      <p id="phone" className="flex items-center gap-2 text-xs font-mono text-emerald-400 mt-2">
         <CheckCircle2 className="w-3.5 h-3.5" aria-hidden="true" /> Number confirmed
       </p>
     );
   }
 
   return (
-    <div className="mt-2 space-y-2">
+    <div id="phone" className="mt-2 space-y-2 scroll-mt-24">
       {step === 'idle' && (
         <button
           type="button"
           disabled={busy || !phone.trim()}
           onClick={async () => {
-            const { ok, json } = await call('/api/phone/send', { phone });
+            const { ok, status, json } = await call('/api/phone/send', { phone });
             if (ok) {
               setStep('sent');
               setNote(`We sent a code to ${json.sentTo}.`);
+            } else if (status === 503) {
+              // SMS is not set up yet: say so honestly and give a way forward.
+              setNote(`Phone checks are not available online yet. To rent before they are, contact us on WhatsApp ${STUDIO.whatsapp.display} or at ${STUDIO.email}.`);
             } else setNote(json.error ?? 'Could not send a code.');
           }}
           className="min-h-[44px] px-4 rounded border border-[#D4A843] text-[#D4A843] text-xs font-mono uppercase tracking-widest disabled:opacity-40"
@@ -75,7 +84,7 @@ export function PhoneCheck({ phone, verified }: { phone: string; verified: boole
           </button>
         </div>
       )}
-      {note && <p className="text-xs font-mono text-neutral-400">{note}</p>}
+      {note && <p role="status" className="text-xs font-mono text-neutral-400">{note}</p>}
     </div>
   );
 }

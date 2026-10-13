@@ -38,7 +38,6 @@ export type SmartProduction = {
   currency: string | null;
   price_unit: string;
   creator_id: string | null;
-  submitted_at: string | null;
 };
 
 // ─── Queries ──────────────────────────────────────────────────────────────────
@@ -239,10 +238,13 @@ export async function getPublishedCreatorProfiles(limit?: number): Promise<Creat
 
   const creatorIds = [...new Set(prods.map((p: { creator_id: string }) => p.creator_id))];
 
+  // Only creators whose ID check passed: a creator may build a portfolio
+  // before verification, and it must not be shown until then.
   let query = supabase
     .from('public_profiles')
     .select('id, display_name, crew_slug, avatar_url, crew_bio, bio, specializations, hourly_rate, location, years_experience, crew_featured, skills, social_links, portfolio_projects')
     .in('id', creatorIds)
+    .eq('verification_status', 'verified')
     .order('crew_featured', { ascending: false })
     .order('created_at', { ascending: false });
 
@@ -298,8 +300,15 @@ function mapSpecializationToProjectType(specializations: string[]): string {
 }
 
 /**
- * Creates (or updates) a smart_productions entry for a creator after onboarding.
- * Uses upsert on creator_id to be idempotent — re-running won't duplicate.
+ * Creates (or updates) the one smart_productions entry for a creator after
+ * onboarding. Idempotent: running it again updates the same row.
+ *
+ * Written against the schema both databases really have (checked 2026-10-12
+ * on dev and prod): smart_productions has no submitted_at column, and there
+ * is no unique index on creator_id (only a plain one). Writing submitted_at
+ * made every finish fail with "Failed to create production listing."
+ * slug IS unique, so an insert that collides with another production's slug
+ * retries once with a suffix.
  */
 export async function createCreatorProduction(userId: string): Promise<{ success: boolean; error?: string }> {
   const supabase = createAdminClient();
@@ -338,10 +347,11 @@ export async function createCreatorProduction(userId: string): Promise<{ success
   const slug = profile.crew_slug ?? `creator-${profile.id.slice(0, 8)}`;
   const primarySpec = specializations[0] ?? 'Creative';
   const projectType = mapSpecializationToProjectType(specializations);
+  const now = new Date().toISOString();
 
-  const row = {
+  // Only columns that exist on both databases (no submitted_at).
+  const changes = {
     creator_id: profile.id,
-    slug,
     title: `${primarySpec} Professional`,
     project_type: projectType,
     description: profile.bio ?? null,
@@ -353,22 +363,56 @@ export async function createCreatorProduction(userId: string): Promise<{ success
     price: profile.hourly_rate ?? null,
     price_unit: 'hour',
     currency: 'ZAR',
-    is_published: false,
     is_featured: profile.crew_featured ?? false,
-    submitted_at: new Date().toISOString(),
     year: new Date().getFullYear(),
     crew_ids: [profile.id],
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
+    updated_at: now,
   };
 
-  const { error: upsertErr } = await supabase
-    .from('smart_productions')
-    .upsert(row, { onConflict: 'creator_id', ignoreDuplicates: false });
+  // One live production per creator. Neither database has a unique index on
+  // creator_id, so ON CONFLICT (creator_id) cannot be used: update the live
+  // row (the update's returned ids are the lookup), or insert one.
+  const updateLive = async (): Promise<{ found: boolean; error: string | null }> => {
+    const { data, error } = await supabase
+      .from('smart_productions')
+      .update(changes)
+      .eq('creator_id', profile.id)
+      .is('deleted_at', null)
+      .select('id');
+    if (error) return { found: false, error: error.message };
+    return { found: (data ?? []).length > 0, error: null };
+  };
 
-  if (upsertErr) {
-    console.error('[createCreatorProduction]', upsertErr.message);
-    return { success: false, error: upsertErr.message };
+  const insertWith = async (rowSlug: string) =>
+    supabase.from('smart_productions').insert({
+      ...changes,
+      slug: rowSlug,
+      is_published: false,
+      created_at: now,
+    });
+
+  let result = await updateLive();
+  if (!result.error && !result.found) {
+    const { error: insertErr } = await insertWith(slug);
+    if (!insertErr) return { success: true };
+    if (insertErr.code === '23505') {
+      // A parallel request inserted this creator's row first: update it.
+      result = await updateLive();
+      if (!result.error && !result.found) {
+        // Not a race: the slug belongs to another production. Retry once
+        // with the creator's id on the end.
+        const { error: retryErr } = await insertWith(`${slug}-${profile.id.slice(0, 8)}`);
+        if (!retryErr) return { success: true };
+        result = { found: false, error: retryErr.message };
+      }
+    } else {
+      result = { found: false, error: insertErr.message };
+    }
+  }
+
+  if (result.error) {
+    console.error('[createCreatorProduction]', result.error);
+    return { success: false, error: result.error };
   }
 
   return { success: true };
@@ -382,12 +426,46 @@ export async function autoPublishCreatorProductions(): Promise<number> {
   const supabase = createAdminClient();
   const cutoff = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
 
+  // Only for creators whose ID check passed and who are not suspended:
+  // finishing onboarding is not a check, so waiting 7 days must not publish
+  // an unverified creator's page.
+  const { data: waiting, error: waitingErr } = await supabase
+    .from('smart_productions')
+    .select('id, creator_id')
+    .not('creator_id', 'is', null)
+    .eq('is_published', false)
+    // created_at, not submitted_at: that column does not exist on either
+    // database, so this read failed every day and nothing was published.
+    .lt('created_at', cutoff)
+    .is('deleted_at', null);
+  if (waitingErr) {
+    console.error('[autoPublishCreatorProductions]', waitingErr.message);
+    return 0;
+  }
+  const creatorIds = Array.from(new Set((waiting ?? []).map((w: { creator_id: string }) => w.creator_id)));
+  if (creatorIds.length === 0) return 0;
+
+  const { data: verified, error: verifiedErr } = await supabase
+    .from('profiles')
+    .select('id')
+    .in('id', creatorIds)
+    .eq('verification_status', 'verified')
+    .not('is_suspended', 'is', true);
+  if (verifiedErr) {
+    console.error('[autoPublishCreatorProductions]', verifiedErr.message);
+    return 0;
+  }
+  const allowed = new Set((verified ?? []).map((p: { id: string }) => p.id));
+  const ids = (waiting ?? [])
+    .filter((w: { id: string; creator_id: string }) => allowed.has(w.creator_id))
+    .map((w: { id: string }) => w.id);
+  if (ids.length === 0) return 0;
+
   const { data, error } = await supabase
     .from('smart_productions')
     .update({ is_published: true, updated_at: new Date().toISOString() })
-    .not('creator_id', 'is', null)
+    .in('id', ids)
     .eq('is_published', false)
-    .lt('submitted_at', cutoff)
     .is('deleted_at', null)
     .select('id');
 

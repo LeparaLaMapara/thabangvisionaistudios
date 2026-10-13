@@ -5,15 +5,20 @@ import { motion, useScroll, useTransform } from 'framer-motion';
 import Link from 'next/link';
 import { ServiceGrid } from '@/components/cinematic/ServiceGrid';
 import { LatestWorkCarousel, type CarouselItem } from '@/components/cinematic/LatestWorkCarousel';
-import { ChevronRight, ArrowRight, Camera, Calendar, Users, Search, CreditCard, Sparkles, MessageCircle, ShieldCheck, BadgeCheck, Lock, Star } from 'lucide-react';
-import { SITE_NAME, STUDIO, PLACEHOLDER_IMAGES, CAPABILITIES } from '@/lib/constants';
-import { formatZAR } from '@/lib/productions/pricing';
+import { ArrowRight, Calendar, Search, MapPin, RotateCcw, MessageCircle, ShieldCheck } from 'lucide-react';
+import Image from 'next/image';
+import { STUDIO, UBUNYE_STUDIO, CREATOR_JOIN } from '@/lib/constants';
+import { formatRand } from '@/lib/format/money';
+import { PaymentsNotOpenNote } from '@/components/booking/PaymentsNotOpenNote';
 
-type Capability = (typeof CAPABILITIES)[number];
+import { collectionPoint } from '@/lib/rental/collection-point';
+
+/** Where gear is collected: "99 Smith Street, Braamfontein". */
+const COLLECTION_POINT = collectionPoint();
 
 // ─── Hero ────────────────────────────────────────────────────────────────────
 
-const Hero = () => {
+const Hero = ({ minDayRate }: { minDayRate: number | null }) => {
   const { scrollY } = useScroll();
   const y1 = useTransform(scrollY, [0, 500], [0, 200]);
   const opacity = useTransform(scrollY, [0, 300], [1, 0]);
@@ -83,28 +88,28 @@ const Hero = () => {
             animate={{ opacity: 1, y: 0 }}
             className="text-4xl sm:text-5xl md:text-8xl font-display font-medium text-white tracking-tighter leading-[0.9] mb-8 uppercase max-w-full break-words"
           >
-            Book South Africa&apos;s <br />
-            <span className="text-neutral-400">Best Creators And Gear.</span>
+            Rent Camera Gear <br />
+            <span className="text-neutral-400">In {STUDIO.location.city}.</span>
           </motion.h1>
 
           <motion.div initial={false} animate={{ opacity: 1 }} className="max-w-xl">
             <p className="text-lg text-neutral-300 font-light leading-relaxed mb-10">
-              Find photographers, videographers, production crews, and professional gear. All in one trusted platform.
+              Cameras, lenses, lights, sound and drones{minDayRate !== null ? ` from ${formatRand(minDayRate)} a day` : ''}. Book online and collect at {COLLECTION_POINT}.
             </p>
-            <div className="flex flex-wrap gap-4">
-              <Link href="/studio/category/photography" className="group inline-flex items-center gap-2 min-h-[44px] bg-white text-black px-8 py-4 text-xs font-mono font-bold uppercase tracking-widest hover:opacity-80 transition-opacity">
-                Hire a Photographer <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+            <div className="flex flex-wrap items-center gap-x-6 gap-y-4">
+              <Link href="/rentals" className="group inline-flex items-center gap-2 min-h-[44px] bg-white text-black px-8 py-4 text-xs font-mono font-bold uppercase tracking-widest hover:opacity-80 transition-opacity">
+                Browse Gear <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
               </Link>
-              <Link href="/rentals" className="group inline-flex items-center gap-2 min-h-[44px] border border-white/20 text-white px-8 py-4 text-xs font-mono font-bold uppercase tracking-widest hover:bg-white/5 transition-colors">
-                Rent Equipment <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+              <Link href="/contact?type=production_brief" className="inline-flex items-center min-h-[44px] text-sm text-neutral-300 underline underline-offset-4 decoration-white/30 hover:text-white hover:decoration-white transition-colors">
+                Need a photographer? Send us a brief
               </Link>
             </div>
             <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-6">
-              <span className="text-xs font-mono text-neutral-400 uppercase tracking-widest">Verified Creators</span>
+              <span className="text-xs font-mono text-neutral-400 uppercase tracking-widest">Free To Join</span>
               <span className="text-neutral-400 text-xs">•</span>
-              <span className="text-xs font-mono text-neutral-400 uppercase tracking-widest">Secure Payments</span>
+              <span className="text-xs font-mono text-neutral-400 uppercase tracking-widest">Pay Only When You Book</span>
               <span className="text-neutral-400 text-xs">•</span>
-              <span className="text-xs font-mono text-neutral-400 uppercase tracking-widest">Refundable Deposits</span>
+              <span className="text-xs font-mono text-neutral-400 uppercase tracking-widest">Refundable Deposit</span>
             </div>
           </motion.div>
         </div>
@@ -119,12 +124,23 @@ const Hero = () => {
 
 // ─── How It Works ────────────────────────────────────────────────────────────
 
-const HowItWorks = () => {
+/**
+ * Four steps for renting gear, the one thing a visitor can do today. Step two
+ * follows the payment switch: while online payment is closed it says we
+ * contact you to arrange payment, and the notice under the steps says how.
+ */
+const HowItWorks = ({ paymentsOpen }: { paymentsOpen: boolean }) => {
   const steps = [
-    { icon: Search, title: 'Browse', description: 'Find verified creators and professional gear for your project.' },
-    { icon: Calendar, title: 'Book', description: 'Pick your dates, describe your shoot, and lock it in.' },
-    { icon: CreditCard, title: 'Pay', description: 'Secure online payment. No hidden fees, transparent pricing.' },
-    { icon: Sparkles, title: 'Create', description: 'Your creator arrives, the gear is ready. Make something amazing.' },
+    { icon: Search, title: 'Pick', description: 'Pick your gear and dates.' },
+    {
+      icon: Calendar,
+      title: 'Book',
+      description: paymentsOpen
+        ? 'Book online and pay by card.'
+        : `Book online, then pay by EFT within ${STUDIO.bank.payWithinHours} hours, or in cash when you collect.`,
+    },
+    { icon: MapPin, title: 'Collect', description: `Collect at ${COLLECTION_POINT}. Bring your ID the first time.` },
+    { icon: RotateCcw, title: 'Return', description: 'Return it on time and get your deposit back.' },
   ];
 
   return (
@@ -136,12 +152,11 @@ const HowItWorks = () => {
           viewport={{ once: true }}
           className="text-center mb-16"
         >
-          <span className="text-xs font-mono text-accent uppercase tracking-widest mb-4 block">03 // Process</span>
           <h2 className="text-4xl md:text-5xl font-display font-medium text-white uppercase">
             How It <span className="text-neutral-400">Works</span>
           </h2>
           <p className="text-neutral-400 font-light leading-relaxed mt-4 max-w-2xl mx-auto">
-            One place to book crew and gear. You book and pay ThabangVision, and we supply the creators and equipment your production needs.
+            You rent straight from {STUDIO.name}. All the gear is ours.
           </p>
         </motion.div>
 
@@ -155,176 +170,100 @@ const HowItWorks = () => {
               transition={{ delay: index * 0.1 }}
               className="relative bg-[#0A0A0B] border border-white/5 p-8 text-center hover:border-white/20 transition-colors"
             >
-              <div className="text-xs font-mono text-neutral-400 mb-4">0{index + 1}</div>
+              <div className="text-xs font-mono text-neutral-400 mb-4">{index + 1}</div>
               <step.icon className="w-8 h-8 text-accent mx-auto mb-4" />
               <h3 className="text-lg font-display font-medium text-white uppercase mb-2">{step.title}</h3>
               <p className="text-sm font-mono text-neutral-400 leading-relaxed">{step.description}</p>
             </motion.div>
           ))}
         </div>
+        <PaymentsNotOpenNote open={paymentsOpen} className="justify-center text-center mt-10 max-w-2xl mx-auto" />
       </div>
     </section>
   );
 };
 
-// ─── Community Section ───────────────────────────────────────────────────────
+// ─── Booking CTA ─────────────────────────────────────────────────────────────
 
-const CommunitySection = () => (
-  <section className="py-32 bg-[#050505] border-t border-white/5 transition-colors duration-500">
+/**
+ * The rentals block. It used to carry four stat tiles ("Categories 6+",
+ * "Online booking Yes", "Deposit protection Secured") that said little, and
+ * "from cinema cameras" when no cinema camera is in stock. The cheapest day
+ * rate now sits in the hero line, read from stock.
+ */
+const BookingCTA = () => (
+  <section className="py-24 bg-[#080808] border-t border-white/5 transition-colors duration-500">
     <div className="container mx-auto px-6">
-      <div className="flex flex-col md:flex-row justify-between items-end mb-16">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
-        >
-          <span className="text-xs font-mono text-accent uppercase tracking-widest mb-4 block">06 // Community</span>
-          <h2 className="text-4xl md:text-5xl font-display font-medium text-white uppercase">
-            For <span className="text-neutral-400">Creators</span>
-          </h2>
-        </motion.div>
-        <Link href="/rentals" className="hidden md:flex items-center gap-2 text-xs font-mono text-neutral-400 hover:text-white transition-colors uppercase tracking-widest mt-6 md:mt-0">
-          Browse All Gear <ChevronRight className="w-4 h-4" />
-        </Link>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-        {[
-          {
-            icon: Camera,
-            title: 'Supply Your Gear',
-            description: 'Become a verified supplier. Put your camera, lenses, lighting and audio gear to work between your own jobs.',
-            cta: 'Get Verified',
-            href: '/dashboard/verification',
-          },
-          {
-            icon: Calendar,
-            title: 'Book Equipment',
-            description: 'Reserve professional gear from our catalog or community listings. Live availability, and the full price before you pay.',
-            cta: 'View Rentals',
-            href: '/rentals',
-          },
-          {
-            icon: Users,
-            title: 'Join the Community',
-            description: 'Create your profile, showcase your portfolio, and connect with South African creatives.',
-            cta: 'Create Account',
-            href: '/register',
-          },
-        ].map((item, index) => (
-          <motion.div
-            key={item.title}
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ delay: index * 0.1 }}
-          >
-            <Link href={item.href} className="group block h-full">
-              <div className="h-full bg-[#0A0A0B] border border-white/5 p-8 hover:border-white/20 transition-all">
-                <item.icon className="w-6 h-6 text-neutral-400 mb-6 group-hover:text-white transition-colors" />
-                <h3 className="text-lg font-display font-medium uppercase text-white mb-3">
-                  {item.title}
-                </h3>
-                <p className="text-sm font-mono text-neutral-400 leading-relaxed mb-6">
-                  {item.description}
-                </p>
-                <span className="flex items-center gap-2 text-xs font-mono font-bold uppercase tracking-widest text-white group-hover:translate-x-1 transition-transform">
-                  {item.cta} <ArrowRight className="w-3 h-3" />
-                </span>
-              </div>
-            </Link>
-          </motion.div>
-        ))}
-      </div>
+      <motion.div
+        initial={{ opacity: 0, x: -20 }}
+        whileInView={{ opacity: 1, x: 0 }}
+        viewport={{ once: true }}
+        className="max-w-2xl"
+      >
+        <h2 className="text-4xl md:text-5xl font-display font-medium text-white tracking-tighter uppercase mb-6 leading-[0.95]">
+          Book <br />
+          <span className="text-neutral-400">Professional Gear</span>
+        </h2>
+        <p className="text-neutral-400 font-light leading-relaxed mb-8 max-w-md">
+          From mirrorless cameras to lighting kits. See live availability and the full price before you book.
+        </p>
+        <div className="flex flex-wrap gap-4">
+          <Link href="/rentals" className="inline-flex items-center gap-2 min-h-[44px] bg-white text-black px-8 py-4 text-xs font-mono font-bold uppercase tracking-widest hover:opacity-80 transition-opacity">
+            Browse Equipment <ArrowRight className="w-3 h-3" />
+          </Link>
+          <Link href="/register" className="inline-flex items-center gap-2 min-h-[44px] border border-white/20 text-white px-8 py-4 text-xs font-mono font-bold uppercase tracking-widest hover:bg-white/5 transition-colors">
+            Create Account
+          </Link>
+        </div>
+      </motion.div>
     </div>
   </section>
 );
 
-// ─── Booking CTA ─────────────────────────────────────────────────────────────
+// ─── Creator Join ────────────────────────────────────────────────────────────
+// The creator's way in, now that it is not in the header (see CREATOR_JOIN).
 
-/**
- * `minDayRate` is the cheapest live day rate, read from stock rather than
- * typed in. The tile used to read a hardcoded "R500" while the real floor was
- * R20, which told every customer shopping under R500 to go elsewhere.
- * `null` means no priced stock is live, so the tile falls back to the label.
- */
-const BookingCTA = ({ minDayRate }: { minDayRate: number | null }) => (
-  <section className="py-24 bg-[#080808] border-t border-white/5 transition-colors duration-500">
+const CreatorJoin = () => (
+  <section className="py-24 bg-[#050505] border-t border-white/5">
     <div className="container mx-auto px-6">
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-16 items-center">
-        <motion.div
-          initial={{ opacity: 0, x: -20 }}
-          whileInView={{ opacity: 1, x: 0 }}
-          viewport={{ once: true }}
-        >
-          <span className="text-xs font-mono text-accent uppercase tracking-widest mb-4 block">05 // Rentals</span>
-          <h2 className="text-4xl md:text-5xl font-display font-medium text-white tracking-tighter uppercase mb-6 leading-[0.95]">
-            Book <br />
-            <span className="text-neutral-400">Professional Gear</span>
-          </h2>
-          <p className="text-neutral-400 font-light leading-relaxed mb-8 max-w-md">
-            From cinema cameras to lighting kits. See live availability and the full price before you pay, then book online.
-          </p>
-          <div className="flex flex-wrap gap-4">
-            <Link href="/rentals" className="inline-flex items-center gap-2 min-h-[44px] bg-white text-black px-8 py-4 text-xs font-mono font-bold uppercase tracking-widest hover:opacity-80 transition-opacity">
-              Browse Equipment <ArrowRight className="w-3 h-3" />
-            </Link>
-            <Link href="/register" className="inline-flex items-center gap-2 min-h-[44px] border border-white/20 text-white px-8 py-4 text-xs font-mono font-bold uppercase tracking-widest hover:bg-white/5 transition-colors">
-              Create Account
-            </Link>
-          </div>
-        </motion.div>
-        <motion.div
-          initial={{ opacity: 0, x: 20 }}
-          whileInView={{ opacity: 1, x: 0 }}
-          viewport={{ once: true }}
-          className="grid grid-cols-2 gap-4"
-        >
-          {[
-            { label: 'Categories', value: '6+' },
-            {
-              label: minDayRate === null ? 'Day Rates' : 'Day Rates From',
-              value: minDayRate === null ? 'On Request' : formatZAR(minDayRate),
-            },
-            { label: 'Online Booking', value: 'Yes' },
-            { label: 'Deposit Protection', value: 'Secured' },
-          ].map(stat => (
-            <div key={stat.label} className="bg-[#0A0A0B] border border-white/5 p-6">
-              <p className="text-xs font-mono uppercase tracking-widest text-neutral-400 mb-2">
-                {stat.label}
-              </p>
-              <p className="text-2xl font-display font-medium text-white">
-                {stat.value}
-              </p>
-            </div>
-          ))}
-        </motion.div>
-      </div>
+      <motion.div
+        initial={{ opacity: 0, x: -20 }}
+        whileInView={{ opacity: 1, x: 0 }}
+        viewport={{ once: true }}
+        className="max-w-2xl"
+      >
+        <span className="text-xs font-mono text-[#D4A843] uppercase tracking-[0.3em] mb-4 block">For Creators</span>
+        <h2 className="text-4xl md:text-5xl font-display font-medium text-white tracking-tighter uppercase mb-6 leading-[0.95]">
+          {CREATOR_JOIN.homeTitle}
+        </h2>
+        <p className="text-neutral-400 font-light leading-relaxed mb-8 max-w-md">
+          {CREATOR_JOIN.homeText}
+        </p>
+        <Link href={CREATOR_JOIN.href} className="inline-flex items-center gap-2 min-h-[44px] bg-[#D4A843] text-black px-8 py-4 text-xs font-mono font-bold uppercase tracking-widest hover:opacity-80 transition-opacity">
+          {CREATOR_JOIN.ctaLabel} <ArrowRight className="w-3 h-3" />
+        </Link>
+      </motion.div>
     </div>
   </section>
 );
 
 // ─── Trust Signals ───────────────────────────────────────────────────────────
 
+/**
+ * Only what is true today. "Identity-verified creators", "Secure payments"
+ * and "Rated & reviewed" were removed (2026-09-28): there are no creators
+ * listed, online payment is not open and there are no reviews yet. Put them
+ * back when they are true. The deposit timing is the one on /refunds.
+ */
 const TrustSignals = () => (
   <section className="py-16 bg-[#050505] border-t border-white/5">
     <div className="container mx-auto px-6">
-      <div className="text-center mb-8">
-        <span className="text-xs font-mono text-accent uppercase tracking-widest">02 // Trust &amp; Security</span>
-      </div>
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-        {[
-          { icon: BadgeCheck, label: 'Identity-Verified Creators', detail: 'Every creator passes ID verification' },
-          { icon: Lock, label: 'Secure Payments', detail: 'Encrypted checkout, cards never stored' },
-          { icon: ShieldCheck, label: 'Deposit Protection', detail: 'Refunded after the gear comes back undamaged' },
-          { icon: Star, label: 'Rated & Reviewed', detail: 'Real reviews from real clients' },
-        ].map((item) => (
-          <div key={item.label} className="text-center p-4">
-            <item.icon className="w-6 h-6 text-accent mx-auto mb-3" />
-            <p className="text-sm font-display font-medium text-white uppercase mb-1">{item.label}</p>
-            <p className="text-xs font-mono text-neutral-400">{item.detail}</p>
-          </div>
-        ))}
+      <div className="max-w-md mx-auto text-center p-4">
+        <ShieldCheck className="w-6 h-6 text-accent mx-auto mb-3" />
+        <p className="text-sm font-display font-medium text-white uppercase mb-1">Refundable Deposit</p>
+        <p className="text-xs font-mono text-neutral-400">
+          Paid back within 5 business days after the gear comes back in good condition.
+        </p>
       </div>
     </div>
   </section>
@@ -341,13 +280,12 @@ const UbunyeSection = () => (
         viewport={{ once: true }}
         className="max-w-2xl mx-auto text-center"
       >
-        <span className="text-xs font-mono text-accent uppercase tracking-widest mb-4 block">07 // AI Assistant</span>
         <MessageCircle className="w-10 h-10 text-accent mx-auto mb-6" />
         <h2 className="text-3xl md:text-4xl font-display font-medium text-white uppercase mb-4">
           Need Help <span className="text-neutral-400">Deciding?</span>
         </h2>
         <p className="text-neutral-400 font-light leading-relaxed mb-8">
-          Ask Ubunye — our AI assistant finds the right creator and gear for your project.
+          Ask Ubunye, our AI assistant, about gear, dates and prices.
         </p>
         <Link
           href="/ubunye-ai-studio"
@@ -360,52 +298,103 @@ const UbunyeSection = () => (
   </section>
 );
 
+// ─── Ubunye Apps ─────────────────────────────────────────────────────────────
+
+/**
+ * The free apps, in one strip. Shown with the "Apps" nav item (creative_tools
+ * flag). Each icon opens that app's page; the button opens all three.
+ */
+const AppsStrip = () => (
+  <section className="py-24 bg-[#080808] border-t border-white/5">
+    <div className="container mx-auto px-6">
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        whileInView={{ opacity: 1, y: 0 }}
+        viewport={{ once: true }}
+        className="max-w-3xl mx-auto text-center"
+      >
+        <h2 className="text-4xl md:text-5xl font-display font-medium text-white uppercase">
+          Free Apps <span className="text-neutral-400">For Creators</span>
+        </h2>
+        <p className="text-neutral-400 font-light leading-relaxed mt-4 mb-10 max-w-xl mx-auto">
+          {UBUNYE_STUDIO.intro}
+        </p>
+        <ul className="grid grid-cols-3 gap-4 sm:gap-8 max-w-md mx-auto mb-10">
+          {UBUNYE_STUDIO.apps.map((app) => (
+            <li key={app.slug}>
+              <Link href={`/tools/${app.slug}`} className="group flex flex-col items-center gap-3 min-h-[44px]">
+                <Image
+                  src={app.iconPng}
+                  alt=""
+                  width={80}
+                  height={80}
+                  unoptimized
+                  className="h-16 w-16 sm:h-20 sm:w-20 transition-transform group-hover:scale-105"
+                />
+                <span className="text-sm text-white">{app.shortName}</span>
+                <span className="text-xs font-mono text-neutral-400 leading-snug">{app.category}</span>
+              </Link>
+            </li>
+          ))}
+        </ul>
+        <Link
+          href="/tools"
+          className="group inline-flex items-center gap-2 min-h-[44px] border border-white/20 text-white px-8 py-4 text-xs font-mono font-bold uppercase tracking-widest hover:bg-white/5 transition-colors"
+        >
+          Get The Free Apps <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+        </Link>
+      </motion.div>
+    </div>
+  </section>
+);
+
 // ─── Main Export ──────────────────────────────────────────────────────────────
 
+/**
+ * The home page leads with gear rental, the offering that is live (owner's
+ * decision, 2026-09-28). Shoots are reached by one quiet link in the hero.
+ * The "What we offer" grid and the supplier and community cards were removed:
+ * no supplier listings or community features exist yet.
+ */
 export default function HomeClient({
   carouselItems,
-  capabilities,
   minDayRate,
+  paymentsOpen,
+  showApps = false,
 }: {
   carouselItems: CarouselItem[];
-  capabilities: readonly Capability[];
   /** Cheapest live day rate, or null when no priced stock is published. */
   minDayRate: number | null;
+  /** onlinePaymentsOpen() from the server. */
+  paymentsOpen: boolean;
+  /** The creative_tools flag: shows the free apps strip. */
+  showApps?: boolean;
 }) {
   return (
     <div className="min-h-screen bg-[#050505] transition-colors duration-500">
-      {/* 1. Hero */}
-      <Hero />
-      {/* 2. Showcase — gear and work, alternating.
-          Sits directly under the hero because hire is the primary business and
-          it previously appeared only as four tiles of text, five sections down.
-          A visitor should see what there is to rent without hunting for it. */}
+      <Hero minDayRate={minDayRate} />
+      {/* Gear and recent shoots, directly under the hero. */}
       <LatestWorkCarousel items={carouselItems} />
-      {/* 3. Trust & Security */}
+      <HowItWorks paymentsOpen={paymentsOpen} />
+      {/* What we offer: the Rentals and Studio cards (owner asked to keep them). */}
+      <ServiceGrid />
       <TrustSignals />
-      {/* 4. How It Works */}
-      <HowItWorks />
-      {/* 5. What We Offer */}
-      <ServiceGrid capabilities={capabilities} />
-      {/* 6. Smart Rentals */}
-      <BookingCTA minDayRate={minDayRate} />
-      {/* 7. For Creators */}
-      <CommunitySection />
-      {/* 8. Ubunye AI */}
+      <BookingCTA />
+      <CreatorJoin />
+      {showApps && <AppsStrip />}
       <UbunyeSection />
-      {/* 9. Final CTA */}
+      {/* Final CTA */}
       <section className="py-40 relative bg-gradient-to-b from-neutral-950 via-neutral-900 to-neutral-950 overflow-hidden border-t border-white/5 transition-colors duration-500">
         <div className="container mx-auto px-6 relative z-10 text-center">
-          <span className="text-xs font-mono text-neutral-400 uppercase tracking-widest mb-6 block">08 // Get Started</span>
           <h2 className="text-5xl md:text-8xl font-display font-medium text-white tracking-tighter mb-12 uppercase">
-            Ready To <br /> Create?
+            Ready To <br /> Rent?
           </h2>
           <div className="flex flex-wrap justify-center gap-4">
-            <Link href="/contact" className="inline-flex items-center justify-center min-h-[44px] bg-white text-black px-12 py-5 text-xs font-mono font-bold tracking-[0.2em] transition-all uppercase hover:opacity-80">
-              Start a Project
-            </Link>
-            <Link href="/rentals" className="inline-flex items-center justify-center min-h-[44px] border border-white/20 hover:bg-white/5 text-white px-12 py-5 text-xs font-mono font-bold tracking-[0.2em] transition-all uppercase">
+            <Link href="/rentals" className="inline-flex items-center justify-center min-h-[44px] bg-white text-black px-12 py-5 text-xs font-mono font-bold tracking-[0.2em] transition-all uppercase hover:opacity-80">
               Browse Gear
+            </Link>
+            <Link href="/contact" className="inline-flex items-center justify-center min-h-[44px] border border-white/20 hover:bg-white/5 text-white px-12 py-5 text-xs font-mono font-bold tracking-[0.2em] transition-all uppercase">
+              Contact Us
             </Link>
           </div>
         </div>

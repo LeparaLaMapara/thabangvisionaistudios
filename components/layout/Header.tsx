@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
@@ -11,6 +11,7 @@ import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/providers/AuthProvider';
 import { useCart } from '@/providers/CartProvider';
 import { HeaderUbunyeBubble } from '@/components/ubunye/HeaderUbunyeBubble';
+import { useFocusTrap } from '@/components/ui/useFocusTrap';
 
 const ThabangLogo = () => (
   <Image
@@ -25,14 +26,14 @@ const ThabangLogo = () => (
 );
 
 // Shared style constants
-const NAV_TEXT = "font-mono font-medium tracking-widest uppercase text-neutral-400 dark:text-neutral-400 hover:text-black dark:hover:text-white transition-colors duration-300";
-const SUB_ITEM_TEXT = "text-xs font-mono tracking-widest uppercase text-neutral-400 dark:text-neutral-400 hover:text-black dark:hover:text-white transition-all duration-200";
-const NUMBER_PREFIX = "text-neutral-400 dark:text-neutral-400 mr-2";
+const NAV_TEXT = "font-mono font-medium tracking-widest uppercase text-neutral-400 hover:text-white transition-colors duration-300";
+const SUB_ITEM_TEXT = "text-xs font-mono tracking-widest uppercase text-neutral-400 hover:text-white transition-all duration-200";
+const NUMBER_PREFIX = "text-neutral-400 mr-2";
 const ACTION_BTN = "w-full px-6 py-3 font-mono font-medium tracking-widest uppercase text-sm hover:opacity-80 transition-all duration-300";
 
 const formatIndex = (idx: number) => String(idx + 1).padStart(2, '0');
 
-const NavItem = ({ label, to, items }: { label: string; to?: string; items?: any[]; key?: any }) => {
+const NavItem = ({ label, to, items }: { label: string; to?: string; items?: readonly { label: string; href: string }[] }) => {
   const [isOpen, setIsOpen] = useState(false);
 
   const baseClasses = `px-4 py-2 text-xs ${NAV_TEXT} flex items-center gap-1 group-hover:bg-black/5 dark:group-hover:bg-white/5 cursor-pointer`;
@@ -42,16 +43,25 @@ const NavItem = ({ label, to, items }: { label: string; to?: string; items?: any
       className="relative group h-full flex items-center"
       onMouseEnter={() => setIsOpen(true)}
       onMouseLeave={() => setIsOpen(false)}
+      // Keyboard users reach the sub-links too: the menu opens while focus is
+      // inside it and closes when focus leaves or on Escape.
+      onFocus={() => setIsOpen(true)}
+      onBlur={(e) => {
+        if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setIsOpen(false);
+      }}
+      onKeyDown={(e) => {
+        if (e.key === 'Escape') setIsOpen(false);
+      }}
     >
       {to ? (
-        <Link href={to} className={baseClasses}>
+        <Link href={to} className={baseClasses} aria-expanded={items ? isOpen : undefined}>
           {label}
-          {items && <ChevronDown className="w-3 h-3 opacity-50" />}
+          {items && <ChevronDown className="w-3 h-3 opacity-50" aria-hidden="true" />}
         </Link>
       ) : (
         <div className={baseClasses}>
           {label}
-          {items && <ChevronDown className="w-3 h-3 opacity-50" />}
+          {items && <ChevronDown className="w-3 h-3 opacity-50" aria-hidden="true" />}
         </div>
       )}
 
@@ -63,15 +73,15 @@ const NavItem = ({ label, to, items }: { label: string; to?: string; items?: any
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: 5 }}
               transition={{ duration: 0.15, ease: 'circOut' }}
-              className="absolute top-full left-0 min-w-[240px] bg-white dark:bg-[#050505] border border-neutral-200 dark:border-white/20 p-2 shadow-2xl z-50 flex flex-col"
+              className="absolute top-full left-0 min-w-[240px] bg-[#050505] border border-white/20 p-2 shadow-2xl z-50 flex flex-col"
             >
               {items.map((child, idx) => (
                 <Link
                   key={idx}
                   href={child.href}
-                  className={`${SUB_ITEM_TEXT} hover:bg-black/5 dark:hover:bg-white/10 hover:pl-3 block py-3 px-2 border-b border-neutral-100 dark:border-white/5 last:border-0`}
+                  className={`${SUB_ITEM_TEXT} hover:bg-white/10 hover:pl-3 block py-3 px-2 border-b border-white/5 last:border-0`}
                 >
-                  <span className={NUMBER_PREFIX}>{formatIndex(idx)}</span> {child.label}
+                  <span className={NUMBER_PREFIX} aria-hidden="true">{formatIndex(idx)}</span> {child.label}
                 </Link>
               ))}
             </motion.div>
@@ -108,10 +118,12 @@ const MobileNavSection = ({
     <div className="w-full flex flex-col items-center">
       <button
         onClick={() => setOpen(!open)}
+        aria-expanded={open}
         className={`text-sm min-h-[44px] ${NAV_TEXT} flex items-center gap-2`}
       >
         {item.label}
         <ChevronDown
+          aria-hidden="true"
           className={`w-4 h-4 transition-transform duration-200 ${open ? 'rotate-180' : ''}`}
         />
       </button>
@@ -131,7 +143,7 @@ const MobileNavSection = ({
                   onClick={() => onNavigate(child.href)}
                   className={`pl-4 min-h-[44px] flex items-center ${SUB_ITEM_TEXT} text-left`}
                 >
-                  <span className={NUMBER_PREFIX}>
+                  <span className={NUMBER_PREFIX} aria-hidden="true">
                     {formatIndex(idx)}
                   </span>
                   {child.label}
@@ -154,6 +166,13 @@ export const Header = ({ navigation = MAIN_NAVIGATION }: { navigation?: readonly
   const [scrolled, setScrolled] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
+  const menuPanelRef = useRef<HTMLDivElement>(null);
+  const closeMenu = useCallback(() => setMobileMenuOpen(false), []);
+
+  // The open menu is a modal dialog: focus moves into it, Tab stays inside,
+  // Escape closes it, and focus goes back to the menu button afterwards.
+  // (Scroll lock stays in the effect below.)
+  useFocusTrap(menuPanelRef, { active: mobileMenuOpen, onEscape: closeMenu, lockScroll: false });
 
   const handleSignOut = useCallback(async () => {
     setSigningOut(true);
@@ -179,21 +198,15 @@ export const Header = ({ navigation = MAIN_NAVIGATION }: { navigation?: readonly
     return () => { document.body.style.overflow = ''; };
   }, [mobileMenuOpen]);
 
-  // Close mobile menu on Escape key or browser back button
+  // Close mobile menu on the browser back button (Escape: see useFocusTrap)
   useEffect(() => {
     if (!mobileMenuOpen) return;
-
-    const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setMobileMenuOpen(false);
-    };
 
     window.history.pushState({ mobileMenu: true }, '');
     const handlePopState = () => setMobileMenuOpen(false);
 
-    window.addEventListener('keydown', handleEscape);
     window.addEventListener('popstate', handlePopState);
     return () => {
-      window.removeEventListener('keydown', handleEscape);
       window.removeEventListener('popstate', handlePopState);
     };
   }, [mobileMenuOpen]);
@@ -207,17 +220,17 @@ export const Header = ({ navigation = MAIN_NAVIGATION }: { navigation?: readonly
   return (
     <header
       className={`fixed top-0 w-full z-[300] transition-all duration-500 border-b ${
-        scrolled ? 'bg-white/90 dark:bg-[#050505]/90 backdrop-blur-md border-neutral-200 dark:border-white/10' : 'bg-transparent border-transparent'
+        scrolled ? 'bg-[#050505]/90 backdrop-blur-md border-white/10' : 'bg-transparent border-transparent'
       }`}
     >
       <div className="container mx-auto px-6 flex justify-between items-center h-20 relative z-50">
         {/* Logo */}
-        <Link href="/" className="group flex items-center gap-4 pointer-events-auto">
+        <Link href="/" aria-label="ThabangVision home" className="group flex items-center gap-4 min-h-[44px] pointer-events-auto">
           <ThabangLogo />
         </Link>
 
         {/* Desktop Nav */}
-        <nav className="hidden lg:flex items-center h-full gap-1">
+        <nav aria-label="Main" className="hidden lg:flex items-center h-full gap-1">
           {navigation.map((item) => (
             <NavItem
               key={item.label}
@@ -234,9 +247,9 @@ export const Header = ({ navigation = MAIN_NAVIGATION }: { navigation?: readonly
             <Link
               href="/dashboard/cart"
               aria-label={cartCount > 0 ? `Cart, ${cartCount} item${cartCount === 1 ? '' : 's'}` : 'Cart'}
-              className="relative w-11 h-11 flex items-center justify-center text-neutral-400 hover:text-black dark:hover:text-white transition-colors"
+              className="relative w-11 h-11 flex items-center justify-center text-neutral-400 hover:text-white transition-colors"
             >
-              <ShoppingCart className="w-4 h-4" />
+              <ShoppingCart className="w-4 h-4" aria-hidden="true" />
               {cartCount > 0 && (
                 <span className="absolute -top-1.5 -right-1.5 bg-[#D4A843] text-black text-xs leading-none font-mono font-bold min-w-5 h-5 px-1 rounded-full flex items-center justify-center">
                   {cartCount > 9 ? '9+' : cartCount}
@@ -246,19 +259,19 @@ export const Header = ({ navigation = MAIN_NAVIGATION }: { navigation?: readonly
           )}
           <HeaderUbunyeBubble />
           {authLoading ? (
-            <div className="w-24 h-8" />
+            <div className="w-24 h-11" />
           ) : isLoggedIn ? (
             <>
               <Link
                 href="/dashboard"
-                className="text-xs font-mono font-medium tracking-widest text-neutral-400 dark:text-neutral-400 hover:text-black dark:hover:text-white border border-neutral-300 dark:border-white/30 px-5 py-2 hover:opacity-80 transition-all duration-300 uppercase"
+                className="text-xs font-mono font-medium tracking-widest text-neutral-400 hover:text-white border border-white/30 px-5 min-h-[44px] inline-flex items-center hover:opacity-80 transition-all duration-300 uppercase"
               >
                 Dashboard
               </Link>
               <button
                 onClick={handleSignOut}
                 disabled={signingOut}
-                className="text-xs font-mono font-medium tracking-widest text-neutral-400 dark:text-neutral-400 hover:text-red-500 dark:hover:text-red-400 px-5 py-2 hover:opacity-80 transition-all duration-300 uppercase disabled:opacity-50"
+                className="text-xs font-mono font-medium tracking-widest text-neutral-400 hover:text-red-400 px-5 min-h-[44px] hover:opacity-80 transition-all duration-300 uppercase disabled:opacity-50"
               >
                 {signingOut ? 'Signing Out...' : 'Sign Out'}
               </button>
@@ -266,7 +279,7 @@ export const Header = ({ navigation = MAIN_NAVIGATION }: { navigation?: readonly
           ) : (
             <Link
               href="/login"
-              className="text-xs font-mono font-medium tracking-widest text-neutral-400 dark:text-neutral-400 hover:text-black dark:hover:text-white border border-neutral-300 dark:border-white/30 px-5 py-2 hover:opacity-80 transition-all duration-300 uppercase"
+              className="text-xs font-mono font-medium tracking-widest text-neutral-400 hover:text-white border border-white/30 px-5 min-h-[44px] inline-flex items-center hover:opacity-80 transition-all duration-300 uppercase"
             >
               Sign In
             </Link>
@@ -280,9 +293,9 @@ export const Header = ({ navigation = MAIN_NAVIGATION }: { navigation?: readonly
             <Link
               href="/dashboard/cart"
               aria-label={cartCount > 0 ? `Cart, ${cartCount} item${cartCount === 1 ? '' : 's'}` : 'Cart'}
-              className="relative w-11 h-11 flex items-center justify-center text-neutral-400 hover:text-black dark:hover:text-white transition-colors"
+              className="relative w-11 h-11 flex items-center justify-center text-neutral-400 hover:text-white transition-colors"
             >
-              <ShoppingCart className="w-5 h-5" />
+              <ShoppingCart className="w-5 h-5" aria-hidden="true" />
               {cartCount > 0 && (
                 <span className="absolute -top-1.5 -right-1.5 bg-[#D4A843] text-black text-xs leading-none font-mono font-bold min-w-5 h-5 px-1 rounded-full flex items-center justify-center">
                   {cartCount > 9 ? '9+' : cartCount}
@@ -291,12 +304,13 @@ export const Header = ({ navigation = MAIN_NAVIGATION }: { navigation?: readonly
             </Link>
           )}
           <button
-            className="text-black dark:text-white w-11 h-11 -mr-2 flex items-center justify-center"
+            className="text-white w-11 h-11 -mr-2 flex items-center justify-center"
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
             aria-label={mobileMenuOpen ? 'Close menu' : 'Open menu'}
             aria-expanded={mobileMenuOpen}
+            aria-haspopup="dialog"
           >
-            {mobileMenuOpen ? <X /> : <Menu />}
+            {mobileMenuOpen ? <X aria-hidden="true" /> : <Menu aria-hidden="true" />}
           </button>
         </div>
       </div>
@@ -313,22 +327,32 @@ export const Header = ({ navigation = MAIN_NAVIGATION }: { navigation?: readonly
             onClick={() => setMobileMenuOpen(false)}
           >
             <motion.div
+              ref={menuPanelRef}
+              role="dialog"
+              aria-modal="true"
+              aria-label="Menu"
+              tabIndex={-1}
               initial={{ opacity: 0, y: -30 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -30 }}
               transition={{ duration: 0.3, ease: 'easeOut' }}
-              className="bg-[#050505] min-h-screen overflow-y-auto flex flex-col justify-center items-center gap-6"
+              // h-dvh + overflow-y-auto + justify-start: in landscape the
+              // links are taller than the screen; centring them clipped the
+              // top items off-screen where they could not be scrolled to.
+              // The inner my-auto still centres them when they do fit.
+              className="bg-[#050505] h-dvh overflow-y-auto overscroll-contain flex flex-col justify-start"
               onClick={(e) => e.stopPropagation()}
             >
               {/* Close button */}
               <button
-                onClick={() => setMobileMenuOpen(false)}
+                onClick={closeMenu}
                 className="absolute top-0 right-0 z-10 p-6 min-h-[44px] min-w-[44px] flex items-center justify-center text-white"
                 aria-label="Close menu"
               >
-                <X className="w-6 h-6" />
+                <X className="w-6 h-6" aria-hidden="true" />
               </button>
 
+              <nav aria-label="Main" className="my-auto w-full flex flex-col items-center gap-6 py-20">
               {navigation.map((item) => (
                 <MobileNavSection
                   key={item.label}
@@ -371,6 +395,7 @@ export const Header = ({ navigation = MAIN_NAVIGATION }: { navigation?: readonly
                   </button>
                 )}
               </div>
+              </nav>
             </motion.div>
           </motion.div>
         )}

@@ -1,4 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
+import { usesDummySupabase, DUMMY_SUPABASE_SKIP_REASON } from './helpers/supabase-env';
 
 // ─── Test credentials ──────────────────────────────────────────────────────────
 
@@ -16,9 +17,16 @@ async function safeGoto(page: Page, path: string, timeout = 30_000) {
   }
 }
 
+/** The sign-in screen is passwordless first; password sign-in is one tap away. */
+async function switchToPasswordSignIn(page: Page) {
+  await page.getByRole('button', { name: /use a password instead/i }).click();
+  await expect(page.locator('#password')).toBeVisible();
+}
+
 /** Login helper — fills login form and submits */
 async function login(page: Page, email = TEST_EMAIL, password = TEST_PASSWORD) {
   await page.goto('/login');
+  await switchToPasswordSignIn(page);
   await page.locator('#email').fill(email);
   await page.locator('#password').fill(password);
   await page.getByRole('button', { name: 'Sign In', exact: true }).click();
@@ -41,93 +49,69 @@ async function expectProtected(page: Page) {
 // 1. REGISTRATION
 // ═══════════════════════════════════════════════════════════════════════════════
 
+// Signing up is the same screen as signing in now (/register redirects to
+// /login?mode=signup): Google or a passwordless email, no password to set and
+// no confirm-password field. The terms are disclosed on the screen and
+// accepted once, with a tap, on /welcome.
 test.describe('1. Registration', () => {
-  test('1a. Register page loads with all form fields', async ({ page }) => {
+  test('1a. Register sends you to the one sign-in screen', async ({ page }) => {
     await page.goto('/register');
+    await expect(page).toHaveURL(/\/login\?.*mode=signup/);
     await expect(page.locator('#email')).toBeVisible();
-    await expect(page.locator('#password')).toBeVisible();
-    await expect(page.locator('#confirmPassword')).toBeVisible();
-    await expect(page.locator('input[type="checkbox"]')).toBeAttached();
-    await expect(page.getByRole('button', { name: /create account/i })).toBeVisible();
+    await expect(page.getByRole('button', { name: /continue with google/i })).toBeVisible();
+    await expect(page.getByRole('button', { name: /continue with email/i })).toBeVisible();
   });
 
-  test('1b. Register rejects duplicate email', async ({ page }) => {
+  test('1b. Sign-up is passwordless: no password to set', async ({ page }) => {
     await page.goto('/register');
-    await page.locator('#email').fill(TEST_EMAIL);
-    await page.locator('#password').fill(TEST_PASSWORD);
-    await page.locator('#confirmPassword').fill(TEST_PASSWORD);
-    await page.locator('input[type="checkbox"]').check();
-    await page.getByRole('button', { name: /create account/i }).click();
-
-    // Should show an error or redirect — Supabase may return "User already registered"
-    await page.waitForTimeout(3000);
-    const bodyText = await page.textContent('body');
-    const hasError = bodyText?.match(/already|exist|registered|confirm|check your email/i) !== null;
-    const redirected = page.url().includes('/dashboard') || page.url().includes('/login');
-    // Either shows error OR redirects (if email confirmation is required)
-    expect(hasError || redirected).toBe(true);
+    await expect(page.getByRole('heading', { name: /create your account/i })).toBeVisible();
+    await expect(page.locator('#email')).toBeVisible();
+    await expect(page.locator('input[type="password"]')).toHaveCount(0);
   });
 
-  test('1c. Register rejects weak password', async ({ page }) => {
-    await page.goto('/register');
+  test('1c. Password sign-in asks for the password before sending anything', async ({ page }) => {
+    await page.goto('/login');
+    await switchToPasswordSignIn(page);
     await page.locator('#email').fill('weakpass@test.com');
-    await page.locator('#password').fill('123');
-    await page.locator('#confirmPassword').fill('123');
-    await page.locator('input[type="checkbox"]').check();
-    await page.getByRole('button', { name: /create account/i }).click();
+    await page.getByRole('button', { name: 'Sign In', exact: true }).click();
 
-    await expect(
-      page.getByText(/password must be at least/i),
-    ).toBeVisible({ timeout: 5000 });
+    await expect(page.getByText(/please enter your password/i)).toBeVisible({ timeout: 5000 });
+    await expect(page.locator('#password')).toHaveAttribute('aria-invalid', 'true');
   });
 
-  test('1d. Register validates empty fields', async ({ page }) => {
+  test('1d. Continue with email validates an empty address', async ({ page }) => {
     await page.goto('/register');
-    await page.getByRole('button', { name: /create account/i }).click();
+    await page.getByRole('button', { name: /continue with email/i }).click();
 
-    // Browser HTML5 validation should prevent submission, or app shows error
-    // Check that we're still on register page
-    expect(page.url()).toContain('/register');
+    await expect(page.locator('main').getByRole('alert')).toContainText(/valid email/i);
+    expect(page.url()).toContain('/login');
   });
 
-  test('1e. Register validates invalid email format', async ({ page }) => {
+  test('1e. Continue with email validates the email format', async ({ page }) => {
     await page.goto('/register');
     await page.locator('#email').fill('notanemail');
-    await page.locator('#password').fill('ValidPass2026!');
-    await page.locator('#confirmPassword').fill('ValidPass2026!');
-    await page.locator('input[type="checkbox"]').check();
-    await page.getByRole('button', { name: /create account/i }).click();
+    await page.getByRole('button', { name: /continue with email/i }).click();
 
-    // HTML5 validation or app validation should catch this
-    await page.waitForTimeout(2000);
-    expect(page.url()).toContain('/register');
+    await expect(page.locator('main').getByRole('alert')).toContainText(/valid email/i);
+    await expect(page.locator('#email')).toHaveAttribute('aria-invalid', 'true');
+    expect(page.url()).toContain('/login');
   });
 
-  test('1f. Register requires terms checkbox', async ({ page }) => {
+  test('1f. The terms are disclosed on the sign-up screen, with links', async ({ page }) => {
     await page.goto('/register');
-    await page.locator('#email').fill('terms@test.com');
-    await page.locator('#password').fill('ValidPass2026!');
-    await page.locator('#confirmPassword').fill('ValidPass2026!');
-    // Intentionally NOT checking terms
-    await page.getByRole('button', { name: /create account/i }).click();
-
-    // Error: "You must agree to the Terms of Service and Privacy Policy."
-    await expect(
-      page.getByText(/must agree/i),
-    ).toBeVisible({ timeout: 5000 });
+    const notice = page.getByTestId('terms-notice');
+    await expect(notice).toContainText(/by continuing you agree/i);
+    await expect(notice.getByRole('link', { name: /terms/i })).toBeVisible();
+    await expect(notice.getByRole('link', { name: /privacy/i })).toBeVisible();
+    // Nothing is ticked here: acceptance is recorded with a tap on /welcome.
+    await expect(page.locator('input[type="checkbox"]')).toHaveCount(0);
   });
 
-  test('1g. Register shows error for mismatched passwords', async ({ page }) => {
+  test('1g. No confirm-password field, even for password sign-in', async ({ page }) => {
     await page.goto('/register');
-    await page.locator('#email').fill('mismatch@test.com');
-    await page.locator('#password').fill('Password123!');
-    await page.locator('#confirmPassword').fill('DifferentPassword!');
-    await page.locator('input[type="checkbox"]').check();
-    await page.getByRole('button', { name: /create account/i }).click();
-
-    await expect(
-      page.getByText(/passwords do not match/i),
-    ).toBeVisible({ timeout: 5000 });
+    await switchToPasswordSignIn(page);
+    await expect(page.locator('#confirmPassword')).toHaveCount(0);
+    await expect(page.locator('input[type="password"]')).toHaveCount(1);
   });
 });
 
@@ -138,12 +122,14 @@ test.describe('1. Registration', () => {
 test.describe('2. Login', () => {
   test('2a. Login page loads with form fields', async ({ page }) => {
     await page.goto('/login');
+    await switchToPasswordSignIn(page);
     await expect(page.locator('#email')).toBeVisible();
     await expect(page.locator('#password')).toBeVisible();
     await expect(page.getByRole('button', { name: 'Sign In', exact: true })).toBeVisible();
   });
 
   test('2b. Login succeeds with correct credentials', async ({ page }) => {
+    test.skip(usesDummySupabase(), DUMMY_SUPABASE_SKIP_REASON);
     await login(page);
     // Should redirect to dashboard or admin
     await page.waitForTimeout(3000);
@@ -153,7 +139,9 @@ test.describe('2. Login', () => {
   });
 
   test('2c. Login fails with wrong password', async ({ page }) => {
+    test.skip(usesDummySupabase(), DUMMY_SUPABASE_SKIP_REASON);
     await page.goto('/login');
+    await switchToPasswordSignIn(page);
     await page.locator('#email').fill(TEST_EMAIL);
     await page.locator('#password').fill('WrongPass123!');
     await page.getByRole('button', { name: 'Sign In', exact: true }).click();
@@ -165,7 +153,9 @@ test.describe('2. Login', () => {
   });
 
   test('2d. Login fails with non-existent email', async ({ page }) => {
+    test.skip(usesDummySupabase(), DUMMY_SUPABASE_SKIP_REASON);
     await page.goto('/login');
+    await switchToPasswordSignIn(page);
     await page.locator('#email').fill('nobody@doesnotexist.com');
     await page.locator('#password').fill('SomePassword123!');
     await page.getByRole('button', { name: 'Sign In', exact: true }).click();
@@ -178,6 +168,7 @@ test.describe('2. Login', () => {
 
   test('2e. Login validates empty fields', async ({ page }) => {
     await page.goto('/login');
+    await switchToPasswordSignIn(page);
     await page.getByRole('button', { name: 'Sign In', exact: true }).click();
 
     // HTML5 validation should prevent submission
@@ -187,6 +178,7 @@ test.describe('2. Login', () => {
 
   test('2f. Login handles SQL injection safely', async ({ page }) => {
     await page.goto('/login');
+    await switchToPasswordSignIn(page);
     await page.locator('#email').fill("' OR 1=1 --");
     await page.locator('#password').fill('anything');
     await page.getByRole('button', { name: 'Sign In', exact: true }).click();
@@ -207,6 +199,7 @@ test.describe('2. Login', () => {
 test.describe('3. Forgot Password', () => {
   test('3a. Forgot password link exists and opens form', async ({ page }) => {
     await page.goto('/login');
+    await switchToPasswordSignIn(page);
     const forgotBtn = page.getByRole('button', { name: /forgot password/i });
     await expect(forgotBtn).toBeVisible();
     await forgotBtn.click();
@@ -220,6 +213,7 @@ test.describe('3. Forgot Password', () => {
 
   test('3b. Forgot password submits for valid email', async ({ page }) => {
     await page.goto('/login');
+    await switchToPasswordSignIn(page);
     await page.getByRole('button', { name: /forgot password/i }).click();
     await page.locator('#resetEmail').fill(TEST_EMAIL);
     await page.getByRole('button', { name: /send reset link/i }).click();
@@ -233,6 +227,7 @@ test.describe('3. Forgot Password', () => {
 
   test('3c. Forgot password for non-existent email does not crash', async ({ page }) => {
     await page.goto('/login');
+    await switchToPasswordSignIn(page);
     await page.getByRole('button', { name: /forgot password/i }).click();
     await page.locator('#resetEmail').fill('nobody@doesnotexist.com');
     await page.getByRole('button', { name: /send reset link/i }).click();
@@ -247,6 +242,7 @@ test.describe('3. Forgot Password', () => {
 
   test('3d. Forgot password validates empty email', async ({ page }) => {
     await page.goto('/login');
+    await switchToPasswordSignIn(page);
     await page.getByRole('button', { name: /forgot password/i }).click();
     await page.getByRole('button', { name: /send reset link/i }).click();
 
@@ -579,10 +575,13 @@ test.describe('6. Ubunye AI', () => {
     await page.goto('/ubunye-ai-studio');
     await page.waitForLoadState('networkidle');
 
-    // ChatInputBar renders "{remaining} left" for guests, not "N free messages".
-    const bodyText = await page.textContent('body');
-    const hasCounter = bodyText?.match(/\d+\s*left/i) !== null;
-    expect(hasCounter).toBe(true);
+    // A guest sees the counter before sending anything: ChatInputBar renders
+    // "{remaining} free message(s) left" (no "today": that is the signed-in
+    // daily allowance). The copy used to be "{remaining} left".
+    const counter = page.getByText(/^\d+ free messages? left$/i);
+    await expect(counter).toBeVisible();
+    const remaining = Number((await counter.textContent())?.match(/\d+/)?.[0]);
+    expect(remaining).toBeGreaterThan(0);
   });
 });
 
@@ -893,8 +892,15 @@ test.describe('11. API validation', () => {
     }
   });
 
-  test('11e. Gemini API rejects empty prompt', async ({ page }) => {
-    const response = await page.request.post('/api/gemini', {
+  // /api/gemini was removed on purpose (81a5b3b: an unmetered, guest-callable
+  // model endpoint nothing called). Guest prompts go to /api/ubunye-chat,
+  // which takes `prompt` or `messages` and validates them before any model
+  // or usage counter is touched.
+  test('11e. Chat API rejects an empty prompt (the old Gemini route stays gone)', async ({ page }) => {
+    const gone = await page.request.post('/api/gemini', { data: { prompt: 'hello' } });
+    expect(gone.status()).toBe(404);
+
+    const response = await page.request.post('/api/ubunye-chat', {
       data: { prompt: '' },
     });
     expect(response.status()).toBe(400);
@@ -902,12 +908,16 @@ test.describe('11. API validation', () => {
     expect(json.error).toMatch(/prompt/i);
   });
 
-  test('11f. Gemini API rejects invalid JSON', async ({ page }) => {
-    const response = await page.request.post('/api/gemini', {
+  test('11f. Chat API rejects invalid JSON', async ({ page }) => {
+    // A Buffer goes on the wire as is (a string with a JSON content type is
+    // JSON-encoded by Playwright, i.e. becomes the valid JSON "not json").
+    const response = await page.request.post('/api/ubunye-chat', {
       headers: { 'Content-Type': 'application/json' },
-      data: 'not json',
+      data: Buffer.from('not json'),
     });
     expect(response.status()).toBe(400);
+    const json = await response.json();
+    expect(json.error).toMatch(/invalid json/i);
   });
 
   test('11g. Ubunye chat API rejects empty body', async ({ page }) => {
@@ -927,6 +937,9 @@ test.describe('11. API validation', () => {
   });
 
   test('11i. All public pages return 200', async ({ page }) => {
+    // ~7 s per page while every render waits on the dummy host: 17 pages
+    // exceed the 60 s timeout. Each page is still loaded by section 5.
+    test.skip(usesDummySupabase(), DUMMY_SUPABASE_SKIP_REASON);
     const publicPages = [
       '/', '/rentals', '/studio', '/press', '/pricing',
       '/contact', '/about', '/careers', '/locations', '/legal', '/privacy', '/refunds',

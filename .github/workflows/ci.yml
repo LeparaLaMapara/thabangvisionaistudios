@@ -1,15 +1,20 @@
 name: CI
 on:
   push:
-    branches: [main, 'v2/**', 'v3/**', 'v4/**']
+    branches: [main, develop, 'v2/**', 'v3/**', 'v4/**']
   pull_request:
-    branches: [main]
+    branches: [main, develop]
 
+# CI never uses real credentials. The repository secrets pointed at the
+# PRODUCTION Supabase project (with its service-role key), which the
+# no-prod-credentials guard test refuses: the build and unit tests need no
+# live service, so placeholders are used. The database job runs its own
+# local Supabase.
 env:
-  NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
-  NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
-  SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-  ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+  NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
+  NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-placeholder-anon-key
+  SUPABASE_SERVICE_ROLE_KEY: ci-placeholder-service-role-key
+  ANTHROPIC_API_KEY: ci-placeholder
   AI_PROVIDER: anthropic
   PAYMENT_PROVIDER: payfast
   STORAGE_PROVIDER: cloudinary
@@ -75,3 +80,55 @@ jobs:
           grep -rn "from 'nodemailer'" --include="*.ts" --include="*.tsx" app/ 2>/dev/null && FOUND=1 || true
           if [ $FOUND -eq 1 ]; then echo "❌ Direct SDK imports found in app/ — use lib/ abstractions"; exit 1; fi
           echo "✅ No direct SDK imports in app/"
+
+  # Rebuilds the whole schema from the repo (base schema + lib/migrations in
+  # the canonical order) into an empty local Supabase and runs every SQL test.
+  # Nothing here reaches a Supabase project: the scripts refuse any non-local
+  # host. The Supabase project comes from .github/ci/supabase/ (empty
+  # migrations folder), NOT the repo's supabase/ folder, whose stale
+  # migrations `supabase start` would otherwise auto-apply.
+  database:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      SUPABASE_CLI: supabase@2.120.0
+      CI_DB_URL: postgresql://postgres:postgres@127.0.0.1:54422/postgres
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+
+      - name: Setup Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 20
+
+      - name: psql client
+        run: |
+          command -v psql || { sudo apt-get update && sudo apt-get install -y postgresql-client; }
+          psql --version
+
+      # Database + Auth + Storage only: the schema needs the auth.users columns
+      # and storage.buckets/objects that gotrue and storage-api create.
+      - name: Start local Supabase (db, auth, storage)
+        run: >
+          npx --yes "$SUPABASE_CLI" start --workdir .github/ci
+          -x realtime,imgproxy,kong,mailpit,postgrest,postgres-meta,studio,edge-runtime,logflare,vector,supavisor
+
+      - name: Rebuild schema (scripts/db/rebuild-local.sh)
+        run: bash scripts/db/rebuild-local.sh "$CI_DB_URL"
+
+      - name: SQL tests (scripts/db/run-sql-tests.sh)
+        env:
+          SQL_TEST_LOG_DIR: ${{ runner.temp }}/sql-test-logs
+        run: bash scripts/db/run-sql-tests.sh "$CI_DB_URL"
+
+      - name: Upload SQL test logs
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: sql-test-logs
+          path: ${{ runner.temp }}/sql-test-logs
+          if-no-files-found: ignore
+
+      - name: Stop local Supabase
+        if: always()
+        run: npx --yes "$SUPABASE_CLI" stop --workdir .github/ci --no-backup

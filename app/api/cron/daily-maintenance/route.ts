@@ -4,25 +4,40 @@ export const maxDuration = 60;
 import { NextRequest, NextResponse } from 'next/server';
 import { validateCronAuth } from '@/lib/cron/auth';
 import { createAdminClient } from '@/lib/supabase/server';
-import { triggerCreatorPayout } from '@/lib/payments/payout';
+import { runServicePayouts } from '@/lib/payments/payout';
+import { decideServiceTransition } from '@/lib/core/services/fulfilment';
+import { recordServiceBookingEvent, updateServiceBooking } from '@/lib/supabase/queries/service-bookings';
 import { email as emailProvider } from '@/lib/email';
 import { STUDIO } from '@/lib/constants';
 import { autoPublishCreatorProductions } from '@/lib/supabase/queries/smartProductions';
 import { effectiveHoldMinutes } from '@/lib/rental/availability-server';
 import { notifyClient } from '@/lib/bookings/notify-client';
 import { loadNoticeBookings, sendGearNotice } from '@/lib/rental/notices';
+import { paymentReference } from '@/lib/payments/eft';
 import { autoSendWelcomes, draftMissingWelcomes } from '@/lib/greetings/process';
+import { runOverdueLadder } from '@/lib/rental/workers';
+import { buildNotices } from '@/lib/core/rental/notifications';
+import { SupabaseAddressRetention, purgeDeliveryAddresses } from '@/lib/delivery/jobs';
+import { answerWindowPassed, needsAnswerReminder } from '@/lib/bookings/answer-by';
+import {
+  ANSWER_REMINDER_TITLE,
+  answerReminderEmail,
+  answerReminderNoticeBody,
+} from '@/lib/bookings/creator-job-emails';
 
 /**
  * Daily Maintenance — runs at 2am SAST (00:00 UTC)
  *
  * 1. Cancel unpaid bookings older than 72 hours
- * 2. Auto-approve delivered bookings past 7-day window + trigger payouts
- * 3. Retry failed payouts (max 3 attempts, 6h+ apart)
- * 4. Check for stuck payouts (processing > 24 hours)
+ * 2. Auto-approve deliveries unanswered for STUDIO.booking.autoApproveDeliveryAfterDays
+ *    (records completion and the payout due time; never pays on the spot)
+ * 3. Creator payouts: send those due and allowed, reconcile those in flight
+ *    (stable reference, lookup before any resend), alert on the rest
+ * 3b. Alert on payouts still processing after 24 hours
  * 5. Auto-complete stale accepted bookings (30+ days)
  * 6. Expire stale crew requests
- * 7. Auto-reassign unresponsive creators (48h with no acknowledgement)
+ * 7. Auto-reassign unresponsive creators (STUDIO.booking.creatorAnswerHours after payment, no answer)
+ * 7b. Remind creators whose answer is due before the next run (email + in-app)
  * 8. Auto-detect overdue rentals
  * 9. Auto-escalate unreturned gear to disputes (14+ days overdue)
  * 10. Auto-flag/suspend users with 3+ active disputes
@@ -55,29 +70,121 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   // sitting in 'pending' because a webhook has not landed must never be
   // released, or the gear gets sold twice.
   try {
-    // While online payment is off, requests hold their dates for 48 hours so
-    // the team can arrange payment; otherwise the usual short checkout hold.
+    // While online payment is off, EFT requests hold their dates for 48 hours
+    // so the customer can pay; otherwise the usual short checkout hold. Cash
+    // bookings are paid at collection and are handled below, not here.
     const holdCutoff = new Date(
       now.getTime() - effectiveHoldMinutes() * 60_000,
     ).toISOString();
 
-    const { data: released, error } = await supabase
-      .from('equipment_bookings')
-      .update({
-        status: 'cancelled',
-        cancelled_at: now.toISOString(),
-        updated_at: now.toISOString(),
-        cancellation_refund_status: 'not_required',
-      })
-      .eq('status', 'pending')
-      .is('payfast_payment_id', null)
-      .lt('created_at', holdCutoff)
-      .select('id');
+    // Orders reserved through the Phase 1 pipeline (with a hold_expires_at)
+    // are released by /api/cron/rental-pipeline, which first asks the provider
+    // about missed payments and marks them 'hold_expired' so a late payment
+    // can still be confirmed. This step only handles older rows.
+    const release = (pipelineAware: boolean) => {
+      let q = supabase
+        .from('equipment_bookings')
+        .update({
+          status: 'cancelled',
+          cancelled_at: now.toISOString(),
+          updated_at: now.toISOString(),
+          cancellation_refund_status: 'not_required',
+        })
+        .eq('status', 'pending')
+        .is('payfast_payment_id', null)
+        .or('payment_method.is.null,payment_method.neq.cash')
+        .lt('created_at', holdCutoff);
+      if (pipelineAware) q = q.is('hold_expires_at', null);
+      return q.select('id, checkout_group_id, amount_due, payment_method');
+    };
+    let { data: released, error } = await release(true);
+    if (error && /hold_expires_at/.test(error.message)) ({ data: released, error } = await release(false));
 
     if (error) throw new Error(error.message);
     results.expiredHoldsReleased = released?.length ?? 0;
+
+    // Tell each customer whose EFT order was released (one message per order),
+    // and give the owner the list.
+    const releasedOrders = (released ?? []).filter((b) => b.payment_method === 'eft' && b.amount_due != null);
+    for (const b of releasedOrders) {
+      const orderId = b.checkout_group_id ?? b.id;
+      await sendGearNotice('payment_released', await loadNoticeBookings([b.id]), { reference: paymentReference(orderId) });
+    }
+    if (releasedOrders.length > 0) {
+      await emailProvider.sendEmail({
+        to: STUDIO.bookingEmail,
+        subject: `[Released] ${releasedOrders.length} unpaid EFT booking(s) — ${STUDIO.name}`,
+        text: `These EFT bookings were not paid within ${STUDIO.bank.payWithinHours} hours and were released:\n\n${releasedOrders.map((b) => `${paymentReference(b.checkout_group_id ?? b.id)}: R${b.amount_due}`).join('\n')}\n\nThe customers were told. If one of them paid, mark it paid in admin and re-book the dates with them.`,
+      });
+    }
   } catch (err) {
     results.expiredHoldsError = String(err);
+  }
+
+  // ─── 0c. EFT reminder after 24 hours, once per order ────────────────────
+  try {
+    const dayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString();
+    const { data: waiting } = await supabase
+      .from('equipment_bookings')
+      .select('id, checkout_group_id, amount_due')
+      .eq('status', 'pending')
+      .eq('payment_method', 'eft')
+      .is('payfast_payment_id', null)
+      .not('amount_due', 'is', null)
+      .lt('created_at', dayAgo);
+    let reminded = 0;
+    for (const b of waiting ?? []) {
+      const { count } = await supabase
+        .from('notifications')
+        .select('id', { count: 'exact', head: true })
+        .eq('type', 'gear_payment_reminder')
+        .eq('link', `/dashboard/bookings/${b.id}`);
+      if ((count ?? 0) > 0) continue;
+      await sendGearNotice('payment_reminder', await loadNoticeBookings([b.id]), {
+        amountDue: Number(b.amount_due),
+        reference: paymentReference(b.checkout_group_id ?? b.id),
+      });
+      reminded++;
+    }
+    results.eftReminders = reminded;
+  } catch (err) {
+    results.eftRemindersError = String(err);
+  }
+
+  // ─── 0d. Cash bookings nobody collected: release the day after ──────────
+  try {
+    const today = now.toLocaleDateString('en-CA', { timeZone: 'Africa/Johannesburg' });
+    // Pipeline cash holds (hold_expires_at = end of the hire day) are released
+    // by /api/cron/rental-pipeline as 'hold_expired'; this handles older rows.
+    const releaseCash = (pipelineAware: boolean) => {
+      let q = supabase
+        .from('equipment_bookings')
+        .update({
+          status: 'cancelled',
+          cancelled_at: now.toISOString(),
+          updated_at: now.toISOString(),
+          cancellation_refund_status: 'not_required',
+        })
+        .eq('status', 'pending')
+        .eq('payment_method', 'cash')
+        .lt('start_date', today);
+      if (pipelineAware) q = q.is('hold_expires_at', null);
+      return q.select('id, checkout_group_id, amount_due');
+    };
+    let { data: uncollected, error: cashErr } = await releaseCash(true);
+    if (cashErr && /hold_expires_at/.test(cashErr.message)) ({ data: uncollected, error: cashErr } = await releaseCash(false));
+    if (cashErr) throw new Error(cashErr.message);
+    results.cashNotCollectedReleased = uncollected?.length ?? 0;
+    const orders = (uncollected ?? []).filter((b) => b.amount_due != null);
+    if (orders.length > 0) {
+      await emailProvider.sendEmail({
+        to: STUDIO.bookingEmail,
+        subject: `[Released] ${orders.length} cash booking(s) not collected — ${STUDIO.name}`,
+        text: `These cash-at-collection bookings passed their first hire day without being collected and were released:\n\n${orders.map((b) => paymentReference(b.checkout_group_id ?? b.id)).join('\n')}`,
+      });
+    }
+  } catch (err) {
+    results.cashReleaseError = String(err);
   }
 
   // ─── 1. Cancel unpaid bookings > 72 hours ─────────────────────────────────
@@ -110,107 +217,106 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     results.cancelledUnpaidError = String(err);
   }
 
-  // ─── 2. Auto-approve delivered bookings > 7 days ──────────────────────────
+  // ─── 2. Auto-approve deliveries nobody answered ───────────────────────────
+  // After STUDIO.booking.autoApproveDeliveryAfterDays with no approval,
+  // revision request or dispute, the delivery counts as approved. This only
+  // records completion and schedules the payout (payoutDelayHours later); it
+  // never pays on the spot. Rules: lib/core/services/fulfilment.ts.
   try {
-    const approvalCutoff = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString();
-    const { data: autoApproved } = await supabase
+    const approvalCutoff = new Date(
+      now.getTime() - STUDIO.booking.autoApproveDeliveryAfterDays * 24 * 60 * 60 * 1000,
+    ).toISOString();
+    const { data: delivered, error } = await supabase
       .from('bookings')
-      .update({
-        status: 'completed',
-        completed_at: now.toISOString(),
-        updated_at: now.toISOString(),
-      })
+      .select('id, reference, status, delivered_at, creator_id, creator_amount, project_category, payment_status, paystack_reference, total, created_at, shoot_date')
       .eq('status', 'delivered')
-      .lt('delivered_at', approvalCutoff)
-      .select('id, reference, creator_id, creator_amount, project_category, payment_status');
+      .lt('delivered_at', approvalCutoff);
+    if (error) throw new Error(error.message);
 
-    results.autoApproved = autoApproved?.length ?? 0;
-
-    // Trigger payouts for auto-approved bookings
-    if (autoApproved && autoApproved.length > 0) {
-      let payoutSuccesses = 0;
-      let payoutFailures = 0;
-
-      for (const booking of autoApproved) {
-        if (booking.creator_id && booking.payment_status === 'paid') {
-          const payoutResult = await triggerCreatorPayout({
-            bookingId: booking.id,
-            reference: booking.reference,
-            creatorId: booking.creator_id,
-            creatorAmount: booking.creator_amount,
-            projectCategory: booking.project_category,
+    let approved = 0;
+    for (const b of delivered ?? []) {
+      const decision = decideServiceTransition({
+        action: 'auto_approve',
+        actor: 'system',
+        booking: {
+          status: b.status,
+          paymentStatus: b.payment_status,
+          paymentReference: b.paystack_reference,
+          total: Number(b.total ?? 0),
+          createdAt: b.created_at,
+          shootDate: b.shoot_date,
+          deliveredAt: b.delivered_at,
+          revisionsIncluded: null,
+          revisionsUsed: null,
+        },
+        now,
+      });
+      if (!decision.ok) continue;
+      const r = await updateServiceBooking(supabase, b.id, decision.from, {
+        ...decision.patch,
+        status: decision.to,
+        updated_at: now.toISOString(),
+      });
+      if (!r.ok || !r.updated) continue;
+      approved++;
+      await recordServiceBookingEvent(supabase, {
+        bookingId: b.id, event: 'auto_approve', from: decision.from, to: decision.to, actor: 'system', actorId: null,
+        reason: `no response within ${STUDIO.booking.autoApproveDeliveryAfterDays} days of delivery`,
+      });
+      const due = new Date(String(decision.patch.payout_due_at)).toLocaleString('en-ZA', { timeZone: 'Africa/Johannesburg', dateStyle: 'medium', timeStyle: 'short' });
+      await notifyClient({
+        bookingId: b.id,
+        type: 'booking_completed',
+        title: 'Your booking is complete',
+        body: `We did not hear back within ${STUDIO.booking.autoApproveDeliveryAfterDays} days of delivery, so ${b.reference} has been approved. If something is wrong, raise it before ${due}.`,
+      });
+      if (b.creator_id) {
+        try {
+          await supabase.from('notifications').insert({
+            user_id: b.creator_id,
+            type: 'booking_completed',
+            title: 'Gig approved',
+            body: `${b.project_category} (${b.reference}) was approved automatically. Your payout of R${b.creator_amount} is due to be sent on ${due}, as long as no problem is raised before then. When it reaches your account depends on your bank.`,
+            link: '/dashboard/gigs',
           });
-          if (payoutResult.success) payoutSuccesses++;
-          else payoutFailures++;
-        }
+        } catch { /* don't block */ }
       }
-
-      results.autoPayouts = { success: payoutSuccesses, failed: payoutFailures };
     }
+    results.autoApproved = approved;
   } catch (err) {
     results.autoApprovedError = String(err);
   }
 
-  // ─── 3. Retry failed payouts (max 3 attempts, 6h+ apart) ─────────────────
+  // ─── 3. Creator payouts: send what is due, reconcile what is in flight ────
+  // Sends each payout once its due time has passed and every rule holds (paid
+  // and provider-confirmed, creator verified with a validated bank account,
+  // no open dispute). One stable transfer reference per booking; anything
+  // that may already have been sent is looked up with the provider first and
+  // never re-sent under a new reference. lib/payments/payout.ts.
+  // Time budget: no new payout starts once PAYOUT_RUN_TIME_BUDGET_MS has
+  // passed since this cron started, so the steps below (maxDuration = 60 s)
+  // and this digest still run. Anything not reached is named in the digest
+  // and waits for tomorrow.
   try {
-    const retryCutoff = new Date(now.getTime() - 6 * 60 * 60 * 1000).toISOString();
-    const { data: failedPayouts } = await supabase
-      .from('bookings')
-      .select('id, reference, creator_id, creator_amount, project_category, payout_retry_count')
-      .eq('payout_status', 'failed')
-      .eq('payment_status', 'paid')
-      .lt('updated_at', retryCutoff);
-
-    let retrySuccesses = 0;
-    let retryFailures = 0;
-    let retryExhausted = 0;
-
-    if (failedPayouts && failedPayouts.length > 0) {
-      for (const booking of failedPayouts) {
-        const retryCount = booking.payout_retry_count ?? 0;
-
-        if (retryCount >= 3) {
-          retryExhausted++;
-          continue;
-        }
-
-        // Increment retry count before attempting
-        await supabase
-          .from('bookings')
-          .update({ payout_retry_count: retryCount + 1, updated_at: now.toISOString() })
-          .eq('id', booking.id);
-
-        const payoutResult = await triggerCreatorPayout({
-          bookingId: booking.id,
-          reference: booking.reference,
-          creatorId: booking.creator_id,
-          creatorAmount: booking.creator_amount,
-          projectCategory: booking.project_category,
-        });
-
-        if (payoutResult.success) {
-          retrySuccesses++;
-        } else {
-          retryFailures++;
-
-          // Final attempt failed — alert admin
-          if (retryCount + 1 >= 3) {
-            await emailProvider.sendEmail({
-              to: STUDIO.bookingEmail,
-              subject: `[Critical] Payout permanently failed — ${booking.reference}`,
-              text: `Payout for booking ${booking.reference} (R${booking.creator_amount}) has failed after 3 attempts.\n\nPlease process this payout manually via the Paystack dashboard.\n\nBooking ID: ${booking.id}`,
-            });
-          }
-        }
-      }
+    const run = await runServicePayouts({ db: supabase, now }, undefined, undefined, { startedAt: now.getTime() });
+    const notProcessed = run.notProcessed ?? 0;
+    results.servicePayouts = { considered: run.considered, notDue: run.notDue, notProcessed, outcomes: run.outcomes, held: run.held.length, attention: run.attention.length };
+    if (run.attention.length > 0 || run.held.length > 0) {
+      const attention = run.attention.map((a) => `${a.reference}: ${a.why}`).join('\n');
+      const held = run.held.map((h) => `${h.reference}: ${h.why}`).join('\n');
+      await emailProvider.sendEmail({
+        to: STUDIO.bookingEmail,
+        subject: `[Payouts] ${run.attention.length} need a person, ${run.held.length} held${notProcessed > 0 ? `, ${notProcessed} not processed this run (time budget)` : ''} — ${STUDIO.name}`,
+        text: `Creator payouts that are due but were not sent today.
+${notProcessed > 0 ? `\n${notProcessed} due payout${notProcessed === 1 ? ' was' : 's were'} not processed this run (time budget); they are looked at again on the next run.\n` : ''}
+${run.attention.length > 0 ? `NEED A PERSON (nothing was sent; do not re-send under a new reference without checking the provider dashboard):\n${attention}\n\n` : ''}${run.held.length > 0 ? `HELD BY A RULE (sent automatically once the rule clears):\n${held}` : ''}`,
+      });
     }
-
-    results.payoutRetries = { success: retrySuccesses, failed: retryFailures, exhausted: retryExhausted };
   } catch (err) {
-    results.payoutRetriesError = String(err);
+    results.servicePayoutsError = String(err);
   }
 
-  // ─── 4. Check for stuck payouts (processing > 24 hours) ──────────────────
+  // ─── 3b. Payouts still with the provider after 24 hours ───────────────────
   try {
     const stuckCutoff = new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString();
     const { data: stuck } = await supabase
@@ -222,11 +328,11 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     results.stuckPayouts = stuck?.length ?? 0;
 
     if (stuck && stuck.length > 0) {
-      const stuckList = stuck.map(s => `${s.reference}: R${s.creator_amount}`).join('\n');
+      const stuckList = stuck.map(s => `${s.reference}: R${s.creator_amount} (transfer ${s.payout_reference})`).join('\n');
       await emailProvider.sendEmail({
         to: STUDIO.bookingEmail,
-        subject: `[Alert] ${stuck.length} stuck payout(s) — ${STUDIO.name}`,
-        text: `The following payouts have been in "processing" status for over 24 hours:\n\n${stuckList}\n\nPlease check Paystack dashboard and resolve manually.`,
+        subject: `[Alert] ${stuck.length} payout(s) still processing — ${STUDIO.name}`,
+        text: `These payouts have been with the payment provider for over 24 hours. Each was looked up by its transfer reference today and is still not final:\n\n${stuckList}\n\nCheck them in the provider dashboard. Do not send them again under a new reference.`,
       });
     }
   } catch (err) {
@@ -281,35 +387,50 @@ Please contact the client and the creator. They are not paid out or refunded aut
     results.expiredCrewRequestsError = String(err);
   }
 
-  // ─── 7. Auto-reassign unresponsive creators (48h with no acknowledgement) ─
+  // ─── 7. Auto-reassign unresponsive creators (answer window after payment) ─
+  // The window is counted from paid_at (lib/bookings/answer-by.ts), the same
+  // deadline the creator is shown on the job card and in the emails. The
+  // created_at filter only narrows the read: paid_at is never before it.
   try {
-    const responseCutoff = new Date(now.getTime() - 48 * 60 * 60 * 1000).toISOString();
-    const { data: unresponsive } = await supabase
+    const answerHours = STUDIO.booking.creatorAnswerHours;
+    const responseCutoff = new Date(now.getTime() - answerHours * 60 * 60 * 1000).toISOString();
+    const { data: candidates } = await supabase
       .from('bookings')
-      .select('id, reference, creator_id, project_category, client_email')
+      .select('id, reference, creator_id, project_category, client_email, created_at, paid_at')
       .eq('status', 'paid')
       .is('accepted_at', null)
       .lt('created_at', responseCutoff);
 
+    const unresponsive = (candidates ?? []).filter((b) => answerWindowPassed(b, now));
     let reassigned = 0;
 
-    if (unresponsive && unresponsive.length > 0) {
+    if (unresponsive.length > 0) {
       for (const booking of unresponsive) {
-        // Unassign creator from booking
-        await supabase
+        // Unassign the creator only while the booking is still paid and
+        // unanswered (compare-and-set): a creator who accepts or declines
+        // between the read above and this write keeps that answer.
+        const { data: moved, error: moveError } = await supabase
           .from('bookings')
           .update({
             creator_id: null,
             status: 'pending_reassignment',
             updated_at: now.toISOString(),
           })
-          .eq('id', booking.id);
+          .eq('id', booking.id)
+          .eq('status', 'paid')
+          .is('accepted_at', null)
+          .select('id');
+        if (moveError || !moved || moved.length === 0) {
+          // Someone else changed it first: no emails, no notices.
+          if (moveError) console.error('[daily-maintenance] reassignment update failed:', moveError.message);
+          continue;
+        }
 
         // Notify admin for manual reassignment
         await emailProvider.sendEmail({
           to: STUDIO.bookingEmail,
           subject: `[Action Required] Creator unresponsive — ${booking.reference}`,
-          text: `Creator did not acknowledge booking ${booking.reference} (${booking.project_category}) within 48 hours.\n\nThe booking has been unassigned and needs manual reassignment.\n\nClient email: ${booking.client_email}\nBooking ID: ${booking.id}\n\nPlease reassign to another creator in the admin panel.`,
+          text: `Creator did not acknowledge booking ${booking.reference} (${booking.project_category}) within ${answerHours} hours of payment.\n\nThe booking has been unassigned and needs manual reassignment.\n\nClient email: ${booking.client_email}\nBooking ID: ${booking.id}\n\nPlease reassign to another creator in the admin panel.`,
         });
 
         // Notify creator they lost the gig
@@ -319,7 +440,7 @@ Please contact the client and the creator. They are not paid out or refunded aut
               user_id: booking.creator_id,
               type: 'gig_unassigned',
               title: 'Gig Unassigned',
-              body: `Booking ${booking.reference} was unassigned because you did not respond within 48 hours.`,
+              body: `Booking ${booking.reference} was unassigned because you did not respond within ${answerHours} hours.`,
               link: '/dashboard/gigs',
             });
           } catch { /* don't block */ }
@@ -334,79 +455,74 @@ Please contact the client and the creator. They are not paid out or refunded aut
     results.autoReassignedError = String(err);
   }
 
-  // ─── 8. Auto-detect overdue rentals ──────────────────────────────────────────
+  // ─── 7b. Remind creators before a paid job is passed on ──────────────────
+  // This job runs once a day, so the last run before the deadline is the one
+  // where the deadline is less than creatorAnswerReminderHours away: about a
+  // day before release. One in-app row per booking also marks it as sent, so
+  // a manual rerun does not email twice.
   try {
-    const today = new Date().toISOString().split('T')[0];
-    const { data: overdueRentals, error: overdueError } = await supabase
-      .from('equipment_bookings')
-      .update({ status: 'overdue', updated_at: new Date().toISOString() })
-      .eq('status', 'active')
-      .lt('end_date', today)
-      .select('id, user_id');
+    const answerHours = STUDIO.booking.creatorAnswerHours;
+    const earliest = new Date(now.getTime() - answerHours * 60 * 60 * 1000).toISOString();
+    const { data: waiting } = await supabase
+      .from('bookings')
+      .select('id, reference, creator_id, project_category, creator_amount, duration_hours, shoot_date, location, created_at, paid_at, status, accepted_at')
+      .eq('status', 'paid')
+      .is('accepted_at', null)
+      .gte('created_at', earliest);
 
-    if (overdueError) throw overdueError;
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || STUDIO.meta.url;
+    let reminded = 0;
+    for (const booking of waiting ?? []) {
+      // Read filters are narrowed again here: only a still unanswered paid job.
+      if (booking.status !== 'paid' || booking.accepted_at || !booking.creator_id) continue;
+      if (!needsAnswerReminder(booking, now)) continue;
+      const link = `/dashboard/gigs#gig-${booking.id}`;
+      const { data: already } = await supabase
+        .from('notifications')
+        .select('id')
+        .eq('user_id', booking.creator_id)
+        .eq('title', ANSWER_REMINDER_TITLE)
+        .eq('link', link)
+        .limit(1);
+      if (already && already.length > 0) continue;
 
-    // Notify renters
-    for (const booking of overdueRentals ?? []) {
-      await supabase.from('notifications').insert({
-        user_id: booking.user_id,
-        type: 'rental_overdue',
-        title: 'Your rental is overdue',
-        body: 'Please return your gear. Late fees may apply.',
-        link: `/dashboard/bookings/${booking.id}`,
+      const { error: noticeErr } = await supabase.from('notifications').insert({
+        user_id: booking.creator_id,
+        type: 'gig_request',
+        title: ANSWER_REMINDER_TITLE,
+        body: answerReminderNoticeBody(booking),
+        link,
       });
+      if (noticeErr) {
+        console.error('[daily-maintenance] answer reminder notice failed:', noticeErr.message);
+        continue;
+      }
+      try {
+        const { data: creator } = await supabase.auth.admin.getUserById(String(booking.creator_id));
+        const to = creator?.user?.email;
+        if (to) await emailProvider.sendEmail({ to, ...answerReminderEmail(booking, baseUrl) });
+      } catch (err) {
+        console.error('[daily-maintenance] answer reminder email failed:', err instanceof Error ? err.message : err);
+      }
+      reminded++;
     }
-
-    results.overdueRentals = { marked: overdueRentals?.length ?? 0 };
+    results.answerReminders = reminded;
   } catch (err) {
-    console.error('[daily-maintenance] overdue rental detection failed:', err);
-    results.overdueRentals = { error: String(err) };
+    results.answerRemindersError = String(err);
   }
 
-  // ─── 9. Auto-escalate unreturned gear to disputes (14+ days overdue) ──────
+  // ─── 8–9. Overdue rentals: the escalation ladder ─────────────────────────
+  // Marks hires past their return time (end of the end date, SAST) overdue and
+  // records the +2h/+24h/+48h/+96h escalation stages for staff, with reminders
+  // to the renter (lib/rental/workers.ts, spec §7.13). This replaced a step
+  // that opened a "not returned" dispute after 14 days with the RENTER as the
+  // person filing it, and set the booking to disputed automatically. Treating a
+  // late return as a dispute or theft is a person's decision, not a job's.
   try {
-    const fourteenDaysAgo = new Date();
-    fourteenDaysAgo.setDate(fourteenDaysAgo.getDate() - 14);
-    const cutoff = fourteenDaysAgo.toISOString().split('T')[0];
-
-    const { data: unreturned } = await supabase
-      .from('equipment_bookings')
-      .select('id, user_id, rental_id')
-      .eq('status', 'overdue')
-      .lt('end_date', cutoff);
-
-    let escalated = 0;
-    if (unreturned && unreturned.length > 0) {
-      const unreturnedIds = unreturned.map((b) => b.id);
-      const { data: existingDisputes } = await supabase
-        .from('disputes')
-        .select('equipment_booking_id')
-        .eq('dispute_type', 'gear_not_returned')
-        .in('equipment_booking_id', unreturnedIds);
-
-      const disputedBookingIds = new Set((existingDisputes ?? []).map((d) => d.equipment_booking_id));
-
-      for (const booking of unreturned) {
-        if (disputedBookingIds.has(booking.id)) continue;
-
-        await supabase.from('disputes').insert({
-          dispute_type: 'gear_not_returned',
-          equipment_booking_id: booking.id,
-          filed_by: booking.user_id,
-          reason: 'Gear not returned after 14+ days overdue. Auto-escalated.',
-          status: 'open',
-        });
-        await supabase
-          .from('equipment_bookings')
-          .update({ status: 'disputed', disputed_at: new Date().toISOString() })
-          .eq('id', booking.id);
-        escalated++;
-      }
-    }
-    results.disputeEscalation = { escalated };
+    results.overdueRentals = await runOverdueLadder(supabase);
   } catch (err) {
-    console.error('[daily-maintenance] dispute escalation failed:', err);
-    results.disputeEscalation = { error: String(err) };
+    console.error('[daily-maintenance] overdue ladder failed:', err);
+    results.overdueRentals = { error: String(err) };
   }
 
   // ─── 10. Auto-flag users with 3+ disputes for review ─────────────────────
@@ -479,76 +595,34 @@ Please contact the client and the creator. They are not paid out or refunded aut
         if (profile.is_suspended) continue;
         const count = userDisputeCounts.get(profile.id) ?? 0;
 
-        await supabase.from('profiles').update({
-          is_suspended: true,
-          suspended_at: new Date().toISOString(),
-          suspension_reason: `Auto-suspended: ${count} active disputes filed against this user.`,
-        }).eq('id', profile.id);
-
-        await supabase.from('moderation_log').insert({
-          user_id: profile.id,
-          action: 'suspended',
-          reason: `Auto-suspended: ${count} active disputes.`,
-          admin_id: null,
-          metadata: { trigger: 'auto_dispute_count', dispute_count: count, actor: 'system:daily-maintenance' },
+        // Flag for a person to review; never suspend automatically (spec
+        // §7.13: human decisions, records and appeals). The renter's open
+        // disputes already route new gear bookings to manual approval
+        // (lib/core/rental/trust.ts).
+        // One alert per user per week (dedupe key), delivered to admins by the outbox.
+        const week = Math.floor(Date.now() / (7 * 86_400_000));
+        await supabase.rpc('outbox_enqueue', {
+          p_notices: buildNotices({
+            kind: 'staff_alert',
+            userId: 'staff',
+            bookingIds: [],
+            discriminator: `dispute-review:${profile.id}:${week}`,
+            data: { what: `${count}_open_disputes_review_user`, reference: profile.id },
+          }),
         });
-
-        await supabase.from('smart_rentals').update({ is_available: false }).eq('owner_id', profile.id);
         autoSuspended++;
       }
     }
-    results.autoSuspension = { flaggedUsers: userDisputeCounts.size, autoSuspended };
+    results.disputeReview = { usersWithDisputes: userDisputeCounts.size, flaggedForReview: autoSuspended };
   } catch (err) {
     console.error('[daily-maintenance] auto-suspension failed:', err);
     results.autoSuspension = { error: String(err) };
   }
 
-  // ─── 11. Auto-suspend users with gear overdue 30+ days ────────────────────
-  try {
-    const thirtyDaysAgo = new Date();
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-    const cutoff30 = thirtyDaysAgo.toISOString().split('T')[0];
-
-    const { data: severeOverdue } = await supabase
-      .from('equipment_bookings')
-      .select('user_id')
-      .in('status', ['overdue', 'disputed'])
-      .lt('end_date', cutoff30);
-
-    const uniqueUserIds = [...new Set((severeOverdue ?? []).map((b) => b.user_id))];
-    let suspended30 = 0;
-
-    if (uniqueUserIds.length > 0) {
-      const { data: profiles } = await supabase
-        .from('profiles')
-        .select('id, is_suspended')
-        .in('id', uniqueUserIds)
-        .eq('is_suspended', false);
-
-      for (const profile of profiles ?? []) {
-        await supabase.from('profiles').update({
-          is_suspended: true,
-          suspended_at: new Date().toISOString(),
-          suspension_reason: 'Auto-suspended: gear overdue for 30+ days.',
-        }).eq('id', profile.id);
-
-        await supabase.from('moderation_log').insert({
-          user_id: profile.id,
-          action: 'suspended',
-          reason: 'Auto-suspended: gear overdue 30+ days.',
-          admin_id: profile.id,
-          metadata: { trigger: 'auto_overdue_30_days' },
-        });
-
-        await supabase.from('smart_rentals').update({ is_available: false }).eq('owner_id', profile.id);
-        suspended30++;
-      }
-    }
-    results.overdueAutoSuspension = { checked: severeOverdue?.length ?? 0, suspended: suspended30 };
-  } catch (err) {
-    console.error('[daily-maintenance] 30-day overdue suspension failed:', err);
-    results.overdueAutoSuspension = { error: String(err) };
-  }
+  // ─── 11. (removed) Automatic suspension after 30 days overdue ─────────────
+  // Replaced by the escalation ladder's senior-review stage (+96h), where a
+  // person decides on recovery steps. Gear overdue past formal escalation
+  // already pauses that renter's new bookings (lib/core/rental/trust.ts).
 
   // ─── 12. Abandoned cart recovery notifications ────────────────────────────
   try {
@@ -696,6 +770,25 @@ Please contact the client and the creator. They are not paid out or refunded aut
   } catch (err) {
     console.error('[daily-maintenance] welcome sweep failed:', err);
     results.welcomes = { error: String(err) };
+  }
+
+  // ─── 15. Funnel metrics past their retention (spec §9.6) ─────────────────
+  try {
+    const cutoff = new Date(now.getTime() - STUDIO.analytics.funnelRetentionDays * 86_400_000).toISOString();
+    const { error } = await supabase.from('platform_events').delete().eq('event_category', 'funnel').lt('created_at', cutoff);
+    results.funnelPurge = error ? { error: error.message } : { before: cutoff };
+  } catch (err) {
+    results.funnelPurge = { error: String(err) };
+  }
+
+  // ─── 16. POPIA: delivery addresses past retention (R-41, D-46) ────────────
+  // Reduced to suburb level DELIVERY_POLICY.addressRetentionDays after the
+  // last leg using them closed. Never an address of an open shipment, one
+  // with an open incident, or one a live or paid quote still needs.
+  try {
+    results.deliveryAddressPurge = await purgeDeliveryAddresses(new SupabaseAddressRetention(supabase), now);
+  } catch (err) {
+    results.deliveryAddressPurge = { error: String(err) };
   }
 
   console.log('[daily-maintenance] Results:', JSON.stringify(results));

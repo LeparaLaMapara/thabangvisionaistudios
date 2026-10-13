@@ -1,9 +1,24 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { checkRateLimit } from '@/lib/auth';
+import { logEvent } from '@/lib/data/events';
+import { isWriteDenied, writeDeniedEvent } from '@/lib/supabase/write-denied';
 import { STUDIO } from '@/lib/constants';
 import type { PortfolioProject } from '@/types/portfolio';
 
 export const dynamic = 'force-dynamic';
+
+/**
+ * The signed-in creator's own portfolio (profiles.portfolio_projects).
+ *
+ * A creator may build it before their ID check: an unverified creator's
+ * portfolio is not shown to anyone, because every public surface that shows
+ * creators requires a verified ID (and available for hire, and a complete
+ * portfolio): lib/supabase/queries/crew.ts, getPublishedCreatorProfiles and
+ * the daily auto-publish in lib/supabase/queries/smartProductions.ts.
+ * The column was always writable by its owner (migration 067), so the old
+ * verification check here protected nothing; it only made creators wait.
+ */
 
 // ─── GET: Fetch current user's portfolio ─────────────────────────────────────
 
@@ -17,7 +32,7 @@ export async function GET(): Promise<NextResponse> {
 
   const { data: profile, error } = await supabase
     .from('profiles')
-    .select('portfolio_projects, verification_status')
+    .select('portfolio_projects, verification_status, available_for_hire')
     .eq('id', user.id)
     .single();
 
@@ -25,12 +40,10 @@ export async function GET(): Promise<NextResponse> {
     return NextResponse.json({ error: 'Profile not found' }, { status: 404 });
   }
 
-  if (profile.verification_status !== 'verified') {
-    return NextResponse.json({ error: 'Verification required' }, { status: 403 });
-  }
-
   return NextResponse.json({
     projects: (profile.portfolio_projects as PortfolioProject[]) ?? [],
+    verification_status: profile.verification_status ?? null,
+    available_for_hire: profile.available_for_hire === true,
   });
 }
 
@@ -44,18 +57,16 @@ export async function PUT(request: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  // Check verification status
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('verification_status')
-    .eq('id', user.id)
-    .single();
-
-  if (!profile || profile.verification_status !== 'verified') {
-    return NextResponse.json({ error: 'Verification required' }, { status: 403 });
+  if (!(await checkRateLimit(`portfolio:${user.id}`, 30, 60_000))) {
+    return NextResponse.json({ error: 'Too many saves. Please wait a moment.' }, { status: 429 });
   }
 
-  const body = await request.json() as { projects: unknown };
+  let body: { projects: unknown };
+  try {
+    body = await request.json() as { projects: unknown };
+  } catch {
+    return NextResponse.json({ error: 'Send the portfolio as JSON.' }, { status: 400 });
+  }
   const projects = body.projects;
 
   // Validate structure
@@ -115,6 +126,9 @@ export async function PUT(request: NextRequest): Promise<NextResponse> {
 
   if (error) {
     console.error('[portfolio:PUT]', error.message);
+    if (isWriteDenied(error)) {
+      logEvent(writeDeniedEvent({ userId: user.id, route: 'PUT /api/portfolio', table: 'profiles', error }));
+    }
     return NextResponse.json({ error: 'Failed to save portfolio' }, { status: 500 });
   }
 

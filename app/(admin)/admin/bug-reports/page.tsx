@@ -8,6 +8,7 @@ import { Tabs } from '@/components/ui/Tabs';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { Modal } from '@/components/ui/Modal';
+import { useAdminUI } from '@/components/admin/shell/AdminUI';
 
 interface BugReport {
   id: string;
@@ -51,6 +52,7 @@ const STATUS_LABELS: Record<string, string> = {
 };
 
 export default function AdminBugReportsPage() {
+  const ui = useAdminUI();
   const [reports, setReports] = useState<BugReport[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('open');
@@ -77,16 +79,22 @@ export default function AdminBugReportsPage() {
   async function updateReport(id: string, status: string) {
     setUpdating(true);
     try {
-      await fetch(`/api/admin/bug-reports/${id}`, {
+      const res = await fetch(`/api/admin/bug-reports/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status, admin_notes: adminNotes || undefined }),
       });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        ui.notify(d.error ?? 'Could not update the report. Nothing was changed.', 'bad');
+        return;
+      }
+      ui.notify(`Marked ${status.replace(/_/g, ' ')}.`, 'good');
       await fetchReports();
       setSelectedReport(null);
       setAdminNotes('');
-    } catch (err) {
-      console.error('Failed to update report:', err);
+    } catch {
+      ui.notify('No answer from the server. Nothing was changed.', 'bad');
     } finally {
       setUpdating(false);
     }
@@ -95,14 +103,19 @@ export default function AdminBugReportsPage() {
   async function saveNotes(id: string) {
     setUpdating(true);
     try {
-      await fetch(`/api/admin/bug-reports/${id}`, {
+      const res = await fetch(`/api/admin/bug-reports/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ admin_notes: adminNotes }),
       });
+      if (!res.ok) {
+        ui.notify('Could not save the notes.', 'bad');
+        return;
+      }
+      ui.notify('Notes saved.', 'good');
       await fetchReports();
-    } catch (err) {
-      console.error('Failed to save notes:', err);
+    } catch {
+      ui.notify('No answer from the server. The notes were not saved.', 'bad');
     } finally {
       setUpdating(false);
     }
@@ -184,10 +197,10 @@ export default function AdminBugReportsPage() {
                 </div>
                 <div className="text-right flex-shrink-0">
                   <p className="text-xs font-mono text-neutral-400">
-                    {new Date(report.created_at).toLocaleDateString()}
+                    {new Date(report.created_at).toLocaleDateString('en-ZA', { day: 'numeric', month: 'short', year: 'numeric' })}
                   </p>
                   <p className="text-xs font-mono text-neutral-400 mt-0.5">
-                    {report.user_email}
+                    {report.user_email || 'Someone signed out'}
                   </p>
                   {report.device_info && (
                     <p className="text-xs font-mono text-neutral-400 mt-0.5">
@@ -222,7 +235,7 @@ export default function AdminBugReportsPage() {
                 {STATUS_LABELS[selectedReport.status] || selectedReport.status}
               </Badge>
               <span className="text-xs font-mono text-neutral-400">
-                {selectedReport.user_email} · {new Date(selectedReport.created_at).toLocaleString()}
+                {selectedReport.user_email || 'Someone signed out'} · {new Date(selectedReport.created_at).toLocaleString('en-ZA', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
               </span>
             </div>
 

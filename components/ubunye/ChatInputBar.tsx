@@ -2,7 +2,7 @@
 
 import { useRef, useCallback, useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowUp, Paperclip, Mic, Sparkles } from 'lucide-react';
+import { ArrowUp, Sparkles } from 'lucide-react';
 import { UBUNYE_EXAMPLE_PROMPTS } from '@/lib/constants';
 
 interface ChatInputBarProps {
@@ -28,7 +28,6 @@ export function ChatInputBar({
 }: ChatInputBarProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [suggestionIndex, setSuggestionIndex] = useState(0);
-  const [comingSoon, setComingSoon] = useState<string | null>(null);
 
   const resizeTextarea = useCallback(() => {
     const el = textareaRef.current;
@@ -54,11 +53,6 @@ export function ChatInputBar({
       textareaRef.current?.blur();
     }
   }, [onSubmit]);
-
-  const showComingSoon = useCallback((feature: string) => {
-    setComingSoon(feature);
-    setTimeout(() => setComingSoon(null), 2000);
-  }, []);
 
   // Cycle suggestions
   useEffect(() => {
@@ -89,74 +83,44 @@ export function ChatInputBar({
         </div>
       )}
 
-      {/* Coming soon toast */}
-      <AnimatePresence>
-        {comingSoon && (
-          <motion.div
-            initial={{ opacity: 0, y: 4 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0 }}
-            className="text-xs text-neutral-400 text-center mb-2 font-mono"
-          >
-            {comingSoon} coming soon
-          </motion.div>
-        )}
-      </AnimatePresence>
-
       <form onSubmit={onSubmit}>
         <div className={`flex items-end bg-[#0A0A0B] border rounded-xl transition-all duration-200 ${
           limitReached
             ? 'border-white/5 opacity-40'
             : 'border-white/8 focus-within:border-[#D4A843]/30 focus-within:shadow-[0_0_20px_rgba(212,168,67,0.05)]'
         }`}>
-          {/* Left actions */}
-          <div className="flex items-center gap-0.5 pl-2 pb-2.5">
-            <button
-              type="button"
-              onClick={() => showComingSoon('Attachments')}
-              disabled={limitReached}
-              className="p-1.5 text-neutral-400 hover:text-neutral-400 transition-colors disabled:opacity-50"
-            >
-              <Paperclip className="w-4 h-4" />
-            </button>
-            <button
-              type="button"
-              onClick={() => showComingSoon('Voice input')}
-              disabled={limitReached}
-              className="p-1.5 text-neutral-400 hover:text-neutral-400 transition-colors disabled:opacity-50"
-            >
-              <Mic className="w-4 h-4" />
-            </button>
-          </div>
-
-          {/* Textarea */}
+          {/* Textarea. Attachments and voice input used to sit here as two
+              buttons that only said "coming soon" -- removed until they work. */}
           <textarea
             ref={textareaRef}
             value={input}
             onChange={handleChange}
             onKeyDown={handleKeyDown}
+            aria-label="Message Ubunye"
             placeholder={limitReached ? 'Message limit reached' : 'Ask Ubunye…'}
             disabled={isLoading || limitReached}
             rows={1}
-            className="flex-1 bg-transparent px-3 py-3 text-[15px] text-white placeholder-neutral-600 outline-none resize-none disabled:opacity-50 leading-relaxed"
+            // 16px on phones: iOS Safari zooms the page into any smaller input.
+            className="flex-1 min-w-0 bg-transparent px-4 py-3 text-base md:text-[15px] text-white placeholder-neutral-400 outline-none resize-none disabled:opacity-50 leading-relaxed"
             style={{ maxHeight: 120 }}
           />
 
           {/* Send button */}
-          <div className="pr-2 pb-2.5">
+          <div className="pr-1 pb-1">
             <button
               type="submit"
+              aria-label="Send message"
               disabled={!input.trim() || isLoading || limitReached}
-              className={`w-8 h-8 flex items-center justify-center rounded-lg transition-all duration-200 ${
+              className={`w-11 h-11 flex items-center justify-center rounded-lg transition-all duration-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#D4A843] ${
                 input.trim() && !isLoading && !limitReached
                   ? 'bg-[#D4A843] text-black hover:bg-[#E8C96A]'
                   : 'text-neutral-400'
               }`}
             >
               {input.trim() ? (
-                <ArrowUp className="w-4 h-4" />
+                <ArrowUp className="w-4 h-4" aria-hidden="true" />
               ) : (
-                <Sparkles className="w-4 h-4" />
+                <Sparkles className="w-4 h-4" aria-hidden="true" />
               )}
             </button>
           </div>
@@ -164,13 +128,13 @@ export function ChatInputBar({
       </form>
 
       {/* Footer */}
-      <div className="flex items-center justify-between mt-2 px-1">
+      <div className="flex items-start justify-between gap-3 mt-2 px-1">
         <p className="text-xs text-neutral-400">
-          Powered by Ubunye AI
+          Ubunye is an AI assistant and can make mistakes. Prices are confirmed at checkout.
         </p>
         {!limitReached && remaining !== -1 && (
-          <p className="text-xs text-neutral-400">
-            {remaining} left{isAuthenticated ? ' today' : ''}
+          <p className="text-xs text-neutral-400 shrink-0" aria-live="polite">
+            {remaining} free message{remaining === 1 ? '' : 's'} left{isAuthenticated ? ' today' : ''}
           </p>
         )}
       </div>

@@ -8,6 +8,8 @@ import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
 import type { Profile } from '@/lib/supabase/queries/profiles';
 import { hasCompletePortfolio } from '@/lib/portfolio/validation';
+import { CREATOR_SPECIALIZATIONS } from '@/lib/constants';
+import CreatorBookableChecklist from '@/components/onboarding/CreatorBookableChecklist';
 import { DashboardSubTabs, ACCOUNT_TABS_CREATOR, ACCOUNT_TABS_USER } from '@/components/dashboard/DashboardSubTabs';
 import type { PortfolioProject } from '@/types/portfolio';
 import { Input } from '@/components/ui/Input';
@@ -17,6 +19,14 @@ import AddressAutocomplete from '@/components/ui/AddressAutocomplete';
 import type { AddressResult } from '@/components/ui/AddressAutocomplete';
 import BankingDetails from '@/components/dashboard/BankingDetails';
 import { PhoneCheck } from '@/components/profile/PhoneCheck';
+import {
+  NAME_LOCKED_MESSAGE,
+  PLATFORM_ONLY_MESSAGE,
+  isNameLocked,
+  isVerifiedProfile,
+  isWriteDenied,
+} from '@/lib/supabase/write-denied';
+import { uploadAccept } from '@/lib/storage/upload-policy';
 
 function RequiredLabel({ children }: { children: React.ReactNode }) {
   return (
@@ -46,6 +56,10 @@ export default function ProfileEditPage() {
   const [yearsExperience, setYearsExperience] = useState('');
   const [specializations, setSpecializations] = useState<string[]>([]);
   const [isVerified, setIsVerified] = useState(false);
+  const [verificationStatus, setVerificationStatus] = useState<string | null>(null);
+  const [hasAnyPortfolio, setHasAnyPortfolio] = useState(false);
+  // After ID verification the legal name is locked in the database (067).
+  const [nameLocked, setNameLocked] = useState(false);
 
   const [hasBanking, setHasBanking] = useState(false);
   const [hasPortfolio, setHasPortfolio] = useState(false);
@@ -69,7 +83,10 @@ export default function ProfileEditPage() {
   async function checkBankingStatus() {
     try {
       const res = await fetch('/api/banking', { credentials: 'include' });
-      setHasBanking(res.ok);
+      // GET /api/banking answers 200 with null when nothing is saved, so
+      // the status code alone is not "has banking details".
+      const body = res.ok ? await res.json().catch(() => null) : null;
+      setHasBanking(Boolean(body && typeof body === 'object'));
     } catch {
       setHasBanking(false);
     }
@@ -112,6 +129,10 @@ export default function ProfileEditPage() {
       setYearsExperience(String((data as Record<string, unknown>).years_experience ?? ''));
       setSpecializations((data as Record<string, unknown>).specializations as string[] ?? []);
       setIsVerified((data as Record<string, unknown>).verification_status === 'verified');
+      setVerificationStatus(((data as Record<string, unknown>).verification_status as string | null) ?? null);
+      const projects = (data as Record<string, unknown>).portfolio_projects as PortfolioProject[] | null;
+      setHasAnyPortfolio(Array.isArray(projects) && projects.length > 0);
+      setNameLocked(isVerifiedProfile(data as { verification_status?: string | null; is_verified?: boolean | null }));
       setHasPortfolio(hasCompletePortfolio((data as Record<string, unknown>).portfolio_projects as PortfolioProject[] | null));
 
       if (profile.street_address || profile.city || profile.province) {
@@ -162,14 +183,16 @@ export default function ProfileEditPage() {
         throw new Error(err.error || 'Failed to sign upload.');
       }
 
-      const { signature, timestamp, cloudName, apiKey } = await signRes.json();
+      const { signature, cloudName, apiKey, params } = (await signRes.json()) as {
+        signature: string; cloudName: string; apiKey: string; params: Record<string, string>;
+      };
 
+      // Post exactly what the server signed (it chooses the folder).
       const formData = new FormData();
       formData.append('file', file);
       formData.append('signature', signature);
-      formData.append('timestamp', timestamp);
       formData.append('api_key', apiKey);
-      formData.append('folder', folder);
+      for (const [k, v] of Object.entries(params)) formData.append(k, v);
 
       const uploadRes = await fetch(
         `https://api.cloudinary.com/v1_1/${cloudName}/image/upload`,
@@ -303,10 +326,18 @@ export default function ProfileEditPage() {
       ? `${address.city}, ${address.province}`
       : null;
 
+    // A verified person's name is locked (migration 067), so it is not sent at
+    // all — the stored name stays, and the rest of the profile still saves.
+    const namePayload = nameLocked
+      ? {}
+      : {
+          first_name: firstName.trim() || null,
+          last_name: lastName.trim() || null,
+          display_name: displayName,
+        };
+
     const payload = {
-      first_name: firstName.trim() || null,
-      last_name: lastName.trim() || null,
-      display_name: displayName,
+      ...namePayload,
       bio: bio.trim() || null,
       location: locationLegacy,
       phone: phone.trim() || null,
@@ -336,7 +367,12 @@ export default function ProfileEditPage() {
       .eq('id', user.id);
 
     if (error) {
-      setMessage({ type: 'error', text: error.message });
+      const text = isNameLocked(error)
+        ? NAME_LOCKED_MESSAGE
+        : isWriteDenied(error)
+          ? PLATFORM_ONLY_MESSAGE
+          : error.message;
+      setMessage({ type: 'error', text });
     } else {
       setMessage({ type: 'success', text: 'Profile saved successfully.' });
       setTimeout(() => setMessage(null), 3000);
@@ -373,6 +409,19 @@ export default function ProfileEditPage() {
         Profile
       </h2>
 
+      {/* Creators see up front what makes them bookable. */}
+      {(isVerified || hasAnyPortfolio || specializations.length > 0 || crewBio.trim().length > 0) && (
+        <CreatorBookableChecklist
+          className="mb-8"
+          facts={{
+            verificationStatus,
+            portfolioComplete: hasPortfolio,
+            hasPayoutAccount: hasBanking,
+            availableForHire,
+          }}
+        />
+      )}
+
       <form onSubmit={handleSubmit} className="space-y-10">
         {/* Section 1: Profile Photo */}
         <div className="flex items-center gap-6">
@@ -400,7 +449,7 @@ export default function ProfileEditPage() {
               </span>
               <input
                 type="file"
-                accept="image/*"
+                accept={uploadAccept('image', false)}
                 onChange={handleAvatarUpload}
                 disabled={uploadingAvatar}
                 className="hidden"
@@ -425,6 +474,7 @@ export default function ProfileEditPage() {
                 onChange={(e) => setFirstName(e.target.value)}
                 placeholder="First name"
                 required
+                disabled={nameLocked}
               />
               <Input
                 label="Last Name"
@@ -432,10 +482,13 @@ export default function ProfileEditPage() {
                 onChange={(e) => setLastName(e.target.value)}
                 placeholder="Last name"
                 required
+                disabled={nameLocked}
               />
             </div>
             <p className="text-xs font-mono text-neutral-400 mt-2">
-              Must match the name on your SA ID for verification.
+              {nameLocked
+                ? NAME_LOCKED_MESSAGE
+                : 'Must match the name on your SA ID for verification.'}
             </p>
           </div>
 
@@ -603,25 +656,26 @@ export default function ProfileEditPage() {
                 Specializations
               </p>
               <div className="flex flex-wrap gap-2">
-                {['Photography', 'Cinematography', 'Editing', 'Sound', 'Directing', 'Lighting', 'Producing'].map(
-                  (spec) => (
+                {CREATOR_SPECIALIZATIONS.map(
+                  ({ value, label }) => (
                     <button
-                      key={spec}
+                      key={value}
                       type="button"
+                      aria-pressed={specializations.includes(value)}
                       onClick={() =>
                         setSpecializations((prev) =>
-                          prev.includes(spec.toLowerCase())
-                            ? prev.filter((s) => s !== spec.toLowerCase())
-                            : [...prev, spec.toLowerCase()],
+                          prev.includes(value)
+                            ? prev.filter((s) => s !== value)
+                            : [...prev, value],
                         )
                       }
-                      className={`text-xs font-mono uppercase tracking-widest px-4 py-2 border transition-all min-h-[36px] ${
-                        specializations.includes(spec.toLowerCase())
-                          ? 'bg-white text-black border-white'
+                      className={`text-xs font-mono uppercase tracking-widest px-4 py-2 border transition-all min-h-[44px] ${
+                        specializations.includes(value)
+                          ? 'bg-[#D4A843] text-[#050505] border-[#D4A843]'
                           : 'bg-transparent text-neutral-400 border-white/10 hover:border-white/30'
                       }`}
                     >
-                      {spec}
+                      {label}
                     </button>
                   ),
                 )}

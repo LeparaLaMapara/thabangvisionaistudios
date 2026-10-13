@@ -2,9 +2,9 @@ import { describe, it, expect } from 'vitest';
 import { WELCOME_CHOICES, homeFor, isWelcomeIntent } from '@/lib/welcome';
 
 describe('the welcome question', () => {
-  it('offers the three things people come for, each with a real destination', () => {
-    expect(WELCOME_CHOICES.map((c) => c.intent)).toEqual(['rent', 'hire', 'supply']);
-    expect(WELCOME_CHOICES.map((c) => c.href)).toEqual(['/rentals', '/studio', '/onboarding']);
+  it('offers the things people come for, each with a real destination', () => {
+    expect(WELCOME_CHOICES.map((c) => c.intent)).toEqual(['rent', 'hire', 'list', 'supply']);
+    expect(WELCOME_CHOICES.map((c) => c.href)).toEqual(['/rentals', '/studio', '/dashboard/listings?new=1', '/onboarding']);
   });
 
   it('asks anyone who has not answered, instead of sending them to creator onboarding', () => {

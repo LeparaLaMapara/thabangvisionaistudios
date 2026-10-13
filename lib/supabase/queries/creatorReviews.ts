@@ -14,7 +14,11 @@ export type CreatorReview = {
 
 /**
  * Returns reviews where the given user is the reviewee.
- * Joins with profiles to get the reviewer's display name.
+ * The reviewer's name is the one stored on the review (reviews.reviewer_name);
+ * for older rows without it, the reviewer's public profile name is used when
+ * they have one. Since migration 077, public_profiles lists only creators and
+ * owners of live listings, so a client who is neither shows as "Anonymous"
+ * unless the review carries a name.
  * Returns empty array if the reviews table doesn't exist yet.
  */
 export async function getReviewsForUser(userId: string): Promise<CreatorReview[]> {
@@ -22,7 +26,7 @@ export async function getReviewsForUser(userId: string): Promise<CreatorReview[]
 
   const { data, error } = await supabase
     .from('reviews')
-    .select('id, rating, comment, created_at, reviewer_id')
+    .select('id, rating, comment, created_at, reviewer_id, reviewer_name')
     .eq('reviewee_id', userId)
     .order('created_at', { ascending: false })
     .limit(20);
@@ -35,12 +39,14 @@ export async function getReviewsForUser(userId: string): Promise<CreatorReview[]
 
   if (!data || data.length === 0) return [];
 
-  // Fetch reviewer names in bulk
-  const reviewerIds = [...new Set(data.map((r) => r.reviewer_id))];
-  const { data: profiles } = await supabase
-    .from('public_profiles')
-    .select('id, display_name')
-    .in('id', reviewerIds);
+  // Fetch public names in bulk for reviews that do not carry one
+  const reviewerIds = [...new Set(data.filter((r) => !r.reviewer_name && r.reviewer_id).map((r) => r.reviewer_id))];
+  const { data: profiles } = reviewerIds.length
+    ? await supabase
+        .from('public_profiles')
+        .select('id, display_name')
+        .in('id', reviewerIds)
+    : { data: [] as { id: string; display_name: string | null }[] };
 
   const nameMap = new Map(
     (profiles ?? []).map((p) => [p.id, p.display_name]),
@@ -50,7 +56,7 @@ export async function getReviewsForUser(userId: string): Promise<CreatorReview[]
     id: r.id,
     rating: r.rating,
     comment: r.comment,
-    reviewer_name: nameMap.get(r.reviewer_id) ?? null,
+    reviewer_name: r.reviewer_name ?? nameMap.get(r.reviewer_id) ?? null,
     created_at: r.created_at,
   }));
 }

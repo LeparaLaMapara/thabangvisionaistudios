@@ -3,6 +3,7 @@ export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { createConversation, hashIp } from '@/lib/data/chat-history';
+import { clientIp } from '@/lib/http/clientIp';
 
 export async function POST(req: NextRequest): Promise<Response> {
   const supabase = await createClient();
@@ -22,7 +23,8 @@ export async function POST(req: NextRequest): Promise<Response> {
     // Defaults are fine
   }
 
-  const ip = req.headers.get('x-forwarded-for') ?? 'anonymous';
+  // Same address derivation as the chat route, so the guest's conversation is recognised as theirs.
+  const ip = clientIp(req.headers);
 
   const conversationId = await createConversation({
     userId: user?.id ?? null,

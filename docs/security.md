@@ -32,6 +32,16 @@ A shared auth module (`lib/auth.ts`) was created as the foundation for many fixe
 
 ---
 
+## Phase 6 assessment — 2026-10-10
+
+Four parallel attackers (injection, money, auth, hijacked LLM) against a
+fully local stack; 21 findings (1 critical, 3 high, 6 medium, 11 low, incl.
+dependencies), 20 fixed with regression tests, 1 mitigated (nodemailer needs
+a breaking major). Full report, reproductions, fixes, what held up and what
+was not run: [docs/security/phase-6-assessment.md](security/phase-6-assessment.md).
+
+---
+
 ## Red-team pass — 2026-08-29
 
 An adversarial review of the money and authorization surfaces, patching what

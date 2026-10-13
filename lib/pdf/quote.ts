@@ -1,6 +1,8 @@
 import { jsPDF } from 'jspdf';
 import { STUDIO } from '@/lib/constants';
 import { formatZAR } from '@/lib/productions/pricing';
+import { fromCents, toCents } from '@/lib/core/pricing/money';
+import { priceWithVat, vatRateAt, type TaxConfig } from '@/lib/core/pricing/tax';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -30,6 +32,26 @@ export type QuoteData = {
 };
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
+
+/**
+ * Subtotal, VAT and total for a quote's line items, from the tax core. While
+ * the company is not VAT-registered, vatAmount is 0 and total = subtotal. The
+ * quotes API should build QuoteData from this rather than adding VAT itself.
+ */
+export function quoteTotals(
+  lineItems: readonly Pick<QuoteLineItem, 'total'>[],
+  at: Date = new Date(),
+  tax?: TaxConfig,
+): { subtotal: number; vatAmount: number; total: number; vatRate: number } {
+  const amountCents = lineItems.reduce((sum, item) => sum + toCents(item.total), 0);
+  const b = priceWithVat(amountCents, at, tax);
+  return {
+    subtotal: fromCents(b.netCents),
+    vatAmount: fromCents(b.vatCents),
+    total: fromCents(b.grossCents),
+    vatRate: b.ratePercent,
+  };
+}
 
 function formatZARPrecise(amount: number): string {
   return formatZAR(amount, { decimals: true, space: true });
@@ -173,6 +195,12 @@ export function generateQuotePDF(data: QuoteData): Buffer {
   doc.line(totalsX, y, margin + contentWidth, y);
   y += 6;
 
+  // No VAT line (and no VAT in the total) unless VAT applies today: the
+  // company is not VAT-registered (STUDIO.legal.vatRegistered).
+  const vatRate = vatRateAt();
+  const showVat = vatRate > 0;
+  const total = showVat ? data.total : data.subtotal;
+
   doc.setTextColor(GREY);
   doc.setFontSize(9);
   doc.text('Subtotal', totalsX, y);
@@ -180,11 +208,13 @@ export function generateQuotePDF(data: QuoteData): Buffer {
   doc.text(formatZARPrecise(data.subtotal), margin + contentWidth - 4, y, { align: 'right' });
   y += 6;
 
-  doc.setTextColor(GREY);
-  doc.text(`VAT (${STUDIO.booking.vatRate}%)`, totalsX, y);
-  doc.setTextColor(DARK);
-  doc.text(formatZARPrecise(data.vatAmount), margin + contentWidth - 4, y, { align: 'right' });
-  y += 6;
+  if (showVat) {
+    doc.setTextColor(GREY);
+    doc.text(`VAT (${vatRate}%)`, totalsX, y);
+    doc.setTextColor(DARK);
+    doc.text(formatZARPrecise(data.vatAmount), margin + contentWidth - 4, y, { align: 'right' });
+    y += 6;
+  }
 
   doc.setDrawColor('#DDDDDD');
   doc.line(totalsX, y, margin + contentWidth, y);
@@ -197,7 +227,7 @@ export function generateQuotePDF(data: QuoteData): Buffer {
   doc.setFont('helvetica', 'bold');
   doc.text('TOTAL', totalsX, y + 2.5);
   doc.setTextColor(GOLD);
-  doc.text(formatZARPrecise(data.total), margin + contentWidth - 4, y + 2.5, { align: 'right' });
+  doc.text(formatZARPrecise(total), margin + contentWidth - 4, y + 2.5, { align: 'right' });
 
   y += 18;
 
@@ -220,6 +250,10 @@ export function generateQuotePDF(data: QuoteData): Buffer {
   doc.text(`Cancellation Policy: ${STUDIO.booking.cancellationPolicy}`, margin, y);
   y += 4;
   doc.text(`Supplied and invoiced by ${STUDIO.legal.companyName}.`, margin, y);
+  if (!showVat) {
+    y += 4;
+    doc.text(`${STUDIO.legal.companyName} is not registered for VAT, so no VAT is charged.`, margin, y);
+  }
 
   // ── Footer ──
   const footerY = doc.internal.pageSize.getHeight() - 15;
@@ -230,7 +264,7 @@ export function generateQuotePDF(data: QuoteData): Buffer {
   doc.setTextColor(GREY);
   doc.setFontSize(7);
   doc.text(
-    `${STUDIO.legal.companyName} | ${STUDIO.phone} | ${STUDIO.email} | ${STUDIO.meta.url}`,
+    `${STUDIO.legal.companyName} | WhatsApp ${STUDIO.whatsapp.display} | ${STUDIO.email} | ${STUDIO.meta.url}`,
     pageWidth / 2,
     footerY,
     { align: 'center' },

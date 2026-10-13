@@ -3,6 +3,7 @@ export const revalidate = 60;
 import { ArrowRight } from 'lucide-react';
 import { getPublishedCareers } from '@/lib/supabase/queries/careers';
 import { STUDIO } from '@/lib/constants';
+import { cleanRequirements } from '@/lib/content/requirements';
 
 export const metadata = {
   title: 'Careers',
@@ -32,21 +33,13 @@ export default async function CareersPage() {
         </div>
 
         {/* Culture / Benefits */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-12 mb-32 border-y border-white/10 py-12">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-12 mb-32 border-y border-white/10 py-12">
           <div>
             <h3 className="text-sm font-bold uppercase tracking-widest text-white mb-4">
-              R&amp;D Access
+              What We Do
             </h3>
             <p className="text-sm text-neutral-400 font-mono">
-              Full access to our equipment, studio spaces, and tools for personal creative and R&amp;D projects.
-            </p>
-          </div>
-          <div>
-            <h3 className="text-sm font-bold uppercase tracking-widest text-white mb-4">
-              Global Network
-            </h3>
-            <p className="text-sm text-neutral-400 font-mono">
-              Opportunities to travel and work on sets in Los Angeles, London, and Dubai.
+              We run camera gear rental and photo and video bookings in {STUDIO.serviceArea.province}, and build the software behind them.
             </p>
           </div>
           <div>
@@ -104,7 +97,7 @@ export default async function CareersPage() {
                       )}
                       {job.requirements && job.requirements.length > 0 && (
                         <ul className="mt-4 space-y-1">
-                          {job.requirements.map((req, i) => (
+                          {cleanRequirements(job.requirements).map((req, i) => (
                             <li
                               key={i}
                               className="text-xs font-mono text-neutral-400 flex items-start gap-2"
@@ -138,7 +131,7 @@ export default async function CareersPage() {
           </h3>
           <p className="text-neutral-400 mb-8 max-w-lg mx-auto font-mono text-xs">
             We are always looking for exceptional talent. If you believe you belong at {STUDIO.shortName},
-            send your portfolio and resume to our talent team.
+            send your portfolio and CV to the address below. We reply {STUDIO.responseTime}.
           </p>
           <a
             href={`mailto:${STUDIO.careersEmail}`}

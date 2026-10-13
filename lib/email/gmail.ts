@@ -1,4 +1,5 @@
 import nodemailer from 'nodemailer';
+import type SMTPTransport from 'nodemailer/lib/smtp-transport';
 import { STUDIO } from '@/lib/constants';
 import type {
   EmailProvider,
@@ -18,16 +19,59 @@ import type {
 const GMAIL_USER = process.env.GMAIL_USER;
 const GMAIL_APP_PASSWORD = process.env.GMAIL_APP_PASSWORD;
 
-function createTransporter() {
-  return nodemailer.createTransport({
+/**
+ * SMTP transport options. `disableFileAccess` / `disableUrlAccess` are set at
+ * the transport level, which nodemailer forces onto every message: no `path`
+ * or `href` content source (html/text/attachments) can ever make the server
+ * read a local file or fetch a URL, whatever a caller passes (D-79 / R-80).
+ */
+export function gmailTransportOptions(): SMTPTransport.Options {
+  return {
     host: 'smtp.gmail.com',
     port: 587,
     secure: false, // TLS via STARTTLS
+    requireTLS: true,
     auth: {
       user: GMAIL_USER,
       pass: GMAIL_APP_PASSWORD,
     },
-  });
+    disableFileAccess: true,
+    disableUrlAccess: true,
+  };
+}
+
+function createTransporter() {
+  return nodemailer.createTransport(gmailTransportOptions());
+}
+
+/**
+ * Builds the nodemailer message. Only plain strings are accepted for the
+ * address, subject and bodies: an object such as `{ path }` or `{ href }`
+ * would be a nodemailer content source, so it is rejected here as well as by
+ * the transport's access policy. No attachments are ever sent.
+ */
+export function buildGmailMessage(
+  { to, subject, text, html }: SendEmailOptions,
+  fromAddress: string,
+): SMTPTransport.MailOptions {
+  const fields: Record<string, unknown> = { to, subject, text };
+  if (html !== undefined) fields.html = html;
+  for (const [key, value] of Object.entries(fields)) {
+    if (typeof value !== 'string') {
+      throw new TypeError(`[email] ${key} must be a string`);
+    }
+  }
+
+  return {
+    // Address object, not a template string: nodemailer quotes / encodes the
+    // display name itself, so a name with punctuation or non-ASCII cannot
+    // break the header.
+    from: { name: STUDIO.name, address: fromAddress },
+    to,
+    subject,
+    text,
+    ...(html !== undefined ? { html } : {}),
+  };
 }
 
 function escapeHtml(str: string): string {
@@ -51,20 +95,15 @@ export const gmail: EmailProvider = {
     );
   },
 
-  async sendEmail({ to, subject, text, html }: SendEmailOptions): Promise<void> {
+  async sendEmail(options: SendEmailOptions): Promise<void> {
     if (!this.isConfigured()) {
       console.warn('[email] GMAIL_USER or GMAIL_APP_PASSWORD not set — email not sent.');
       return;
     }
 
+    const message = buildGmailMessage(options, GMAIL_USER!);
     const transporter = createTransporter();
-    await transporter.sendMail({
-      from: `${STUDIO.name} <${GMAIL_USER}>`,
-      to,
-      subject,
-      text,
-      html,
-    });
+    await transporter.sendMail(message);
   },
 
   async sendContactNotification({

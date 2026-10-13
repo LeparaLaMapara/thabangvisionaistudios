@@ -111,7 +111,10 @@ export const payfast: PaymentProvider = {
       providerPaymentId: params.pf_payment_id ?? '',
       paymentId: params.m_payment_id ?? '',
       amountGross: parseFloat(params.amount_gross ?? '0'),
-      raw: params,
+      // PayFast settles in rand only and its ITN carries no currency field.
+      // Say so explicitly, so shared checks that compare the currency (e.g.
+      // confirmSubscriptionPayment) do not reject every paid PayFast ITN.
+      raw: { ...params, currency: params.currency ?? 'ZAR' },
     };
   },
 };

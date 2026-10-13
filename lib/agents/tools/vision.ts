@@ -1,6 +1,7 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { RENTAL_CATEGORIES, type RentalCategorySlug } from '@/lib/constants';
 import { trackedCompletion } from '@/lib/ai/tracked';
+import { fetchImageAsBase64Safe } from '@/lib/security/safe-fetch';
 import type {
   FaceMatchResult,
   GearIdentificationResult,
@@ -12,8 +13,14 @@ const model = client.getGenerativeModel({ model: MODEL_ID });
 
 const CATEGORY_LIST = RENTAL_CATEGORIES.map(c => `"${c.value}" (${c.label})`).join(', ');
 
-async function fetchImageAsBase64(url: string): Promise<string> {
+/**
+ * Fetch an image the SERVER chose (matchFaces: short-lived Supabase Storage
+ * signed URLs made by /api/verifications). Never pass a user-supplied URL
+ * here; those go through fetchImageAsBase64Safe (security INJ-2).
+ */
+async function fetchTrustedImageAsBase64(url: string): Promise<string> {
   const response = await fetch(url);
+  if (!response.ok) throw new Error(`Image fetch failed (${response.status}).`);
   const buffer = await response.arrayBuffer();
   return Buffer.from(buffer).toString('base64');
 }
@@ -34,7 +41,9 @@ export async function identifyGear(
   imageUrl: string,
   userId?: string | null,
 ): Promise<GearIdentificationResult> {
-  const imageData = await fetchImageAsBase64(imageUrl);
+  // imageUrl comes from the person (the route checks it is our own upload);
+  // the guarded fetch refuses private/loopback addresses and redirects to them.
+  const imageData = await fetchImageAsBase64Safe(imageUrl);
 
   return trackedCompletion<GearIdentificationResult>({
     agentId: 'onboarding:identify-gear',
@@ -78,8 +87,8 @@ export async function matchFaces(
   userId?: string | null,
 ): Promise<FaceMatchResult> {
   const [selfieData, idData] = await Promise.all([
-    fetchImageAsBase64(selfieUrl),
-    fetchImageAsBase64(idPhotoUrl),
+    fetchTrustedImageAsBase64(selfieUrl),
+    fetchTrustedImageAsBase64(idPhotoUrl),
   ]);
 
   return trackedCompletion<FaceMatchResult>({

@@ -15,7 +15,28 @@ export const STUDIO = {
   bookingEmail: 'bookings@thabangvision.com',  //'thabangvisionstudios+booking@gmail.com',
   pressEmail: 'press@thabangvision.com',  //'thabangvisionstudios+press@gmail.com',
   privacyEmail: 'privacy@thabangvision.com',  //'thabangvisionstudios+privacy@gmail.com',
-  phone: '+27 79 539 9012',
+  phone: '+27 63 990 5802',
+  // WhatsApp only (owner, 2026-09-28): this number takes WhatsApp messages, not
+  // calls. Everything customer-facing says WhatsApp, never "call".
+  whatsapp: {
+    number: '27639905802',
+    display: '063 990 5802',
+  },
+
+  // How customers pay while online card payment is off (and afterwards, as an
+  // option). The details match Capitec's account confirmation letter of
+  // 27/09/2026. They are shown publicly on /pay on purpose: a customer can
+  // always check them there, which is the defence against scammers who send
+  // fake "new bank details" by WhatsApp or email.
+  bank: {
+    accountName: 'THABANGVISION STUDIO (PTY) LTD',
+    bankName: 'Capitec Business',
+    accountNumber: '1055250166',
+    branchCode: '450105',
+    accountType: 'Business account',
+    // Unpaid EFT bookings keep their dates this long (see lib/rental/availability-server.ts).
+    payWithinHours: 48,
+  },
 
   location: {
     city: 'Johannesburg',
@@ -49,7 +70,29 @@ export const STUDIO = {
     registeredAddress: '9873 Extension 5, Soshanguve South, Gauteng, 0152, South Africa',
     // Whether the company is a registered VAT vendor. This — not vatNumber —
     // is what drives VAT wording and the VAT line at checkout.
-    vatRegistered: true,
+    // Founder decision 2026-10-08: NOT registered. No VAT is added, shown or
+    // invoiced. Rates and the effective date live in `tax` below so a future
+    // registration is a dated config change, not a rewrite (lib/core/pricing/tax.ts).
+    vatRegistered: false,
+    tax: {
+      vatRate: 15,
+      // ISO date the registration takes effect, or null while not registered.
+      // Sales before this date keep the meaning they had (no VAT).
+      vatEffectiveFrom: null as string | null,
+      // When registration happens, advertised prices are treated as
+      // VAT-INCLUSIVE, so customer prices never rise automatically.
+      pricesIncludeVat: true,
+    },
+    // Versioned legal documents. Bump the version (and date) whenever the
+    // published text changes; acceptances are recorded against these strings
+    // in public.consent_records (lib/migrations/068).
+    documents: {
+      terms: { version: '2026-10-08', label: 'Terms of Service', href: '/legal' },
+      privacy: { version: '2026-10-08', label: 'Privacy Policy', href: '/privacy' },
+      refunds: { version: '2026-10-08', label: 'Refunds & Cancellations', href: '/refunds' },
+      rentalAgreement: { version: '2026-10-08', label: 'Rental agreement', href: '/legal#equipment-hire' },
+      biometricNotice: { version: '2026-10-08', label: 'Identity check notice', href: '/privacy#identity-verification' },
+    },
     // The VAT number itself. Optional: a vendor must show it on a tax invoice,
     // but is not obliged to publish it on the website. Rendered only if set.
     vatNumber: '',
@@ -78,13 +121,28 @@ export const STUDIO = {
     coolingOffDays: 7,
   },
 
+  // Where we work. Founder decision 2026-10-08: Gauteng, with travel outside
+  // the province quoted separately. `listedCities` are the Gauteng places we
+  // have pages for; they are examples, NOT the whole of Gauteng, so copy must
+  // say "Gauteng" rather than imply these cities are the full area.
+  serviceArea: {
+    province: 'Gauteng',
+    outsideProvince: 'travel_by_quote' as const,
+    summary: 'Gauteng',
+    outsideProvinceNote: 'Outside Gauteng, travel is quoted separately.',
+  },
+
+  // One promise for how fast we reply, used everywhere a time is stated.
+  responseTime: 'within 2 business days',
+
   meta: {
     // The address the site is served on. The apex redirects to www, so every
     // canonical link and sitemap entry used to point at a redirect.
     url: 'https://www.thabangvision.com',
     title: 'ThabangVision',
+    // Leads with gear rental, the offering that is live (2026-09-28).
     description:
-      'Book photographers and videographers, and hire cameras, lenses, lighting and sound in Johannesburg. See the full price before you pay.',
+      'Rent cameras, lenses, lighting and sound in Johannesburg. Collect at 99 Smith Street, Braamfontein, and see the full price before you book. Photo and video shoots by request.',
     ogImage: '/og-image.jpg',
   },
 
@@ -120,14 +178,6 @@ export const STUDIO = {
       isPrimary: false,
     },
   ],
-
-  partnerships: {
-    international: [
-      { city: 'Los Angeles', status: 'planned' as const },
-      { city: 'London', status: 'planned' as const },
-      { city: 'Dubai', status: 'planned' as const },
-    ],
-  },
 
   nav: {
     sections: [
@@ -177,6 +227,9 @@ export const STUDIO = {
       { minHoursBefore: 0, refundPercent: 0 },
     ],
     maxCartItems: 10,
+    // Most units of one item in a single cart line or booking. Read by the
+    // gear page, the cart, /api/cart and /api/rentals/eligibility.
+    maxQuantityPerItem: 5,
     bulkDiscount: [
       { minItems: 1, maxItems: 2, discountPercent: 0 },
       { minItems: 3, maxItems: 4, discountPercent: 10 },
@@ -250,10 +303,12 @@ export const STUDIO = {
     },
     collection: {
       enabled: true,
-      // A collection can be paid in full online, or the security deposit can
-      // be paid online to hold the gear with the hire charge settled at the
-      // counter. We never hold stock with nothing paid.
-      allowBalanceOnCollection: true,
+      // Off since Phase 1 (spec §3.3: the hire fee and deposit are charged
+      // together online). A deposit-only order left the hire to be paid at the
+      // counter with no record of it, so an owner payout could be scheduled for
+      // money that was never collected. Turn on only with a recorded,
+      // reconciled counter payment.
+      allowBalanceOnCollection: false,
     },
     delivery: {
       enabled: true,
@@ -359,6 +414,52 @@ export const STUDIO = {
     idleTimeoutMinutes: 30, // Auto-logout after 30 minutes of inactivity
   },
 
+  // Phase 6 security limits (docs/security/phase-6-assessment.md).
+  security: {
+    // Server-side fetches of a URL a person or a model supplied
+    // (lib/security/safe-fetch.ts): https only, public addresses only.
+    fetch: {
+      maxImageBytes: 15 * 1024 * 1024,
+      timeoutMs: 15_000,
+      maxRedirects: 3,
+    },
+    // Images one "analyze-portfolio" request may ask the server to fetch.
+    portfolioAnalyzeMaxImages: 12,
+    // Direct browser uploads signed by /api/cloudinary/sign
+    // (lib/storage/upload-policy.ts). The server decides the folder (every
+    // non-admin upload lands under userRoot/<user id>/), never signs a
+    // client public_id, and signs allowed_formats so nothing but these file
+    // types can be stored (no SVG, HTML, PDF or raw files).
+    uploads: {
+      userRoot: 'thabangvision_usecase/users',
+      imageFormats: ['jpg', 'jpeg', 'png', 'webp', 'heic', 'heif', 'avif', 'gif'],
+      // Portfolio project videos (STUDIO.creators.portfolio.acceptedVideoTypes).
+      videoFormats: ['mp4'],
+      // Admin uploads (productions, gear, handover/return photos, press) also
+      // take the camera formats the admin tools always accepted. Still no
+      // SVG, HTML, PDF or raw files.
+      adminImageFormats: ['jpg', 'jpeg', 'png', 'webp', 'heic', 'heif', 'avif', 'gif', 'tif', 'tiff', 'bmp'],
+      adminVideoFormats: ['mp4', 'mov', 'webm', 'm4v'],
+    },
+    // Ubunye chat (lib/ubunye/chat-links.ts, lib/agents/runtime.ts).
+    chat: {
+      // External hosts a chat reply may link to, besides our own site and
+      // the STUDIO.social profiles. Any other link is shown as plain text,
+      // and images in replies are never loaded (no zero-click exfiltration).
+      // wa.me is allowed only for STUDIO.whatsapp.number, and payment pages
+      // are never linked from model text (they come from /pay or the server).
+      linkHosts: [] as string[],
+      // Inbound request limits for POST /api/ubunye-chat.
+      maxBodyBytes: 256 * 1024,
+      maxMessageChars: 4000,
+      maxHistoryMessages: 40,
+      // Per reply: output tokens per model step, and tool executions in total
+      // (stepCountIs bounds round trips, not calls per step).
+      maxOutputTokens: 1500,
+      maxToolCallsPerMessage: 8,
+    },
+  },
+
   ai: {
     budget: {
       monthlyBudgetZAR: 500,         // R500/month AI spend cap
@@ -370,6 +471,16 @@ export const STUDIO = {
       'gpt-4o': { input: 45, output: 270 },   // $2.50/$15 per 1M
       'gemini-3.6-flash': { input: 1.35, output: 5.4 }, // $0.075/$0.30 per 1M
     } as Record<string, { input: number; output: number }>,
+    // Signed-out messages per network address per day, across everyone on it.
+    // Higher than one guest's allowance because many people can share one
+    // address (mobile carriers, offices, campuses); it caps cost, not people.
+    guestNetworkDailyMessages: 60,
+  },
+
+  // Customer funnel metrics (spec §9.6): ids and codes only, kept this long,
+  // then deleted by the daily maintenance job.
+  analytics: {
+    funnelRetentionDays: 180,
   },
 
   booking: {
@@ -387,6 +498,25 @@ export const STUDIO = {
       { minHoursBefore: 0, refundPercent: 0 },
     ],
     autoCompleteAfterDays: 30,
+    // ── Creative service fulfilment (spec §8.3, docs/marketplace/services.md) ──
+    // Hours after the client approves the work (or it is approved
+    // automatically) before the creator payout is sent, provided no dispute
+    // is open. This is when WE send it; when it reaches the bank is the
+    // bank's timing and is never promised.
+    payoutDelayHours: 72,
+    // Days a client has to approve, ask for a revision or raise a problem
+    // after delivery before the work is approved automatically.
+    autoApproveDeliveryAfterDays: 7,
+    // Hours a creator has to accept or decline a paid booking before the
+    // daily maintenance job passes it to another creator, counted from when
+    // the client paid (lib/bookings/answer-by.ts). The reminder email goes
+    // out on the daily run before that, about this many hours before.
+    creatorAnswerHours: 48,
+    creatorAnswerReminderHours: 24,
+    // Revision rounds included when the package does not say otherwise.
+    defaultRevisionsIncluded: 1,
+    // Automatic payout attempts before a person takes over.
+    maxPayoutAttempts: 3,
     projectCategories: [
       'Wedding Photography',
       'Wedding Cinematography',
@@ -415,9 +545,11 @@ export const STUDIO = {
       pending: 'Pending Payment',
       paid: 'Paid',
       accepted: 'Accepted',
+      delivered: 'Delivered',
       completed: 'Completed',
       paid_out: 'Paid Out',
       cancelled: 'Cancelled',
+      declined: 'Declined',
       disputed: 'Disputed',
     } as Record<string, string>,
   },
@@ -451,11 +583,30 @@ export const ADMIN_EMAILS: readonly string[] = [
 
 export const SITE_NAME = STUDIO.shortName.toUpperCase();
 export const SITE_SUFFIX = '.LAB';
-export const SITE_TAGLINE = 'Book creators and hire camera gear';
+export const SITE_TAGLINE = 'Rent camera gear in Johannesburg';
 export const SITE_COPYRIGHT = `© ${new Date().getFullYear()} ${STUDIO.legal.companyName} (reg. ${STUDIO.legal.registrationNumber}), trading as ${STUDIO.shortName}. All rights reserved.`;
 
 // CONFIGURATION FLAGS
 export const SHOW_CAREERS = true;
+
+// ─── CREATOR JOIN ────────────────────────────────────────────────────────────
+// The way in for a creator who wants to offer their services: the home page,
+// the sign-in page, the footer and the empty creator directory all use these
+// words. Not in the header: signed out, it went to the same sign-in page as
+// "Sign In", so the header keeps one door.
+// /onboarding sends someone signed out to sign up first, then back.
+export const CREATOR_JOIN = {
+  href: '/onboarding',
+  ctaLabel: 'Join as a Creator',
+  homeTitle: 'Get Booked',
+  homeText: 'Photographer, videographer, editor or sound person? Join free, set up your profile and get booked for shoots.',
+  loginLine: 'Want to get booked?',
+  footerLabel: `Earn with ${STUDIO.shortName}`,
+  emptyDirectoryTitle: 'No creators yet',
+  emptyDirectoryText:
+    'Verified creators appear here once their profiles and portfolios are ready. Are you a photographer, videographer, editor or sound person? Join and get booked.',
+  emptyDirectoryCta: 'Offer your services',
+} as const;
 
 export const MAIN_NAVIGATION: {
   label: string;
@@ -464,20 +615,24 @@ export const MAIN_NAVIGATION: {
 }[] = [
     { label: 'Rentals', href: '/rentals' },
     { label: 'Studio', href: '/studio' },
-    // What things cost and how to reach a person, one tap from every page.
-    { label: 'Pricing', href: '/pricing' },
+    // The free Ubunye apps. Hidden until the `creative_tools` flag is on (lib/nav.ts); /tools itself is always reachable by URL.
+    { label: 'Apps', href: '/tools' },
     { label: 'Help', href: '/faq' },
+    // No "Offer Your Services": see CREATOR_JOIN.
+    // No "Pricing" item: every listing and package shows its own price, and the
+    // one promise (free to join, pay when you book) sits on the home and rentals
+    // pages. /pricing stays in the footer next to How to Pay.
   ];
 
 export const FOOTER_SECTIONS = [
   {
     title: STUDIO.shortName,
     links: [
-      { label: 'Locations', href: '/locations' },
+      { label: 'Rentals', href: '/rentals' },
+      { label: 'Where to Collect', href: '/locations' },
       { label: 'About', href: '/about' },
       ...(SHOW_CAREERS ? [{ label: 'Careers', href: '/careers' }] : []),
       { label: 'Press & News', href: '/press' },
-      { label: 'Pricing', href: '/pricing' },
     ],
   },
   {
@@ -486,16 +641,20 @@ export const FOOTER_SECTIONS = [
       { label: 'Sign In', href: '/login' },
       { label: 'Create Account', href: '/register' },
       { label: 'Dashboard', href: '/dashboard' },
+      { label: CREATOR_JOIN.footerLabel, href: CREATOR_JOIN.href },
     ],
   },
   {
     title: 'Support',
     links: [
+      { label: 'How to Pay', href: '/pay' },
+      { label: 'How Pricing Works', href: '/pricing' },
       { label: 'Contact', href: '/contact' },
       { label: 'Report a Bug', href: '/support/report-bug' },
       { label: 'Legal / Terms', href: '/legal' },
       { label: 'Privacy Policy', href: '/privacy' },
       { label: 'Refunds & Returns', href: '/refunds' },
+      { label: 'PAIA & data requests', href: '/paia' },
     ],
   },
 ];
@@ -603,6 +762,283 @@ export const RENTAL_POLICIES = {
   supportEmail: STUDIO.supportEmail,
 } as const;
 
+// ─── RENTAL POLICY (money, integer basis points / cents) ─────────────────────
+// Founder decisions 2026-10-08. Read by the pure pricing core
+// (lib/core/pricing/rental.ts). Basis points avoid fractional-cent drift:
+// 2500 bps = 25%.
+export const RENTAL_POLICY = {
+  // Deposit = 25% of the item's replacement value. Refundable; never revenue.
+  depositRateBps: 2500,
+  // Community-owned gear: owner 80% of the hire fee, platform 20%. The
+  // deposit is excluded from this split.
+  ownerShareBps: 8000,
+  platformShareBps: 2000,
+  ownerPayoutDelayHours: 48,
+  // Any single item above R50,000 replacement value is collected in person.
+  highValueCollectionThresholdCents: 5_000_000,
+  firstHireCollectionOnly: true,
+  // Renter trust tiers (spec §7.9): the most replacement value a renter may
+  // hold at once, in cents. Calculated on the server only (lib/core/rental/trust.ts).
+  //   contactable  verified email and phone
+  //   verified     approved ID + selfie review and a validated bank account
+  //   proven       1 clean return and 14 days in good standing since it
+  //   trusted      5 clean returns, R50,000 returned clean, 90 days in good standing
+  trustTierLimitsCents: {
+    contactable: 200_000,
+    verified: 1_000_000,
+    proven: 2_500_000,
+    trusted: 8_000_000,
+  },
+  trustThresholds: {
+    proven: { cleanReturns: 1, historyDays: 14 },
+    trusted: { cleanReturns: 5, cleanReturnValueCents: 5_000_000, historyDays: 90 },
+  },
+  // Owner payouts that pass every automatic check still wait for a person to
+  // approve them in /admin/rental-ops until the founder decides otherwise
+  // (decision register D-19). Set true to let the daily job approve them.
+  payoutAutoApprove: false,
+} as const;
+
+// ─── DELIVERY POLICY (Phase 4, spec §4.2, §4.6–4.8, §4.13) ───────────────────
+// Read by the pure delivery core (lib/core/delivery/*) and the adapters in
+// lib/delivery/*. Amounts in integer cents. Values marked FOUNDER DECISION
+// are safe defaults until the founder approves a value (decision register
+// D-37 to D-42). Nothing here can loosen the rental rules in RENTAL_POLICY:
+// first hire collected in person, any item over the high-value threshold
+// collected in person, trust-tier limits.
+export const DELIVERY_POLICY = {
+  // FOUNDER DECISION (D-37): the highest single-item replacement value an
+  // automated (third-party) courier may carry. 0 = automated courier delivery
+  // is OFF for every item. Our own vehicle (manual adapter) is not affected:
+  // it follows the existing own-vehicle rules.
+  automatedDeliveryMaxItemValueCents: 0,
+  // FOUNDER DECISION (D-38): what we add to a courier's price for a leg. The
+  // customer pays provider cost + this fee, and the two are stored apart.
+  // Delivery money is never part of the owner's 80% hire share.
+  platformFeeCents: 0,
+  // How long a customer delivery quote can be paid. Shorter than the provider
+  // quote is fine; the customer price can never outlive the provider price.
+  quoteTtlMinutes: 30,
+  // Hand-to-hand only: never leave rented gear unattended (spec §4.11).
+  requireHandToHand: true,
+  // A courier must have ALL of these verified for our account, or it is not
+  // offered, whatever its price (spec §4.6 item 3, §4.10).
+  requiredCourierCapabilities: ['pickupConfirmation', 'proofOfDelivery', 'noLeaveAtDoor', 'idempotentCreate'] as const,
+  // Ordering among providers that pass every safety gate (spec §4.6 items
+  // 6–8). Reliability is a 0–100 score from operations history; unknown
+  // providers score 0. Edit here, never in code.
+  providerPreferences: {
+    rankBy: ['reliability', 'speed', 'price'] as const,
+    reliability: { manual: 80 } as Record<string, number>,
+  },
+  // FOUNDER DECISION (D-39): a renter who cancels after a courier is booked
+  // pays the courier's cancellation fee at cost, capped at the delivery fee
+  // they paid. Cancellations by us or the provider are refunded in full.
+  passOnProviderCancellationFee: true,
+  // A provider invoice within this many cents of the quote counts as matched.
+  reconciliationToleranceCents: 0,
+  // At most this many dispatch attempts per leg before a person takes over.
+  maxDispatchAttemptsPerLeg: 3,
+  // FOUNDER DECISION (D-48): a delivered outbound leg that the renter neither
+  // accepts nor reports a problem with within this many hours of the recorded
+  // delivery is deemed accepted by the system (custody event
+  // `deemed_accepted`): the outbound fee is earned and the address can follow
+  // retention. Never over a reported exception or an open incident, and never
+  // for a return leg's inspection. The renter is reminded first
+  // (deemedAcceptanceReminderLeadHours before).
+  deemedAcceptanceHours: 48,
+  deemedAcceptanceReminderLeadHours: 24,
+  // Delivery addresses and driver contact details are deleted (or reduced to
+  // suburb level) this many days after the leg closes (POPIA purpose limit).
+  addressRetentionDays: 180,
+  // What a driver is told is in the parcel: generic, never the brand or value
+  // (spec §4.10: no unnecessary equipment values to drivers).
+  driverLabel: 'Camera equipment',
+  // Battery content is not recorded per listing yet, so every parcel is
+  // declared as containing lithium-ion batteries (a courier that refuses them
+  // then says so, instead of carrying them unknowingly).
+  assumeLithiumBatteries: true,
+  // Our own vehicle and staff (the manual adapter).
+  ownFleet: {
+    // FOUNDER DECISION (D-40): no goods-in-transit cover is verified for our
+    // own vehicle. Own-vehicle delivery is live today on the existing rules;
+    // shipments record coverage_verified = false.
+    verifiedTransitCover: false,
+  },
+  // FOUNDER DECISION (D-84..D-88, Phase 8): community gear can be collected
+  // from (and returned to) the owner's own verified pickup address instead of
+  // the owner bringing it to the studio. Only for a listing the owner opted in
+  // (per listing, default off, D-86), an owner whose ID is verified and who is
+  // not suspended, and a pickup address verified on the server inside the
+  // service area. Anything else: the gear goes from (and back to) the studio,
+  // as before. First-hire and high-value orders stay collection in person at
+  // the studio (D-85). false switches owner pickup off for new quotes.
+  ownerPickup: {
+    enabled: true,
+    // D-93: the renter's price for a trip from (or back to) an owner's
+    // address is worked out from the CENTRE of the grid cell the owner's
+    // address falls in, never from the exact point, so quoting from several
+    // addresses cannot pinpoint the owner's home. 0.02 degrees is about
+    // 2.2 km north-south and 2 km east-west around Johannesburg. The driver
+    // still goes to the real address. Studio trips are priced exactly.
+    pricingGridDegrees: 0.02,
+  },
+  // FOUNDER DECISION (D-41): a verified goods-in-transit policy. Until a
+  // policy reference is set and the founder confirms the wording covers
+  // rented and community-owned camera gear in transit (spec §4.13), every
+  // courier is "not covered" and therefore excluded.
+  insurance: {
+    verifiedPolicyRef: null as string | null,
+    coveredProviders: [] as readonly string[],
+    maxItemValueCents: 0,
+  },
+} as const;
+
+// ─── Delivery operations (Phase 4: webhooks, daily jobs, admin, retention) ───
+// Operational limits, not business terms. Webhooks are the real-time source;
+// the daily pipeline pass is the safety net (CLAUDE.md: daily crons only).
+export const DELIVERY_OPS = {
+  // Largest webhook body accepted from a delivery provider (bytes). Larger
+  // requests are refused before anything is stored.
+  webhookMaxBodyBytes: 256 * 1024,
+  // Stored provider events retried per pipeline pass, and how many attempts
+  // before an event is dead-lettered for a person.
+  inboxBatchSize: 50,
+  inboxMaxRetries: 8,
+  // Shipments reconciled or polled per pipeline pass (bounded work).
+  jobBatchSize: 50,
+  // A dispatch claim older than this is presumed dead and is reconciled with
+  // the provider before anything else (matches the core's stale-claim rule).
+  staleClaimMinutes: 10,
+  // Return-pickup reminder: sent once when the pickup window starts within
+  // this many hours (the pass runs daily at 07:45 SAST).
+  returnReminderLeadHours: 36,
+  // Admin dashboard: how far back failed legs and dead-lettered events show.
+  failedLookbackDays: 30,
+  // Address retention purge (R-41, D-46): addresses handled per daily run.
+  // Retention itself is DELIVERY_POLICY.addressRetentionDays.
+  addressPurgeBatchSize: 200,
+  // Coordinates of a purged address are kept to this many decimals (about
+  // 1 km: suburb level), so history still shows the area, not the house.
+  purgedCoordinateDecimals: 2,
+  // The daily pipeline runs the delivery steps AFTER the money steps; together
+  // they get at most this long (the cron has 60 s), so a slow courier API can
+  // never starve the payment, refund and payout steps or the outbox. Work left
+  // over waits for the next pass or "Run delivery jobs now".
+  pipelineStepsBudgetMs: 20_000,
+  // Ubunye's delivery quote tools store an (advisory) quote per call: limit
+  // how many one person can ask for.
+  ubunyeQuoteRateLimit: { max: 10, windowMs: 60 * 60_000 },
+  // Renter acceptance requests (POST /api/delivery/accept) per person per minute.
+  acceptRateLimit: { max: 20, windowMs: 60_000 },
+} as const;
+
+// ─── Delivery at checkout (Phase 4 customer flow) ────────────────────────────
+// Additive block for the cart, checkout and booking screens. The delivery
+// rules themselves live in DELIVERY_POLICY above; this holds only what the
+// customer flow needs: delivery windows, the server-side address check and
+// copy limits. Prices never come from here (they come from stored quotes).
+export const DELIVERY_CHECKOUT = {
+  // Windows a renter can choose, in SAST, on the first hire day (delivery)
+  // and the last hire day (return pickup). Our own vehicle works to a
+  // scheduled window; there is no on-demand option.
+  windows: [
+    { id: 'morning', label: '08:00 to 12:00', start: '08:00', end: '12:00' },
+    { id: 'afternoon', label: '12:00 to 17:00', start: '12:00', end: '17:00' },
+  ],
+  // South African Standard Time (no daylight saving).
+  utcOffset: '+02:00',
+  // The same zone for showing times to people (quote expiry, windows), whatever the browser's zone.
+  timeZone: 'Africa/Johannesburg',
+  // A position the browser reports is only a hint. Farther than this from the
+  // server-verified address, it is logged as a mismatch; it never sets a price.
+  hintToleranceKm: 2,
+  // Server-side address verification (AddressPort, lib/delivery/address.ts).
+  // ADDRESS_PROVIDER=nominatim (default) or none (delivery then falls back to
+  // collection with a clear message).
+  address: {
+    nominatimUrl: 'https://nominatim.openstreetmap.org/search',
+    // OSMF Nominatim usage policy: at most 1 request per second, identified
+    // by a real User-Agent with contact details, results cached, no
+    // autocomplete. One lookup per "Get quote" press, never per keystroke.
+    minIntervalMs: 1100,
+    timeoutMs: 5000,
+    cacheTtlMs: 24 * 60 * 60 * 1000,
+    cacheMaxEntries: 500,
+    countryCode: 'za',
+    attribution: 'Address check: © OpenStreetMap contributors',
+    minLength: 10,
+    maxLength: 300,
+  },
+  contact: {
+    maxNameLength: 80,
+    maxInstructionsLength: 300,
+  },
+} as const;
+
+// ─── Community listing review (spec §8.1–8.2) ───────────────────────────────
+// Rules live in lib/core/listings/review.ts and run on the server only.
+export const LISTING_POLICY = {
+  // A person reviews any listing whose replacement value is above this.
+  reviewValueThresholdCents: RENTAL_POLICY.highValueCollectionThresholdCents,
+  // An owner may publish without a person reviewing the listing only when
+  // ALL of these hold (and they have no rejected listing, no open dispute and
+  // are not suspended). Deliberately conservative; lower only by founder
+  // decision.
+  establishedOwner: {
+    minPublishedListings: 3,
+    minCompletedRentals: 5,
+  },
+  // Sanity bounds on owner-entered amounts, in cents. Not business rules:
+  // they stop typos (an extra zero) from reaching a renter's deposit.
+  maxPricePerDayCents: 100_000_000,
+  maxReplacementValueCents: 1_000_000_000,
+  // Owner declarations are recorded against the Terms version in force
+  // (Part D, Creators and Suppliers).
+  ownerTermsVersion: STUDIO.legal.documents.terms.version,
+  ownerTermsHref: STUDIO.legal.documents.terms.href,
+  reviewNotesMaxLength: 2000,
+} as const;
+
+// Starting-point rates the listing flow pre-fills after a photo is
+// recognised (lib/core/listings/suggest.ts). Rands. A suggestion only: it is
+// marked AI-suggested and the owner must confirm or change it before the
+// listing can be submitted. No replacement value is ever suggested here.
+export const LISTING_SUGGESTED_RATES = {
+  dayRateByCategory: {
+    'cameras-optics': 650,
+    'lighting-power': 400,
+    audio: 350,
+    'grip-motion': 450,
+    'specialized-solutions': 300,
+  } as Record<string, number>,
+  defaultDayRate: 400,
+  // Condition vocabulary as stored in smart_rentals.sub_category.
+  conditionMultiplier: {
+    new: 1.1,
+    'like-new': 1.0,
+    good: 0.9,
+    fair: 0.75,
+  } as Record<string, number>,
+  defaultConditionMultiplier: 0.9,
+  // SA market norm: a week's hire is billed as 5 days.
+  weekBilledAsDays: 5,
+} as const;
+
+// Creator specialisations (profiles.specializations), stored lower-case.
+// Search and the profile page use this list; onboarding maps detected skills
+// onto it (lib/creators/specializations.ts).
+export const CREATOR_SPECIALIZATIONS = [
+  { value: 'photography', label: 'Photography' },
+  { value: 'cinematography', label: 'Cinematography' },
+  { value: 'editing', label: 'Editing' },
+  { value: 'sound', label: 'Sound' },
+  { value: 'directing', label: 'Directing' },
+  { value: 'lighting', label: 'Lighting' },
+  { value: 'producing', label: 'Producing' },
+] as const;
+export type CreatorSpecialization = (typeof CREATOR_SPECIALIZATIONS)[number]['value'];
+
 export const RENTAL_CATEGORY_VALUES = RENTAL_CATEGORIES.map(c => c.value);
 export type RentalCategorySlug = (typeof RENTAL_CATEGORIES)[number]['value'];
 
@@ -627,7 +1063,7 @@ export const CAPABILITIES = [
   },
   {
     title: 'Studio',
-    subtitle: 'Book Professionals For Your Next Project',
+    subtitle: 'Photo and video shoots, by request',
     image: PLACEHOLDER_IMAGES.smartProductions,
     link: '/studio',
   },
@@ -749,25 +1185,13 @@ export const PRODUCTION_SERVICES = {
     videoEdit: { rate: 650, unit: "hour", description: "Video Editing & Assembly — Rough cut through final master, audio sync" },
     cinemaGrade: { rate: 650, unit: "hour", description: "Cinema Colour Grade / SFX — DaVinci Resolve grade, motion graphics, VFX" },
   },
-  logistics: {
-    travelRate: 4.95,
-    fuelSurcharge: 550,
-  },
+  // Travel, fuel surcharge, overtime, instalments and the "competitive edge"
+  // claims were removed 2026-10-08 (Phase 0): nothing in the product charged
+  // or delivered them. Travel outside Gauteng is quoted by a person.
   billing: {
     minimumBooking: "1 hour",
-    incrementAfter: "30 minutes",
-    overtimeMultiplier: 1.5,
-    overtimeAfterHours: 8,
     vatRate: 15,
-    instalmentThreshold: 15000,
   },
-  edge: [
-    "Cinema Grade Hardware: All video captured on Sony FX/Canon Cinema systems (4K 10-bit)",
-    "Transparent Pricing: Every hour is accounted for — no hidden package markups",
-    "Logistics Precision: Travel billed at the official 2026 SARS rate of R4.95/km",
-    "Cloud Ecosystem: Secure, 12-month digital hosting of all final assets",
-    "Intellectual Property: Full commercial usage licence granted upon final payment",
-  ],
 };
 
 // ─── Production Packages ─────────────────────────────────────────────────────
@@ -807,7 +1231,7 @@ export const PRODUCTION_PACKAGES: ProductionPackage[] = [
       { type: 'postProduction', subType: 'videoEdit', hours: 6 },
     ],
     deliverables: ['200+ edited photos', '5-min highlight film', 'Full ceremony edit', 'Online gallery'],
-    popular: true,
+    // No "popular" flag: no service booking has been completed yet (2026-09-28).
   },
   {
     id: 'music-video',
@@ -863,13 +1287,8 @@ export const UBUNYE_QUICK_ACTIONS: readonly QuickAction[] = [
     icon: 'Camera',
     prompt: `What camera and lens packages do you recommend for a cinematic corporate video in ${STUDIO.location.country}?`,
   },
-  {
-    id: 'hire-crew',
-    label: 'Hire Crew',
-    description: `Verified creators and rates in ${STUDIO.currency.code}`,
-    icon: 'Users',
-    prompt: `I need to hire a film crew for a 2-day shoot in ${STUDIO.location.city}. What roles do I need and what are typical rates in ${STUDIO.currency.code}?`,
-  },
+  // "Hire Crew" ("Verified creators and rates") was removed on 2026-09-28:
+  // no creators are listed yet.
   {
     id: 'build-package',
     label: 'Build Package',
@@ -888,7 +1307,7 @@ export const UBUNYE_QUICK_ACTIONS: readonly QuickAction[] = [
 
 export const UBUNYE_EXAMPLE_PROMPTS: readonly string[] = [
   'Build a podcast setup for 3 people.',
-  `Find a photographer in ${STUDIO.location.city}.`,
+  'Which lens should I rent for portraits?',
   'Compare Sony cameras for documentary filmmaking.',
   'Create a wedding production package.',
   `What gear do I need for a rooftop shoot in ${STUDIO.location.city}?`,
@@ -896,3 +1315,155 @@ export const UBUNYE_EXAMPLE_PROMPTS: readonly string[] = [
   'Find an editor for a 5-minute corporate promo.',
   'What lighting setup works best for product photography?',
 ] as const;
+// ─── FUNNEL (spec §9.6) ──────────────────────────────────────────────────────
+// Where a browser may say a funnel step happened (POST /api/funnel). Anything
+// else is refused, so the funnel tables only hold known page names.
+export const FUNNEL_CLIENT_SURFACES = ['gear_page'] as const;
+export type FunnelClientSurface = (typeof FUNNEL_CLIENT_SURFACES)[number];
+
+// ─── UBUNYE CREATIVE STUDIO (/tools) ────────────────────────────────────────
+// The free, open source desktop suite: Ubunye Light, Photo and Film. One
+// source for the /tools catalogue and its detail pages. Download links are
+// never written here: each app page reads <downloads.base>/<slug>/latest.json
+// (lib/ubunye-release.ts) and falls back to "coming soon" if it is missing.
+// Card photos: `image` stays null until the owner's own photos exist; the
+// card then shows an accent-tinted gradient. Use a Cloudinary URL when set.
+
+export type UbunyeAppSlug = 'light' | 'photo' | 'film';
+export type UbunyePlatformId = 'windows' | 'macos' | 'linux' | 'browser';
+export type UbunyeReleaseStatus = 'coming-soon' | 'preview' | 'released';
+
+export interface UbunyePlatform {
+  id: UbunyePlatformId;
+  label: string;
+  /** Short qualifier shown beside the label, e.g. "preview". */
+  note: string | null;
+}
+
+export interface UbunyeStudioApp {
+  slug: UbunyeAppSlug;
+  name: string;
+  /** The word after "Ubunye", shown in the app's accent colour. */
+  shortName: string;
+  category: string;
+  tagline: string;
+  accent: string;
+  icon: string;
+  iconPng: string;
+  /** Background photo for the catalogue card. Null until the owner's photos exist. */
+  image: { src: string; alt: string } | null;
+  capabilities: readonly string[];
+  repoUrl: string;
+  /** The browser version (served from R2 by the ubunye-creative-web Worker). */
+  webUrl: string;
+  upstream: { name: string; credit: string; url: string };
+}
+
+export const UBUNYE_STUDIO = {
+  suiteName: 'Ubunye Apps',
+  shortName: 'Ubunye',
+  wordmark: '/ubunye/ubunye-creative-studio-dark.svg',
+  intro: 'Free apps for photo and film. Download them, or try them in your browser.',
+  footerLine: 'Three free apps. Light, Photo and Film.',
+  version: 'Preview',
+  status: 'preview' as UbunyeReleaseStatus,
+  statusLabels: {
+    'coming-soon': 'Coming soon',
+    preview: 'Preview',
+    released: 'Available',
+  } as Record<UbunyeReleaseStatus, string>,
+  licence: 'MIT OR Apache-2.0',
+  maker: 'Ubunye AI Ecosystems',
+  systemRequirements: 'Windows (x64, x86 or Arm), macOS (Apple silicon or Intel) or Linux (x86_64 or Arm64). Or use the browser version.',
+  colors: {
+    bg: '#0B0D10',
+    bgSecondary: '#161A20',
+    text: '#F5F0E6',
+    textSecondary: '#A8ADB5',
+  },
+  platforms: [
+    { id: 'windows', label: 'Windows', note: null },
+    { id: 'macos', label: 'macOS', note: null },
+    { id: 'linux', label: 'Linux', note: null },
+    { id: 'browser', label: 'Browser', note: 'preview' },
+  ] as readonly UbunyePlatform[],
+  downloads: {
+    /** Each app's files are listed in <base>/<slug>/latest.json; see lib/ubunye-release.ts. */
+    base: 'https://downloads.thabangvision.com',
+  },
+  apps: [
+    {
+      slug: 'light',
+      name: 'Ubunye Light',
+      shortName: 'Light',
+      category: 'RAW Photo Editor',
+      tagline: 'Sort your shoot and develop your RAW camera files.',
+      accent: '#F6C75B',
+      icon: '/ubunye/light-icon.svg',
+      iconPng: '/ubunye/light-256.png',
+      image: { src: '/ubunye/light-card.webp', alt: "Columns of a sandstone hall under an orange storm sky, by Tha'Bang Studios" },
+      capabilities: [
+        'RAW development for camera files',
+        'A photo library to import, sort and find your shots',
+      ],
+      repoUrl: 'https://github.com/ubunye-ai-ecosystems/ubunye-creative-light',
+      webUrl: 'https://light.tools.thabangvision.com',
+      upstream: {
+        name: 'LightCraft',
+        credit: 'Based on LightCraft by the ArtCraft team',
+        url: 'https://github.com/storytold/lightcraft',
+      },
+    },
+    {
+      slug: 'photo',
+      name: 'Ubunye Photo',
+      shortName: 'Photo',
+      category: 'Photo Editor',
+      tagline: 'Retouch and edit pictures with layers and masks. Opens PSD files.',
+      accent: '#FF6B4A',
+      icon: '/ubunye/photo-icon.svg',
+      iconPng: '/ubunye/photo-256.png',
+      image: { src: '/ubunye/photo-card.webp', alt: "A round glass building lit pink at night, by Tha'Bang Studios" },
+      capabilities: [
+        'Layers and masks',
+        'Retouching tools',
+        'PSD file support',
+      ],
+      repoUrl: 'https://github.com/ubunye-ai-ecosystems/ubunye-creative-photo',
+      webUrl: 'https://photo.tools.thabangvision.com',
+      upstream: {
+        name: 'PhotoCraft',
+        credit: 'Based on PhotoCraft by the ArtCraft team',
+        url: 'https://github.com/storytold/photocraft',
+      },
+    },
+    {
+      slug: 'film',
+      name: 'Ubunye Film',
+      shortName: 'Film',
+      category: 'Video Editor',
+      tagline: 'Cut your footage, fix the colour and sound, and export your video.',
+      accent: '#13D1C2',
+      icon: '/ubunye/film-icon.svg',
+      iconPng: '/ubunye/film-256.png',
+      image: { src: '/ubunye/film-card.webp', alt: "The Union Buildings clock tower under a dark teal sky, by Tha'Bang Studios" },
+      capabilities: [
+        'Timeline editing',
+        'Colour correction',
+        'Audio editing',
+        'Export to common video formats',
+      ],
+      repoUrl: 'https://github.com/ubunye-ai-ecosystems/ubunye-creative-film',
+      webUrl: 'https://film.tools.thabangvision.com',
+      upstream: {
+        name: 'FilmCraft',
+        credit: 'Based on FilmCraft by the ArtCraft team',
+        url: 'https://github.com/storytold/filmcraft',
+      },
+    },
+  ] as readonly UbunyeStudioApp[],
+} as const;
+
+export function getUbunyeApp(slug: string): UbunyeStudioApp | undefined {
+  return UBUNYE_STUDIO.apps.find((a) => a.slug === slug);
+}

@@ -6,7 +6,7 @@ import { DefaultChatTransport } from 'ai';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import type { Components } from 'react-markdown';
-import Link from 'next/link';
+import { chatMarkdownComponents } from '@/components/ubunye/chatMarkdown';
 import { createClient } from '@/lib/supabase/client';
 import { STUDIO, UBUNYE_QUICK_ACTIONS } from '@/lib/constants';
 import { GoldenSphere } from '@/components/ubunye/GoldenSphere';
@@ -59,6 +59,9 @@ export default function UbunyeStudioClient({ context }: UbunyeStudioClientProps)
   const [limitMessage, setLimitMessage] = useState<string | null>(null);
   const guestCountRef = useRef(0);
   const isAuthenticatedRef = useRef(false);
+  // The last text handed to the model. If the request fails it goes back into
+  // the input box, so a dropped connection never eats what the customer typed.
+  const lastSentRef = useRef('');
 
   // Keep refs in sync
   useEffect(() => { guestCountRef.current = guestMessageCount; }, [guestMessageCount]);
@@ -80,29 +83,61 @@ export default function UbunyeStudioClient({ context }: UbunyeStudioClientProps)
         ...(creatorIdRef.current && { creator_id: creatorIdRef.current }),
         ...(conversationIdRef.current && { conversation_id: conversationIdRef.current }),
       }),
+      // The server names the conversation it logged this turn under. Keeping
+      // it means the next turn (e.g. "yes, approve that") finds the pending
+      // proposal even when creating the session up front failed.
+      fetch: async (input: RequestInfo | URL, init?: RequestInit) => {
+        const res = await fetch(input, init);
+        const id = res.headers.get('x-conversation-id');
+        if (id && !conversationIdRef.current) conversationIdRef.current = id;
+        return res;
+      },
     })
   );
+
+  // Count a guest's message once it has been answered (see onFinish below).
+  // Reads the ref, not state, because useChat keeps the first onFinish.
+  function countAnsweredGuestMessage(): void {
+    const newCount = guestCountRef.current + 1;
+    guestCountRef.current = newCount;
+    setGuestMessageCount(newCount);
+    try { sessionStorage.setItem(SESSION_STORAGE_KEY, String(newCount)); } catch { /* SSR */ }
+    if (newCount >= GUEST_LIMIT) {
+      setLimitMessage(`You've used your ${GUEST_LIMIT} free messages. Sign in to continue chatting with Ubunye.`);
+      setLimitReached(true);
+    }
+  }
 
   // ─── Vercel AI SDK useChat (v4 API) ──
   const {
     messages,
     setMessages,
     sendMessage,
+    regenerate,
+    clearError,
     status,
     error,
   } = useChat({
     transport: transportRef.current,
-    onFinish: () => {
+    // A message counts against the allowance only once Ubunye has answered
+    // it. A failed or stopped reply costs nothing: the customer retries free.
+    onFinish: ({ isError, isAbort }) => {
+      if (isError || isAbort) return;
       if (isAuthenticatedRef.current) setDailyUsed(prev => prev + 1);
+      else countAnsweredGuestMessage();
     },
     onError: (err) => {
+      const failedText = lastSentRef.current;
+      if (failedText) setInput(prev => prev || failedText);
       const msg = err?.message;
       if (msg?.includes('limit_reached')) {
         try {
           const data = JSON.parse(msg);
           const limitMsg = data.plan === 'guest'
             ? `You've used your ${GUEST_LIMIT} free messages. Sign in to continue chatting with Ubunye.`
-            : `You've reached your daily limit of ${data.limit} messages on the ${data.plan} plan. Upgrade for more messages.`;
+            : STUDIO.subscriptions.enabled
+              ? `You've reached your daily limit of ${data.limit} messages on the ${data.plan} plan. Upgrade for more messages.`
+              : 'Daily limit reached. It resets tomorrow.';
           setLimitMessage(limitMsg);
           setLimitReached(true);
         } catch {
@@ -147,81 +182,11 @@ export default function UbunyeStudioClient({ context }: UbunyeStudioClientProps)
     } catch { /* SSR or invalid JSON */ }
   }, [setMessages]);
 
-  // Track guest message sends
-  const trackGuestMessage = useCallback(() => {
-    if (!isAuthenticated) {
-      const newCount = guestMessageCount + 1;
-      setGuestMessageCount(newCount);
-      try { sessionStorage.setItem(SESSION_STORAGE_KEY, String(newCount)); } catch { /* SSR */ }
 
-      if (newCount >= GUEST_LIMIT) {
-        setLimitMessage(`You've used your ${GUEST_LIMIT} free messages. Sign in to continue chatting with Ubunye.`);
-        setLimitReached(true);
-      }
-    }
-  }, [isAuthenticated, guestMessageCount]);
-
-  // ─── Markdown components (stable ref) ──
-  const mdComponents: Components = useMemo(() => ({
-    a: ({ href, children }) => {
-      if (href?.startsWith('/')) {
-        return (
-          <Link href={href} className="text-[#D4A843] underline decoration-[#D4A843]/30 underline-offset-2 hover:decoration-[#D4A843] transition-colors">
-            {children}
-          </Link>
-        );
-      }
-      const safe = (() => { try { return ['http:', 'https:'].includes(new URL(href ?? '').protocol); } catch { return false; } })();
-      if (!href || !safe) {
-        return <span className="text-[#D4A843]">{children}</span>;
-      }
-      return (
-        <a href={href} className="text-[#D4A843] underline decoration-[#D4A843]/30 underline-offset-2 hover:decoration-[#D4A843] transition-colors" target="_blank" rel="noopener noreferrer">
-          {children}
-        </a>
-      );
-    },
-    strong: ({ children }) => <strong className="text-white font-semibold">{children}</strong>,
-    em: ({ children }) => <em className="text-neutral-200">{children}</em>,
-    p: ({ children }) => <p className="mb-3 last:mb-0 leading-relaxed">{children}</p>,
-    ul: ({ children }) => <ul className="ml-4 mb-3 space-y-1 list-disc">{children}</ul>,
-    ol: ({ children }) => <ol className="ml-4 mb-3 space-y-1 list-decimal">{children}</ol>,
-    li: ({ children }) => <li className="text-neutral-400 leading-relaxed">{children}</li>,
-    h1: ({ children }) => <h1 className="text-white font-semibold text-lg mt-5 mb-2">{children}</h1>,
-    h2: ({ children }) => <h2 className="text-white font-semibold text-base mt-5 mb-2">{children}</h2>,
-    h3: ({ children }) => <h3 className="text-white font-semibold mt-4 mb-2">{children}</h3>,
-    h4: ({ children }) => <h4 className="text-neutral-200 font-semibold mt-3 mb-1">{children}</h4>,
-    code: ({ children, className }) => {
-      if (className?.includes('language-')) {
-        return (
-          <code className="block bg-neutral-900/80 px-4 py-3 my-3 text-[13px] font-mono text-neutral-300 overflow-x-auto border border-white/5">
-            {children}
-          </code>
-        );
-      }
-      return (
-        <code className="bg-neutral-800/80 px-1.5 py-0.5 text-[13px] font-mono text-[#D4A843]">
-          {children}
-        </code>
-      );
-    },
-    pre: ({ children }) => <pre className="my-3">{children}</pre>,
-    blockquote: ({ children }) => (
-      <blockquote className="border-l-2 border-[#D4A843]/30 pl-4 my-3 text-neutral-400">
-        {children}
-      </blockquote>
-    ),
-    hr: () => <hr className="border-neutral-800 my-4" />,
-    table: ({ children }) => (
-      <div className="overflow-x-auto my-3">
-        <table className="w-full text-sm border-collapse">{children}</table>
-      </div>
-    ),
-    thead: ({ children }) => <thead className="border-b border-neutral-700">{children}</thead>,
-    th: ({ children }) => <th className="text-left text-neutral-300 font-semibold px-3 py-2 text-sm">{children}</th>,
-    td: ({ children }) => <td className="px-3 py-2 border-b border-neutral-800/50 text-sm">{children}</td>,
+  // ─── Markdown components (stable ref; links/images are policed, see chatMarkdown.tsx) ──
+  const mdComponents: Components = useMemo(() => chatMarkdownComponents,
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }), []);
+  []);
 
   // ─── Auth & session ──
   const handleAuthUser = useCallback(async (user: { id: string; user_metadata: Record<string, string> } | null) => {
@@ -282,13 +247,15 @@ export default function UbunyeStudioClient({ context }: UbunyeStudioClientProps)
   }, [handleAuthUser]);
 
   // ─── Send message helper ──
-  const doSend = useCallback(async (text: string) => {
-    if (!text.trim() || limitReached || isLoading) return;
+  /** Resolves true when the message was handed to the model, false when it was held back. */
+  const doSend = useCallback(async (text: string): Promise<boolean> => {
+    if (!text.trim() || limitReached || isLoading) return false;
     if (!isAuthenticated && guestMessageCount >= GUEST_LIMIT) {
       setLimitMessage(`You've used your ${GUEST_LIMIT} free messages. Sign in to continue chatting with Ubunye.`);
       setLimitReached(true);
-      return;
+      return false;
     }
+    lastSentRef.current = text;
 
     // Create chat session on first message
     if (!conversationIdRef.current) {
@@ -309,20 +276,37 @@ export default function UbunyeStudioClient({ context }: UbunyeStudioClientProps)
       }
     }
 
-    trackGuestMessage();
-    sendMessage({ text });
-  }, [limitReached, isLoading, isAuthenticated, guestMessageCount, trackGuestMessage, sendMessage]);
+    void sendMessage({ text });
+    return true;
+  }, [limitReached, isLoading, isAuthenticated, guestMessageCount, sendMessage]);
 
   // ─── Form submit ──
+  // Clear the box straight away so it feels instant, but put the text back if
+  // the message was held back (limit, still loading) -- a failed request is
+  // handled the same way in onError above.
   const handleSubmit = useCallback((e: React.FormEvent) => {
     e.preventDefault();
-    doSend(input);
+    const text = input;
+    if (!text.trim()) return;
     setInput('');
+    void doSend(text).then(sent => {
+      if (!sent) setInput(prev => prev || text);
+    });
   }, [input, doSend]);
+
+  // ─── Retry after a failed request ──
+  // regenerate() re-sends the conversation up to the last user message, so
+  // the customer does not have to retype it.
+  const handleRetry = useCallback(() => {
+    if (isLoading || limitReached) return;
+    if (input === lastSentRef.current) setInput('');
+    clearError();
+    void regenerate();
+  }, [isLoading, limitReached, input, clearError, regenerate]);
 
   // ─── Quick action ──
   const sendQuickAction = useCallback((text: string) => {
-    doSend(text);
+    void doSend(text);
   }, [doSend]);
 
   // ─── Auto-send from ?prompt query param ──
@@ -339,13 +323,13 @@ export default function UbunyeStudioClient({ context }: UbunyeStudioClientProps)
     const promptParam = searchParams.get('prompt');
     if (promptParam && !promptSentRef.current && !isLoading && messages.length === 0) {
       promptSentRef.current = true;
-      doSend(promptParam);
+      void doSend(promptParam);
       router.replace('/ubunye-ai-studio', { scroll: false });
     }
   }, [searchParams, doSend, isLoading, messages.length, router]);
 
   const greeting = getGreeting();
-  const displayName = userName || 'Creator';
+  const displayName = userName || null;
   const hasMessages = messages.length > 0;
 
   const remaining = !isAuthenticated
@@ -353,7 +337,9 @@ export default function UbunyeStudioClient({ context }: UbunyeStudioClientProps)
     : dailyLimit === -1 ? -1 : Math.max(0, dailyLimit - dailyUsed);
 
   return (
-    <div className="bg-[#050505] text-white" style={{ paddingTop: HEADER_HEIGHT, height: '100vh' }}>
+    // h-dvh, not 100vh: on iOS Safari 100vh includes the area under the
+    // browser toolbar, which pushed the input bar off the bottom of the screen.
+    <div className="bg-[#050505] text-white h-dvh" style={{ paddingTop: HEADER_HEIGHT }}>
       <div className={`flex flex-col h-full w-full mx-auto px-4 md:px-6 ${hasMessages ? 'max-w-[680px]' : 'max-w-[780px]'}`}>
 
         {/* ── Landing state ── */}
@@ -365,24 +351,19 @@ export default function UbunyeStudioClient({ context }: UbunyeStudioClientProps)
               exit={{ opacity: 0, scale: 0.98, transition: { duration: 0.25 } }}
               className="flex-1 flex flex-col pt-6 md:pt-10 overflow-y-auto scrollbar-thin scrollbar-thumb-neutral-800 scrollbar-track-transparent"
             >
-              {/* Compact hero: sphere + greeting */}
-              <motion.div
-                custom={0}
-                initial="hidden"
-                animate="visible"
-                variants={fadeUp}
-                className="flex flex-col items-center mb-6 md:mb-8"
-              >
+              {/* Compact hero: sphere + greeting. Painted at once (no fade):
+                  the heading is the page's largest paint on most phones. */}
+              <div className="flex flex-col items-center mb-6 md:mb-8">
                 <div className="w-[80px] h-[80px] md:w-[120px] md:h-[120px] mb-4 md:mb-5">
                   <GoldenSphere className="w-full h-full" state={orbState} />
                 </div>
                 <p className="text-xs text-neutral-400 tracking-wide mb-1.5">
-                  {greeting}, {displayName}
+                  {greeting}{displayName ? `, ${displayName}` : ''}. Ask about gear, dates or prices.
                 </p>
                 <h1 className="text-lg md:text-2xl font-medium text-neutral-200 text-center">
                   What can I help you <span className="text-[#D4A843]">create?</span>
                 </h1>
-              </motion.div>
+              </div>
 
               {/* Quick action cards */}
               <motion.div
@@ -434,7 +415,7 @@ export default function UbunyeStudioClient({ context }: UbunyeStudioClientProps)
                           >
                             {gear.thumbnail_url && (
                               <div className="w-full h-20 mb-2 overflow-hidden bg-neutral-900">
-                                <img src={gear.thumbnail_url} alt={gear.title} className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity" />
+                                <img src={gear.thumbnail_url} alt="" className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity" />
                               </div>
                             )}
                             <span className="text-xs text-neutral-300 block truncate">{gear.title}</span>
@@ -500,7 +481,7 @@ export default function UbunyeStudioClient({ context }: UbunyeStudioClientProps)
                       <button
                         key={prompt}
                         onClick={() => sendQuickAction(prompt)}
-                        className="px-2.5 py-1 text-xs text-neutral-400 border border-neutral-800/50 hover:text-[#D4A843]/80 hover:border-[#D4A843]/20 transition-all duration-200 truncate max-w-[220px]"
+                        className="min-h-[44px] px-3 py-2 text-xs text-neutral-400 border border-neutral-800/50 hover:text-[#D4A843]/80 hover:border-[#D4A843]/20 transition-all duration-200 truncate max-w-[220px]"
                       >
                         &ldquo;{prompt}&rdquo;
                       </button>
@@ -539,7 +520,8 @@ export default function UbunyeStudioClient({ context }: UbunyeStudioClientProps)
             limitMessage={limitMessage}
             isAuthenticated={isAuthenticated}
             mdComponents={mdComponents}
-            onSend={doSend}
+            onSend={sendQuickAction}
+            onRetry={handleRetry}
           />
         )}
 

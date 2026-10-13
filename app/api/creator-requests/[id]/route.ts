@@ -5,6 +5,7 @@ import { createClient, createAdminClient } from '@/lib/supabase/server';
 import { email as emailProvider } from '@/lib/email';
 import { STUDIO } from '@/lib/constants';
 import { checkRateLimit } from '@/lib/auth';
+import { appUrl } from '@/lib/app-url';
 
 // Writes that touch money or status go through the service role, after the
 // route has checked who the user is and that the record is theirs. The users'
@@ -161,7 +162,7 @@ export async function PATCH(
         try {
           const { payments } = await import('@/lib/payments');
           if (payments.isConfigured()) {
-            const baseUrl = process.env.NEXT_PUBLIC_APP_URL || STUDIO.meta.url;
+            const baseUrl = appUrl(STUDIO.meta.url);
             const result = await payments.createCheckout({
               paymentId: id,
               amount: crewRequest.deposit_amount,

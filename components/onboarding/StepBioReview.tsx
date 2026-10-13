@@ -4,8 +4,11 @@ import { useState, useEffect, useCallback } from 'react';
 import { Loader2, RefreshCw } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import type { SceneAnalysisResult, SkillDetectionResult } from '@/lib/agents/types';
+import { MAX_BIO_CHARS } from '@/lib/agents/agents/bio-writer';
 
-const MAX_BIO_CHARS = 280;
+/** Shown when no draft could be made at all: what to write, so the box is never a dead end. */
+const WRITE_YOUR_OWN =
+  'We could not draft a bio just now. Write a line or two yourself: what you shoot, where you work and what clients can expect.';
 
 interface StepBioReviewProps {
   analyses: SceneAnalysisResult[];
@@ -20,9 +23,11 @@ export default function StepBioReview({ analyses, skills, onComplete }: StepBioR
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [samples, setSamples] = useState<number>(0);
+  const [notice, setNotice] = useState<string | null>(null);
 
   const generate = useCallback(async () => {
     setError(null);
+    setNotice(null);
     try {
       const res = await fetch('/api/agents/bio-writer', {
         method: 'POST',
@@ -31,11 +36,18 @@ export default function StepBioReview({ analyses, skills, onComplete }: StepBioR
         body: JSON.stringify({}),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Bio generation failed.');
-      setBio((data.bio as string) ?? '');
+      if (!res.ok) {
+        // Keep whatever they already typed; tell them what to write.
+        setNotice(typeof data.error === 'string' && res.status === 429 ? data.error : WRITE_YOUR_OWN);
+        return;
+      }
+      const drafted = typeof data.bio === 'string' ? data.bio : '';
+      if (drafted) setBio(drafted);
       setSamples((data.samples as number) ?? 0);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to generate bio.');
+      if (typeof data.notice === 'string') setNotice(data.notice);
+      else if (!drafted) setNotice(WRITE_YOUR_OWN);
+    } catch {
+      setNotice(WRITE_YOUR_OWN);
     }
   }, []);
 
@@ -77,7 +89,8 @@ export default function StepBioReview({ analyses, skills, onComplete }: StepBioR
 
       const { error: updateError } = await supabase
         .from('profiles')
-        .update({ bio: trimmed })
+        // crew_bio is what the public creator profile shows; bio is kept too.
+        .update({ bio: trimmed, crew_bio: trimmed })
         .eq('id', userData.user.id);
 
       if (updateError) throw updateError;
@@ -151,13 +164,18 @@ export default function StepBioReview({ analyses, skills, onComplete }: StepBioR
 
       {/* Bio editor */}
       <div>
+        {notice && (
+          <div className="bg-[#D4A843]/10 border border-[#D4A843]/30 px-4 py-3 mb-3" role="status">
+            <p className="text-xs text-[#D4A843] font-mono leading-relaxed">{notice}</p>
+          </div>
+        )}
         <p className="text-xs font-mono uppercase tracking-widest text-neutral-400 mb-2">Bio</p>
         <textarea
           value={bio}
           onChange={(e) => setBio(e.target.value)}
           rows={5}
           className="w-full bg-neutral-900 border border-white/10 focus:border-[#D4A843]/50 outline-none p-4 text-sm font-mono text-white leading-relaxed resize-none"
-          placeholder="Your bio will appear here..."
+          placeholder="For example: I am a wedding and portrait photographer in Soweto. I work with natural light and deliver edited photos within a week."
           disabled={regenerating || saving}
         />
         <div className="flex justify-between items-center mt-2">
@@ -182,7 +200,7 @@ export default function StepBioReview({ analyses, skills, onComplete }: StepBioR
         disabled={saving || regenerating || overLimit || !bio.trim()}
         className="w-full bg-[#D4A843] text-black py-3 px-6 text-xs font-mono font-bold uppercase tracking-widest hover:opacity-80 transition-opacity disabled:opacity-20 disabled:cursor-not-allowed min-h-[44px]"
       >
-        {saving ? 'Saving...' : 'Looks Good — Continue'}
+        {saving ? 'Saving...' : 'Looks good, continue'}
       </button>
 
       {error && (

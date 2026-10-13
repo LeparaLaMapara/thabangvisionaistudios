@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import type { AuthProvider } from './types';
 import { supabaseAuth } from './supabase';
-import { createClient } from '@/lib/supabase/server';
+import { createClient, createAdminClient } from '@/lib/supabase/server';
 
 // Re-export types for convenience
 export type { AuthProvider, AuthUser, AuthResult } from './types';
@@ -59,9 +59,11 @@ export async function checkNotSuspended(userId: string): Promise<{
 
   if (!data?.is_suspended) return { suspended: false };
 
-  // Auto-reinstate if suspension expired
+  // Auto-reinstate if suspension expired. Suspension fields are platform-only
+  // (migration 067), so the user's own session cannot clear them — the service
+  // role does, and only for this user whose suspension has demonstrably expired.
   if (data.suspension_expires_at && new Date(data.suspension_expires_at) < new Date()) {
-    await supabase
+    await createAdminClient()
       .from('profiles')
       .update({
         is_suspended: false,
@@ -70,6 +72,9 @@ export async function checkNotSuspended(userId: string): Promise<{
         suspension_expires_at: null,
       })
       .eq('id', userId);
+    // The Auth ban set at suspension ended with it; lift it explicitly too.
+    const { liftBan } = await import('@/lib/auth/sessions');
+    await liftBan(userId);
     return { suspended: false };
   }
 
@@ -159,7 +164,8 @@ const ADMIN_RATE_LIMITS: Record<AdminRateTier, { maxRequests: number; windowMs: 
  * Returns a 429 NextResponse if rate-limited, or null if allowed.
  *
  * Tiers:
- *  - standard (30/min): CRUD on content (rentals, productions, press, careers)
+ *  - standard (30/min): CRUD on content (rentals, productions, press, careers),
+ *    and recording a delivery's progress (lib/delivery/staff-rate-tier.ts)
  *  - sensitive (5/min): payouts, suspensions, role changes, dispute resolution
  */
 export async function rateLimitAdmin(

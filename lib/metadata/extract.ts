@@ -1,4 +1,5 @@
 import exifr from 'exifr';
+import { safeFetch } from '@/lib/security/safe-fetch';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -65,10 +66,13 @@ export async function extractMetadataFromUrl(
   imageUrl: string,
 ): Promise<ImageMetadata> {
   try {
-    const response = await fetch(imageUrl);
+    // Guarded fetch: https, public addresses only, redirects re-checked
+    // (security INJ-4: this route returns what it reads, so an unguarded
+    // fetch was a non-blind SSRF).
+    const response = await safeFetch(imageUrl);
     if (!response.ok) return {};
-    const buffer = await response.arrayBuffer();
-    return extractMetadataFromBuffer(buffer);
+    const body = response.body;
+    return extractMetadataFromBuffer(body.buffer.slice(body.byteOffset, body.byteOffset + body.byteLength) as ArrayBuffer);
   } catch {
     return {};
   }

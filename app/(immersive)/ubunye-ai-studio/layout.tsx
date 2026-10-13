@@ -1,11 +1,11 @@
 import type { Metadata } from 'next';
+import { STUDIO } from '@/lib/constants';
 
 export const revalidate = 60;
 
 export const metadata: Metadata = {
   title: 'Ubunye AI Studio',
-  description:
-    'Ubunye AI Studio — Your AI production assistant. Plan shoots, find gear, hire crew, and get instant quotes for photography and film production across South Africa.',
+  description: `Ubunye, the ${STUDIO.shortName} AI assistant. Ask about gear, dates and prices, or get help planning a shoot in ${STUDIO.serviceArea.province}. Prices are confirmed at checkout.`,
 };
 
 export default function UbunyeAILayout({

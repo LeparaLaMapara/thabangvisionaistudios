@@ -1,5 +1,7 @@
+import type { SupabaseClient } from '@supabase/supabase-js';
 import { createClient } from '@/lib/supabase/server';
 import type { Booking } from '@/types/booking-system';
+import type { ServiceActor } from '@/lib/core/services/fulfilment';
 
 const CREATOR_JOIN = 'creator:profiles!creator_id(id, display_name, avatar_url, crew_slug)';
 
@@ -21,17 +23,22 @@ export async function getClientBookings(clientId: string): Promise<(Booking & { 
 export async function getCreatorBookings(creatorId: string) {
   const supabase = await createClient();
   // Creator does NOT see client email/phone for privacy
-  const { data, error } = await supabase
+  const base = 'id, reference, booking_type, project_category, project_description, deliverables, duration_hours, location, preferred_dates, creator_amount, payment_status, payout_status, status, client_rating, client_review, created_at, updated_at, paid_at, accepted_at, arrived_at, delivered_at, completed_at, shoot_date, cancellation_reason';
+  const read = (columns: string) => supabase
     .from('bookings')
-    .select('id, reference, booking_type, project_category, project_description, deliverables, duration_hours, location, preferred_dates, creator_amount, payment_status, payout_status, status, client_rating, client_review, created_at, updated_at, paid_at, accepted_at, arrived_at, delivered_at, completed_at, shoot_date')
+    .select(columns)
     .eq('creator_id', creatorId)
     .order('created_at', { ascending: false });
+
+  let { data, error } = await read(`${base}, ${CREATOR_FULFILMENT_COLUMNS}`);
+  // Before migration 073 the fulfilment columns do not exist yet.
+  if (error && mentionsFulfilmentSchema(error.message)) ({ data, error } = await read(base));
 
   if (error) {
     console.error('[service-bookings] getCreatorBookings error:', error.message);
     return [];
   }
-  return data ?? [];
+  return (data ?? []) as unknown as CreatorBookingRow[];
 }
 
 export async function getBookingByReference(reference: string) {
@@ -72,60 +79,185 @@ export async function getAllBookings() {
   return data ?? [];
 }
 
-/** Lazy auto-complete: bookings accepted > 30 days ago where client never marked complete */
-export async function autoCompleteStaleBookings() {
-  const supabase = await createClient();
-  const cutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+/** Get hourly rate based on project category (pure; lives in lib/bookings/rates.ts so the booking form quotes the same price). */
+export { getHourlyRate } from '@/lib/bookings/rates';
 
-  const { data } = await supabase
-    .from('bookings')
-    .update({
-      status: 'completed',
-      completed_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    })
-    .eq('status', 'accepted')
-    .lt('accepted_at', cutoff)
-    .select('id, reference, client_email, creator_id, project_category, creator_amount');
+// ─── Fulfilment (migration 073) ──────────────────────────────────────────────
+// Server-side helpers for the service-booking state machine
+// (lib/core/services/fulfilment.ts). They take the service-role client the
+// route already holds: user sessions may only read bookings (migration 059).
 
-  return data ?? [];
+/** Columns added by migration 073. Code deployed before it is applied falls back without them. */
+export const FULFILMENT_COLUMNS = [
+  'declined_at',
+  'decline_reason',
+  'revisions_included',
+  'revisions_used',
+  'revision_policy',
+  'cancellation_policy',
+  'accepted_by_client_at',
+  'payout_due_at',
+  'dispute_window_ends_at',
+  'payout_claimed_at',
+  'payout_last_error',
+] as const;
+
+/** What a creator sees of the fulfilment columns. */
+export const CREATOR_FULFILMENT_COLUMNS = 'declined_at, decline_reason, revisions_included, revisions_used, revision_policy, accepted_by_client_at, payout_due_at, dispute_window_ends_at';
+
+export interface CreatorBookingRow {
+  id: string;
+  reference: string;
+  booking_type: string;
+  project_category: string;
+  project_description: string;
+  deliverables: string;
+  duration_hours: number;
+  location: string | null;
+  preferred_dates: string | null;
+  creator_amount: number;
+  payment_status: string;
+  payout_status: string;
+  status: string;
+  client_rating: number | null;
+  client_review: string | null;
+  created_at: string;
+  updated_at: string;
+  paid_at: string | null;
+  accepted_at: string | null;
+  arrived_at: string | null;
+  delivered_at: string | null;
+  completed_at: string | null;
+  shoot_date: string | null;
+  cancellation_reason?: string | null;
+  declined_at?: string | null;
+  decline_reason?: string | null;
+  revisions_included?: number | null;
+  revisions_used?: number | null;
+  revision_policy?: string | null;
+  accepted_by_client_at?: string | null;
+  payout_due_at?: string | null;
+  dispute_window_ends_at?: string | null;
 }
 
-/** Get hourly rate based on project category */
-export function getHourlyRate(category: string): number {
-  const cat = category.toLowerCase();
+/** True when a database error is about migration 073 not being applied yet. */
+export function mentionsFulfilmentSchema(message: string | null | undefined): boolean {
+  if (!message) return false;
+  return FULFILMENT_COLUMNS.some((c) => message.includes(c)) || message.includes('service_booking_events');
+}
 
-  // Order matters: these are substring tests, so the most specific and the
-  // higher-priced patterns must be checked first. Previously 'portrait' and
-  // 'product' were tested before the cinematography list, so "product video"
-  // and "corporate video portrait" both priced at the photography rate.
-  // project_category arrives here as free text from the booking tool, which
-  // made that underpricing steerable from chat.
-  if (
-    cat.includes('cinematography') ||
-    cat.includes('music video') ||
-    cat.includes('corporate video') ||
-    cat.includes('documentary') ||
-    cat.includes('short film') ||
-    cat.includes('video')
-  ) {
-    return 2850;
+/** The same patch without the 073 columns, for a database that does not have them yet. */
+export function withoutFulfilmentColumns<T extends Record<string, unknown>>(patch: T): Partial<T> {
+  const out: Partial<T> = {};
+  for (const [k, v] of Object.entries(patch)) {
+    if (!(FULFILMENT_COLUMNS as readonly string[]).includes(k)) (out as Record<string, unknown>)[k] = v;
   }
-  // Photography categories
-  if (cat.includes('portrait') || cat.includes('product') || cat.includes('real estate') || cat.includes('corporate photo')) {
-    return 1500;
+  return out;
+}
+
+/**
+ * Read one booking with the 073 columns, or without them before the migration.
+ * `base` and `extra` are comma-separated column lists.
+ */
+export async function readServiceBooking<T>(
+  db: SupabaseClient,
+  id: string,
+  base: string,
+  extra: string,
+): Promise<{ data: T | null; error: string | null; degraded: boolean }> {
+  const read = (columns: string) => db.from('bookings').select(columns).eq('id', id).maybeSingle();
+  const first = await read(extra ? `${base}, ${extra}` : base);
+  if (!first.error) return { data: (first.data as T | null) ?? null, error: null, degraded: false };
+  if (!extra || !mentionsFulfilmentSchema(first.error.message)) return { data: null, error: first.error.message, degraded: false };
+  const second = await read(base);
+  if (second.error) return { data: null, error: second.error.message, degraded: true };
+  return { data: (second.data as T | null) ?? null, error: null, degraded: true };
+}
+
+export type ServiceUpdateResult =
+  | { ok: true; updated: boolean; degraded: boolean }
+  | { ok: false; error: string; code: string | null };
+
+/**
+ * Compare-and-set: update the booking only while it is still in `fromStatus`
+ * (null skips the status check). `updated` is false when someone else moved
+ * it first. Retries without the 073 columns on a database that lacks them.
+ */
+export async function updateServiceBooking(
+  db: SupabaseClient,
+  id: string,
+  fromStatus: string | null,
+  patch: Record<string, unknown>,
+  /** Further columns that must still hold the value read (null compares with IS NULL). */
+  expect: Record<string, string | null> = {},
+): Promise<ServiceUpdateResult> {
+  const run = async (values: Record<string, unknown>) => {
+    let q = db.from('bookings').update(values).eq('id', id);
+    if (fromStatus) q = q.eq('status', fromStatus);
+    for (const [column, value] of Object.entries(expect)) q = value === null ? q.is(column, null) : q.eq(column, value);
+    return q.select('id');
+  };
+  let degraded = false;
+  let { data, error } = await run(patch);
+  if (error && mentionsFulfilmentSchema(error.message)) {
+    degraded = true;
+    const reduced = withoutFulfilmentColumns(patch);
+    // Nothing left to write on this database (e.g. only bookkeeping columns).
+    if (Object.keys(reduced).length === 0) return { ok: true, updated: false, degraded };
+    ({ data, error } = await run(reduced));
   }
-  // Event/wedding - use photography rate as base
-  if (cat.includes('wedding photo') || cat.includes('event')) {
-    return 1500;
+  if (error) return { ok: false, error: error.message, code: (error as { code?: string }).code ?? null };
+  return { ok: true, updated: Array.isArray(data) && data.length > 0, degraded };
+}
+
+/** Append one line of history. Best effort: history never blocks the change it records. */
+export async function recordServiceBookingEvent(
+  db: SupabaseClient,
+  ev: {
+    bookingId: string;
+    event: string;
+    from: string | null;
+    to: string | null;
+    actor: ServiceActor;
+    actorId: string | null;
+    reason?: string | null;
+  },
+): Promise<void> {
+  try {
+    const { error } = await db.from('service_booking_events').insert({
+      booking_id: ev.bookingId,
+      event: ev.event,
+      from_status: ev.from,
+      to_status: ev.to,
+      actor: ev.actor,
+      actor_id: ev.actorId,
+      reason: ev.reason ?? null,
+    });
+    if (error && !mentionsFulfilmentSchema(error.message)) {
+      console.error('[service-bookings] history insert failed:', error.message);
+    }
+  } catch (err) {
+    console.error('[service-bookings] history insert failed:', err);
   }
-  if (cat.includes('wedding cinematography')) {
-    return 2850;
+}
+
+/** Dispute statuses that hold a creator payout. */
+export const PAYOUT_BLOCKING_DISPUTE_STATUSES = ['open', 'investigating', 'escalated'] as const;
+
+/**
+ * Open disputes on a service booking. null when the lookup failed: the caller
+ * must treat that as "may be disputed" and hold the payout.
+ */
+export async function countOpenServiceDisputes(db: SupabaseClient, bookingId: string): Promise<number | null> {
+  try {
+    const { count, error } = await db
+      .from('disputes')
+      .select('id', { count: 'exact', head: true })
+      .eq('booking_id', bookingId)
+      .in('status', [...PAYOUT_BLOCKING_DISPUTE_STATUSES]);
+    if (error || count === null || count === undefined) return null;
+    return count;
+  } catch {
+    return null;
   }
-  // Content creation - mid-range
-  if (cat.includes('content')) {
-    return 1500;
-  }
-  // Default to photography rate
-  return 1500;
 }

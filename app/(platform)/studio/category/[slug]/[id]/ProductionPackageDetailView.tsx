@@ -7,8 +7,9 @@ import { motion } from 'framer-motion';
 import { ArrowLeft, ArrowRight, Check, ChevronRight, Building2, Clock, Info } from 'lucide-react';
 import type { ProductionCategory, ProductionPackage } from '@/types/production';
 import type { SmartProduction } from '@/lib/supabase/queries/smartProductions';
-import { calculatePackagePrice, formatZAR } from '@/lib/productions/pricing';
-import { Badge } from '@/components/ui/Badge';
+import { calculatePackagePrice } from '@/lib/productions/pricing';
+import { formatRand } from '@/lib/format/money';
+import { PRODUCTION_SERVICES, STUDIO } from '@/lib/constants';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -188,7 +189,6 @@ export default function ProductionPackageDetailView({
                     <Building2 className="w-3 h-3" />
                     Studio Package
                   </span>
-                  {pkg.popular && <Badge variant="featured">Popular</Badge>}
                 </div>
                 <h1 className="text-4xl md:text-6xl font-display font-black tracking-tighter uppercase mb-4">
                   {pkg.name}
@@ -371,33 +371,39 @@ export default function ProductionPackageDetailView({
                         <div>
                           <p className="text-sm text-white">{item.service}</p>
                           <p className="text-xs font-mono text-neutral-400">
-                            {item.hours}hr × {formatZAR(item.rate)}/hr
+                            {item.hours}hr × {formatRand(item.rate)}/hr
                           </p>
                         </div>
                         <span className="text-sm font-mono font-bold text-white">
-                          {formatZAR(item.amount)}
+                          {formatRand(item.amount)}
                         </span>
                       </div>
                     ))}
 
-                    <div className="border-t border-white/10 p-4 flex items-center justify-between">
-                      <span className="text-xs font-mono uppercase tracking-widest text-neutral-400">
-                        Subtotal
-                      </span>
-                      <span className="text-sm font-mono text-white">{formatZAR(pricing.subtotal)}</span>
-                    </div>
-                    <div className="border-t border-white/5 p-4 flex items-center justify-between">
-                      <span className="text-xs font-mono uppercase tracking-widest text-neutral-400">
-                        VAT (15%)
-                      </span>
-                      <span className="text-sm font-mono text-neutral-400">{formatZAR(pricing.vat)}</span>
-                    </div>
+                    {/* Subtotal and VAT rows only when VAT is actually charged
+                        (we are not VAT-registered: STUDIO.legal.vatRegistered). */}
+                    {pricing.vat > 0 && (
+                      <>
+                        <div className="border-t border-white/10 p-4 flex items-center justify-between">
+                          <span className="text-xs font-mono uppercase tracking-widest text-neutral-400">
+                            Subtotal
+                          </span>
+                          <span className="text-sm font-mono text-white">{formatRand(pricing.subtotal)}</span>
+                        </div>
+                        <div className="border-t border-white/5 p-4 flex items-center justify-between">
+                          <span className="text-xs font-mono uppercase tracking-widest text-neutral-400">
+                            VAT ({PRODUCTION_SERVICES.billing.vatRate}%)
+                          </span>
+                          <span className="text-sm font-mono text-neutral-400">{formatRand(pricing.vat)}</span>
+                        </div>
+                      </>
+                    )}
                     <div className="border-t border-white/10 p-4 flex items-center justify-between bg-[#D4A843]/5">
                       <span className="text-xs font-mono uppercase tracking-widest font-bold text-[#D4A843]">
                         Total
                       </span>
                       <span className="text-xl font-display font-bold text-[#D4A843]">
-                        {formatZAR(pricing.total)}
+                        {formatRand(pricing.total)}
                       </span>
                     </div>
                   </div>
@@ -416,7 +422,7 @@ export default function ProductionPackageDetailView({
                   Package Price
                 </span>
                 <span className="text-2xl font-bold text-[#D4A843]">
-                  {formatZAR(pricing.total)}
+                  {formatRand(pricing.total)}
                 </span>
               </div>
               <div className="flex items-end justify-between border-t border-white/5 pt-3">
@@ -432,7 +438,7 @@ export default function ProductionPackageDetailView({
                   Effective Rate
                 </span>
                 <span className="text-sm font-mono text-neutral-400">
-                  ~{formatZAR(Math.round(pricing.subtotal / totalHours))}/hr
+                  ~{formatRand(Math.round(pricing.total / totalHours))}/hr
                 </span>
               </div>
             </div>
@@ -440,17 +446,17 @@ export default function ProductionPackageDetailView({
             {/* Book CTA */}
             <div className="border border-white/10 p-5 bg-[#0A0A0B] mb-6">
               <h3 className="text-xs font-mono font-bold uppercase tracking-widest text-neutral-400 mb-4 border-b border-white/5 pb-3">
-                Book This Package
+                Request This Package
               </h3>
               <p className="text-xs text-neutral-400 mb-4 leading-relaxed">
-                Share your project details and preferred dates.
-                We&apos;ll confirm availability and send you a quote.
+                Shoots are by request. Share your project details and preferred dates;
+                we reply to confirm who will shoot it, the date and the price.
               </p>
               <Link
                 href={`/book?production=${encodeURIComponent(pkg.id)}`}
                 className="w-full py-3 text-xs font-mono font-bold uppercase tracking-widest bg-[#D4A843] text-black hover:opacity-80 transition-opacity flex items-center justify-center gap-2"
               >
-                Book Now
+                Request This Package
               </Link>
             </div>
 
@@ -458,8 +464,7 @@ export default function ProductionPackageDetailView({
             <div className="flex items-start gap-2 text-xs font-mono text-neutral-400">
               <Info className="w-3 h-3 mt-0.5 flex-shrink-0" />
               <span>
-                Minimum booking is 4 hours. Travel fees may apply for on-location shoots.
-                VAT included in total price.
+                We work in {STUDIO.serviceArea.province}. {STUDIO.serviceArea.outsideProvinceNote}
               </span>
             </div>
           </div>
@@ -493,11 +498,6 @@ export default function ProductionPackageDetailView({
                             <Building2 className="w-3 h-3" />
                             Studio
                           </span>
-                          {related.popular && (
-                            <span className="text-xs font-mono uppercase tracking-wider text-emerald-400 bg-emerald-400/10 px-2 py-0.5 rounded-full">
-                              Popular
-                            </span>
-                          )}
                         </div>
                         <h3 className="text-sm font-display font-medium text-white uppercase mb-1 group-hover:text-[#D4A843] transition-colors">
                           {related.name}
@@ -508,10 +508,10 @@ export default function ProductionPackageDetailView({
                         <div className="flex items-end justify-between border-t border-white/5 pt-3">
                           <div>
                             <p className="text-lg font-display font-bold text-[#D4A843]">
-                              {formatZAR(relPricing.total)}
+                              {formatRand(relPricing.total)}
                             </p>
                             <p className="text-xs font-mono text-neutral-400">
-                              {relHours}hrs · ~{formatZAR(Math.round(relPricing.subtotal / relHours))}/hr
+                              {relHours}hrs · ~{formatRand(Math.round(relPricing.total / relHours))}/hr
                             </p>
                           </div>
                           <ArrowRight className="w-4 h-4 text-neutral-400 group-hover:text-[#D4A843] group-hover:translate-x-1 transition-all" />
