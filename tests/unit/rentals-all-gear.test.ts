@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { createElement as h } from 'react';
-import { render, screen, fireEvent, within } from '@testing-library/react';
+import { render, screen, fireEvent, within, cleanup } from '@testing-library/react';
 
 // ─── Supabase stub (records builder calls) ─────────────────────────────────────
 type Call = { method: string; args: unknown[] };
@@ -27,7 +27,7 @@ vi.mock('next/image', () => ({
 
 import { fetchAllPublishedRentals, RENTAL_CARD_COLUMNS, type RentalListItem } from '@/lib/supabase/queries/smartRentals';
 import { gearCardImage, gearCardImageFallback } from '@/lib/rental/gear-image';
-import AllGearClient, { categoryChips } from '@/app/(platform)/rentals/AllGearClient';
+import AllGearClient, { categoryCounts } from '@/app/(platform)/rentals/AllGearClient';
 
 const item = (n: number, category: string, price = 100): RentalListItem =>
   ({
@@ -76,9 +76,9 @@ describe('gear card images', () => {
 });
 
 describe('/rentals all-gear page', () => {
-  it('builds chips: All first, then categories biggest first', () => {
-    expect(categoryChips(gear).map((c) => [c.value, c.count])).toEqual([
-      ['all', 4], ['cameras-optics', 2], ['audio', 1], ['lighting-power', 1],
+  it('counts categories, biggest first', () => {
+    expect(categoryCounts(gear).map((c) => [c.value, c.count])).toEqual([
+      ['cameras-optics', 2], ['audio', 1], ['lighting-power', 1],
     ]);
   });
 
@@ -87,23 +87,42 @@ describe('/rentals all-gear page', () => {
     expect(screen.getAllByRole('link')).toHaveLength(4);
     expect(screen.getByRole('link', { name: /Item 1/ }).getAttribute('href')).toBe('/rentals/cameras-optics/item-1');
     expect(container.textContent).toContain('R1 300 / day');
-    expect(screen.getByRole('button', { name: /All/ }).getAttribute('aria-pressed')).toBe('true');
+    expect(screen.getByRole('button', { name: /^All/ }).getAttribute('aria-pressed')).toBe('true');
   });
 
-  it('a chip filters in place and keeps the address shareable', () => {
+  it('has only two buttons: All and Categories', () => {
     render(h(AllGearClient, { rentals: gear }));
-    fireEvent.click(screen.getByRole('button', { name: /Audio/ }));
-    expect(screen.getAllByRole('link').map((a) => a.textContent)).toEqual([expect.stringContaining('Item 2')]);
+    const group = screen.getByRole('group', { name: 'Show' });
+    expect(within(group).getAllByRole('button').map((x) => x.textContent)).toEqual(['All 4', 'Categories']);
+  });
+
+  it('Categories shows tiles; a tile opens that category; back returns to the tiles', () => {
+    render(h(AllGearClient, { rentals: gear }));
+    fireEvent.click(screen.getByRole('button', { name: 'Categories' }));
+    expect(screen.queryAllByRole('link')).toHaveLength(0);
+    expect(window.location.pathname + window.location.search).toBe('/rentals?view=categories');
+    fireEvent.click(screen.getByRole('button', { name: /Audios*1 item$/ }));
+    expect(screen.getAllByRole('link').map((x) => x.textContent)).toEqual([expect.stringContaining('Item 2')]);
     expect(window.location.pathname).toBe('/rentals/audio');
-    fireEvent.click(screen.getByRole('button', { name: /All/ }));
+    expect(screen.getByRole('button', { name: 'Categories', pressed: true })).toBeTruthy();
+    fireEvent.click(screen.getAllByRole('button', { name: /Categories/ }).find((x) => !x.hasAttribute('aria-pressed'))!);
+    expect(screen.getByRole('button', { name: /Cameras & Opticss*2 items$/ })).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: /^All/ }));
     expect(screen.getAllByRole('link')).toHaveLength(4);
     expect(window.location.pathname).toBe('/rentals');
   });
 
-  it('a category address opens with that chip chosen; an unknown one shows all', () => {
+  it('a category address opens on that category; ?view=categories on the tiles; unknown shows all', () => {
     const { unmount } = render(h(AllGearClient, { rentals: gear, initialCategory: 'cameras-optics' }));
     expect(screen.getAllByRole('link')).toHaveLength(2);
     unmount();
+    render(h(AllGearClient, { rentals: gear, initialCategory: 'nope' }));
+    expect(screen.getAllByRole('link')).toHaveLength(4);
+    cleanup();
+    render(h(AllGearClient, { rentals: gear, initialCategory: 'categories' }));
+    expect(screen.queryAllByRole('link')).toHaveLength(0);
+    expect(screen.getAllByRole('button', { name: /items?$/ })).toHaveLength(3);
+    cleanup();
     render(h(AllGearClient, { rentals: gear, initialCategory: 'nope' }));
     expect(screen.getAllByRole('link')).toHaveLength(4);
   });
