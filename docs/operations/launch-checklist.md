@@ -11,9 +11,11 @@ up: check the project ref in the URL before every SQL step).
 
 Why this order: migrations 067 and 077 need the matching app build deployed
 **first** in that environment (docs/database/README.md), so each environment
-gets "app, then migrations". Production gets the new app by the
-develop → main merge (step 8) while still in maintenance mode, and its
-migrations right after (step 9).
+gets "env, then app, then migrations". Vercel applies env changes only to
+deployments made after them, so every variable in step 1 is set (and
+`VERCEL_TOKEN` removed) BEFORE the deploy. Production gets the new app by the
+develop → main merge (step 8: that merge IS the production deploy) while
+still in maintenance mode, and its migrations straight after (step 9).
 
 ---
 
@@ -39,6 +41,8 @@ environment. `develop` deploys to **Preview** (dev Supabase), `main` to
 | `AI_PROVIDER=anthropic`, `ANTHROPIC_API_KEY`, `GOOGLE_GENERATIVE_AI_API_KEY`, `GEMINI_API_KEY` | set | set |
 | `SMS_PROVIDER=smsgate`, `SMSGATE_USERNAME`, `SMSGATE_PASSWORD` | step 5 | step 5 |
 | `SEARCH_PROVIDER=supabase`, `RAG_ENABLED=false` | set | set |
+| `ENGAGEMENT_DRY_RUN` | `true` until the emails are checked | `true` for the first runs |
+| `VERCEL_TOKEN` | remove | **remove** (the code never reads it) |
 
 Vercel → Settings → Build and Deployment (older UI: General) → Node.js Version: **20.x or later** (nodemailer
 10 needs Node ≥ 20, D-79).
@@ -249,26 +253,36 @@ the code; **bold** ones block launch or a migration.
 
 ## 8. Merge develop → main (F)
 
-Only after steps 1–7. Production is still in maintenance mode.
-GitHub → New PR `develop` → `main` → CI green → merge.
+Only after steps 1–7, with every Production variable from step 1 already
+set (env reaches only deployments made after it). Production is still in
+maintenance mode. GitHub → New PR `develop` → `main` → CI green → merge. The
+merge is the production deploy. Time it so step 9 can follow at once, outside
+the cron times in step 9.
 
 - **Verify:** Vercel → Production deployment Ready; `https://www.…` shows
   the maintenance page; `https://www.…/?preview=<MAINTENANCE_BYPASS_TOKEN>`
   shows the real site for you.
-- **Rollback:** Vercel → Deployments → the previous production deployment →
-  **Promote to Production** (instant), then revert the merge.
+- **Rollback:** before any migration of step 9 runs: Vercel → Deployments →
+  the previous production deployment → **Promote to Production** (instant),
+  then revert the merge. After 067 runs, see step 9's rollback: the old build
+  alone is not safe.
 
-## 9. Migrations 067 → 080 on PRODUCTION (E runs, F approves)
+## 9. Migrations 083, 067 → 087 on PRODUCTION (E runs, F approves)
 
 Exactly step 3 with `DB` set to the PRODUCTION connection string (check the
 project ref), **without** `070-concurrency.sh` (DEV only), after D-28 is
 approved and the production app from step 8 is live (067 and 077 need it;
 080 must be applied with the Phase 8 build, which reads `origin_owner_id`:
 apply 080 in the same window as the deploy, and before any owner opts in).
-Off-peak. Name the dump `prod-before-067.dump`.
-On production, `083-prerelease-fixes.sql` runs FIRST, before 067; the exact
-order, env vars and smoke test are in
+Straight after the deploy, in one sitting, and never across a cron run:
+`vercel.json` runs crons at 00:00, 03:00, 05:45, 06:00 and 12:00 UTC (02:00,
+05:00, 07:45, 08:00, 14:00 SAST). Name the dump `prod-before-067.dump`.
+On production, `083-prerelease-fixes.sql` runs FIRST, before 067, then 067 to
+082, 084, 085 and 087 (086 later, on its own); the exact order, env vars and
+smoke test are in
 [docs/release/2026-10-apply-order.md](../release/2026-10-apply-order.md).
+The F1 storage fix in 083 is already on production (hotfix of 2026-10-13,
+recorded as `hotfix_close_verification_docs_leak`); 083 repeats it harmlessly.
 Production is shared with other apps (R-1): read `precheck-077.out` with
 care and keep 077's NOTICE output.
 
@@ -277,9 +291,15 @@ care and keep 077's NOTICE output.
   `pg_dump "$DB" -Fc -f prod-before-067.dump`.
 - **Verify:** all tests pass as on DEV; with the bypass cookie: sign in,
   admin pages, a gear page, Ubunye.
-- **Rollback:** stop at the failing file (it is not applied). For a wider
-  problem: keep maintenance on, restore from the backup / dump, and promote
-  the previous app deployment.
+- **Rollback:** stop at the failing file (it is not applied). Once 067 is
+  applied, promoting the previous app alone is NOT safe (the old ID submit
+  calls `submit_verification_request`, which 067 revokes; after 077 the old
+  build shows busy creators as available). Some steps can only be fixed
+  forward: 070 after real bookings, 076 after any dispatch, 068/071/073/074
+  (their rollback drops tables and the rows in them), 082 (no rollback
+  block). For a wider problem: keep maintenance on, restore from the backup /
+  dump, and only then promote the previous app deployment. Details:
+  [apply order, section 4](../release/2026-10-apply-order.md#4-rollback-mostly-fix-forward).
 
 ## 10. Live keys (F)
 
