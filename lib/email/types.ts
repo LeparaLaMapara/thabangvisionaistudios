@@ -5,6 +5,11 @@ export type SendEmailOptions = {
   subject: string;
   text: string;
   html?: string;
+  /**
+   * Extra message headers, e.g. List-Unsubscribe. Names must be plain header
+   * tokens and values one line; anything else is refused.
+   */
+  headers?: Record<string, string>;
 };
 
 export type ContactNotificationParams = {

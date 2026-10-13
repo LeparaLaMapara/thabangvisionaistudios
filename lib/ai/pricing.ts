@@ -4,6 +4,8 @@ type Price = { input: number; output: number };
 
 const EXTRA: Record<string, Price> = {
   'gemma-4-31b-it': { input: 0, output: 0 },
+  // The open-weight 'gemma' route (lib/ai/registry.ts), free tier on the Gemini API.
+  'gemma-4-26b-a4b-it': { input: 0, output: 0 },
   'gemini-3.6-flash': { input: 1.35, output: 5.4 },
 };
 
@@ -17,7 +19,7 @@ export const AI_PRICING: Record<string, Price> = {
  * in this set and NOT in AI_PRICING is unknown, and unknown must never be
  * treated as free (see below).
  */
-const KNOWN_FREE = new Set(['gemma-4-31b-it']);
+const KNOWN_FREE = new Set(['gemma-4-31b-it', 'gemma-4-26b-a4b-it']);
 
 /**
  * The most expensive known price, used as the floor for unknown models.

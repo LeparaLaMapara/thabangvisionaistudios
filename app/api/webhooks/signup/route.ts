@@ -1,12 +1,18 @@
 export const dynamic = 'force-dynamic';
 
 import { timingSafeEqual } from 'node:crypto';
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse, after } from 'next/server';
 import { processSignup } from '@/lib/greetings/process';
+import { sendWelcomeSoon } from '@/lib/engagement/runner';
 
 /**
  * Called by the database when an account is created (migration 060,
- * notify_signup). Drafts Ubunye's welcome and emails the owner.
+ * notify_signup). Drafts Ubunye's welcome, emails the owner and, when the
+ * person's email is already confirmed (Google), sends the welcome.
+ *
+ * Answers at once (202) and does the work after the response: pg_net gives
+ * up after 5 seconds, and drafting with AI plus two emails takes longer, so
+ * every call was logged as timed out (2026-10-03) although the work finished.
  */
 function secretMatches(given: string | null): boolean {
   const expected = process.env.SIGNUP_WEBHOOK_SECRET;
@@ -31,11 +37,14 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'user_id required' }, { status: 400 });
   }
 
-  try {
-    const result = await processSignup(userId);
-    return NextResponse.json(result);
-  } catch (err) {
-    console.error('[webhooks/signup]', err);
-    return NextResponse.json({ error: 'Failed' }, { status: 500 });
-  }
+  const id = userId;
+  after(async () => {
+    try {
+      const result = await processSignup(id);
+      if (result.status === 'drafted' || result.status === 'exists') await sendWelcomeSoon(id);
+    } catch (err) {
+      console.error('[webhooks/signup]', err);
+    }
+  });
+  return NextResponse.json({ accepted: true }, { status: 202 });
 }

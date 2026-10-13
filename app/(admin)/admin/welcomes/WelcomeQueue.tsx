@@ -30,7 +30,7 @@ export function WelcomeQueue() {
   const [welcomes, setWelcomes] = useState<Welcome[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
-  const [filter, setFilter] = useState<'draft' | 'all'>('draft');
+  const [filter, setFilter] = useState<'draft' | 'sent' | 'all'>('draft');
 
   const fetchQueue = useCallback(
     () =>
@@ -98,7 +98,8 @@ export function WelcomeQueue() {
     await load();
   };
 
-  const shown = (welcomes ?? []).filter((w) => filter === 'all' || w.status === 'draft');
+  const shown = (welcomes ?? []).filter((w) => filter === 'all' || w.status === filter);
+  const sentCount = (welcomes ?? []).filter((w) => w.status === 'sent').length;
   const drafts = (welcomes ?? []).filter((w) => w.status === 'draft').length;
 
   return (
@@ -112,13 +113,13 @@ export function WelcomeQueue() {
           {busy === 'backfill' ? 'Drafting…' : 'Draft for everyone not yet welcomed'}
         </button>
         <div className="flex gap-2 text-xs font-mono">
-          {(['draft', 'all'] as const).map((f) => (
+          {(['draft', 'sent', 'all'] as const).map((f) => (
             <button
               key={f}
               onClick={() => setFilter(f)}
               className={`min-h-[44px] px-3 rounded border ${filter === f ? 'border-white text-white' : 'border-neutral-700 text-neutral-400'}`}
             >
-              {f === 'draft' ? `To send (${drafts})` : `All (${welcomes?.length ?? 0})`}
+              {f === 'draft' ? `To send (${drafts})` : f === 'sent' ? `Sent (${sentCount})` : `All (${welcomes?.length ?? 0})`}
             </button>
           ))}
         </div>
@@ -127,7 +128,7 @@ export function WelcomeQueue() {
       {error && <p className="text-sm text-red-400">{error}</p>}
       {welcomes === null && !error && <p className="text-sm text-neutral-400">Loading…</p>}
       {welcomes !== null && shown.length === 0 && (
-        <p className="text-sm text-neutral-400">Nothing to send. New signups appear here within a minute.</p>
+        <p className="text-sm text-neutral-400">{filter === 'sent' ? 'Nothing sent yet.' : 'Nothing to send. New signups appear here within a minute.'}</p>
       )}
 
       {shown.map((w) => (

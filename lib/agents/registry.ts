@@ -6,6 +6,7 @@ import { listingDescriberAgent } from './agents/listing-describer';
 import { productionDescriberAgent } from './agents/production-describer';
 import { contentRepurposerAgent } from './agents/content-repurposer';
 import { outreachAgent } from './agents/outreach';
+import { lifecycleAgent } from './agents/lifecycle';
 
 export const UBUNYE_AGENTS: Record<string, UbunyeAgent> = {
   assistant: assistantAgent,
@@ -21,6 +22,8 @@ export const UBUNYE_AGENTS: Record<string, UbunyeAgent> = {
   'content-repurposer': contentRepurposerAgent,
 
   outreach: outreachAgent,
+
+  lifecycle: lifecycleAgent,
 
   onboarding: {
     id: 'onboarding',

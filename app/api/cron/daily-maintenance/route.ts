@@ -15,6 +15,7 @@ import { notifyClient } from '@/lib/bookings/notify-client';
 import { loadNoticeBookings, sendGearNotice } from '@/lib/rental/notices';
 import { paymentReference } from '@/lib/payments/eft';
 import { autoSendWelcomes, draftMissingWelcomes } from '@/lib/greetings/process';
+import { runLifecycle } from '@/lib/engagement/runner';
 import { runOverdueLadder } from '@/lib/rental/workers';
 import { buildNotices } from '@/lib/core/rental/notifications';
 import { SupabaseAddressRetention, purgeDeliveryAddresses } from '@/lib/delivery/jobs';
@@ -800,6 +801,13 @@ Please contact the client and the creator. They are not paid out or refunded aut
     results.logRetention = await pruneLogs(supabase);
   } catch (err) {
     results.logRetention = { error: String(err) };
+  }
+
+  // ─── 18. Lifecycle emails and push (lib/engagement) ──────────────────────
+  try {
+    results.engagement = await runLifecycle({ now });
+  } catch (err) {
+    results.engagement = { error: String(err) };
   }
 
   console.log('[daily-maintenance] Results:', JSON.stringify(results));

@@ -51,7 +51,7 @@ function createTransporter() {
  * the transport's access policy. No attachments are ever sent.
  */
 export function buildGmailMessage(
-  { to, subject, text, html }: SendEmailOptions,
+  { to, subject, text, html, headers }: SendEmailOptions,
   fromAddress: string,
 ): SMTPTransport.MailOptions {
   const fields: Record<string, unknown> = { to, subject, text };
@@ -61,6 +61,7 @@ export function buildGmailMessage(
       throw new TypeError(`[email] ${key} must be a string`);
     }
   }
+  const extraHeaders = headers === undefined ? undefined : checkedHeaders(headers);
 
   return {
     // Address object, not a template string: nodemailer quotes / encodes the
@@ -71,7 +72,26 @@ export function buildGmailMessage(
     subject,
     text,
     ...(html !== undefined ? { html } : {}),
+    ...(extraHeaders ? { headers: extraHeaders } : {}),
   };
+}
+
+/** Header names allowed through: plain tokens, never one nodemailer sets itself. */
+const RESERVED_HEADERS = new Set(['from', 'to', 'cc', 'bcc', 'subject', 'reply-to', 'sender', 'content-type']);
+
+/** Extra headers, refused when a name is not a token or a value spans lines. */
+function checkedHeaders(headers: Record<string, string>): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const [name, value] of Object.entries(headers)) {
+    if (!/^[A-Za-z0-9-]{1,64}$/.test(name) || RESERVED_HEADERS.has(name.toLowerCase())) {
+      throw new TypeError(`[email] header name not allowed: ${name}`);
+    }
+    if (typeof value !== 'string' || /[\r\n]/.test(value) || value.length > 2000) {
+      throw new TypeError(`[email] header ${name} must be a one-line string`);
+    }
+    out[name] = value;
+  }
+  return out;
 }
 
 function escapeHtml(str: string): string {

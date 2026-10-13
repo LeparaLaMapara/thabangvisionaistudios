@@ -60,6 +60,9 @@ export function buildCsp(nonce: string, opts: { dev?: boolean } = {}): string {
     "frame-src https://accounts.google.com/gsi/ https://checkout.paystack.com https://www.youtube.com https://player.vimeo.com",
     "frame-ancestors 'none'",
     "media-src 'self' https://res.cloudinary.com",
+    // The push service worker (/sw.js). Stated outright: workers fall back to
+    // script-src, where 'strict-dynamic' makes browsers ignore 'self'.
+    "worker-src 'self'",
     "object-src 'none'",
     "base-uri 'self'",
     "form-action 'self' https://checkout.paystack.com",

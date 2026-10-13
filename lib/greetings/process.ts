@@ -3,6 +3,9 @@ import { generateWithFallback } from '@/lib/ai/resilient';
 import { logTokenUsage } from '@/lib/ai/tracked';
 import { email as emailProvider } from '@/lib/email';
 import { STUDIO } from '@/lib/constants';
+import { sendLifecycleEmail } from '@/lib/engagement/send';
+import { contentFromText } from '@/lib/engagement/templates';
+import { isUnsubscribeConfigured } from '@/lib/engagement/unsubscribe';
 import {
   describeActivity,
   firstNameFrom,
@@ -140,7 +143,9 @@ export async function processSignup(
           'So far:',
           ...describeActivity(loaded.ctx.activity).map((l) => `- ${l}`),
           '',
-          `Ubunye has drafted a welcome for them. Read, edit and send it at ${STUDIO.meta.url}/admin/welcomes`,
+          STUDIO.welcomes.autoSendAfterHours === null
+            ? `Ubunye has drafted a welcome for them. Read, edit and send it at ${STUDIO.meta.url}/admin/welcomes`
+            : `Ubunye has drafted a welcome for them. It goes out by itself once their email is confirmed. See it at ${STUDIO.meta.url}/admin/welcomes`,
         ].join('\n'),
       })
       .catch((err) => console.error('[welcome] owner note failed:', err));
@@ -149,14 +154,29 @@ export async function processSignup(
   return { status: 'drafted' };
 }
 
-/** Sends a queued welcome. Only a draft is ever sent, and only once. */
-export async function sendWelcome(userId: string, sentBy: string | null): Promise<{ ok: boolean; error?: string }> {
+/**
+ * Sends a queued welcome. Only a draft is ever sent, and only once. With the
+ * lifecycle signing secret set, it goes in the brand layout with an
+ * unsubscribe link (lib/engagement/send.ts); without it, as plain text.
+ */
+export async function sendWelcome(
+  userId: string,
+  sentBy: string | null,
+  options: { dryRun?: boolean } = {},
+): Promise<{ ok: boolean; error?: string; subject?: string }> {
   // With no email set up the provider skips the send without an error, so the
   // welcome would be marked sent although nobody got it. Say so instead.
-  if (!emailProvider.isConfigured()) {
+  if (!options.dryRun && !emailProvider.isConfigured()) {
     return { ok: false, error: 'Email is not set up on this site, so nothing was sent. The welcome stays a draft.' };
   }
   const admin = createAdminClient();
+
+  if (options.dryRun) {
+    const { data } = await admin.from('welcome_messages').select('subject, status').eq('user_id', userId).maybeSingle();
+    if (data?.status !== 'draft') return { ok: false, error: 'Not a draft (already sent or discarded).' };
+    console.log(`[engagement] dry run: would send the welcome "${data.subject}"`);
+    return { ok: true, subject: data.subject };
+  }
 
   // Claim it first, so two clicks cannot send two emails.
   const { data: claimed } = await admin
@@ -169,7 +189,18 @@ export async function sendWelcome(userId: string, sentBy: string | null): Promis
   if (!claimed?.email) return { ok: false, error: 'Not a draft (already sent or discarded).' };
 
   try {
-    await emailProvider.sendEmail({ to: claimed.email, subject: claimed.subject, text: claimed.body });
+    if (isUnsubscribeConfigured()) {
+      const sent = await sendLifecycleEmail({
+        userId,
+        to: claimed.email,
+        content: contentFromText(claimed.subject, claimed.body),
+        why: 'service',
+        dryRun: false,
+      });
+      if (!sent.ok) throw new Error(sent.message);
+    } else {
+      await emailProvider.sendEmail({ to: claimed.email, subject: claimed.subject, text: claimed.body });
+    }
   } catch (err) {
     await admin.from('welcome_messages').update({ status: 'draft', updated_at: new Date().toISOString() }).eq('user_id', userId);
     return { ok: false, error: err instanceof Error ? err.message : 'Email failed' };
@@ -179,10 +210,14 @@ export async function sendWelcome(userId: string, sentBy: string | null): Promis
     .from('welcome_messages')
     .update({ status: 'sent', sent_by: sentBy, sent_at: new Date().toISOString(), updated_at: new Date().toISOString() })
     .eq('user_id', userId);
-  return { ok: true };
+  return { ok: true, subject: claimed.subject };
 }
 
-/** Sends drafts older than the configured hours (STUDIO.welcomes.autoSendAfterHours). */
+/**
+ * Sends drafts older than the configured hours (STUDIO.welcomes.autoSendAfterHours).
+ * With 0 (send straight away) this does nothing: the lifecycle engine
+ * (lib/engagement) sends welcomes, with the caps, consent and unsubscribe rules.
+ */
 export async function autoSendWelcomes(afterHours: number | null): Promise<number> {
   if (afterHours === null || afterHours <= 0) return 0;
   const cutoff = new Date(Date.now() - afterHours * 3_600_000).toISOString();
