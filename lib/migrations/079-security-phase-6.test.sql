@@ -31,7 +31,7 @@ begin
   -- A suspended account that is (still) an admin in profiles.
   update public.profiles set role = 'admin', is_suspended = true where id = susp_u;
 
-  insert into public.smart_rentals (id, slug, title, quantity, is_published) values (r, 't079-' || r, 'Test', 1, true);
+  insert into public.smart_rentals (id, slug, title, quantity, is_published, category) values (r, 't079-' || r, 'Test', 1, true, 'cameras-optics');
 
   insert into auth.sessions (id, user_id, created_at, updated_at) values (s, user_u, now(), now());
   insert into auth.refresh_tokens (token, user_id, session_id, revoked, created_at, updated_at)

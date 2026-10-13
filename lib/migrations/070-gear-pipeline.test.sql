@@ -27,9 +27,9 @@ declare
 begin
   insert into auth.users (id, email) values (u1, 'p1-test-u1@example.invalid'), (u2, 'p1-test-u2@example.invalid');
   insert into public.profiles (id) values (u1), (u2) on conflict (id) do nothing;
-  insert into public.smart_rentals (id, slug, title, quantity, is_published, price_per_day, replacement_value)
-  values (cam, 'p1-test-cam-' || cam, 'Test camera', 1, true, 1500, 10000),
-         (lens, 'p1-test-lens-' || lens, 'Test lens', 1, true, 500, 4000);
+  insert into public.smart_rentals (id, slug, title, quantity, is_published, price_per_day, replacement_value, category)
+  values (cam, 'p1-test-cam-' || cam, 'Test camera', 1, true, 1500, 10000, 'cameras-optics'),
+         (lens, 'p1-test-lens-' || lens, 'Test lens', 1, true, 500, 4000, 'cameras-optics');
 
   -- 1. A reservation takes the unit; a second customer is refused (T07, sequential).
   r := public.reserve_rental_order(
@@ -45,7 +45,7 @@ begin
   begin
     perform public.reserve_rental_order(
       jsonb_build_array(jsonb_build_object('user_id', u2, 'rental_id', cam, 'checkout_group_id', g2,
-        'start_date', '2030-01-12', 'end_date', '2030-01-14', 'total_price', 3000, 'quantity', 1)), null, 30);
+        'start_date', '2030-01-12', 'end_date', '2030-01-14', 'total_price', 3000, 'deposit_amount', 0, 'quantity', 1)), null, 30);
     raise exception 'FAIL: overlapping reservation was accepted';
   exception when sqlstate 'P0001' then
     raise notice 'PASS: overlapping reservation refused (insufficient_stock)';
@@ -55,7 +55,7 @@ begin
   begin
     perform public.reserve_rental_order(
       jsonb_build_array(jsonb_build_object('user_id', u1, 'rental_id', lens, 'checkout_group_id', g1,
-        'start_date', '2030-05-10', 'end_date', '2030-05-11', 'total_price', 500, 'quantity', 1)), null, 30);
+        'start_date', '2030-05-10', 'end_date', '2030-05-11', 'total_price', 500, 'deposit_amount', 0, 'quantity', 1)), null, 30);
     raise exception 'FAIL: a repeated order id was reserved twice';
   exception when unique_violation then
     raise notice 'PASS: repeated checkout request is refused (T06)';
@@ -64,7 +64,7 @@ begin
   -- 1c. A cash-at-collection booking keeps its hold until the hire day ends.
   r := public.reserve_rental_order(
     jsonb_build_array(jsonb_build_object('user_id', u2, 'rental_id', lens, 'checkout_group_id', g4,
-      'start_date', '2030-09-01', 'end_date', '2030-09-02', 'total_price', 1, 'quantity', 1, 'payment_method', 'cash')), null, 30);
+      'start_date', '2030-09-01', 'end_date', '2030-09-02', 'total_price', 1, 'deposit_amount', 0, 'quantity', 1, 'payment_method', 'cash')), null, 30);
   if (select hold_expires_at from public.equipment_bookings where checkout_group_id = g4) < '2030-09-01 22:00:00+00'::timestamptz then
     raise exception 'FAIL: cash hold expires before the hire day';
   end if;
@@ -76,7 +76,7 @@ begin
   begin
     perform public.reserve_rental_order(
       jsonb_build_array(jsonb_build_object('user_id', u2, 'rental_id', cam, 'checkout_group_id', g2,
-        'start_date', '2030-01-13', 'end_date', '2030-01-15', 'total_price', 3000, 'quantity', 1)), null, 30);
+        'start_date', '2030-01-13', 'end_date', '2030-01-15', 'total_price', 3000, 'deposit_amount', 0, 'quantity', 1)), null, 30);
     raise exception 'FAIL: booking starting on the previous return day was accepted';
   exception when sqlstate 'P0001' then
     raise notice 'PASS: return day is not resold';
@@ -86,8 +86,8 @@ begin
   begin
     perform public.reserve_rental_order(
       jsonb_build_array(
-        jsonb_build_object('user_id', u2, 'rental_id', lens, 'checkout_group_id', g2, 'start_date', '2030-01-10', 'end_date', '2030-01-11', 'total_price', 500, 'quantity', 1),
-        jsonb_build_object('user_id', u2, 'rental_id', cam, 'checkout_group_id', g2, 'start_date', '2030-01-10', 'end_date', '2030-01-11', 'total_price', 1500, 'quantity', 1)),
+        jsonb_build_object('user_id', u2, 'rental_id', lens, 'checkout_group_id', g2, 'start_date', '2030-01-10', 'end_date', '2030-01-11', 'total_price', 500, 'deposit_amount', 0, 'quantity', 1),
+        jsonb_build_object('user_id', u2, 'rental_id', cam, 'checkout_group_id', g2, 'start_date', '2030-01-10', 'end_date', '2030-01-11', 'total_price', 1500, 'deposit_amount', 0, 'quantity', 1)),
       jsonb_build_object('reference', g2::text, 'provider', 'paystack', 'expected_amount_cents', 2000, 'hire_cents', 2000, 'deposit_cents', 0),
       30);
     raise exception 'FAIL: partially available cart was accepted';
@@ -104,8 +104,8 @@ begin
   begin
     perform public.reserve_rental_order(
       jsonb_build_array(
-        jsonb_build_object('user_id', u2, 'rental_id', lens, 'checkout_group_id', g2, 'start_date', '2030-02-01', 'end_date', '2030-02-02', 'total_price', 1),
-        jsonb_build_object('user_id', u1, 'rental_id', lens, 'checkout_group_id', g2, 'start_date', '2030-02-01', 'end_date', '2030-02-02', 'total_price', 1)),
+        jsonb_build_object('user_id', u2, 'rental_id', lens, 'checkout_group_id', g2, 'start_date', '2030-02-01', 'end_date', '2030-02-02', 'total_price', 1, 'deposit_amount', 0),
+        jsonb_build_object('user_id', u1, 'rental_id', lens, 'checkout_group_id', g2, 'start_date', '2030-02-01', 'end_date', '2030-02-02', 'total_price', 1, 'deposit_amount', 0)),
       null, 30);
     raise exception 'FAIL: mixed-customer order accepted';
   exception when sqlstate '22023' then
@@ -167,7 +167,7 @@ begin
   -- 8. Late payment after the stock went to someone else → unavailable (T11).
   perform public.reserve_rental_order(
     jsonb_build_array(jsonb_build_object('user_id', u1, 'rental_id', lens, 'checkout_group_id', g3,
-      'start_date', '2030-04-01', 'end_date', '2030-04-02', 'total_price', 1000, 'quantity', 1)),
+      'start_date', '2030-04-01', 'end_date', '2030-04-02', 'total_price', 1000, 'deposit_amount', 0, 'quantity', 1)),
     jsonb_build_object('reference', g3::text, 'provider', 'paystack', 'expected_amount_cents', 100000, 'hire_cents', 100000, 'deposit_cents', 0),
     30);
   update public.equipment_bookings set hold_expires_at = now() - interval '1 minute' where checkout_group_id = g3;
@@ -176,7 +176,7 @@ begin
   if (select status from public.equipment_bookings where checkout_group_id = g3) <> 'cancelled' then raise exception 'FAIL: hold did not expire'; end if;
   perform public.reserve_rental_order(
     jsonb_build_array(jsonb_build_object('user_id', u2, 'rental_id', lens, 'checkout_group_id', g4,
-      'start_date', '2030-04-01', 'end_date', '2030-04-02', 'total_price', 1000, 'quantity', 1)), null, 30);
+      'start_date', '2030-04-01', 'end_date', '2030-04-02', 'total_price', 1000, 'deposit_amount', 0, 'quantity', 1)), null, 30);
   outcome := public.confirm_rental_payment(g3::text, 'tx-late', 100000, true,
     jsonb_build_object('idempotencyKey', 'payment:tx-late', 'kind', 'payment_captured', 'memo', 't', 'lines', jsonb_build_array(
       jsonb_build_object('account', 'cash_at_provider', 'debitCents', 100000, 'creditCents', 0),
@@ -315,14 +315,14 @@ declare
 begin
   insert into auth.users (id, email) values (ua, 'p1-test-ua@example.invalid'), (ub, 'p1-test-ub@example.invalid');
   insert into public.profiles (id) values (ua), (ub) on conflict (id) do nothing;
-  insert into public.smart_rentals (id, slug, title, quantity, is_published, price_per_day, replacement_value)
-  values (kit, 'p1-test-kit-' || kit, 'Test kit', 1, true, 100, 1000);
+  insert into public.smart_rentals (id, slug, title, quantity, is_published, price_per_day, replacement_value, category)
+  values (kit, 'p1-test-kit-' || kit, 'Test kit', 1, true, 100, 1000, 'cameras-optics');
   r := public.reserve_rental_order(jsonb_build_array(jsonb_build_object('user_id', ua, 'rental_id', kit, 'checkout_group_id', ga,
-    'start_date', '2031-10-20', 'end_date', '2031-10-22', 'total_price', 300, 'quantity', 1, 'payment_method', 'eft')), null, 30);
+    'start_date', '2031-10-20', 'end_date', '2031-10-22', 'total_price', 300, 'deposit_amount', 0, 'quantity', 1, 'payment_method', 'eft')), null, 30);
   ba := (r -> 'booking_ids' ->> 0)::uuid;
   update public.equipment_bookings set hold_expires_at = now() - interval '1 minute' where id = ba;  -- A's hold lapses
   perform public.reserve_rental_order(jsonb_build_array(jsonb_build_object('user_id', ub, 'rental_id', kit, 'checkout_group_id', gb,
-    'start_date', '2031-10-21', 'end_date', '2031-10-21', 'total_price', 100, 'quantity', 1)), null, 30);  -- B takes the unit
+    'start_date', '2031-10-21', 'end_date', '2031-10-22', 'total_price', 100, 'deposit_amount', 0, 'quantity', 1)), null, 30);  -- B takes the unit
   r := public.confirm_manual_payment(ba, 'manual:eft:test', ua);
   if r ->> 'result' <> 'unavailable' then raise exception 'FAIL: mark paid confirmed a resold unit (%)', r; end if;
   if (select status from public.equipment_bookings where id = ba) <> 'pending' then raise exception 'FAIL: lapsed hold changed state'; end if;
