@@ -121,7 +121,8 @@ in name order and changes nothing. Full production order:
 | 14 | `080-owner-pickup.sql` | `080-…test.sql`, then `rls-coverage.test.sql` | Phase 8: collection from the owner's address (owner_pickup addresses, `origin_owner_id` on quotes and legs, one live leg per order + leg + origin, `listing_private.owner_pickup`, owner notification types). **Apply with (or before) the Phase 8 build**: that build reads `origin_owner_id`. Older builds keep working on an 080 database (every leg is the studio). Do not re-run 076 after 080 once an owner leg exists (076 would put back the one-leg-per-order index, the per-order cancelled-order sweep and the table-wide `delivery_quotes` grant); re-run 080 after any re-run of 076. The Phase 8 build also calls 080's `delivery_save_owner_pickup` and `delivery_remove_owner_pickup` |
 | 15 | `081-creative-tools-flag.sql` | — | The `creative_tools` flag (off): shows "Tools" in the main navigation |
 | 16 | `082-verification-notifications.sql` | `082-…test.sql` | Notification types `verification_approved` / `verification_rejected`, sent when staff decide an ID check. Before it, those in-app notices are refused (logged) and only the email goes |
-| 17 | — | `notify pgrst, 'reload schema';` | 077–080 do this themselves |
+| 17 | `084-embeddings-768.sql` | `084-…test.sql` | Search (RAG) index back to 768 dimensions with an HNSW index. Dev and prod had run the 1536 OpenAI variant of 001, so every embedding write and search failed. Deletes the (derived) rows; reindex from `/api/admin/reindex`. Applied to dev 2026-10-13 |
+| 18 | — | `notify pgrst, 'reload schema';` | 077–080 do this themselves |
 
 Any time later: `rls-coverage.test.sql` after every new migration.
 

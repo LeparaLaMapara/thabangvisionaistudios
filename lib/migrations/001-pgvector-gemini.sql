@@ -15,7 +15,7 @@ create table if not exists content_embeddings (
   content_type text not null,        -- 'rental', 'production', 'press', 'career'
   content_id uuid not null,          -- FK to the source table row
   content_text text,                 -- Truncated text stored for debugging
-  embedding vector(768) not null,    -- Gemini text-embedding-004
+  embedding vector(768) not null,    -- Gemini embedding, 768 dims (text-embedding-004, now gemini-embedding-2)
   created_at timestamptz default now(),
   updated_at timestamptz default now(),
 
