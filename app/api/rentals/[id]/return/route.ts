@@ -5,6 +5,7 @@ import { requireAuth } from '@/lib/auth';
 import { createAdminClient } from '@/lib/supabase/server';
 import { RENTAL_POLICIES } from '@/lib/constants';
 import { startOfBookedDay } from '@/lib/rental/cancellation';
+import { evidencePhotoList } from '@/lib/disputes/report';
 
 const VALID_CONDITIONS = ['new', 'like_new', 'good', 'fair', 'for_parts'] as const;
 
@@ -43,9 +44,11 @@ export async function POST(
       );
     }
 
-    if (!Array.isArray(photos)) {
+    // Our own Cloudinary links only: staff open these (stored phishing otherwise).
+    const photoList = evidencePhotoList(photos);
+    if (!photoList) {
       return NextResponse.json(
-        { error: 'photos must be an array of URLs' },
+        { error: 'photos must be a list of photos uploaded through the site' },
         { status: 400 },
       );
     }
@@ -104,8 +107,8 @@ export async function POST(
     const report = {
       customer_report: {
         condition,
-        photos,
-        notes: notes ?? null,
+        photos: photoList,
+        notes: typeof notes === 'string' ? notes.slice(0, 2000) : null,
         reported_at: now.toISOString(),
         estimated_late_fee: lateFee,
       },

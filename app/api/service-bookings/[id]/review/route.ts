@@ -3,7 +3,7 @@ export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
 import { checkRateLimit } from '@/lib/auth';
 import { createClient, createAdminClient } from '@/lib/supabase/server';
-import { publicReviewerName, saveServiceBookingReview } from '@/lib/supabase/queries/creatorReviews';
+import { MAX_REVIEW_CHARS, publicReviewerName, reviewComment, saveServiceBookingReview } from '@/lib/supabase/queries/creatorReviews';
 
 // Writes that touch money or status go through the service role, after the
 // route has checked who the user is and that the record is theirs. The users'
@@ -37,6 +37,11 @@ export async function POST(
     return NextResponse.json({ error: 'Rating must be a whole number from 1 to 5' }, { status: 400 });
   }
 
+  const comment = reviewComment(review);
+  if (comment === 'too_long') {
+    return NextResponse.json({ error: `Keep the review under ${MAX_REVIEW_CHARS} characters` }, { status: 400 });
+  }
+
   // Fetch booking — client only
   const { data: booking, error: fetchError } = await supabase
     .from('bookings')
@@ -60,7 +65,6 @@ export async function POST(
     return NextResponse.json({ error: 'Already reviewed' }, { status: 409 });
   }
 
-  const comment = typeof review === 'string' && review.trim() ? review.trim() : null;
   const db = admin();
 
   // 1. The public review (what creator ratings read). Upsert on booking_id,

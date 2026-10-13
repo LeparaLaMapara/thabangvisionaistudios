@@ -51,7 +51,9 @@ export function isInternalAccount(email: string | null | undefined): boolean {
 export function firstNameFrom(candidates: (string | null | undefined)[]): string | null {
   for (const raw of candidates) {
     const word = (raw ?? '').trim().split(/\s+/)[0] ?? '';
-    if (!word || word.includes('@') || /\d/.test(word) || word.length > 30) continue;
+    // Letters, apostrophes and hyphens only: the name goes into an email
+    // subject and an AI prompt, so "Visit-pay.example.com" is not a name.
+    if (!word || word.length > 30 || !/^\p{L}[\p{L}\p{M}'’-]*$/u.test(word)) continue;
     return word.charAt(0).toUpperCase() + word.slice(1);
   }
   return null;
@@ -147,5 +149,10 @@ export function isSafeDraft(body: string): boolean {
   if (body.trim().length < 40 || body.length > 1500) return false;
   if (/[\w.+-]+@[\w-]+\.[\w.]+/.test(body.replace(/\S+@thabangvision\.com/g, ''))) return false;
   if (/\b\d{13}\b/.test(body)) return false; // an SA ID number
+  // No web address but ours, written out or spelled ("site dot co dot za"):
+  // a profile can carry an injected instruction to send people elsewhere.
+  const others = body.replace(/(?:[\w-]+\.)*thabangvision\.com\b/gi, '');
+  if (/\b[a-z0-9][a-z0-9-]*(?:\.[a-z0-9-]+)*\.[a-z]{2,}\b/i.test(others)) return false;
+  if (/\bdot\s+(?:com|co|za|net|org|io|app|me|info|xyz)\b/i.test(others)) return false;
   return true;
 }

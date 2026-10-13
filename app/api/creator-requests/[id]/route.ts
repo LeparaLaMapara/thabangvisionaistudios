@@ -6,19 +6,12 @@ import { email as emailProvider } from '@/lib/email';
 import { STUDIO } from '@/lib/constants';
 import { checkRateLimit } from '@/lib/auth';
 import { appUrl } from '@/lib/app-url';
+import { canMoveRequest } from '@/lib/creators/request-status';
 
 // Writes that touch money or status go through the service role, after the
 // route has checked who the user is and that the record is theirs. The users'
 // own sessions may only read these tables (see the RLS migration of 2026-09-27).
 const admin = () => createAdminClient();
-
-// Allowed status transitions
-const ALLOWED_TRANSITIONS: Record<string, string[]> = {
-  pending: ['confirmed', 'declined', 'cancelled'],
-  confirmed: ['completed', 'paid'],
-  paid: ['in_progress'],
-  in_progress: ['completed'],
-};
 
 export async function PATCH(
   request: NextRequest,
@@ -78,9 +71,12 @@ export async function PATCH(
     }
   }
 
-  // Validate transition
-  const allowed = ALLOWED_TRANSITIONS[crewRequest.status];
-  if (!allowed || !allowed.includes(status)) {
+  // Validate transition (lib/creators/request-status.ts). Nobody sets `paid`
+  // here: only a verified payment does.
+  const allowed =
+    (isCreator && canMoveRequest('creator', crewRequest.status, status)) ||
+    (isClient && canMoveRequest('client', crewRequest.status, status));
+  if (!allowed) {
     return NextResponse.json(
       { error: `Cannot transition from '${crewRequest.status}' to '${status}'` },
       { status: 400 },

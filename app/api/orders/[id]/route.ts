@@ -3,6 +3,7 @@ export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import type { OrderStatus } from '@/types/order';
+import { canSellerMoveOrder } from '@/lib/orders/status';
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -108,6 +109,14 @@ export async function PUT(
     return NextResponse.json(
       { error: 'Invalid status transition.' },
       { status: 403 },
+    );
+  }
+
+  // Sellers move an order one step at a time: paid, shipped, delivered, completed.
+  if (isSeller && !isBuyer && !canSellerMoveOrder(order.status, status)) {
+    return NextResponse.json(
+      { error: `Cannot move this order from '${order.status}' to '${status}'.` },
+      { status: 400 },
     );
   }
 

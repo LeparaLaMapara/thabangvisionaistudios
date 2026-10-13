@@ -3,6 +3,7 @@ import { generateWithFallback } from '@/lib/ai/resilient';
 import { logTokenUsage } from '@/lib/ai/tracked';
 import { email as emailProvider } from '@/lib/email';
 import { STUDIO } from '@/lib/constants';
+import { checkRateLimit } from '@/lib/auth';
 import { sendLifecycleEmail } from '@/lib/engagement/send';
 import { contentFromText } from '@/lib/engagement/templates';
 import { isUnsubscribeConfigured } from '@/lib/engagement/unsubscribe';
@@ -83,6 +84,9 @@ export async function loadWelcomeContext(
 /** Ubunye's draft, or the plain template when no AI provider answers. */
 export async function draftWelcome(ctx: WelcomeContext): Promise<{ subject: string; body: string; draftedBy: string }> {
   try {
+    if (!(await checkRateLimit('signup-ai-draft', STUDIO.welcomes.aiDraftsPerHour, 3_600_000))) {
+      throw new Error('hourly AI draft cap reached');
+    }
     const { system, prompt } = welcomePrompt(ctx);
     const out = await generateWithFallback({ ref: 'fast', system, prompt, maxOutputTokens: 400, temperature: 0.6 });
     logTokenUsage({ agentId: 'welcome', provider: out.servedBy, model: out.modelId, usage: out.usage });
@@ -99,11 +103,16 @@ export async function draftWelcome(ctx: WelcomeContext): Promise<{ subject: stri
 /**
  * Handles one signup: drafts the welcome into the queue (once per person, the
  * table's primary key is the user id) and tells the owner. Safe to call twice.
+ *
+ * Only once the email is confirmed: anyone can create accounts with made-up
+ * addresses, and each draft costs an AI call and an owner email. The
+ * database calls the webhook again when the email is confirmed (088), and
+ * the daily sweep catches anything missed.
  */
 export async function processSignup(
   userId: string,
   options: { notifyOwner: boolean } = { notifyOwner: true },
-): Promise<{ status: 'drafted' | 'exists' | 'internal' | 'missing' }> {
+): Promise<{ status: 'drafted' | 'exists' | 'internal' | 'missing' | 'unconfirmed' }> {
   const admin = createAdminClient();
 
   const { data: existing } = await admin.from('welcome_messages').select('user_id').eq('user_id', userId).maybeSingle();
@@ -112,6 +121,7 @@ export async function processSignup(
   const loaded = await loadWelcomeContext(admin, userId);
   if (!loaded) return { status: 'missing' };
   if (isInternalAccount(loaded.email)) return { status: 'internal' };
+  if (!loaded.ctx.activity.emailConfirmed) return { status: 'unconfirmed' };
 
   const draft = await draftWelcome(loaded.ctx);
   const { error } = await admin.from('welcome_messages').insert({
@@ -131,7 +141,10 @@ export async function processSignup(
     throw new Error(`welcome insert failed: ${error.message}`);
   }
 
-  if (options.notifyOwner) {
+  const ownerNote =
+    options.notifyOwner && (await checkRateLimit('signup-owner-note', STUDIO.welcomes.ownerNotesPerHour, 3_600_000));
+  if (options.notifyOwner && !ownerNote) console.warn('[welcome] hourly owner-note cap reached; note skipped for', userId);
+  if (ownerNote) {
     const name = loaded.ctx.firstName ?? 'Someone';
     await emailProvider
       .sendEmail({

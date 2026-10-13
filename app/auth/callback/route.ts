@@ -4,6 +4,7 @@ import { checkConsents, requiredConsents } from '@/lib/consent';
 import { afterSignInPath, cleanNextPath, type ConsentState } from '@/lib/auth/next-path';
 import { homeFor } from '@/lib/welcome';
 import { sendWelcomeSoon } from '@/lib/engagement/runner';
+import { processSignup } from '@/lib/greetings/process';
 
 /**
  * Where Google and email sign-in links land.
@@ -35,9 +36,17 @@ export async function GET(request: Request): Promise<NextResponse> {
           return NextResponse.redirect(new URL(afterSignInPath({ isAdmin, consent: 'ok', next }), origin));
         }
 
-        // A just-confirmed email: their welcome can go now (no-op once sent).
+        // A just-confirmed email: draft the welcome if the signup webhook
+        // skipped it (unconfirmed then), and send it now (no-op once sent).
         const welcomeId = user.id;
-        after(() => sendWelcomeSoon(welcomeId));
+        after(async () => {
+          try {
+            await processSignup(welcomeId);
+          } catch (err) {
+            console.error('[auth/callback] welcome draft failed:', err instanceof Error ? err.message : err);
+          }
+          await sendWelcomeSoon(welcomeId);
+        });
 
         const check = await checkConsents(supabase, user.id, requiredConsents('onboarding'));
         const consent: ConsentState =

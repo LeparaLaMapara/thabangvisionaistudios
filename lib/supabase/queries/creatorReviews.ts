@@ -68,6 +68,16 @@ export async function getReviewsForUser(userId: string): Promise<CreatorReview[]
  * The name shown on a public review: the reviewer's first name only, so a
  * client's full name is never published. null when there is none.
  */
+/** Longest public review comment. Reviews go public at once; 088 checks the same in the database. */
+export const MAX_REVIEW_CHARS = 2000;
+
+/** The trimmed comment, null when empty, or 'too_long'. */
+export function reviewComment(raw: unknown): string | null | 'too_long' {
+  if (typeof raw !== 'string' || !raw.trim()) return null;
+  const text = raw.trim();
+  return text.length > MAX_REVIEW_CHARS ? 'too_long' : text;
+}
+
 export function publicReviewerName(displayName: string | null | undefined): string | null {
   const first = (displayName ?? '').trim().split(/\s+/)[0];
   return first ? first.slice(0, 60) : null;

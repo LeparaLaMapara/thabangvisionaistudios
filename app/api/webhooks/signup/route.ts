@@ -7,8 +7,9 @@ import { sendWelcomeSoon } from '@/lib/engagement/runner';
 
 /**
  * Called by the database when an account is created (migration 060,
- * notify_signup). Drafts Ubunye's welcome, emails the owner and, when the
- * person's email is already confirmed (Google), sends the welcome.
+ * notify_signup) and again when its email is confirmed (088). Once the email
+ * is confirmed it drafts Ubunye's welcome, emails the owner and sends the
+ * welcome; before that it does nothing (unconfirmed accounts cost nothing).
  *
  * Answers at once (202) and does the work after the response: pg_net gives
  * up after 5 seconds, and drafting with AI plus two emails takes longer, so
