@@ -28,9 +28,16 @@ export default function GigsList({ gigs: initialGigs }: GigsListProps) {
   const [activeTab, setActiveTab] = useState<string>('all');
   const [gigs, setGigs] = useState<CrewRequest[]>(initialGigs);
   const [loadingAction, setLoadingAction] = useState<Record<string, string>>({});
+  // A refused or failed update is shown on its card; it used to go to the console only.
+  const [errors, setErrors] = useState<Record<string, string>>({});
 
   const handleStatusUpdate = useCallback(async (gigId: string, newStatus: string) => {
     setLoadingAction((prev) => ({ ...prev, [gigId]: newStatus }));
+    setErrors((prev) => {
+      const next = { ...prev };
+      delete next[gigId];
+      return next;
+    });
 
     try {
       const res = await fetch(`/api/creator-requests/${gigId}`, {
@@ -40,8 +47,14 @@ export default function GigsList({ gigs: initialGigs }: GigsListProps) {
       });
 
       if (!res.ok) {
-        const data = await res.json();
+        const data = await res.json().catch(() => ({}));
         console.error('[GigsList] Status update failed:', data.error);
+        setErrors((prev) => ({
+          ...prev,
+          [gigId]: typeof data.error === 'string' && data.error
+            ? data.error
+            : 'We could not update this request. Please try again.',
+        }));
         return;
       }
 
@@ -53,6 +66,7 @@ export default function GigsList({ gigs: initialGigs }: GigsListProps) {
       );
     } catch (err) {
       console.error('[GigsList] Status update error:', err);
+      setErrors((prev) => ({ ...prev, [gigId]: 'Something went wrong. Check your connection and try again.' }));
     } finally {
       setLoadingAction((prev) => {
         const next = { ...prev };
@@ -83,7 +97,7 @@ export default function GigsList({ gigs: initialGigs }: GigsListProps) {
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
-            className={`text-xs font-mono uppercase tracking-widest px-3 py-2 border transition-all min-h-[36px] ${
+            className={`text-xs font-mono uppercase tracking-widest px-3 py-2 border transition-all min-h-[44px] ${
               activeTab === tab
                 ? 'bg-white text-black border-white'
                 : 'bg-transparent text-neutral-400 border-white/10 hover:border-white/30'
@@ -159,14 +173,14 @@ export default function GigsList({ gigs: initialGigs }: GigsListProps) {
                       <button
                         onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleStatusUpdate(gig.id, 'confirmed'); }}
                         disabled={!!loadingAction[gig.id]}
-                        className="text-xs font-mono uppercase tracking-widest px-3 py-1.5 bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="text-xs font-mono uppercase tracking-widest px-4 min-h-[44px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         {loadingAction[gig.id] === 'confirmed' ? 'Accepting...' : 'Accept'}
                       </button>
                       <button
                         onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleStatusUpdate(gig.id, 'declined'); }}
                         disabled={!!loadingAction[gig.id]}
-                        className="text-xs font-mono uppercase tracking-widest px-3 py-1.5 bg-red-500/10 text-red-400 border border-red-500/30 hover:bg-red-500/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="text-xs font-mono uppercase tracking-widest px-4 min-h-[44px] bg-red-500/10 text-red-400 border border-red-500/30 hover:bg-red-500/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         {loadingAction[gig.id] === 'declined' ? 'Declining...' : 'Decline'}
                       </button>
@@ -179,7 +193,7 @@ export default function GigsList({ gigs: initialGigs }: GigsListProps) {
                   <button
                     onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleStatusUpdate(gig.id, 'completed'); }}
                     disabled={!!loadingAction[gig.id]}
-                    className="text-xs font-mono uppercase tracking-widest px-3 py-1.5 bg-blue-500/10 text-blue-400 border border-blue-500/30 hover:bg-blue-500/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="text-xs font-mono uppercase tracking-widest px-4 min-h-[44px] bg-blue-500/10 text-blue-400 border border-blue-500/30 hover:bg-blue-500/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {loadingAction[gig.id] === 'completed' ? 'Completing...' : 'Mark Complete'}
                   </button>
@@ -190,7 +204,7 @@ export default function GigsList({ gigs: initialGigs }: GigsListProps) {
                   <button
                     onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleStatusUpdate(gig.id, 'in_progress'); }}
                     disabled={!!loadingAction[gig.id]}
-                    className="text-xs font-mono uppercase tracking-widest px-3 py-1.5 bg-cyan-500/10 text-cyan-400 border border-cyan-500/30 hover:bg-cyan-500/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="text-xs font-mono uppercase tracking-widest px-4 min-h-[44px] bg-cyan-500/10 text-cyan-400 border border-cyan-500/30 hover:bg-cyan-500/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {loadingAction[gig.id] === 'in_progress' ? 'Starting...' : 'Start Work'}
                   </button>
@@ -201,11 +215,17 @@ export default function GigsList({ gigs: initialGigs }: GigsListProps) {
                   <button
                     onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleStatusUpdate(gig.id, 'completed'); }}
                     disabled={!!loadingAction[gig.id]}
-                    className="text-xs font-mono uppercase tracking-widest px-3 py-1.5 bg-blue-500/10 text-blue-400 border border-blue-500/30 hover:bg-blue-500/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="text-xs font-mono uppercase tracking-widest px-4 min-h-[44px] bg-blue-500/10 text-blue-400 border border-blue-500/30 hover:bg-blue-500/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {loadingAction[gig.id] === 'completed' ? 'Completing...' : 'Mark Complete'}
                   </button>
                 </div>
+              )}
+
+              {errors[gig.id] && (
+                <p className="text-xs font-mono text-red-400 mt-2" role="alert">
+                  {errors[gig.id]}
+                </p>
               )}
 
               <p className="text-xs font-mono text-neutral-400 mt-2">

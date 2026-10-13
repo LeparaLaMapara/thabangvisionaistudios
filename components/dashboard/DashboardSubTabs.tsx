@@ -51,8 +51,8 @@ export const ACTIVITY_TABS: SubTab[] = [
 ];
 
 export const STUDIO_TABS: SubTab[] = [
-  { href: '/dashboard/portfolio', label: 'Portfolio' },
   { href: '/dashboard/gigs', label: 'Gigs' },
+  { href: '/dashboard/portfolio', label: 'Portfolio' },
   { href: '/dashboard/listings', label: 'Listings' },
   { href: '/dashboard/orders', label: 'Orders' },
 ];

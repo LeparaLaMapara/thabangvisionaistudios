@@ -41,3 +41,27 @@ export async function getUnreadCount(userId: string): Promise<number> {
   }
   return count ?? 0;
 }
+
+/**
+ * A creator's "passed to another creator" alerts. Once the daily job
+ * unassigns a booking the creator can no longer read it, so the alert is the
+ * record the gigs page shows under Past.
+ */
+export async function getReassignedGigNotices(
+  userId: string,
+): Promise<Array<Pick<Notification, 'id' | 'body' | 'created_at'>>> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from('notifications')
+    .select('id, body, created_at')
+    .eq('user_id', userId)
+    .eq('type', 'gig_unassigned')
+    .order('created_at', { ascending: false })
+    .limit(20);
+
+  if (error) {
+    console.error('[getReassignedGigNotices]', error.message);
+    return [];
+  }
+  return (data as Array<Pick<Notification, 'id' | 'body' | 'created_at'>>) ?? [];
+}

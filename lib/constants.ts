@@ -507,6 +507,12 @@ export const STUDIO = {
     // Days a client has to approve, ask for a revision or raise a problem
     // after delivery before the work is approved automatically.
     autoApproveDeliveryAfterDays: 7,
+    // Hours a creator has to accept or decline a paid booking before the
+    // daily maintenance job passes it to another creator, counted from when
+    // the client paid (lib/bookings/answer-by.ts). The reminder email goes
+    // out on the daily run before that, about this many hours before.
+    creatorAnswerHours: 48,
+    creatorAnswerReminderHours: 24,
     // Revision rounds included when the package does not say otherwise.
     defaultRevisionsIncluded: 1,
     // Automatic payout attempts before a person takes over.
@@ -583,6 +589,20 @@ export const SITE_COPYRIGHT = `© ${new Date().getFullYear()} ${STUDIO.legal.com
 // CONFIGURATION FLAGS
 export const SHOW_CAREERS = true;
 
+// ─── CREATOR JOIN ────────────────────────────────────────────────────────────
+// The one way in for a creator who wants to offer their services: the main
+// menu, the footer and the empty creator directory all use these words.
+// /onboarding sends someone signed out to sign up first, then back.
+export const CREATOR_JOIN = {
+  href: '/onboarding',
+  navLabel: 'Offer Your Services',
+  footerLabel: `Earn with ${STUDIO.shortName}`,
+  emptyDirectoryTitle: 'No creators yet',
+  emptyDirectoryText:
+    'Verified creators appear here once their profiles and portfolios are ready. Are you a photographer, videographer, editor or sound person? Join and get booked.',
+  emptyDirectoryCta: 'Offer your services',
+} as const;
+
 export const MAIN_NAVIGATION: {
   label: string;
   href: string;
@@ -593,6 +613,7 @@ export const MAIN_NAVIGATION: {
     // What things cost and how to reach a person, one tap from every page.
     { label: 'Pricing', href: '/pricing' },
     { label: 'Help', href: '/faq' },
+    { label: CREATOR_JOIN.navLabel, href: CREATOR_JOIN.href },
     // Hidden until the `creative_tools` flag is on (lib/nav.ts). /tools itself is always reachable by URL.
     { label: 'Tools', href: '/tools' },
   ];
@@ -615,6 +636,7 @@ export const FOOTER_SECTIONS = [
       { label: 'Sign In', href: '/login' },
       { label: 'Create Account', href: '/register' },
       { label: 'Dashboard', href: '/dashboard' },
+      { label: CREATOR_JOIN.footerLabel, href: CREATOR_JOIN.href },
     ],
   },
   {

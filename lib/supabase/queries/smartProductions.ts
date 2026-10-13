@@ -38,7 +38,6 @@ export type SmartProduction = {
   currency: string | null;
   price_unit: string;
   creator_id: string | null;
-  submitted_at: string | null;
 };
 
 // ─── Queries ──────────────────────────────────────────────────────────────────
@@ -301,8 +300,15 @@ function mapSpecializationToProjectType(specializations: string[]): string {
 }
 
 /**
- * Creates (or updates) a smart_productions entry for a creator after onboarding.
- * Uses upsert on creator_id to be idempotent — re-running won't duplicate.
+ * Creates (or updates) the one smart_productions entry for a creator after
+ * onboarding. Idempotent: running it again updates the same row.
+ *
+ * Written against the schema both databases really have (checked 2026-10-12
+ * on dev and prod): smart_productions has no submitted_at column, and there
+ * is no unique index on creator_id (only a plain one). Writing submitted_at
+ * made every finish fail with "Failed to create production listing."
+ * slug IS unique, so an insert that collides with another production's slug
+ * retries once with a suffix.
  */
 export async function createCreatorProduction(userId: string): Promise<{ success: boolean; error?: string }> {
   const supabase = createAdminClient();
@@ -341,10 +347,11 @@ export async function createCreatorProduction(userId: string): Promise<{ success
   const slug = profile.crew_slug ?? `creator-${profile.id.slice(0, 8)}`;
   const primarySpec = specializations[0] ?? 'Creative';
   const projectType = mapSpecializationToProjectType(specializations);
+  const now = new Date().toISOString();
 
-  const row = {
+  // Only columns that exist on both databases (no submitted_at).
+  const changes = {
     creator_id: profile.id,
-    slug,
     title: `${primarySpec} Professional`,
     project_type: projectType,
     description: profile.bio ?? null,
@@ -356,24 +363,15 @@ export async function createCreatorProduction(userId: string): Promise<{ success
     price: profile.hourly_rate ?? null,
     price_unit: 'hour',
     currency: 'ZAR',
-    is_published: false,
     is_featured: profile.crew_featured ?? false,
-    submitted_at: new Date().toISOString(),
     year: new Date().getFullYear(),
     crew_ids: [profile.id],
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
+    updated_at: now,
   };
 
-  // One live production per creator. The uniqueness is a PARTIAL index
-  // (creator_id WHERE creator_id IS NOT NULL AND deleted_at IS NULL, migration
-  // 035), which an upsert's ON CONFLICT (creator_id) cannot target: Postgres
-  // refused every call with "no unique or exclusion constraint matching the
-  // ON CONFLICT specification", so finishing creator onboarding always failed
-  // ("Failed to create production listing."). Update the live row, or insert;
-  // an insert that loses a race to another request updates instead.
-  const { created_at: _createdAt, ...changes } = row;
-  void _createdAt;
+  // One live production per creator. Neither database has a unique index on
+  // creator_id, so ON CONFLICT (creator_id) cannot be used: update the live
+  // row (the update's returned ids are the lookup), or insert one.
   const updateLive = async (): Promise<{ found: boolean; error: string | null }> => {
     const { data, error } = await supabase
       .from('smart_productions')
@@ -385,12 +383,31 @@ export async function createCreatorProduction(userId: string): Promise<{ success
     return { found: (data ?? []).length > 0, error: null };
   };
 
+  const insertWith = async (rowSlug: string) =>
+    supabase.from('smart_productions').insert({
+      ...changes,
+      slug: rowSlug,
+      is_published: false,
+      created_at: now,
+    });
+
   let result = await updateLive();
   if (!result.error && !result.found) {
-    const { error: insertErr } = await supabase.from('smart_productions').insert(row);
+    const { error: insertErr } = await insertWith(slug);
     if (!insertErr) return { success: true };
-    result = insertErr.code === '23505' ? await updateLive() : { found: false, error: insertErr.message };
-    if (!result.error && !result.found) result = { found: false, error: insertErr.message };
+    if (insertErr.code === '23505') {
+      // A parallel request inserted this creator's row first: update it.
+      result = await updateLive();
+      if (!result.error && !result.found) {
+        // Not a race: the slug belongs to another production. Retry once
+        // with the creator's id on the end.
+        const { error: retryErr } = await insertWith(`${slug}-${profile.id.slice(0, 8)}`);
+        if (!retryErr) return { success: true };
+        result = { found: false, error: retryErr.message };
+      }
+    } else {
+      result = { found: false, error: insertErr.message };
+    }
   }
 
   if (result.error) {
@@ -417,7 +434,9 @@ export async function autoPublishCreatorProductions(): Promise<number> {
     .select('id, creator_id')
     .not('creator_id', 'is', null)
     .eq('is_published', false)
-    .lt('submitted_at', cutoff)
+    // created_at, not submitted_at: that column does not exist on either
+    // database, so this read failed every day and nothing was published.
+    .lt('created_at', cutoff)
     .is('deleted_at', null);
   if (waitingErr) {
     console.error('[autoPublishCreatorProductions]', waitingErr.message);
