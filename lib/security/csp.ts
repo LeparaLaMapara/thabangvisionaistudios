@@ -42,6 +42,9 @@ export function buildCsp(nonce: string, opts: { dev?: boolean } = {}): string {
     "'self'",
     `'nonce-${nonce}'`,
     "'strict-dynamic'",
+    // WebAssembly only (not JS eval): the HEIC photo decoder on the ID check
+    // (lib/verification/prepare-photo.ts) runs libheif compiled to wasm.
+    "'wasm-unsafe-eval'",
     // Ignored by browsers that support 'strict-dynamic'; kept for older ones.
     'https://js.paystack.co',
     'https://va.vercel-scripts.com',
@@ -62,7 +65,9 @@ export function buildCsp(nonce: string, opts: { dev?: boolean } = {}): string {
     "media-src 'self' https://res.cloudinary.com",
     // The push service worker (/sw.js). Stated outright: workers fall back to
     // script-src, where 'strict-dynamic' makes browsers ignore 'self'.
-    "worker-src 'self'",
+    // blob: — the HEIC decoder on the ID check runs in a worker it builds from
+    // its own bundled code. Only scripts already allowed above can create one.
+    "worker-src 'self' blob:",
     "object-src 'none'",
     "base-uri 'self'",
     "form-action 'self' https://checkout.paystack.com",

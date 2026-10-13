@@ -1,4 +1,5 @@
 import exifr from 'exifr';
+import type { IdDocumentSummary } from '@/lib/verification/id-reading';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -21,6 +22,8 @@ export interface VerificationMetadata {
     reasoning: string;
     checked_at: string;
   } | null;
+  /** What the vision model read from the ID photo (lib/verification/id-reading.ts). */
+  id_document?: IdDocumentSummary | null;
 }
 
 // ─── EXIF Extraction ────────────────────────────────────────────────────────
@@ -74,7 +77,7 @@ function emptyMetadata(): PhotoMetadata {
   };
 }
 
-// ─── Metadata the browser read before shrinking a photo ─────────────────────
+// ─── Metadata the browser read before converting a photo ─────────────────────
 
 function cleanText(v: unknown): string | null {
   return typeof v === 'string' && v.trim() ? v.trim().slice(0, 120) : null;
@@ -85,8 +88,8 @@ function cleanNumber(v: unknown): number | null {
 }
 
 /**
- * The page reads a photo's EXIF before shrinking it (a resized photo has none)
- * and sends it beside the file. It is no less trustworthy than EXIF inside an
+ * The page reads a photo's EXIF before converting it (a HEIC photo turned into
+ * JPEG in the browser has none) and sends it beside the file. It is no less trustworthy than EXIF inside an
  * uploaded file, which the sender controls just the same. Anything malformed
  * becomes null.
  */

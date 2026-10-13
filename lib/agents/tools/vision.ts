@@ -90,7 +90,15 @@ export async function matchFaces(
     fetchTrustedImageAsBase64(selfieUrl),
     fetchTrustedImageAsBase64(idPhotoUrl),
   ]);
+  return matchFacesFromData(selfieData, idData, userId);
+}
 
+/** matchFaces on JPEG bytes the server already holds (base64). */
+export async function matchFacesFromData(
+  selfieData: string,
+  idData: string,
+  userId?: string | null,
+): Promise<FaceMatchResult> {
   return trackedCompletion<FaceMatchResult>({
     agentId: 'verification:face-match',
     provider: 'google',
@@ -135,3 +143,49 @@ export async function matchFaces(
   });
 }
 
+
+/**
+ * Read the ID document in a photo the server holds (JPEG, base64). The model
+ * only transcribes; lib/verification/id-reading.ts cleans the answer and does
+ * the checks (check digit, birth date, expiry). Returns the raw JSON object.
+ */
+export async function readIdDocument(
+  idData: string,
+  userId?: string | null,
+): Promise<unknown> {
+  return trackedCompletion<unknown>({
+    agentId: 'verification:read-id',
+    provider: 'google',
+    model: MODEL_ID,
+    userId,
+    call: async () => {
+      const result = await model.generateContent([
+        { inlineData: { mimeType: 'image/jpeg', data: idData } },
+        `This photo should show a South African identity document: a smart ID card,
+         a green ID book, a passport photo page or a driving licence.
+         Transcribe what is printed. Do not guess: use null for anything you cannot read clearly.
+
+         Return ONLY valid JSON with:
+         - document_type: one of "smart_id_card", "green_id_book", "passport", "drivers_licence", "other_id", "not_an_id"
+         - readable: boolean (true if the printed text is sharp enough to read with confidence)
+         - id_number: string or null (the 13-digit South African ID number / personal number, digits only)
+         - surname: string or null
+         - names: string or null (forenames)
+         - date_of_birth: string or null (YYYY-MM-DD)
+         - expiry_date: string or null (YYYY-MM-DD; null if the document shows none)
+         - confidence: number between 0 and 1 (how sure you are of the transcription)
+
+         Return ONLY the JSON object, no markdown, no explanation.`,
+      ]);
+
+      const text = result.response.text().trim();
+      const jsonMatch = text.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) throw new Error('Failed to parse ID reading response');
+
+      return {
+        result: JSON.parse(jsonMatch[0]) as unknown,
+        usage: extractUsage(result.response.usageMetadata),
+      };
+    },
+  });
+}

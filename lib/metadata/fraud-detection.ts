@@ -133,5 +133,32 @@ export function detectFraudFlags(
     }
   }
 
+  // 9. What the vision model read from the ID document
+  const doc = metadata.id_document;
+  if (doc) {
+    if (doc.document_type === 'not_an_id') {
+      flags.push({ severity: 'high', code: 'NOT_AN_ID', message: 'The ID photo does not show an identity document' });
+    } else if (!doc.readable) {
+      flags.push({ severity: 'medium', code: 'ID_UNREADABLE', message: 'The ID photo is not sharp enough to read' });
+    }
+    if (doc.id_number_valid === false) {
+      flags.push({
+        severity: 'high',
+        code: 'ID_NUMBER_INVALID',
+        message: `ID number ${doc.id_number_masked} fails the SA ID check digit (misread or fake)`,
+      });
+    }
+    if (doc.dob_matches_id_number === false) {
+      flags.push({
+        severity: 'medium',
+        code: 'ID_DOB_MISMATCH',
+        message: `Birth date printed (${doc.date_of_birth}) differs from the one in the ID number`,
+      });
+    }
+    if (doc.expired) {
+      flags.push({ severity: 'medium', code: 'ID_EXPIRED', message: `The document expired on ${doc.expiry_date}` });
+    }
+  }
+
   return flags;
 }
