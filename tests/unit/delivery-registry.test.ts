@@ -124,6 +124,15 @@ describe('the shipped policy still excludes the couriers', () => {
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
+  it('production as set on 2026-10-13 (enabled, production mode, no _PRODUCTION_APPROVED): own vehicle only, Uber never called, even with the flag on', async () => {
+    const PROD = { ...CREDS, DELIVERY_PROVIDERS: 'manual,uber_direct', DELIVERY_PROVIDER_UBER_DIRECT_ENABLED: 'true', DELIVERY_PROVIDER_UBER_DIRECT_MODE: 'production', VERCEL_ENV: 'production' };
+    const { r, fetchSpy } = await quoteWith(PROD, true);
+    if (!r.ok) throw new Error(`expected own-vehicle quote, got ${r.code}`);
+    expect(r.quotes.map((q) => q.providerId)).toEqual(['manual']);
+    expect(r.excluded.map((e) => e.providerId)).toContain('uber_direct');
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
   it("flag on: the owner's policy covers Uber Direct only, so WumDrop stays out and only Uber Direct is asked", async () => {
     const { r, fetchSpy } = await quoteWith(ON_SANDBOX, true);
     if (!r.ok) throw new Error(`expected own-vehicle quote, got ${r.code}`);
