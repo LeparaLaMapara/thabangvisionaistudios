@@ -590,12 +590,17 @@ export const SITE_COPYRIGHT = `© ${new Date().getFullYear()} ${STUDIO.legal.com
 export const SHOW_CAREERS = true;
 
 // ─── CREATOR JOIN ────────────────────────────────────────────────────────────
-// The one way in for a creator who wants to offer their services: the main
-// menu, the footer and the empty creator directory all use these words.
+// The way in for a creator who wants to offer their services: the home page,
+// the sign-in page, the footer and the empty creator directory all use these
+// words. Not in the header: signed out, it went to the same sign-in page as
+// "Sign In", so the header keeps one door.
 // /onboarding sends someone signed out to sign up first, then back.
 export const CREATOR_JOIN = {
   href: '/onboarding',
-  navLabel: 'Offer Your Services',
+  ctaLabel: 'Join as a Creator',
+  homeTitle: 'Get Booked',
+  homeText: 'Photographer, videographer, editor or sound person? Join free, set up your profile and get booked for shoots.',
+  loginLine: 'Want to get booked?',
   footerLabel: `Earn with ${STUDIO.shortName}`,
   emptyDirectoryTitle: 'No creators yet',
   emptyDirectoryText:
@@ -610,12 +615,13 @@ export const MAIN_NAVIGATION: {
 }[] = [
     { label: 'Rentals', href: '/rentals' },
     { label: 'Studio', href: '/studio' },
-    // What things cost and how to reach a person, one tap from every page.
-    { label: 'Pricing', href: '/pricing' },
+    // The free Ubunye apps. Hidden until the `creative_tools` flag is on (lib/nav.ts); /tools itself is always reachable by URL.
+    { label: 'Apps', href: '/tools' },
     { label: 'Help', href: '/faq' },
-    { label: CREATOR_JOIN.navLabel, href: CREATOR_JOIN.href },
-    // Hidden until the `creative_tools` flag is on (lib/nav.ts). /tools itself is always reachable by URL.
-    { label: 'Tools', href: '/tools' },
+    // No "Offer Your Services": see CREATOR_JOIN.
+    // No "Pricing" item: every listing and package shows its own price, and the
+    // one promise (free to join, pay when you book) sits on the home and rentals
+    // pages. /pricing stays in the footer next to How to Pay.
   ];
 
 export const FOOTER_SECTIONS = [
@@ -627,7 +633,6 @@ export const FOOTER_SECTIONS = [
       { label: 'About', href: '/about' },
       ...(SHOW_CAREERS ? [{ label: 'Careers', href: '/careers' }] : []),
       { label: 'Press & News', href: '/press' },
-      { label: 'Pricing', href: '/pricing' },
     ],
   },
   {
@@ -643,6 +648,7 @@ export const FOOTER_SECTIONS = [
     title: 'Support',
     links: [
       { label: 'How to Pay', href: '/pay' },
+      { label: 'How Pricing Works', href: '/pricing' },
       { label: 'Contact', href: '/contact' },
       { label: 'Report a Bug', href: '/support/report-bug' },
       { label: 'Legal / Terms', href: '/legal' },
@@ -1354,11 +1360,11 @@ export interface UbunyeStudioApp {
 }
 
 export const UBUNYE_STUDIO = {
-  suiteName: 'Ubunye Creative Studio',
+  suiteName: 'Ubunye Apps',
   shortName: 'Ubunye',
   wordmark: '/ubunye/ubunye-creative-studio-dark.svg',
-  intro: 'Free, open source tools for light, photo and film.',
-  footerLine: 'One creative suite. Three powerful tools. A bigger story.',
+  intro: 'Free apps for photo and film. Download them, or try them in your browser.',
+  footerLine: 'Three free apps. Light, Photo and Film.',
   version: 'Preview',
   status: 'preview' as UbunyeReleaseStatus,
   statusLabels: {
@@ -1390,8 +1396,8 @@ export const UBUNYE_STUDIO = {
       slug: 'light',
       name: 'Ubunye Light',
       shortName: 'Light',
-      category: 'Raw Photography',
-      tagline: 'Capture the world in its purest form.',
+      category: 'RAW Photo Editor',
+      tagline: 'Sort your shoot and develop your RAW camera files.',
       accent: '#F6C75B',
       icon: '/ubunye/light-icon.svg',
       iconPng: '/ubunye/light-256.png',
@@ -1412,8 +1418,8 @@ export const UBUNYE_STUDIO = {
       slug: 'photo',
       name: 'Ubunye Photo',
       shortName: 'Photo',
-      category: 'Image Editing',
-      tagline: 'Shape your vision with precision.',
+      category: 'Photo Editor',
+      tagline: 'Retouch and edit pictures with layers and masks. Opens PSD files.',
       accent: '#FF6B4A',
       icon: '/ubunye/photo-icon.svg',
       iconPng: '/ubunye/photo-256.png',
@@ -1435,8 +1441,8 @@ export const UBUNYE_STUDIO = {
       slug: 'film',
       name: 'Ubunye Film',
       shortName: 'Film',
-      category: 'Video Editing',
-      tagline: 'Turn moments into moving stories.',
+      category: 'Video Editor',
+      tagline: 'Cut your footage, fix the colour and sound, and export your video.',
       accent: '#13D1C2',
       icon: '/ubunye/film-icon.svg',
       iconPng: '/ubunye/film-256.png',

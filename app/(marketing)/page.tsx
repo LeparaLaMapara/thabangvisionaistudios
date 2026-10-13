@@ -31,7 +31,10 @@ function resolveImage(
 }
 
 export default async function Home() {
-  const smartProductionsEnabled = await getFlag('smart_productions');
+  const [smartProductionsEnabled, appsEnabled] = await Promise.all([
+    getFlag('smart_productions'),
+    getFlag('creative_tools'),
+  ]);
 
   const [productions, rentals, priceRange] = await Promise.all([
     smartProductionsEnabled ? getFeaturedProductions(8) : Promise.resolve([]),
@@ -77,6 +80,7 @@ export default async function Home() {
       carouselItems={carouselItems}
       minDayRate={priceRange?.min ?? null}
       paymentsOpen={onlinePaymentsOpen()}
+      showApps={appsEnabled}
     />
   );
 }

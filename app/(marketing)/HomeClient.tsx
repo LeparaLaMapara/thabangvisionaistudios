@@ -6,7 +6,8 @@ import Link from 'next/link';
 import { ServiceGrid } from '@/components/cinematic/ServiceGrid';
 import { LatestWorkCarousel, type CarouselItem } from '@/components/cinematic/LatestWorkCarousel';
 import { ArrowRight, Calendar, Search, MapPin, RotateCcw, MessageCircle, ShieldCheck } from 'lucide-react';
-import { STUDIO } from '@/lib/constants';
+import Image from 'next/image';
+import { STUDIO, UBUNYE_STUDIO, CREATOR_JOIN } from '@/lib/constants';
 import { formatRand } from '@/lib/format/money';
 import { PaymentsNotOpenNote } from '@/components/booking/PaymentsNotOpenNote';
 
@@ -104,11 +105,11 @@ const Hero = ({ minDayRate }: { minDayRate: number | null }) => {
               </Link>
             </div>
             <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-6">
-              <span className="text-xs font-mono text-neutral-400 uppercase tracking-widest">Our Own Gear</span>
+              <span className="text-xs font-mono text-neutral-400 uppercase tracking-widest">Free To Join</span>
+              <span className="text-neutral-400 text-xs">•</span>
+              <span className="text-xs font-mono text-neutral-400 uppercase tracking-widest">Pay Only When You Book</span>
               <span className="text-neutral-400 text-xs">•</span>
               <span className="text-xs font-mono text-neutral-400 uppercase tracking-widest">Refundable Deposit</span>
-              <span className="text-neutral-400 text-xs">•</span>
-              <span className="text-xs font-mono text-neutral-400 uppercase tracking-widest">Full Price Before You Book</span>
             </div>
           </motion.div>
         </div>
@@ -219,6 +220,33 @@ const BookingCTA = () => (
   </section>
 );
 
+// ─── Creator Join ────────────────────────────────────────────────────────────
+// The creator's way in, now that it is not in the header (see CREATOR_JOIN).
+
+const CreatorJoin = () => (
+  <section className="py-24 bg-[#050505] border-t border-white/5">
+    <div className="container mx-auto px-6">
+      <motion.div
+        initial={{ opacity: 0, x: -20 }}
+        whileInView={{ opacity: 1, x: 0 }}
+        viewport={{ once: true }}
+        className="max-w-2xl"
+      >
+        <span className="text-xs font-mono text-[#D4A843] uppercase tracking-[0.3em] mb-4 block">For Creators</span>
+        <h2 className="text-4xl md:text-5xl font-display font-medium text-white tracking-tighter uppercase mb-6 leading-[0.95]">
+          {CREATOR_JOIN.homeTitle}
+        </h2>
+        <p className="text-neutral-400 font-light leading-relaxed mb-8 max-w-md">
+          {CREATOR_JOIN.homeText}
+        </p>
+        <Link href={CREATOR_JOIN.href} className="inline-flex items-center gap-2 min-h-[44px] bg-[#D4A843] text-black px-8 py-4 text-xs font-mono font-bold uppercase tracking-widest hover:opacity-80 transition-opacity">
+          {CREATOR_JOIN.ctaLabel} <ArrowRight className="w-3 h-3" />
+        </Link>
+      </motion.div>
+    </div>
+  </section>
+);
+
 // ─── Trust Signals ───────────────────────────────────────────────────────────
 
 /**
@@ -270,6 +298,56 @@ const UbunyeSection = () => (
   </section>
 );
 
+// ─── Ubunye Apps ─────────────────────────────────────────────────────────────
+
+/**
+ * The free apps, in one strip. Shown with the "Apps" nav item (creative_tools
+ * flag). Each icon opens that app's page; the button opens all three.
+ */
+const AppsStrip = () => (
+  <section className="py-24 bg-[#080808] border-t border-white/5">
+    <div className="container mx-auto px-6">
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        whileInView={{ opacity: 1, y: 0 }}
+        viewport={{ once: true }}
+        className="max-w-3xl mx-auto text-center"
+      >
+        <h2 className="text-4xl md:text-5xl font-display font-medium text-white uppercase">
+          Free Apps <span className="text-neutral-400">For Creators</span>
+        </h2>
+        <p className="text-neutral-400 font-light leading-relaxed mt-4 mb-10 max-w-xl mx-auto">
+          {UBUNYE_STUDIO.intro}
+        </p>
+        <ul className="grid grid-cols-3 gap-4 sm:gap-8 max-w-md mx-auto mb-10">
+          {UBUNYE_STUDIO.apps.map((app) => (
+            <li key={app.slug}>
+              <Link href={`/tools/${app.slug}`} className="group flex flex-col items-center gap-3 min-h-[44px]">
+                <Image
+                  src={app.iconPng}
+                  alt=""
+                  width={80}
+                  height={80}
+                  unoptimized
+                  className="h-16 w-16 sm:h-20 sm:w-20 transition-transform group-hover:scale-105"
+                />
+                <span className="text-sm text-white">{app.shortName}</span>
+                <span className="text-xs font-mono text-neutral-400 leading-snug">{app.category}</span>
+              </Link>
+            </li>
+          ))}
+        </ul>
+        <Link
+          href="/tools"
+          className="group inline-flex items-center gap-2 min-h-[44px] border border-white/20 text-white px-8 py-4 text-xs font-mono font-bold uppercase tracking-widest hover:bg-white/5 transition-colors"
+        >
+          Get The Free Apps <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+        </Link>
+      </motion.div>
+    </div>
+  </section>
+);
+
 // ─── Main Export ──────────────────────────────────────────────────────────────
 
 /**
@@ -282,12 +360,15 @@ export default function HomeClient({
   carouselItems,
   minDayRate,
   paymentsOpen,
+  showApps = false,
 }: {
   carouselItems: CarouselItem[];
   /** Cheapest live day rate, or null when no priced stock is published. */
   minDayRate: number | null;
   /** onlinePaymentsOpen() from the server. */
   paymentsOpen: boolean;
+  /** The creative_tools flag: shows the free apps strip. */
+  showApps?: boolean;
 }) {
   return (
     <div className="min-h-screen bg-[#050505] transition-colors duration-500">
@@ -299,6 +380,8 @@ export default function HomeClient({
       <ServiceGrid />
       <TrustSignals />
       <BookingCTA />
+      <CreatorJoin />
+      {showApps && <AppsStrip />}
       <UbunyeSection />
       {/* Final CTA */}
       <section className="py-40 relative bg-gradient-to-b from-neutral-950 via-neutral-900 to-neutral-950 overflow-hidden border-t border-white/5 transition-colors duration-500">

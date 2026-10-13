@@ -3,7 +3,7 @@ export const revalidate = 60;
 import Image from 'next/image';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { ArrowLeft, ArrowUpRight, Check } from 'lucide-react';
+import { ArrowLeft, Check } from 'lucide-react';
 import { STUDIO, UBUNYE_STUDIO, getUbunyeApp } from '@/lib/constants';
 import { buildPageMetadata } from '@/lib/seo/metadata';
 import { getUbunyeRelease, pickerFiles } from '@/lib/ubunye-release';
@@ -26,7 +26,7 @@ export async function generateMetadata({ params }: ToolPageProps) {
     : 'Try it in your browser.';
   return buildPageMetadata({
     title: `${app.name}: ${app.category}`,
-    description: `${app.name}, ${app.tagline} A free, open source ${app.category.toLowerCase()} app from ${UBUNYE_STUDIO.suiteName}. ${availability}`,
+    description: `${app.name}: ${app.category}. ${app.tagline} Free, from ${UBUNYE_STUDIO.suiteName}. ${availability}`,
     path: `/tools/${app.slug}`,
   });
 }
@@ -120,7 +120,7 @@ export default async function ToolPage({ params }: ToolPageProps) {
             <p className={`${UB_DISPLAY} mt-3 text-xl text-[var(--ub-text-2)] sm:text-2xl`}>{app.tagline}</p>
             <p className="mt-6 inline-flex items-center gap-2 rounded-full border border-white/15 bg-black/30 px-4 py-2 font-sans text-xs text-[var(--ub-text-2)]">
               <span className="h-2 w-2 rounded-full" style={{ backgroundColor: app.accent }} aria-hidden="true" />
-              {release ? `Version ${release.version}` : UBUNYE_STUDIO.version} · {statusLabel} · Free and open source
+              {release ? `Version ${release.version}` : UBUNYE_STUDIO.version} · {statusLabel} · Free
             </p>
           </div>
         </header>
@@ -163,39 +163,6 @@ export default async function ToolPage({ params }: ToolPageProps) {
           <section className="rounded-[22px] border border-white/10 bg-[var(--ub-bg-2)] p-6 sm:p-8">
             <h2 className={`${UB_LABEL} text-[var(--ub-text-2)]`}>System requirements</h2>
             <p className="mt-6 font-sans text-base text-[var(--ub-text)]">{UBUNYE_STUDIO.systemRequirements}</p>
-          </section>
-
-          {/* ── Licence and credits ─────────────────────────────────── */}
-          <section className="rounded-[22px] border border-white/10 bg-[var(--ub-bg-2)] p-6 sm:p-8">
-            <h2 className={`${UB_LABEL} text-[var(--ub-text-2)]`}>Licence and credits</h2>
-            <p className="mt-6 font-sans text-base text-[var(--ub-text)]">
-              {app.name} is free and open source, licensed {UBUNYE_STUDIO.licence}. Made by {UBUNYE_STUDIO.maker}.
-            </p>
-            <p className="mt-3 font-sans text-sm text-[var(--ub-text-2)]">{app.upstream.credit}.</p>
-            <ul className="mt-5 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:gap-6">
-              <li>
-                <a
-                  href={app.repoUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex min-h-[44px] items-center gap-1.5 font-sans text-sm text-[var(--ub-text)] underline decoration-white/30 underline-offset-4 hover:decoration-white"
-                >
-                  {app.name} source code
-                  <ArrowUpRight className="h-4 w-4" aria-hidden="true" />
-                </a>
-              </li>
-              <li>
-                <a
-                  href={app.upstream.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex min-h-[44px] items-center gap-1.5 font-sans text-sm text-[var(--ub-text)] underline decoration-white/30 underline-offset-4 hover:decoration-white"
-                >
-                  {app.upstream.name} (upstream)
-                  <ArrowUpRight className="h-4 w-4" aria-hidden="true" />
-                </a>
-              </li>
-            </ul>
           </section>
         </div>
 

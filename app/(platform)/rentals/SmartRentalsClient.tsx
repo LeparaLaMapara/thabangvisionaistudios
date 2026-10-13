@@ -137,6 +137,7 @@ export default function SmartRentalsClient({
               <span className="text-neutral-400">For Every Shoot</span>
             </h1>
             <p className="max-w-2xl text-lg text-neutral-300 font-light leading-relaxed">
+              Free to join. You only pay when you book, and the price on each item is the price you pay.
               All gear is ours and is checked before every hire. Book at least {Math.round(STUDIO.rental.minLeadTimeHours / 24)} days ahead. Collect at {collectionPoint()}. After your first hire we can also deliver within {STUDIO.fulfilment.delivery.maxRadiusKm} km.
             </p>
           </div>
