@@ -11,6 +11,7 @@ import { agentDeps, APPROVALS_UNAVAILABLE } from '@/lib/agent/deps';
 import { prepareGear, prepareService } from '@/lib/agent/offers';
 import { SupabaseAgentActions } from '@/lib/agent/repo';
 import { cancelPending, prepareAction, type ApprovalSummary } from '@/lib/core/agent/use-cases';
+import { creatorProfilePath } from '@/lib/seo/creator-url';
 
 // Nothing here writes money or status: consequential steps are PREPARED for
 // the client to approve, and committed only through /api/agent-actions.
@@ -115,7 +116,7 @@ export function createBookingTools(
           location: sanitiseForPrompt(c.location, 80), years_experience: c.years_experience,
           featured: c.crew_featured, bio: sanitiseForPrompt(c.crew_bio, 400),
           available: !busyIds.has(c.id),
-          profile_url: `/studio/category/photography/${c.crew_slug}`,
+          profile_url: creatorProfilePath(c),
         })) };
       },
     },
@@ -190,7 +191,7 @@ export function createBookingTools(
             id: creator.id, name: sanitiseForPrompt(creator.display_name), slug: creator.crew_slug,
             bio: sanitiseForPrompt(creator.crew_bio || creator.bio, 600), specializations: promptList(creator.specializations),
             hourly_rate: creator.hourly_rate, location: sanitiseForPrompt(creator.location, 80),
-            years_experience: creator.years_experience, profile_url: `/studio/category/photography/${creator.crew_slug}`,
+            years_experience: creator.years_experience, profile_url: creatorProfilePath(creator),
             avg_rating: avgRating, total_reviews: ratings.length,
             available: !isBusy,
             status: isBusy ? 'Currently busy with an active gig' : 'Available for hire',

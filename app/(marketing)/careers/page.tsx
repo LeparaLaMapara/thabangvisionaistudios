@@ -4,10 +4,13 @@ import { ArrowRight } from 'lucide-react';
 import { getPublishedCareers } from '@/lib/supabase/queries/careers';
 import { STUDIO } from '@/lib/constants';
 import { cleanRequirements } from '@/lib/content/requirements';
+import { buildPageMetadata } from '@/lib/seo/metadata';
 
-export const metadata = {
+export const metadata = buildPageMetadata({
   title: 'Careers',
-};
+  description: `Open roles at ${STUDIO.name}: work with us on camera gear hire, shoots and creative tools in ${STUDIO.serviceArea.province}.`,
+  path: '/careers',
+});
 
 export default async function CareersPage() {
   const published = await getPublishedCareers();

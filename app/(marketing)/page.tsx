@@ -6,6 +6,8 @@ import { formatRand } from '@/lib/format/money';
 import { onlinePaymentsOpen } from '@/lib/payments/status';
 import { interleaveShowcase } from '@/lib/home/showcase';
 import HomeClient from './HomeClient';
+import { buildPageMetadata } from '@/lib/seo/metadata';
+import { STUDIO, SITE_TAGLINE } from '@/lib/constants';
 import type { CarouselItem } from '@/components/cinematic/LatestWorkCarousel';
 import { getFlag } from '@/lib/features';
 
@@ -29,6 +31,16 @@ function resolveImage(
   if (gallery && gallery.length > 0) return gallery[0].url;
   return null;
 }
+
+export const metadata = {
+  ...buildPageMetadata({
+    title: `${STUDIO.shortName} | ${SITE_TAGLINE}`,
+    description: STUDIO.meta.description,
+    path: '/',
+  }),
+  // The home page keeps the full name; the "%s | BRAND" template would repeat it.
+  title: { absolute: `${STUDIO.shortName} | ${SITE_TAGLINE}` },
+};
 
 export default async function Home() {
   const [smartProductionsEnabled, appsEnabled] = await Promise.all([

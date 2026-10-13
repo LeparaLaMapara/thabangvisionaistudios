@@ -65,12 +65,12 @@ export const metadata: Metadata = {
     description: STUDIO.meta.description,
     images: ['/logo-black-bg.png'],
   },
+  // No hreflang: the site has one language. The old `languages` entry named
+  // the HOME page as the en-ZA version of every page that set no alternates of
+  // its own. Each page sets its own canonical through buildPageMetadata.
   alternates: {
     types: {
       'application/rss+xml': `${STUDIO.meta.url}/feed.xml`,
-    },
-    languages: {
-      'en-ZA': STUDIO.meta.url,
     },
   },
   robots: {
@@ -125,7 +125,7 @@ export default async function RootLayout({
   }
 
   return (
-    <html lang="en" className="dark">
+    <html lang="en-ZA" className="dark">
       <body
         className={[
           inter.variable,

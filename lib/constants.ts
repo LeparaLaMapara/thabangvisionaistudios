@@ -671,6 +671,9 @@ export const FOOTER_SECTIONS = [
     title: STUDIO.shortName,
     links: [
       { label: 'Rentals', href: '/rentals' },
+      // The list of bookable creators. Nothing linked to it, so neither
+      // visitors nor crawlers could find it.
+      { label: 'Creators', href: '/smart-creators' },
       { label: 'Where to Collect', href: '/locations' },
       { label: 'About', href: '/about' },
       ...(SHOW_CAREERS ? [{ label: 'Careers', href: '/careers' }] : []),

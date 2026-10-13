@@ -6,10 +6,15 @@ import { checkConsents, requiredConsents } from '@/lib/consent';
 import { cleanNextPath, loginUrl } from '@/lib/auth/next-path';
 import { OnboardingAcceptance } from '@/components/consent/OnboardingAcceptance';
 import WelcomeChoices from './WelcomeChoices';
+import { buildPageMetadata } from '@/lib/seo/metadata';
+import { STUDIO } from '@/lib/constants';
 
-export const metadata = {
+export const metadata = buildPageMetadata({
   title: 'Welcome',
-};
+  description: `Welcome to ${STUDIO.shortName}.`,
+  path: '/welcome',
+  noIndex: true,
+});
 
 /**
  * The first screen after signing up: one question, "What did you come to do?".

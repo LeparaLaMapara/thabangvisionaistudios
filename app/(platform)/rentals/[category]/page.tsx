@@ -1,4 +1,4 @@
-import { redirect } from 'next/navigation';
+import { notFound, redirect } from 'next/navigation';
 import { fetchAllPublishedRentals } from '@/lib/supabase/queries/smartRentals';
 import { RENTAL_CATEGORIES, STUDIO } from '@/lib/constants';
 import { buildPageMetadata } from '@/lib/seo/metadata';
@@ -37,10 +37,17 @@ export default async function RentalCategoryPage({
   }
 
   const cat = RENTAL_CATEGORIES.find((c) => c.value === category);
+  if (!cat) notFound();
   // The same all-gear page as /rentals, opened on this category's filter.
   const { rentals, failed } = await fetchAllPublishedRentals();
 
-  const jsonLd = cat ? [
+  // A category page exists only while it has stock to show (lib/seo/inventory
+  // rule): an empty category is a 404, so search engines never index an empty
+  // shelf, and it comes back on its own when the first item is published. A
+  // failed read is not "empty": that still renders, with the retry message.
+  if (!failed && !rentals.some((r) => r.category === category)) notFound();
+
+  const jsonLd = [
     serviceJsonLd({
       name: `${cat.label} Rentals`,
       description: cat.description,
@@ -51,7 +58,7 @@ export default async function RentalCategoryPage({
       { name: 'Rentals', url: `${STUDIO.meta.url}/rentals` },
       { name: cat.label, url: `${STUDIO.meta.url}/rentals/${category}` },
     ]),
-  ] : [];
+  ];
 
   return (
     <>

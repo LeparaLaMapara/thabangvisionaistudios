@@ -3,6 +3,7 @@ import { STUDIO, PRODUCTION_SERVICES, PRODUCTION_PACKAGES, CREATOR_JOIN } from '
 import { LIST_GEAR_HREF } from '@/lib/welcome';
 import { calculatePackagePrice } from '@/lib/productions/pricing';
 import { packageUnitWords } from '@/lib/bookings/pricing';
+import { creatorProfilePath } from '@/lib/seo/creator-url';
 
 export type UbunyeFlagsSnapshot = {
   smart_productions: boolean;
@@ -120,7 +121,7 @@ export async function fetchPlatformData(supabase: any, flags: UbunyeFlagsSnapsho
       .order('price', { ascending: true }),
     supabase
       .from('public_profiles')
-      .select('display_name, crew_slug, specializations, hourly_rate, location, crew_bio, years_experience, crew_featured')
+      .select('id, display_name, crew_slug, specializations, hourly_rate, location, crew_bio, years_experience, crew_featured')
       .eq('verification_status', 'verified')
       .eq('available_for_hire', true)
       .order('crew_featured', { ascending: false })
@@ -163,7 +164,7 @@ export async function fetchPlatformData(supabase: any, flags: UbunyeFlagsSnapsho
     ).join('\n') || 'Contact for pricing',
 
     crew: crew.data?.map((c: Record<string, unknown>) =>
-      `${promptField(c.display_name, 'Creator')} — ${promptList(c.specializations, 'General')} — R${c.hourly_rate || '?'}/hr — ${promptField(c.location, 'location not given')} — ${c.years_experience || '?'} yrs — Profile: /studio/category/photography/${c.crew_slug}`
+      `${promptField(c.display_name, 'Creator')} — ${promptList(c.specializations, 'General')} — R${c.hourly_rate || '?'}/hr — ${promptField(c.location, 'location not given')} — ${c.years_experience || '?'} yrs — Profile: ${creatorProfilePath({ id: String(c.id), crew_slug: (c.crew_slug as string | null) ?? null, specializations: Array.isArray(c.specializations) ? (c.specializations as string[]) : null })}`
     ).join('\n') || 'No crew available yet',
 
     services: formatServices(),

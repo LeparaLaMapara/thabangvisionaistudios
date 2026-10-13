@@ -4,10 +4,13 @@ import Link from 'next/link';
 import { ArrowUpRight } from 'lucide-react';
 import { getPublishedPress } from '@/lib/supabase/queries/press';
 import { STUDIO } from '@/lib/constants';
+import { buildPageMetadata } from '@/lib/seo/metadata';
 
-export const metadata = {
+export const metadata = buildPageMetadata({
   title: 'Press',
-};
+  description: `News, announcements and press coverage from ${STUDIO.name}.`,
+  path: '/press',
+});
 
 function formatDate(dateStr: string | null): string {
   if (!dateStr) return '';
