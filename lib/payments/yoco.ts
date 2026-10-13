@@ -1,5 +1,6 @@
 import crypto from 'crypto';
 import { appUrl } from '@/lib/app-url';
+import { toCents } from '@/lib/core/pricing/money';
 import type {
   PaymentProvider,
   CheckoutParams,
@@ -100,7 +101,7 @@ export const yoco: PaymentProvider = {
         'Idempotency-Key': `checkout-${params.paymentId}`,
       },
       body: JSON.stringify({
-        amount: Math.round(params.amount * 100),
+        amount: toCents(params.amount), // ZAR → cents
         currency: 'ZAR',
         successUrl: resolveUrl(params.returnUrl),
         cancelUrl: resolveUrl(params.cancelUrl),
@@ -188,7 +189,7 @@ export const yoco: PaymentProvider = {
           'Content-Type': 'application/json',
           'Idempotency-Key': `refund-${reference}-${amount ?? 'full'}-${Date.now().toString(36)}`,
         },
-        body: JSON.stringify(amount ? { amount: Math.round(amount * 100) } : {}),
+        body: JSON.stringify(amount ? { amount: toCents(amount) } : {}),
       });
       const data = (await res.json().catch(() => ({}))) as { status?: string; message?: string };
       if (!res.ok) return { success: false, error: data.message ?? `Refund failed (${res.status})` };

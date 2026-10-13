@@ -2,6 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { createClient } from '@/lib/supabase/server';
 import type { Booking } from '@/types/booking-system';
 import type { ServiceActor } from '@/lib/core/services/fulfilment';
+import { CLIENT_SERVICE_BOOKING_COLUMNS } from '@/lib/supabase/queries/columns';
 
 const CREATOR_JOIN = 'creator:profiles!creator_id(id, display_name, avatar_url, crew_slug)';
 
@@ -9,7 +10,7 @@ export async function getClientBookings(clientId: string): Promise<(Booking & { 
   const supabase = await createClient();
   const { data, error } = await supabase
     .from('bookings')
-    .select(`*, ${CREATOR_JOIN}`)
+    .select(`${CLIENT_SERVICE_BOOKING_COLUMNS}, ${CREATOR_JOIN}`)
     .eq('client_id', clientId)
     .order('created_at', { ascending: false });
 
@@ -17,7 +18,7 @@ export async function getClientBookings(clientId: string): Promise<(Booking & { 
     console.error('[service-bookings] getClientBookings error:', error.message);
     return [];
   }
-  return data ?? [];
+  return (data ?? []) as unknown as (Booking & { creator: { id: string; display_name: string; avatar_url: string | null; crew_slug: string | null } | null })[];
 }
 
 export async function getCreatorBookings(creatorId: string) {

@@ -3,6 +3,7 @@ import type { PaymentProvider } from './types';
 import { paystack, verifyPayment as verifyPaystack } from './paystack';
 import { yoco, isYocoReference } from './yoco';
 import { paystackPayments } from './paystack-ports';
+import { toCents } from '@/lib/core/pricing/money';
 
 /**
  * Money that already moved stays with the provider that moved it. Switching
@@ -79,7 +80,8 @@ export async function refundWithOutcome(params: {
   if (isManualReference(reference)) {
     return { outcome: 'manual', message: 'Paid by EFT or cash: refund it by hand and record it.' };
   }
-  const amountCents = Math.round(Number(amountRands) * 100);
+  const rands = Number(amountRands);
+  const amountCents = Number.isFinite(rands) ? toCents(rands) : NaN;
   if (!Number.isSafeInteger(amountCents) || amountCents <= 0) {
     return { outcome: 'rejected', message: 'invalid refund amount' };
   }

@@ -7,6 +7,7 @@ import { Camera, Loader2, X, Plus } from 'lucide-react';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
 import type { Profile } from '@/lib/supabase/queries/profiles';
+import { OWN_PROFILE_EDITOR_COLUMNS } from '@/lib/supabase/queries/columns';
 import { hasCompletePortfolio } from '@/lib/portfolio/validation';
 import { CREATOR_SPECIALIZATIONS } from '@/lib/constants';
 import CreatorBookableChecklist from '@/components/onboarding/CreatorBookableChecklist';
@@ -103,16 +104,18 @@ export default function ProfileEditPage() {
       return;
     }
 
-    const { data, error } = await supabase
+    const { data: row, error } = await supabase
       .from('profiles')
-      .select('*')
+      .select(OWN_PROFILE_EDITOR_COLUMNS)
       .eq('id', user.id)
       .single();
+    const data = row as unknown as Record<string, unknown> | null;
 
     if (error && error.code !== 'PGRST116') {
-      setMessage({ type: 'error', text: error.message });
+      console.error('[profile] load failed:', error.message);
+      setMessage({ type: 'error', text: 'Your profile could not be loaded. Please refresh the page.' });
     } else if (data) {
-      const profile = data as Profile;
+      const profile = data as unknown as Profile;
       setFirstName(profile.first_name ?? '');
       setLastName(profile.last_name ?? '');
       setBio(profile.bio ?? '');

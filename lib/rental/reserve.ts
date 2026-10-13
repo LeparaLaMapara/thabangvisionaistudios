@@ -127,7 +127,9 @@ export async function reserveOrder(
  * tied to an order that no longer exists and the next checkout can use them.
  */
 export async function releaseUnpaidReservation(db: Admin, checkoutGroupId: string): Promise<void> {
-  await db.from('equipment_bookings').delete().eq('checkout_group_id', checkoutGroupId).eq('status', 'pending').is('payfast_payment_id', null);
+  const { error: deleteErr } = await db.from('equipment_bookings').delete().eq('checkout_group_id', checkoutGroupId).eq('status', 'pending').is('payfast_payment_id', null);
+  // The hold then stays until the expiry job releases it.
+  if (deleteErr) console.error('[reserve] could not release the unpaid hold:', checkoutGroupId, deleteErr.message);
   const { error } = await db.from('rental_payment_intents').delete().eq('checkout_group_id', checkoutGroupId).eq('state', 'initiated');
   if (error && !isMissingPipeline(error)) console.error('[reserve] could not remove intent:', error.message);
   const { error: quoteErr } = await db

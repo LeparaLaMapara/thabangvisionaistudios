@@ -106,7 +106,10 @@ export function payoutBlocker(
   if (!booking.creator_amount || booking.creator_amount <= 0) return 'No creator amount';
   if (!booking.total || booking.creator_amount > booking.total) return 'Creator amount is more than the booking total';
   if (!verified || !verified.success) return 'The payment provider does not confirm this payment';
-  if (Math.round(verified.amount) < booking.total) return `Provider confirms R${verified.amount}, less than the total R${booking.total}`;
+  // In whole cents: rounding rands let a charge up to R0.49 short pass.
+  if (!Number.isFinite(verified.amount) || toCents(verified.amount) < toCents(booking.total)) {
+    return `Provider confirms R${verified.amount}, less than the total R${booking.total}`;
+  }
   return null;
 }
 
