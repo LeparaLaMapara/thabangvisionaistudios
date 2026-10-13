@@ -2,6 +2,7 @@ import { sanitiseForPrompt } from '@/lib/ubunye/sanitise';
 import { jsonSchema } from 'ai';
 import { escapeIlike, filterIlikePattern } from '@/lib/search/types';
 import { getBusyCreatorIds } from '@/lib/supabase/queries/crew';
+import { creatorProfilePath } from '@/lib/seo/creator-url';
 
 // ─── Search Tools for Assistant Agent ─────────────────────────────────────────
 // Tools focused on searching and browsing platform data.
@@ -58,7 +59,7 @@ export function createSearchTools(
           location: c.location, years_experience: c.years_experience,
           featured: c.crew_featured, bio: sanitiseForPrompt(c.crew_bio, 400),
           available: !busyIds.has(c.id),
-          profile_url: `/studio/category/photography/${c.crew_slug}`,
+          profile_url: creatorProfilePath(c),
         })) };
       },
     },

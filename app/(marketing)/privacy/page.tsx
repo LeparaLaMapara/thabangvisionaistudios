@@ -3,11 +3,13 @@ import Link from 'next/link';
 import { STUDIO } from '@/lib/constants';
 import { formatDocumentDate } from '@/lib/consent/documents';
 import { AI_PROVIDERS_DISCLOSED, listInProse } from '@/lib/consent/legal-facts';
+import { buildPageMetadata } from '@/lib/seo/metadata';
 
-export const metadata: Metadata = {
+export const metadata: Metadata = buildPageMetadata({
   title: 'Privacy Policy',
   description: `${STUDIO.shortName} Privacy Policy — what personal information we collect, who processes it, how long we keep it, and your rights under POPIA.`,
-};
+  path: '/privacy',
+});
 
 const LAST_UPDATED = formatDocumentDate(STUDIO.legal.documents.privacy.version);
 

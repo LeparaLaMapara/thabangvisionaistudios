@@ -5,7 +5,7 @@ export const dynamicParams = true;
 
 import { notFound, redirect, permanentRedirect } from 'next/navigation';
 import { fetchPublishedRentalsByCategory } from '@/lib/supabase/queries/smartRentals';
-import { getListedCityBySlug } from '@/lib/seo/cities';
+import { getRentalCityBySlug } from '@/lib/seo/cities';
 import { collectionPointWithCity } from '@/lib/rental/collection-point';
 import { RENTAL_CATEGORIES, STUDIO } from '@/lib/constants';
 import { buildPageMetadata } from '@/lib/seo/metadata';
@@ -23,8 +23,8 @@ export async function generateMetadata({ params }: Props) {
   const cat = RENTAL_CATEGORIES.find((c) => c.value === category);
   if (!cat) return { title: 'Not Found' };
 
-  // Pages exist only for listed Gauteng cities; see the page below.
-  const city = getListedCityBySlug(citySlug);
+  // Pages exist only for cities our stock reaches; see the page below.
+  const city = getRentalCityBySlug(citySlug);
   if (!city) permanentRedirect(`/rentals/${category}`);
   const locationName = city.name;
 
@@ -47,10 +47,12 @@ export default async function RentalLocationPage({ params }: Props) {
   const cat = RENTAL_CATEGORIES.find((c) => c.value === category);
   if (!cat) notFound();
 
-  // We work in Gauteng. A city outside it, the old "south-africa" slug or an
-  // unknown slug gets a 308 to the category page, not a page that lists
+  // A city page exists only where the stock really goes: the collection city,
+  // or a city our delivery reaches (getRentalCityBySlug, from the delivery
+  // radius in STUDIO.fulfilment). Any other city, the old "south-africa" slug
+  // or an unknown slug gets a 308 to the category page, not a page that lists
   // Johannesburg stock under another city's name.
-  const city = getListedCityBySlug(citySlug);
+  const city = getRentalCityBySlug(citySlug);
   if (!city) permanentRedirect(`/rentals/${category}`);
 
   const locationName = city.name;
@@ -58,6 +60,9 @@ export default async function RentalLocationPage({ params }: Props) {
   // Same read as the category page: a failed read shows an error with a retry,
   // not "nothing here", and a capped list says there is more.
   const { rentals, failed, hasMore } = await fetchPublishedRentalsByCategory(category);
+
+  // No stock in the category: no category page, so no city page either.
+  if (!failed && rentals.length === 0) notFound();
 
   const jsonLd = [
     serviceJsonLd({

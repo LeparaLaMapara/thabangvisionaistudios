@@ -51,9 +51,9 @@ export default async function StudioLocationPage({ params }: Props) {
   const category = dbCategory ?? PRODUCTION_CATEGORIES.find((c) => c.slug === slug);
   if (!category) notFound();
 
-  // We work in Gauteng; city pages exist only for the listed Gauteng cities.
-  // A city outside Gauteng, the old "south-africa" slug or an unknown slug
-  // gets a 308 to the category page.
+  // We work in Gauteng; city pages exist only for the listed Gauteng cities
+  // that have a creator (below). A city outside Gauteng, the old
+  // "south-africa" slug or an unknown slug gets a 308 to the category page.
   const city = getListedCityBySlug(citySlug);
   if (!city) permanentRedirect(`/studio/category/${slug}`);
 
@@ -65,6 +65,13 @@ export default async function StudioLocationPage({ params }: Props) {
     getCreatorProductionsByType(category.projectType),
     getCrewBySpecializationsAndLocation(category.creatorKeywords, city.name),
   ]);
+
+  // A studio city page exists only when at least one listed creator in this
+  // category is based in this city. Without one, the page would be the
+  // category page under a city's name (a doorway page), so it redirects to
+  // the category page and stays out of the sitemap. It appears on its own
+  // once such a creator is listed.
+  if (creators.length === 0) permanentRedirect(`/studio/category/${slug}`);
 
   const jsonLd = [
     serviceJsonLd({

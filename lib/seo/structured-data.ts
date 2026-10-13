@@ -1,4 +1,4 @@
-import { STUDIO, PRODUCTION_SERVICES } from '@/lib/constants';
+import { STUDIO } from '@/lib/constants';
 
 type JsonLd = Record<string, unknown>;
 
@@ -91,35 +91,83 @@ export function localBusinessJsonLd(priceRange?: { min: number; max: number } | 
   };
 }
 
+/**
+ * Product + Offer for one rental item. The offer is the daily hire price in
+ * ZAR. An item without a daily price gets no offer at all: publishing price 0
+ * would tell search engines the gear is free.
+ */
 export function productJsonLd(rental: {
   title: string;
   slug: string;
   category: string;
+  categoryLabel?: string | null;
   description?: string | null;
   price_per_day: number | null;
   thumbnail_url?: string | null;
-  is_available: boolean;
+  gallery?: { url?: string | null }[] | null;
+  is_available: boolean | null;
   brand?: string | null;
+  model?: string | null;
+  average_rating?: number | null;
+  review_count?: number | null;
 }): JsonLd {
+  const url = `${STUDIO.meta.url}/rentals/${rental.category}/${rental.slug}`;
+  const images = [
+    rental.thumbnail_url,
+    ...(rental.gallery ?? []).map((g) => g?.url),
+  ].filter((u): u is string => typeof u === 'string' && u.length > 0);
+  const price = rental.price_per_day;
+  const hasPrice = typeof price === 'number' && Number.isFinite(price) && price > 0;
+  const rated = (rental.review_count ?? 0) > 0 && (rental.average_rating ?? 0) > 0;
+  const amount = hasPrice ? Math.round((price as number) * 100) / 100 : 0;
+
   return {
     '@context': 'https://schema.org',
     '@type': 'Product',
+    '@id': `${url}#product`,
     name: rental.title,
-    url: `${STUDIO.meta.url}/rentals/${rental.category}/${rental.slug}`,
-    image: rental.thumbnail_url ?? `${STUDIO.meta.url}/logo-black-bg.png`,
-    description: rental.description ?? `${rental.title} available for hire at ThabangVision.`,
-    brand: rental.brand ? { '@type': 'Brand', name: rental.brand } : undefined,
-    category: rental.category,
-    offers: {
-      '@type': 'Offer',
-      price: rental.price_per_day ?? 0,
-      priceCurrency: 'ZAR',
-      unitText: 'per day',
-      availability: rental.is_available
-        ? 'https://schema.org/InStock'
-        : 'https://schema.org/OutOfStock',
-      seller: { '@type': 'Organization', name: STUDIO.name },
-    },
+    url,
+    image: images.length > 0 ? [...new Set(images)].slice(0, 6) : `${STUDIO.meta.url}/logo-black-bg.png`,
+    description: rental.description?.trim() || `${rental.title} available for hire at ${STUDIO.name}.`,
+    ...(rental.brand ? { brand: { '@type': 'Brand', name: rental.brand } } : {}),
+    ...(rental.model ? { model: rental.model } : {}),
+    category: rental.categoryLabel ?? rental.category,
+    ...(rated
+      ? {
+          aggregateRating: {
+            '@type': 'AggregateRating',
+            ratingValue: Math.round((rental.average_rating as number) * 10) / 10,
+            reviewCount: rental.review_count,
+            bestRating: 5,
+            worstRating: 1,
+          },
+        }
+      : {}),
+    ...(hasPrice
+      ? {
+          offers: {
+            '@type': 'Offer',
+            url,
+            price: amount,
+            priceCurrency: 'ZAR',
+            // A hire price is per day, not a sale price.
+            priceSpecification: {
+              '@type': 'UnitPriceSpecification',
+              price: amount,
+              priceCurrency: 'ZAR',
+              unitCode: 'DAY',
+              unitText: 'per day',
+              referenceQuantity: { '@type': 'QuantitativeValue', value: 1, unitCode: 'DAY' },
+            },
+            businessFunction: 'http://purl.org/goodrelations/v1#LeaseOut',
+            availability: rental.is_available === false
+              ? 'https://schema.org/OutOfStock'
+              : 'https://schema.org/InStock',
+            areaServed: serviceAreaJsonLd(),
+            seller: { '@type': 'Organization', name: STUDIO.name, url: STUDIO.meta.url },
+          },
+        }
+      : {}),
   };
 }
 
@@ -157,28 +205,69 @@ export function serviceJsonLd(opts: {
   };
 }
 
+/**
+ * A creator as a schema.org Person, at their one canonical address
+ * (lib/seo/creator-url.ts). Ratings belong to the person who earned them, so
+ * aggregateRating and reviews sit on the Person, not on a business wrapper.
+ */
 export function personJsonLd(creator: {
   display_name: string | null;
-  crew_slug: string | null;
+  /** The canonical absolute URL of the profile. */
+  url: string;
   specializations?: string[] | null;
-  hourly_rate?: number | null;
   location?: string | null;
   avatar_url?: string | null;
+  description?: string | null;
+  rating?: {
+    ratingValue: number;
+    reviewCount: number;
+    reviews?: { rating: number; author: string; comment: string | null; date: string }[];
+  } | null;
 }): JsonLd {
+  const rating = creator.rating && creator.rating.reviewCount > 0 ? creator.rating : null;
+  const specs = creator.specializations ?? [];
   return {
     '@context': 'https://schema.org',
     '@type': 'Person',
+    '@id': `${creator.url}#person`,
     name: creator.display_name ?? 'Creator',
-    url: creator.crew_slug ? `${STUDIO.meta.url}/studio/category/photography/${creator.crew_slug}` : undefined,
-    image: creator.avatar_url ?? undefined,
-    jobTitle: (creator.specializations ?? []).join(', ') || 'Creative Professional',
-    worksFor: { '@type': 'Organization', name: STUDIO.name },
+    url: creator.url,
+    ...(creator.avatar_url ? { image: creator.avatar_url } : {}),
+    ...(creator.description ? { description: creator.description } : {}),
+    jobTitle: specs.join(', ') || 'Creative Professional',
+    ...(specs.length > 0 ? { knowsAbout: specs } : {}),
+    // Booked through the platform; not an employee of it.
+    affiliation: { '@type': 'Organization', name: STUDIO.name, url: STUDIO.meta.url },
     ...(creator.location && {
       address: { '@type': 'PostalAddress', addressLocality: creator.location, addressCountry: 'ZA' },
+    }),
+    ...(rating && {
+      aggregateRating: {
+        '@type': 'AggregateRating',
+        ratingValue: rating.ratingValue,
+        bestRating: 5,
+        worstRating: 1,
+        reviewCount: rating.reviewCount,
+      },
+      ...(rating.reviews && rating.reviews.length > 0 && {
+        review: rating.reviews.slice(0, 5).map((r) => ({
+          '@type': 'Review',
+          author: { '@type': 'Person', name: r.author },
+          reviewRating: { '@type': 'Rating', ratingValue: r.rating, bestRating: 5, worstRating: 1 },
+          datePublished: r.date.split('T')[0],
+          ...(r.comment && { reviewBody: r.comment }),
+        })),
+      }),
     }),
   };
 }
 
+/**
+ * A rating for a creator, on its own. It used to be typed LocalBusiness, which
+ * told search engines each creator was a separate business. It is now the
+ * same Person (same @id as personJsonLd) so the two merge into one entity.
+ * Prefer passing `rating` to personJsonLd.
+ */
 export function aggregateRatingJsonLd(opts: {
   name: string;
   url: string;
@@ -186,31 +275,66 @@ export function aggregateRatingJsonLd(opts: {
   reviewCount: number;
   reviews?: { rating: number; author: string; comment: string | null; date: string }[];
 }): JsonLd {
+  const person = personJsonLd({
+    display_name: opts.name,
+    url: opts.url,
+    rating: { ratingValue: opts.ratingValue, reviewCount: opts.reviewCount, reviews: opts.reviews },
+  });
+  return {
+    '@context': person['@context'],
+    '@type': 'Person',
+    '@id': person['@id'],
+    name: person.name,
+    url: person.url,
+    aggregateRating: person.aggregateRating,
+    ...(person.review ? { review: person.review } : {}),
+  };
+}
+
+/**
+ * One free Ubunye app as a SoftwareApplication. `release` comes from the
+ * published latest.json (lib/ubunye-release.ts); without one, the version and
+ * download fields are left out rather than guessed.
+ */
+export function softwareApplicationJsonLd(app: {
+  name: string;
+  description: string;
+  url: string;
+  applicationCategory: string;
+  applicationSubCategory?: string | null;
+  operatingSystems: string[];
+  image?: string | null;
+  license?: string | null;
+  author?: string | null;
+  codeRepository?: string | null;
+  webUrl?: string | null;
+  release?: { version: string; published: string; downloadUrls: string[] } | null;
+}): JsonLd {
   return {
     '@context': 'https://schema.org',
-    '@type': 'LocalBusiness',
-    name: opts.name,
-    url: opts.url,
-    aggregateRating: {
-      '@type': 'AggregateRating',
-      ratingValue: opts.ratingValue,
-      bestRating: 5,
-      worstRating: 1,
-      reviewCount: opts.reviewCount,
-    },
-    ...(opts.reviews && opts.reviews.length > 0 && {
-      review: opts.reviews.slice(0, 5).map((r) => ({
-        '@type': 'Review',
-        author: { '@type': 'Person', name: r.author },
-        reviewRating: {
-          '@type': 'Rating',
-          ratingValue: r.rating,
-          bestRating: 5,
-        },
-        datePublished: r.date.split('T')[0],
-        ...(r.comment && { reviewBody: r.comment }),
-      })),
-    }),
+    '@type': 'SoftwareApplication',
+    '@id': `${app.url}#app`,
+    name: app.name,
+    description: app.description,
+    url: app.url,
+    applicationCategory: app.applicationCategory,
+    ...(app.applicationSubCategory ? { applicationSubCategory: app.applicationSubCategory } : {}),
+    operatingSystem: app.operatingSystems.join(', '),
+    isAccessibleForFree: true,
+    offers: { '@type': 'Offer', price: 0, priceCurrency: 'ZAR' },
+    ...(app.image ? { image: app.image } : {}),
+    ...(app.license ? { license: app.license } : {}),
+    ...(app.author ? { author: { '@type': 'Organization', name: app.author } } : {}),
+    publisher: { '@type': 'Organization', name: STUDIO.name, url: STUDIO.meta.url },
+    ...(app.codeRepository ? { sameAs: [app.codeRepository] } : {}),
+    ...(app.webUrl ? { installUrl: app.webUrl } : {}),
+    ...(app.release
+      ? {
+          softwareVersion: app.release.version,
+          datePublished: app.release.published.split('T')[0],
+          ...(app.release.downloadUrls.length > 0 ? { downloadUrl: app.release.downloadUrls } : {}),
+        }
+      : {}),
   };
 }
 

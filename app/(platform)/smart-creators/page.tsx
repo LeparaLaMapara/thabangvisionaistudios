@@ -1,14 +1,16 @@
 import { getPublishedCreatorProfiles } from '@/lib/supabase/queries/smartProductions';
 import { AskUbunyeButton } from '@/components/ubunye/AskUbunyeButton';
 import SmartCreatorsClient from './SmartCreatorsClient';
+import { buildPageMetadata } from '@/lib/seo/metadata';
+import { STUDIO } from '@/lib/constants';
 
 export const revalidate = 60;
 
-export const metadata = {
-  title: 'Smart Creators',
-  description:
-    'Browse verified South African filmmakers, photographers, and content creators available for hire.',
-};
+export const metadata = buildPageMetadata({
+  title: 'Creators for Hire',
+  description: `Browse ID-checked photographers, filmmakers and content creators you can book through ${STUDIO.shortName} in ${STUDIO.serviceArea.province}.`,
+  path: '/smart-creators',
+});
 
 export default async function SmartCreatorsPage() {
   const creators = await getPublishedCreatorProfiles();
