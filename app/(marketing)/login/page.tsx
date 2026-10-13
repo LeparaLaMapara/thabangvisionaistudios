@@ -5,6 +5,7 @@ import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
 import { createClient } from '@/lib/supabase/client';
+import { GoogleSignInButton } from '@/components/auth/GoogleSignInButton';
 import { STUDIO } from '@/lib/constants';
 import { safeNextPath, authCallbackUrl, withRedirect, signInErrorMessage } from '@/lib/auth/redirect';
 
@@ -277,15 +278,24 @@ function LoginForm() {
             /* ── Main Sign In ── */
             <div className="space-y-5">
 
-              {/* Google OAuth */}
-              <button
-                type="button"
-                onClick={handleGoogleSignIn}
-                className="w-full flex items-center justify-center gap-3 bg-white border border-neutral-700 text-neutral-800 py-3.5 text-xs font-mono font-medium tracking-wide hover:bg-neutral-50 transition-colors min-h-[44px]"
-              >
-                <GoogleIcon />
-                Sign in with Google
-              </button>
+              {/* Google's own button (Google names this site, not supabase.co); the redirect button is the fallback. */}
+              <GoogleSignInButton
+                onBusy={() => setError(null)}
+                onSignedIn={(user) => {
+                  window.location.href = user.app_metadata?.role === 'admin' ? '/admin' : redirectTo;
+                }}
+                onError={(err) => setError(/banned/i.test(err.message) ? 'This account is suspended, so it cannot sign in.' : 'Google sign-in did not finish. Please try again, or use your email.')}
+                fallback={
+                  <button
+                    type="button"
+                    onClick={handleGoogleSignIn}
+                    className="w-full flex items-center justify-center gap-3 bg-white border border-neutral-700 text-neutral-800 py-3.5 text-xs font-mono font-medium tracking-wide hover:bg-neutral-50 transition-colors min-h-[44px]"
+                  >
+                    <GoogleIcon />
+                    Sign in with Google
+                  </button>
+                }
+              />
 
               {/* Divider */}
               <div className="flex items-center gap-3 py-1">
