@@ -42,7 +42,7 @@ ${rentals}
 - Equipment Rentals: ${baseUrl}/rentals
 - Pricing: ${baseUrl}/pricing
 - Ubunye AI Studio: ${baseUrl}/ubunye-ai-studio
-- ${UBUNYE_STUDIO.suiteName} (free, open source creative tools, ${UBUNYE_STUDIO.statusLabels[UBUNYE_STUDIO.status].toLowerCase()}): ${baseUrl}/tools
+- ${UBUNYE_STUDIO.suiteName} (free, open source apps for photo and film, ${UBUNYE_STUDIO.statusLabels[UBUNYE_STUDIO.status].toLowerCase()}): ${baseUrl}/tools
 - Smart Creators: ${baseUrl}/smart-creators
 - Press: ${baseUrl}/press
 - Careers: ${baseUrl}/careers

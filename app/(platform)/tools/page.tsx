@@ -10,7 +10,7 @@ import { UB_DISPLAY, UB_LABEL } from '@/components/tools/ubunye-styles';
 
 export const metadata = buildPageMetadata({
   title: `${UBUNYE_STUDIO.suiteName}: Light, Photo and Film`,
-  description: `${UBUNYE_STUDIO.suiteName} is a free, open source suite of three creative tools: ${UBUNYE_STUDIO.apps
+  description: `${UBUNYE_STUDIO.suiteName} is three free, open source apps: ${UBUNYE_STUDIO.apps
     .map((a) => `${a.name} for ${a.category.toLowerCase()}`)
     .join(', ')}. Free downloads for ${UBUNYE_STUDIO.platforms
     .filter((p) => p.note === null)
@@ -20,7 +20,7 @@ export const metadata = buildPageMetadata({
 });
 
 /**
- * Ubunye Creative Studio catalogue. Data: UBUNYE_STUDIO in lib/constants.ts.
+ * Ubunye Apps catalogue ("Apps" in the main nav). Data: UBUNYE_STUDIO in lib/constants.ts.
  * Distinct from /studio (the productions portfolio) and /resources/tools
  * (the on-set calculators).
  */
@@ -38,16 +38,8 @@ export default function ToolsPage() {
       {/* ── Masthead ───────────────────────────────────────────────── */}
       <header className="container mx-auto px-4 sm:px-6">
         <div className="relative flex flex-col items-center text-center">
-          <h1 className="w-full max-w-[640px]">
-            <Image
-              src={UBUNYE_STUDIO.wordmark}
-              alt={UBUNYE_STUDIO.suiteName}
-              width={1200}
-              height={420}
-              unoptimized
-              priority
-              className="h-auto w-full"
-            />
+          <h1 className={`${UB_DISPLAY} text-6xl leading-none text-[var(--ub-text)] sm:text-7xl md:text-8xl`}>
+            {UBUNYE_STUDIO.shortName} <span className="text-[var(--ub-text-2)]">Apps</span>
           </h1>
           <p className={`${UB_LABEL} mt-6 max-w-md leading-loose text-[var(--ub-text-2)]`}>
             {UBUNYE_STUDIO.intro}

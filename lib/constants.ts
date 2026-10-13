@@ -610,12 +610,13 @@ export const MAIN_NAVIGATION: {
 }[] = [
     { label: 'Rentals', href: '/rentals' },
     { label: 'Studio', href: '/studio' },
-    // What things cost and how to reach a person, one tap from every page.
-    { label: 'Pricing', href: '/pricing' },
+    // The free Ubunye apps. Hidden until the `creative_tools` flag is on (lib/nav.ts); /tools itself is always reachable by URL.
+    { label: 'Apps', href: '/tools' },
     { label: 'Help', href: '/faq' },
     { label: CREATOR_JOIN.navLabel, href: CREATOR_JOIN.href },
-    // Hidden until the `creative_tools` flag is on (lib/nav.ts). /tools itself is always reachable by URL.
-    { label: 'Tools', href: '/tools' },
+    // No "Pricing" item: every listing and package shows its own price, and the
+    // one promise (free to join, pay when you book) sits on the home and rentals
+    // pages. /pricing stays in the footer next to How to Pay.
   ];
 
 export const FOOTER_SECTIONS = [
@@ -627,7 +628,6 @@ export const FOOTER_SECTIONS = [
       { label: 'About', href: '/about' },
       ...(SHOW_CAREERS ? [{ label: 'Careers', href: '/careers' }] : []),
       { label: 'Press & News', href: '/press' },
-      { label: 'Pricing', href: '/pricing' },
     ],
   },
   {
@@ -643,6 +643,7 @@ export const FOOTER_SECTIONS = [
     title: 'Support',
     links: [
       { label: 'How to Pay', href: '/pay' },
+      { label: 'How Pricing Works', href: '/pricing' },
       { label: 'Contact', href: '/contact' },
       { label: 'Report a Bug', href: '/support/report-bug' },
       { label: 'Legal / Terms', href: '/legal' },
@@ -1354,11 +1355,11 @@ export interface UbunyeStudioApp {
 }
 
 export const UBUNYE_STUDIO = {
-  suiteName: 'Ubunye Creative Studio',
+  suiteName: 'Ubunye Apps',
   shortName: 'Ubunye',
   wordmark: '/ubunye/ubunye-creative-studio-dark.svg',
-  intro: 'Free, open source tools for light, photo and film.',
-  footerLine: 'One creative suite. Three powerful tools. A bigger story.',
+  intro: 'Free apps for photo and film. Download them, or try them in your browser.',
+  footerLine: 'Three free apps. Light, Photo and Film.',
   version: 'Preview',
   status: 'preview' as UbunyeReleaseStatus,
   statusLabels: {
