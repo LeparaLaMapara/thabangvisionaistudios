@@ -73,8 +73,11 @@ function uberCtx(): Ctx {
     if (m === 'POST' && path.endsWith('/deliveries')) {
       if (refuse) return json(400, { message: 'address undeliverable' });
       const body = JSON.parse(String(init.body));
+      // As Uber's sandbox answered on 2026-10-13: the same idempotency_key twice is a 409.
+      const dup = [...jobs.values()].find((j) => j.idempotency_key === body.idempotency_key);
+      if (dup) return json(409, { code: 'duplicate_delivery', message: 'An active delivery like this already exists.', metadata: { delivery_id: dup.id } });
       const id = `del_${jobs.size + 1}`;
-      const job = { id, external_id: body.external_id, status: 'pending', created: NOW.toISOString() };
+      const job = { id, external_id: body.external_id, idempotency_key: body.idempotency_key, status: 'pending', created: NOW.toISOString() };
       jobs.set(id, job);
       return json(200, job);
     }
@@ -84,6 +87,10 @@ function uberCtx(): Ctx {
       if (!job) return json(404, { message: 'not found' });
       job.status = 'canceled';
       return json(200, job);
+    }
+    if (m === 'GET' && path.endsWith('/deliveries')) {
+      const ext = new URL(url).searchParams.get('external_id');
+      return json(200, { data: [...jobs.values()].filter((j) => j.external_id === ext) });
     }
     const get = /\/deliveries\/([^/]+)$/.exec(path);
     if (m === 'GET' && get) return jobs.has(get[1]) ? json(200, jobs.get(get[1])) : json(404, { message: 'not found' });

@@ -5,7 +5,9 @@ import { DELIVERY_CHECKOUT, STUDIO } from '@/lib/constants';
 import { formatRand } from '@/lib/format/money';
 
 /**
- * Delivery at checkout (spec §4.17), our own vehicle only today.
+ * Delivery at checkout (spec §4.17): our own vehicle or a courier, whichever
+ * is cheaper for the renter (the server decides). Both trips, to the renter
+ * and back, are quoted up front by default (owner decision 2026-10-13).
  *
  * The renter types the address; the server verifies it and returns a stored,
  * expiring quote. This component never works out a price and never sends a
@@ -49,6 +51,11 @@ export interface DeliveryEligibility {
   delivery_available: boolean;
   code?: string;
   message?: string;
+}
+
+/** "Delivery and collection" when the gear is also collected from the renter, else "Delivery total". */
+export function deliveryTotalLabel(quotes: readonly Pick<PublicQuote, 'leg'>[]): string {
+  return quotes.some((q) => q.leg === 'return') && quotes.some((q) => q.leg === 'outbound') ? 'Delivery and collection' : 'Delivery total';
 }
 
 export const centsToRand = (c: number): string => formatRand(c / 100, { decimals: c % 100 !== 0 });
@@ -118,7 +125,7 @@ export default function DeliveryOptions({
   const [contactPhone, setContactPhone] = useState('');
   const [instructions, setInstructions] = useState('');
   const [windowId, setWindowId] = useState<string>(DELIVERY_CHECKOUT.windows[0].id);
-  const [wantReturn, setWantReturn] = useState(false);
+  const [wantReturn, setWantReturn] = useState(true);
   const [returnWindowId, setReturnWindowId] = useState<string>(DELIVERY_CHECKOUT.windows[DELIVERY_CHECKOUT.windows.length - 1].id);
   const [quoting, setQuoting] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
@@ -234,7 +241,7 @@ export default function DeliveryOptions({
         <legend className="text-xs font-mono uppercase tracking-widest text-neutral-400">Return</legend>
         <label className="flex items-center gap-3 min-h-[44px] text-xs font-mono text-neutral-300 cursor-pointer">
           <input type="checkbox" className="accent-[#D4A843] w-4 h-4" checked={wantReturn} onChange={(e) => touch(setWantReturn)(e.target.checked)} />
-          Collect it from me on the last hire day (priced separately)
+          Collect it from me on the last hire day
         </label>
         {wantReturn && (
           <div className="grid grid-cols-2 gap-2">
@@ -274,9 +281,9 @@ export default function DeliveryOptions({
               <span className="text-white">{centsToRand(q.customer_fee_cents)}</span>
             </p>
           ))}
-          {selection.quotes.length > 2 || selection.quotes.some((q) => q.origin === 'owner') ? (
+          {selection.quotes.length > 1 ? (
             <p className="flex justify-between gap-3 border-t border-white/10 pt-1">
-              <span>Delivery total</span>
+              <span>{deliveryTotalLabel(selection.quotes)}</span>
               <span className="text-white">{centsToRand(selection.totalCents)}</span>
             </p>
           ) : null}

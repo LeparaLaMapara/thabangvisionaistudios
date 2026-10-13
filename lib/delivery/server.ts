@@ -6,6 +6,7 @@ import { createAdminClient } from '@/lib/supabase/server';
 import type { InboxDeps } from './inbox';
 import { SupabaseDeliveryOrigins } from './origins';
 import { deliveryInsurance, deliveryProviders } from './ports';
+import { sandboxCourierTrial } from './sandbox-trial';
 import {
   SupabaseDeliveryAddresses,
   SupabaseDeliveryBookings,
@@ -22,14 +23,19 @@ import {
  */
 export async function deliveryDeps(): Promise<DeliveryDeps> {
   const db = createAdminClient();
-  const courierEnabled = await getFlag('delivery_courier');
+  const providers = deliveryProviders(new SupabaseManualTaskStore(db));
+  // Test deployments only: lets couriers on TEST keys be tried end to end
+  // (never on production; see sandbox-trial.ts).
+  const trial = sandboxCourierTrial(process.env, providers);
+  const courierEnabled = trial ? true : await getFlag('delivery_courier');
   return {
     repo: new SupabaseDeliveryRepository(db),
     bookings: new SupabaseDeliveryBookings(db),
     trust: new SupabaseRenterTrust(db),
     addresses: new SupabaseDeliveryAddresses(db),
-    providers: deliveryProviders(new SupabaseManualTaskStore(db)),
-    insurance: deliveryInsurance,
+    providers,
+    insurance: trial?.insurance ?? deliveryInsurance,
+    ...(trial ? { policy: trial.policy } : {}),
     clock: systemClock,
     flags: { courierEnabled, ownFleetEnabled: STUDIO.fulfilment.delivery.enabled },
     newId: () => crypto.randomUUID(),

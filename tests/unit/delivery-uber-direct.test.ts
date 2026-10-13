@@ -115,9 +115,10 @@ describe('Uber Direct: configuration and capabilities', () => {
     expect(uberDirectConfigFromEnv(env, 'sandbox')).toMatchObject({ clientId: 'sb', clientSecret: null, customerId: null });
   });
 
-  it('claims only verified capabilities: no transit cover, no idempotent create', () => {
+  it('claims only verified capabilities: no transit cover; idempotent create and cancel verified in our sandbox (2026-10-13)', () => {
     expect(UBER_DIRECT_CAPABILITIES.verifiedTransitCover).toBe(false);
-    expect(UBER_DIRECT_CAPABILITIES.idempotentCreate).toBe(false);
+    expect(UBER_DIRECT_CAPABILITIES.idempotentCreate).toBe(true);
+    expect(UBER_DIRECT_CAPABILITIES.cancellation).toBe(true);
     expect(UBER_DIRECT_CAPABILITIES.declaredValueSupport).toBe(false);
     expect(UBER_DIRECT_CAPABILITIES.noLeaveAtDoor).toBe(true);
     expect(UBER_DIRECT_CAPABILITIES.pickupConfirmation).toBe(true);
@@ -284,13 +285,42 @@ describe('Uber Direct: create', () => {
 });
 
 describe('Uber Direct: lookup by our reference', () => {
-  it('always answers unknown (no verified lookup), so the core escalates instead of re-dispatching', async () => {
+  it('finds our delivery by external_id (verified in the sandbox 2026-10-13)', async () => {
     const { port, calls } = adapter({ 'GET /deliveries': () => json(200, { data: [delivery()] }) });
     const r = await port.findByMerchantReference('tvd_group1_o1');
-    expect(r).toMatchObject({ ok: false, kind: 'unknown' });
-    // Never "not found": that would let the core create a second courier.
-    expect(r.ok).toBe(false);
-    expect(calls).toHaveLength(0);
+    expect(r).toMatchObject({ ok: true, value: { providerReference: 'del_abc', merchantReference: 'tvd_group1_o1' } });
+    const get = calls.find((c) => c.method === 'GET');
+    expect(new URL(get?.url ?? 'http://x').searchParams.get('external_id')).toBe('tvd_group1_o1');
+  });
+
+  it('an empty list means nothing was created; only exact matches count', async () => {
+    expect(await adapter({ 'GET /deliveries': () => json(200, { data: [] }) }).port.findByMerchantReference('tvd_x')).toEqual({ ok: true, value: null });
+    expect(await adapter({ 'GET /deliveries': () => json(200, { data: [delivery({ external_id: 'someone_else' })] }) }).port.findByMerchantReference('tvd_x')).toEqual({ ok: true, value: null });
+  });
+
+  it('two deliveries with our reference, an unreadable list or a failed call is unknown, never "none"', async () => {
+    const two = adapter({ 'GET /deliveries': () => json(200, { data: [delivery(), delivery({ id: 'del_def' })] }) });
+    expect(await two.port.findByMerchantReference('tvd_group1_o1')).toMatchObject({ ok: false, kind: 'unknown' });
+    expect(await adapter({ 'GET /deliveries': () => json(200, { nope: true }) }).port.findByMerchantReference('tvd_group1_o1')).toMatchObject({ ok: false, kind: 'unknown' });
+    expect(await adapter({ 'GET /deliveries': () => json(503, {}) }).port.findByMerchantReference('tvd_group1_o1')).toMatchObject({ ok: false, kind: 'unknown' });
+  });
+
+  it('a repeated create (409 duplicate_delivery) returns the first delivery, never a second courier', async () => {
+    const { port, calls } = adapter({
+      'POST /deliveries': () => json(409, { code: 'duplicate_delivery', message: 'An active delivery like this already exists.' }),
+      'GET /deliveries': () => json(200, { data: [delivery({ external_id: 'tvd_group1_o1' })] }),
+    });
+    const r = await port.createDelivery(createReq());
+    expect(r).toMatchObject({ ok: true, value: { providerReference: 'del_abc', merchantReference: 'tvd_group1_o1' } });
+    expect(calls.filter((c) => c.method === 'POST' && new URL(c.url).pathname.endsWith('/deliveries'))).toHaveLength(1);
+  });
+
+  it('a 409 whose delivery cannot be found stays unknown', async () => {
+    const { port } = adapter({
+      'POST /deliveries': () => json(409, { code: 'duplicate_delivery' }),
+      'GET /deliveries': () => json(200, { data: [] }),
+    });
+    expect(await port.createDelivery(createReq())).toMatchObject({ ok: false, kind: 'unknown' });
   });
 });
 
@@ -324,6 +354,18 @@ describe('Uber Direct: get, cancel, tracking', () => {
       { kind: 'photo', ref: 'uber_direct:del_abc:dropoff:photo' },
     ]);
     expect(JSON.stringify(r)).not.toMatch(/img\/|Thandi M|4821/);
+  });
+
+  it('an empty image_url is not proof (Uber sends "" until the proof exists, seen 2026-10-13)', async () => {
+    const d = delivery({
+      status: 'pickup',
+      dropoff: { verification: { signature: { image_url: '' }, picture: { image_url: '' }, barcodes: null, pictures: null } },
+      pickup: { verification: { picture: { image_url: 'https://img/pk.png' }, barcodes: null } },
+    });
+    const { port } = adapter({ 'GET /deliveries/del_abc': () => json(200, d) });
+    const r = await port.getDelivery('del_abc');
+    if (!r.ok) throw new Error('expected ok');
+    expect(r.value.proof).toEqual([{ kind: 'photo', ref: 'uber_direct:del_abc:pickup:photo' }]);
   });
 
   it('getDelivery of an unknown id is a refusal; a 503 is unknown', async () => {

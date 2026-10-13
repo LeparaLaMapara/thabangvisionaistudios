@@ -11,6 +11,9 @@
  *   7. speed        ├ ordering only, as configured in
  *   8. price        ┘ DELIVERY_POLICY.providerPreferences (never hardcoded)
  *
+ * "price" compares what the CUSTOMER would pay: a courier's cost plus our
+ * platform fee, against the own-vehicle price (no fee), see quote.ts.
+ *
  * A provider that is down (unknown/rejected call) is excluded with a reason;
  * the others are still offered (D20). No eligible provider means collection
  * in person, and the booking itself stays possible.
@@ -27,9 +30,11 @@ export interface ProviderPreferences {
   rankBy: readonly RankCriterion[];
   /** 0–100 per provider id; unknown = 0. */
   reliability: Readonly<Record<string, number>>;
+  /** Added to a courier's cost when comparing prices (DELIVERY_POLICY.platformFeeCents). */
+  courierFeeCents?: number;
 }
 
-export const DEFAULT_PROVIDER_PREFERENCES: ProviderPreferences = DELIVERY_POLICY.providerPreferences;
+export const DEFAULT_PROVIDER_PREFERENCES: ProviderPreferences = { ...DELIVERY_POLICY.providerPreferences, courierFeeCents: DELIVERY_POLICY.platformFeeCents };
 
 export interface EvaluatedCandidate {
   provider: ProviderGateSubject;
@@ -81,11 +86,12 @@ export function selectDeliveryProviders(candidates: readonly EvaluatedCandidate[
     options.push({ providerId: id, kind: c.provider.kind ?? 'courier', quote: q.value, reliability: prefs.reliability[id] ?? 0, order });
   });
 
+  const customerCents = (o: RankedOption): number => o.quote.providerCostCents + (o.kind === 'courier' ? (prefs.courierFeeCents ?? 0) : 0);
   const startMs = (o: RankedOption): number => (o.quote.window.start ? new Date(o.quote.window.start).getTime() : 0);
   const cmp: Record<RankCriterion, (a: RankedOption, b: RankedOption) => number> = {
     reliability: (a, b) => b.reliability - a.reliability,
     speed: (a, b) => startMs(a) - startMs(b),
-    price: (a, b) => a.quote.providerCostCents - b.quote.providerCostCents,
+    price: (a, b) => customerCents(a) - customerCents(b),
   };
   options.sort((a, b) => {
     for (const k of prefs.rankBy) {

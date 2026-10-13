@@ -42,7 +42,7 @@ describe('D30 - entire outbound-and-return workflow', () => {
     const outQ = await quoteDelivery({ caller: renter, renterId: RENTER, bookingGroupId: GROUP, leg: 'outbound', originAddressId: OFFICE, destinationAddressId: RENTER_HOME, lines: LINES_FOR_QUOTE, window: { start: '2026-10-20T07:00:00Z', end: '2026-10-20T09:00:00Z' } }, w.deps);
     const retQ = await quoteDelivery({ caller: renter, renterId: RENTER, bookingGroupId: GROUP, leg: 'return', originAddressId: RENTER_HOME, destinationAddressId: OFFICE, lines: LINES_FOR_QUOTE, window: { start: '2026-10-22T15:00:00Z', end: '2026-10-22T17:00:00Z' } }, w.deps);
     if (!outQ.ok || !retQ.ok) throw new Error('quote failed');
-    expect(outQ.quotes.map((q) => q.providerId)).toEqual(['manual', 'fake_courier']); // reliability preference
+    expect(outQ.quotes.map((q) => q.providerId)).toEqual(['fake_courier', 'manual']); // cheaper for the renter first (2026-10-13)
     const out = outQ.quotes.find((q) => q.providerId === 'fake_courier')!;
     const back = retQ.quotes.find((q) => q.providerId === 'manual')!;
     const prep = await prepareDelivery({ caller: renter, quoteId: out.id, bookingGroupId: GROUP }, w.deps);

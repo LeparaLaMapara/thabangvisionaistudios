@@ -24,6 +24,7 @@ import {
   type HttpResult,
   type Json,
 } from '../http';
+import { haversineKm } from '../quote';
 import { UBER_DIRECT_API, UBER_DIRECT_CAPABILITIES, UBER_DIRECT_PROVIDER_ID, mapUberStatus } from './api';
 
 /**
@@ -34,12 +35,13 @@ import { UBER_DIRECT_API, UBER_DIRECT_CAPABILITIES, UBER_DIRECT_PROVIDER_ID, map
  * - Quote: Uber's quote endpoint; the price is the provider's cost in cents,
  *   valid for at most 15 minutes.
  * - Create: our merchant reference goes out as `external_id` and
- *   `idempotency_key` (behaviour not verified, so idempotentCreate = false);
- *   hand-to-hand: meet at the door, signature + photo at dropoff, PIN when the
- *   core supplies one, photo at pickup, return to sender if undeliverable.
- * - findByMerchantReference: no documented lookup by external_id, so it
- *   always answers UNKNOWN. An uncertain create is then escalated to a person
- *   (reconcile_pending) and never re-dispatched automatically.
+ *   `idempotency_key`. Uber refuses a second create with the same key (409
+ *   duplicate_delivery, verified 2026-10-13); we then return the first
+ *   delivery, found by external_id. Hand-to-hand: meet at the door,
+ *   signature + photo at dropoff, PIN when the core supplies one, photo at
+ *   pickup, return to sender if undeliverable.
+ * - findByMerchantReference: GET /deliveries?external_id= (verified). None
+ *   found = nothing was created; more than one = unknown, a person checks.
  * - Every call has a timeout and goes through a per-provider circuit breaker;
  *   nothing here retries a create.
  */
@@ -151,7 +153,7 @@ export function createUberDirectAdapter(config: UberDirectConfig): DeliveryPort 
   }
 
   function address(p: Partial<Pick<DeliveryPoint, 'formattedAddress'>> & Pick<DeliveryPoint, 'suburb' | 'city' | 'postalCode' | 'province'>): string {
-    // VERIFY: Uber's structured address JSON (sent as a string).
+    // Uber's structured address JSON, sent as a string (verified 2026-10-13).
     const street = [p.formattedAddress ?? p.suburb ?? ''].filter((s) => s.trim() !== '');
     return JSON.stringify({ street_address: street, city: p.city ?? '', state: p.province ?? '', zip_code: p.postalCode ?? '', country: UBER_DIRECT_API.countryCode });
   }
@@ -175,6 +177,18 @@ export function createUberDirectAdapter(config: UberDirectConfig): DeliveryPort 
     ...(w.start ? { pickup_ready_dt: w.start } : {}),
     ...(w.end ? { dropoff_deadline_dt: w.end } : {}),
   });
+
+  async function findByExternalId(merchantReference: string): Promise<ProviderCallResult<ProviderDelivery | null>> {
+    const res = await api('GET', UBER_DIRECT_API.paths.byExternalId(config.customerId ?? '', merchantReference), undefined, timeouts.read);
+    if (!res.ok) return res;
+    const data = asObject(res.value.body)?.data;
+    if (!Array.isArray(data)) return unknownMsg('Uber Direct returned an unreadable delivery list');
+    // Only exact matches count, whatever the filter did.
+    const mine = data.map((d) => toDelivery(d, null)).filter((d): d is ProviderDelivery => !!d && d.merchantReference === merchantReference);
+    if (mine.length === 0) return { ok: true, value: null };
+    if (mine.length > 1) return unknownMsg('Uber Direct has more than one delivery with our reference: check the Uber Direct dashboard');
+    return { ok: true, value: mine[0] };
+  }
 
   async function requestQuote(r: DeliveryQuoteRequest): Promise<ProviderCallResult<ProviderQuote>> {
     if (!validCoords(r.from) || !validCoords(r.to)) return { ok: false, kind: 'rejected', message: 'invalid coordinates' };
@@ -212,13 +226,15 @@ export function createUberDirectAdapter(config: UberDirectConfig): DeliveryPort 
     capabilities: UBER_DIRECT_CAPABILITIES,
 
     /**
-     * No separate serviceability endpoint is verified: this is a local sanity
-     * check (configured, usable coordinates). Uber's real answer is the quote,
-     * which the core asks for next; a refused quote excludes the provider.
+     * No separate serviceability endpoint: a local check (configured, usable
+     * coordinates, inside Uber's radius) so a trip Uber will refuse is never
+     * sent. Uber's real answer is the quote, which the core asks for next; a
+     * refused quote (address_undeliverable) excludes the provider quietly.
      */
     async checkServiceability(r: ServiceabilityRequest): Promise<ProviderCallResult<ServiceabilityResult>> {
       if (!isConfigured(config)) return notConfigured('Uber Direct');
       if (!validCoords(r.from) || !validCoords(r.to)) return { ok: true, value: { serviceable: false, reason: 'invalid_location' } };
+      if (!withinUberRadius(r.from, r.to)) return { ok: true, value: { serviceable: false, reason: 'outside_provider_radius' } };
       return { ok: true, value: { serviceable: true, reason: null } };
     },
 
@@ -262,17 +278,24 @@ export function createUberDirectAdapter(config: UberDirectConfig): DeliveryPort 
       // Hand-to-hand: never leave-at-door (PIN/signature also exclude it).
       if (r.requirements.noLeaveAtDoor) body.deliverable_action = UBER_DIRECT_API.deliverableActionMeetAtDoor;
       const res = await api('POST', UBER_DIRECT_API.paths.create(config.customerId ?? ''), body, timeouts.create);
-      if (!res.ok) return res;
+      if (!res.ok) {
+        // 409 duplicate_delivery: this reference was already used. Return the
+        // delivery it made (never a second courier); unknown if we cannot see it.
+        if (res.status === 409) {
+          const found = await findByExternalId(r.merchantReference);
+          if (found.ok && found.value) return { ok: true, value: { ...found.value, merchantReference: r.merchantReference } };
+          return unknownMsg('Uber Direct says this delivery already exists, but it could not be found by our reference: check the Uber Direct dashboard');
+        }
+        return res;
+      }
       const d = toDelivery(res.value.body, r.merchantReference);
       // 2xx without a delivery id: something may have been created. Unknown, not ok.
       if (!d) return unknownMsg('Uber Direct accepted the request but returned no delivery id');
       return { ok: true, value: { ...d, merchantReference: r.merchantReference } };
     },
 
-    /** No verified lookup by external_id: always unknown, so a person reconciles (never a second courier). */
-    async findByMerchantReference(): Promise<ProviderCallResult<ProviderDelivery | null>> {
-      return unknownMsg('Uber Direct has no verified lookup by our reference: check the Uber Direct dashboard before any retry');
-    },
+    /** Our reference goes out as external_id; Uber lists deliveries by it (verified 2026-10-13). */
+    findByMerchantReference: findByExternalId,
 
     async getDelivery(providerReference: string): Promise<ProviderCallResult<ProviderDelivery>> {
       const res = await api('GET', UBER_DIRECT_API.paths.get(config.customerId ?? '', providerReference), undefined, timeouts.read);
@@ -318,8 +341,14 @@ export function createUberDirectAdapter(config: UberDirectConfig): DeliveryPort 
 
 /**
  * Proof Uber reports for a delivery, as references only (no image URLs or
- * signer names are kept). VERIFY: the verification field names.
+ * signer names are kept). Uber sends each kind as an object whose image_url
+ * is "" until the proof exists (seen 2026-10-13), so only a filled one counts.
  */
+/** Straight-line distance inside Uber's radius (UBER_DIRECT_API.maxRadiusKm). */
+export function withinUberRadius(from: { lat: number; lng: number }, to: { lat: number; lng: number }): boolean {
+  return haversineKm(from, to) <= UBER_DIRECT_API.maxRadiusKm;
+}
+
 export function uberProofs(deliveryId: string, d: Json): ProviderDelivery['proof'] {
   const out: ProviderDelivery['proof'] = [];
   const sides: [string, Json | null][] = [
@@ -335,11 +364,21 @@ export function uberProofs(deliveryId: string, d: Json): ProviderDelivery['proof
   for (const [side, v] of sides) {
     if (!v) continue;
     for (const [field, kind] of kinds) {
-      const x = v[field];
-      if (x !== undefined && x !== null && x !== false && !(Array.isArray(x) && x.length === 0)) {
+      if (proofPresent(v[field])) {
         out.push({ kind, ref: `${UBER_DIRECT_PROVIDER_ID}:${deliveryId}:${side}:${kind}` });
       }
     }
   }
   return out;
+}
+
+function proofPresent(x: unknown): boolean {
+  if (x === undefined || x === null || x === false || x === '') return false;
+  if (Array.isArray(x)) return x.length > 0;
+  if (typeof x === 'object') {
+    const o = x as Record<string, unknown>;
+    // A proof object counts only when it carries something: an image, a code, a value.
+    return ['image_url', 'value', 'code', 'pin', 'entered', 'barcode'].some((k) => typeof o[k] === 'string' && (o[k] as string).trim() !== '');
+  }
+  return x === true || (typeof x === 'string' && x.trim() !== '');
 }

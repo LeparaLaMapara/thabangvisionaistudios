@@ -132,7 +132,7 @@ describe('the shipped policy still excludes the couriers', () => {
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
-  it('with the policy gates opened in a test, the missing custody capabilities still exclude both', async () => {
+  it('with the policy gates opened in a test, missing custody capabilities still exclude WumDrop; Uber Direct (custody verified 2026-10-13) is asked for a quote', async () => {
     const fetchSpy = vi.fn(() => Promise.reject(new Error('no network in tests')));
     vi.stubGlobal('fetch', fetchSpy);
     const w = world({ courierEnabled: true, ownFleetEnabled: false, cover: { uber_direct: 5_000_000, wumdrop: 5_000_000 } });
@@ -144,8 +144,8 @@ describe('the shipped policy still excludes the couriers', () => {
     );
     expect(r).toMatchObject({ ok: false, code: 'no_provider', collectionOnly: true });
     const excluded = 'excluded' in r ? (r.excluded ?? []) : [];
-    expect(excluded.find((e) => e.providerId === 'uber_direct')?.reasons).toContain('missing_capability:idempotentCreate');
+    // Uber passes the gate; it is excluded here only because the test has no network.
+    expect(excluded.find((e) => e.providerId === 'uber_direct')?.reasons).toEqual(['quote_unavailable']);
     expect(excluded.find((e) => e.providerId === 'wumdrop')?.reasons).toEqual(expect.arrayContaining(['missing_capability:pickupConfirmation', 'missing_capability:noLeaveAtDoor']));
-    expect(fetchSpy).not.toHaveBeenCalled();
   });
 });
