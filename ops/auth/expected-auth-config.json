@@ -5,12 +5,18 @@
   "apexOrigin": "https://thabangvision.com",
   "auth": {
     "site_url": "https://www.thabangvision.com",
-    "uri_allow_list": ["https://thabangvision.com/**", "https://www.thabangvision.com/**"],
+    "uri_allow_list": [
+      "https://thabangvision.com/**",
+      "https://www.thabangvision.com/**"
+    ],
     "external_google_enabled": true,
     "external_google_client_id": "990216040335-ui8g0o37i6rlkvnnrudq5c0bcujb8pq3.apps.googleusercontent.com",
     "external_email_enabled": true,
     "disable_signup": false,
-    "mailer_autoconfirm": false
+    "mailer_autoconfirm": false,
+    "smtp_host": "smtp.gmail.com",
+    "smtp_sender_name": "ThabangVision",
+    "rate_limit_email_sent": 30
   },
   "maintenanceExpected": true
 }
