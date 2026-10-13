@@ -4,28 +4,66 @@ import { useCallback, useMemo, useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
-import { RotateCcw } from 'lucide-react';
-import { RENTAL_CATEGORIES, STUDIO } from '@/lib/constants';
+import { ChevronLeft, RotateCcw } from 'lucide-react';
+import { PLACEHOLDER_IMAGES, RENTAL_CATEGORIES, STUDIO } from '@/lib/constants';
 import { formatRand } from '@/lib/format/money';
 import { gearCardImage, gearCardImageFallback } from '@/lib/rental/gear-image';
 import type { RentalListItem } from '@/lib/supabase/queries/smartRentals';
 
-export const ALL = 'all';
+import { ALL, CATEGORIES } from '@/lib/rental/rentals-view';
+
+export { ALL, CATEGORIES };
 
 const LABELS: Record<string, string> = Object.fromEntries(RENTAL_CATEGORIES.map((c) => [c.value, c.label]));
+const TILE_IMAGES: Record<string, string> = Object.fromEntries(RENTAL_CATEGORIES.map((c) => [c.value, c.fallbackImage]));
 
 export function categoryLabel(slug: string): string {
   return LABELS[slug] ?? slug.replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
-/** Filter chips: "All" first, then categories that have gear, biggest first. */
-export function categoryChips(rentals: RentalListItem[]): { value: string; label: string; count: number }[] {
+/** Categories that have gear, biggest first, with their counts. */
+export function categoryCounts(rentals: RentalListItem[]): { value: string; label: string; count: number }[] {
   const counts = new Map<string, number>();
   for (const r of rentals) counts.set(r.category, (counts.get(r.category) ?? 0) + 1);
-  const cats = [...counts.entries()]
+  return [...counts.entries()]
     .sort((a, b) => b[1] - a[1])
     .map(([value, count]) => ({ value, label: categoryLabel(value), count }));
-  return [{ value: ALL, label: 'All', count: rentals.length }, ...cats];
+}
+
+// ─── One category tile: brand photo, name, item count. ──────────────────────
+function CategoryTile({
+  value,
+  label,
+  count,
+  onOpen,
+}: {
+  value: string;
+  label: string;
+  count: number;
+  onOpen: (v: string) => void;
+}): React.ReactElement {
+  return (
+    <button
+      type="button"
+      onClick={() => onOpen(value)}
+      className="group relative block aspect-[4/3] w-full overflow-hidden rounded-2xl bg-neutral-900 text-left outline-none focus-visible:ring-2 focus-visible:ring-[#D4A843]"
+    >
+      <Image
+        src={TILE_IMAGES[value] ?? PLACEHOLDER_IMAGES.camerasOptics}
+        alt=""
+        fill
+        sizes="(max-width: 768px) 50vw, 33vw"
+        className="object-cover transition-transform duration-500 group-hover:scale-105"
+      />
+      <span className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/30 to-transparent" aria-hidden="true" />
+      <span className="absolute inset-x-0 bottom-0 p-3 md:p-5">
+        <span className="block font-display text-sm md:text-xl font-semibold uppercase tracking-wide text-white">{label}</span>
+        <span className="mt-0.5 block text-xs text-neutral-300">
+          {count} item{count === 1 ? '' : 's'}
+        </span>
+      </span>
+    </button>
+  );
 }
 
 // ─── One item: photo, name, price. The whole card opens the item. ───────────
@@ -84,10 +122,11 @@ function GearCard({ rental }: { rental: RentalListItem }): React.ReactElement {
 }
 
 /**
- * /rentals: all the gear on one page, newest-ranked first, with a row of
- * category chips that filter in place. /rentals/<category> renders the same
- * page with that chip already chosen, so old links and Google still land
- * on the right gear.
+ * /rentals: two buttons, nothing more.
+ *   All         every item at once (photo, name, price a day).
+ *   Categories  the category tiles; a tile opens that category's gear.
+ * /rentals/<category> opens straight on that category, so the home page,
+ * old links and Google still land on the right gear.
  */
 export default function AllGearClient({
   rentals,
@@ -95,26 +134,49 @@ export default function AllGearClient({
   loadFailed = false,
 }: {
   rentals: RentalListItem[];
+  /** 'all', 'categories', or a category slug. */
   initialCategory?: string;
   loadFailed?: boolean;
 }): React.ReactElement {
   const router = useRouter();
-  const chips = useMemo(() => categoryChips(rentals), [rentals]);
-  const [active, setActive] = useState(
-    chips.some((c) => c.value === initialCategory) ? initialCategory : ALL,
+  const cats = useMemo(() => categoryCounts(rentals), [rentals]);
+  // view: ALL, CATEGORIES (the tiles), or one category slug.
+  const [view, setView] = useState(() =>
+    initialCategory === CATEGORIES || cats.some((c) => c.value === initialCategory) ? initialCategory : ALL,
   );
+  const inCategory = view !== ALL && view !== CATEGORIES;
+
   const shown = useMemo(
-    () => (active === ALL ? rentals : rentals.filter((r) => r.category === active)),
-    [rentals, active],
+    () => (view === ALL ? rentals : inCategory ? rentals.filter((r) => r.category === view) : []),
+    [rentals, view, inCategory],
   );
 
-  const choose = useCallback((value: string) => {
-    setActive(value);
+  const go = useCallback((next: string) => {
+    setView(next);
     // Keep the address shareable without a page load or a history entry per tap.
-    window.history.replaceState(null, '', value === ALL ? '/rentals' : `/rentals/${value}`);
+    const path = next === ALL ? '/rentals' : next === CATEGORIES ? '/rentals?view=categories' : `/rentals/${next}`;
+    window.history.replaceState(null, '', path);
   }, []);
 
   const leadDays = Math.round(STUDIO.rental.minLeadTimeHours / 24);
+
+  const toggle = (value: string, label: string): React.ReactElement => {
+    // "Categories" stays lit while browsing inside a category.
+    const on = value === ALL ? view === ALL : view !== ALL;
+    return (
+      <button
+        key={value}
+        type="button"
+        aria-pressed={on}
+        onClick={() => go(value)}
+        className={`min-h-[44px] flex-1 rounded-full px-5 text-sm font-medium transition-colors sm:flex-none ${
+          on ? 'bg-[#D4A843] text-[#050505]' : 'text-neutral-200 hover:text-white'
+        }`}
+      >
+        {label}
+      </button>
+    );
+  };
 
   return (
     <div className="min-h-screen bg-[#050505] pt-24 pb-20">
@@ -128,29 +190,15 @@ export default function AllGearClient({
       </div>
 
       <div className="sticky top-20 z-30 mt-5 border-b border-white/5 bg-[#050505]/90 backdrop-blur">
-        <div
-          role="group"
-          aria-label="Filter by category"
-          className="container mx-auto flex gap-2 overflow-x-auto px-5 md:px-6 py-3 [scrollbar-width:none]"
-        >
-          {chips.map((c) => {
-            const on = c.value === active;
-            return (
-              <button
-                key={c.value}
-                type="button"
-                aria-pressed={on}
-                onClick={() => choose(c.value)}
-                className={`flex-none min-h-[44px] rounded-full border px-4 text-sm font-medium transition-colors ${
-                  on
-                    ? 'border-[#D4A843] bg-[#D4A843] text-[#050505]'
-                    : 'border-white/15 bg-[#0d0d0d] text-neutral-200 hover:border-white/40'
-                }`}
-              >
-                {c.label} <span className={on ? 'text-[#050505]/60' : 'text-neutral-500'}>{c.count}</span>
-              </button>
-            );
-          })}
+        <div className="container mx-auto px-5 md:px-6 py-3">
+          <div
+            role="group"
+            aria-label="Show"
+            className="flex w-full gap-1 rounded-full border border-white/15 bg-[#0d0d0d] p-1 sm:inline-flex sm:w-auto"
+          >
+            {toggle(ALL, `All ${rentals.length}`)}
+            {toggle(CATEGORIES, 'Categories')}
+          </div>
         </div>
       </div>
 
@@ -169,7 +217,27 @@ export default function AllGearClient({
           </div>
         )}
 
-        {!loadFailed && shown.length === 0 ? (
+        {inCategory && (
+          <div className="mb-5 flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => go(CATEGORIES)}
+              className="inline-flex min-h-[44px] items-center gap-1 pr-2 text-sm text-neutral-400 hover:text-white"
+            >
+              <ChevronLeft className="h-4 w-4" aria-hidden="true" />
+              Categories
+            </button>
+            <h2 className="text-lg font-semibold text-white">{categoryLabel(view)}</h2>
+          </div>
+        )}
+
+        {view === CATEGORIES ? (
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-3 md:gap-5">
+            {cats.map((c) => (
+              <CategoryTile key={c.value} {...c} onOpen={go} />
+            ))}
+          </div>
+        ) : !loadFailed && shown.length === 0 ? (
           <p className="py-24 text-center text-sm text-neutral-400">No equipment is listed for hire right now.</p>
         ) : (
           <div aria-live="polite" className="grid grid-cols-2 gap-x-3.5 gap-y-6 md:grid-cols-3 lg:grid-cols-4 md:gap-x-5 md:gap-y-8">
