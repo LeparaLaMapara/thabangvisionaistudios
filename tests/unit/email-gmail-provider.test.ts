@@ -114,8 +114,10 @@ describe('gmail provider: message shape', () => {
     expect(msg.from).toEqual({ name: STUDIO.name, address: STUDIO_ADDRESS });
     expect(msg.to).toBe('user@example.com');
     expect(msg.subject).toBe('Booking Confirmed');
-    expect(msg.text).toBe('Plain body');
-    expect(msg.html).toBe('<p>HTML body</p>');
+    // The one signature is added to both bodies (lib/email/signature.ts).
+    const { SIGNATURE_TEXT, SIGNATURE_HTML } = await import('@/lib/email/signature');
+    expect(msg.text).toBe(`Plain body\n\n${SIGNATURE_TEXT}`);
+    expect(msg.html).toBe(`<p>HTML body</p>\n${SIGNATURE_HTML}`);
     expect(msg).not.toHaveProperty('attachments');
 
     const headers = headersOf(captured.raw[0]);

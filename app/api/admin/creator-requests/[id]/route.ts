@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { SIGNATURE_TEXT } from '@/lib/email/signature';
 import { requireAdmin, rateLimitAdmin } from '@/lib/auth';
 import { createAdminClient } from '@/lib/supabase/server';
 import { email as emailProvider } from '@/lib/email';
@@ -78,7 +79,7 @@ export async function PATCH(req: NextRequest, ctx: RouteContext): Promise<NextRe
         await emailProvider.sendEmail({
           to: request.client_email,
           subject: `Your ${request.project_type} request — ${STUDIO.name}`,
-          text: `Hi ${request.client_name},\n\n${message}\n\n${STUDIO.name}\n${STUDIO.email}`,
+          text: `Hi ${request.client_name},\n\n${message}\n\n${SIGNATURE_TEXT}`,
         });
         emailed = true;
       } catch (err) {

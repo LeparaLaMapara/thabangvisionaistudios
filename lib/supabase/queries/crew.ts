@@ -1,4 +1,5 @@
 import { createClient, createAdminClient } from '@/lib/supabase/server';
+import { SIGNATURE_TEXT } from '@/lib/email/signature';
 import { STUDIO } from '@/lib/constants';
 import { hasCompletePortfolio } from '@/lib/portfolio/validation';
 import type { SupabaseClient } from '@supabase/supabase-js';
@@ -375,7 +376,7 @@ export async function expireStaleRequests(
                 '',
                 'You can submit a new request to another creator at any time.',
                 '',
-                `— ${STUDIO.shortName}`,
+                SIGNATURE_TEXT,
               ].join('\n'),
             }),
           ),

@@ -1,4 +1,5 @@
 export const dynamic = 'force-dynamic';
+import { SIGNATURE_TEXT } from '@/lib/email/signature';
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient, createAdminClient } from '@/lib/supabase/server';
@@ -177,7 +178,7 @@ export async function PATCH(
             await emailProvider.sendEmail({
               to: crewRequest.client_email,
               subject: `Creator Request Confirmed — ${STUDIO.name}`,
-              text: `Hi ${crewRequest.client_name},\n\nGreat news! Your ${crewRequest.project_type} request has been confirmed by the creator.\n\nEstimated Total: R${crewRequest.total_amount}\nDeposit Required: R${crewRequest.deposit_amount} (20%)\n\nPay your deposit here: ${result.paymentUrl}\n\nOnce your deposit is received, the creator will begin preparing for your project.\n\nThank you,\n${STUDIO.name}\n${STUDIO.meta.url}`,
+              text: `Hi ${crewRequest.client_name},\n\nGreat news! Your ${crewRequest.project_type} request has been confirmed by the creator.\n\nEstimated Total: R${crewRequest.total_amount}\nDeposit Required: R${crewRequest.deposit_amount} (20%)\n\nPay your deposit here: ${result.paymentUrl}\n\nOnce your deposit is received, the creator will begin preparing for your project.\n\n${SIGNATURE_TEXT}`,
             });
           }
         } catch (err) {
@@ -186,7 +187,7 @@ export async function PATCH(
           await emailProvider.sendEmail({
             to: crewRequest.client_email,
             subject: `Creator Request Confirmed — ${STUDIO.name}`,
-            text: `Hi ${crewRequest.client_name},\n\nGreat news! Your ${crewRequest.project_type} request has been confirmed by the creator.\n\nPlease visit your dashboard to complete the deposit payment.\n\nThank you,\n${STUDIO.name}\n${STUDIO.meta.url}`,
+            text: `Hi ${crewRequest.client_name},\n\nGreat news! Your ${crewRequest.project_type} request has been confirmed by the creator.\n\nPlease visit your dashboard to complete the deposit payment.\n\n${SIGNATURE_TEXT}`,
           });
         }
       } else {
@@ -194,20 +195,20 @@ export async function PATCH(
         await emailProvider.sendEmail({
           to: crewRequest.client_email,
           subject: `Creator Request Confirmed — ${STUDIO.name}`,
-          text: `Hi ${crewRequest.client_name},\n\nGreat news! Your ${crewRequest.project_type} request has been confirmed by the creator.\n\nWe'll be in touch shortly with next steps.\n\nThank you,\n${STUDIO.name}\n${STUDIO.meta.url}`,
+          text: `Hi ${crewRequest.client_name},\n\nGreat news! Your ${crewRequest.project_type} request has been confirmed by the creator.\n\nWe'll be in touch shortly with next steps.\n\n${SIGNATURE_TEXT}`,
         });
       }
     } else if (status === 'declined') {
       await emailProvider.sendEmail({
         to: crewRequest.client_email,
         subject: `Creator Request Update — ${STUDIO.name}`,
-        text: `Hi ${crewRequest.client_name},\n\nUnfortunately, the creator is not available for your ${crewRequest.project_type} request at this time.\n\nWe'd love to help you find another match — visit ${STUDIO.meta.url}/studio or chat with Ubunye.\n\nThank you,\n${STUDIO.name}`,
+        text: `Hi ${crewRequest.client_name},\n\nUnfortunately, the creator is not available for your ${crewRequest.project_type} request at this time.\n\nWe'd love to help you find another match — visit ${STUDIO.meta.url}/studio or chat with Ubunye.\n\n${SIGNATURE_TEXT}`,
       });
     } else if (status === 'completed') {
       await emailProvider.sendEmail({
         to: crewRequest.client_email,
         subject: `Project Completed — ${STUDIO.name}`,
-        text: `Hi ${crewRequest.client_name},\n\nYour ${crewRequest.project_type} project has been marked as complete.\n\nWe hope you had a great experience! If you'd like to leave a review, visit your dashboard.\n\nThank you for choosing ${STUDIO.name}!\n${STUDIO.meta.url}`,
+        text: `Hi ${crewRequest.client_name},\n\nYour ${crewRequest.project_type} project has been marked as complete.\n\nWe hope you had a great experience! If you'd like to leave a review, visit your dashboard.\n\nThank you for choosing ${STUDIO.name}!\n\n${SIGNATURE_TEXT}`,
       });
     }
   } catch {

@@ -6,6 +6,7 @@ import { STUDIO } from '@/lib/constants';
 import { checkRateLimit } from '@/lib/auth';
 import { sendLifecycleEmail } from '@/lib/engagement/send';
 import { contentFromText } from '@/lib/engagement/templates';
+import { withTextSignature } from '@/lib/email/signature';
 import { isUnsubscribeConfigured } from '@/lib/engagement/unsubscribe';
 import {
   describeActivity,
@@ -91,7 +92,8 @@ export async function draftWelcome(ctx: WelcomeContext): Promise<{ subject: stri
     const out = await generateWithFallback({ ref: 'fast', system, prompt, maxOutputTokens: 400, temperature: 0.6 });
     logTokenUsage({ agentId: 'welcome', provider: out.servedBy, model: out.modelId, usage: out.usage });
     const body = out.text.trim();
-    if (isSafeDraft(body)) return { subject: welcomeSubject(ctx), body, draftedBy: `ai:${out.servedBy}` };
+    // The one signature, in place of any sign-off the model wrote anyway.
+    if (isSafeDraft(body)) return { subject: welcomeSubject(ctx), body: withTextSignature(body), draftedBy: `ai:${out.servedBy}` };
     console.warn('[welcome] AI draft rejected by the safety check; using the template');
   } catch (err) {
     console.error('[welcome] AI draft failed; using the template:', err instanceof Error ? err.message : err);

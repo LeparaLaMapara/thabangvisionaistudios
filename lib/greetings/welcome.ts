@@ -1,4 +1,5 @@
 import { STUDIO, ADMIN_EMAILS } from '@/lib/constants';
+import { SIGNATURE_TEXT } from '@/lib/email/signature';
 
 /**
  * Welcoming new people (TASK-065). Pure: no database, no AI, no email, so the
@@ -110,7 +111,7 @@ export function welcomePrompt(ctx: WelcomeContext): { system: string; prompt: st
     `You write short welcome emails for ${STUDIO.name}, a Johannesburg company where people rent camera gear and book photographers and videographers.`,
     'Write like a friendly person, not a company. Plain words a first-time online buyer understands. No dashes, no emojis, no exclamation marks in a row, no marketing claims, no discounts or offers.',
     'At most 120 words. Start with "Hi <first name>," or "Hi," if there is no name. Say who we are in one sentence, give the one next step exactly as provided, and end by inviting them to reply to this email with any question.',
-    `Sign off as "${STUDIO.legal.informationOfficer.name.split(' ')[0] || 'The team'}, ${STUDIO.name}".`,
+    'Do not add a closing line or a sign off; we add the signature.',
     'Reply with the email body only, no subject line.',
   ].join('\n');
 
@@ -129,7 +130,6 @@ export function welcomeSubject(ctx: WelcomeContext): string {
 
 /** Used when no AI provider is available. Same facts, same rules. */
 export function welcomeTemplate(ctx: WelcomeContext): WelcomeDraft {
-  const who = STUDIO.legal.informationOfficer.name.split(' ')[0] || 'The team';
   const body = [
     ctx.firstName ? `Hi ${ctx.firstName},` : 'Hi,',
     '',
@@ -139,7 +139,7 @@ export function welcomeTemplate(ctx: WelcomeContext): WelcomeDraft {
     '',
     'If anything is unclear, just reply to this email and a person will answer.',
     '',
-    `${who}, ${STUDIO.name}`,
+    SIGNATURE_TEXT,
   ].join('\n');
   return { subject: welcomeSubject(ctx), body };
 }

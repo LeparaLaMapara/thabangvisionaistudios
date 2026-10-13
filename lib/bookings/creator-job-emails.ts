@@ -8,6 +8,7 @@
  */
 
 import { STUDIO } from '@/lib/constants';
+import { SIGNATURE_TEXT } from '@/lib/email/signature';
 import { answerByAt, formatSastDateTime, formatShootDate, type AnswerClock } from './answer-by';
 
 export interface CreatorJobFacts extends AnswerClock {
@@ -68,8 +69,7 @@ export function newPaidJobEmail(b: CreatorJobFacts, baseUrl: string): EmailText 
       '',
       `Answer here: ${baseUrl}/dashboard/gigs`,
       '',
-      `Thank you,`,
-      STUDIO.name,
+      SIGNATURE_TEXT,
     ].join('\n'),
   };
 }
@@ -87,7 +87,7 @@ export function answerReminderEmail(b: CreatorJobFacts, baseUrl: string): EmailT
       '',
       `Answer here: ${baseUrl}/dashboard/gigs`,
       '',
-      STUDIO.name,
+      SIGNATURE_TEXT,
     ].join('\n'),
   };
 }
