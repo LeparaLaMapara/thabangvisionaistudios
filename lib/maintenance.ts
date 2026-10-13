@@ -15,6 +15,11 @@ import { STUDIO, SITE_COPYRIGHT } from '@/lib/constants';
  * ?preview=<MAINTENANCE_BYPASS_TOKEN> sets a cookie that skips maintenance
  * for that browser. Visiting with ?preview=off clears it.
  *
+ * Night opening: while MAINTENANCE_OPEN_NIGHTS_UNTIL holds a date in the
+ * future (e.g. 2026-10-19T05:00:00+02:00), the real site is open every night
+ * from 00:00 to 05:00 South African time, so search engines can crawl it
+ * before the relaunch. After that date the setting does nothing.
+ *
  * The page is plain HTML built here, not a React route, on purpose: the root
  * layout queries Supabase, and maintenance often means the database itself
  * is being worked on.
@@ -42,6 +47,23 @@ export interface MaintenanceInput {
   bypassCookie: string | undefined;
   maintenanceMode: string | undefined;
   bypassToken: string | undefined;
+  /** MAINTENANCE_OPEN_NIGHTS_UNTIL: last moment of the nightly opening. */
+  openNightsUntil?: string | undefined;
+  now?: Date;
+}
+
+/** Nightly opening hours, South African time (UTC+2, no daylight saving). */
+const NIGHT_OPEN_FROM_HOUR = 0;
+const NIGHT_OPEN_TO_HOUR = 5;
+const SAST_OFFSET_HOURS = 2;
+
+/** True when the site should be open because it is night time before the cut-off. */
+export function isNightOpen(openNightsUntil: string | undefined, now: Date): boolean {
+  if (!openNightsUntil?.trim()) return false;
+  const until = Date.parse(openNightsUntil.trim());
+  if (Number.isNaN(until) || now.getTime() >= until) return false;
+  const hour = (now.getUTCHours() + SAST_OFFSET_HOURS) % 24;
+  return hour >= NIGHT_OPEN_FROM_HOUR && hour < NIGHT_OPEN_TO_HOUR;
 }
 
 export function isMaintenanceOn(flag: string | undefined): boolean {
@@ -61,6 +83,7 @@ function tokensMatch(given: string, expected: string): boolean {
 /** Decide what the proxy should do with a request. Pure, so it is unit-tested. */
 export function decideMaintenance(input: MaintenanceInput): MaintenanceDecision {
   if (!isMaintenanceOn(input.maintenanceMode)) return { action: 'pass' };
+  if (isNightOpen(input.openNightsUntil, input.now ?? new Date())) return { action: 'pass' };
 
   const { pathname } = input;
   if (ALWAYS_ALLOWED_PREFIXES.some((p) => pathname.startsWith(p))) return { action: 'pass' };

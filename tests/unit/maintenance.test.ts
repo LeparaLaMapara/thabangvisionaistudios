@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   decideMaintenance,
   isMaintenanceOn,
+  isNightOpen,
   maintenancePageHtml,
   type MaintenanceInput,
 } from '@/lib/maintenance';
@@ -87,5 +88,35 @@ describe('maintenancePageHtml', () => {
     expect(html).toContain('<meta name="robots" content="noindex">');
     expect(html).toContain(`mailto:${STUDIO.email}`);
     expect(html).not.toMatch(/<script/i);
+  });
+});
+
+describe('night opening (MAINTENANCE_OPEN_NIGHTS_UNTIL)', () => {
+  const UNTIL = '2026-10-19T05:00:00+02:00';
+  // Times are given in UTC; South Africa is UTC+2.
+  const at = (iso: string) => new Date(iso);
+
+  it('opens the site from 00:00 to 05:00 South African time', () => {
+    expect(isNightOpen(UNTIL, at('2026-10-13T22:00:00Z'))).toBe(true); // 00:00 SAST
+    expect(isNightOpen(UNTIL, at('2026-10-14T02:59:59Z'))).toBe(true); // 04:59 SAST
+    expect(isNightOpen(UNTIL, at('2026-10-14T03:00:00Z'))).toBe(false); // 05:00 SAST
+    expect(isNightOpen(UNTIL, at('2026-10-13T21:59:59Z'))).toBe(false); // 23:59 SAST
+    expect(isNightOpen(UNTIL, at('2026-10-14T10:00:00Z'))).toBe(false); // midday
+  });
+
+  it('stops after the cut-off date, and does nothing when unset or invalid', () => {
+    expect(isNightOpen(UNTIL, at('2026-10-19T03:00:00Z'))).toBe(false);
+    expect(isNightOpen(UNTIL, at('2026-10-19T22:30:00Z'))).toBe(false);
+    expect(isNightOpen(undefined, at('2026-10-13T23:00:00Z'))).toBe(false);
+    expect(isNightOpen('', at('2026-10-13T23:00:00Z'))).toBe(false);
+    expect(isNightOpen('next week', at('2026-10-13T23:00:00Z'))).toBe(false);
+  });
+
+  it('lets every page through during the night window, and shows maintenance by day', () => {
+    const night = input({ openNightsUntil: UNTIL, now: at('2026-10-13T23:00:00Z') });
+    expect(decideMaintenance(night)).toEqual({ action: 'pass' });
+    expect(decideMaintenance({ ...night, pathname: '/api/cart' })).toEqual({ action: 'pass' });
+    const day = input({ openNightsUntil: UNTIL, now: at('2026-10-14T08:00:00Z') });
+    expect(decideMaintenance(day)).toEqual({ action: 'page' });
   });
 });
