@@ -22,6 +22,7 @@ import { runOverdueLadder } from '@/lib/rental/workers';
 import { buildNotices } from '@/lib/core/rental/notifications';
 import { SupabaseAddressRetention, purgeDeliveryAddresses } from '@/lib/delivery/jobs';
 import { pruneLogs } from '@/lib/cron/retention';
+import { sortUnpaidServiceBookings, verifyAndConfirmServiceBooking } from '@/lib/payments/service-payment-check';
 import { answerWindowPassed, needsAnswerReminder } from '@/lib/bookings/answer-by';
 import {
   ANSWER_REMINDER_TITLE,
@@ -195,22 +196,46 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   // ─── 1. Cancel unpaid bookings > 72 hours ─────────────────────────────────
   try {
     const cutoff = new Date(now.getTime() - 72 * 60 * 60 * 1000).toISOString();
-    const { data: unpaid } = await supabase
+    const { data: stale, error: staleErr } = await supabase
       .from('bookings')
-      .update({
-        status: 'cancelled',
-        cancelled_at: now.toISOString(),
-        cancellation_reason: 'Auto-cancelled: unpaid after 72 hours',
-        updated_at: now.toISOString(),
-      })
+      .select('id, reference')
       .eq('status', 'pending')
       .eq('payment_status', 'unpaid')
       .lt('created_at', cutoff)
-      .select('id, reference');
+      .limit(200);
+    if (staleErr) throw new Error(staleErr.message);
 
-    results.cancelledUnpaid = unpaid?.length ?? 0;
+    // Ask Paystack before closing anything: a paid booking whose webhook was
+    // lost is confirmed instead, and one Paystack cannot answer for is left
+    // for the next run. Only a definite "not paid" is cancelled.
+    const { cancel, outcomes } = await sortUnpaidServiceBookings(
+      (stale ?? []) as { id: string; reference: string }[],
+      verifyAndConfirmServiceBooking,
+    );
+    results.unpaidChecked = outcomes;
+
+    let unpaid: { id: string; reference: string }[] = [];
+    if (cancel.length > 0) {
+      const { data, error } = await supabase
+        .from('bookings')
+        .update({
+          status: 'cancelled',
+          cancelled_at: now.toISOString(),
+          cancellation_reason: 'Auto-cancelled: unpaid after 72 hours',
+          updated_at: now.toISOString(),
+        })
+        .in('id', cancel)
+        // Still unpaid now: a payment confirmed meanwhile is never cancelled.
+        .eq('status', 'pending')
+        .eq('payment_status', 'unpaid')
+        .select('id, reference');
+      if (error) throw new Error(error.message);
+      unpaid = (data ?? []) as { id: string; reference: string }[];
+    }
+
+    results.cancelledUnpaid = unpaid.length;
     // Nobody should find out by accident that their request is gone.
-    for (const b of unpaid ?? []) {
+    for (const b of unpaid) {
       await notifyClient({
         bookingId: b.id,
         type: 'booking_expired',

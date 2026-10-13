@@ -109,7 +109,7 @@ export default function LegalPage() {
               <p>{STUDIO.legal.companyName} is not registered for VAT. No VAT is added to our prices, and the price shown at checkout is the price you pay.</p>
             )}
             {paymentsOpen ? (
-              <p>Online card payments are processed by our payment provider (currently {paymentProvider}) over encrypted connections. You can also pay by EFT to our business account, {STUDIO.bank.accountName} at {STUDIO.bank.bankName} (the details are on our <Link href="/pay" className={link}>payment page</Link>), or in cash when you collect. {STUDIO.shortName} does not store your full card details on our servers.</p>
+              <p>Orders placed on this site are paid by card at checkout. Card payments are processed by our payment provider (currently {paymentProvider}) over encrypted connections. {STUDIO.shortName} does not store your full card details on our servers.</p>
             ) : (
               <p>You pay by EFT to our business account, {STUDIO.bank.accountName} at {STUDIO.bank.bankName} (the details are on our <Link href="/pay" className={link}>payment page</Link>), or in cash when you collect.</p>
             )}
@@ -153,7 +153,11 @@ export default function LegalPage() {
           <Section title="10. Security Deposit">
             <p>A refundable security deposit is payable on every equipment hire. The deposit is {DEPOSIT_PERCENT}% of each item&rsquo;s replacement value, and the amount is shown on each listing and in your cart before you pay. It is not part payment of the hire. A booking made before this version of the terms keeps the deposit shown when it was made.</p>
             {paymentsOpen ? (
-              <p>At checkout you choose how to pay: everything online, or, when you collect, the deposit online to hold the equipment and the hire charge when you collect. Checkout shows the amounts before you pay. If you choose EFT, pay within {STUDIO.bank.payWithinHours} hours of booking using the reference on your booking; an EFT booking not paid within {STUDIO.bank.payWithinHours} hours is released.</p>
+              STUDIO.fulfilment.collection.allowBalanceOnCollection ? (
+                <p>At checkout you choose how to pay: everything online, or, when you collect, the deposit online to hold the equipment and the hire charge when you collect. Checkout shows the amounts before you pay.</p>
+              ) : (
+                <p>You pay the whole order, the hire charge and the deposit together, by card at checkout. Checkout shows the amounts before you pay.</p>
+              )
             ) : (
               <p>You pay the whole order, deposit included, by EFT within {STUDIO.bank.payWithinHours} hours of booking, using the reference on your booking, or in cash when you collect; we confirm your booking when the payment arrives. An EFT booking not paid within {STUDIO.bank.payWithinHours} hours is released.</p>
             )}

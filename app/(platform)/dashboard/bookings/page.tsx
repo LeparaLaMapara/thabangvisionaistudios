@@ -18,6 +18,7 @@ import { gearStatusLabel } from '@/lib/rental/status-words';
 import { PaymentsOfflineNotice } from '@/components/booking/PaymentsOfflineNotice';
 import { CheckoutConfirmation, type OrderLineView } from './CheckoutConfirmation';
 import { ConfirmPaymentOnReturn } from './ConfirmPaymentOnReturn';
+import { ServicePaymentNotice } from './ServicePaymentNotice';
 
 const STATUS_VARIANT: Record<BookingStatus, 'default' | 'warning' | 'success' | 'info' | 'error'> = {
   pending: 'warning',
@@ -89,6 +90,7 @@ export default function BookingsPage() {
       <DashboardSubTabs tabs={ACTIVITY_TABS} />
       <Suspense fallback={null}>
         <PaymentsOfflineNotice />
+        <ServicePaymentNotice />
         <ConfirmPaymentOnReturn onConfirmed={refreshEquipment} />
         <CheckoutConfirmation
           bookings={bookings as unknown as OrderLineView[]}

@@ -1,131 +1,72 @@
 'use client';
 
-import { useEffect, useState, useRef, useCallback } from 'react';
+import { useEffect, useState } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowLeft, CheckCircle2, XCircle, Loader2 } from 'lucide-react';
+import { isPaymentUrl } from '@/lib/payments/hosts';
 
-declare global {
-  interface Window {
-    PaystackPop?: {
-      setup(config: {
-        key: string;
-        email: string;
-        amount: number;
-        ref: string;
-        currency: string;
-        channels: string[];
-        onClose: () => void;
-        callback: (response: { reference: string }) => void;
-      }): { openIframe: () => void };
-    };
-  }
-}
+type PayState = 'loading' | 'ready' | 'paid' | 'error';
 
-type PayState = 'loading' | 'ready' | 'paying' | 'success' | 'closed' | 'error';
-
-export default function InlinePayPage() {
+/**
+ * Pay (or pay again) for a service booking.
+ *
+ * The booking's Paystack transaction was started when it was made; this page
+ * sends the customer back to that same transaction's hosted payment page
+ * (checkout.paystack.com/<access code>). Paystack then returns them to
+ * /api/service-bookings/callback, which asks Paystack whether the charge went
+ * through and confirms the booking. This page used to open Paystack's popup
+ * and call it "Payment Successful" on the popup's word alone, without any
+ * check, leaving the booking to the webhook.
+ */
+export default function PayBookingPage() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const ref = searchParams.get('ref');
 
-  const [state, setState] = useState<PayState>(() => ref ? 'loading' : 'error');
-  const [errorMsg, setErrorMsg] = useState(() => ref ? '' : 'Missing booking reference.');
+  const [state, setState] = useState<PayState>(() => (ref ? 'loading' : 'error'));
+  const [errorMsg, setErrorMsg] = useState(() => (ref ? '' : 'Missing booking reference.'));
   const [booking, setBooking] = useState<{
     reference: string;
     accessCode: string;
     total: number;
     project_category: string;
     duration_hours: number;
-    email: string;
   } | null>(null);
 
-  const sdkLoaded = useRef(false);
-  const popupOpened = useRef(false);
-
-  // Load Paystack JS SDK
-  useEffect(() => {
-    if (sdkLoaded.current) return;
-    sdkLoaded.current = true;
-
-    const script = document.createElement('script');
-    script.src = 'https://js.paystack.co/v1/inline.js';
-    script.async = true;
-    document.head.appendChild(script);
-  }, []);
-
-  // Fetch booking access code
   useEffect(() => {
     if (!ref) return;
-
     fetch(`/api/service-bookings/pay?ref=${encodeURIComponent(ref)}`)
       .then(async (res) => {
-        const data = await res.json();
+        const data = await res.json().catch(() => ({}));
         if (!res.ok) {
           if (data.paid) {
-            setState('success');
+            setState('paid');
             return;
           }
-          throw new Error(data.error || 'Failed to load booking');
+          throw new Error(data.error || 'We could not load this booking.');
         }
         setBooking(data);
         setState('ready');
       })
       .catch((err) => {
-        setErrorMsg(err.message);
+        setErrorMsg(err instanceof Error ? err.message : 'We could not load this booking.');
         setState('error');
       });
   }, [ref]);
 
-  const openPaystack = useCallback(() => {
-    if (!booking || !window.PaystackPop || popupOpened.current) return;
-    popupOpened.current = true;
-    setState('paying');
+  const checkoutUrl = booking && /^[A-Za-z0-9]+$/.test(booking.accessCode)
+    ? `https://checkout.paystack.com/${booking.accessCode}`
+    : null;
 
-    const publicKey = process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY;
-    if (!publicKey) {
-      setErrorMsg('Payment not configured.');
+  function pay() {
+    if (!checkoutUrl || !isPaymentUrl(checkoutUrl)) {
+      setErrorMsg('This booking cannot be paid online. Please contact us.');
       setState('error');
       return;
     }
-
-    const handler = window.PaystackPop.setup({
-      key: publicKey,
-      email: booking.email,
-      amount: Math.round(booking.total * 100),
-      ref: booking.reference,
-      currency: 'ZAR',
-      channels: ['card', 'bank', 'eft'],
-      onClose: () => {
-        popupOpened.current = false;
-        setState('closed');
-      },
-      callback: () => {
-        popupOpened.current = false;
-        setState('success');
-      },
-    });
-
-    handler.openIframe();
-  }, [booking]);
-
-  // Auto-open popup when ready (poll for SDK availability)
-  useEffect(() => {
-    if (state !== 'ready' || !booking) return;
-    // Try immediately, then poll every 200ms for SDK load
-    const tryOpen = () => {
-      if (window.PaystackPop && !popupOpened.current) {
-        openPaystack();
-        return true;
-      }
-      return false;
-    };
-    if (tryOpen()) return;
-    const interval = setInterval(() => {
-      if (tryOpen()) clearInterval(interval);
-    }, 200);
-    return () => clearInterval(interval);
-  }, [state, booking, openPaystack]);
+    window.location.href = checkoutUrl;
+  }
 
   return (
     <div className="min-h-[60vh] flex flex-col items-center justify-center px-6">
@@ -146,61 +87,41 @@ export default function InlinePayPage() {
             </div>
           )}
 
-          {(state === 'ready' || state === 'paying') && booking && (
+          {state === 'ready' && booking && (
             <div className="flex flex-col items-center gap-4 py-4">
-              <Loader2 className="w-8 h-8 text-[#D4A843] animate-spin" />
               <div className="text-center">
                 <p className="text-sm font-mono text-white mb-1">
-                  {booking.project_category} — {booking.duration_hours}hrs
+                  {booking.project_category}, {booking.duration_hours} hours
                 </p>
                 <p className="text-2xl font-display font-bold text-[#D4A843]">
-                  R{booking.total.toLocaleString('en-ZA')}
+                  R{Number(booking.total).toLocaleString('en-ZA')}
                 </p>
-                <p className="text-xs font-mono text-neutral-400 mt-2">
-                  Ref: {booking.reference}
-                </p>
+                <p className="text-xs font-mono text-neutral-400 mt-2">Ref: {booking.reference}</p>
               </div>
-              <p className="text-xs font-mono text-neutral-400 mt-2">
-                {state === 'paying' ? 'Complete payment in the popup...' : 'Opening payment...'}
+              <p className="text-xs text-neutral-400 text-center">
+                You pay on Paystack&rsquo;s secure page, then come straight back here. Nothing is charged until you confirm there.
               </p>
-            </div>
-          )}
-
-          {state === 'success' && (
-            <div className="flex flex-col items-center gap-4 py-8">
-              <CheckCircle2 className="w-12 h-12 text-emerald-400" />
-              <div className="text-center">
-                <p className="text-lg font-display font-bold text-white mb-1">Payment Successful</p>
-                <p className="text-sm font-mono text-neutral-400">
-                  Your booking is confirmed. The creator has been notified.
-                </p>
-              </div>
               <button
-                onClick={() => router.push('/dashboard/bookings')}
-                className="mt-4 w-full py-3 text-xs font-mono font-bold uppercase tracking-widest bg-[#D4A843] text-black border border-[#D4A843] hover:opacity-80 transition-all"
+                onClick={pay}
+                className="mt-2 w-full min-h-[44px] py-3 text-xs font-mono font-bold uppercase tracking-widest bg-[#D4A843] text-black border border-[#D4A843] hover:opacity-80 transition-all"
               >
-                View My Bookings
+                Pay now
               </button>
             </div>
           )}
 
-          {state === 'closed' && booking && (
+          {state === 'paid' && (
             <div className="flex flex-col items-center gap-4 py-8">
-              <XCircle className="w-12 h-12 text-neutral-400" />
+              <CheckCircle2 className="w-12 h-12 text-emerald-400" />
               <div className="text-center">
-                <p className="text-lg font-display font-bold text-white mb-1">Payment Cancelled</p>
-                <p className="text-sm font-mono text-neutral-400">
-                  Your booking is still pending. You can retry when ready.
-                </p>
+                <p className="text-lg font-display font-bold text-white mb-1">Already paid</p>
+                <p className="text-sm font-mono text-neutral-400">This booking is paid. Your creator has been told.</p>
               </div>
               <button
-                onClick={() => {
-                  popupOpened.current = false;
-                  openPaystack();
-                }}
-                className="mt-4 w-full py-3 text-xs font-mono font-bold uppercase tracking-widest bg-[#D4A843] text-black border border-[#D4A843] hover:opacity-80 transition-all"
+                onClick={() => router.push('/dashboard/bookings')}
+                className="mt-4 w-full min-h-[44px] py-3 text-xs font-mono font-bold uppercase tracking-widest bg-[#D4A843] text-black border border-[#D4A843] hover:opacity-80 transition-all"
               >
-                Retry Payment
+                View My Bookings
               </button>
             </div>
           )}
@@ -209,12 +130,12 @@ export default function InlinePayPage() {
             <div className="flex flex-col items-center gap-4 py-8">
               <XCircle className="w-12 h-12 text-red-400" />
               <div className="text-center">
-                <p className="text-lg font-display font-bold text-white mb-1">Error</p>
+                <p className="text-lg font-display font-bold text-white mb-1">Could not open payment</p>
                 <p className="text-sm font-mono text-neutral-400">{errorMsg}</p>
               </div>
               <button
                 onClick={() => router.push('/dashboard/bookings')}
-                className="mt-4 w-full py-3 text-xs font-mono font-bold uppercase tracking-widest bg-white/5 text-white border border-white/10 hover:border-white/20 transition-all"
+                className="mt-4 w-full min-h-[44px] py-3 text-xs font-mono font-bold uppercase tracking-widest bg-white/5 text-white border border-white/10 hover:border-white/20 transition-all"
               >
                 Back to Bookings
               </button>

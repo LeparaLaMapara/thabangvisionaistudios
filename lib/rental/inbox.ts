@@ -93,18 +93,29 @@ export function parsePaystackEvent(body: string): ParsedPaystackEvent | null {
   };
 }
 
+/**
+ * The reference an id-less event is de-duplicated on. Paystack's refund
+ * events carry no refund id and no `reference`, only the charge's
+ * transaction_reference (plus refund_reference once processed). Keyed on the
+ * charge alone, a second partial refund of the same charge (two items of one
+ * cart cancelled separately) looked like a repeat of the first and was
+ * dropped, leaving that refund "processing" for good. The amount and the
+ * refund reference tell them apart; a true repeat has the same of both.
+ */
+export function dedupeReference(p: ParsedPaystackEvent): string | null {
+  if (p.event.startsWith('refund.')) {
+    const refundRef = ((p.minimal.data as Json | undefined)?.refund_reference as string | null | undefined) ?? '';
+    return p.transactionReference ? `${p.transactionReference}:${p.amountCents ?? ''}:${refundRef}` : p.reference;
+  }
+  return p.reference ?? p.transferCode ?? p.transactionReference;
+}
+
 export type StoreResult = { stored: true; id: string } | { stored: false; duplicate: true } | { stored: false; missingPipeline: true };
 
 /** Persist an event. Throws if the database is unavailable, so the route can answer 500 and Paystack retries. */
 export async function storeEvent(provider: string, parsed: ParsedPaystackEvent): Promise<StoreResult> {
   const db = createAdminClient();
-  const dedupeKey = eventDedupeKey(
-    provider,
-    parsed.event,
-    parsed.dataId,
-    parsed.status,
-    parsed.reference ?? parsed.transferCode ?? parsed.transactionReference,
-  );
+  const dedupeKey = eventDedupeKey(provider, parsed.event, parsed.dataId, parsed.status, dedupeReference(parsed));
   const { data, error } = await db
     .from('payment_events')
     .upsert(

@@ -14,6 +14,7 @@ import { appUrl } from '@/lib/app-url';
 import { toCents } from '@/lib/core/pricing/money';
 import { email as emailProvider } from '@/lib/email';
 import { newPaidJobEmail, newPaidJobNoticeBody } from '@/lib/bookings/creator-job-emails';
+import { crewRequestIdFromReference } from '@/lib/payments/crew-reference';
 
 /**
  * What happens once a payment provider tells us, with a verified signature,
@@ -270,7 +271,100 @@ export async function handlePaymentComplete(webhook: WebhookResult) {
     await confirmServiceBookingPayment(webhook);
   } else if (paymentType === 'subscription') {
     await confirmSubscriptionPayment(webhook);
+  } else if (paymentType === 'crew_request' || paymentType === 'crew_request_deposit') {
+    await confirmCrewRequestPayment(webhook);
   }
+}
+
+// ─── Crew (creator) requests ─────────────────────────────────────────────────
+
+export type CrewRequestConfirmation = 'paid' | 'already_paid' | 'rejected' | 'not_awaiting_payment';
+
+/**
+ * Confirmation of a crew request payment (POST /api/creator-requests/[id]/pay
+ * for the full amount, or the deposit link sent when a request is confirmed).
+ * Before this the Paystack path had no branch for it at all, so a paid crew
+ * request stayed "confirmed" forever. It follows the PayFast handler
+ * (app/api/webhooks/payfast) but with the checks that one lacks:
+ *
+ *   - the request is found from our reference (lib/payments/crew-reference);
+ *   - currency is ZAR, and the amount in integer cents equals total_amount
+ *     (full) or deposit_amount (deposit), the amount sent to checkout;
+ *   - the creator in the metadata, when present, is the request's creator;
+ *   - compare-and-set from status 'confirmed' only: a repeat is a no-op and a
+ *     cancelled or expired request is never revived (logged for a person).
+ */
+export async function confirmCrewRequestPayment(webhook: WebhookResult): Promise<CrewRequestConfirmation> {
+  const { paymentId, providerPaymentId, amountGross, raw } = webhook;
+  const kind = (raw.custom_str1 ?? raw.customStr1) === 'crew_request_deposit' ? 'deposit' : 'full';
+  const requestId = crewRequestIdFromReference(paymentId);
+  const supabase = createAdminClient();
+
+  const reject = (reason: string, userId: string | null = null): CrewRequestConfirmation => {
+    console.error('[payment-webhook] Crew request NOT marked paid:', { reference: paymentId, reason });
+    logEvent({ eventType: 'crew_payment_rejected', eventCategory: 'payment', userId, metadata: { reference: paymentId, providerPaymentId, reason } });
+    return 'rejected';
+  };
+  if (!requestId) return reject('reference is not a crew request');
+
+  const { data: request, error: lookupErr } = await supabase
+    .from('crew_requests')
+    .select('id, status, total_amount, deposit_amount, creator_id, payment_id')
+    .eq('id', requestId)
+    .maybeSingle();
+  if (lookupErr) {
+    console.error('[payment-webhook] Could not load the crew request; not marked paid:', paymentId, lookupErr.message);
+    throw new Error('crew request lookup failed');
+  }
+  if (!request) return reject('unknown crew request');
+
+  const r = request as { id: string; status: string; total_amount: number | null; deposit_amount: number | null; creator_id: string | null; payment_id: string | null };
+  const currency = (raw.currency ?? '').toUpperCase();
+  if (currency !== STUDIO.currency.code) return reject(`currency mismatch: received ${raw.currency ?? 'none'}`);
+
+  // Full payments carry the creator in customStr3, deposits in customStr2.
+  const metaCreator = kind === 'full' ? raw.custom_str3 ?? raw.customStr3 : raw.custom_str2 ?? raw.customStr2;
+  if (metaCreator && r.creator_id && metaCreator !== r.creator_id) return reject('creator in metadata does not match');
+
+  const expected = Number(kind === 'deposit' ? r.deposit_amount : r.total_amount);
+  const expectedCents = Number.isFinite(expected) ? toCents(expected) : NaN;
+  const receivedCents = Number.isFinite(amountGross) ? toCents(amountGross) : NaN;
+  if (!Number.isSafeInteger(expectedCents) || expectedCents <= 0 || receivedCents !== expectedCents) {
+    return reject(`amount mismatch: expected ${expectedCents} cents, received ${receivedCents} cents`);
+  }
+
+  const now = new Date().toISOString();
+  const patch: Record<string, unknown> = { status: 'paid', payment_id: providerPaymentId, updated_at: now };
+  if (kind === 'full') patch.commission_amount = Math.round(expected * (STUDIO.creators.commissionRate / 100));
+  const { data: updated, error: updateErr } = await supabase
+    .from('crew_requests')
+    .update(patch)
+    .eq('id', r.id)
+    .eq('status', 'confirmed')
+    .select('id');
+  if (updateErr) {
+    console.error('[payment-webhook] Failed to mark the crew request paid:', updateErr.message);
+    throw new Error('crew request payment update failed');
+  }
+  if (!updated || updated.length === 0) {
+    if (r.status === 'paid') return 'already_paid';
+    console.error('[payment-webhook] Crew payment for a request no longer awaiting payment; needs manual review:', { reference: paymentId, status: r.status, providerPaymentId });
+    logEvent({ eventType: 'crew_payment_not_awaiting', eventCategory: 'payment', metadata: { reference: paymentId, requestId: r.id, status: r.status, providerPaymentId } });
+    return 'not_awaiting_payment';
+  }
+  console.log(`[payment-webhook] Crew request ${kind} paid: ref=${paymentId}`);
+  if (r.creator_id) {
+    try {
+      await supabase.from('notifications').insert({
+        user_id: r.creator_id,
+        type: 'gig_request',
+        title: kind === 'deposit' ? 'Deposit Paid' : 'Gig Paid',
+        body: kind === 'deposit' ? 'The client paid the deposit for your gig.' : 'The client paid for your gig.',
+        link: '/dashboard/gigs',
+      });
+    } catch { /* don't block the webhook */ }
+  }
+  return 'paid';
 }
 
 // ─── Service bookings ────────────────────────────────────────────────────────

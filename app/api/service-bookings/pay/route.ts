@@ -34,7 +34,7 @@ export async function GET(request: NextRequest) {
   }
 
   if (!booking.paystack_access_code) {
-    return NextResponse.json({ error: 'No access code — use the payment link instead' }, { status: 400 });
+    return NextResponse.json({ error: 'This booking cannot be paid online. Please contact us and we will help.' }, { status: 400 });
   }
 
   return NextResponse.json({
