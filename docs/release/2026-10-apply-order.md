@@ -122,6 +122,20 @@ is created for the daily maintenance job.
   deletes nothing. Day counts: `STUDIO.retention` in `lib/constants.ts`.
 - Rollback: the block at the bottom of the file.
 
+## 2c. Security fixes: 088
+
+From the security tests of 2026-10-13 (docs/security/2026-10-13-security-test.md).
+Apply with (or before) the build that calls `phone_code_store` and
+`phone_code_try`: that build cannot send or check phone codes without 088.
+
+| Step | Run | Then |
+|---|---|---|
+| 21 | `088-security-fixes.sql` | `088-security-fixes.test.sql`, `087-customer-engagement.test.sql`, `rls-coverage.test.sql` |
+
+pg_net's `net.http_*` stays executable by anon and authenticated: the
+functions belong to `supabase_admin` and the `postgres` role cannot revoke
+them. The `net` schema is not exposed by PostgREST.
+
 ## 3. Smoke test (maintenance bypass)
 
 - sign up: a profile row is created and `net._http_response` gets a 2xx row;

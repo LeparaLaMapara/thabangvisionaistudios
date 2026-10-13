@@ -27,6 +27,22 @@ export const CODE_TTL_MINUTES = 10;
 export const MAX_ATTEMPTS = 5;
 export const MAX_SENDS_PER_HOUR = 3;
 
+/** Caps across accounts: per network (IP) and per phone number, each per hour. */
+export const PHONE_LIMITS = {
+  sendsPerIpPerHour: 10,
+  sendsPerNumberPerHour: 3,
+  verifyPerIpPerHour: 30,
+} as const;
+
+/**
+ * The secret codes are hashed with. PHONE_CODE_SECRET, falling back to the
+ * service role key (older deploys). Empty means phone checks stay off rather
+ * than hashing with no secret.
+ */
+export function phoneCodeSecret(): string {
+  return (process.env.PHONE_CODE_SECRET || process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim();
+}
+
 export function newCode(): string {
   return String(crypto.randomInt(0, 1_000_000)).padStart(6, '0');
 }

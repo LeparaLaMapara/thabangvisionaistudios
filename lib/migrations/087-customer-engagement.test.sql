@@ -58,7 +58,7 @@ begin
 
   -- 5. With a subscription: one push queued per bell item, holding only the id.
   insert into public.push_subscriptions (user_id, endpoint, p256dh, auth)
-  values (a, 'https://push.example.invalid/t087-a', repeat('k', 40), repeat('s', 16));
+  values (a, 'https://fcm.googleapis.com/fcm/send/t087-a', repeat('k', 40), repeat('s', 16));
   insert into public.notifications (user_id, type, title, body) values (a, 'dispute_updated', 't087', 't087') returning id into nid;
   select count(*) into n from public.notification_outbox
    where dedupe_key = 'engage_push:notification:' || nid and channel = 'push' and kind = 'engage_push'
@@ -76,7 +76,7 @@ begin
   raise notice 'PASS 6: only https push endpoints are stored';
 
   insert into public.push_subscriptions (user_id, endpoint, p256dh, auth)
-  values (b, 'https://push.example.invalid/t087-b', repeat('k', 40), repeat('s', 16));
+  values (b, 'https://fcm.googleapis.com/fcm/send/t087-b', repeat('k', 40), repeat('s', 16));
 end $$;
 
 -- 7-9 run as a signed-in user (A).
@@ -92,7 +92,7 @@ begin
 
   begin
     insert into public.push_subscriptions (user_id, endpoint, p256dh, auth)
-    values ('00000000-0000-4000-8000-0000000870b1', 'https://push.example.invalid/t087-forged', repeat('k', 40), repeat('s', 16));
+    values ('00000000-0000-4000-8000-0000000870b1', 'https://fcm.googleapis.com/fcm/send/t087-forged', repeat('k', 40), repeat('s', 16));
     raise exception 'FAIL 8: user A added a subscription for user B';
   exception when insufficient_privilege then
     null;
@@ -100,16 +100,23 @@ begin
 
   begin
     insert into public.push_subscriptions (user_id, endpoint, p256dh, auth, failure_count)
-    values ('00000000-0000-4000-8000-0000000870a1', 'https://push.example.invalid/t087-a2', repeat('k', 40), repeat('s', 16), 99);
+    values ('00000000-0000-4000-8000-0000000870a1', 'https://fcm.googleapis.com/fcm/send/t087-a2', repeat('k', 40), repeat('s', 16), 99);
     raise exception 'FAIL 8: a client set failure_count';
   exception when insufficient_privilege then
     null;
   end;
 
-  insert into public.push_subscriptions (user_id, endpoint, p256dh, auth)
-  values ('00000000-0000-4000-8000-0000000870a1', 'https://push.example.invalid/t087-a3', repeat('k', 40), repeat('s', 16));
+  -- Since 088 only the server adds subscriptions (the route checks the push
+  -- service and the per-person cap), so even the person's own row is refused.
+  begin
+    insert into public.push_subscriptions (user_id, endpoint, p256dh, auth)
+    values ('00000000-0000-4000-8000-0000000870a1', 'https://fcm.googleapis.com/fcm/send/t087-a3', repeat('k', 40), repeat('s', 16));
+    raise exception 'FAIL 8: a client added a subscription directly (088 revokes this)';
+  exception when insufficient_privilege then
+    null;
+  end;
 
-  delete from public.push_subscriptions where endpoint = 'https://push.example.invalid/t087-b';
+  delete from public.push_subscriptions where endpoint = 'https://fcm.googleapis.com/fcm/send/t087-b';
   get diagnostics n = row_count;
   if n <> 0 then raise exception 'FAIL 8: user A deleted user B''s subscription'; end if;
 

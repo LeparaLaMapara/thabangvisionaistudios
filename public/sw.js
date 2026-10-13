@@ -12,8 +12,11 @@ self.addEventListener('activate', (event) => {
 });
 
 function samePath(url) {
-  // Only open pages on this site.
-  return typeof url === 'string' && url.startsWith('/') && !url.startsWith('//') ? url : '/dashboard';
+  // Only open pages on this site. A tab or newline after the first slash is
+  // dropped by the URL parser ("/\t/evil.example" opens evil.example), so any
+  // control character, space or backslash is refused. Same as lib/push safePushUrl.
+  if (typeof url !== 'string' || !url.startsWith('/') || url.startsWith('//')) return '/dashboard';
+  return /[\u0000- \u007f\\]/.test(url) ? '/dashboard' : url;
 }
 
 self.addEventListener('push', (event) => {

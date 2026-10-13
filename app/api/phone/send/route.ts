@@ -3,7 +3,9 @@ export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient, createAdminClient } from '@/lib/supabase/server';
 import { sms } from '@/lib/sms';
-import { CODE_TTL_MINUTES, MAX_SENDS_PER_HOUR, hashCode, maskPhone, newCode, normaliseSaMobile } from '@/lib/sms/phone';
+import { CODE_TTL_MINUTES, MAX_SENDS_PER_HOUR, PHONE_LIMITS, hashCode, maskPhone, newCode, normaliseSaMobile, phoneCodeSecret } from '@/lib/sms/phone';
+import { checkRateLimit } from '@/lib/auth';
+import { clientIp } from '@/lib/http/clientIp';
 import { STUDIO } from '@/lib/constants';
 
 /** Sends a one-time code to confirm the signed-in person's phone number. */
@@ -22,25 +24,33 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Enter a South African mobile number, like 082 123 4567.' }, { status: 400 });
   }
 
-  const admin = createAdminClient();
-  const { data: existing } = await admin.from('phone_codes').select('created_at, sent_count').eq('user_id', user.id).maybeSingle();
-  const withinHour = existing && Date.now() - new Date(existing.created_at).getTime() < 3_600_000;
-  if (withinHour && existing.sent_count >= MAX_SENDS_PER_HOUR) {
+  // Caps per network and per number as well as per account, so one person
+  // with many accounts cannot SMS-bomb a number (each SMS costs money).
+  const ip = clientIp(request.headers);
+  if (
+    !(await checkRateLimit(`phone-send-ip:${ip}`, PHONE_LIMITS.sendsPerIpPerHour, 3_600_000)) ||
+    !(await checkRateLimit(`phone-send-number:${e164}`, PHONE_LIMITS.sendsPerNumberPerHour, 3_600_000))
+  ) {
     return NextResponse.json({ error: 'Too many codes. Try again in an hour.' }, { status: 429 });
   }
 
+  const secret = phoneCodeSecret();
+  if (!secret) return NextResponse.json({ error: 'Phone checks are not switched on yet.' }, { status: 503 });
+
   const code = newCode();
-  const secret = process.env.PHONE_CODE_SECRET ?? process.env.SUPABASE_SERVICE_ROLE_KEY ?? '';
-  const { error } = await admin.from('phone_codes').upsert({
-    user_id: user.id,
-    phone: e164,
-    code_hash: hashCode(code, user.id, secret),
-    expires_at: new Date(Date.now() + CODE_TTL_MINUTES * 60_000).toISOString(),
-    attempts: 0,
-    sent_count: withinHour ? existing.sent_count + 1 : 1,
-    created_at: withinHour ? existing.created_at : new Date().toISOString(),
+  // One atomic step (088): saves the new code and counts the send, or refuses
+  // when this account already had MAX_SENDS_PER_HOUR codes this hour.
+  const { data: allowed, error } = await createAdminClient().rpc('phone_code_store', {
+    p_user: user.id,
+    p_phone: e164,
+    p_code_hash: hashCode(code, user.id, secret),
+    p_ttl_minutes: CODE_TTL_MINUTES,
+    p_max_per_hour: MAX_SENDS_PER_HOUR,
   });
   if (error) return NextResponse.json({ error: 'Could not start the check. Try again.' }, { status: 500 });
+  if (allowed !== true) {
+    return NextResponse.json({ error: 'Too many codes. Try again in an hour.' }, { status: 429 });
+  }
 
   const sent = await sms.send(e164, `${code} is your ${STUDIO.name} code. It expires in ${CODE_TTL_MINUTES} minutes. Never share it.`);
   if (!sent.ok) {

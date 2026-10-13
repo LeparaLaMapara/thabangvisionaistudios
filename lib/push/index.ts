@@ -1,5 +1,9 @@
 import webpush from 'web-push';
 import { STUDIO } from '@/lib/constants';
+import { isPushEndpoint } from './subscriptions';
+
+/** Real push services answer in well under a second; a slow one must not hold the queue. */
+export const PUSH_TIMEOUT_MS = 4_000;
 
 /**
  * Web push provider (VAPID, via the web-push library). The only file that
@@ -46,16 +50,24 @@ export function pushPublicKey(): string | null {
   return vapid()?.publicKey ?? null;
 }
 
-/** Only a path on this site may be opened from a notification. */
+/**
+ * Only a path on this site may be opened from a notification. Any control
+ * character, space or backslash is refused: the URL parser drops a tab or
+ * newline, so "/\t/evil.example" would otherwise open evil.example.
+ * public/sw.js has the same check.
+ */
 export function safePushUrl(url: string | null | undefined): string {
   const u = (url ?? '').trim();
-  return u.startsWith('/') && !u.startsWith('//') && !u.includes('\\') ? u.slice(0, 500) : '/dashboard';
+  if (!u.startsWith('/') || u.startsWith('//') || /[\u0000- \u007f\\]/.test(u)) return '/dashboard';
+  return u.slice(0, 500);
 }
 
 /** Sends one push. Never throws. */
 export async function sendPush(sub: PushSubscriptionKeys, payload: PushPayload): Promise<PushResult> {
   const keys = vapid();
   if (!keys) return { ok: false, gone: false, retryable: false, message: 'push not configured' };
+  // Never POST anywhere but a real push service (rows saved before 088 too).
+  if (!isPushEndpoint(sub.endpoint)) return { ok: false, gone: true, retryable: false, message: 'not a push service' };
   const body = JSON.stringify({
     title: payload.title.slice(0, 120),
     body: payload.body.slice(0, 240),
@@ -67,7 +79,7 @@ export async function sendPush(sub: PushSubscriptionKeys, payload: PushPayload):
       vapidDetails: keys,
       TTL: 60 * 60 * 24,
       urgency: 'normal',
-      timeout: 10_000,
+      timeout: PUSH_TIMEOUT_MS,
     });
     return { ok: true };
   } catch (err) {
