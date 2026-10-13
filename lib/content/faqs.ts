@@ -75,6 +75,12 @@ export function coreFaqs(opts: { paymentsOpen?: boolean } = {}): CoreFaq[] {
       answer: `Your first hire is collected in person at ${collectionPointWithCity()}, so we can hand it over with you. After that, collect it there or we deliver within ${delivery.maxRadiusKm} km at R${delivery.ratePerKm} per km (minimum R${delivery.minimumFee}), plus R${delivery.surchargePerExtraItem} for each item after the first ${delivery.itemsIncluded}. Any item worth more than ${formatRand(RENTAL_POLICY.highValueCollectionThresholdCents / 100)} is always collected. The delivery fee is shown before you book.`,
     },
     {
+      id: 'core-delivery-tracking',
+      category: 'equipment',
+      question: 'How do I follow my delivery?',
+      answer: `Your booking page shows each step. When a courier carries your gear it also shows a live tracking link and a PIN: give the PIN to the driver only when they hand you the gear. We email you when the gear is on its way and when it arrives, and send a phone notification if you turned them on. Have the ID you verified with ready: a courier driver checks it before handing over.`,
+    },
+    {
       id: 'core-area',
       category: 'general',
       question: 'Where do you work?',

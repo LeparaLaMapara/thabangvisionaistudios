@@ -39,6 +39,37 @@ now true; `findByMerchantReference` lists by external_id; a 409 on create
 returns the first delivery; an empty `image_url` no longer counts as proof;
 trips over 10 km straight-line are not sent to Uber.
 
+## Dashboard options and their API fields (sandbox, 2026-10-14)
+
+The owner made a delivery by hand in the Uber Direct dashboard ("New
+delivery") on 2026-10-14. Each option there has an API field. All tested with
+the test keys on scheduled deliveries (Uber refuses on-demand at night with
+"Cannot find eligible product"), each cancelled afterwards.
+
+| Dashboard option | API field (create delivery) | ZA sandbox | We send |
+|---|---|---|---|
+| Pickup address + apartment | `pickup_address` JSON, a second `street_address` line | Yes | Our address as one line |
+| Drop-off address + apartment | `dropoff_address` JSON; `["50 Bath Avenue", "Unit 4B"]` came back as `street_address_2: "Unit 4B"` | Yes | The renter's address as typed (unit and gate included) |
+| First and last name | `dropoff_name` (one string) | Yes | First name only (privacy rule in `port.ts`: no surname needed for a hand-over that needs a PIN and ID) |
+| Phone number | `dropoff_phone_number` | Yes | The renter's contact number. Uber texts the PIN and updates to it |
+| Item name + quantity | `manifest_items[].name`, `quantity`, `size` | Yes | "Camera equipment", never brand or model |
+| Total order value | `manifest_total_value` (cents: 350000 came back as `manifest.total_value` 350000) | Yes | Not sent: `declaredValueSupport` stays false until Uber confirms the SA value cap |
+| Store order ID | `external_id` (`external_store_id` was accepted but came back null: needs a store set up by Uber) | `external_id` yes | Our merchant reference as `external_id` |
+| Drop-off notes | `dropoff_notes` | Yes | The renter's instructions |
+| Require signature | `dropoff_verification.signature_requirement { enabled, collect_signer_name }` | Yes | Yes, with signer name |
+| Require proof (photo) | `dropoff_verification.picture` | Yes | Yes |
+| Require PIN code | `dropoff_verification.pincode { enabled: true }`. Uber makes the PIN (a value we send is ignored) and returns it at `dropoff.verification_requirements.pincode.value` | Yes | Yes, both legs. Kept in `delivery_shipments.recipient_pin` (089) and shown to the renter |
+| Require ID | `dropoff_verification.identification { min_age: 18 }` (came back with `no_sobriety_check: false`) | Yes | Outbound only (the renter). A failed ID check sends the gear back |
+| Require barcode scanning | `dropoff_verification.barcodes [{ value, type }]` | Not tested | No: our gear has no printed barcode labels yet |
+| (pickup) | `pickup_verification { picture, signature_requirement }` | Yes | Photo and signature at every pickup |
+
+**Uber's own texts to the renter.** Uber's pincode guide: "When the delivery
+is created, the customer receives their pincode via SMS", repeated as the
+driver is on the way and arriving, if the merchant account has SMS switched
+on. There is no API field for it; it is an account setting. **Owner:** in the
+Uber Direct dashboard check that customer SMS notifications are on, on both
+the test and the live account.
+
 ## Files
 
 | File | What it holds |
@@ -177,7 +208,7 @@ route calls `receiveDeliveryWebhook({ rawBody, headers, parser, deps })`.
 | pickupConfirmation | true | Pickup verification is documented |
 | proofOfDelivery | true | PIN, signature and photo are documented |
 | signature | true | Documented |
-| recipientPin | false | Documented, but whether it works in SA is unconfirmed |
+| recipientPin | true | Verified in our SA sandbox (2026-10-14): Uber makes the PIN and returns it; we keep it (089) |
 | declaredValueSupport | false | The SA value cap is not verified |
 | cancellation | true | Verified in our sandbox. SA cancellation fees are still unknown: they come from the invoice |
 | noLeaveAtDoor | true | PIN, signature and ID exclude leave-at-door; meet-at-door is requested |
@@ -207,7 +238,7 @@ and the proof fields.
 
 **Still VERIFY** (marked in `api.ts` / `adapter.ts`):
 1. `undeliverable_action: "return"` (the create answer shows ""): check on a failed test delivery.
-2. The `pincode` field (not sent yet: the core sends no PIN).
+2. ~~The `pincode` field~~ Verified 2026-10-14 (table above).
 3. The status names `pickup_complete` and `returned` (not seen yet).
 4. Webhooks: header names, the event kind `event.delivery_status`, and the payload fields. Needs the webhook set up in the Uber Direct dashboard (below).
 5. Cancellation fees in SA.
@@ -222,7 +253,7 @@ From `provider-comparison.md`:
 4. **Idempotency:** how do `idempotency_key` and `external_id` behave (retention, duplicate response)? Can a delivery be looked up by `external_id`?
 5. **Fees:** what are the SA cancellation and return fees, and when do they apply?
 6. **Onboarding:** is SA self-serve API onboarding open, and for which regions?
-7. **PIN:** does PIN verification work in SA?
+7. ~~**PIN:** does PIN verification work in SA?~~ Yes in our sandbox (2026-10-14). Still to see on a live delivery: that the SMS reaches a South African phone.
 8. **Leave-at-door:** can it be disabled per delivery and enforced in the driver app?
 9. **Webhooks:** signing details, key rotation, retry policy and the full event list.
 10. **Coverage:** Gauteng suburbs and same-day cut-offs.

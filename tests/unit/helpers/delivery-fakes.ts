@@ -179,6 +179,11 @@ export class InMemoryDeliveryRepo implements DeliveryRepository {
     if (patch.lastError !== undefined) i.lastError = patch.lastError;
   }
 
+  async saveRecipientPin(shipmentId: string, pin: string): Promise<void> {
+    const s = this.shipments.get(shipmentId);
+    if (s) this.shipments.set(shipmentId, { ...s, recipientPin: pin });
+  }
+
   async transitionShipment(t: ShipmentTransition): Promise<TransitionResult> {
     if (this.failNextTransitions > 0) {
       this.failNextTransitions -= 1;
@@ -350,6 +355,8 @@ export class FakeCourier implements DeliveryPort {
   /** Scripted behaviours for successive createDelivery calls. */
   createScript: CreateBehaviour[] = [];
   findBehaviour: 'ok' | 'unknown' = 'ok';
+  /** A drop-off PIN the fake provider makes on create (like Uber Direct). */
+  recipientPin: string | null = null;
   down = false;
   constructor(public readonly providerId = 'fake_courier') {}
 
@@ -367,7 +374,7 @@ export class FakeCourier implements DeliveryPort {
     if (b === 'unknown_before_create') return { ok: false, kind: 'unknown', message: 'timeout before reaching provider' };
     if (b === 'rejected') return { ok: false, kind: 'rejected', message: 'address not serviceable' };
     const existing = this.jobs.get(r.merchantReference);
-    const job = existing ?? { providerReference: `job-${this.jobs.size + 1}`, merchantReference: r.merchantReference, state: 'pending', stateAt: null, trackingUrl: 'https://track.example/abc', courierName: null, proof: [] };
+    const job = existing ?? { providerReference: `job-${this.jobs.size + 1}`, merchantReference: r.merchantReference, state: 'pending', stateAt: null, trackingUrl: 'https://track.example/abc', courierName: null, proof: [], ...(this.recipientPin ? { recipientPin: this.recipientPin } : {}) };
     this.jobs.set(r.merchantReference, job);
     if (b === 'unknown_after_create') return { ok: false, kind: 'unknown', message: 'timeout after create' };
     if (b === 'throw_after_create') throw new Error('socket hang up');

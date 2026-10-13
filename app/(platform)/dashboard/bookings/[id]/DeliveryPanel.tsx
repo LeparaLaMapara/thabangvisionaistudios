@@ -38,6 +38,8 @@ interface Leg {
   fee_cents: number;
   courier_name: string | null;
   tracking_url: string | null;
+  /** The PIN to give the driver at the door (outbound, while the gear is coming). */
+  pin?: string | null;
   items: number;
   by: 'our_vehicle' | 'courier';
   /** Phase 8: gear from our studio, or collected from (and returned to) its owner (suburb at most). */
@@ -212,6 +214,11 @@ export function DeliveryPanel({ bookingId }: { bookingId: string }) {
               </a>
             ) : (
               <p className="text-xs text-neutral-500">Live tracking: not available for this delivery. We message you when it moves.</p>
+            )}
+            {l.pin && (
+              <p className="text-xs text-neutral-300">
+                Your PIN for the driver: <span className="text-[#D4A843] text-base tracking-widest">{l.pin}</span>. Give it to the driver only when they hand you the gear.
+              </p>
             )}
             {l.fee_cents > 0 && <p className="text-xs text-neutral-500">Fee paid: {rand(l.fee_cents)}</p>}
             {(l.item_details ?? []).length > 0 && (

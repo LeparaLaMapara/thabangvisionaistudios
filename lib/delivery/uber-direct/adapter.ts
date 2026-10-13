@@ -162,6 +162,7 @@ export function createUberDirectAdapter(config: UberDirectConfig): DeliveryPort 
     const d = asObject(raw);
     const id = asString(d?.id);
     if (!d || !id) return null;
+    const pin = uberPincode(d);
     return {
       providerReference: id,
       merchantReference: asString(d.external_id) ?? fallbackMerchantRef ?? '',
@@ -170,6 +171,7 @@ export function createUberDirectAdapter(config: UberDirectConfig): DeliveryPort 
       trackingUrl: asString(d.tracking_url),
       courierName: firstNameOnly(asObject(d.courier)?.name),
       proof: uberProofs(id, d),
+      ...(pin ? { recipientPin: pin } : {}),
     };
   }
 
@@ -241,12 +243,7 @@ export function createUberDirectAdapter(config: UberDirectConfig): DeliveryPort 
     quote: requestQuote,
 
     async createDelivery(r: CreateDeliveryRequest): Promise<ProviderCallResult<ProviderDelivery>> {
-      const dropoffVerification: Json = {
-        // VERIFY: field names. Signature + photo prove the hand-over; a PIN when we have one.
-        signature_requirement: { enabled: true, collect_signer_name: true },
-        picture: true,
-        ...(r.requirements.recipientPin ? { pincode: { enabled: true, value: r.requirements.recipientPin } } : {}),
-      };
+      const dropoffVerification = uberDropoffVerification(r.leg);
       const body: Json = {
         ...(r.quote.providerQuoteRef ? { quote_id: r.quote.providerQuoteRef } : {}),
         // Our stable reference: the same on every attempt of the same leg.
@@ -269,8 +266,8 @@ export function createUberDirectAdapter(config: UberDirectConfig): DeliveryPort 
         // Generic label only: never brand, model or value to a driver.
         manifest_items: r.items.map((i) => ({ name: i.driverLabel, quantity: 1, ...(i.weightGrams ? { weight: i.weightGrams } : {}) })),
         ...(r.requirements.declaredValueCents !== null ? { manifest_total_value: r.requirements.declaredValueCents } : {}),
-        // Pickup: the courier photographs the parcel at collection.
-        pickup_verification: { picture: true },
+        // Pickup: the courier photographs the parcel and the sender signs (checked in sandbox 2026-10-14).
+        pickup_verification: UBER_PICKUP_VERIFICATION,
         dropoff_verification: dropoffVerification,
         undeliverable_action: UBER_DIRECT_API.undeliverableActionReturn,
         ...quoteWindowFields(r.window),
@@ -337,6 +334,49 @@ export function createUberDirectAdapter(config: UberDirectConfig): DeliveryPort 
       };
     },
   };
+}
+
+/**
+ * What the courier must collect at the pickup: a photo of the parcel and the
+ * sender's signature. Uber echoed both back in our sandbox (2026-10-14:
+ * pickup.verification_requirements).
+ */
+export const UBER_PICKUP_VERIFICATION: Json = { picture: true, signature_requirement: { enabled: true, collect_signer_name: true } };
+
+/**
+ * What the courier must collect at the drop-off (all checked in our South
+ * African sandbox on 2026-10-14; Uber echoed each in
+ * dropoff.verification_requirements):
+ *  - signature (with the signer's name) and a photo: proof of the hand-over;
+ *  - pincode: Uber makes a PIN, texts it to the drop-off phone, and the
+ *    driver may only hand over to someone who gives it. Uber ignores a PIN we
+ *    send, so we never send one; we read Uber's back (uberPincode);
+ *  - identification (min_age 18), outbound only: the driver checks the
+ *    renter's ID. A failed ID check sends the gear back (Uber starts a return
+ *    trip), which is what we want for rented gear. On a return leg the
+ *    drop-off is our studio or the owner, so no ID check.
+ */
+export function uberDropoffVerification(leg: 'outbound' | 'return'): Json {
+  return {
+    signature_requirement: { enabled: true, collect_signer_name: true },
+    picture: true,
+    pincode: { enabled: true },
+    ...(leg === 'outbound' ? { identification: { min_age: 18 } } : {}),
+  };
+}
+
+/**
+ * The drop-off PIN Uber made. Our sandbox (2026-10-14) returns it at
+ * dropoff.verification_requirements.pincode.value; Uber's guide shows a
+ * top-level verification_requirements.pincode.value. Either is read; only 4 to
+ * 8 digits count.
+ */
+export function uberPincode(d: Json): string | null {
+  for (const vr of [asObject(asObject(d.dropoff)?.verification_requirements), asObject(d.verification_requirements)]) {
+    const v = asObject(vr?.pincode)?.value;
+    if (typeof v === 'string' && /^[0-9]{4,8}$/.test(v.trim())) return v.trim();
+  }
+  return null;
 }
 
 /**

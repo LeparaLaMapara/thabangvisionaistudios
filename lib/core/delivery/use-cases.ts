@@ -144,6 +144,16 @@ function legNotices(p: { kind: RentalNoticeKind; userIds: readonly (string | nul
   return out;
 }
 
+/**
+ * The one "on the way" email per outbound leg. Queued on driver assigned,
+ * collected and in transit (a courier may skip a step: Uber's robot went from
+ * assigned straight to on the way); the shared discriminator makes the outbox
+ * keep only the first, so the renter gets one email.
+ */
+function onTheWay(s: Pick<Shipment, 'id' | 'items' | 'renterId'>): OutboxMessage[] {
+  return legNotices({ kind: 'delivery_on_the_way', userIds: [s.renterId], shipment: s, discriminator: 'on_the_way' });
+}
+
 function staffAlert(what: string, reference: string): OutboxMessage[] {
   return buildNotices({ kind: 'staff_alert', userId: 'staff', bookingIds: [], discriminator: `delivery:${what}:${reference}`, data: { what, reference } });
 }
@@ -851,6 +861,9 @@ async function recordDispatchSuccess(shipment: Shipment, intent: DispatchIntent,
   t.quoteStatus = { quoteId: current.quoteId, to: 'consumed' };
   const r = await deps.repo.transitionShipment(t);
   if (r === 'conflict') return false;
+  // The courier's drop-off PIN (Uber texts it too): kept so the renter sees it on the booking.
+  // Never fails the dispatch: the job exists either way.
+  if (job.recipientPin && !current.recipientPin) await deps.repo.saveRecipientPin(current.id, job.recipientPin).catch(() => undefined);
   await deps.repo.finishDispatch(intent.id, 'succeeded', { providerReference: job.providerReference });
   return true;
 }
@@ -976,6 +989,7 @@ export async function recordProviderEvent(input: ProviderEventInput, deps: Pick<
   switch (to) {
     case 'courier_assigned':
       t.notices.push(...legNotices({ kind: outbound ? 'delivery_courier_assigned' : 'delivery_return_courier_assigned', userIds: renter, shipment, discriminator: to }));
+      if (outbound) t.notices.push(...onTheWay(shipment));
       break;
     case 'courier_at_pickup':
       t.notices.push(...legNotices({ kind: 'delivery_courier_at_pickup', userIds: outbound ? ownerIds(shipment) : renter, shipment, discriminator: to }));
@@ -984,14 +998,14 @@ export async function recordProviderEvent(input: ProviderEventInput, deps: Pick<
       t.patch.collectedAt = at;
       t.custody.push(...courierCustody('collected_by_courier'));
       t.notices.push(...legNotices({ kind: outbound ? 'delivery_collected' : 'delivery_return_collected', userIds: renter, shipment, discriminator: to }));
-      if (outbound) t.notices.push(...ownerOriginNotices('owner_pickup_collected', shipment, 'owner_collected'));
+      if (outbound) t.notices.push(...onTheWay(shipment), ...ownerOriginNotices('owner_pickup_collected', shipment, 'owner_collected'));
       break;
     case 'courier_at_dropoff':
       // On the way back to an owner's address: the owner is asked to confirm receipt and condition.
       if (!outbound) t.notices.push(...ownerOriginNotices('owner_gear_returned', shipment, 'owner_returned'));
       break;
     case 'in_transit':
-      if (outbound) t.notices.push(...legNotices({ kind: 'delivery_in_transit', userIds: renter, shipment, discriminator: to }));
+      if (outbound) t.notices.push(...legNotices({ kind: 'delivery_in_transit', userIds: renter, shipment, discriminator: to }), ...onTheWay(shipment));
       break;
     case 'delivered':
       t.patch.deliveredAt = at;
@@ -1176,7 +1190,7 @@ export async function confirmCollection(input: CustodyInput, deps: Pick<Delivery
       if (t.to === 'collected') {
         t.patch.collectedAt = t.event.occurredAt;
         t.notices.push(...legNotices({ kind: s.leg === 'outbound' ? 'delivery_collected' : 'delivery_return_collected', userIds: [s.renterId], shipment: s, discriminator: 'collected' }));
-        if (s.leg === 'outbound') t.notices.push(...ownerOriginNotices('owner_pickup_collected', s, 'owner_collected'));
+        if (s.leg === 'outbound') t.notices.push(...onTheWay(s), ...ownerOriginNotices('owner_pickup_collected', s, 'owner_collected'));
       }
     }
   });
@@ -1489,6 +1503,8 @@ export interface DeliveryStatusLeg {
   providerId: string;
   trackingUrl: string | null;
   courierName: string | null;
+  /** Drop-off PIN: only to the renter (or staff) on an outbound leg, otherwise null. */
+  recipientPin?: string | null;
   scheduledAt: string | null;
   items: { bookingId: string; rentalId: string; receipt: string }[];
 }
@@ -1519,6 +1535,8 @@ export async function getDeliveryStatus(
       // tracking page shows the pickup or drop-off point, D-88). Staff see it.
       trackingUrl: isOwner || (!!s.originOwnerId && input.caller.kind !== 'staff') ? null : s.trackingUrl,
       courierName: s.courierName,
+      // The renter gives this PIN to the driver at their door. Never to an owner.
+      recipientPin: !isOwner && s.leg === 'outbound' ? (s.recipientPin ?? null) : null,
       scheduledAt: s.scheduledAt,
       items: s.items
         .filter((i) => !isOwner || i.ownerId === ownerId)

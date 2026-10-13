@@ -88,6 +88,11 @@ export interface CustomerLeg {
   /** Null when the provider has not named anyone: "not available yet", never invented. */
   courier_name: string | null;
   tracking_url: string | null;
+  /**
+   * The PIN the renter gives the driver at their door (Uber Direct makes it and
+   * also texts it). Outbound legs only, and only while the gear is still coming.
+   */
+  pin: string | null;
   scheduled_at: string | null;
   items: number;
   /** Own vehicle (our staff) or a courier. */
@@ -101,6 +106,9 @@ export interface CustomerLeg {
   origin_area: string | null;
   item_details: CustomerLegItem[];
 }
+
+/** Leg states in which the gear is still on its way to the renter: the drop-off PIN is shown. */
+const PIN_STATES: readonly DeliveryState[] = ['booking', 'scheduled', 'courier_assigned', 'courier_at_pickup', 'collected', 'in_transit', 'courier_at_dropoff'];
 
 /** Leg states in which a delivered item can be confirmed or reported by the renter (D15). */
 const CONFIRMABLE: readonly DeliveryState[] = ['courier_at_dropoff', 'delivered', 'delivery_attempt_failed', 'incident_under_review'];
@@ -127,6 +135,7 @@ export function customerLegs(
       courier_name: l.courierName?.trim() || null,
       // Never on a leg from or back to an owner's address: the courier's page shows that point (D-88).
       tracking_url: fromOwner ? null : safeTrackingUrl(l.trackingUrl),
+      pin: l.leg === 'outbound' && PIN_STATES.includes(l.status) ? (l.recipientPin ?? null) : null,
       scheduled_at: l.scheduledAt,
       items: l.items.length,
       by: s?.providerKind === 'courier' ? 'courier' : 'our_vehicle',
