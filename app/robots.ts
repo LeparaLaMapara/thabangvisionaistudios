@@ -3,6 +3,7 @@ import { STUDIO } from '@/lib/constants';
 import {
   PRIVATE_PATHS,
   PUBLIC_API_PATHS,
+  DISCOVERY_PATHS,
   ALLOWED_AI_CRAWLERS,
   BLOCKED_CRAWLERS,
 } from '@/lib/seo/crawlers';
@@ -12,7 +13,7 @@ import {
 export default function robots(): MetadataRoute.Robots {
   const baseUrl = STUDIO.meta.url;
   const rules = {
-    allow: ['/', ...PUBLIC_API_PATHS],
+    allow: ['/', ...PUBLIC_API_PATHS, ...DISCOVERY_PATHS],
     disallow: [...PRIVATE_PATHS],
   };
 

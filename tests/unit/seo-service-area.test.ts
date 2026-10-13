@@ -264,7 +264,7 @@ describe('city pages redirect (308) outside the service area', () => {
 
 describe('llms.txt', () => {
   it('states the service area from constants and makes no national claim', async () => {
-    const body = await llmsTxt().text();
+    const body = await (await llmsTxt()).text();
     expect(body).toContain(`We work in ${STUDIO.serviceArea.province}.`);
     expect(body).toContain(STUDIO.serviceArea.outsideProvinceNote);
     for (const claim of ['across South Africa', 'all major cities', 'nationwide']) {

@@ -31,6 +31,7 @@ export async function generateMetadata({ params }: Props) {
       return `${category.description} By request in ${STUDIO.serviceArea.province}${from !== null ? `, from ${formatRand(from)}` : ''}.`;
     })(),
     path: `/studio/category/${slug}`,
+    markdown: true,
     imageUrl: category.coverImageUrl ?? undefined,
   });
 }

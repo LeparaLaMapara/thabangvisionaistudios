@@ -19,6 +19,7 @@ export const metadata = buildPageMetadata({
     .map((p) => p.label)
     .join(', ')}, or try each one in your browser.`,
   path: '/tools',
+  markdown: true,
 });
 
 /**

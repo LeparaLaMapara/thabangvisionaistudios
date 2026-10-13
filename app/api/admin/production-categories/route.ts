@@ -3,6 +3,8 @@ export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin, rateLimitAdmin } from '@/lib/auth';
 import { createAdminClient } from '@/lib/supabase/server';
+import { notifyDiscovery } from '@/lib/discovery/notify';
+import { studioCategoryPaths } from '@/lib/discovery/paths';
 
 // ─── GET — List all categories (admin) ──────────────────────────────────────
 
@@ -70,6 +72,7 @@ export async function POST(req: NextRequest) {
       .single();
 
     if (error) throw error;
+    notifyDiscovery(studioCategoryPaths(data?.slug));
     return NextResponse.json(data, { status: 201 });
   } catch (err) {
     console.error('[admin/production-categories] POST error:', err);
@@ -102,6 +105,8 @@ export async function PUT(req: NextRequest) {
     }
 
     const supabase = createAdminClient();
+    // The old address too, in case the slug changes.
+    const { data: before } = await supabase.from('production_categories').select('slug').eq('id', id).maybeSingle();
     const { data, error } = await supabase
       .from('production_categories')
       .update(updates)
@@ -110,6 +115,7 @@ export async function PUT(req: NextRequest) {
       .single();
 
     if (error) throw error;
+    notifyDiscovery([...studioCategoryPaths(before?.slug), ...studioCategoryPaths(data?.slug)]);
     return NextResponse.json(data);
   } catch (err) {
     console.error('[admin/production-categories] PUT error:', err);
@@ -149,12 +155,14 @@ export async function DELETE(req: NextRequest) {
       );
     }
 
-    const { error } = await supabase
+    const { data: removed, error } = await supabase
       .from('production_categories')
       .delete()
-      .eq('id', id);
+      .eq('id', id)
+      .select('slug');
 
     if (error) throw error;
+    notifyDiscovery((removed ?? []).flatMap((r: { slug: string | null }) => studioCategoryPaths(r.slug)));
     return NextResponse.json({ success: true });
   } catch (err) {
     console.error('[admin/production-categories] DELETE error:', err);

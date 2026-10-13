@@ -10,6 +10,10 @@
  *
  * Route patterns are written the way the app/ folders are, without route
  * groups: /rentals/[category]/[slug].
+ *
+ * Each route here must also be owned by an entity in the discovery registry
+ * (lib/discovery/registry.ts), which says how to list its URLs; the
+ * discovery-registry test enforces that.
  */
 
 export const SITEMAP_IDS = ['static', 'rentals', 'creators', 'studio', 'press', 'marketplace', 'tools'] as const;
@@ -38,14 +42,15 @@ export const SITEMAP_ROUTES: Record<string, SitemapId> = {
   '/rentals/[category]/in/[city]': 'rentals',
 
   '/smart-creators': 'creators',
-  // Creator profiles live at /studio/category/[slug]/[id] (lib/seo/creator-url.ts);
-  // /creators/[id] is listed only for members with gear for hire.
+  // Creator profiles live at /studio/category/[slug]/[id] (lib/seo/creator-url.ts)
+  // and are listed in this sitemap; /creators/[id] only for members with gear
+  // for hire.
   '/creators/[id]': 'creators',
+  '/studio/category/[slug]/[id]': 'creators',
 
   '/studio': 'studio',
   '/studio/[slug]': 'studio',
   '/studio/category/[slug]': 'studio',
-  '/studio/category/[slug]/[id]': 'studio',
   '/studio/category/[slug]/in/[city]': 'studio',
 
   '/press': 'press',

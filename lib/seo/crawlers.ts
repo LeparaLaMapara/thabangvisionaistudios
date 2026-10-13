@@ -19,9 +19,20 @@ export const PRIVATE_PATHS = [
   '/onboarding',
   '/reset-password',
   '/auth/',
+  // Internal target of the <page>.md rewrite (lib/discovery/proxy-rewrite.ts);
+  // the public address of a markdown twin is <page>.md, which stays allowed.
+  '/md/',
 ] as const;
 
 export const PUBLIC_API_PATHS = ['/api/og'] as const;
+
+/**
+ * The machine-readable doors for AI agents and tools (lib/discovery/llms.ts
+ * DISCOVERY_ENDPOINTS), named so a crawler that reads robots.txt sees they
+ * are meant for it. The catalogue API lives at /v1, not under the blocked
+ * /api/.
+ */
+export const DISCOVERY_PATHS = ['/llms.txt', '/llms-full.txt', '/openapi.json', '/v1/', '/mcp', '/.well-known/'] as const;
 
 /**
  * Search and AI crawlers we name and welcome. The site wants to be found by

@@ -5,6 +5,8 @@ import { createClient, createAdminClient } from '@/lib/supabase/server';
 import { sendVerificationApproved, sendVerificationRejected } from '@/lib/email';
 import { requireAdmin, rateLimitAdmin } from '@/lib/auth';
 import { logEvent } from '@/lib/data/events';
+import { notifyDiscovery } from '@/lib/discovery/notify';
+import { creatorPathsById } from '@/lib/discovery/paths';
 
 type RouteContext = {
   params: Promise<{ id: string }>;
@@ -159,6 +161,9 @@ export async function PUT(req: NextRequest, context: RouteContext) {
         });
       }
     }
+
+    // Approval can make a creator bookable (a public profile appears).
+    notifyDiscovery(creatorPathsById(id));
 
     // Tell them in the app too (types from migration 082; best effort: the decision stands either way).
     const { error: noticeError } = await db.from('notifications').insert({

@@ -40,6 +40,7 @@ export async function generateMetadata({ params }: Props) {
         `Book ${name} for ${spec.toLowerCase()} in ${crew.location ?? STUDIO.serviceArea.province}. View portfolio, reviews, and rates on ${STUDIO.shortName}.`,
       ),
       path: creatorProfilePath(crew),
+      markdown: true,
       imageUrl: crew.avatar_url ?? undefined,
     });
   }
