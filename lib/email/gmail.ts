@@ -1,6 +1,7 @@
 import nodemailer from 'nodemailer';
 import type SMTPTransport from 'nodemailer/lib/smtp-transport';
 import { STUDIO } from '@/lib/constants';
+import { SIGNATURE_HTML, SIGNATURE_TEXT, withHtmlSignature, withTextSignature } from './signature';
 import type {
   EmailProvider,
   SendEmailOptions,
@@ -70,8 +71,11 @@ export function buildGmailMessage(
     from: { name: STUDIO.name, address: fromAddress },
     to,
     subject,
-    text,
-    ...(html !== undefined ? { html } : {}),
+    // Every email ends with the one signature (lib/email/signature.ts). A
+    // template that already has it is left alone; an old sign-off at the
+    // end of a text body is replaced, never doubled.
+    text: withTextSignature(text),
+    ...(html !== undefined ? { html: withHtmlSignature(html) } : {}),
     ...(extraHeaders ? { headers: extraHeaders } : {}),
   };
 }
@@ -162,14 +166,14 @@ export const gmail: EmailProvider = {
     await this.sendEmail({
       to: email,
       subject: `Your identity has been verified — ${STUDIO.name}`,
-      text: `Hi ${greeting},\n\nGreat news! Your identity verification has been approved. You now have full access to all platform features.\n\nThank you for being part of our creative community.\n\n— ${STUDIO.name}`,
+      text: `Hi ${greeting},\n\nGreat news! Your identity verification has been approved. You now have full access to all platform features.\n\nThank you for being part of our creative community.\n\n${SIGNATURE_TEXT}`,
       html: `
         <h2>Identity Verified</h2>
         <p>Hi ${escapeHtml(greeting)},</p>
         <p>Great news! Your identity verification has been <strong>approved</strong>. You now have full access to all platform features.</p>
         <p>Thank you for being part of our creative community.</p>
         <br />
-        <p>— ${STUDIO.name}</p>
+        ${SIGNATURE_HTML}
       `,
     });
   },
@@ -184,7 +188,7 @@ export const gmail: EmailProvider = {
     await this.sendEmail({
       to: email,
       subject: `Identity verification update — ${STUDIO.name}`,
-      text: `Hi ${greeting},\n\nUnfortunately, your identity verification could not be approved at this time.\n\nReason: ${reason}\n\nPlease review the feedback and resubmit your documents when ready.\n\n— ${STUDIO.name}`,
+      text: `Hi ${greeting},\n\nUnfortunately, your identity verification could not be approved at this time.\n\nReason: ${reason}\n\nPlease review the feedback and resubmit your documents when ready.\n\n${SIGNATURE_TEXT}`,
       html: `
         <h2>Verification Update</h2>
         <p>Hi ${escapeHtml(greeting)},</p>
@@ -192,7 +196,7 @@ export const gmail: EmailProvider = {
         <p><strong>Reason:</strong> ${escapeHtml(reason)}</p>
         <p>Please review the feedback and resubmit your documents when ready.</p>
         <br />
-        <p>— ${STUDIO.name}</p>
+        ${SIGNATURE_HTML}
       `,
     });
   },
@@ -210,7 +214,7 @@ export const gmail: EmailProvider = {
     await this.sendEmail({
       to: email,
       subject: `Booking Confirmed — ${rentalTitle}`,
-      text: `Your booking has been confirmed!\n\nEquipment: ${rentalTitle}\nDates: ${startDate} — ${endDate}\nTotal: ${formattedTotal}\n\nThank you for choosing ${STUDIO.name}.\n\n— ${STUDIO.name}`,
+      text: `Your booking has been confirmed!\n\nEquipment: ${rentalTitle}\nDates: ${startDate} — ${endDate}\nTotal: ${formattedTotal}\n\nThank you for choosing ${STUDIO.name}.\n\n${SIGNATURE_TEXT}`,
       html: `
         <h2>Booking Confirmed</h2>
         <p>Your booking has been confirmed!</p>
@@ -221,7 +225,7 @@ export const gmail: EmailProvider = {
         </table>
         <p>Thank you for choosing ${STUDIO.name}.</p>
         <br />
-        <p>— ${STUDIO.name}</p>
+        ${SIGNATURE_HTML}
       `,
     });
   },
@@ -241,7 +245,7 @@ export const gmail: EmailProvider = {
     await this.sendEmail({
       to: email,
       subject: `Account Suspended — ${STUDIO.name}`,
-      text: `Hi ${greeting},\n\nYour account on ${STUDIO.name} has been suspended.\n\nReason: ${reason}\n\n${duration}\n\nYou can still log in to view your history, but you cannot make new transactions.\n\nTo appeal, contact ${supportEmail}.\n\n— ${STUDIO.name}`,
+      text: `Hi ${greeting},\n\nYour account on ${STUDIO.name} has been suspended.\n\nReason: ${reason}\n\n${duration}\n\nYou can still log in to view your history, but you cannot make new transactions.\n\nTo appeal, contact ${supportEmail}.\n\n${SIGNATURE_TEXT}`,
       html: `
         <h2>Account Suspended</h2>
         <p>Hi ${escapeHtml(greeting)},</p>
@@ -251,7 +255,7 @@ export const gmail: EmailProvider = {
         <p>You can still log in to view your history, but you cannot make new transactions.</p>
         <p>To appeal, contact <a href="mailto:${escapeHtml(supportEmail)}">${escapeHtml(supportEmail)}</a>.</p>
         <br />
-        <p>— ${STUDIO.name}</p>
+        ${SIGNATURE_HTML}
       `,
     });
   },
@@ -265,7 +269,7 @@ export const gmail: EmailProvider = {
     await this.sendEmail({
       to: email,
       subject: `Account Reinstated — ${STUDIO.name}`,
-      text: `Hi ${greeting},\n\nGreat news! Your account on ${STUDIO.name} has been reinstated. You now have full access to all platform features again.\n\nPlease review and republish any listings that were deactivated during your suspension.\n\nThank you.\n\n— ${STUDIO.name}`,
+      text: `Hi ${greeting},\n\nGreat news! Your account on ${STUDIO.name} has been reinstated. You now have full access to all platform features again.\n\nPlease review and republish any listings that were deactivated during your suspension.\n\nThank you.\n\n${SIGNATURE_TEXT}`,
       html: `
         <h2>Account Reinstated</h2>
         <p>Hi ${escapeHtml(greeting)},</p>
@@ -273,7 +277,7 @@ export const gmail: EmailProvider = {
         <p>Please review and republish any listings that were deactivated during your suspension.</p>
         <p>Thank you.</p>
         <br />
-        <p>— ${STUDIO.name}</p>
+        ${SIGNATURE_HTML}
       `,
     });
   },
@@ -298,7 +302,7 @@ export const gmail: EmailProvider = {
     await this.sendEmail({
       to: email,
       subject: `Dispute Filed — ${ref} — ${STUDIO.name}`,
-      text: `Hi ${greeting},\n\n${roleMessage}\n\nDispute Reference: ${ref}\nType: ${typeLabel}\n\nYou can view the dispute details and add comments in your dashboard.\n\n— ${STUDIO.name}`,
+      text: `Hi ${greeting},\n\n${roleMessage}\n\nDispute Reference: ${ref}\nType: ${typeLabel}\n\nYou can view the dispute details and add comments in your dashboard.\n\n${SIGNATURE_TEXT}`,
       html: `
         <h2>Dispute Filed</h2>
         <p>Hi ${escapeHtml(greeting)},</p>
@@ -309,7 +313,7 @@ export const gmail: EmailProvider = {
         </table>
         <p>You can view the dispute details and add comments in your dashboard.</p>
         <br />
-        <p>— ${STUDIO.name}</p>
+        ${SIGNATURE_HTML}
       `,
     });
   },
@@ -333,7 +337,7 @@ export const gmail: EmailProvider = {
     await this.sendEmail({
       to: email,
       subject: `Dispute Resolved — ${STUDIO.name}`,
-      text: `Hi ${greeting},\n\nYour ${typeLabel} dispute has been resolved.\n\nResolution: ${resolutionLabel}${refundLine}${notesLine}\n\nIf you have any questions about this resolution, please contact our support team.\n\n— ${STUDIO.name}`,
+      text: `Hi ${greeting},\n\nYour ${typeLabel} dispute has been resolved.\n\nResolution: ${resolutionLabel}${refundLine}${notesLine}\n\nIf you have any questions about this resolution, please contact our support team.\n\n${SIGNATURE_TEXT}`,
       html: `
         <h2>Dispute Resolved</h2>
         <p>Hi ${escapeHtml(greeting)},</p>
@@ -345,7 +349,7 @@ export const gmail: EmailProvider = {
         </table>
         <p>If you have any questions about this resolution, please contact our support team.</p>
         <br />
-        <p>— ${STUDIO.name}</p>
+        ${SIGNATURE_HTML}
       `,
     });
   },

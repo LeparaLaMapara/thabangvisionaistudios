@@ -1,4 +1,5 @@
 import { createAdminClient } from '@/lib/supabase/server';
+import { SIGNATURE_TEXT } from '@/lib/email/signature';
 import { email as emailProvider } from '@/lib/email';
 import { sms } from '@/lib/sms';
 import { STUDIO } from '@/lib/constants';
@@ -194,7 +195,7 @@ export const supabaseNotify: NotifyPort = {
         await emailProvider.sendEmail({
           to,
           subject: `${title} — ${STUDIO.name}`,
-          text: `${body}\n\nYour booking: ${STUDIO.meta.url}${link}\n\n${STUDIO.name}`,
+          text: `${body}\n\nYour booking: ${STUDIO.meta.url}${link}\n\n${SIGNATURE_TEXT}`,
         });
         return { ok: true };
       } catch (err) {

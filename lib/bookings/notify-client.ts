@@ -1,4 +1,5 @@
 import { createAdminClient } from '@/lib/supabase/server';
+import { SIGNATURE_TEXT } from '@/lib/email/signature';
 import { email as emailProvider } from '@/lib/email';
 import { STUDIO } from '@/lib/constants';
 
@@ -30,7 +31,7 @@ export async function notifyClient(params: {
       await emailProvider.sendEmail({
         to: b.client_email,
         subject: `${params.title} (${b.reference}) — ${STUDIO.name}`,
-        text: `${params.body}\n\nSee your booking: ${STUDIO.meta.url}/dashboard/bookings\n\n${STUDIO.name}`,
+        text: `${params.body}\n\nSee your booking: ${STUDIO.meta.url}/dashboard/bookings\n\n${SIGNATURE_TEXT}`,
       });
     }
   } catch (err) {
