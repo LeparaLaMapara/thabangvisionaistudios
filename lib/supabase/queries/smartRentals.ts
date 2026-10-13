@@ -147,6 +147,41 @@ export async function fetchPublishedRentalsByCategory(
 }
 
 /**
+ * Every published rental across all categories, ranked, capped at `limit`.
+ * Used by the /rentals page, which shows the gear itself and filters by
+ * category in place instead of sending people through category pages.
+ */
+export async function fetchAllPublishedRentals(
+  limit: number = RENTAL_CATEGORY_PAGE_LIMIT,
+): Promise<RentalListResult> {
+  try {
+    const supabase = await createClient();
+
+    const { data, error } = await supabase
+      .from('smart_rentals')
+      .select(RENTAL_CARD_COLUMNS)
+      .eq('is_published', true)
+      .neq('category', 'crew-services')
+      .is('deleted_at', null)
+      .order('ranking_score', { ascending: false })
+      .order('created_at', { ascending: false })
+      .limit(limit + 1);
+
+    if (error) {
+      console.error('[fetchAllPublishedRentals]', error.message);
+      return { rentals: [], failed: true, hasMore: false };
+    }
+
+    const rows = ((data as unknown as CardRow[]) ?? []).map(toListItem);
+    return { rentals: rows.slice(0, limit), failed: false, hasMore: rows.length > limit };
+  } catch (err) {
+    unstable_rethrow(err);
+    console.error('[fetchAllPublishedRentals]', err instanceof Error ? err.message : err);
+    return { rentals: [], failed: true, hasMore: false };
+  }
+}
+
+/**
  * Returns published rentals filtered by category slug (ranked, capped).
  * Kept for callers that only want the list; a database error reads as [].
  * Prefer fetchPublishedRentalsByCategory where the page can show an error.

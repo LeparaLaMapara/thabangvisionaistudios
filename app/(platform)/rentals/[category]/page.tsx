@@ -1,9 +1,9 @@
 import { redirect } from 'next/navigation';
-import { fetchPublishedRentalsByCategory } from '@/lib/supabase/queries/smartRentals';
+import { fetchAllPublishedRentals } from '@/lib/supabase/queries/smartRentals';
 import { RENTAL_CATEGORIES, STUDIO } from '@/lib/constants';
 import { buildPageMetadata } from '@/lib/seo/metadata';
 import { serviceJsonLd, breadcrumbJsonLd, renderJsonLd } from '@/lib/seo/structured-data';
-import RentalCategoryClient from './RentalCategoryClient';
+import AllGearClient from '../AllGearClient';
 import { RelatedCategories } from '@/components/seo/RelatedCategories';
 import { collectionPointWithCity } from '@/lib/rental/collection-point';
 
@@ -37,7 +37,8 @@ export default async function RentalCategoryPage({
   }
 
   const cat = RENTAL_CATEGORIES.find((c) => c.value === category);
-  const { rentals, failed, hasMore } = await fetchPublishedRentalsByCategory(category);
+  // The same all-gear page as /rentals, opened on this category's filter.
+  const { rentals, failed } = await fetchAllPublishedRentals();
 
   const jsonLd = cat ? [
     serviceJsonLd({
@@ -61,7 +62,7 @@ export default async function RentalCategoryPage({
           dangerouslySetInnerHTML={{ __html: renderJsonLd(ld) }}
         />
       ))}
-      <RentalCategoryClient rentals={rentals} category={category} loadFailed={failed} hasMore={hasMore} />
+      <AllGearClient rentals={rentals} initialCategory={category} loadFailed={failed} />
       <RelatedCategories currentSlug={category} type="rentals" />
     </>
   );
