@@ -266,13 +266,14 @@ export const STUDIO = {
   // Welcomes for new people (TASK-065, /admin/welcomes). null = the owner sends
   // each one by hand. 0 = sent straight away by the lifecycle engine
   // (lib/engagement) once the person's email is confirmed; a number = drafts
-  // still unsent after that many hours are sent by the daily job. Drafts for
-  // people who joined more than autoSendMaxAgeDays ago are never sent
-  // automatically (a welcome weeks late reads as a mistake); the owner can
-  // still send them by hand.
+  // still unsent after that many hours are sent by the daily job. Owner
+  // 2026-10-13: nobody approves welcomes; they all go automatically. Drafts
+  // for people who joined more than autoSendMaxAgeDays ago are skipped (a
+  // welcome months late reads as a mistake); 30 days covers everyone whose
+  // draft was waiting for a hand send when auto-send started.
   welcomes: {
     autoSendAfterHours: 0 as number | null,
-    autoSendMaxAgeDays: 7,
+    autoSendMaxAgeDays: 30,
   },
 
   // Lifecycle emails and push (lib/engagement): welcome, "finish your signup"
