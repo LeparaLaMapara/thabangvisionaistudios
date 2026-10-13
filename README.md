@@ -200,7 +200,7 @@ SQL editor, to both projects**. There is no automatic runner — a migration tha
 has been applied to prod and not dev is the usual cause of the two drifting.
 
 ```
-Latest: 079-security-phase-6.sql (prod has up to 066)
+Latest: 087-customer-engagement.sql (prod has up to 066, plus the F1 storage hotfix)
 ```
 
 The canonical order (base schema, `lib/migrations`, the four April files from

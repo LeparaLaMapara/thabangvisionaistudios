@@ -19,10 +19,11 @@ const baseInput: BioWriterInput = {
 };
 
 describe('buildBioWriterPrompt', () => {
-  it('includes the creator name and location', () => {
+  it('includes the location but never the creator name (POPIA: not needed for the bio)', () => {
     const prompt = buildBioWriterPrompt(baseInput);
-    expect(prompt).toContain('Thabang Mokoena');
     expect(prompt).toContain('Johannesburg');
+    expect(prompt).not.toContain('Thabang Mokoena');
+    expect(prompt).not.toMatch(/Name:/);
   });
 
   it('lists the top three scene types with percentages', () => {
@@ -50,7 +51,6 @@ describe('buildBioWriterPrompt', () => {
       detectedGear: [],
       topDescriptions: [],
     });
-    expect(prompt).toContain('Unknown');
     expect(prompt).toContain('South Africa');
     expect(prompt).toContain('unspecified');
     expect(prompt).toContain('none yet');

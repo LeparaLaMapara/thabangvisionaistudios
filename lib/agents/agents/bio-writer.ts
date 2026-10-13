@@ -12,6 +12,11 @@ export const bioWriterAgent: UbunyeAgent = {
 };
 
 export interface BioWriterInput {
+  /**
+   * Never sent to the model (POPIA: share only what the task needs). A first
+   * person bio does not need the name, and the bio writer can fall over to
+   * another provider (Gemini).
+   */
   displayName: string | null;
   location: string | null;
   yearsExperience: number | null;
@@ -36,7 +41,6 @@ export function buildBioWriterPrompt(input: BioWriterInput): string {
   return `You are writing a first-person bio for a South African creator's public profile on a creative-production marketplace.
 
 Creator facts:
-- Name: ${input.displayName ?? 'Unknown'}
 - Location: ${input.location ?? 'South Africa'}
 - Years of experience: ${input.yearsExperience ?? 'unspecified'}
 - Top scene types from portfolio: ${scenes}
@@ -47,6 +51,7 @@ ${samples}
 Write a natural, confident bio in first person, 2 to 3 sentences, maximum 280 characters total.
 Use South African English spelling. Do not use hashtags, emojis, or marketing clichés like "passionate" or "creative eye".
 Focus on what they actually shoot, where they're based, and one concrete specialty.
+Do not include a name.
 Return only the bio text — no quotes, no preamble, no explanation.`;
 }
 

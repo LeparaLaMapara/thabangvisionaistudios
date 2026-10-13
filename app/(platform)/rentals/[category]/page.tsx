@@ -1,9 +1,9 @@
 import { notFound, redirect } from 'next/navigation';
-import { fetchPublishedRentalsByCategory } from '@/lib/supabase/queries/smartRentals';
+import { fetchAllPublishedRentals } from '@/lib/supabase/queries/smartRentals';
 import { RENTAL_CATEGORIES, STUDIO } from '@/lib/constants';
 import { buildPageMetadata } from '@/lib/seo/metadata';
 import { serviceJsonLd, breadcrumbJsonLd, renderJsonLd } from '@/lib/seo/structured-data';
-import RentalCategoryClient from './RentalCategoryClient';
+import AllGearClient from '../AllGearClient';
 import { RelatedCategories } from '@/components/seo/RelatedCategories';
 import { collectionPointWithCity } from '@/lib/rental/collection-point';
 
@@ -38,13 +38,14 @@ export default async function RentalCategoryPage({
 
   const cat = RENTAL_CATEGORIES.find((c) => c.value === category);
   if (!cat) notFound();
-  const { rentals, failed, hasMore } = await fetchPublishedRentalsByCategory(category);
+  // The same all-gear page as /rentals, opened on this category's filter.
+  const { rentals, failed } = await fetchAllPublishedRentals();
 
   // A category page exists only while it has stock to show (lib/seo/inventory
   // rule): an empty category is a 404, so search engines never index an empty
   // shelf, and it comes back on its own when the first item is published. A
   // failed read is not "empty": that still renders, with the retry message.
-  if (!failed && rentals.length === 0) notFound();
+  if (!failed && !rentals.some((r) => r.category === category)) notFound();
 
   const jsonLd = [
     serviceJsonLd({
@@ -68,7 +69,7 @@ export default async function RentalCategoryPage({
           dangerouslySetInnerHTML={{ __html: renderJsonLd(ld) }}
         />
       ))}
-      <RentalCategoryClient rentals={rentals} category={category} loadFailed={failed} hasMore={hasMore} />
+      <AllGearClient rentals={rentals} initialCategory={category} loadFailed={failed} />
       <RelatedCategories currentSlug={category} type="rentals" />
     </>
   );

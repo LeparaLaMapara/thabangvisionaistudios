@@ -4,7 +4,7 @@
  * email was sent, so a creator who was not on the site lost the job when the
  * answer window closed.
  */
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { WebhookResult } from '@/lib/payments/types';
 
 type Row = Record<string, unknown>;
@@ -59,6 +59,9 @@ beforeEach(() => {
     shoot_date: '2026-10-18', location: 'Soweto', created_at: '2026-10-10T08:00:00Z',
   }];
 });
+afterEach(() => {
+  vi.unstubAllEnvs();
+});
 const hook = (): WebhookResult => ({
   valid: true, status: 'COMPLETE', providerPaymentId: 'ps_9', paymentId: 'BK-NEWJOB01', amountGross: 3450,
   raw: { custom_str1: 'service_booking', custom_str2: ID, currency: 'ZAR' },
@@ -83,6 +86,14 @@ describe('new paid job: the creator is told what THEY earn, in the app and by em
     expect(mail.text).toMatch(/Shoot date: Sunday,? 18 October 2026/);
     expect(mail.text).toMatch(/accept or decline by/i);
     expect(mail.text).toMatch(/\/dashboard\/gigs/);
+  });
+
+  it('the email link uses the cleaned app URL (no stray newline from the env value)', async () => {
+    vi.stubEnv('NEXT_PUBLIC_APP_URL', 'https://app.example.invalid/\n');
+    await confirmServiceBookingPayment(hook());
+    const mail = sendEmail.mock.calls[0][0];
+    expect(mail.text).toContain('https://app.example.invalid/dashboard/gigs');
+    expect(mail.text).not.toMatch(/invalid\/?\n\//);
   });
 
   it('a duplicate webhook sends nothing again', async () => {

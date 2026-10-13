@@ -6,7 +6,8 @@ import { createAdminClient } from '@/lib/supabase/server';
 import { email as emailProvider } from '@/lib/email';
 import { STUDIO } from '@/lib/constants';
 import { adminCancelRefundLines, checkServiceRefund, payoutAlreadySent, payoutDueAt } from '@/lib/core/services/fulfilment';
-import { recordServiceBookingEvent } from '@/lib/supabase/queries/service-bookings';
+import { ADMIN_ASSIGN_EVENT, recordServiceBookingEvent } from '@/lib/supabase/queries/service-bookings';
+import { answerByAt, formatSastDateTime } from '@/lib/bookings/answer-by';
 import { claimServiceRefund, sendClaimedServiceRefund, updateBookingWhere, type CasResult } from '@/lib/payments/service-refunds';
 
 // ─── PATCH — Admin update booking (assign creator, cancel, add notes) ───────
@@ -212,14 +213,30 @@ export async function PATCH(
     } catch { /* don't block */ }
   }
 
+  // The new creator's answer window starts now. Its start time is this
+  // 'admin_assign' history row (lib/bookings/answer-by.ts): without it the
+  // daily job counts from payment and could pass the job on at its next run.
+  // So the row is written straight after the assignment, retried once, and
+  // the admin is told if it still could not be recorded.
+  let answerClockRecorded = true;
   if (creator_id) {
+    const assignEvent = {
+      bookingId: id, event: ADMIN_ASSIGN_EVENT, from: booking.status, to: 'paid', actor: 'admin' as const, actorId: auth.user.id,
+      reason: previousCreator ? `creator changed from ${previousCreator} to ${creator_id}` : `creator ${creator_id} assigned`,
+    };
+    if ((await recordServiceBookingEvent(supabase, assignEvent)) === false) {
+      answerClockRecorded = (await recordServiceBookingEvent(supabase, assignEvent)) !== false;
+    }
+    if (!answerClockRecorded) console.error('[admin/service-bookings] assignment time not recorded for', id);
+
+    const due = formatSastDateTime(answerByAt({ created_at: now.toISOString(), assigned_at: now.toISOString() }));
     try {
       await supabase.from('notifications').insert({
         user_id: creator_id,
         type: 'booking_assigned',
         title: 'New Gig Assigned',
-        body: `You've been assigned a ${booking.project_category} booking (${booking.reference}). Check your gigs dashboard.`,
-        link: '/dashboard/gigs',
+        body: `You've been assigned a ${booking.project_category} booking (${booking.reference}). Accept or decline by ${due} on your gigs dashboard.`,
+        link: `/dashboard/gigs#gig-${id}`,
       });
     } catch { /* don't block */ }
   }
@@ -287,13 +304,6 @@ export async function PATCH(
     } catch { /* don't block */ }
   }
 
-  if (creator_id) {
-    await recordServiceBookingEvent(supabase, {
-      bookingId: id, event: 'admin_assign', from: booking.status, to: 'paid', actor: 'admin', actorId: auth.user.id,
-      reason: previousCreator ? `creator changed from ${previousCreator} to ${creator_id}` : `creator ${creator_id} assigned`,
-    });
-  }
-
   if (status && status !== booking.status) {
     await recordServiceBookingEvent(supabase, {
       bookingId: id, event: 'admin_status', from: booking.status, to: String(status), actor: 'admin', actorId: auth.user.id,
@@ -301,5 +311,11 @@ export async function PATCH(
     });
   }
 
-  return NextResponse.json({ success: true, ...(refundResult ? { refund_status: refundResult } : {}) });
+  return NextResponse.json({
+    success: true,
+    ...(refundResult ? { refund_status: refundResult } : {}),
+    ...(answerClockRecorded ? {} : {
+      warning: 'The creator was assigned, but the start of their answer time could not be recorded. The daily job may count from the payment date and pass the job on early. Check the booking tomorrow.',
+    }),
+  });
 }
