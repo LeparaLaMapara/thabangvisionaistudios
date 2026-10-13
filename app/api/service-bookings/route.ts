@@ -1,7 +1,7 @@
 export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
-import { nanoid } from 'nanoid';
+import { newServiceBookingReference } from '@/lib/payments/booking-reference';
 import { createClient, createAdminClient } from '@/lib/supabase/server';
 import { payments } from '@/lib/payments';
 import { STUDIO } from '@/lib/constants';
@@ -121,7 +121,7 @@ export async function POST(request: NextRequest) {
   const { subtotal, vat, total } = quote;
   const { platformAmount, creatorAmount } = splitServiceBooking(quote, STUDIO.booking.platformCommission);
 
-  const reference = `BK-${nanoid(10)}`;
+  const reference = newServiceBookingReference();
   const baseUrl = appUrl(STUDIO.meta.url);
 
   try {
@@ -204,7 +204,7 @@ export async function POST(request: NextRequest) {
       itemDescription: pkg ? `${project_category} — ${quote.line}` : `${project_category} — ${duration_hours}hrs`,
       email: user.email!,
       returnUrl: `${baseUrl}/api/service-bookings/callback?reference=${reference}`,
-      cancelUrl: `${baseUrl}/dashboard/bookings?status=cancelled`,
+      cancelUrl: `${baseUrl}/dashboard/bookings?status=cancelled&ref=${reference}`,
       metadata: {
         customStr1: 'service_booking',
         customStr2: booking.id,

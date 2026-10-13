@@ -157,10 +157,11 @@ export async function PATCH(
       if (crewRequest.deposit_amount && crewRequest.deposit_amount > 0) {
         try {
           const { payments } = await import('@/lib/payments');
+          const { crewPaymentReference } = await import('@/lib/payments/crew-reference');
           if (payments.isConfigured()) {
             const baseUrl = appUrl(STUDIO.meta.url);
             const result = await payments.createCheckout({
-              paymentId: id,
+              paymentId: crewPaymentReference(id, 'deposit'),
               amount: crewRequest.deposit_amount,
               itemName: `Deposit: ${crewRequest.project_type}`,
               itemDescription: '20% deposit for creator booking',

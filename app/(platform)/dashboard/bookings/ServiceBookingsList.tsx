@@ -8,6 +8,8 @@ import { ReportProblemDialog, ReportFiledNote } from '@/components/disputes/Repo
 import { STUDIO } from '@/lib/constants';
 import { formatRand } from '@/lib/format/money';
 import { clientServiceActions } from '@/lib/bookings/client-actions';
+import { canPayAgain } from '@/lib/bookings/service-payment-notice';
+import { usePaymentsOpen } from '@/lib/payments/usePaymentsOpen';
 
 interface ServiceBooking {
   id: string;
@@ -76,6 +78,7 @@ export default function ServiceBookingsList({ bookings }: { bookings: ServiceBoo
   const [rating, setRating] = useState(5);
   const [review, setReview] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const paymentsOpen = usePaymentsOpen();
 
   const filtered = activeTab === 'all'
     ? bookings
@@ -277,6 +280,11 @@ export default function ServiceBookingsList({ bookings }: { bookings: ServiceBoo
                 return (
                   <>
                     <div className="mt-4 flex flex-wrap gap-3">
+                      {canPayAgain(booking, paymentsOpen) && (
+                        <Link href={`/dashboard/bookings/pay?ref=${encodeURIComponent(booking.reference)}`} className={`${btn} inline-flex items-center bg-[#D4A843] font-medium text-black hover:bg-[#c49a3a]`}>
+                          Pay again
+                        </Link>
+                      )}
                       {can.approve && (
                         <button onClick={() => handleApprove(booking.id)} disabled={busy === booking.id} className={`${btn} bg-[#D4A843] font-medium text-black hover:bg-[#c49a3a] disabled:opacity-50`}>
                           Approve the work

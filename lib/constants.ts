@@ -91,10 +91,10 @@ export const STUDIO = {
     // published text changes; acceptances are recorded against these strings
     // in public.consent_records (lib/migrations/068).
     documents: {
-      terms: { version: '2026-10-08', label: 'Terms of Service', href: '/legal' },
+      terms: { version: '2026-10-13', label: 'Terms of Service', href: '/legal' },
       privacy: { version: '2026-10-08', label: 'Privacy Policy', href: '/privacy' },
-      refunds: { version: '2026-10-08', label: 'Refunds & Cancellations', href: '/refunds' },
-      rentalAgreement: { version: '2026-10-08', label: 'Rental agreement', href: '/legal#equipment-hire' },
+      refunds: { version: '2026-10-13', label: 'Refunds & Cancellations', href: '/refunds' },
+      rentalAgreement: { version: '2026-10-13', label: 'Rental agreement', href: '/legal#equipment-hire' },
       biometricNotice: { version: '2026-10-08', label: 'Identity check notice', href: '/privacy#identity-verification' },
     },
     // The VAT number itself. Optional: a vendor must show it on a tax invoice,

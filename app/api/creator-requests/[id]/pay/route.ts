@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase/server';
 import { payments } from '@/lib/payments';
 import { STUDIO } from '@/lib/constants';
 import { appUrl } from '@/lib/app-url';
+import { crewPaymentReference } from '@/lib/payments/crew-reference';
 
 export async function POST(
   req: NextRequest,
@@ -55,7 +56,8 @@ export async function POST(
   try {
     const baseUrl = appUrl(STUDIO.meta.url);
     const result = await payments.createCheckout({
-      paymentId: request.id,
+      // A fresh reference per attempt: Paystack refuses one it has seen.
+      paymentId: crewPaymentReference(request.id, 'full'),
       amount: request.total_amount,
       itemName: `Creator Booking: ${request.project_type}`,
       itemDescription: `Booking with creator via ${STUDIO.name}`,
