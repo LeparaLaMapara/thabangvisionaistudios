@@ -24,5 +24,22 @@ export async function GET() {
     return NextResponse.json({ error: 'Failed to fetch bookings' }, { status: 500 });
   }
 
-  return NextResponse.json({ bookings: data ?? [] });
+  // client_id points at auth.users, so the client's name is read separately.
+  const rows = (data ?? []) as { client_id: string | null }[];
+  const clientIds = [...new Set(rows.map((b) => b.client_id).filter((x): x is string => Boolean(x)))];
+  const names = new Map<string, string>();
+  if (clientIds.length) {
+    const { data: people } = await supabase
+      .from('profiles')
+      .select('id, display_name, first_name, last_name')
+      .in('id', clientIds);
+    for (const p of (people ?? []) as { id: string; display_name: string | null; first_name: string | null; last_name: string | null }[]) {
+      const name = p.display_name?.trim() || [p.first_name, p.last_name].filter(Boolean).join(' ').trim();
+      if (name) names.set(p.id, name);
+    }
+  }
+
+  return NextResponse.json({
+    bookings: rows.map((b) => ({ ...b, client_name: (b.client_id && names.get(b.client_id)) || null })),
+  });
 }

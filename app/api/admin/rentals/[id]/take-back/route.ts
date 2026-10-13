@@ -37,23 +37,33 @@ type Row = {
   id: string; user_id: string; status: string; end_date: string; quantity: number | null;
   deposit_amount: number | null; total_price: number | null; payment_plan: string | null;
   checkout_group_id: string | null; payfast_payment_id: string | null; notes: string | null;
-  balance_due: number | null; delivery_fee: number | null;
+  balance_due: number | null; delivery_fee: number | null; returned_at: string | null;
 };
 
 async function load(id: string): Promise<Row | null> {
   const { data } = await createAdminClient()
     .from('equipment_bookings')
-    .select('id, user_id, status, end_date, quantity, deposit_amount, total_price, payment_plan, checkout_group_id, payfast_payment_id, notes, balance_due, delivery_fee')
+    .select('id, user_id, status, end_date, quantity, deposit_amount, total_price, payment_plan, checkout_group_id, payfast_payment_id, notes, balance_due, delivery_fee, returned_at')
     .eq('id', id)
     .maybeSingle();
   return (data as Row | null) ?? null;
 }
 
-/** The moment the renter gave the gear back: a return pickup's collection, if earlier than now. */
-function handedBackAt(now: Date, returnCollectedAt: string | null): Date {
-  if (!returnCollectedAt) return now;
-  const t = new Date(returnCollectedAt);
-  return Number.isNaN(t.getTime()) || t.getTime() > now.getTime() ? now : t;
+/**
+ * The moment the renter gave the gear back: a return pickup's collection, or
+ * the time they reported handing it back (a booking already in
+ * return_pending), whichever is earliest; otherwise now. Lateness is never
+ * counted for the time the gear waited for staff to check it.
+ */
+function handedBackAt(now: Date, returnCollectedAt: string | null, b?: Pick<Row, 'status' | 'returned_at'>): Date {
+  let at = now;
+  const candidates = [returnCollectedAt, b?.status === 'return_pending' ? b.returned_at : null];
+  for (const c of candidates) {
+    if (!c) continue;
+    const t = new Date(c);
+    if (!Number.isNaN(t.getTime()) && t.getTime() < at.getTime()) at = t;
+  }
+  return at;
 }
 
 /** Whether the deposit went through a payment provider, so it can go back to the card. */
@@ -84,7 +94,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     deliveryUnknown = true;
   }
   // A return pickup that took the gear from the renter is when they gave it back (D-49).
-  const late = lateFeeAfterDelivery({ endDate: b.end_date, returnedAt: handedBackAt(new Date(), delivery.returnCollectedAt), quantity: b.quantity, deposit }, delivery);
+  const late = lateFeeAfterDelivery({ endDate: b.end_date, returnedAt: handedBackAt(new Date(), delivery.returnCollectedAt, b), quantity: b.quantity, deposit }, delivery);
   const [notice] = await loadNoticeBookings([id]);
   const { data: serialRow } = await createAdminClient().from('equipment_bookings').select('smart_rentals(serial_number)').eq('id', id).maybeSingle();
   const serialRental = serialRow ? ((Array.isArray(serialRow.smart_rentals) ? serialRow.smart_rentals[0] : serialRow.smart_rentals) as { serial_number?: string | null } | null) : null;
@@ -138,6 +148,17 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   if (!OUT.includes(b.status)) {
     return NextResponse.json({ error: `This booking is ${b.status}; only gear that is out can be taken back.` }, { status: 409 });
   }
+  // Only the deposit can be kept here. Damage worth more is claimed through a
+  // dispute, never quietly cut down to the deposit.
+  if (!body.dispute && damageFee > Math.max(0, Number(b.deposit_amount ?? 0))) {
+    return NextResponse.json(
+      {
+        error: `The damage (R${damageFee.toFixed(2)}) is more than the deposit (R${Number(b.deposit_amount ?? 0).toFixed(2)}). Open a dispute instead, so the rest can be claimed from the renter.`,
+        code: 'DAMAGE_OVER_DEPOSIT',
+      },
+      { status: 400 },
+    );
+  }
 
   const db = createAdminClient();
   const retryLater = (): NextResponse =>
@@ -179,12 +200,13 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const depositRands = Number(b.deposit_amount ?? 0);
   const depositCents = snap.deposit_cents ?? toCents(depositRands);
   // A return pickup that took the gear from the renter is when they gave it back (D-49).
-  const late = lateFeeAfterDelivery({ endDate: b.end_date, returnedAt: handedBackAt(now, delivery.returnCollectedAt), quantity: b.quantity, deposit: depositRands }, delivery);
+  const late = lateFeeAfterDelivery({ endDate: b.end_date, returnedAt: handedBackAt(now, delivery.returnCollectedAt, b), quantity: b.quantity, deposit: depositRands }, delivery);
   const lateFeeCents = toCents(late.fee);
   const damageCents = Math.min(toCents(damageFee), depositCents);
 
   const outcome: 'clean' | 'damage' | 'missing_parts' | 'late' =
-    missing.length > 0 ? 'missing_parts' : damageCents > 0 || body.functionalCheck === 'faulty' ? 'damage' : lateFeeCents > 0 ? 'late' : 'clean';
+    // Late is late even when no fee can be kept (no deposit to take it from), unless the courier caused it.
+    missing.length > 0 ? 'missing_parts' : damageCents > 0 || body.functionalCheck === 'faulty' ? 'damage' : lateFeeCents > 0 || (late.daysLate > 0 && !late.waivedForDelivery) ? 'late' : 'clean';
   const evidence = {
     received_by: auth.user.id,
     received_name: typeof body.receivedBy === 'string' ? body.receivedBy.trim().slice(0, 120) : null,
@@ -198,7 +220,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     at: iso,
   };
 
-  const returnPatch = { condition_at_return: body.condition, return_photos: photos, return_notes: note || null, returned_at: iso, return_evidence: evidence, late_fee: late.fee };
+  // Keep the time the renter actually handed it back, when that is known and earlier.
+  const returnedIso = handedBackAt(now, delivery.returnCollectedAt, b).toISOString();
+  const returnPatch = { condition_at_return: body.condition, return_photos: photos, return_notes: note || null, returned_at: returnedIso, return_evidence: evidence, late_fee: late.fee };
 
   // Step 1: the gear is back. Recorded whatever happens next, so the unit is
   // accounted for even if settlement needs a person.

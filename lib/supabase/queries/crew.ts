@@ -314,37 +314,6 @@ export async function getAllCrewRequests(): Promise<CrewRequest[]> {
   return (data as unknown as CrewRequest[]) ?? [];
 }
 
-export async function updateCrewRequestStatus(
-  requestId: string,
-  status: string,
-  adminNotes?: string,
-  totalAmount?: number,
-  commissionAmount?: number,
-): Promise<{ success: boolean; error?: string }> {
-  const supabase = createAdminClient();
-
-  const update: Record<string, unknown> = {
-    status,
-    updated_at: new Date().toISOString(),
-  };
-
-  if (adminNotes !== undefined) update.admin_notes = adminNotes;
-  if (totalAmount !== undefined) update.total_amount = totalAmount;
-  if (commissionAmount !== undefined) update.commission_amount = commissionAmount;
-
-  const { error } = await supabase
-    .from('crew_requests')
-    .update(update)
-    .eq('id', requestId);
-
-  if (error) {
-    console.error('[updateCrewRequestStatus]', error.message);
-    return { success: false, error: error.message };
-  }
-
-  return { success: true };
-}
-
 // ─── Lazy Expiry ────────────────────────────────────────────────────────────
 // Serverless "lazy expiry" — expire pending crew_requests older than 48 hours.
 // Called before returning results on dashboard pages. Idempotent and safe to

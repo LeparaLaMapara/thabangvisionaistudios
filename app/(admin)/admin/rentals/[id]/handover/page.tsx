@@ -167,12 +167,15 @@ export default function HandoverPage() {
       setErrorHint(typeof json.code === 'string' ? CODE_HINTS[json.code] ?? null : null);
       return;
     }
-    router.push('/admin/bookings');
+    router.push(`/admin/bookings?open=${id}&done=handover`);
   };
 
   const registeredSerial = data?.rental?.serial_number?.trim() || null;
   const needsRisk = data?.booking.requires_manual_approval === true;
+  // The server refuses a handover to a renter whose ID is not checked; say so up front.
+  const renterVerified = data?.renter.verification === 'verified';
   const ready =
+    renterVerified &&
     idChecked &&
     collectorIsRenter &&
     location.trim().length >= 3 &&
@@ -214,6 +217,17 @@ export default function HandoverPage() {
         <p className="text-sm text-[#D4A843] border border-[#D4A843]/30 rounded p-3">
           This booking is flagged for risk. A manager must approve it, with a note, before the gear leaves (step 4).
         </p>
+      )}
+      {data && !renterVerified && (
+        <div role="alert" className="rounded border border-red-500/40 bg-red-500/10 p-4 text-sm text-red-200">
+          <p>
+            <strong>{data.renter.name}&apos;s ID is not checked</strong>, so this gear cannot be handed over yet. Approve their ID check
+            first, or cancel the booking if they cannot be verified.
+          </p>
+          <Link href="/admin/verifications" className="mt-2 inline-block underline">
+            Open ID checks
+          </Link>
+        </div>
       )}
       {data && data.booking.status !== 'confirmed' && (
         <p className="text-sm text-[#D4A843]">This booking is {data.booking.status}. Only a confirmed (paid) booking can be handed over.</p>

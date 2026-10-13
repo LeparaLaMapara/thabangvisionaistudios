@@ -1,20 +1,34 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { MapPin, Calendar, Mail, Phone, Briefcase, MessageSquare } from 'lucide-react';
 import { STUDIO } from '@/lib/constants';
+import { formatRand } from '@/lib/format/money';
 import type { CrewRequest } from '@/lib/supabase/queries/crew';
+import { useAdminUI } from '@/components/admin/shell/AdminUI';
 
-const TABS = ['all', 'pending', 'contacted', 'confirmed', 'completed', 'declined'] as const;
+const TABS = ['all', 'pending', 'contacted', 'confirmed', 'completed', 'declined', 'cancelled', 'expired'] as const;
+
+const statusWord = (s: string): string => STUDIO.creators.statusLabels[s as keyof typeof STUDIO.creators.statusLabels] || s;
 
 interface Props {
   initialRequests: CrewRequest[];
 }
 
 export default function CreatorRequestsManager({ initialRequests }: Props) {
+  const ui = useAdminUI();
   const [requests, setRequests] = useState(initialRequests);
   const [activeTab, setActiveTab] = useState<string>('all');
   const [expandedId, setExpandedId] = useState<string | null>(null);
+
+  // From Today: ?open=<id> opens that request.
+  useEffect(() => {
+    const open = new URLSearchParams(window.location.search).get('open');
+    if (!open) return;
+    setExpandedId(open);
+    window.history.replaceState(null, '', window.location.pathname);
+    setTimeout(() => document.getElementById(`request-${open}`)?.scrollIntoView({ block: 'center' }), 50);
+  }, []);
   const [updating, setUpdating] = useState<string | null>(null);
   const [notes, setNotes] = useState<Record<string, string>>({});
 
@@ -25,30 +39,94 @@ export default function CreatorRequestsManager({ initialRequests }: Props) {
     counts[tab] = tab === 'all' ? requests.length : requests.filter((r) => r.status === tab).length;
   }
 
-  const updateStatus = async (id: string, status: string) => {
+  /** One PATCH; shows what happened and keeps the list in step with the server. */
+  const send = async (id: string, body: Record<string, unknown>, done: string): Promise<boolean> => {
     setUpdating(id);
     try {
       const res = await fetch(`/api/admin/creator-requests/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ status, admin_notes: notes[id] || undefined }),
+        body: JSON.stringify(body),
       });
-
-      if (res.ok) {
-        setRequests((prev) =>
-          prev.map((r) =>
-            r.id === id
-              ? { ...r, status, admin_notes: notes[id] || r.admin_notes, updated_at: new Date().toISOString() }
-              : r,
-          ),
-        );
+      const data = (await res.json().catch(() => ({}))) as { error?: string; request?: Partial<CrewRequest> };
+      if (!res.ok) {
+        ui.notify(data.error ?? 'That did not work. Nothing was changed.', 'bad');
+        return false;
       }
+      if (data.request) {
+        setRequests((prev) => prev.map((r) => (r.id === id ? { ...r, ...data.request } : r)));
+        setNotes((prev) => {
+          const next = { ...prev };
+          delete next[id];
+          return next;
+        });
+      }
+      ui.notify(done, 'good');
+      return true;
     } catch {
-      // Silently fail
+      ui.notify('No answer from the server. Nothing was changed on this screen; reload and check.', 'bad');
+      return false;
     } finally {
       setUpdating(null);
     }
+  };
+
+  const updateStatus = async (req: CrewRequest, status: string) => {
+    if (status === 'declined' || status === 'cancelled') {
+      const ok = await ui.confirm({
+        title: status === 'declined' ? `Tell ${req.client_name} the creator is not available?` : `Cancel ${req.client_name}'s request?`,
+        body: 'The request is closed. Write to the client as well, so they know what happens next.',
+        action: status === 'declined' ? 'Mark not available' : 'Cancel request',
+        danger: true,
+      });
+      if (!ok) return;
+    }
+    await send(req.id, { status, ...(notes[req.id] !== undefined ? { admin_notes: notes[req.id] } : {}) }, `Now: ${statusWord(status)}.`);
+  };
+
+  const writeToClient = async (req: CrewRequest) => {
+    const message = await ui.ask({
+      title: `Write to ${req.client_name}`,
+      body: `Emailed to ${req.client_email} from ${STUDIO.name}, and kept in the notes.`,
+      label: 'Your message',
+      multiline: true,
+      placeholder: 'Hi, thanks for your request. Naledi is free on that Saturday…',
+      action: 'Send email',
+    });
+    if (!message) return;
+    await send(req.id, { message, ...(req.status === 'pending' ? { status: 'contacted' } : {}) }, `Email sent to ${req.client_name}.`);
+  };
+
+  const sendQuote = async (req: CrewRequest) => {
+    const answer = await ui.ask({
+      title: `Quote for ${req.client_name}`,
+      body: `What the client pays, in rand. ${STUDIO.name} keeps ${req.commission_rate ?? STUDIO.creators.commissionRate}% and the creator gets the rest.`,
+      label: 'Quote (R)',
+      placeholder: '8000',
+      initial: req.total_amount ? String(req.total_amount) : '',
+      action: 'Continue',
+    });
+    if (!answer) return;
+    const amount = Number(answer.replace(/[^0-9.]/g, ''));
+    if (!(amount > 0)) {
+      ui.notify('Enter the quote as a number, for example 8000.', 'bad');
+      return;
+    }
+    const message = await ui.ask({
+      title: `Send the ${formatRand(amount)} quote to ${req.client_name}?`,
+      body: `Edit the message if you like. It is emailed to ${req.client_email}.`,
+      label: 'Message',
+      multiline: true,
+      initial: `Hi ${req.client_name},\n\nThank you for your ${req.project_type} request. The price is ${formatRand(amount)}${req.preferred_dates ? ` for ${req.preferred_dates}` : ''}. Reply to this email to confirm and we will send the payment link.`,
+      action: `Send ${formatRand(amount)} quote`,
+    });
+    if (!message) return;
+    await send(
+      req.id,
+      { total_amount: amount, message, ...(req.status === 'pending' ? { status: 'contacted' } : {}) },
+      `Quote of ${formatRand(amount)} sent to ${req.client_name}.`,
+    );
   };
 
   return (
@@ -84,7 +162,7 @@ export default function CreatorRequestsManager({ initialRequests }: Props) {
             } | null;
 
             return (
-              <div key={req.id} className="bg-[#0A0A0B] border border-white/5">
+              <div key={req.id} id={`request-${req.id}`} className="bg-[#0A0A0B] border border-white/5">
                 {/* Header row */}
                 <button
                   onClick={() => setExpandedId(isExpanded ? null : req.id)}
@@ -204,60 +282,42 @@ export default function CreatorRequestsManager({ initialRequests }: Props) {
                       />
                     </div>
 
-                    {/* Action buttons */}
+                    {req.total_amount ? (
+                      <p className="text-sm text-neutral-200">
+                        Quoted {formatRand(Number(req.total_amount))}
+                        {req.commission_amount ? ` · ${STUDIO.name} keeps ${formatRand(Number(req.commission_amount))}` : ''}
+                      </p>
+                    ) : null}
+
+                    {/* Action buttons: the label says the step, in the same words as the tabs */}
                     <div className="flex flex-wrap gap-2 pt-2">
-                      {req.status === 'pending' && (
+                      {['pending', 'contacted', 'confirmed'].includes(req.status) && (
                         <>
-                          <ActionButton
-                            label="Mark Contacted"
-                            onClick={() => updateStatus(req.id, 'contacted')}
-                            loading={updating === req.id}
-                            color="blue"
-                          />
-                          <ActionButton
-                            label="Confirm"
-                            onClick={() => updateStatus(req.id, 'confirmed')}
-                            loading={updating === req.id}
-                            color="green"
-                          />
-                          <ActionButton
-                            label="Decline"
-                            onClick={() => updateStatus(req.id, 'declined')}
-                            loading={updating === req.id}
-                            color="red"
-                          />
+                          <ActionButton label="Write to the client" onClick={() => void writeToClient(req)} loading={updating === req.id} color="blue" />
+                          <ActionButton label="Send a quote" onClick={() => void sendQuote(req)} loading={updating === req.id} color="blue" />
                         </>
                       )}
-                      {req.status === 'contacted' && (
+                      {req.status === 'pending' && (
+                        <ActionButton label={`Mark ${statusWord('contacted')}`} onClick={() => void updateStatus(req, 'contacted')} loading={updating === req.id} color="blue" />
+                      )}
+                      {(req.status === 'pending' || req.status === 'contacted') && (
                         <>
-                          <ActionButton
-                            label="Confirm"
-                            onClick={() => updateStatus(req.id, 'confirmed')}
-                            loading={updating === req.id}
-                            color="green"
-                          />
-                          <ActionButton
-                            label="Decline"
-                            onClick={() => updateStatus(req.id, 'declined')}
-                            loading={updating === req.id}
-                            color="red"
-                          />
+                          <ActionButton label={`Mark ${statusWord('confirmed')}`} onClick={() => void updateStatus(req, 'confirmed')} loading={updating === req.id} color="green" />
+                          <ActionButton label={`Mark ${statusWord('declined')}`} onClick={() => void updateStatus(req, 'declined')} loading={updating === req.id} color="red" />
                         </>
                       )}
                       {req.status === 'confirmed' && (
-                        <ActionButton
-                          label="Mark Completed"
-                          onClick={() => updateStatus(req.id, 'completed')}
-                          loading={updating === req.id}
-                          color="green"
-                        />
+                        <ActionButton label={`Mark ${statusWord('completed')}`} onClick={() => void updateStatus(req, 'completed')} loading={updating === req.id} color="green" />
                       )}
-                      {(req.status === 'confirmed' || req.status === 'contacted') && (
+                      {['pending', 'contacted', 'confirmed'].includes(req.status) && (
+                        <ActionButton label="Cancel request" onClick={() => void updateStatus(req, 'cancelled')} loading={updating === req.id} color="red" />
+                      )}
+                      {notes[req.id] !== undefined && notes[req.id] !== (req.admin_notes ?? '') && (
                         <ActionButton
-                          label="Cancel"
-                          onClick={() => updateStatus(req.id, 'cancelled')}
+                          label="Save notes"
+                          onClick={() => void send(req.id, { admin_notes: notes[req.id] }, 'Notes saved.')}
                           loading={updating === req.id}
-                          color="red"
+                          color="blue"
                         />
                       )}
                     </div>

@@ -15,6 +15,7 @@ import {
   Clock,
   AlertTriangle,
 } from 'lucide-react';
+import { useAdminUI } from '@/components/admin/shell/AdminUI';
 
 type UserProfile = {
   id: string;
@@ -66,6 +67,13 @@ function computeExpiresAt(duration: string, customDate: string): string | null {
 }
 
 export default function AdminUsersPage(): React.ReactElement {
+  const ui = useAdminUI();
+  const [query, setQuery] = useState('');
+  useEffect(() => {
+    const q = new URLSearchParams(window.location.search).get('q');
+    // From search elsewhere in the admin: start filtered to that person.
+    if (q) setQuery(q);
+  }, []);
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
@@ -110,6 +118,26 @@ export default function AdminUsersPage(): React.ReactElement {
     fetchUsers();
   }, [fetchUsers]);
 
+  async function confirmRole(user: { id: string; display_name: string | null; email: string | null; role: string }, newRole: string): Promise<void> {
+    if (newRole === user.role) return;
+    const who = user.display_name || user.email || 'this person';
+    const ok = await ui.confirm(
+      newRole === 'admin'
+        ? {
+            title: `Make ${who} an admin?`,
+            body: 'Admins see everything: people, ID documents, money and payouts, and can change all of it. They are signed out and must sign in again.',
+            action: `Make ${who} an admin`,
+            danger: true,
+          }
+        : {
+            title: `Change ${who} to ${newRole}?`,
+            body: user.role === 'admin' ? 'They lose admin access straight away and are signed out.' : 'They are signed out and must sign in again.',
+            action: 'Change role',
+          },
+    );
+    if (ok) await changeRole(user.id, newRole);
+  }
+
   async function changeRole(userId: string, newRole: string): Promise<void> {
     setUpdating(userId);
     try {
@@ -121,7 +149,7 @@ export default function AdminUsersPage(): React.ReactElement {
 
       if (!res.ok) {
         const data = await res.json();
-        alert(data.error || 'Failed to update role');
+        ui.notify(data.error || 'Could not change the role.', 'bad');
         return;
       }
 
@@ -129,7 +157,7 @@ export default function AdminUsersPage(): React.ReactElement {
         prev.map(u => (u.id === userId ? { ...u, role: newRole } : u)),
       );
     } catch {
-      alert('Failed to update role. Please try again.');
+      ui.notify('Could not change the role. Please try again.', 'bad');
     } finally {
       setUpdating(null);
     }
@@ -152,7 +180,7 @@ export default function AdminUsersPage(): React.ReactElement {
 
       if (!res.ok) {
         const data = await res.json();
-        alert(data.error || 'Failed to suspend user');
+        ui.notify(data.error || 'Could not suspend this person.', 'bad');
         return;
       }
 
@@ -171,7 +199,7 @@ export default function AdminUsersPage(): React.ReactElement {
       );
       closeSuspendModal();
     } catch {
-      alert('Failed to suspend user. Please try again.');
+      ui.notify('Could not suspend this person. Please try again.', 'bad');
     } finally {
       setSuspendLoading(false);
     }
@@ -190,7 +218,7 @@ export default function AdminUsersPage(): React.ReactElement {
 
       if (!res.ok) {
         const data = await res.json();
-        alert(data.error || 'Failed to reinstate user');
+        ui.notify(data.error || 'Could not restore this person.', 'bad');
         return;
       }
 
@@ -209,7 +237,7 @@ export default function AdminUsersPage(): React.ReactElement {
       );
       closeReinstateModal();
     } catch {
-      alert('Failed to reinstate user. Please try again.');
+      ui.notify('Could not restore this person. Please try again.', 'bad');
     } finally {
       setReinstateLoading(false);
     }
@@ -270,11 +298,17 @@ export default function AdminUsersPage(): React.ReactElement {
   const adminCount = admins.length;
   const suspendedCount = users.filter(u => u.is_suspended).length;
 
+  const needle = query.trim().toLowerCase();
   const filteredUsers = users.filter(u => {
-    if (filterTab === 'suspended') return u.is_suspended;
-    if (filterTab === 'active') return !u.is_suspended;
+    if (filterTab === 'suspended' && !u.is_suspended) return false;
+    if (filterTab === 'active' && u.is_suspended) return false;
+    if (needle && !`${u.display_name ?? ''} ${u.email ?? ''}`.toLowerCase().includes(needle)) return false;
     return true;
   });
+  const nameOf = (id: string | null | undefined): string => {
+    const u = users.find(x => x.id === id);
+    return u?.display_name || u?.email || 'an admin';
+  };
 
   return (
     <div className="max-w-5xl mx-auto px-3 md:px-6 py-6 md:py-12 space-y-8">
@@ -290,6 +324,15 @@ export default function AdminUsersPage(): React.ReactElement {
           {users.length} users · {adminCount} admin{adminCount !== 1 ? 's' : ''} · {suspendedCount} suspended
         </p>
       </div>
+
+      <input
+        type="search"
+        value={query}
+        onChange={e => setQuery(e.target.value)}
+        placeholder="Find a person by name or email"
+        aria-label="Find a person"
+        className="w-full h-11 bg-neutral-900 border border-white/10 px-3 text-base text-white placeholder:text-neutral-500 focus:outline-none focus:border-accent-gold"
+      />
 
       {/* Filter Tabs */}
       <div className="flex gap-1">
@@ -314,7 +357,7 @@ export default function AdminUsersPage(): React.ReactElement {
       {/* Users Table */}
       <div className="bg-neutral-900 border border-white/5 overflow-hidden">
         {/* Table Header */}
-        <div className="grid grid-cols-[1fr_auto_auto_auto] md:grid-cols-[1fr_1fr_auto_auto_auto] gap-4 px-4 py-3 border-b border-white/[0.06] bg-neutral-900/50">
+        <div className="hidden md:grid md:grid-cols-[1fr_1fr_auto_auto_auto] gap-4 px-4 py-3 border-b border-white/[0.06] bg-neutral-900/50">
           <span className="text-xs font-mono uppercase tracking-widest text-neutral-400">
             User
           </span>
@@ -341,10 +384,10 @@ export default function AdminUsersPage(): React.ReactElement {
           return (
             <div
               key={user.id}
-              className="grid grid-cols-[1fr_auto_auto_auto] md:grid-cols-[1fr_1fr_auto_auto_auto] gap-4 items-center px-4 py-3 border-b border-white/[0.03] last:border-b-0 hover:bg-white/[0.02] transition-colors"
+              className="flex flex-wrap md:grid md:grid-cols-[1fr_1fr_auto_auto_auto] gap-2 md:gap-4 items-center px-4 py-3 border-b border-white/[0.03] last:border-b-0 hover:bg-white/[0.02] transition-colors"
             >
               {/* Name + avatar */}
-              <div className="flex items-center gap-3 min-w-0">
+              <div className="flex items-center gap-3 min-w-0 basis-full md:basis-auto">
                 <div className="w-7 h-7 rounded-full bg-neutral-800 flex-shrink-0 overflow-hidden flex items-center justify-center">
                   {user.avatar_url ? (
                     // eslint-disable-next-line @next/next/no-img-element
@@ -396,14 +439,15 @@ export default function AdminUsersPage(): React.ReactElement {
               </span>
 
               {/* Actions */}
-              <div className="flex items-center gap-1 flex-shrink-0">
+              <div className="flex items-center gap-1 flex-shrink-0 ml-auto md:ml-0">
                 {isUpdating ? (
                   <Loader2 className="w-3 h-3 animate-spin text-neutral-400" />
                 ) : (
                   <>
                     <select
                       value={user.role}
-                      onChange={e => changeRole(user.id, e.target.value)}
+                      aria-label={`Role for ${user.display_name || user.email || 'this person'}`}
+                      onChange={e => void confirmRole(user, e.target.value)}
                       className="bg-neutral-800 border border-white/10 text-xs font-mono text-neutral-400 px-2 py-1 appearance-none cursor-pointer hover:border-white/20 transition-colors focus:outline-none focus:border-amber-500/50"
                     >
                       <option value="user">User</option>
@@ -642,7 +686,7 @@ export default function AdminUsersPage(): React.ReactElement {
             </div>
 
             <p className="text-xs font-mono text-neutral-400">
-              {historyTarget.display_name || historyTarget.email || 'User'} — {historyTarget.id}
+              {historyTarget.display_name || historyTarget.email || 'This person'}
             </p>
 
             {historyLoading ? (
@@ -689,7 +733,7 @@ export default function AdminUsersPage(): React.ReactElement {
                       {entry.reason}
                     </p>
                     <p className="text-xs font-mono text-neutral-400">
-                      Admin: {entry.admin_id}
+                      By {nameOf(entry.admin_id)}
                     </p>
                   </div>
                 ))}

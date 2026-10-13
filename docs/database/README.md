@@ -73,7 +73,11 @@ passed on that database with no shims.
 
 ## Applying migrations to dev or production by hand
 
-Production has 001–066 applied; **067–080 are applied nowhere yet**. Apply
+Production has 001–066 applied; **067–082 are not on production yet**. DEV
+has 067–082 since 2026-10-12, each followed by its test (all passing; the
+067, 077 and rls-coverage tests also flag tables of other apps that share
+DEV's public schema, which is expected there). On DEV, 032, 033 and 043 were
+also re-applied: the verification RPCs had never been created there. Apply
 them to DEV first, in order, each followed by its test, and record the output
 in the evidence documents ([phase-0](../security/phase-0-db-evidence.md),
 [phase-1](../security/phase-1-db-evidence.md)). Production only after the
@@ -105,7 +109,9 @@ ROLLBACK and creates its own throwaway users and rows.
 | 12 | `078-ubunye-usage-reserve.sql` | `078-…test.sql`, then `scripts/db/078-concurrency.test.sh` (local only) | Atomic Ubunye message slots (D-68). Apply with the Phase 5 build: without it that build answers signed-in messages without counting them (logged); the older build keeps working with it |
 | 13 | `079-security-phase-6.sql` | `079-…test.sql`, then `rls-coverage.test.sql` | Phase 6 security (docs/security/phase-6-assessment.md): `is_admin()` trusts `profiles.role` over a stale JWT, `admin_revoke_user_sessions()`, suspended accounts cannot write cart/banking/reviews, no `<`/`>` in names and places. Independent of the app build (the Phase 6 build calls `admin_revoke_user_sessions`; without 079 the role/suspend routes still work and report `sessions_revoked: false`). On a hosted project, check the test's B2 passes: the function needs DELETE on `auth.sessions` as its owner |
 | 14 | `080-owner-pickup.sql` | `080-…test.sql`, then `rls-coverage.test.sql` | Phase 8: collection from the owner's address (owner_pickup addresses, `origin_owner_id` on quotes and legs, one live leg per order + leg + origin, `listing_private.owner_pickup`, owner notification types). **Apply with (or before) the Phase 8 build**: that build reads `origin_owner_id`. Older builds keep working on an 080 database (every leg is the studio). Do not re-run 076 after 080 once an owner leg exists (076 would put back the one-leg-per-order index, the per-order cancelled-order sweep and the table-wide `delivery_quotes` grant); re-run 080 after any re-run of 076. The Phase 8 build also calls 080's `delivery_save_owner_pickup` and `delivery_remove_owner_pickup` |
-| 15 | — | `notify pgrst, 'reload schema';` | 077–080 do this themselves |
+| 15 | `081-creative-tools-flag.sql` | — | The `creative_tools` flag (off): shows "Tools" in the main navigation |
+| 16 | `082-verification-notifications.sql` | `082-…test.sql` | Notification types `verification_approved` / `verification_rejected`, sent when staff decide an ID check. Before it, those in-app notices are refused (logged) and only the email goes |
+| 17 | — | `notify pgrst, 'reload schema';` | 077–080 do this themselves |
 
 Any time later: `rls-coverage.test.sql` after every new migration.
 
