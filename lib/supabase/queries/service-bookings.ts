@@ -39,7 +39,20 @@ export async function getCreatorBookings(creatorId: string) {
     console.error('[service-bookings] getCreatorBookings error:', error.message);
     return [];
   }
-  return (data ?? []) as unknown as CreatorBookingRow[];
+  const rows = (data ?? []) as unknown as CreatorBookingRow[];
+
+  // A job an admin gave this creator is answered from that moment, not from
+  // payment: the card shows the same deadline the daily job uses.
+  const waiting = rows.filter((r) => r.status === 'paid' && !r.accepted_at).map((r) => r.id);
+  if (waiting.length > 0) {
+    const { times, error: assignError } = await getAssignTimes(supabase, waiting);
+    if (assignError) console.error('[service-bookings] assignment times read failed:', assignError);
+    for (const r of rows) {
+      const at = times.get(r.id);
+      if (at) r.assigned_at = at;
+    }
+  }
+  return rows;
 }
 
 export async function getBookingByReference(reference: string) {
@@ -139,6 +152,8 @@ export interface CreatorBookingRow {
   accepted_by_client_at?: string | null;
   payout_due_at?: string | null;
   dispute_window_ends_at?: string | null;
+  /** When an admin last gave this job to this creator (from service_booking_events), if ever. */
+  assigned_at?: string | null;
 }
 
 /** True when a database error is about migration 073 not being applied yet. */
@@ -211,7 +226,11 @@ export async function updateServiceBooking(
   return { ok: true, updated: Array.isArray(data) && data.length > 0, degraded };
 }
 
-/** Append one line of history. Best effort: history never blocks the change it records. */
+/**
+ * Append one line of history. Best effort: history never blocks the change it
+ * records. Returns false when the row could not be written (true when the
+ * table does not exist yet, before migration 073: there is nothing to write to).
+ */
 export async function recordServiceBookingEvent(
   db: SupabaseClient,
   ev: {
@@ -223,7 +242,7 @@ export async function recordServiceBookingEvent(
     actorId: string | null;
     reason?: string | null;
   },
-): Promise<void> {
+): Promise<boolean> {
   try {
     const { error } = await db.from('service_booking_events').insert({
       booking_id: ev.bookingId,
@@ -236,10 +255,47 @@ export async function recordServiceBookingEvent(
     });
     if (error && !mentionsFulfilmentSchema(error.message)) {
       console.error('[service-bookings] history insert failed:', error.message);
+      return false;
     }
+    return true;
   } catch (err) {
     console.error('[service-bookings] history insert failed:', err);
+    return false;
   }
+}
+
+/** The history event written when an admin gives a booking to a creator. */
+export const ADMIN_ASSIGN_EVENT = 'admin_assign';
+
+/**
+ * When each booking was last given to a creator by an admin: the newest
+ * 'admin_assign' row in service_booking_events, by booking id. A booking with
+ * no such row is missing from the map (its answer clock starts at payment).
+ * Before migration 073 the table does not exist, so no booking was ever
+ * recorded as assigned: an empty map, not an error. Any other read failure is
+ * returned as an error, so a caller can hold back rather than use the wrong
+ * clock (lib/bookings/answer-by.ts).
+ */
+export async function getAssignTimes(
+  db: SupabaseClient,
+  bookingIds: string[],
+): Promise<{ times: Map<string, string>; error: string | null }> {
+  const times = new Map<string, string>();
+  if (bookingIds.length === 0) return { times, error: null };
+  const { data, error } = await db
+    .from('service_booking_events')
+    .select('booking_id, created_at')
+    .eq('event', ADMIN_ASSIGN_EVENT)
+    .in('booking_id', bookingIds);
+  if (error) {
+    if (mentionsFulfilmentSchema(error.message)) return { times, error: null };
+    return { times, error: error.message };
+  }
+  for (const row of (data ?? []) as { booking_id: string; created_at: string }[]) {
+    const seen = times.get(row.booking_id);
+    if (!seen || Date.parse(row.created_at) > Date.parse(seen)) times.set(row.booking_id, row.created_at);
+  }
+  return { times, error: null };
 }
 
 /** Dispute statuses that hold a creator payout. */

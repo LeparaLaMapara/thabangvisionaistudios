@@ -41,6 +41,8 @@ interface ServiceGig {
   client_review: string | null;
   created_at: string;
   paid_at?: string | null;
+  /** When an admin last gave this job to this creator: the answer clock restarts then. */
+  assigned_at?: string | null;
   accepted_at: string | null;
   arrived_at?: string | null;
   delivered_at?: string | null;
@@ -379,7 +381,7 @@ function GigCard({
   }
 
   return (
-    <div className="rounded-xl border border-neutral-800 bg-neutral-900/50 p-5">
+    <div id={`gig-${gig.id}`} className="scroll-mt-24 rounded-xl border border-neutral-800 bg-neutral-900/50 p-5">
       <div className="flex items-start justify-between gap-4">
         <div>
           <div className="flex items-center gap-3">
