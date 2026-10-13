@@ -26,7 +26,7 @@ export async function generateMetadata({ params }: ToolPageProps) {
     : 'Try it in your browser.';
   return buildPageMetadata({
     title: `${app.name}: ${app.category}`,
-    description: `${app.name}, ${app.tagline} A free ${app.category.toLowerCase()} app from ${UBUNYE_STUDIO.suiteName}. ${availability}`,
+    description: `${app.name}: ${app.category}. ${app.tagline} Free, from ${UBUNYE_STUDIO.suiteName}. ${availability}`,
     path: `/tools/${app.slug}`,
   });
 }
@@ -165,15 +165,6 @@ export default async function ToolPage({ params }: ToolPageProps) {
             <p className="mt-6 font-sans text-base text-[var(--ub-text)]">{UBUNYE_STUDIO.systemRequirements}</p>
           </section>
         </div>
-
-        {/* Credits and licence: small print, not a selling point. The licence
-            file itself ships with the app and its source code. */}
-        <p className="mx-auto mt-10 max-w-2xl text-center font-sans text-xs leading-relaxed text-[var(--ub-text-2)]">
-          {app.upstream.credit}. Licence {UBUNYE_STUDIO.licence}.{' '}
-          <a href={app.repoUrl} target="_blank" rel="noopener noreferrer" className="underline decoration-white/30 underline-offset-4 hover:decoration-white">
-            Source code
-          </a>
-        </p>
 
         {/* ── The rest of the suite ──────────────────────────────────── */}
         <section aria-label="Other tools" className="mt-14 border-t border-white/10 pt-10">

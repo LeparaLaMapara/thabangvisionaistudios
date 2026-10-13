@@ -11,7 +11,7 @@ import { UB_DISPLAY, UB_LABEL } from '@/components/tools/ubunye-styles';
 export const metadata = buildPageMetadata({
   title: `${UBUNYE_STUDIO.suiteName}: Light, Photo and Film`,
   description: `${UBUNYE_STUDIO.suiteName} is three free apps: ${UBUNYE_STUDIO.apps
-    .map((a) => `${a.name} for ${a.category.toLowerCase()}`)
+    .map((a) => `${a.name} (${a.category})`)
     .join(', ')}. Free downloads for ${UBUNYE_STUDIO.platforms
     .filter((p) => p.note === null)
     .map((p) => p.label)
