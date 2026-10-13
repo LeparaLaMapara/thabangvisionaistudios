@@ -1,0 +1,74 @@
+name: Sign-in health
+
+# Every 30 minutes: compare production's Supabase Auth settings with
+# ops/auth/expected-auth-config.json, start a Google sign-in without completing
+# it, and load the public sign-in pages (scripts/ops/auth-health.mjs).
+# A critical finding opens one issue labelled "incident" (or comments on the
+# open one); the first clean run after that closes it. Read-only: it never
+# signs anyone in and never changes a setting.
+#
+# Needs the repository secret SUPABASE_ACCESS_TOKEN (a Supabase personal access
+# token made just for this check, so it can be revoked on its own). Without it
+# the settings comparison is skipped and reported as a warning.
+
+on:
+  schedule:
+    - cron: '*/30 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: auth-health
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: |
+            ops
+            scripts/ops
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Run the check
+        id: run
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: |
+          set +e
+          node scripts/ops/auth-health.mjs --out auth-health.json --report auth-health.md
+          echo "status=$?" >> "$GITHUB_OUTPUT"
+          cat auth-health.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Open, update or close the incident
+        uses: actions/github-script@v7
+        env:
+          STATUS: ${{ steps.run.outputs.status }}
+        with:
+          script: |
+            const fs = require('fs');
+            const title = 'Sign-in health: production sign-in is broken';
+            const body = fs.readFileSync('auth-health.md', 'utf8');
+            const failing = process.env.STATUS !== '0';
+            const { data: open } = await github.rest.issues.listForRepo({
+              owner: context.repo.owner, repo: context.repo.repo, state: 'open', labels: 'incident', per_page: 50,
+            });
+            const existing = open.find((i) => i.title === title);
+            if (failing && !existing) {
+              await github.rest.issues.create({ owner: context.repo.owner, repo: context.repo.repo, title, body, labels: ['incident', 'auth'] });
+            } else if (failing && existing) {
+              const latest = body.split('\n').slice(0, 40).join('\n');
+              await github.rest.issues.createComment({ owner: context.repo.owner, repo: context.repo.repo, issue_number: existing.number, body: `Still failing.\n\n${latest}` });
+            } else if (!failing && existing) {
+              await github.rest.issues.createComment({ owner: context.repo.owner, repo: context.repo.repo, issue_number: existing.number, body: `Recovered.\n\n${body}` });
+              await github.rest.issues.update({ owner: context.repo.owner, repo: context.repo.repo, issue_number: existing.number, state: 'closed', state_reason: 'completed' });
+            }
+            if (failing) core.setFailed('Sign-in health check found a critical problem.');

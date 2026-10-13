@@ -1,0 +1,16 @@
+{
+  "_comment": "What production sign-in is supposed to look like. scripts/ops/auth-health.mjs compares the live Supabase Auth settings of thabangvision-prod against this file every 30 minutes (.github/workflows/auth-health.yml). Change a setting in the Supabase dashboard ONLY together with this file, in the same PR, or the check opens an incident.",
+  "projectRef": "zbdsqvpxpsygbuqnuekm",
+  "siteOrigin": "https://www.thabangvision.com",
+  "apexOrigin": "https://thabangvision.com",
+  "auth": {
+    "site_url": "https://www.thabangvision.com",
+    "uri_allow_list": ["https://thabangvision.com/**", "https://www.thabangvision.com/**"],
+    "external_google_enabled": true,
+    "external_google_client_id": "990216040335-ui8g0o37i6rlkvnnrudq5c0bcujb8pq3.apps.googleusercontent.com",
+    "external_email_enabled": true,
+    "disable_signup": false,
+    "mailer_autoconfirm": false
+  },
+  "maintenanceExpected": true
+}
