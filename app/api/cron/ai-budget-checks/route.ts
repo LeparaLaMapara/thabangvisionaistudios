@@ -84,7 +84,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 
     try {
       await emailProvider.sendEmail({
-        to: STUDIO.bookingEmail,
+        to: STUDIO.securityEmail,
         subject: `${subject} — ${STUDIO.name}`,
         text: [
           `AI Budget Alert — ${period}`,

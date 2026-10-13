@@ -326,7 +326,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     const critical = newlyOpened.filter((f) => f.severity === 'critical');
     try {
       await emailProvider.sendEmail({
-        to: STUDIO.email,
+        to: STUDIO.securityEmail,
         subject: `[ops] ${newlyOpened.length} new finding(s), ${critical.length} critical`,
         text: newlyOpened
           .map((f) => `[${f.severity.toUpperCase()}] ${f.title}\n  ${f.checkId} :: ${f.entityType}/${f.entityId}`)

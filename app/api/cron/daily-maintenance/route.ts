@@ -114,7 +114,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     }
     if (releasedOrders.length > 0) {
       await emailProvider.sendEmail({
-        to: STUDIO.bookingEmail,
+        to: STUDIO.billingEmail,
         subject: `[Released] ${releasedOrders.length} unpaid EFT booking(s) — ${STUDIO.name}`,
         text: `These EFT bookings were not paid within ${STUDIO.bank.payWithinHours} hours and were released:\n\n${releasedOrders.map((b) => `${paymentReference(b.checkout_group_id ?? b.id)}: R${b.amount_due}`).join('\n')}\n\nThe customers were told. If one of them paid, mark it paid in admin and re-book the dates with them.`,
       });
@@ -180,7 +180,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     const orders = (uncollected ?? []).filter((b) => b.amount_due != null);
     if (orders.length > 0) {
       await emailProvider.sendEmail({
-        to: STUDIO.bookingEmail,
+        to: STUDIO.billingEmail,
         subject: `[Released] ${orders.length} cash booking(s) not collected — ${STUDIO.name}`,
         text: `These cash-at-collection bookings passed their first hire day without being collected and were released:\n\n${orders.map((b) => paymentReference(b.checkout_group_id ?? b.id)).join('\n')}`,
       });
@@ -307,7 +307,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       const attention = run.attention.map((a) => `${a.reference}: ${a.why}`).join('\n');
       const held = run.held.map((h) => `${h.reference}: ${h.why}`).join('\n');
       await emailProvider.sendEmail({
-        to: STUDIO.bookingEmail,
+        to: STUDIO.billingEmail,
         subject: `[Payouts] ${run.attention.length} need a person, ${run.held.length} held${notProcessed > 0 ? `, ${notProcessed} not processed this run (time budget)` : ''} — ${STUDIO.name}`,
         text: `Creator payouts that are due but were not sent today.
 ${notProcessed > 0 ? `\n${notProcessed} due payout${notProcessed === 1 ? ' was' : 's were'} not processed this run (time budget); they are looked at again on the next run.\n` : ''}
@@ -332,7 +332,7 @@ ${run.attention.length > 0 ? `NEED A PERSON (nothing was sent; do not re-send un
     if (stuck && stuck.length > 0) {
       const stuckList = stuck.map(s => `${s.reference}: R${s.creator_amount} (transfer ${s.payout_reference})`).join('\n');
       await emailProvider.sendEmail({
-        to: STUDIO.bookingEmail,
+        to: STUDIO.billingEmail,
         subject: `[Alert] ${stuck.length} payout(s) still processing — ${STUDIO.name}`,
         text: `These payouts have been with the payment provider for over 24 hours. Each was looked up by its transfer reference today and is still not final:\n\n${stuckList}\n\nCheck them in the provider dashboard. Do not send them again under a new reference.`,
       });

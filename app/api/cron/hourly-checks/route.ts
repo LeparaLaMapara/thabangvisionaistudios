@@ -90,7 +90,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   if (alerts.length > 0) {
     try {
       await emailProvider.sendEmail({
-        to: STUDIO.bookingEmail,
+        to: STUDIO.securityEmail,
         subject: `[Hourly Check] ${alerts.length} alert(s) — ${STUDIO.name}`,
         text: `Hourly health check at ${now.toLocaleString('en-ZA')}:\n\n${alerts.map((a, i) => `${i + 1}. ${a}`).join('\n\n')}`,
       });

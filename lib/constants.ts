@@ -9,12 +9,16 @@ export const STUDIO = {
   name: 'ThabangVision',
   shortName: 'ThabangVision',
   tagline: 'We Engineer The Invisible',
-  email: 'hello@thabangvision.com', //'thabangvisionstudios@gmail.com',
-  careersEmail: 'careers@thabangvision.com',  //'thabangvisionstudios+careers@gmail.com',
-  supportEmail: 'support@thabangvision.com',  //'thabasngvisionstudios+support@gmail.com',
-  bookingEmail: 'bookings@thabangvision.com',  //'thabangvisionstudios+booking@gmail.com',
-  pressEmail: 'press@thabangvision.com',  //'thabangvisionstudios+press@gmail.com',
-  privacyEmail: 'privacy@thabangvision.com',  //'thabangvisionstudios+privacy@gmail.com',
+  email: 'hello@thabangvision.com',
+  careersEmail: 'careers@thabangvision.com',
+  supportEmail: 'support@thabangvision.com',
+  bookingEmail: 'bookings@thabangvision.com',
+  pressEmail: 'press@thabangvision.com',
+  privacyEmail: 'privacy@thabangvision.com',
+  /** System and agent alerts: health checks, invariant findings, AI budget. */
+  securityEmail: 'security@thabangvision.com',
+  /** Money alerts: payouts, released unpaid bookings, creator transfers. */
+  billingEmail: 'billing@thabangvision.com',
   phone: '+27 63 990 5802',
   // WhatsApp only (owner, 2026-09-28): this number takes WhatsApp messages, not
   // calls. Everything customer-facing says WhatsApp, never "call".
