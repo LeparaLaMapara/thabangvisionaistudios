@@ -863,11 +863,14 @@ export const RENTAL_POLICY = {
 // first hire collected in person, any item over the high-value threshold
 // collected in person, trust-tier limits.
 export const DELIVERY_POLICY = {
-  // FOUNDER DECISION (D-37): the highest single-item replacement value an
-  // automated (third-party) courier may carry. 0 = automated courier delivery
-  // is OFF for every item. Our own vehicle (manual adapter) is not affected:
-  // it follows the existing own-vehicle rules.
-  automatedDeliveryMaxItemValueCents: 0,
+  // FOUNDER DECISION (D-37, set 2026-10-13): the highest single-item
+  // replacement value an automated (third-party) courier may carry. The owner
+  // named the Sony Alpha A7 III as the most valuable item a courier may take;
+  // its replacement value is R35,000 (Orms Direct body price, see
+  // docs/operations/replacement-values-2026-10.md). Anything above goes by our
+  // own vehicle or is collected. 0 = automated courier delivery OFF for every
+  // item. Our own vehicle (manual adapter) is not affected by this limit.
+  automatedDeliveryMaxItemValueCents: 3_500_000,
   // FOUNDER DECISION (D-38, set 2026-10-13): what we add to a courier's price
   // for a leg: R20 per trip (covers the card fee and packing). The customer
   // sees one delivery total; provider cost + this fee are stored apart.
@@ -921,10 +924,10 @@ export const DELIVERY_POLICY = {
   assumeLithiumBatteries: true,
   // Our own vehicle and staff (the manual adapter).
   ownFleet: {
-    // FOUNDER DECISION (D-40): no goods-in-transit cover is verified for our
-    // own vehicle. Own-vehicle delivery is live today on the existing rules;
-    // shipments record coverage_verified = false.
-    verifiedTransitCover: false,
+    // FOUNDER DECISION (D-40, updated 2026-10-13): the owner confirmed their
+    // own policy covers all the gear in transit and at the renter's, so
+    // own-vehicle shipments record coverage_verified = true.
+    verifiedTransitCover: true,
   },
   // FOUNDER DECISION (D-84..D-88, Phase 8): community gear can be collected
   // from (and returned to) the owner's own verified pickup address instead of
@@ -944,14 +947,17 @@ export const DELIVERY_POLICY = {
     // still goes to the real address. Studio trips are priced exactly.
     pricingGridDegrees: 0.02,
   },
-  // FOUNDER DECISION (D-41): a verified goods-in-transit policy. Until a
-  // policy reference is set and the founder confirms the wording covers
-  // rented and community-owned camera gear in transit (spec §4.13), every
-  // courier is "not covered" and therefore excluded.
+  // FOUNDER DECISION (D-41, set 2026-10-13): a verified goods-in-transit
+  // policy. The owner confirmed on 2026-10-13 that their own policy covers
+  // all the gear, cameras and lenses included, while a courier carries it
+  // and while it is at the renter's. Insurer and policy number still to be
+  // recorded here in place of the placeholder reference. Only the couriers
+  // listed are covered, and only up to the courier limit above (D-37).
+  // A null reference makes every courier "not covered" again.
   insurance: {
-    verifiedPolicyRef: null as string | null,
-    coveredProviders: [] as readonly string[],
-    maxItemValueCents: 0,
+    verifiedPolicyRef: 'owner-policy-2026-10-13' as string | null,
+    coveredProviders: ['uber_direct'] as readonly string[],
+    maxItemValueCents: 3_500_000,
   },
 } as const;
 

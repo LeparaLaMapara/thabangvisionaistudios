@@ -117,19 +117,31 @@ describe('the shipped policy still excludes the couriers', () => {
     expect(r.quotes[0].providerKind).toBe('own_fleet');
     expect(r.excluded).toEqual(
       expect.arrayContaining([
-        { providerId: 'uber_direct', reasons: expect.arrayContaining(['courier_flag_off', 'courier_value_threshold']) },
-        { providerId: 'wumdrop', reasons: expect.arrayContaining(['courier_flag_off', 'courier_value_threshold']) },
+        { providerId: 'uber_direct', reasons: expect.arrayContaining(['courier_flag_off']) },
+        { providerId: 'wumdrop', reasons: expect.arrayContaining(['courier_flag_off']) },
       ]),
     );
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
-  it('even with the flag on, threshold 0 and no verified insurance keep them out', async () => {
-    const { r, fetchSpy } = await quoteWith(ON_SANDBOX, true);
+  it('production as set on 2026-10-13 (enabled, production mode, no _PRODUCTION_APPROVED): own vehicle only, Uber never called, even with the flag on', async () => {
+    const PROD = { ...CREDS, DELIVERY_PROVIDERS: 'manual,uber_direct', DELIVERY_PROVIDER_UBER_DIRECT_ENABLED: 'true', DELIVERY_PROVIDER_UBER_DIRECT_MODE: 'production', VERCEL_ENV: 'production' };
+    const { r, fetchSpy } = await quoteWith(PROD, true);
     if (!r.ok) throw new Error(`expected own-vehicle quote, got ${r.code}`);
     expect(r.quotes.map((q) => q.providerId)).toEqual(['manual']);
-    expect(r.excluded.map((e) => e.providerId).sort()).toEqual(['uber_direct', 'wumdrop']);
+    expect(r.excluded.map((e) => e.providerId)).toContain('uber_direct');
     expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it("flag on: the owner's policy covers Uber Direct only, so WumDrop stays out and only Uber Direct is asked", async () => {
+    const { r, fetchSpy } = await quoteWith(ON_SANDBOX, true);
+    if (!r.ok) throw new Error(`expected own-vehicle quote, got ${r.code}`);
+    // Uber's (stubbed) network call fails, so our own vehicle is what is offered.
+    expect(r.quotes.map((q) => q.providerId)).toEqual(['manual']);
+    expect(r.excluded).toEqual(expect.arrayContaining([{ providerId: 'wumdrop', reasons: expect.arrayContaining(['not_covered']) }]));
+    expect(r.excluded.some((e) => e.providerId === 'uber_direct' && e.reasons.includes('not_covered'))).toBe(false);
+    expect(fetchSpy).toHaveBeenCalled();
+    for (const [url] of fetchSpy.mock.calls as unknown as [string][]) expect(String(url)).toMatch(/uber\.com/);
   });
 
   it('with the policy gates opened in a test, missing custody capabilities still exclude WumDrop; Uber Direct (custody verified 2026-10-13) is asked for a quote', async () => {

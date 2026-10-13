@@ -189,8 +189,10 @@ describe.each(HARNESSES)('DeliveryPort contract: %s', (name, make) => {
     expect(['sandbox', 'production']).toContain(ctx.port.mode);
     expect(Object.keys(ctx.port.capabilities).sort()).toEqual(Object.keys(NO_DELIVERY_CAPABILITIES).sort());
     for (const v of Object.values(ctx.port.capabilities)) expect(typeof v).toBe('boolean');
-    // Nobody has verified transit cover today (D-40, D-41).
-    expect(ctx.port.capabilities.verifiedTransitCover).toBe(false);
+    // Our own vehicle is covered by the owner's policy (D-40, 2026-10-13). A
+    // courier never claims cover itself: the owner's policy is answered by the
+    // insurance port (D-41), not by the courier's capabilities.
+    expect(ctx.port.capabilities.verifiedTransitCover).toBe(ctx.port.kind === 'own_fleet');
   });
 
   it('quotes in integer cents with a future expiry', async () => {

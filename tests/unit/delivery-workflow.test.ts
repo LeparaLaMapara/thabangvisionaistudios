@@ -206,10 +206,15 @@ describe('provider registry and insurance stub', () => {
     expect(buildDeliveryRegistry({ DELIVERY_ALLOW_SANDBOX: 'true', VERCEL_ENV: 'preview' }, manualFactory).allowSandbox).toBe(true);
   });
 
-  it('D04 - transit cover is "not covered" until a verified policy is configured', async () => {
+  it("D04 - transit cover: the owner's policy covers Uber Direct up to the courier limit; nothing else is covered", async () => {
     const items = [{ rentalId: 'r', bookingId: 'b', driverLabel: 'x', replacementValueCents: 100, weightGrams: null, containsLithium: false }];
-    expect(DELIVERY_POLICY.insurance.verifiedPolicyRef).toBeNull();
-    expect(await policyInsurance().coverFor({ providerId: 'any', items, leg: 'outbound' })).toMatchObject({ covered: false, reason: 'no_verified_policy' });
+    expect(DELIVERY_POLICY.insurance.verifiedPolicyRef).toBe('owner-policy-2026-10-13');
+    expect(DELIVERY_POLICY.insurance.maxItemValueCents).toBe(DELIVERY_POLICY.automatedDeliveryMaxItemValueCents);
+    const a7iii = [{ ...items[0], replacementValueCents: 3_500_000 }];
+    expect(await policyInsurance().coverFor({ providerId: 'uber_direct', items: a7iii, leg: 'outbound' })).toMatchObject({ covered: true, policyRef: 'owner-policy-2026-10-13' });
+    expect(await policyInsurance().coverFor({ providerId: 'uber_direct', items: [{ ...items[0], replacementValueCents: 3_500_001 }], leg: 'outbound' })).toMatchObject({ covered: false, reason: 'item_above_cover_limit' });
+    expect(await policyInsurance().coverFor({ providerId: 'wumdrop', items, leg: 'outbound' })).toMatchObject({ covered: false, reason: 'provider_not_covered' });
+    expect(await policyInsurance({ verifiedPolicyRef: null, coveredProviders: ['uber_direct'], maxItemValueCents: 3_500_000 }).coverFor({ providerId: 'uber_direct', items, leg: 'outbound' })).toMatchObject({ covered: false, reason: 'no_verified_policy' });
     const p = policyInsurance({ verifiedPolicyRef: 'POL-9', coveredProviders: ['c'], maxItemValueCents: 50 });
     expect(await p.coverFor({ providerId: 'c', items, leg: 'outbound' })).toMatchObject({ covered: false, reason: 'item_above_cover_limit' });
     expect(await p.coverFor({ providerId: 'd', items, leg: 'outbound' })).toMatchObject({ covered: false, reason: 'provider_not_covered' });
