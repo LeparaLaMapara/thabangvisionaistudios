@@ -1,11 +1,13 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { STUDIO } from '@/lib/constants';
+import { buildPageMetadata } from '@/lib/seo/metadata';
 
-export const metadata: Metadata = {
+export const metadata: Metadata = buildPageMetadata({
   title: 'Access to Information',
   description: `How to ask ${STUDIO.shortName} for access to, correction of, or deletion of your personal information under POPIA and PAIA.`,
-};
+  path: '/paia',
+});
 
 /**
  * PAIA / POPIA access requests. A plain, practical page: how to ask, what we

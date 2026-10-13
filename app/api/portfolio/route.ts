@@ -5,6 +5,8 @@ import { logEvent } from '@/lib/data/events';
 import { isWriteDenied, writeDeniedEvent } from '@/lib/supabase/write-denied';
 import { STUDIO } from '@/lib/constants';
 import type { PortfolioProject } from '@/types/portfolio';
+import { notifyDiscovery } from '@/lib/discovery/notify';
+import { creatorPathsById } from '@/lib/discovery/paths';
 
 export const dynamic = 'force-dynamic';
 
@@ -132,5 +134,7 @@ export async function PUT(request: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: 'Failed to save portfolio' }, { status: 500 });
   }
 
+  // A complete portfolio is part of what makes a creator's profile public.
+  notifyDiscovery(creatorPathsById(user.id));
   return NextResponse.json({ success: true });
 }

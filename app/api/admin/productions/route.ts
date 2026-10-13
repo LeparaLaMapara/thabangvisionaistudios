@@ -4,6 +4,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin, rateLimitAdmin } from '@/lib/auth';
 import { createAdminClient } from '@/lib/supabase/server';
 import { isRagEnabled, indexItem } from '@/lib/rag';
+import { notifyDiscovery } from '@/lib/discovery/notify';
+import { productionPaths } from '@/lib/discovery/paths';
 
 // ─── GET — List all productions (admin) ─────────────────────────────────────
 
@@ -57,6 +59,7 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    if (data?.is_published) notifyDiscovery(productionPaths(data.slug));
     return NextResponse.json(data, { status: 201 });
   } catch (err) {
     console.error('[admin/productions] POST error:', err);
@@ -82,6 +85,8 @@ export async function PUT(req: NextRequest) {
     }
 
     const supabase = createAdminClient();
+    // The old address too, in case the slug changes.
+    const { data: before } = await supabase.from('smart_productions').select('slug').eq('id', id).maybeSingle();
     const { data, error } = await supabase
       .from('smart_productions')
       .update({ ...updates, updated_at: new Date().toISOString() })
@@ -100,6 +105,7 @@ export async function PUT(req: NextRequest) {
       }
     }
 
+    notifyDiscovery([...productionPaths(before?.slug), ...productionPaths(data?.slug)]);
     return NextResponse.json(data);
   } catch (err) {
     console.error('[admin/productions] PUT error:', err);

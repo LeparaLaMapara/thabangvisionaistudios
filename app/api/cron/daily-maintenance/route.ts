@@ -6,10 +6,12 @@ import { validateCronAuth } from '@/lib/cron/auth';
 import { createAdminClient } from '@/lib/supabase/server';
 import { runServicePayouts } from '@/lib/payments/payout';
 import { decideServiceTransition } from '@/lib/core/services/fulfilment';
-import { recordServiceBookingEvent, updateServiceBooking } from '@/lib/supabase/queries/service-bookings';
+import { getAssignTimes, recordServiceBookingEvent, updateServiceBooking } from '@/lib/supabase/queries/service-bookings';
 import { email as emailProvider } from '@/lib/email';
 import { STUDIO } from '@/lib/constants';
+import { appUrl } from '@/lib/app-url';
 import { autoPublishCreatorProductions } from '@/lib/supabase/queries/smartProductions';
+import { runDiscoverySweep } from '@/lib/discovery/sweep';
 import { effectiveHoldMinutes } from '@/lib/rental/availability-server';
 import { notifyClient } from '@/lib/bookings/notify-client';
 import { loadNoticeBookings, sendGearNotice } from '@/lib/rental/notices';
@@ -38,12 +40,13 @@ import {
  * 3b. Alert on payouts still processing after 24 hours
  * 5. Auto-complete stale accepted bookings (30+ days)
  * 6. Expire stale crew requests
- * 7. Auto-reassign unresponsive creators (STUDIO.booking.creatorAnswerHours after payment, no answer)
+ * 7. Auto-reassign unresponsive creators (STUDIO.booking.creatorAnswerHours after payment or admin assignment, no answer)
  * 7b. Remind creators whose answer is due before the next run (email + in-app)
  * 8. Auto-detect overdue rentals
  * 9. Auto-escalate unreturned gear to disputes (14+ days overdue)
  * 10. Auto-flag/suspend users with 3+ active disputes
  * 11. Auto-suspend users with gear overdue 30+ days
+ * 19. Discovery sweep: ping IndexNow with pages changed in the last day
  */
 export async function GET(request: NextRequest): Promise<NextResponse> {
   const authError = validateCronAuth(request);
@@ -390,9 +393,10 @@ Please contact the client and the creator. They are not paid out or refunded aut
   }
 
   // ─── 7. Auto-reassign unresponsive creators (answer window after payment) ─
-  // The window is counted from paid_at (lib/bookings/answer-by.ts), the same
-  // deadline the creator is shown on the job card and in the emails. The
-  // created_at filter only narrows the read: paid_at is never before it.
+  // The window is counted from when the creator got the job: the admin
+  // assignment if there was one, else payment (lib/bookings/answer-by.ts), the
+  // same deadline the creator is shown on the job card and in the emails. The
+  // created_at filter only narrows the read: neither time is before it.
   try {
     const answerHours = STUDIO.booking.creatorAnswerHours;
     const responseCutoff = new Date(now.getTime() - answerHours * 60 * 60 * 1000).toISOString();
@@ -403,15 +407,24 @@ Please contact the client and the creator. They are not paid out or refunded aut
       .is('accepted_at', null)
       .lt('created_at', responseCutoff);
 
-    const unresponsive = (candidates ?? []).filter((b) => answerWindowPassed(b, now));
+    // Without the assignment times a creator an admin just chose could lose
+    // the job, so nobody is passed on this run if they cannot be read.
+    const { times: assignedAt, error: assignError } = await getAssignTimes(supabase, (candidates ?? []).map((b) => b.id));
+    if (assignError) throw new Error(`assignment times unreadable, nobody passed on: ${assignError}`);
+
+    const unresponsive = (candidates ?? [])
+      .map((b) => ({ ...b, assigned_at: assignedAt.get(b.id) ?? null }))
+      .filter((b) => answerWindowPassed(b, now));
     let reassigned = 0;
 
     if (unresponsive.length > 0) {
       for (const booking of unresponsive) {
         // Unassign the creator only while the booking is still paid and
         // unanswered (compare-and-set): a creator who accepts or declines
-        // between the read above and this write keeps that answer.
-        const { data: moved, error: moveError } = await supabase
+        // between the read above and this write keeps that answer, and a
+        // creator an admin assigned in between keeps the job (creator_id must
+        // still be the one whose window was checked).
+        let move = supabase
           .from('bookings')
           .update({
             creator_id: null,
@@ -420,8 +433,9 @@ Please contact the client and the creator. They are not paid out or refunded aut
           })
           .eq('id', booking.id)
           .eq('status', 'paid')
-          .is('accepted_at', null)
-          .select('id');
+          .is('accepted_at', null);
+        move = booking.creator_id ? move.eq('creator_id', booking.creator_id) : move.is('creator_id', null);
+        const { data: moved, error: moveError } = await move.select('id');
         if (moveError || !moved || moved.length === 0) {
           // Someone else changed it first: no emails, no notices.
           if (moveError) console.error('[daily-maintenance] reassignment update failed:', moveError.message);
@@ -432,7 +446,7 @@ Please contact the client and the creator. They are not paid out or refunded aut
         await emailProvider.sendEmail({
           to: STUDIO.bookingEmail,
           subject: `[Action Required] Creator unresponsive — ${booking.reference}`,
-          text: `Creator did not acknowledge booking ${booking.reference} (${booking.project_category}) within ${answerHours} hours of payment.\n\nThe booking has been unassigned and needs manual reassignment.\n\nClient email: ${booking.client_email}\nBooking ID: ${booking.id}\n\nPlease reassign to another creator in the admin panel.`,
+          text: `Creator did not acknowledge booking ${booking.reference} (${booking.project_category}) within ${answerHours} hours of ${booking.assigned_at ? 'being assigned' : 'payment'}.\n\nThe booking has been unassigned and needs manual reassignment.\n\nClient email: ${booking.client_email}\nBooking ID: ${booking.id}\n\nPlease reassign to another creator in the admin panel.`,
         });
 
         // Notify creator they lost the gig
@@ -462,19 +476,25 @@ Please contact the client and the creator. They are not paid out or refunded aut
   // where the deadline is less than creatorAnswerReminderHours away: about a
   // day before release. One in-app row per booking also marks it as sent, so
   // a manual rerun does not email twice.
+  //
+  // No date filter on the read: the clock starts at payment or at an admin
+  // assignment, and either can come long after created_at (a late payer, a
+  // job given to a new creator). Step 7 has just passed on every job whose
+  // window is over, so what is left here is small.
   try {
-    const answerHours = STUDIO.booking.creatorAnswerHours;
-    const earliest = new Date(now.getTime() - answerHours * 60 * 60 * 1000).toISOString();
-    const { data: waiting } = await supabase
+    const { data: waitingRows } = await supabase
       .from('bookings')
       .select('id, reference, creator_id, project_category, creator_amount, duration_hours, shoot_date, location, created_at, paid_at, status, accepted_at')
       .eq('status', 'paid')
-      .is('accepted_at', null)
-      .gte('created_at', earliest);
+      .is('accepted_at', null);
 
-    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || STUDIO.meta.url;
+    const { times: assignedAt, error: assignError } = await getAssignTimes(supabase, (waitingRows ?? []).map((b) => b.id));
+    if (assignError) throw new Error(`assignment times unreadable, no reminders sent: ${assignError}`);
+    const waiting = (waitingRows ?? []).map((b) => ({ ...b, assigned_at: assignedAt.get(b.id) ?? null }));
+
+    const baseUrl = appUrl(STUDIO.meta.url);
     let reminded = 0;
-    for (const booking of waiting ?? []) {
+    for (const booking of waiting) {
       // Read filters are narrowed again here: only a still unanswered paid job.
       if (booking.status !== 'paid' || booking.accepted_at || !booking.creator_id) continue;
       if (!needsAnswerReminder(booking, now)) continue;
@@ -671,6 +691,8 @@ Please contact the client and the creator. They are not paid out or refunded aut
   }
 
   // ─── 13. Auto-publish creator productions pending 7+ days ─────────────────
+  // Switched off for now (AUTO_PUBLISH_CREATOR_PRODUCTIONS): it cannot tell a
+  // page nobody reviewed from one an admin hid on purpose. Always 0 until then.
   try {
     const published = await autoPublishCreatorProductions();
     results.autoPublishedCreators = published;
@@ -808,6 +830,17 @@ Please contact the client and the creator. They are not paid out or refunded aut
     results.engagement = await runLifecycle({ now });
   } catch (err) {
     results.engagement = { error: String(err) };
+  }
+
+  // ─── 19. Discovery sweep (lib/discovery/sweep.ts) ────────────────────────
+  // Pings IndexNow with public pages whose last change falls in the past day,
+  // as a safety net for changes no write path announced. Runs after step 13,
+  // so creator productions published above are included. Capped; skipped
+  // outside production or without INDEXNOW_KEY.
+  try {
+    results.discoverySweep = await runDiscoverySweep(now);
+  } catch (err) {
+    results.discoverySweep = { error: String(err) };
   }
 
   console.log('[daily-maintenance] Results:', JSON.stringify(results));

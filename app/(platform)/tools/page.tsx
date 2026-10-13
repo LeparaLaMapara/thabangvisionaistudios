@@ -5,6 +5,8 @@ import Link from 'next/link';
 import { STUDIO, UBUNYE_STUDIO } from '@/lib/constants';
 import { buildPageMetadata } from '@/lib/seo/metadata';
 import { breadcrumbJsonLd, renderJsonLd } from '@/lib/seo/structured-data';
+import { ubunyeAppJsonLd } from '@/lib/seo/ubunye-app-jsonld';
+import { getUbunyeRelease } from '@/lib/ubunye-release';
 import { UbunyeAppCard } from '@/components/tools/UbunyeAppCard';
 import { UB_DISPLAY, UB_LABEL } from '@/components/tools/ubunye-styles';
 
@@ -17,6 +19,7 @@ export const metadata = buildPageMetadata({
     .map((p) => p.label)
     .join(', ')}, or try each one in your browser.`,
   path: '/tools',
+  markdown: true,
 });
 
 /**
@@ -24,8 +27,11 @@ export const metadata = buildPageMetadata({
  * Distinct from /studio (the productions portfolio) and /resources/tools
  * (the on-set calculators).
  */
-export default function ToolsPage() {
+export default async function ToolsPage() {
   const { apps } = UBUNYE_STUDIO;
+  // Same fetch the app pages make (cached for an hour); a failed or missing
+  // latest.json just leaves the version and downloads out of the JSON-LD.
+  const releases = await Promise.all(apps.map((a) => getUbunyeRelease(a.slug)));
   const jsonLd = breadcrumbJsonLd([
     { name: 'Home', url: STUDIO.meta.url },
     { name: UBUNYE_STUDIO.suiteName, url: `${STUDIO.meta.url}/tools` },
@@ -34,6 +40,13 @@ export default function ToolsPage() {
   return (
     <div className="pb-20 pt-28 sm:pt-32">
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: renderJsonLd(jsonLd) }} />
+      {apps.map((a, i) => (
+        <script
+          key={a.slug}
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: renderJsonLd(ubunyeAppJsonLd(a, releases[i])) }}
+        />
+      ))}
 
       {/* ── Masthead ───────────────────────────────────────────────── */}
       <header className="container mx-auto px-4 sm:px-6">

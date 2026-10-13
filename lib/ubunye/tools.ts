@@ -4,6 +4,7 @@ import { email as emailProvider } from '@/lib/email';
 import { escapeIlike } from '@/lib/search/types';
 import { getHourlyRate } from '@/lib/supabase/queries/service-bookings';
 import { quoteHourly } from '@/lib/bookings/pricing';
+import { creatorProfilePath } from '@/lib/seo/creator-url';
 
 // ─── Brief Analysis Helpers ────────────────────────────────────────────────
 
@@ -78,7 +79,7 @@ export function createCrewTools(
           location: c.location, years_experience: c.years_experience,
           featured: c.crew_featured, bio: c.crew_bio,
           available: !busyIds.has(c.id),
-          profile_url: `/studio/category/photography/${c.crew_slug}`,
+          profile_url: creatorProfilePath(c),
         })) };
       },
     },
@@ -160,7 +161,7 @@ export function createCrewTools(
             id: creator.id, name: creator.display_name, slug: creator.crew_slug,
             bio: creator.crew_bio || creator.bio, specializations: creator.specializations,
             hourly_rate: creator.hourly_rate, location: creator.location,
-            years_experience: creator.years_experience, profile_url: `/studio/category/photography/${creator.crew_slug}`,
+            years_experience: creator.years_experience, profile_url: creatorProfilePath(creator),
             avg_rating: avgRating, total_reviews: ratings.length,
             available: !isBusy,
             status: isBusy ? 'Currently busy with an active gig' : 'Available for hire',

@@ -7,12 +7,14 @@ import Link from 'next/link';
 import { STUDIO, RENTAL_POLICIES, RENTAL_POLICY } from '@/lib/constants';
 import { formatDocumentDate } from '@/lib/consent/documents';
 import { paymentsOpenForLegalPages } from '@/lib/consent/legal-facts';
+import { buildPageMetadata } from '@/lib/seo/metadata';
 
-export const metadata: Metadata = {
+export const metadata: Metadata = buildPageMetadata({
   title: 'Refunds, Returns and Cancellations',
   description:
     `How ${STUDIO.shortName} handles security deposits, returns and inspection, cancellations, refund timeframes, faulty equipment, and your rights under South African consumer law.`,
-};
+  path: '/refunds',
+});
 
 const LAST_UPDATED = formatDocumentDate(STUDIO.legal.documents.refunds.version);
 const DEPOSIT_PERCENT = RENTAL_POLICY.depositRateBps / 100;

@@ -9,6 +9,7 @@ import { filterIlikePattern } from '@/lib/search/types';
 import { isRagEnabled, searchSimilar } from '@/lib/rag';
 import ProductionDetailView from './ProductionDetailView';
 import type { MatchedGear } from './ProductionDetailView';
+import { buildPageMetadata, metaDescription } from '@/lib/seo/metadata';
 
 // ─── Metadata ────────────────────────────────────────────────────────────────
 
@@ -19,7 +20,16 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { slug } = await params;
   const project   = await getProductionBySlug(slug);
-  return { title: project?.title ?? 'Production' };
+  if (!project) return { title: 'Production' };
+  return buildPageMetadata({
+    title: project.title,
+    description: metaDescription(
+      project.description,
+      `${project.title}: a ${STUDIO.shortName} production${project.client ? ` for ${project.client}` : ''}.`,
+    ),
+    path: `/studio/${encodeURIComponent(project.slug)}`,
+    imageUrl: project.thumbnail_url ?? undefined,
+  });
 }
 
 // ─── Gear Lookup ─────────────────────────────────────────────────────────────

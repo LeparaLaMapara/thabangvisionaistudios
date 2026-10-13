@@ -12,12 +12,14 @@ import {
   listInProse,
   paymentsOpenForLegalPages,
 } from '@/lib/consent/legal-facts';
+import { buildPageMetadata } from '@/lib/seo/metadata';
 
-export const metadata: Metadata = {
+export const metadata: Metadata = buildPageMetadata({
   title: 'Terms of Service',
   description:
     `${STUDIO.shortName} Terms of Service — who you contract with, equipment hire, deposits, damage and loss, production services, payment, cancellations, and dispute resolution.`,
-};
+  path: '/legal',
+});
 
 const LAST_UPDATED = formatDocumentDate(STUDIO.legal.documents.terms.version);
 const DEPOSIT_PERCENT = RENTAL_POLICY.depositRateBps / 100;

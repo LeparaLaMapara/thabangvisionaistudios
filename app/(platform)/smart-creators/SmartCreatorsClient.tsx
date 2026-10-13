@@ -8,6 +8,7 @@ import { MapPin, Star, ArrowUpRight, Search, Filter, X, Command } from 'lucide-r
 import type { CreatorProfile } from '@/lib/supabase/queries/smartProductions';
 import { STUDIO, CREATOR_JOIN } from '@/lib/constants';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { creatorProfilePath } from '@/lib/seo/creator-url';
 
 // ─── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -22,9 +23,7 @@ function getInitials(name: string | null): string {
 }
 
 function getCreatorHref(creator: CreatorProfile): string {
-  return creator.crew_slug
-    ? `/creators/${creator.crew_slug}`
-    : `/creators/${creator.id}`;
+  return creatorProfilePath(creator);
 }
 
 // ─── CreatorCard ────────────────────────────────────────────────────────────────

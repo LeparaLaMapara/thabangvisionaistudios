@@ -235,7 +235,7 @@ export default function AdminServiceBookingsPage() {
       b,
       `/api/admin/service-bookings/${b.id}`,
       { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ creator_id: c.id }) },
-      () => `${c.name} has the booking and has been asked to accept it.`,
+      (d) => `${c.name} has the booking and has been asked to accept it.${typeof d.warning === 'string' ? ` ${d.warning}` : ''}`,
     );
   }
 

@@ -5,6 +5,8 @@ import { requireAdmin, rateLimitAdmin } from '@/lib/auth';
 import { createAdminClient } from '@/lib/supabase/server';
 import { isRagEnabled, indexItem } from '@/lib/rag';
 import { adminRentalEditConflict } from '@/lib/core/listings/review';
+import { notifyDiscovery } from '@/lib/discovery/notify';
+import { rentalPaths } from '@/lib/discovery/paths';
 
 // ─── GET — List all rentals (admin) ─────────────────────────────────────────
 
@@ -58,6 +60,7 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    if (data?.is_published) notifyDiscovery(rentalPaths(data));
     return NextResponse.json(data, { status: 201 });
   } catch (err) {
     console.error('[admin/rentals] POST error:', err);
@@ -88,7 +91,7 @@ export async function PUT(req: NextRequest) {
     // this generic editor (migration 072 refuses the flag flip anyway).
     const { data: current, error: currentError } = await supabase
       .from('smart_rentals')
-      .select('owner_type, is_published')
+      .select('owner_type, is_published, category, slug, owner_id')
       .eq('id', id)
       .maybeSingle();
     if (currentError) throw currentError;
@@ -116,6 +119,8 @@ export async function PUT(req: NextRequest) {
       }
     }
 
+    // Old and new address: the slug or category may have changed.
+    notifyDiscovery([...rentalPaths(current), ...rentalPaths(data)]);
     return NextResponse.json(data);
   } catch (err) {
     console.error('[admin/rentals] PUT error:', err);

@@ -33,6 +33,8 @@ import {
 } from '@/app/api/listings/_lib/server';
 import { insertDraft } from '@/app/api/listings/_lib/drafts';
 import { isOwnImageUrl, metadataFreeGallery, metadataFreeImageUrl } from '@/app/api/listings/_lib/images';
+import { notifyDiscovery } from '@/lib/discovery/notify';
+import { rentalPaths } from '@/lib/discovery/paths';
 
 /**
  * Community gear listings, owner side.
@@ -445,6 +447,9 @@ export async function PUT(request: NextRequest): Promise<NextResponse> {
       return NextResponse.json({ error: 'The listing changed; reload and try again.' }, { status: 409 });
     }
 
+    // A live listing that changed (or went back to draft) changes its public page.
+    if (row.listing_status === 'published') notifyDiscovery(rentalPaths(row));
+
     return ownListingResponse(admin, row.id, auth.user.id, {
       notice: backToDraft ? 'Your changes took this listing back to draft. Submit it again to go live.' : undefined,
     });
@@ -498,12 +503,14 @@ export async function DELETE(request: NextRequest): Promise<NextResponse> {
       .eq('owner_id', auth.user.id)
       .eq('owner_type', 'community')
       .is('deleted_at', null)
-      .select('id');
+      .select('id, category, slug, owner_type, owner_id, is_published');
 
     if (error) throw error;
     if (!data || data.length === 0) {
       return NextResponse.json({ error: 'Listing not found or not owned by you.' }, { status: 404 });
     }
+    const wasLive = data.filter((r: { is_published: boolean | null }) => r.is_published);
+    if (wasLive.length > 0) notifyDiscovery(wasLive.flatMap(rentalPaths));
     return NextResponse.json({ success: true });
   } catch (err) {
     console.error('[listings] DELETE error:', err);

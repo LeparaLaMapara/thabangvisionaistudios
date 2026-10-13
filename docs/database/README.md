@@ -98,7 +98,9 @@ test) holds the fixes the October rehearsal found on a copy of production:
 a hand-made storage policy that let any signed-in user read every ID
 document, 035's `smart_productions.submitted_at` and indexes, the
 `rls_auto_enable()` search path, and production's names for the policies
-077 E4/E10 drop. On production run it before step 1 below; on DEV run it
+077 E4/E10 drop. Its F1 part is already on production (run alone as a
+hotfix on 2026-10-13, recorded as `hotfix_close_verification_docs_leak`;
+repeating it is harmless). On production run it before step 1 below; on DEV run it
 whenever (it is a no-op apart from 035's objects). Locally it runs after 082
 in name order and changes nothing. Full production order:
 [docs/release/2026-10-apply-order.md](../release/2026-10-apply-order.md).
