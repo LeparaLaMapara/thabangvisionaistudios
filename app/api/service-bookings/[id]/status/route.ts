@@ -1,6 +1,7 @@
 export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
+import { appUrl } from '@/lib/app-url';
 import { createClient, createAdminClient } from '@/lib/supabase/server';
 import { email as emailProvider } from '@/lib/email';
 import { STUDIO } from '@/lib/constants';
@@ -268,7 +269,7 @@ async function sideEffects(p: {
   refundOutcome: RefundOutcome;
 }): Promise<void> {
   const { booking, decision, refundOutcome } = p;
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || STUDIO.meta.url;
+  const baseUrl = appUrl(STUDIO.meta.url);
 
   switch (decision.action) {
     case 'accept': {
