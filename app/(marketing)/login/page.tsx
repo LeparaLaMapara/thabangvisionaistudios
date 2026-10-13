@@ -9,6 +9,7 @@ import { authCallbackUrl, bannedMessage, signInErrorMessage } from '@/lib/auth/r
 import { readNextParam } from '@/lib/auth/next-path';
 import { destinationAfterSignIn } from '@/components/auth/afterSignIn';
 import { GoogleIcon } from '@/components/auth/GoogleIcon';
+import { GoogleSignInButton, type GoogleSignInError } from '@/components/auth/GoogleSignInButton';
 import { TermsNotice } from '@/components/auth/TermsNotice';
 
 /**
@@ -137,6 +138,13 @@ function LoginForm() {
       options: { redirectTo: authCallbackUrl(window.location.origin, next) },
     });
     if (oauthError) fail('Could not open Google sign-in. Please try again, or continue with your email.');
+  };
+
+  /** Google's own button signed in on this page (no trip through supabase.co). */
+  const googleFailed = (err: GoogleSignInError): void => {
+    setBusy(null);
+    const banned = bannedMessage(err, STUDIO.email);
+    fail(banned ?? 'Google sign-in did not finish. Please try again, or continue with your email.');
   };
 
   /**
@@ -313,16 +321,23 @@ function LoginForm() {
         <div className="bg-[#0A0A0B] border border-white/10 p-6 sm:p-8">
           {step === 'email' && (
             <div className="space-y-5">
-              <button
-                type="button"
-                onClick={handleGoogle}
-                disabled={busy !== null}
-                aria-busy={busy === 'google'}
-                className="w-full min-h-[44px] flex items-center justify-center gap-3 bg-[#131314] border border-[#8E918F] text-[#E3E3E3] py-3.5 text-sm font-medium hover:border-white transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-              >
-                {busy === 'google' ? <Spinner /> : <GoogleIcon />}
-                Continue with Google
-              </button>
+              <GoogleSignInButton
+                onBusy={() => { clearMessages(); setBusy('google'); }}
+                onSignedIn={(user) => void finish(user)}
+                onError={googleFailed}
+                fallback={
+                <button
+                  type="button"
+                  onClick={handleGoogle}
+                  disabled={busy !== null}
+                  aria-busy={busy === 'google'}
+                  className="w-full min-h-[44px] flex items-center justify-center gap-3 bg-[#131314] border border-[#8E918F] text-[#E3E3E3] py-3.5 text-sm font-medium hover:border-white transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  {busy === 'google' ? <Spinner /> : <GoogleIcon />}
+                  Continue with Google
+                </button>
+                }
+              />
 
               <div className="flex items-center gap-3 py-1" aria-hidden="true">
                 <div className="flex-1 h-px bg-white/10" />

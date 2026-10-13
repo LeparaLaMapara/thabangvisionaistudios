@@ -81,3 +81,17 @@ describe('proxy matcher (review: image-looking paths skipped the CSP)', () => {
     }
   });
 });
+
+describe('buildCsp: Google sign-in button', () => {
+  const directive = (csp: string, name: string): string =>
+    csp.split(';').map((d) => d.trim()).find((d) => d.startsWith(`${name} `)) ?? '';
+
+  it('lets Google Identity Services load, frame and call home, and nothing wider', () => {
+    const csp = buildCsp('n');
+    expect(directive(csp, 'script-src')).toContain('https://accounts.google.com/gsi/client');
+    expect(directive(csp, 'frame-src')).toContain('https://accounts.google.com/gsi/');
+    expect(directive(csp, 'connect-src')).toContain('https://accounts.google.com/gsi/');
+    expect(directive(csp, 'style-src')).toContain('https://accounts.google.com/gsi/style');
+    expect(csp).not.toMatch(/https:\/\/accounts\.google\.com(?=[\s;])/);
+  });
+});
