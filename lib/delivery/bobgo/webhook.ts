@@ -11,7 +11,7 @@ import { BOBGO_CONTRACT, BOBGO_PROVIDER_ID, mapBobgoStatus } from './api-contrac
  *
  * - `bobgoWebhookParser(env)` (what the parser registry uses) returns null,
  *   so /api/webhooks/delivery/bobgo answers 503 not_configured and nothing is
- *   stored or applied (D11). Status comes from reading the order instead.
+ *   stored or applied (D11). Status comes from reading the shipment instead.
  * - `createBobgoWebhookParser({ verify })` exists so that, once Bob Go
  *   documents its scheme in writing, a verifier can be written for exactly
  *   that scheme (with tests) and plugged in. With `verify: null` it refuses
@@ -36,7 +36,7 @@ export function createBobgoWebhookParser(opts: { verify: BobgoSignatureVerifier 
       }
     },
 
-    /** [assumed] payload shape: an order (bare or wrapped). Keeps ids, status and time only. */
+    /** [assumed] payload shape: a shipment, as the API returns it. Keeps references, status and time only. */
     parse(rawBody: string): ParsedDeliveryEvent | null {
       let j: unknown;
       try {
@@ -44,16 +44,13 @@ export function createBobgoWebhookParser(opts: { verify: BobgoSignatureVerifier 
       } catch {
         return null;
       }
-      const top = asObject(j);
-      const o = F.orderWrappers.map((k) => asObject(top?.[k])).find((x) => x !== null) ?? top;
-      if (!o) return null;
-      const providerReference = asString(o[F.orderId]);
-      const merchantReference = asString(o[F.merchantReference]);
+      const s = asObject(j);
+      if (!s) return null;
+      const providerReference = asString(s[F.shipmentReference]);
+      const merchantReference = asString(s[F.merchantReference]);
       if (!providerReference && !merchantReference) return null;
-      const shipments = o[F.shipments];
-      const shipment = Array.isArray(shipments) ? asObject(shipments[0]) : null;
-      const status = asString(shipment?.[F.shipmentStatus]) ?? asString(o[F.orderStatus]);
-      const stateAt = asIsoTime(o[F.updatedAt]);
+      const status = asString(s[F.shipmentStatus]);
+      const stateAt = asIsoTime(s[F.updatedAt]);
       return {
         eventId: null,
         merchantReference,
