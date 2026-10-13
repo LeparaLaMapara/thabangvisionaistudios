@@ -170,7 +170,7 @@ export function profileComplete(p: PersonFacts): boolean {
 }
 
 export function tailoredDue(p: PersonFacts, history: HistoryRow[]): boolean {
-  if (!p.marketingOptIn || !profileComplete(p)) return false;
+  if (!profileComplete(p)) return false;
   return !history.some((h) => h.dedupeKey === dedupeKey('tailored', p.userId));
 }
 
@@ -214,7 +214,7 @@ export function planFor(p: PersonFacts, history: HistoryRow[], now: Date): Plan 
 /**
  * Whether a queued message should still go out at send time. Things change
  * between queueing and sending: the cart is emptied, onboarding finished,
- * consent withdrawn.
+ * or they unsubscribe.
  */
 export function stillDue(msg: { dedupeKey: string; channel: string; data: { stage?: string; reason?: string; nudge?: number } }, p: PersonFacts, history: HistoryRow[], now: Date): { ok: true } | { ok: false; why: string } {
   if (msg.data.stage === 'push') return { ok: true };
@@ -233,7 +233,6 @@ export function stillDue(msg: { dedupeKey: string; channel: string; data: { stag
     return stop && stop.reason === msg.data.reason ? { ok: true } : { ok: false, why: 'no longer applies' };
   }
   if (msg.data.stage === 'tailored') {
-    if (!p.marketingOptIn) return { ok: false, why: 'no marketing consent' };
     return profileComplete(p) ? { ok: true } : { ok: false, why: 'profile not complete' };
   }
   return { ok: false, why: 'unknown stage' };

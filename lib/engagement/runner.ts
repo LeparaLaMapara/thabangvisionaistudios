@@ -116,7 +116,7 @@ async function previewSamples(
       draftedBy = d.draftedBy;
     }
     if (!content) continue;
-    const r = renderLifecycle(m.userId, content, m.data.stage === 'tailored' ? 'marketing' : 'service');
+    const r = renderLifecycle(m.userId, content, 'service');
     out.push({ stage: m.data.stage, reason: m.data.reason, subject: r.subject, text: r.text, draftedBy });
   }
   return out;

@@ -121,12 +121,12 @@ async function deliver(
   }
 
   let content;
-  let why: 'service' | 'marketing' = 'service';
+  // Every lifecycle stage is a service message (owner, 2026-10-13).
+  const why = 'service' as const;
   if (data.stage === 'nudge' && data.reason) {
     content = nudgeContent({ reason: data.reason, nudge: data.nudge ?? 1, firstName: person.firstName, intent: person.intent, cartItems: person.cart.items });
   } else if (data.stage === 'tailored') {
     content = (await draftTailored(await loadTailoredProfile(admin, person))).content;
-    why = 'marketing';
   } else {
     return { status: 'skipped', why: 'unknown stage' };
   }

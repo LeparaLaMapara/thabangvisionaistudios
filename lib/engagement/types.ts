@@ -5,7 +5,9 @@
  *   welcome   the hello after joining (service message)
  *   nudge     "finish your signup", tailored to where they stopped (service)
  *   tailored  once the profile is complete, an AI-written note with concrete
- *             next steps (marketing: only with marketing_opt_in)
+ *             next steps (service, not marketing: owner decision 2026-10-13.
+ *             Engagement is following through with the person; marketing,
+ *             like news about features, is separate and needs marketing_opt_in)
  * Plus 'engage_push': a push copy of a notification bell item.
  */
 

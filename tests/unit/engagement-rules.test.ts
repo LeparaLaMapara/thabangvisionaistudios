@@ -194,9 +194,9 @@ describe('nudges: day 1 and day 3, then stop', () => {
 
 describe('stage: tailored (marketing)', () => {
   const complete = (over: Partial<PersonFacts> = {}) => person({ onboardingCompletedAt: ago(5), verification: 'verified', ...over });
-  it('needs a complete profile AND marketing consent', () => {
+  it('needs a complete profile; engagement, not marketing, so no marketing consent needed', () => {
     expect(profileComplete(complete())).toBe(true);
-    expect(tailoredDue(complete({ marketingOptIn: false }), [])).toBe(false);
+    expect(tailoredDue(complete({ marketingOptIn: false }), [])).toBe(true);
     expect(tailoredDue(complete({ marketingOptIn: true }), [])).toBe(true);
     expect(tailoredDue(person({ marketingOptIn: true }), [])).toBe(false);
   });
@@ -209,7 +209,7 @@ describe('stage: tailored (marketing)', () => {
     expect(plan.messages[0]).toMatchObject({ kind: 'engage_tailored', data: { stage: 'tailored' } });
   });
   it('nothing due: held with a reason', () => {
-    expect(planFor(complete(), [], NOW)).toEqual({ messages: [], held: 'nothing_due' });
+    expect(planFor(complete(), [sent(dedupeKey('tailored', UID), 30)], NOW)).toEqual({ messages: [], held: 'nothing_due' });
   });
 });
 
@@ -224,9 +224,9 @@ describe('re-check at send time', () => {
     expect(stillDue(msg('nudge', { reason: 'cart' }), p, [], NOW)).toEqual({ ok: false, why: 'no longer applies' });
     expect(stillDue(msg('nudge', { reason: 'cart' }), person({ cart: { items: 1, newestAt: ago(2) } }), [], NOW)).toEqual({ ok: true });
   });
-  it('marketing consent withdrawn after queueing: not sent', () => {
+  it('tailored goes without marketing consent (engagement, not marketing)', () => {
     const p = person({ onboardingCompletedAt: ago(3), marketingOptIn: false });
-    expect(stillDue(msg('tailored'), p, [], NOW)).toEqual({ ok: false, why: 'no marketing consent' });
+    expect(stillDue(msg('tailored'), p, [], NOW)).toEqual({ ok: true });
   });
   it('opted out after queueing: no email, push still allowed', () => {
     const p = person({ optedOut: true, cart: { items: 1, newestAt: ago(2) } });
