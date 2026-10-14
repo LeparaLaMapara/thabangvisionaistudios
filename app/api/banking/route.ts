@@ -6,6 +6,9 @@ import { createClient, createAdminClient } from '@/lib/supabase/server';
 import { createPayoutRecipient, payoutRecipientsConfigured } from '@/lib/payments/payout';
 import { logEvent } from '@/lib/data/events';
 import { identityPort } from '@/lib/payments/ports';
+import { email as emailProvider } from '@/lib/email';
+import { STUDIO } from '@/lib/constants';
+import { formatRand } from '@/lib/format/money';
 
 export async function GET(): Promise<NextResponse> {
   try {
@@ -180,6 +183,10 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       return NextResponse.json({ error: 'Failed to save banking details' }, { status: 500 });
     }
 
+    // Someone whose card refund was refused was asked to add this account
+    // (refund_failed): tell the owner straight away so it can be paid.
+    await alertOwnerIfRefundWaiting(admin, user.id, user.email ?? null, { bank_name, last4: String(account_number).slice(-4), validated });
+
     logEvent({ eventType: validated ? 'bank_account_validated' : 'bank_account_saved_unvalidated', eventCategory: 'payout', userId: user.id, metadata: { provider: identityPort.provider } });
     return NextResponse.json({ success: true, has_recipient: true, validated, message: validationMessage });
   } catch (err) {
@@ -187,3 +194,36 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
+
+async function alertOwnerIfRefundWaiting(
+  admin: ReturnType<typeof createAdminClient>,
+  userId: string,
+  userEmail: string | null,
+  bank: { bank_name: string; last4: string; validated: boolean },
+): Promise<void> {
+  try {
+    const { data } = await admin
+      .from('refund_obligations')
+      .select('amount_cents')
+      .eq('user_id', userId)
+      .in('state', ['failed', 'needs_attention']);
+    const waiting = (data ?? []) as { amount_cents: number }[];
+    if (waiting.length === 0) return;
+    const total = waiting.reduce((sum, r) => sum + r.amount_cents, 0);
+    await emailProvider.sendEmail({
+      to: STUDIO.ownerAlertsTo,
+      subject: `[Refund] ${userEmail ?? 'A renter'} added bank details: ${formatRand(total / 100)} to pay`,
+      text: [
+        `${userEmail ?? 'A renter'} added a bank account for the refund their card refused.`,
+        '',
+        `Bank: ${bank.bank_name}, account ending ${bank.last4}${bank.validated ? ' (validated)' : ' (NOT validated: check the name with them first)'}.`,
+        `To pay: ${formatRand(total / 100)} (${waiting.length} refund${waiting.length === 1 ? '' : 's'}).`,
+        '',
+        `Rental ops shows the Paystack recipient to pay: ${STUDIO.meta.url}/admin/rental-ops`,
+      ].join('\n'),
+    });
+  } catch (err) {
+    console.error('[banking] refund owner alert failed:', err instanceof Error ? err.message : err);
+  }
+}
+

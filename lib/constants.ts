@@ -100,7 +100,7 @@ export const STUDIO = {
       privacy: { version: '2026-10-08', label: 'Privacy Policy', href: '/privacy' },
       refunds: { version: '2026-10-13', label: 'Refunds & Cancellations', href: '/refunds' },
       rentalAgreement: { version: '2026-10-13', label: 'Rental agreement', href: '/legal#equipment-hire' },
-      biometricNotice: { version: '2026-10-08', label: 'Identity check notice', href: '/privacy#identity-verification' },
+      biometricNotice: { version: '2026-10-14', label: 'Identity check notice', href: '/privacy#identity-verification' },
     },
     // The VAT number itself. Optional: a vendor must show it on a tax invoice,
     // but is not obliged to publish it on the website. Rendered only if set.
@@ -151,7 +151,7 @@ export const STUDIO = {
     title: 'ThabangVision',
     // Leads with gear rental, the offering that is live (2026-09-28).
     description:
-      'Rent cameras, lenses, lighting and sound in Johannesburg. Collect at 99 Smith Street, Braamfontein, and see the full price before you book. Photo and video shoots by request.',
+      'Rent cameras, lenses, lighting and sound in Johannesburg. Collect in Dainfern, Fourways, and see the full price before you book. Photo and video shoots by request.',
     ogImage: '/og-image.jpg',
   },
 
@@ -170,7 +170,7 @@ export const STUDIO = {
   locations: [
     {
       name: 'Johannesburg collection point',
-      address: '99 Smith Street, Braamfontein, Johannesburg. Collections by booking, during business hours.',
+      address: 'Dainfern, Fourways, Johannesburg. Collections by booking, during business hours; the exact place is sent with your booking.',
       city: 'Johannesburg',
       province: 'Gauteng',
       phone: '',
@@ -285,10 +285,10 @@ export const STUDIO = {
     autoSendMaxAgeDays: 30,
     // Signup is open to anyone with the public key, so a script making
     // accounts must not flood the owner's inbox or the AI budget. Past these
-    // per-hour caps the owner note is skipped (the daily list in
-    // /admin/welcomes still shows everyone) and the welcome uses the template.
+    // per-hour cap the owner note is skipped (the daily list in
+    // /admin/welcomes still shows everyone). The welcome itself is one fixed
+    // text (lib/greetings/welcome.ts welcomeTemplate), never AI-written.
     ownerNotesPerHour: 20,
-    aiDraftsPerHour: 30,
   },
 
   // Lifecycle emails and push (lib/engagement): welcome, "finish your signup"
@@ -334,14 +334,16 @@ export const STUDIO = {
     // the city we present as our base, and from legal.registeredAddress, which
     // is the CIPC address and is not an operating site.
     //
-    // University of the Witwatersrand, Braamfontein, Johannesburg.
+    // Dainfern, Fourways (north Johannesburg), where most of the gear is
+    // kept (owner, 2026-10-14). The coordinates are the Dainfern estates
+    // (OpenStreetMap), close enough for delivery distances.
     dispatchFrom: {
-      name: 'Braamfontein',
-      lat: -26.1929,
-      lng: 28.0305,
-      // The exact meeting place, sent in every confirmation. Empty until the
-      // owner sets it; messages then say the spot follows the day before.
-      meetingPoint: '99 Smith Street',
+      name: 'Dainfern, Fourways',
+      lat: -25.9892,
+      lng: 28.0050,
+      // The exact place, sent only to someone with a booking (a residential
+      // estate: public pages name the area only, lib/rental/collection-point.ts).
+      meetingPoint: 'The View, Dainfern',
     },
     collection: {
       enabled: true,
@@ -370,9 +372,9 @@ export const STUDIO = {
       itemsIncluded: 3,
       surchargePerExtraItem: 25,
       // Past this we stop calculating and quote by hand. 100km reaches the
-      // whole of Gauteng from Braamfontein, including Tshwane North and
-      // Soshanguve at roughly 96km by road. Below 100 those fall outside,
-      // which would be odd for a Johannesburg-Pretoria operation.
+      // whole of Gauteng from Dainfern, including Tshwane North and
+      // Soshanguve. Below 100 parts of the south would fall outside, which
+      // would be odd for a Johannesburg-Pretoria operation.
       maxRadiusKm: 100,
     },
   },
@@ -1441,21 +1443,64 @@ export interface UbunyeStudioApp {
   /** The browser version (served from R2 by the ubunye-creative-web Worker). */
   webUrl: string;
   upstream: { name: string; credit: string; url: string };
+  /** One plain sentence for /tools, in everyday words. */
+  plain: string;
+  /** Who it is for, e.g. "For photographers." */
+  audience: string;
+  /**
+   * A short silent loop of the real browser app (recorded with Playwright,
+   * 720px wide, under 600 KB) and its still. Files live in public/ubunye/media.
+   */
+  media: { mp4: string; webm: string; poster: string; alt: string };
 }
+
+/**
+ * The research lab behind the free apps and the editor in research (owner,
+ * 2026-10-14). Shown on /about in "From the lab".
+ */
+export const RESEARCH_LAB = {
+  name: 'Ubunye AI Ecosystems Research Lab',
+  url: 'https://uaie.vercel.app',
+  line: 'We build tools that make creative work easier, and give them away.',
+  why: 'Great work should not depend on who you know or what you can afford. So our lab takes the hard parts out of creating, and puts the tools in everyone’s hands.',
+  editor: {
+    name: 'Ubunye Studio',
+    status: 'In research',
+    desc: 'An AI editor that watches your footage, finds your best moments and cuts a first edit. Then it checks its own work.',
+  },
+} as const;
 
 export const UBUNYE_STUDIO = {
   suiteName: 'Ubunye Apps',
   shortName: 'Ubunye',
   wordmark: '/ubunye/ubunye-creative-studio-dark.svg',
   intro: 'Free apps for photo and film. Download them, or try them in your browser.',
-  footerLine: 'Three free apps. Light, Photo and Film.',
-  version: 'Preview',
+  version: 'Early version',
   status: 'preview' as UbunyeReleaseStatus,
   statusLabels: {
     'coming-soon': 'Coming soon',
-    preview: 'Preview',
+    preview: 'Early version',
     released: 'Available',
   } as Record<UbunyeReleaseStatus, string>,
+  /** The /tools hero: what it is, where it runs, what it costs. */
+  hero: {
+    title: 'Three free apps for your photos and videos.',
+    subtitle: 'Mac, Windows, Linux, or right in your browser. No account. No cost.',
+    browserCta: 'Try it in your browser',
+  },
+  /**
+   * The desktop downloads are not code signed (checked 2026-10-14: the Windows
+   * MSI has no Authenticode signature; the macOS app is ad-hoc signed only, no
+   * Developer ID, not notarized). Owner chose to ship unsigned. Set `signed`
+   * to true once they are, and the trust note disappears.
+   */
+  install: {
+    signed: false,
+    trustNote: "The first time, your computer may ask if you trust the app. That's normal for new apps.",
+    macNote: 'On a Mac, right-click the app and choose Open. On newer macOS, go to System Settings, Privacy & Security, and choose Open Anyway.',
+  },
+  /** Closing line on /tools, linked to RESEARCH_LAB.url. */
+  closing: `Made by the ${RESEARCH_LAB.name}, because great work shouldn’t depend on what you can afford.`,
   licence: 'MIT OR Apache-2.0',
   maker: 'Ubunye AI Ecosystems',
   systemRequirements: 'Windows (x64, x86 or Arm), macOS (Apple silicon or Intel) or Linux (x86_64 or Arm64). Or use the browser version.',
@@ -1497,6 +1542,14 @@ export const UBUNYE_STUDIO = {
         credit: 'Based on LightCraft by the ArtCraft team',
         url: 'https://github.com/storytold/lightcraft',
       },
+      plain: 'Develop the photos from your camera. Make them brighter, warmer and sharper, even RAW files.',
+      audience: 'For photographers.',
+      media: {
+        mp4: '/ubunye/media/light.mp4',
+        webm: '/ubunye/media/light.webm',
+        poster: '/ubunye/media/light-poster.webp',
+        alt: 'Ubunye Light in the browser: contrast, warmth and vibrance sliders move and a pale lake photo turns vivid.',
+      },
     },
     {
       slug: 'photo',
@@ -1519,6 +1572,14 @@ export const UBUNYE_STUDIO = {
         name: 'PhotoCraft',
         credit: 'Based on PhotoCraft by the ArtCraft team',
         url: 'https://github.com/storytold/photocraft',
+      },
+      plain: 'Edit and retouch pictures, like Photoshop. Opens Photoshop files.',
+      audience: 'For designers and retouchers.',
+      media: {
+        mp4: '/ubunye/media/photo.mp4',
+        webm: '/ubunye/media/photo.webm',
+        poster: '/ubunye/media/photo-poster.webp',
+        alt: 'Ubunye Photo in the browser: a Brightness and Contrast layer is added to a dark night photo and the building lights up.',
       },
     },
     {
@@ -1543,6 +1604,14 @@ export const UBUNYE_STUDIO = {
         name: 'FilmCraft',
         credit: 'Based on FilmCraft by the ArtCraft team',
         url: 'https://github.com/storytold/filmcraft',
+      },
+      plain: 'Cut your video, fix the colour and sound, and export it.',
+      audience: 'For filmmakers and content creators.',
+      media: {
+        mp4: '/ubunye/media/film.mp4',
+        webm: '/ubunye/media/film.webm',
+        poster: '/ubunye/media/film-poster.webp',
+        alt: 'Ubunye Film in the browser: a clip is trimmed on the timeline, then its colour is warmed and made richer.',
       },
     },
   ] as readonly UbunyeStudioApp[],

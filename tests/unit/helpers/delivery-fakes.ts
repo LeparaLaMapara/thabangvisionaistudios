@@ -6,6 +6,7 @@
  * per dedupe key, one refund obligation per key, and a transition is applied
  * all-or-nothing. Test doubles, not a live integration.
  */
+import { STUDIO } from '@/lib/constants';
 import type { Clock, ProviderCallResult } from '@/lib/core/ports';
 import { isBalanced, type Journal } from '@/lib/core/rental/ledger';
 import type { OutboxMessage } from '@/lib/core/rental/notifications';
@@ -465,8 +466,8 @@ export function world(opts: { courierEnabled?: boolean; ownFleetEnabled?: boolea
   const courier = new FakeCourier();
   const tasks = new InMemoryManualTaskStore();
   const manual = createManualDeliveryAdapter(tasks, { now: () => clock.now() });
-  addresses.points.set(OFFICE, { placeId: OFFICE, lat: -26.1929, lng: 28.0305, formattedAddress: '99 Smith Street, Braamfontein', suburb: 'Braamfontein', city: 'Johannesburg', postalCode: '2001', province: 'Gauteng', contactName: 'Desk', contactPhone: '0000000000', instructions: null, userId: null });
-  addresses.points.set(RENTER_HOME, { placeId: RENTER_HOME, lat: -26.1076, lng: 28.0567, formattedAddress: '1 Test Road, Sandton', suburb: 'Sandton', city: 'Johannesburg', postalCode: '2196', province: 'Gauteng', contactName: 'Thandi', contactPhone: '0000000001', instructions: 'Gate 2', userId: RENTER });
+  addresses.points.set(OFFICE, { placeId: OFFICE, lat: STUDIO.fulfilment.dispatchFrom.lat, lng: STUDIO.fulfilment.dispatchFrom.lng, formattedAddress: 'The View, Dainfern', suburb: 'Dainfern', city: 'Johannesburg', postalCode: '2055', province: 'Gauteng', contactName: 'Desk', contactPhone: '0000000000', instructions: null, userId: null });
+  addresses.points.set(RENTER_HOME, { placeId: RENTER_HOME, lat: -26.0216, lng: 28.0119, formattedAddress: '1 Test Road, Sandton', suburb: 'Sandton', city: 'Johannesburg', postalCode: '2196', province: 'Gauteng', contactName: 'Thandi', contactPhone: '0000000001', instructions: 'Gate 2', userId: RENTER });
   addresses.points.set(OUT_OF_AREA, { placeId: OUT_OF_AREA, lat: -29.8587, lng: 31.0218, formattedAddress: '1 Beach Road, Durban', suburb: 'Durban Central', city: 'Durban', postalCode: '4001', province: 'KwaZulu-Natal', contactName: 'Thandi', contactPhone: '0000000001', instructions: null, userId: RENTER });
   bookings.groups.set(GROUP, {
     bookingGroupId: GROUP,

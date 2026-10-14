@@ -38,6 +38,16 @@ export function submissionAlert(input: SubmissionAlertInput): { subject: string;
   } else {
     checks.push('Document: the AI could not read it');
   }
+  const loc = input.metadata.device_location;
+  if (loc) {
+    checks.push(
+      loc.status === 'shared'
+        ? `Location: shared${loc.accuracy_m !== null ? ` (within ${loc.accuracy_m} m)` : ''}, see the review page`
+        : loc.status === 'denied'
+          ? 'Location: REFUSED'
+          : `Location: not available (${loc.status})`,
+    );
+  }
   checks.push(
     face
       ? `Face match: ${face.match ? 'same person' : 'DIFFERENT people'} (${Math.round(face.confidence * 100)}% sure)`

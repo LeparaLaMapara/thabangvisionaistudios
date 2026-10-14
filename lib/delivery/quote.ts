@@ -59,7 +59,7 @@ export function haversineKm(a: Coordinates, b: Coordinates): number {
 /**
  * Every place we can dispatch from. The nearest one to the destination wins.
  *
- * Only the Braamfontein site has coordinates today. When another branch gains
+ * Only the Dainfern site has coordinates today. When another branch gains
  * its own lat/lng, add it here and the nearest-wins logic picks it up with no
  * other change.
  */

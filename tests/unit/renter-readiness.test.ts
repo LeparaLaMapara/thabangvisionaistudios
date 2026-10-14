@@ -128,12 +128,21 @@ describe('buildReadiness: the checklist before payment', () => {
     expect(r.missing.map((m) => m.code)).toContain('trust_limit');
   });
 
-  it('is honest when phone checks are not available online', () => {
-    const r = build(newRenter, [line(100_000)], { phoneChecksAvailable: false });
-    const phone = r.missing.find((m) => m.code === 'verify_phone');
-    expect(phone?.status).toBe('unavailable');
-    expect(phone?.href).toBe('/contact');
+  // Owner decision 2026-10-14: a step nobody can complete is switched off, not shown.
+  it('hides the phone step and does not require it while phone checks are off', () => {
+    const r = build({ ...newRenter, phoneRequired: false }, [line(100_000)], { phoneChecksAvailable: false });
+    expect(r.missing.find((m) => m.code === 'verify_phone')).toBeUndefined();
     expect(r.phoneChecksAvailable).toBe(false);
+    const tier = earnedTier({ ...newRenter, emailVerified: true, phoneRequired: false }, NOW);
+    expect(tier.tier.id).toBe('contactable');
+    expect(tier.next?.items.map((i) => i.code)).not.toContain('verify_phone');
+  });
+
+  it('still requires a confirmed phone once phone checks are on', () => {
+    const r = build(newRenter, [line(100_000)], { phoneChecksAvailable: true });
+    expect(r.missing.find((m) => m.code === 'verify_phone')?.status).toBe('missing');
+    expect(earnedTier({ ...newRenter, emailVerified: true }, NOW).tier.id).toBe('none');
+    expect(earnedTier({ ...newRenter, emailVerified: true, phoneRequired: true }, NOW).tier.id).toBe('none');
   });
 
   it('a pending ID check is shown as waiting, and blocks payment', () => {

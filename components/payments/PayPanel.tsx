@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { Mail } from 'lucide-react';
 import { STUDIO } from '@/lib/constants';
+import { exactCollectionPoint } from '@/lib/rental/collection-point';
 import { BankDetails } from '@/components/payments/BankDetails';
 import { ContactButtons } from '@/components/payments/ContactButtons';
 
@@ -20,7 +21,7 @@ const rand = (n: number): string => `R${n.toLocaleString(STUDIO.currency.locale)
  * or, for cash, what to bring to the collection point.
  */
 export function PayPanel({ info, startDate }: { info: PaymentInfo; startDate?: string }) {
-  const where = `${STUDIO.fulfilment.dispatchFrom.meetingPoint}, ${STUDIO.fulfilment.dispatchFrom.name}`;
+  const where = exactCollectionPoint();
   if (info.method === 'cash') {
     return (
       <section aria-label="How to pay" className="border border-[#D4A843]/30 bg-[#D4A843]/5 p-5 mb-6 space-y-3">

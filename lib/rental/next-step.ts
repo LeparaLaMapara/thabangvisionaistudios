@@ -1,5 +1,5 @@
 import { STUDIO } from '@/lib/constants';
-import { collectionPointWithCity } from '@/lib/rental/collection-point';
+import { exactCollectionPointWithCity } from '@/lib/rental/collection-point';
 
 /**
  * "What happens next" on a gear booking, for every status, in the same words
@@ -36,7 +36,7 @@ const hours = (): string => `${STUDIO.hours.weekday}, ${STUDIO.hours.weekend}`;
 
 export function gearNextStep(b: NextStepFacts): NextStep {
   const delivery = b.fulfilment_method === 'delivery';
-  const where = collectionPointWithCity();
+  const where = exactCollectionPointWithCity();
   switch (b.status) {
     case 'pending':
       if (b.payment_method === 'eft' || b.payment_method === 'cash') {
