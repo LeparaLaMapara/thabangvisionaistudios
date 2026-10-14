@@ -1,6 +1,7 @@
 export const dynamic = 'force-dynamic';
 
 import crypto from 'node:crypto';
+import { rolesOffResponse } from '@/lib/roles/flag';
 import { NextResponse, type NextRequest } from 'next/server';
 import { checkRateLimit } from '@/lib/auth';
 import { createAdminClient, createClient } from '@/lib/supabase/server';
@@ -19,6 +20,8 @@ import { getMyPersonRole, getRole, ROLE_DOCUMENT_BUCKET } from '@/lib/supabase/q
 type Ctx = { params: Promise<{ slug: string }> };
 
 export async function POST(req: NextRequest, ctx: Ctx): Promise<NextResponse> {
+  const off = await rolesOffResponse();
+  if (off) return off;
   const { slug } = await ctx.params;
   const supabase = await createClient();
   const {

@@ -1,6 +1,7 @@
 export const dynamic = 'force-dynamic';
 
 import { NextResponse, type NextRequest } from 'next/server';
+import { rolesOffResponse } from '@/lib/roles/flag';
 import { checkRateLimit } from '@/lib/auth';
 import { ROLES_POLICY, STUDIO } from '@/lib/constants';
 import { sanitizeClientMetadata } from '@/lib/metadata/verification';
@@ -31,6 +32,8 @@ type Ctx = { params: Promise<{ slug: string }> };
 const KEY = /^[a-z0-9_-]{1,40}$/;
 
 export async function POST(req: NextRequest, ctx: Ctx): Promise<NextResponse> {
+  const off = await rolesOffResponse();
+  if (off) return off;
   const { slug } = await ctx.params;
   const supabase = await createClient();
   const {
@@ -119,6 +122,8 @@ export async function POST(req: NextRequest, ctx: Ctx): Promise<NextResponse> {
 }
 
 export async function DELETE(req: NextRequest, ctx: Ctx): Promise<NextResponse> {
+  const off = await rolesOffResponse();
+  if (off) return off;
   const { slug } = await ctx.params;
   const id = new URL(req.url).searchParams.get('id') ?? '';
   if (!/^[0-9a-f-]{36}$/i.test(id)) return NextResponse.json({ error: 'Bad id.' }, { status: 400 });

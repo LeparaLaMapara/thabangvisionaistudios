@@ -1,6 +1,7 @@
 export const dynamic = 'force-dynamic';
 
 import { NextResponse, type NextRequest } from 'next/server';
+import { rolesOffResponse } from '@/lib/roles/flag';
 import { checkRateLimit } from '@/lib/auth';
 import { RENTAL_CATEGORIES, ROLES_POLICY } from '@/lib/constants';
 import { createClient } from '@/lib/supabase/server';
@@ -31,6 +32,8 @@ interface MatchOut {
 }
 
 export async function POST(req: NextRequest): Promise<NextResponse> {
+  const off = await rolesOffResponse();
+  if (off) return off;
   let body: Record<string, unknown>;
   try {
     body = (await req.json()) as Record<string, unknown>;

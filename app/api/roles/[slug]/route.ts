@@ -1,6 +1,7 @@
 export const dynamic = 'force-dynamic';
 
 import { NextResponse, type NextRequest } from 'next/server';
+import { rolesOffResponse } from '@/lib/roles/flag';
 import { checkRateLimit } from '@/lib/auth';
 import { createClient } from '@/lib/supabase/server';
 import { EVIDENCE_COLUMNS, getIdentityFacts, getMyPersonRole, getRole, PERSON_ROLE_COLUMNS } from '@/lib/supabase/queries/roles';
@@ -40,6 +41,8 @@ async function session() {
 }
 
 export async function GET(_req: NextRequest, ctx: Ctx): Promise<NextResponse> {
+  const off = await rolesOffResponse();
+  if (off) return off;
   const { slug } = await ctx.params;
   const { supabase, user } = await session();
   if (!user) return NextResponse.json({ error: 'Please sign in.' }, { status: 401 });
@@ -53,6 +56,8 @@ export async function GET(_req: NextRequest, ctx: Ctx): Promise<NextResponse> {
 }
 
 export async function PUT(req: NextRequest, ctx: Ctx): Promise<NextResponse> {
+  const off = await rolesOffResponse();
+  if (off) return off;
   const { slug } = await ctx.params;
   const { supabase, user } = await session();
   if (!user) return NextResponse.json({ error: 'Please sign in.' }, { status: 401 });
@@ -147,6 +152,8 @@ export async function PUT(req: NextRequest, ctx: Ctx): Promise<NextResponse> {
 }
 
 export async function POST(req: NextRequest, ctx: Ctx): Promise<NextResponse> {
+  const off = await rolesOffResponse();
+  if (off) return off;
   const { slug } = await ctx.params;
   const { supabase, user } = await session();
   if (!user) return NextResponse.json({ error: 'Please sign in.' }, { status: 401 });

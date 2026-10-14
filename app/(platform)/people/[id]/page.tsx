@@ -16,6 +16,7 @@ interface Props {
 const load = cache((id: string) => getPublicRoleProfile(id));
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
+  if (!(await getFlag('roles_v1'))) return { title: 'Profile' };
   const { id } = await params;
   const p = await load(id);
   if (!p) return { title: 'Profile' };

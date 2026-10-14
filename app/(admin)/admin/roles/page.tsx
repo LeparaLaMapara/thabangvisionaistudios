@@ -53,6 +53,7 @@ export default function AdminRolesPage() {
     try {
       const res = await fetch(`/api/admin/roles?status=${s}`);
       const body = (await res.json()) as { items?: Item[]; counts?: Record<Status, number>; error?: string };
+      if (res.status === 404) throw new Error('Role profiles are switched off here (the roles_v1 flag, in Site switches).');
       if (!res.ok) throw new Error(body.error ?? 'Could not load.');
       setItems(body.items ?? []);
       setCounts(body.counts ?? null);

@@ -1,6 +1,7 @@
 export const dynamic = 'force-dynamic';
 
 import { NextResponse, type NextRequest } from 'next/server';
+import { rolesOffResponse } from '@/lib/roles/flag';
 import { checkRateLimit } from '@/lib/auth';
 import { ROLES_POLICY } from '@/lib/constants';
 import { createAdminClient, createClient } from '@/lib/supabase/server';
@@ -17,6 +18,8 @@ import { createAdminClient, createClient } from '@/lib/supabase/server';
 const PHONE = /^\+?[0-9 ]{9,16}$/;
 
 export async function POST(req: NextRequest): Promise<NextResponse> {
+  const off = await rolesOffResponse();
+  if (off) return off;
   const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown';
   const { max, windowMs } = ROLES_POLICY.interestRateLimit;
   if (!(await checkRateLimit(`role-interest:${ip}`, max, windowMs))) {

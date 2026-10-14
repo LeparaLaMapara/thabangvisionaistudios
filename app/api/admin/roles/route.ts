@@ -1,6 +1,7 @@
 export const dynamic = 'force-dynamic';
 
 import { NextResponse, type NextRequest } from 'next/server';
+import { rolesOffResponse } from '@/lib/roles/flag';
 import { requireAdmin } from '@/lib/auth';
 import { createAdminClient } from '@/lib/supabase/server';
 import { listReviewQueue, reviewCounts, EVIDENCE_COLUMNS, PERSON_ROLE_COLUMNS, getRole } from '@/lib/supabase/queries/roles';
@@ -25,6 +26,8 @@ import { bestDateOfBirth, confirmedJobCount, evidenceLevel, PERSON_ROLE_STATUSES
 const MIN_NOTE = 15;
 
 export async function GET(request: NextRequest): Promise<NextResponse> {
+  const off = await rolesOffResponse();
+  if (off) return off;
   const auth = await requireAdmin();
   if (auth.error) return auth.error;
   const status = new URL(request.url).searchParams.get('status') ?? 'submitted';
@@ -41,6 +44,8 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 }
 
 export async function PATCH(request: NextRequest): Promise<NextResponse> {
+  const off = await rolesOffResponse();
+  if (off) return off;
   const auth = await requireAdmin();
   if (auth.error) return auth.error;
   const reviewer = auth.user.id;

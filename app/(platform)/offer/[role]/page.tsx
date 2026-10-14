@@ -17,7 +17,7 @@ interface Props {
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { role: slug } = await params;
-  const role = await getRole(slug);
+  const role = (await getFlag('roles_v1')) ? await getRole(slug) : null;
   return buildPageMetadata({
     title: role ? `Offer: ${role.name.toLowerCase()}` : 'Offer',
     description: role ? `${role.description} Join ${STUDIO.shortName} free.` : `Join ${STUDIO.shortName}.`,
