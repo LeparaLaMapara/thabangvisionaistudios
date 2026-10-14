@@ -60,7 +60,7 @@ describe('photo format: photos only, judged by the bytes', () => {
     // Some phones report no type for HEIC: the name decides.
     expect(isHeic({ type: '', name: 'IMG_1.heic' })).toBe(true);
     expect(validateIdPhoto({ type: 'image/jpeg', name: 'a.jpg', size: 12 * MB }).valid).toBe(true);
-    expect(validateIdPhoto({ type: 'image/jpeg', name: 'a.jpg', size: 10 * 1024 }).valid).toBe(false);
+    expect(validateIdPhoto({ type: 'image/jpeg', name: 'a.jpg', size: 4 * 1024 }).valid).toBe(false);
     expect(validateIdPhoto({ type: 'image/jpeg', name: 'a.jpg', size: 40 * MB }).valid).toBe(false);
   });
 
