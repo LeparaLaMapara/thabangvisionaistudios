@@ -1431,6 +1431,15 @@ export interface UbunyeStudioApp {
   /** The browser version (served from R2 by the ubunye-creative-web Worker). */
   webUrl: string;
   upstream: { name: string; credit: string; url: string };
+  /** One plain sentence for /tools, in everyday words. */
+  plain: string;
+  /** Who it is for, e.g. "For photographers." */
+  audience: string;
+  /**
+   * A short silent loop of the real browser app (recorded with Playwright,
+   * 720px wide, under 600 KB) and its still. Files live in public/ubunye/media.
+   */
+  media: { mp4: string; webm: string; poster: string; alt: string };
 }
 
 /**
@@ -1454,14 +1463,32 @@ export const UBUNYE_STUDIO = {
   shortName: 'Ubunye',
   wordmark: '/ubunye/ubunye-creative-studio-dark.svg',
   intro: 'Free apps for photo and film. Download them, or try them in your browser.',
-  footerLine: 'Three free apps. Light, Photo and Film.',
-  version: 'Preview',
+  version: 'Early version',
   status: 'preview' as UbunyeReleaseStatus,
   statusLabels: {
     'coming-soon': 'Coming soon',
-    preview: 'Preview',
+    preview: 'Early version',
     released: 'Available',
   } as Record<UbunyeReleaseStatus, string>,
+  /** The /tools hero: what it is, where it runs, what it costs. */
+  hero: {
+    title: 'Three free apps for your photos and videos.',
+    subtitle: 'Mac, Windows, Linux, or right in your browser. No account. No cost.',
+    browserCta: 'Try it in your browser',
+  },
+  /**
+   * The desktop downloads are not code signed (checked 2026-10-14: the Windows
+   * MSI has no Authenticode signature; the macOS app is ad-hoc signed only, no
+   * Developer ID, not notarized). Owner chose to ship unsigned. Set `signed`
+   * to true once they are, and the trust note disappears.
+   */
+  install: {
+    signed: false,
+    trustNote: "The first time, your computer may ask if you trust the app. That's normal for new apps.",
+    macNote: 'On a Mac, right-click the app and choose Open. On newer macOS, go to System Settings, Privacy & Security, and choose Open Anyway.',
+  },
+  /** Closing line on /tools, linked to RESEARCH_LAB.url. */
+  closing: `Made by the ${RESEARCH_LAB.name}, because great work shouldn’t depend on what you can afford.`,
   licence: 'MIT OR Apache-2.0',
   maker: 'Ubunye AI Ecosystems',
   systemRequirements: 'Windows (x64, x86 or Arm), macOS (Apple silicon or Intel) or Linux (x86_64 or Arm64). Or use the browser version.',
@@ -1503,6 +1530,14 @@ export const UBUNYE_STUDIO = {
         credit: 'Based on LightCraft by the ArtCraft team',
         url: 'https://github.com/storytold/lightcraft',
       },
+      plain: 'Develop the photos from your camera. Make them brighter, warmer and sharper, even RAW files.',
+      audience: 'For photographers.',
+      media: {
+        mp4: '/ubunye/media/light.mp4',
+        webm: '/ubunye/media/light.webm',
+        poster: '/ubunye/media/light-poster.webp',
+        alt: 'Ubunye Light in the browser: contrast, warmth and vibrance sliders move and a pale lake photo turns vivid.',
+      },
     },
     {
       slug: 'photo',
@@ -1525,6 +1560,14 @@ export const UBUNYE_STUDIO = {
         name: 'PhotoCraft',
         credit: 'Based on PhotoCraft by the ArtCraft team',
         url: 'https://github.com/storytold/photocraft',
+      },
+      plain: 'Edit and retouch pictures, like Photoshop. Opens Photoshop files.',
+      audience: 'For designers and retouchers.',
+      media: {
+        mp4: '/ubunye/media/photo.mp4',
+        webm: '/ubunye/media/photo.webm',
+        poster: '/ubunye/media/photo-poster.webp',
+        alt: 'Ubunye Photo in the browser: a Brightness and Contrast layer is added to a dark night photo and the building lights up.',
       },
     },
     {
@@ -1549,6 +1592,14 @@ export const UBUNYE_STUDIO = {
         name: 'FilmCraft',
         credit: 'Based on FilmCraft by the ArtCraft team',
         url: 'https://github.com/storytold/filmcraft',
+      },
+      plain: 'Cut your video, fix the colour and sound, and export it.',
+      audience: 'For filmmakers and content creators.',
+      media: {
+        mp4: '/ubunye/media/film.mp4',
+        webm: '/ubunye/media/film.webm',
+        poster: '/ubunye/media/film-poster.webp',
+        alt: 'Ubunye Film in the browser: a clip is trimmed on the timeline, then its colour is warmed and made richer.',
       },
     },
   ] as readonly UbunyeStudioApp[],

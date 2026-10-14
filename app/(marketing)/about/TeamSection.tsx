@@ -3,7 +3,7 @@
 import { motion } from 'framer-motion';
 import { ArrowRight, Users } from 'lucide-react';
 import Link from 'next/link';
-import { STUDIO } from '@/lib/constants';
+import { CREATOR_JOIN, STUDIO } from '@/lib/constants';
 import CreatorCard from '@/components/creators/CreatorCard';
 import type { CreatorProfile } from '@/lib/supabase/queries/smartProductions';
 
@@ -95,10 +95,10 @@ export default function TeamSection({
             Open Positions <ArrowRight className="w-4 h-4" />
           </Link>
           <Link
-            href="/onboarding"
+            href={CREATOR_JOIN.href}
             className="inline-flex items-center justify-center gap-3 border border-white/20 text-white px-8 py-4 text-xs font-mono font-bold uppercase tracking-widest hover:border-white/50 transition-colors"
           >
-            Become a Creator <ArrowRight className="w-4 h-4" />
+            {CREATOR_JOIN.footerLabel} <ArrowRight className="w-4 h-4" />
           </Link>
         </div>
       </motion.div>
