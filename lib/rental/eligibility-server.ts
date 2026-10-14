@@ -18,6 +18,7 @@ import {
 import { EXPOSURE_STATUSES } from '@/lib/core/rental/state';
 import { itemValue } from '@/lib/rental/protection';
 import { sastDate } from '@/lib/core/rental/notifications';
+import { phoneChecksAvailable } from '@/lib/sms/availability';
 
 type Admin = ReturnType<typeof createAdminClient>;
 
@@ -169,6 +170,7 @@ export async function loadRenterFacts(
     facts: {
       emailVerified: Boolean(user.email_confirmed_at),
       phoneVerified: Boolean(profile.phone_verified_at),
+      phoneRequired: phoneChecksAvailable(),
       identityApproved: profile.verification_status === 'verified',
       bankValidated: (bankRes.data as { is_verified?: boolean } | null)?.is_verified === true,
       cleanReturns,
@@ -336,16 +338,9 @@ export function buildReadiness(input: {
       ? item('verify_email', 'Email address confirmed', 'done')
       : item('verify_email', 'Confirm your email address', 'missing', 'Open the confirmation link we emailed you when you signed up.'),
   );
-  checklist.push(
-    facts.phoneVerified
-      ? item('verify_phone', 'Phone number confirmed', 'done')
-      : input.phoneChecksAvailable
-        ? item('verify_phone', 'Confirm your phone number by SMS', 'missing')
-        : {
-            ...item('verify_phone', 'Confirm your phone number', 'unavailable', 'Phone checks are not available online yet. Contact us and we will help you.'),
-            href: '/contact',
-          },
-  );
+  // The phone step is shown only once a phone check can actually be done.
+  if (facts.phoneVerified) checklist.push(item('verify_phone', 'Phone number confirmed', 'done'));
+  else if (input.phoneChecksAvailable) checklist.push(item('verify_phone', 'Confirm your phone number by SMS', 'missing'));
   const idStatus = input.verificationStatus;
   checklist.push(
     facts.identityApproved
