@@ -4,8 +4,6 @@ import {
   firstNameFrom,
   isInternalAccount,
   isSafeDraft,
-  nextStepFor,
-  welcomePrompt,
   welcomeTemplate,
   type SignupActivity,
   type WelcomeContext,
@@ -41,13 +39,7 @@ describe('first name', () => {
   });
 });
 
-describe('what goes to the AI', () => {
-  it('carries only the first name and site activity', () => {
-    const { prompt } = welcomePrompt(ctx({ intent: 'rent', cartItems: 2 }));
-    expect(prompt).toContain('Lerato');
-    expect(prompt).toContain('2 item(s) in the cart');
-    expect(prompt).not.toMatch(/@/);
-  });
+describe('the safety check', () => {
   it('rejects a draft that contains an email address or an ID number', () => {
     const ok = 'Hi Lerato, thank you for joining. Reply to this email with any question you have.';
     expect(isSafeDraft(ok)).toBe(true);
@@ -57,17 +49,34 @@ describe('what goes to the AI', () => {
   });
 });
 
-describe('the next step', () => {
-  it('fits what they came for', () => {
-    expect(nextStepFor({ ...nothing, intent: 'supply' })).toMatch(/onboarding/);
-    expect(nextStepFor({ ...nothing, intent: 'hire' })).toMatch(/studio/);
-    expect(nextStepFor({ ...nothing, verification: 'pending' })).toMatch(/with us/);
-    expect(nextStepFor(nothing)).toMatch(/ID check/);
+// Owner, 2026-10-14: one fixed welcome for everyone; only the name changes.
+describe('the welcome text', () => {
+  it("is the owner's exact message, with the name", () => {
+    const t = welcomeTemplate(ctx({}));
+    expect(t.body).toBe([
+      'Hi Lerato,',
+      '',
+      'Thank you for joining ThabangVision. We rent out cameras and connect you with photographers and videographers in Gauteng.',
+      '',
+      'To rent gear, do the one-time ID check at https://www.thabangvision.com/dashboard/verification (a photo of your ID and a selfie). A person checks it usually within one working day.',
+      '',
+      'If anything is unclear, just reply to this email and a person will reply.',
+      '',
+      'Warm regards,',
+      'The ThabangVision team',
+      'www.thabangvision.com',
+    ].join('\n'));
   });
-  it('the template works without a name', () => {
+  it('says just "Hi," when there is no name', () => {
     const t = welcomeTemplate(ctx({}, null));
-    expect(t.body.startsWith('Hi,')).toBe(true);
+    expect(t.body.startsWith('Hi,\n')).toBe(true);
     expect(isSafeDraft(t.body)).toBe(true);
+  });
+  it('is the same for everyone, whatever they did or picked', () => {
+    const base = welcomeTemplate(ctx({})).body;
+    for (const over of [{ intent: 'supply' as const }, { intent: 'hire' as const }, { intent: 'list' as const }, { verification: 'pending' as const }, { verification: 'verified' as const }, { cartItems: 3 }]) {
+      expect(welcomeTemplate(ctx(over)).body).toBe(base);
+    }
   });
   it('says so when someone has done nothing yet', () => {
     expect(describeActivity(nothing)).toEqual(['Nothing yet beyond signing up']);
