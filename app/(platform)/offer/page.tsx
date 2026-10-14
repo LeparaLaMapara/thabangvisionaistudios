@@ -45,6 +45,7 @@ export default async function OfferPage({ searchParams }: { searchParams: Promis
       faceUrl={face?.url ?? null}
       preselect={preselect}
       prefillArea={(profileRes.data?.location as string | null) ?? (profileRes.data?.city as string | null) ?? ''}
+      userId={user.id}
     />
   );
 }

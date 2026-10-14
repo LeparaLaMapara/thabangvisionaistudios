@@ -72,7 +72,7 @@ export async function POST(req: NextRequest, ctx: Ctx): Promise<NextResponse> {
       const publicId = typeof body.public_id === 'string' ? body.public_id : '';
       // Only the person's own uploads in this account's storage.
       const ownFolder = `${STUDIO.security.uploads.userRoot}/${user.id}/`;
-      if (!storage.ownsUrl?.(url) || !publicId.startsWith(ownFolder) || !url.includes(publicId)) {
+      if (!storage.ownsUrl?.(url) || !(publicId.startsWith(ownFolder) || publicId.split('/').includes(user.id)) || !url.includes(publicId)) {
         return NextResponse.json({ error: 'That file did not upload properly. Please try again.' }, { status: 400 });
       }
       const meta = sanitizeClientMetadata(body.exif);

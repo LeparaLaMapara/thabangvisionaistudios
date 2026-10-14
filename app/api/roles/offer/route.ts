@@ -88,7 +88,9 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     for (const w of work) {
       const url = typeof w.url === 'string' ? w.url : '';
       const publicId = typeof w.public_id === 'string' ? w.public_id : '';
-      if (!storage.ownsUrl?.(url) || !publicId.startsWith(ownFolder) || !url.includes(publicId)) continue;
+      // Their own upload: this account's storage, and the path carries their id
+      // (a member's folder is <root>/<id>/...; an admin's is the one they name).
+      if (!storage.ownsUrl?.(url) || !publicId.split('/').includes(user.id) || !url.includes(publicId)) continue;
       const meta = sanitizeClientMetadata(w.exif);
       const lastModified = typeof w.last_modified === 'number' ? w.last_modified : null;
       const isVideo = w.kind === 'video';

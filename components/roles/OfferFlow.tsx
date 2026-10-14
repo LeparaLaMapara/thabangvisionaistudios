@@ -89,12 +89,15 @@ export function OfferFlow({
   faceUrl,
   preselect,
   prefillArea,
+  userId,
 }: {
   roles: Role[];
   hasFace: boolean;
   faceUrl: string | null;
   preselect: string | null;
   prefillArea: string;
+  /** Puts uploads in a folder that carries the person's id (members and admins alike). */
+  userId: string;
 }) {
   const [step, setStep] = useState<Step>(hasFace ? 'work' : 'face');
   const [face, setFace] = useState<string | null>(faceUrl);
@@ -156,7 +159,7 @@ export function OfferFlow({
         if (kind === 'photo' || kind === 'video') {
           const ready = await readyForUpload(file);
           if (kind === 'photo' && !matchPhoto) setMatchPhoto(await photoForMatch(file).catch(() => null));
-          const asset = await uploadFile(ready.file, 'roles/work');
+          const asset = await uploadFile(ready.file, `roles/${userId}/work`);
           setWork((w) => [...w, { id: asset.public_id, kind, url: asset.url, public_id: asset.public_id, from_camera: fromCamera, exif: ready.meta, last_modified: ready.lastModified }]);
         } else if (kind === 'cv' || kind === 'audio') {
           const path = await privateUpload(kind, file);
