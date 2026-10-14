@@ -67,4 +67,17 @@ export const UBUNYE_AGENTS: Record<string, UbunyeAgent> = {
     rateLimit: { guest: 0, free: 10, pro: 10, studio: 10 },
     costTier: 'free',
   },
+  // People (TASK-085): reads a CV (PDF, Word, a photo of it), a voice note or
+  // a few typed lines into the strict facts schema, with personal details
+  // stripped. The person reviews the facts before anything is saved.
+  'profile-extract': {
+    id: 'profile-extract',
+    name: 'Ubunye Profile Facts',
+    description: 'Turns a CV, voice note or typed lines into work facts (no personal details)',
+    provider: 'google',
+    model: 'gemini-3.6-flash',
+    tools: [],
+    rateLimit: { guest: 0, free: 6, pro: 6, studio: 6 },
+    costTier: 'low',
+  },
 };

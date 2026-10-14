@@ -15,7 +15,7 @@ export interface UbunyeAgent {
   id: string;
   name: string;
   description: string;
-  provider: 'anthropic' | 'gemma';
+  provider: 'anthropic' | 'gemma' | 'google';
   model: string;
   tools: AgentTool[];
   rateLimit: {

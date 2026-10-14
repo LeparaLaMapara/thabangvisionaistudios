@@ -666,6 +666,22 @@ export const SHOW_CAREERS = true;
 // words. Not in the header: signed out, it went to the same sign-in page as
 // "Sign In", so the header keeps one door.
 // /onboarding sends someone signed out to sign up first, then back.
+/**
+ * The offer door with roles_v1 on: one name everywhere, "Earn with
+ * ThabangVision", for skills, gear and vehicles (TASK-085). CREATOR_JOIN below
+ * stays what the site says with the flag off.
+ */
+export const EARN = {
+  label: `Earn with ${STUDIO.shortName}`,
+  copy: 'Offer your skills, your gear or your vehicle.',
+  href: '/offer',
+  homeTitle: `Earn with ${STUDIO.shortName}`,
+  homeText: 'Make-up, modelling, driving, photos, video, sound or gear: offer your skills, your gear or your vehicle. No portfolio needed.',
+} as const;
+
+/** Rentals categories shown as "coming soon" with roles_v1 on (labels only; nothing to book yet). */
+export const RENTALS_COMING_SOON = ['Studios and locations'] as const;
+
 export const CREATOR_JOIN = {
   href: '/onboarding',
   ctaLabel: 'Join as a Creator',
@@ -1170,7 +1186,25 @@ export const ROLES_POLICY = {
     jobsDone: (n: number): string => `${n} job${n === 1 ? '' : 's'} done on ${STUDIO.shortName}`,
     promise: `${STUDIO.shortName} stands behind every booking. We hold your payment until the work is delivered. If something goes wrong, we find a replacement or refund you.`,
     reviewPromise: 'A person on our team will look at it, usually within 2 working days. If something needs fixing, we tell you exactly how.',
+    facePrompt: 'Clients only see it after they book you, so everyone is chosen for their work.',
+    done: 'Done. A person will check it within 2 working days.',
+    blindNote: 'Chosen for the work. You see who is coming once your booking is confirmed.',
+    recordLine: (jobs: number, onTime: number | null): string =>
+      jobs === 0 ? `New on ${STUDIO.shortName}` : `${jobs} job${jobs === 1 ? '' : 's'}${onTime === null ? '' : ` · on time ${onTime}/${jobs}`}`,
   },
+  /** Matching (admin only for now): score weights and the fair "new" slots. */
+  matching: {
+    similarityWeight: 0.6,
+    reliabilityWeight: 0.3,
+    areaWeight: 0.1,
+    defaultLimit: 10,
+    /** Places in every top list kept for people with no jobs yet. */
+    newSlots: 2,
+  },
+  /** The private CV or voice-note original is deleted this many days after upload. */
+  cvRetentionDays: 90,
+  /** Facts extraction (CV, voice note, text): tries per person per window. */
+  extractRateLimit: { max: 6, windowMs: 60 * 60 * 1000 },
   /** Role match (Find and Offer): tries per person (or per IP when signed out) per window. */
   matchRateLimit: { max: 10, windowMs: 10 * 60 * 1000 },
   /** Coming-soon interest: max sign-ups per IP per window. */

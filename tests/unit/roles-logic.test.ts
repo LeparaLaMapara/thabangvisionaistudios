@@ -338,7 +338,7 @@ describe('parseRole', () => {
       status: 'live',
       min_age: 18,
       legal_requirements: [{ code: 'age_18', label: '18+' }, { label: 'no code' }, 'junk'],
-      proof_task: [{ key: 'digitals', title: 'Digitals', kind: 'photo', min: 4 }, { key: 'x', title: 'bad kind', kind: 'audio' }],
+      proof_task: [{ key: 'digitals', title: 'Digitals', kind: 'photo', min: 4 }, { key: 'x', title: 'bad kind', kind: 'smell' }],
       guidelines: 'g',
       pricing_unit: 'hour',
       suggested_price_cents: { typical: 45000, low: 25000, high: 120000 },
