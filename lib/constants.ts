@@ -10,6 +10,11 @@ export const STUDIO = {
   shortName: 'ThabangVision',
   tagline: 'We Engineer The Invisible',
   email: 'hello@thabangvision.com',
+  // Owner alerts (new signup, ID check submitted) go straight to the Gmail
+  // inbox. Sent to hello@ they came from that same Gmail and were forwarded
+  // back to it, and Gmail filed the returning copy under Sent only: the
+  // owner never saw them in the Inbox (found 2026-10-14).
+  ownerAlertsTo: 'thabangvisionstudios@gmail.com',
   careersEmail: 'careers@thabangvision.com',
   supportEmail: 'support@thabangvision.com',
   bookingEmail: 'bookings@thabangvision.com',

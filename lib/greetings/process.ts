@@ -150,7 +150,7 @@ export async function processSignup(
     const name = loaded.ctx.firstName ?? 'Someone';
     await emailProvider
       .sendEmail({
-        to: STUDIO.email,
+        to: STUDIO.ownerAlertsTo,
         subject: `[Signup] ${name} joined ${STUDIO.name}`,
         text: [
           `${name} (${loaded.email}) signed up with ${loaded.ctx.method === 'google' ? 'Google' : 'email'}.`,
