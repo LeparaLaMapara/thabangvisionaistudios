@@ -103,6 +103,7 @@ export function ConsentStep({ onConsented }: ConsentStepProps) {
           <ul className="list-disc pl-5 space-y-1">
             <li>A photo of your ID document and a selfie of you holding it, to confirm you are who you say you are and to prevent fraud and gear theft.</li>
             <li>Technical detail from those photos (such as the date taken, device, and any location embedded in them), and your IP address and browser at the time, to detect tampered or reused documents.</li>
+            <li>Your location when you submit, if you allow your phone to share it, to confirm the photos were taken by you at that moment. You can refuse; a person then reviews your check without it.</li>
             <li>A one-way fingerprint of the ID file, so the same document cannot verify several accounts.</li>
           </ul>
         </div>

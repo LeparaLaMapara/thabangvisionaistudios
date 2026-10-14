@@ -26,6 +26,7 @@ import {
 } from 'lucide-react';
 
 import { verificationPhotos } from '@/lib/metadata/photo-metadata-view';
+import type { DeviceLocation } from '@/lib/verification/device-location';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -75,6 +76,7 @@ interface VerificationRecord {
       reasoning: string;
       checked_at: string;
     } | null;
+    device_location?: DeviceLocation | null;
   } | null;
   verification_fraud_flags: FraudFlag[];
   verification_attempts: number;
@@ -715,6 +717,11 @@ export default function AdminVerificationsPage() {
                               </div>
                             </div>
 
+                            {/* Where they were when they submitted (browser location) */}
+                            {sub.verification_metadata?.device_location && (
+                              <DeviceLocationLine location={sub.verification_metadata.device_location} />
+                            )}
+
                             {/* Request metadata */}
                             {(sub.verification_ip || sub.verification_user_agent) && (
                               <div className="text-xs font-mono text-neutral-400 space-y-0.5 pt-2">
@@ -904,5 +911,32 @@ function DocumentCard({
         </div>
       </a>
     </div>
+  );
+}
+
+/* ── Location when submitted (asked from the browser) ───────────────────────── */
+
+function DeviceLocationLine({ location }: { location: DeviceLocation }) {
+  if (location.status !== 'shared' || location.latitude === null || location.longitude === null) {
+    return (
+      <p className="text-xs font-mono text-amber-400 pt-2">
+        Location when submitted: {location.status === 'denied' ? 'refused' : `not available (${location.status})`}
+      </p>
+    );
+  }
+  return (
+    <p className="text-xs font-mono text-neutral-400 pt-2">
+      Location when submitted:{' '}
+      <a
+        href={`https://www.google.com/maps?q=${location.latitude},${location.longitude}`}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="text-[#D4A843] hover:underline"
+      >
+        {location.latitude.toFixed(4)}, {location.longitude.toFixed(4)}
+      </a>
+      {location.accuracy_m !== null && <> (within {location.accuracy_m} m)</>}
+      {location.captured_at && <> at {formatDateTime(location.captured_at)}</>}
+    </p>
   );
 }

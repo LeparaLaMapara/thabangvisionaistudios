@@ -25,6 +25,7 @@ import { DashboardSubTabs, ACCOUNT_TABS_USER } from '@/components/dashboard/Dash
 import { ConsentStep } from '@/components/verification/ConsentStep';
 import type { PhotoMetadata } from '@/lib/metadata/verification';
 import { submitErrorMessage, validateIdPhoto } from '@/lib/verification/photo-format';
+import { requestDeviceLocation } from '@/lib/verification/device-location';
 import { preparePhoto } from '@/lib/verification/prepare-photo';
 
 type VerificationStatus = 'unverified' | 'pending' | 'verified' | 'rejected';
@@ -282,6 +283,10 @@ function VerificationPageInner() {
         return;
       }
 
+      // 0. Where they are now (the phone asks "Allow location?"). Optional:
+      //    a refusal is recorded and a person looks at it during review.
+      const deviceLocation = await requestDeviceLocation();
+
       // 1. One-time upload links from our server (it picks the paths).
       const linkRes = await fetch('/api/verifications/upload', { method: 'POST' });
       const links = await linkRes.json().catch(() => ({}));
@@ -310,6 +315,7 @@ function VerificationPageInner() {
           id_copy_path: paths.id_copy,
           selfie_path: paths.selfie_with_id,
           client_metadata: clientMetadata,
+          device_location: deviceLocation,
           confirmed: true,
         }),
       });
@@ -590,6 +596,11 @@ function UploadForm({
           I confirm this is my real ID and the selfie is of me.
         </span>
       </label>
+
+      <p className="text-xs font-mono text-neutral-400 mb-4">
+        When you submit, your phone asks to share your location. Please allow it: it helps us
+        confirm the photos were taken by you, just now.
+      </p>
 
       <Button onClick={onSubmit} loading={submitting}>
         <Upload className="w-3.5 h-3.5" />
