@@ -23,6 +23,93 @@ reason to believe the work will be good and the person will show up.
 This design does both: anyone can join, and nobody is shown to clients until
 there is honest proof.
 
+## One way in for offering
+
+Owner direction, 2026-10-14: there must be exactly one way into the platform
+for people who offer something, and finding should stay as simple as it
+already is.
+
+**Finding is already solved.** People browse photographers or gear, pick,
+book, and the ID check follows at the point of booking or renting. That does
+not change. `/people` (approved role profiles) simply joins the other browse
+pages. No new search box, no new home hero.
+
+**Offering had three doors** (creator onboarding at `/onboarding`, "list my
+gear", and "join as a role"). With `roles_v1` on there is one: **Offer**
+(`/offer`).
+
+1. Sign up once (as today). The welcome question keeps "Rent gear" and "Book a
+   photographer or videographer" exactly as they are, and replaces "List my
+   gear" and "Offer my services" with one choice: **Offer something**.
+2. Offer asks one thing: "What do you want to offer?" The person says it in
+   their own words ("I do make-up for weddings", "I have a Quantum and drive
+   crews", "a Sony camera to rent out") and/or adds one photo.
+3. We suggest where it fits (one, or two when unsure). One tap to confirm, or
+   pick from the list:
+   - a skill or service goes to the profile maker (`/offer/<role>`);
+   - gear goes to the existing photo-first listing (`/dashboard/listings?new=1`);
+   - a vehicle goes to driver with vehicle (the driver always comes with it).
+4. Renters and clients are done after one tap on the welcome screen. Nothing
+   extra is asked.
+
+Deep links all land in the same flow: `/join` goes to `/offer`, `/join/<role>`
+to `/offer/<role>`, and `/onboarding` to the photographer profile maker, which
+carries over what the person already entered. The old separate "Join" nav entry
+is gone. With the flag off, every one of these behaves exactly as today
+(`/onboarding` shows the old flow; the new pages return 404).
+
+**Why.** Every extra door is a decision the person has to make before they have
+done anything, and the people we most want (no portfolio, a cheap phone, little
+data) are the ones most likely to give up at a choice they do not understand.
+Saying what you do in your own words needs no knowledge of our categories.
+
+### Saved answers keep working
+
+The welcome answer is stored on the account (`user_metadata.intent`). Old
+answers map onto the two journeys (`journeyOf()` in `lib/welcome.ts`): rent and
+hire are "find", list and supply are "offer", browse stays browse. The new
+"offer" answer is valid everywhere the old ones are (`isWelcomeIntent`,
+`homeFor`, which sends an un-onboarded "offer" person to `/offer`).
+
+### The AI match (agent `role-match`)
+
+- Candidates are the role slugs in the `roles` table plus the rental
+  categories, written `gear:<category>`. The model must answer JSON with at most
+  two of those slugs; anything else is dropped (`parseMatchAnswer`).
+- Gemma 4 (`gemma-4-31b-it`, free tier, the same model the onboarding vision
+  agent uses) reads the words and the photo. If it fails, the registry's fast
+  text model reads the words. If there is no AI at all, a keyword match answers
+  (`keywordMatch`), so the step always works. The browser also runs the keyword
+  match itself when the server cannot answer.
+- Every call goes through `trackedCompletion` (cost tracking). Rate limited
+  per person (`ROLES_POLICY.matchRateLimit`).
+- Only the person's words (emails, phone numbers and links removed, cut to 300
+  characters) and the one photo (shrunk to about 768 px in the phone) are sent.
+  Nothing personal is logged: not the words, not the photo, not the answer.
+- It suggests, it never assigns. For existing accounts with free-text skills
+  the Offer step starts with their skills filled in and a suggestion already
+  shown; they still tap to confirm.
+
+### Existing accounts: nobody redoes anything
+
+- The ID check is per person and reused for every role (unchanged).
+- The profile maker prefills from the profile for everyone: area, a headline
+  from the specialisations, the bio (`profilePrefill`).
+- A new photographer draft brings the old creator portfolio photos with it, as
+  evidence marked "uploaded" (not taken in the app), at most 6
+  (`portfolioEvidenceRows`).
+- `scripts/roles/backfill-existing.sql` (idempotent) gives every account with
+  creator data (onboarding finished, portfolio photos, available for hire, or
+  a crew page) a prefilled **draft** for photographer or videographer, with
+  their portfolio photos as uploaded evidence. Never approved: review stays
+  human. Accounts with only free-text skills get a suggestion, never a draft.
+  Gear owners are not touched (gear is a listing, not a role).
+- On DEV (2026-10-14) it ran and created 0 drafts: none of the 37 real dev
+  accounts has creator data. A rolled-back test with a made-up creator showed
+  the draft, the prefill, the price kept inside the band and 2 photos carried
+  over. On production (39 accounts, 0 finished creator onboarding, 1 with
+  portfolio photos) it would touch about 1 to 3 people. **Not run there.**
+
 ## Three separate questions
 
 We never mix these up.
@@ -142,12 +229,13 @@ All of this is data in the `roles` table, editable without a code change.
 
 ## How it works (screens)
 
-- `/join`: "What do you do?" Role cards from the database. Coming-soon roles
-  take a phone number (`role_interest`).
-- `/join/[role]`: signed out, it explains the steps and the published
-  guidelines, then "Start" (sign in). Signed in, the profile maker:
-  about you, what the law needs (only where it applies), one screen per proof
-  step, price, send for review.
+- `/welcome` (after sign-up): "What did you come to do?" Rent gear, book a
+  photographer or videographer, or **Offer something**, plus "just looking".
+- `/offer`: "What do you want to offer?" Own words and/or one photo, the AI
+  suggestion with one tap to confirm, or pick yourself (live roles, gear to
+  rent out, coming-soon roles that take a phone number).
+- `/offer/[role]`: the profile maker: about you (prefilled), what the law needs
+  (only where it applies), one screen per proof step, price, send for review.
 - `/people/[id]`: the public profile (approved only).
 - `/people`: every approved profile, filter by role.
 - `/admin/roles`: the review queue. The proof sits next to that role's
@@ -156,8 +244,9 @@ All of this is data in the `roles` table, editable without a code change.
   and the age rule met; it marks those documents and the in-app proof checked
   and works out the level.
 
-The nav entry "Join" shows only when the `roles_v1` flag is on. The pages are
-reachable by URL either way, and are `noindex` during the trial.
+Everything new is behind the `roles_v1` flag: with it off, the welcome screen,
+`/onboarding` and the nav are exactly as today and the new pages return 404.
+The pages are `noindex` during the trial.
 
 ## Data
 
@@ -187,13 +276,14 @@ Who may do what (RLS + column grants + a trigger):
 
 ## Phased rollout
 
-1. **Now (this slice, dev only):** catalogue, profile maker, review queue,
-   public profile, demo data. Flag on in dev, absent in production.
+1. **Now (this slice, dev only):** catalogue, one Offer flow with the AI match,
+   profile maker, review queue, public profile, backfill script, demo data.
+   Flag on in dev, absent in production.
 2. **Owner review:** the owner walks the demo, decides prices, first roles and
    guidelines wording. A few real people from the network try the maker on
    dev.
 3. **Production soft launch:** apply 090 to production, keep `roles_v1` off,
-   invite people by link to `/join/<role>`, review them, then switch the flag
+   invite people by link to `/offer/<role>`, review them, then switch the flag
    on.
 4. **Booking:** connect these profiles to the booking and payment flow (held
    payment, release on delivery, replacement or refund), count completed jobs
@@ -210,7 +300,7 @@ Who may do what (RLS + column grants + a trigger):
 - The vouch flow for the person who vouches (today the person adds a name and
   number, and a reviewer calls).
 - Email, WhatsApp or in-app notices on approval or send-back (the person sees
-  the result when they open `/join/<role>`).
+  the result when they open `/offer/<role>`).
 - Using the job-size limit at checkout (the function exists and is tested; no
   booking flow calls it yet).
 - Vehicles without a driver, ever.
@@ -234,7 +324,7 @@ unless `roles_v1` is on. `scripts/roles/remove-demo.sql` removes all of it.
 2. **First roles.** Are these the right four? Is "photographer or
    videographer" one role or two?
 3. **Guidelines wording.** Read the published guidelines on each
-   `/join/<role>` page ("What our team checks"). They are the standard people
+   `/offer/<role>` page ("What our team checks"). They are the standard people
    are judged against.
 4. **Insurance for drivers.** Not required by law. Keep it as our rule, or drop
    it at launch?

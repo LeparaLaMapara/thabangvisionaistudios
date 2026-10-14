@@ -24,6 +24,17 @@ job count and a clear price.
       /admin/roles (review queue). API: /api/roles/*, /api/admin/roles.
 - [x] 6. Nav entry "Join" behind `roles_v1`; admin menu "Role profiles".
 - [x] 7. Demo data on dev: scripts/roles/seed-demo.sql, remove-demo.sql.
+- [x] 7b. One way in for offering (owner, 2026-10-14): /offer with the
+      describe step and the AI match (agent role-match, keyword fallback),
+      /offer/[role] profile maker, welcome "Offer something" replaces list and
+      supply, /join and /onboarding are deep links into Offer, no separate Join
+      nav entry. Finding stays the existing browse pages (no new search box or
+      hero). Saved intents map onto find/offer.
+- [x] 7c. Existing accounts: profile maker prefills from the profile; old
+      portfolio photos carried over as uploaded evidence;
+      scripts/roles/backfill-existing.sql (drafts only, never approved). Ran on
+      dev: 0 drafts (no creator data there). Not run on production (would touch
+      about 1 to 3 people).
 - [ ] 8. Owner review on the preview: prices, first roles, guidelines wording
       (see "Decisions for the owner" in the design doc).
 - [ ] 9. A few real people try the maker on dev; fix what confuses them.
