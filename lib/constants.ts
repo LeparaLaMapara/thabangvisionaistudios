@@ -1433,6 +1433,22 @@ export interface UbunyeStudioApp {
   upstream: { name: string; credit: string; url: string };
 }
 
+/**
+ * The research lab behind the free apps and the editor in research (owner,
+ * 2026-10-14). Shown on /about in "From the lab".
+ */
+export const RESEARCH_LAB = {
+  name: 'Ubunye AI Ecosystems Research Lab',
+  url: 'https://uaie.vercel.app',
+  line: 'We build tools that make creative work easier, and give them away.',
+  why: 'Great work should not depend on who you know or what you can afford. So our lab takes the hard parts out of creating, and puts the tools in everyone’s hands.',
+  editor: {
+    name: 'Ubunye Studio',
+    status: 'In research',
+    desc: 'An AI editor that watches your footage, finds your best moments and cuts a first edit. Then it checks its own work.',
+  },
+} as const;
+
 export const UBUNYE_STUDIO = {
   suiteName: 'Ubunye Apps',
   shortName: 'Ubunye',
