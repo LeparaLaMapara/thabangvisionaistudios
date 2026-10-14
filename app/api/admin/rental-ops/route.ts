@@ -34,7 +34,7 @@ export async function GET() {
   }
 
   const [refunds, payouts, events, escalations, intents, outbox, approvals, journals] = await Promise.all([
-    db.from('refund_obligations').select('id, reason, state, amount_cents, attempts, last_error, booking_ids, created_at, updated_at').neq('state', 'processed').order('created_at', { ascending: false }).limit(100),
+    db.from('refund_obligations').select('id, reason, state, amount_cents, attempts, last_error, booking_ids, user_id, created_at, updated_at').neq('state', 'processed').order('created_at', { ascending: false }).limit(100),
     db.from('owner_payouts').select('id, booking_id, owner_id, state, owner_amount_cents, platform_commission_cents, scheduled_at, hold_reasons, last_error, transfer_reference').neq('state', 'success').order('scheduled_at').limit(100),
     db.from('payment_events').select('id, event_type, provider_reference, processing_status, retry_count, last_error, received_at, outcome').in('processing_status', ['failed', 'dead', 'received', 'processing']).order('received_at').limit(100),
     db.from('rental_escalations').select('id, booking_id, stage, hours_late, created_at, acted_at, outcome').is('acted_at', null).order('created_at').limit(100),
@@ -58,10 +58,44 @@ export async function GET() {
     peopleIds: ((payouts.data ?? []) as { owner_id: string }[]).map((p) => p.owner_id),
   });
 
+  // A card refund the provider refused is paid by bank transfer instead: show
+  // whether the renter has added a bank account yet (they are asked to, by
+  // email, push and SMS: refund_failed). Last four digits only.
+  type RefundOut = { state: string; user_id: string | null } & Record<string, unknown>;
+  const refundRows = (refunds.data ?? []) as RefundOut[];
+  const stuck = [...new Set(refundRows.filter((r) => ['failed', 'needs_attention'].includes(r.state) && r.user_id).map((r) => r.user_id as string))];
+  const banks = new Map<string, Record<string, unknown>>();
+  if (stuck.length > 0) {
+    const { data: rows } = await db
+      .from('banking_details')
+      .select('user_id, bank_name, account_last4, account_holder, is_verified, paystack_recipient_code, updated_at')
+      .in('user_id', stuck);
+    for (const b of (rows ?? []) as { user_id: string }[]) banks.set(b.user_id, b);
+  }
+  const refundsOut = refundRows.map((r) => {
+    if (!['failed', 'needs_attention'].includes(r.state) || !r.user_id) return r;
+    const b = banks.get(r.user_id) as
+      | { bank_name: string | null; account_last4: string | null; account_holder: string | null; is_verified: boolean | null; paystack_recipient_code: string | null; updated_at: string | null }
+      | undefined;
+    return {
+      ...r,
+      bank: b
+        ? {
+            bank_name: b.bank_name,
+            account_last4: b.account_last4,
+            account_holder: b.account_holder,
+            validated: b.is_verified === true,
+            recipient_code: b.paystack_recipient_code,
+            updated_at: b.updated_at,
+          }
+        : null,
+    };
+  });
+
   return NextResponse.json({
     pipeline: true,
     names,
-    refunds: refunds.data ?? [],
+    refunds: refundsOut,
     payouts: payouts.data ?? [],
     events: events.data ?? [],
     escalations: escalations.data ?? [],
