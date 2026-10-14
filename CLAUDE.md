@@ -226,7 +226,7 @@ sweep in particular is far more useful at 30-minute intervals than daily.
 
 ## Platform Conventions
 - **Proxy, not middleware** — Next.js 16 uses `proxy.ts` at repo root and exports a function named `proxy` (not `middleware`). It handles Supabase session refresh + CSRF Origin validation.
-- **Pending migrations are manual** — migrations live in `lib/migrations/` (001–088, plus the base schema and four April files in `supabase/migrations/`; order and skips in `docs/database/README.md`). Applied by hand (Supabase SQL Editor or the Management API); locally, `scripts/db/rebuild-local.sh` applies the canonical order. Production and dev are at 088 (2026-10-13; production order in `docs/release/2026-10-apply-order.md`). Before assuming a table exists, check `docs/database/README.md` / `docs/database/schema.md`.
+- **Pending migrations are manual** — migrations live in `lib/migrations/` (001–089, plus the base schema and four April files in `supabase/migrations/`; order and skips in `docs/database/README.md`). Applied by hand (Supabase SQL Editor or the Management API); locally, `scripts/db/rebuild-local.sh` applies the canonical order. Production and dev are at 089 (2026-10-14; production order in `docs/release/2026-10-apply-order.md`). Before assuming a table exists, check `docs/database/README.md` / `docs/database/schema.md`.
 - **Supabase clients** — three patterns:
   - `@/lib/supabase/server` (`createClient()`) — async, cookie-based. For Server Components and API routes. Cookies are async in Next.js 16 (`await cookies()`).
   - `@/lib/supabase/client` (`createClient()`) — `createBrowserClient`. For `'use client'` components.

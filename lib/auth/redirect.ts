@@ -23,7 +23,7 @@ export function safeNextPath(value: string | null | undefined, fallback: string 
   return path;
 }
 
-/** The OAuth / magic-link return address, carrying where to go next. */
+/** The Google / email-confirmation return address, carrying where to go next. */
 export function authCallbackUrl(origin: string, next: string): string {
   const safe = safeNextPath(next, '');
   return safe && safe !== DEFAULT_AFTER_SIGN_IN
@@ -41,7 +41,7 @@ export function withRedirect(page: '/login' | '/register', next: string): string
 export function signInErrorMessage(code: string | null | undefined): string | null {
   if (!code) return null;
   if (code === 'auth') {
-    return "Sign-in didn't finish. Please try again. If it keeps happening, sign in with your email instead, or contact us and we'll help.";
+    return "Sign-in didn't finish. If you just confirmed your email, sign in below with your email and password. Otherwise please try again, or contact us and we'll help.";
   }
   return 'Something went wrong signing you in. Please try again.';
 }

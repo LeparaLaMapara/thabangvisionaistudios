@@ -437,7 +437,7 @@ logEvent({
   eventCategory: 'auth',
   userId: user.id,
   metadata: {
-    authMethod: 'google' | 'magic_link' | 'password',
+    authMethod: 'google' | 'password',
     referralSource: searchParams.get('ref'),
     utmSource: searchParams.get('utm_source'),
     utmMedium: searchParams.get('utm_medium'),
@@ -452,7 +452,7 @@ logEvent({
   eventCategory: 'auth',
   userId: user.id,
   metadata: {
-    authMethod: 'google' | 'magic_link' | 'password',
+    authMethod: 'google' | 'password',
     timeSinceLastLogin: lastLoginDiff,
   },
 });

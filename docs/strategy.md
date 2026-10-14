@@ -163,7 +163,7 @@ Claude Code builds what you tell it.
 
 What exists:
   Live website on Vercel
-  Auth (Google, magic link, password)
+  Auth (Google, email + password)
   Smart Rentals (gear listings)
   Ubunye Chat (AI assistant)
   Admin panel

@@ -106,7 +106,7 @@ describe('§4.19 - all 15 delivery notices come from real events', () => {
 
     const kinds = new Set(all.map((n) => n.kind));
     const wanted = RENTAL_NOTICE_KINDS.filter((k) => k.startsWith('delivery_'));
-    expect(wanted).toHaveLength(15);
+    expect(wanted).toHaveLength(16); // 15 + the one "on the way" email (2026-10-14)
     for (const k of wanted) expect([k, kinds.has(k)]).toEqual([k, true]);
 
     // Owners hear about the pickup of their own gear; data never holds an address.

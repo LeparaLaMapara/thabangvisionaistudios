@@ -60,6 +60,8 @@ export interface Shipment {
   trackingReference: string | null;
   trackingUrl: string | null;
   courierName: string | null;
+  /** Drop-off PIN the courier made (089). Shown to the renter of an outbound leg only. */
+  recipientPin?: string | null;
   originAddressId: string;
   destinationAddressId: string;
   window: DeliveryWindow;
@@ -214,6 +216,8 @@ export interface DeliveryRepository {
   finishDispatch(intentId: string, to: Exclude<DispatchIntentState, 'pending' | 'claimed'>, patch: { providerReference?: string | null; lastError?: string | null }): Promise<void>;
 
   transitionShipment(t: ShipmentTransition): Promise<TransitionResult>;
+  /** Keep the drop-off PIN the courier made for this leg (089). */
+  saveRecipientPin(shipmentId: string, pin: string): Promise<void>;
   /** A canonical event with this dedupe key was already applied. */
   hasEvent(dedupeKey: string): Promise<boolean>;
 

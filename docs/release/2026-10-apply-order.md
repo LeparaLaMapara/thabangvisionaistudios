@@ -164,6 +164,15 @@ pg_net's `net.http_*` stays executable by anon and authenticated: the
 functions belong to `supabase_admin` and the `postgres` role cannot revoke
 them. The `net` schema is not exposed by PostgREST.
 
+## 2d. Drop-off PIN: 089
+
+Apply BEFORE the build that reads `delivery_shipments.recipient_pin` (it
+selects the column for every shipment, so without 089 delivery pages fail).
+
+| Step | Run | Then |
+|---|---|---|
+| 22 | `089-delivery-recipient-pin.sql` | `089-delivery-recipient-pin.test.sql`, `rls-coverage.test.sql` |
+
 ## 3. Smoke test (maintenance bypass)
 
 - sign up: a profile row is created and `net._http_response` gets a 2xx row;

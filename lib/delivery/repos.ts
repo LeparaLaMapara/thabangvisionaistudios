@@ -84,7 +84,7 @@ function toQuote(r: Row): CustomerDeliveryQuote {
 }
 
 const SHIPMENT_COLS =
-  'id, booking_group_id, leg, attempt, origin_owner_id, renter_id, items, provider, provider_kind, quote_id, merchant_reference, provider_reference, status, quote_amount_cents, customer_fee_cents, platform_fee_cents, accrued_cost_cents, provider_cost_cents, replacement_value_cents, coverage_verified, insurance_reference, tracking_reference, tracking_url, courier_name, origin_address_id, destination_address_id, window_start, window_end, scheduled_at, collected_at, delivered_at, accepted_at, last_provider_state_at, paid_reference, created_at';
+  'id, booking_group_id, leg, attempt, origin_owner_id, renter_id, items, provider, provider_kind, quote_id, merchant_reference, provider_reference, status, quote_amount_cents, customer_fee_cents, platform_fee_cents, accrued_cost_cents, provider_cost_cents, replacement_value_cents, coverage_verified, insurance_reference, tracking_reference, tracking_url, courier_name, recipient_pin, origin_address_id, destination_address_id, window_start, window_end, scheduled_at, collected_at, delivered_at, accepted_at, last_provider_state_at, paid_reference, created_at';
 
 function toShipment(r: Row): Shipment {
   return {
@@ -112,6 +112,7 @@ function toShipment(r: Row): Shipment {
     trackingReference: str(r.tracking_reference),
     trackingUrl: str(r.tracking_url),
     courierName: str(r.courier_name),
+    recipientPin: str(r.recipient_pin),
     originAddressId: String(r.origin_address_id),
     destinationAddressId: String(r.destination_address_id),
     window: { start: str(r.window_start), end: str(r.window_end) },
@@ -297,6 +298,12 @@ export class SupabaseDeliveryRepository implements DeliveryRepository {
     if (patch.lastError !== undefined) update.last_error = patch.lastError;
     const { error } = await this.db.from('delivery_dispatch_intents').update(update).eq('id', intentId);
     if (error) throw dbError('finishDispatch', error);
+  }
+
+  async saveRecipientPin(shipmentId: string, pin: string): Promise<void> {
+    if (!/^[0-9]{4,8}$/.test(pin)) return;
+    const { error } = await this.db.from('delivery_shipments').update({ recipient_pin: pin }).eq('id', shipmentId);
+    if (error) throw dbError('saveRecipientPin', error);
   }
 
   async transitionShipment(t: ShipmentTransition): Promise<TransitionResult> {

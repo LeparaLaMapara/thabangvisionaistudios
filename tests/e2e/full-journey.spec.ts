@@ -17,9 +17,8 @@ async function safeGoto(page: Page, path: string, timeout = 30_000) {
   }
 }
 
-/** The sign-in screen is passwordless first; password sign-in is one tap away. */
+/** Email + password is on the sign-in screen from the start (2026-10-14). */
 async function switchToPasswordSignIn(page: Page) {
-  await page.getByRole('button', { name: /use a password instead/i }).click();
   await expect(page.locator('#password')).toBeVisible();
 }
 
@@ -49,9 +48,9 @@ async function expectProtected(page: Page) {
 // 1. REGISTRATION
 // ═══════════════════════════════════════════════════════════════════════════════
 
-// Signing up is the same screen as signing in now (/register redirects to
-// /login?mode=signup): Google or a passwordless email, no password to set and
-// no confirm-password field. The terms are disclosed on the screen and
+// Signing up is the same screen as signing in (/register redirects to
+// /login?mode=signup): Google or email + password, with no confirm-password
+// field. The terms are disclosed on the screen and
 // accepted once, with a tap, on /welcome.
 test.describe('1. Registration', () => {
   test('1a. Register sends you to the one sign-in screen', async ({ page }) => {
@@ -59,14 +58,15 @@ test.describe('1. Registration', () => {
     await expect(page).toHaveURL(/\/login\?.*mode=signup/);
     await expect(page.locator('#email')).toBeVisible();
     await expect(page.getByRole('button', { name: /continue with google/i })).toBeVisible();
-    await expect(page.getByRole('button', { name: /continue with email/i })).toBeVisible();
+    await expect(page.getByRole('button', { name: /create account/i }).first()).toBeVisible();
   });
 
-  test('1b. Sign-up is passwordless: no password to set', async ({ page }) => {
+  test('1b. Sign-up asks for one password, with the rule shown', async ({ page }) => {
     await page.goto('/register');
     await expect(page.getByRole('heading', { name: /create your account/i })).toBeVisible();
     await expect(page.locator('#email')).toBeVisible();
-    await expect(page.locator('input[type="password"]')).toHaveCount(0);
+    await expect(page.locator('input[type="password"]')).toHaveCount(1);
+    await expect(page.getByText(/at least 8 characters/i)).toBeVisible();
   });
 
   test('1c. Password sign-in asks for the password before sending anything', async ({ page }) => {
@@ -79,18 +79,18 @@ test.describe('1. Registration', () => {
     await expect(page.locator('#password')).toHaveAttribute('aria-invalid', 'true');
   });
 
-  test('1d. Continue with email validates an empty address', async ({ page }) => {
+  test('1d. Create account validates an empty address', async ({ page }) => {
     await page.goto('/register');
-    await page.getByRole('button', { name: /continue with email/i }).click();
+    await page.getByRole('button', { name: /create account/i }).first().click();
 
     await expect(page.locator('main').getByRole('alert')).toContainText(/valid email/i);
     expect(page.url()).toContain('/login');
   });
 
-  test('1e. Continue with email validates the email format', async ({ page }) => {
+  test('1e. Create account validates the email format', async ({ page }) => {
     await page.goto('/register');
     await page.locator('#email').fill('notanemail');
-    await page.getByRole('button', { name: /continue with email/i }).click();
+    await page.getByRole('button', { name: /create account/i }).first().click();
 
     await expect(page.locator('main').getByRole('alert')).toContainText(/valid email/i);
     await expect(page.locator('#email')).toHaveAttribute('aria-invalid', 'true');

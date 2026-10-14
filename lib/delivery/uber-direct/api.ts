@@ -118,9 +118,11 @@ export function mapUberStatus(status: unknown): ProviderDeliveryState {
  *  - pickupConfirmation, proofOfDelivery, signature: documented verification.
  *  - noLeaveAtDoor: documented (meet at door; PIN/signature exclude leave-at-door).
  *  - liveTracking: false. Courier location fields are not in our research.
- *  - recipientPin: false. Documented, but whether it works in South Africa is
- *    an open question (provider-comparison.md). The adapter still sends a PIN
- *    when the core supplies one.
+ *  - recipientPin: true. Verified in our South African sandbox (2026-10-14):
+ *    with dropoff_verification.pincode.enabled Uber makes a PIN and returns
+ *    it at dropoff.verification_requirements.pincode.value; Uber's guide says
+ *    it texts the PIN to the drop-off phone and repeats it as the driver
+ *    approaches. We keep a copy for the booking page (089).
  *  - declaredValueSupport: false. The SA per-delivery value cap is not verified.
  *  - cancellation: true. Verified in our sandbox (2026-10-13): the cancel call
  *    answers "canceled". SA cancellation FEES are still not verified: any fee
@@ -140,7 +142,7 @@ export const UBER_DIRECT_CAPABILITIES: DeliveryCapabilities = {
   pickupConfirmation: true,
   proofOfDelivery: true,
   signature: true,
-  recipientPin: false,
+  recipientPin: true,
   declaredValueSupport: false,
   verifiedTransitCover: false,
   cancellation: true,

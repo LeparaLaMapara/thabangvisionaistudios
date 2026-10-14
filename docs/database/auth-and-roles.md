@@ -12,8 +12,14 @@ All in `app/(marketing)/login/page.tsx`, with the browser client
 
 | Method | Call | Notes |
 |---|---|---|
-| E-mail code or link (passwordless) | `signInWithOtp({ email, options: { emailRedirectTo: /auth/callback?next=… } })`, then `verifyOtp({ email, token, type: 'email' })` for the 6-digit code | Creates the account on first use. The hosted e-mail template carries only the link until risk R-33 is done |
-| Password | `signInWithPassword` | Reset: `resetPasswordForEmail` → `/reset-password` → `updateUser({ password })` |
+| Password sign-in | `signInWithPassword` | Reset (also how former email-link users set a password): `resetPasswordForEmail` → `/reset-password` → `updateUser({ password })` |
+| Create account | `signUp({ email, password, options: { emailRedirectTo: /auth/callback?next=… } })` | Email confirmation is on (`mailer_autoconfirm` false); the link returns through the callback. Minimum 8 characters, matching hosted `password_min_length` (checked by `ops/auth/expected-auth-config.json`) |
+
+There is no passwordless sign-in (owner decision 2026-10-14): the app never
+calls `signInWithOtp` or `verifyOtp`. Supabase has no separate switch for the
+magic link while email + password stays on, so the hosted "Magic Link"
+template is kept short and branded in case the endpoint is called directly.
+
 | Google | `signInWithOAuth({ provider: 'google', options: { redirectTo: /auth/callback?next=… } })` | |
 
 `app/auth/callback/route.ts` exchanges the code for a session

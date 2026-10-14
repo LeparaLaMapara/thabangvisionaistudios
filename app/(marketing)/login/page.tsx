@@ -12,13 +12,26 @@ import { destinationAfterSignIn } from '@/components/auth/afterSignIn';
 import { GoogleIcon } from '@/components/auth/GoogleIcon';
 import { GoogleSignInButton, type GoogleSignInError } from '@/components/auth/GoogleSignInButton';
 import { TermsNotice } from '@/components/auth/TermsNotice';
+import {
+  EMAIL_RE,
+  PASSWORD_MIN_LENGTH,
+  PASSWORD_RULE,
+  isExistingAccount,
+  newPasswordProblem,
+  signInFailure,
+  signUpFailure,
+} from '@/lib/auth/password-auth';
 
 /**
- * One screen for signing in and creating an account (spec 9.1):
- * "Continue with Google" or "Continue with email". The email path is
- * passwordless: Supabase sends one email that works both as a link and as a
- * code typed here (so it works across devices and in in-app mail browsers).
- * Password sign-in stays available, one tap away, for existing password users.
+ * One screen for signing in and creating an account. Owner decision
+ * 2026-10-14: the ONLY ways in are "Continue with Google" and email +
+ * password. There is no magic link and no emailed sign-in code.
+ *
+ * - Sign in: email + password (signInWithPassword).
+ * - Create account (?mode=signup, and /register): email + password; Supabase
+ *   emails a confirmation link that returns through /auth/callback.
+ * - Forgot password: resetPasswordForEmail, then /reset-password. People who
+ *   used an email link before set a password this way.
  *
  * Nothing on this page records consent. Anyone whose acceptance of the
  * current Terms and Privacy Policy is not on record is sent to /welcome
@@ -34,14 +47,12 @@ export default function LoginPage() {
   );
 }
 
-type Step = 'email' | 'code' | 'forgot';
-type Field = 'email' | 'password' | 'code' | 'resetEmail' | null;
-type Busy = null | 'google' | 'email' | 'password' | 'code' | 'resend' | 'reset' | 'leaving';
+type Step = 'signin' | 'signup' | 'check' | 'forgot';
+type Field = 'email' | 'password' | 'resetEmail' | null;
+type Busy = null | 'google' | 'password' | 'signup' | 'resend' | 'reset' | 'leaving';
 
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-/** Supabase email codes are digits only; the length is a project setting (6 by default). */
-const CODE_RE = /^\d{6,10}$/;
 const ERROR_ID = 'login-error';
+const PASSWORD_HINT_ID = 'password-hint';
 
 const inputClass = (invalid: boolean): string =>
   `w-full bg-neutral-900 border ${invalid ? 'border-red-500/70' : 'border-white/10'} text-white px-4 py-3 min-h-[44px] text-base md:text-sm font-mono placeholder:text-neutral-400 focus:outline-none focus:border-[#D4A843] transition-colors`;
@@ -49,7 +60,7 @@ const primaryButton =
   'w-full min-h-[44px] bg-[#D4A843] text-black py-3.5 text-xs font-mono font-bold uppercase tracking-widest hover:opacity-80 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2';
 const quietButton =
   'w-full min-h-[44px] text-xs font-mono text-neutral-400 hover:text-white transition-colors uppercase tracking-widest disabled:opacity-40 disabled:cursor-not-allowed';
-const labelClass = 'block text-xs font-bold uppercase tracking-widest text-neutral-400 mb-2';
+const labelClass = 'block text-xs font-bold uppercase tracking-widest text-neutral-400';
 
 function Spinner({ dark = false }: { dark?: boolean }) {
   return (
@@ -64,17 +75,17 @@ function LoginForm() {
   const searchParams = useSearchParams();
   // Where they were going (?next=, or the older ?redirect=), never off the site.
   const next = readNextParam(searchParams);
-  const isSignup = searchParams.get('mode') === 'signup';
   const reason = searchParams.get('reason');
 
-  const [step, setStep] = useState<Step>('email');
-  const [usePassword, setUsePassword] = useState(false);
+  const [step, setStep] = useState<Step>(() => (searchParams.get('mode') === 'signup' ? 'signup' : 'signin'));
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [code, setCode] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [resetEmail, setResetEmail] = useState('');
   const [resetSent, setResetSent] = useState(false);
-  // A failed Google or email-link sign-in comes back as ?error=auth.
+  /** Why the "check your email" screen shows: a new account, or a sign-in before confirming. */
+  const [checkReason, setCheckReason] = useState<'created' | 'unconfirmed'>('created');
+  // A failed Google sign-in or confirmation link comes back as ?error=auth.
   const [error, setError] = useState<{ text: string; field: Field } | null>(() => {
     const text = signInErrorMessage(searchParams.get('error'));
     return text ? { text, field: null } : null;
@@ -95,7 +106,7 @@ function LoginForm() {
     return () => { cancelled = true; };
   }, [next]);
 
-  // Coming Back from Google (or after leaving to another page), the browser
+  // Coming back from Google (or after leaving to another page), the browser
   // may restore this page from its back/forward cache with every button still
   // disabled. Re-enable them.
   useEffect(() => {
@@ -138,60 +149,17 @@ function LoginForm() {
       provider: 'google',
       options: { redirectTo: authCallbackUrl(window.location.origin, next) },
     });
-    if (oauthError) fail('Could not open Google sign-in. Please try again, or continue with your email.');
+    if (oauthError) fail('Could not open Google sign-in. Please try again, or use your email and password.');
   };
 
   /** Google's own button signed in on this page (no trip through supabase.co). */
   const googleFailed = (err: GoogleSignInError): void => {
     setBusy(null);
     const banned = bannedMessage(err, STUDIO.email);
-    fail(banned ?? 'Google sign-in did not finish. Please try again, or continue with your email.');
+    fail(banned ?? 'Google sign-in did not finish. Please try again, or use your email and password.');
   };
 
-  /**
-   * Send the sign-in email (link + code). The same answer is shown whether or
-   * not an account exists for the address: a new address gets an account.
-   * Supabase rate-limits these sends per address and per project.
-   */
-  const sendEmail = async (kind: 'email' | 'resend'): Promise<void> => {
-    clearMessages();
-    const address = email.trim();
-    if (!EMAIL_RE.test(address)) {
-      fail('Please enter a valid email address.', 'email');
-      if (kind === 'resend') setStep('email');
-      return;
-    }
-    setBusy(kind);
-    const supabase = createClient();
-    const { error: otpError } = await supabase.auth.signInWithOtp({
-      email: address,
-      options: { emailRedirectTo: authCallbackUrl(window.location.origin, next) },
-    });
-    if (otpError) {
-      const banned = bannedMessage(otpError, STUDIO.email);
-      if (banned) return fail(banned, 'email');
-      const tooSoon =
-        otpError.status === 429 ||
-        otpError.code === 'over_email_send_rate_limit' ||
-        /rate limit|security purposes/i.test(otpError.message);
-      if (tooSoon) {
-        fail("We've just sent you an email. Check your inbox and spam folder, or wait a minute and try again.");
-      } else if (otpError.code === 'email_address_invalid' || /invalid/i.test(otpError.message)) {
-        fail('Please enter a valid email address.', 'email');
-        if (kind === 'resend') setStep('email');
-      } else {
-        fail("We couldn't send the email just now. Please try again, or continue with Google.");
-      }
-      return;
-    }
-    setBusy(null);
-    setCode('');
-    setStep('code');
-    if (kind === 'resend') setNotice('We sent you a new email. Use the newest code or link.');
-  };
-
-  const handlePassword = async (): Promise<void> => {
-    clearMessages();
+  const handleSignIn = async (): Promise<void> => {
     const address = email.trim();
     if (!EMAIL_RE.test(address)) return fail('Please enter a valid email address.', 'email');
     if (!password) return fail('Please enter your password.', 'password');
@@ -199,36 +167,78 @@ function LoginForm() {
     const supabase = createClient();
     const { data, error: authError } = await supabase.auth.signInWithPassword({ email: address, password });
     if (authError || !data.user) {
-      return fail(bannedMessage(authError, STUDIO.email) ?? authError?.message ?? 'Sign-in failed. Please try again.', 'password');
+      const failure = signInFailure(authError, STUDIO.email);
+      if (failure.unconfirmed) {
+        setBusy(null);
+        setCheckReason('unconfirmed');
+        setStep('check');
+        setNotice(null);
+        setError({ text: failure.text, field: null });
+        return;
+      }
+      return fail(failure.text, failure.field);
     }
     await finish(data.user);
+  };
+
+  /**
+   * Create an account. Supabase emails a confirmation link that returns
+   * through /auth/callback (carrying ?next=), and /welcome then records
+   * consent.
+   */
+  const handleSignUp = async (): Promise<void> => {
+    const address = email.trim();
+    if (!EMAIL_RE.test(address)) return fail('Please enter a valid email address.', 'email');
+    const problem = newPasswordProblem(password);
+    if (problem) return fail(problem, 'password');
+    setBusy('signup');
+    const supabase = createClient();
+    const { data, error: signUpError } = await supabase.auth.signUp({
+      email: address,
+      password,
+      options: { emailRedirectTo: authCallbackUrl(window.location.origin, next) },
+    });
+    if (signUpError) {
+      const failure = signUpFailure(signUpError, STUDIO.email);
+      return fail(failure.text, failure.field);
+    }
+    // Email confirmation switched off in Supabase: they are signed in already.
+    if (data.session && data.user) return finish(data.user);
+    setBusy(null);
+    setPassword('');
+    setShowPassword(false);
+    setCheckReason('created');
+    setStep('check');
+    if (isExistingAccount(data.user)) {
+      setNotice('If this email already has an account, no new email is sent: sign in instead, or use Forgot password.');
+    }
   };
 
   const handleEmailForm = (e: React.FormEvent<HTMLFormElement>): void => {
     e.preventDefault();
     if (busy) return;
-    if (usePassword) void handlePassword();
-    else void sendEmail('email');
+    clearMessages();
+    if (step === 'signup') void handleSignUp();
+    else void handleSignIn();
   };
 
-  const handleCode = async (e: React.FormEvent<HTMLFormElement>): Promise<void> => {
-    e.preventDefault();
-    if (busy) return;
+  /** Send the account confirmation link again (a link, never a sign-in code). */
+  const resendConfirmation = async (): Promise<void> => {
     clearMessages();
-    const token = code.replace(/\s+/g, '');
-    if (!CODE_RE.test(token)) return fail('Enter the code from the email (numbers only).', 'code');
-    setBusy('code');
+    const address = email.trim();
+    if (!EMAIL_RE.test(address)) return;
+    setBusy('resend');
     const supabase = createClient();
-    const { data, error: verifyError } = await supabase.auth.verifyOtp({ email: email.trim(), token, type: 'email' });
-    if (verifyError || !data.user) {
-      const banned = bannedMessage(verifyError, STUDIO.email);
-      if (banned) return fail(banned, 'code');
-      return fail(
-        "That code didn't work. It may have expired, or a newer email may have replaced it. Check your latest email, or send a new one.",
-        'code',
-      );
+    const { error: resendError } = await supabase.auth.resend({
+      type: 'signup',
+      email: address,
+      options: { emailRedirectTo: authCallbackUrl(window.location.origin, next) },
+    });
+    if (resendError && /rate limit|security purposes/i.test(resendError.message)) {
+      return fail("We've just sent you an email. Check your inbox and spam folder, or wait a minute and try again.");
     }
-    await finish(data.user);
+    setBusy(null);
+    setNotice('We sent the confirmation email again. Use the newest one.');
   };
 
   const handleReset = async (e: React.FormEvent<HTMLFormElement>): Promise<void> => {
@@ -253,14 +263,25 @@ function LoginForm() {
   const goTo = (target: Step): void => {
     clearMessages();
     setBusy(null);
+    setShowPassword(false);
     setStep(target);
+  };
+  const openForgot = (): void => {
+    setResetEmail(email);
+    setResetSent(false);
+    goTo('forgot');
   };
 
   const heading =
-    step === 'code' ? 'Check your email'
+    step === 'check' ? 'Check your email'
       : step === 'forgot' ? 'Reset password'
-        : isSignup ? 'Create your account'
-          : 'Sign in or create an account';
+        : step === 'signup' ? 'Create your account'
+          : 'Sign in';
+
+  const onForm = step === 'signin' || step === 'signup';
+  const passwordDescribedBy =
+    [invalid('password') ? ERROR_ID : null, step === 'signup' ? PASSWORD_HINT_ID : null].filter(Boolean).join(' ') ||
+    undefined;
 
   const errorBox = error && (
     <div id={ERROR_ID} role="alert" className="bg-red-500/10 border border-red-500/30 px-4 py-3">
@@ -294,24 +315,24 @@ function LoginForm() {
             {heading}
           </h1>
           <div className="w-8 h-px bg-[#D4A843] mt-5" />
-          {step === 'email' && (
+          {step === 'signup' && (
             <p className="text-xs font-mono text-neutral-400 leading-relaxed mt-5">
-              No password needed. New here? We&apos;ll create your account as you continue.
+              Use Google, or your email and a password. We&apos;ll email you a link to confirm your address.
             </p>
           )}
         </div>
 
         {/* Sent here from a booking: say what the sign-in is for */}
-        {reason === 'book' && step === 'email' && (
+        {reason === 'book' && onForm && (
           <div className="bg-[#D4A843]/10 border border-[#D4A843]/30 px-4 py-3 mb-6">
             <p className="text-xs text-[#D4A843] font-mono leading-relaxed">
-              Sign in to send your request. New here? Continue below and we&apos;ll set up your free account.
+              Sign in to send your request. New here? Create your free account below.
             </p>
           </div>
         )}
 
         {/* Idle logout notice */}
-        {reason === 'idle' && step === 'email' && (
+        {reason === 'idle' && onForm && (
           <div className="bg-amber-500/10 border border-amber-500/30 px-4 py-3 mb-6">
             <p className="text-xs text-amber-400 font-mono leading-relaxed">
               You were signed out due to inactivity. Please sign in again.
@@ -320,7 +341,7 @@ function LoginForm() {
         )}
 
         <div className="bg-[#0A0A0B] border border-white/10 p-6 sm:p-8">
-          {step === 'email' && (
+          {onForm && (
             <div className="space-y-5">
               <GoogleSignInButton
                 onBusy={() => { clearMessages(); setBusy('google'); }}
@@ -348,7 +369,7 @@ function LoginForm() {
 
               <form onSubmit={handleEmailForm} noValidate className="space-y-4">
                 <div>
-                  <label htmlFor="email" className={labelClass}>Email</label>
+                  <label htmlFor="email" className={`${labelClass} mb-2`}>Email</label>
                   <input
                     id="email"
                     type="email"
@@ -356,7 +377,7 @@ function LoginForm() {
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     required
-                    autoComplete="email"
+                    autoComplete={step === 'signup' ? 'email' : 'username'}
                     autoCapitalize="none"
                     spellCheck={false}
                     placeholder="you@example.com"
@@ -366,50 +387,57 @@ function LoginForm() {
                   />
                 </div>
 
-                {usePassword && (
-                  <div>
+                <div>
+                  <div className="flex items-end justify-between mb-2">
                     <label htmlFor="password" className={labelClass}>Password</label>
-                    <input
-                      id="password"
-                      type="password"
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      required
-                      autoComplete="current-password"
-                      aria-invalid={invalid('password') || undefined}
-                      aria-describedby={describedBy('password')}
-                      className={inputClass(invalid('password'))}
-                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword((v) => !v)}
+                      aria-controls="password"
+                      aria-pressed={showPassword}
+                      aria-label={showPassword ? 'Hide password' : 'Show password'}
+                      className="min-h-[44px] min-w-[44px] -my-3 text-xs font-mono uppercase tracking-widest text-neutral-400 hover:text-white transition-colors"
+                    >
+                      {showPassword ? 'Hide' : 'Show'}
+                    </button>
                   </div>
-                )}
+                  <input
+                    id="password"
+                    type={showPassword ? 'text' : 'password'}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    required
+                    autoComplete={step === 'signup' ? 'new-password' : 'current-password'}
+                    minLength={step === 'signup' ? PASSWORD_MIN_LENGTH : undefined}
+                    aria-invalid={invalid('password') || undefined}
+                    aria-describedby={passwordDescribedBy}
+                    className={inputClass(invalid('password'))}
+                  />
+                  {step === 'signup' && (
+                    <p id={PASSWORD_HINT_ID} className="text-xs font-mono text-neutral-400 mt-2">
+                      {PASSWORD_RULE}
+                    </p>
+                  )}
+                </div>
 
                 <button
                   type="submit"
                   disabled={busy !== null}
-                  aria-busy={busy === 'email' || busy === 'password' || busy === 'leaving'}
+                  aria-busy={busy === 'password' || busy === 'signup' || busy === 'leaving'}
                   className={primaryButton}
                 >
-                  {busy === 'email' ? (<><Spinner dark />Sending email...</>)
+                  {busy === 'signup' ? (<><Spinner dark />Creating account...</>)
                     : busy === 'password' || busy === 'leaving' ? (<><Spinner dark />Signing in...</>)
-                      : usePassword ? 'Sign In' : 'Continue with email'}
+                      : step === 'signup' ? 'Create Account' : 'Sign In'}
                 </button>
               </form>
 
               {errorBox}
 
-              <button
-                type="button"
-                onClick={() => { clearMessages(); setPassword(''); setUsePassword((v) => !v); }}
-                disabled={busy !== null}
-                className={quietButton}
-              >
-                {usePassword ? 'Email me a sign-in code instead' : 'Use a password instead'}
-              </button>
-
-              {usePassword && (
+              {step === 'signin' && (
                 <button
                   type="button"
-                  onClick={() => { setResetEmail(email); setResetSent(false); goTo('forgot'); }}
+                  onClick={openForgot}
                   disabled={busy !== null}
                   className={`${quietButton} underline underline-offset-2 normal-case tracking-normal`}
                 >
@@ -417,68 +445,49 @@ function LoginForm() {
                 </button>
               )}
 
+              <button
+                type="button"
+                onClick={() => goTo(step === 'signup' ? 'signin' : 'signup')}
+                disabled={busy !== null}
+                className={quietButton}
+              >
+                {step === 'signup' ? 'Already have an account? Sign in' : 'New here? Create account'}
+              </button>
+
+              {step === 'signin' && (
+                <p className="text-xs font-mono text-neutral-400 leading-relaxed text-center">
+                  Signed up with an email link before? Use Forgot password to set a password.
+                </p>
+              )}
+
               <TermsNotice className="pt-1 border-t border-white/10" />
             </div>
           )}
 
-          {step === 'code' && (
+          {step === 'check' && (
             <div className="space-y-5">
-              <p className="text-xs font-mono text-neutral-300 leading-relaxed">
-                We sent an email to <span className="text-white break-all">{email.trim()}</span>. Tap the link in
-                it, or enter the code from it here.
-              </p>
-
-              <form onSubmit={handleCode} noValidate className="space-y-4">
-                <div>
-                  <label htmlFor="code" className={labelClass}>Code from the email</label>
-                  <input
-                    id="code"
-                    type="text"
-                    inputMode="numeric"
-                    autoComplete="one-time-code"
-                    pattern="[0-9]*"
-                    maxLength={10}
-                    value={code}
-                    onChange={(e) => setCode(e.target.value.replace(/[^\d\s]/g, ''))}
-                    required
-                    autoFocus
-                    aria-invalid={invalid('code') || undefined}
-                    aria-describedby={invalid('code') ? `${ERROR_ID} code-hint` : 'code-hint'}
-                    className={`${inputClass(invalid('code'))} tracking-[0.4em]`}
-                  />
-                  <p id="code-hint" className="text-xs font-mono text-neutral-400 mt-2 leading-relaxed">
-                    It can take a minute to arrive. Check your spam folder too.
-                  </p>
-                </div>
-                <button
-                  type="submit"
-                  disabled={busy !== null}
-                  aria-busy={busy === 'code' || busy === 'leaving'}
-                  className={primaryButton}
-                >
-                  {busy === 'code' || busy === 'leaving' ? (<><Spinner dark />Signing in...</>) : 'Continue'}
-                </button>
-              </form>
+              {checkReason === 'created' && (
+                <p className="text-xs font-mono text-neutral-300 leading-relaxed">
+                  We sent an email to <span className="text-white break-all">{email.trim()}</span>. Tap the link
+                  in it to confirm your address, and you&apos;re in. It can take a minute to arrive. Check your
+                  spam folder too.
+                </p>
+              )}
 
               {errorBox}
               {noticeBox}
 
               <button
                 type="button"
-                onClick={() => void sendEmail('resend')}
+                onClick={() => void resendConfirmation()}
                 disabled={busy !== null}
                 aria-busy={busy === 'resend'}
                 className={quietButton}
               >
-                {busy === 'resend' ? 'Sending...' : 'Send a new email'}
+                {busy === 'resend' ? 'Sending...' : 'Send the confirmation email again'}
               </button>
-              <button
-                type="button"
-                onClick={() => { setCode(''); goTo('email'); }}
-                disabled={busy === 'code' || busy === 'leaving'}
-                className={quietButton}
-              >
-                Use a different email
+              <button type="button" onClick={() => goTo('signin')} className={primaryButton}>
+                Back to Sign In
               </button>
             </div>
           )}
@@ -488,21 +497,22 @@ function LoginForm() {
               <div className="space-y-5">
                 <div role="status" className="bg-emerald-500/10 border border-emerald-500/30 px-4 py-3">
                   <p className="text-xs text-emerald-400 font-mono leading-relaxed">
-                    If this email has a password, we&apos;ve sent a reset link. Check your inbox and spam folder.
+                    If this email has an account, we&apos;ve sent a link to set a new password. Check your inbox
+                    and spam folder.
                   </p>
                 </div>
-                <button type="button" onClick={() => goTo('email')} className={primaryButton}>
+                <button type="button" onClick={() => goTo('signin')} className={primaryButton}>
                   Back to Sign In
                 </button>
               </div>
             ) : (
               <form onSubmit={handleReset} noValidate className="space-y-5">
                 <p className="text-xs font-mono text-neutral-400 leading-relaxed">
-                  Enter your email and we&apos;ll send you a link to set a new password. You can also skip
-                  passwords and sign in with an email code.
+                  Enter your email and we&apos;ll send you a link to set a new password. This also works if you
+                  signed up with an email link before and never had a password.
                 </p>
                 <div>
-                  <label htmlFor="resetEmail" className={labelClass}>Email</label>
+                  <label htmlFor="resetEmail" className={`${labelClass} mb-2`}>Email</label>
                   <input
                     id="resetEmail"
                     type="email"
@@ -523,7 +533,7 @@ function LoginForm() {
                 <button type="submit" disabled={busy !== null} aria-busy={busy === 'reset'} className={primaryButton}>
                   {busy === 'reset' ? (<><Spinner dark />Sending...</>) : 'Send Reset Link'}
                 </button>
-                <button type="button" onClick={() => goTo('email')} className={quietButton}>
+                <button type="button" onClick={() => goTo('signin')} className={quietButton}>
                   Back to Sign In
                 </button>
               </form>
@@ -532,7 +542,7 @@ function LoginForm() {
         </div>
 
         {/* The creator's way in (not in the header, see CREATOR_JOIN). Hidden when they are already on their way there. */}
-        {step === 'email' && next !== CREATOR_JOIN.href && (
+        {onForm && next !== CREATOR_JOIN.href && (
           <p className="text-xs font-mono text-neutral-400 text-center mt-6">
             {CREATOR_JOIN.loginLine}{' '}
             <Link href={CREATOR_JOIN.href} className="text-[#D4A843] hover:underline">

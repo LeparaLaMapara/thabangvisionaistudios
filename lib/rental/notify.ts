@@ -5,6 +5,9 @@ import { sms } from '@/lib/sms';
 import { STUDIO } from '@/lib/constants';
 import { formatRand } from '@/lib/format/money';
 import { collectionPointWithCity } from '@/lib/rental/collection-point';
+import { isPushConfigured } from '@/lib/push';
+import { pushToUser } from '@/lib/push/to-user';
+import { safeTrackingUrl } from '@/lib/delivery/customer-view';
 import type { NotifyPort } from '@/lib/core/ports';
 import type { OutboxMessage, RentalNoticeKind } from '@/lib/core/rental/notifications';
 import { isMissingPipeline } from './repos';
@@ -18,6 +21,51 @@ import { isMissingPipeline } from './repos';
  * details. A refund notice says "initiated", "processed" or "failed", never
  * "refunded" before the provider confirms it.
  */
+
+/** How to reach us, in every delivery message that may need it. WhatsApp only, never "call". */
+export function deliveryContactLine(): string {
+  const wa = STUDIO.whatsapp?.display;
+  return `Questions or a problem? ${wa ? `WhatsApp us on ${wa} or email` : 'Email'} ${STUDIO.email}.`;
+}
+
+/**
+ * The "on the way" email (one per outbound leg). Its facts are read when it
+ * is sent (noticeData), so it carries what the courier reported by then:
+ * driver's first name, the live tracking link and the drop-off PIN. The
+ * address is the renter's own, sent to the renter only.
+ */
+export function onTheWayText(data: OutboxMessage['data']): { title: string; body: string } {
+  const str = (v: unknown): string | null => (typeof v === 'string' && v.trim() !== '' ? v.trim() : null);
+  const driver = str(data.driverName);
+  const address = str(data.address);
+  const pin = str(data.pin);
+  const url = str(data.trackingUrl);
+  const lines = [
+    `${driver ? `${driver}, your driver,` : 'Your driver'} is bringing your gear to ${address ?? 'the address you gave at checkout'}.`,
+    pin ? `Your PIN for the driver: ${pin}. Give it only when they hand you the gear.${data.pinTexted === true ? ' Uber also sends it to you by SMS.' : ''}` : null,
+    url ? `Follow the driver live: ${url}` : null,
+    'Have the ID you verified with ready: the driver checks it before handing over.',
+    deliveryContactLine(),
+  ];
+  return { title: 'Your gear is on the way', body: lines.filter((l): l is string => !!l).join('\n\n') };
+}
+
+/**
+ * In-app delivery updates that also go to the renter's phone at once as a
+ * push. They are service messages about a live delivery, so they skip the
+ * engagement queue (and its caps); the bell's own push for the same
+ * notification is then marked sent, so the phone gets it once.
+ */
+export const DELIVERY_PUSH_KINDS: ReadonlySet<RentalNoticeKind> = new Set<RentalNoticeKind>([
+  'delivery_courier_assigned',
+  'delivery_collected',
+  'delivery_in_transit',
+  'delivery_delivered',
+  'delivery_attempt_failed',
+  'delivery_cancelled',
+  'delivery_return_courier_assigned',
+  'delivery_return_collected',
+]);
 
 const money = (cents: unknown): string => (typeof cents === 'number' && Number.isFinite(cents) ? formatRand(cents / 100, { decimals: cents % 100 !== 0 }) : '');
 
@@ -76,19 +124,22 @@ export function rentalNoticeText(kind: RentalNoticeKind, data: OutboxMessage['da
     case 'dispute_resolved':
       return { title: 'Dispute resolved', body: `The dispute on your booking has been resolved. The outcome is on your booking.` };
     // Phase 4 delivery notices. Never a courier name, ETA or address we were not given,
-    // and never the full delivery address (spec §4.17, §4.19).
+    // and never the full delivery address (spec §4.17, §4.19), except the renter's own
+    // drop-off address in their "on the way" email (owner, 2026-10-14).
     case 'delivery_quote_ready':
       return { title: 'Delivery quote ready', body: `Your delivery quote is ${amount}. It is held for a short time; the final price is confirmed before you pay.` };
     case 'delivery_booked':
       return { title: 'Delivery booked', body: `Your delivery is booked. We will update you when the gear is collected.` };
     case 'delivery_courier_assigned':
-      return { title: 'Driver assigned', body: `A driver has been assigned to your delivery.` };
+      return { title: 'Driver assigned', body: `A driver has been assigned to your delivery. Your PIN for the driver and the live tracking link are on your booking.` };
     case 'delivery_courier_at_pickup':
       return { title: 'Driver at pickup', body: `The driver has arrived to collect your gear.` };
     case 'delivery_collected':
       return { title: 'Gear collected', body: `The driver has collected your gear.` };
     case 'delivery_in_transit':
-      return { title: 'Gear on the way', body: `Your gear is on the way.` };
+      return { title: 'Gear on the way', body: `Your gear is on the way. Have your PIN and the ID you verified with ready.` };
+    case 'delivery_on_the_way':
+      return onTheWayText(data);
     case 'delivery_delivered':
       return {
         title: 'Please confirm your delivery',
@@ -154,12 +205,80 @@ export async function noticeData(
   db: Pick<ReturnType<typeof createAdminClient>, 'from'>,
   m: Pick<OutboxMessage, 'kind' | 'bookingIds' | 'data'>,
 ): Promise<OutboxMessage['data']> {
+  if (m.kind === 'delivery_on_the_way' && m.bookingIds.length > 0) return onTheWayData(db, m);
   if (m.kind !== 'booking_confirmed' || m.bookingIds.length === 0) return m.data;
   const { data, error } = await db.from('equipment_bookings').select('fulfilment_method').in('id', m.bookingIds);
   // Never guess "collection" on a failed read: the delivery is retried instead.
   if (error) throw new Error(`fulfilment lookup failed: ${error.message}`);
   const delivery = ((data ?? []) as { fulfilment_method?: string | null }[]).some((b) => b.fulfilment_method === 'delivery');
   return { ...m.data, delivery };
+}
+
+/**
+ * Facts for the "on the way" email, read when it is sent: the latest
+ * outbound leg for these bookings. No tracking link on a leg from an owner's
+ * address (the courier's page shows that point, D-88). A redacted address is
+ * never shown. A failed read is retried, never sent half-empty.
+ */
+async function onTheWayData(
+  db: Pick<ReturnType<typeof createAdminClient>, 'from'>,
+  m: Pick<OutboxMessage, 'bookingIds' | 'data'>,
+): Promise<OutboxMessage['data']> {
+  const { data, error } = await db
+    .from('delivery_shipments')
+    .select('provider, tracking_url, courier_name, recipient_pin, destination_address_id, origin_owner_id')
+    .eq('leg', 'outbound')
+    .overlaps('booking_ids', m.bookingIds)
+    .order('created_at', { ascending: false })
+    .limit(1);
+  if (error) throw new Error(`shipment lookup failed: ${error.message}`);
+  const s = ((data ?? []) as Record<string, unknown>[])[0];
+  if (!s) return m.data;
+  const str = (v: unknown): string | null => (typeof v === 'string' && v.trim() !== '' ? v.trim() : null);
+  let address: string | null = null;
+  const addressId = str(s.destination_address_id);
+  if (addressId) {
+    const a = await db.from('delivery_addresses').select('formatted_address, redacted_at').eq('id', addressId).maybeSingle();
+    if (a.error) throw new Error(`address lookup failed: ${a.error.message}`);
+    const row = a.data as { formatted_address?: string | null; redacted_at?: string | null } | null;
+    if (row && !row.redacted_at) address = str(row.formatted_address);
+  }
+  const pin = str(s.recipient_pin);
+  return {
+    ...m.data,
+    driverName: str(s.courier_name),
+    address,
+    pin,
+    pinTexted: !!pin && s.provider === 'uber_direct',
+    trackingUrl: str(s.origin_owner_id) ? null : safeTrackingUrl(str(s.tracking_url)),
+  };
+}
+
+/**
+ * Push one delivery update to the renter's phone now, and mark the bell's
+ * queued push for the same notification as sent (087 queues one per bell
+ * item), so it arrives once. A push is a nicety: it never fails the notice.
+ */
+async function pushDeliveryUpdate(
+  db: ReturnType<typeof createAdminClient>,
+  rows: { id: string; user_id: string }[],
+  payload: { title: string; body: string; url: string; tag: string },
+): Promise<void> {
+  if (!isPushConfigured()) return;
+  for (const r of rows) {
+    try {
+      const sent = await pushToUser(db, r.user_id, payload);
+      if (sent.sent > 0) {
+        await db
+          .from('notification_outbox')
+          .update({ status: 'sent', sent_at: new Date().toISOString(), last_error: null })
+          .eq('dedupe_key', `engage_push:notification:${r.id}`)
+          .eq('status', 'pending');
+      }
+    } catch (err) {
+      console.error('[rental-notify] delivery push skipped:', err instanceof Error ? err.message : 'unknown error');
+    }
+  }
 }
 
 export const supabaseNotify: NotifyPort = {
@@ -181,8 +300,16 @@ export const supabaseNotify: NotifyPort = {
         userIds = (data ?? []).map((r) => (r as { id: string }).id);
         if (userIds.length === 0) return { ok: true };
       }
-      const { error } = await db.from('notifications').insert(userIds.map((user_id) => ({ user_id, type: `rental_${m.kind}`, title, body, link })));
-      return error ? { ok: false, retryable: true, message: error.message } : { ok: true };
+      const { data: inserted, error } = await db
+        .from('notifications')
+        .insert(userIds.map((user_id) => ({ user_id, type: `rental_${m.kind}`, title, body, link })))
+        .select('id, user_id');
+      if (error) return { ok: false, retryable: true, message: error.message };
+      if (m.userId !== 'staff' && DELIVERY_PUSH_KINDS.has(m.kind)) {
+        // One tag per booking: each update replaces the last on the phone instead of stacking.
+        await pushDeliveryUpdate(db, (inserted ?? []) as { id: string; user_id: string }[], { title, body, url: link, tag: `delivery-${m.bookingIds[0] ?? 'update'}` });
+      }
+      return { ok: true };
     }
 
     if (m.userId === 'staff') return { ok: true };

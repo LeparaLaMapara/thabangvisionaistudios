@@ -12,7 +12,7 @@ config).
 
 | File | Journey |
 |---|---|
-| `a-accounts.journey.ts` | sign up/in with the email code and link, Terms on /welcome, password reset + sign-in, generic errors, `next` and open redirects, phone code |
+| `a-accounts.journey.ts` | create account (email + password, confirmation link), password sign-in, Terms on /welcome, password reset + sign-in, generic errors, `next` and open redirects, phone code |
 | `b-studio-rental.journey.ts` | browse, eligibility, cart and dates, cancel on the payment page, pay, webhook replay, paid without webhook, renter cancel + refund, collection rules |
 | `c-marketplace.journey.ts` | owner listing (photo, AI fallback, submit), owner cannot self-publish, admin review, hire, handover, return, owner payout |
 | `d-creatives.journey.ts` | creator onboarding without AI, private portfolio, verification, service booking, delivery, approval, 72-hour payout |
