@@ -20,6 +20,7 @@ import { MAX_ID_PHOTO_BYTES, MIN_ID_PHOTO_BYTES, MIN_ID_PHOTO_EDGE, sniffPhotoTy
 import { makeReviewCopy, photoSize } from '@/lib/verification/review-copy';
 import { parseIdReading, summariseIdReading, validSaIdNumber } from '@/lib/verification/id-reading';
 import { submissionAlert } from '@/lib/verification/owner-alert';
+import { sanitizeDeviceLocation } from '@/lib/verification/device-location';
 import { email as emailProvider } from '@/lib/email';
 
 // Verification documents live in a private bucket. Since migration 067 they are
@@ -180,6 +181,7 @@ export async function POST(req: NextRequest) {
       ),
       face_match: null,
       id_document: null,
+      device_location: sanitizeDeviceLocation(body?.device_location),
     };
 
     // ── 2. Review copies ────────────────────────────────────────────────
