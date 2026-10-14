@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { STUDIO } from '@/lib/constants';
 import { bankDetailsText, paymentReference, whatsappLink, BANK_LINES } from '@/lib/payments/eft';
 import { gearNoticeText, type NoticeBooking } from '@/lib/rental/notices';
 import { isExpiredHold } from '@/lib/rental/availability';
@@ -36,7 +37,7 @@ describe('messages while an order waits for payment', () => {
 
   it('cash: what to bring and where', () => {
     const t = gearNoticeText('awaiting_payment', items, { amountDue: 2400, reference: 'TV-3F9A2C', method: 'cash' });
-    expect(t.body).toMatch(/in cash when you collect at 99 Smith Street/);
+    expect(t.body).toContain(`in cash when you collect at ${STUDIO.fulfilment.dispatchFrom.meetingPoint}`);
     expect(t.body).toMatch(/ID card/);
   });
 });

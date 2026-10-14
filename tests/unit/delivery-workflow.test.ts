@@ -3,6 +3,7 @@
  * level (D21, D22; the database side is in 076-delivery.test.sql), the
  * leg-keyed ledger, the manual adapter and the provider registry.
  */
+import { STUDIO } from '@/lib/constants';
 import { describe, expect, it } from 'vitest';
 import { DELIVERY_POLICY } from '@/lib/constants';
 import { DEFAULT_DELIVERY_POLICY, providerRiskGate } from '@/lib/core/delivery/policy';
@@ -168,7 +169,7 @@ describe('manual adapter (our own vehicle)', () => {
   it('quotes the existing own-vehicle formula in cents and dispatches by creating one staff task', async () => {
     const store = new InMemoryManualTaskStore();
     const port = createManualDeliveryAdapter(store, { now: () => new Date('2026-10-10T08:00:00Z') });
-    const office = { lat: -26.1929, lng: 28.0305, suburb: null, city: null, postalCode: null };
+    const office = { lat: STUDIO.fulfilment.dispatchFrom.lat, lng: STUDIO.fulfilment.dispatchFrom.lng, suburb: null, city: null, postalCode: null };
     const home = { lat: -26.1076, lng: 28.0567, suburb: null, city: null, postalCode: null };
     const items = [{ rentalId: 'r', bookingId: 'b', driverLabel: 'camera equipment', replacementValueCents: 1, weightGrams: null, containsLithium: false }];
     const q = await port.quote({ from: office, to: home, window: { start: null, end: null }, items, leg: 'outbound' });

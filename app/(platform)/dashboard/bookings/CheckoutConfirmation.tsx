@@ -5,7 +5,7 @@ import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { CheckCircle2, Clock, RotateCw } from 'lucide-react';
 import { STUDIO } from '@/lib/constants';
-import { collectionPoint } from '@/lib/rental/collection-point';
+import { exactCollectionPointWithCity } from '@/lib/rental/collection-point';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -142,7 +142,7 @@ export function CheckoutConfirmation({
             <li>We contact you to arrange the delivery time. Have the ID you verified with ready when it arrives.</li>
           ) : (
             <li>
-              You get a message with the collection details. Collect at {collectionPoint()}, {STUDIO.location.city} ({STUDIO.hours.weekday}, {STUDIO.hours.weekend}) and bring the ID you verified with.
+              You get a message with the collection details. Collect at {exactCollectionPointWithCity()} ({STUDIO.hours.weekday}, {STUDIO.hours.weekend}) and bring the ID you verified with.
             </li>
           )}
           {manual && <li>A person approves this booking before the gear is handed over. We let you know if we need anything.</li>}
