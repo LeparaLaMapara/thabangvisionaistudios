@@ -1,10 +1,10 @@
 export const dynamic = 'force-dynamic';
 
 import { redirect } from 'next/navigation';
-import { offerRolePath } from '@/lib/welcome';
+import { OFFER_PATH } from '@/lib/welcome';
 
-/** Old link from the first roles slice: a deep link into Offer for one role. */
+/** Old link from the first roles slice: Earn with ThabangVision, role preselected. */
 export default async function JoinRolePage({ params }: { params: Promise<{ role: string }> }) {
   const { role } = await params;
-  redirect(/^[a-z0-9-]{2,40}$/.test(role) ? offerRolePath(role) : '/offer');
+  redirect(/^[a-z0-9-]{2,40}$/.test(role) ? `${OFFER_PATH}?role=${role}` : OFFER_PATH);
 }

@@ -21,15 +21,14 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const p = await load(id);
   if (!p) return { title: 'Profile' };
   return buildPageMetadata({
-    title: `${p.person.display_name}, ${p.role.name.toLowerCase()}`,
+    title: p.label,
     description: metaDescription(p.personRole.headline ?? p.personRole.about, `${p.role.name} on ${STUDIO.shortName}.`),
     path: `/people/${id}`,
-    // Not indexed during the roles_v1 trial (demo profiles live on dev).
     noIndex: true,
   });
 }
 
-/** A role profile (approved only; anything else is a 404). */
+/** A role profile, blind (approved only; anything else is a 404). */
 export default async function PersonRolePage({ params }: Props) {
   if (!(await getFlag('roles_v1'))) notFound();
   const { id } = await params;
