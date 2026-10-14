@@ -5,6 +5,7 @@ import { rolesOffResponse } from '@/lib/roles/flag';
 import { requireAdmin } from '@/lib/auth';
 import { createAdminClient } from '@/lib/supabase/server';
 import { listReviewQueue, reviewCounts, EVIDENCE_COLUMNS, PERSON_ROLE_COLUMNS, getRole } from '@/lib/supabase/queries/roles';
+import { reembedQuietly } from '@/lib/roles/embed-server';
 import { bestDateOfBirth, confirmedJobCount, evidenceLevel, PERSON_ROLE_STATUSES, reviewLegal, type PersonRole, type RoleEvidence } from '@/lib/roles';
 
 /**
@@ -20,6 +21,9 @@ import { bestDateOfBirth, confirmedJobCount, evidenceLevel, PERSON_ROLE_STATUSES
  *   PATCH { id, action: 'changes', note }
  *         The note is required and must say how to get there.
  *   PATCH { id, action: 'verify_vouch', evidence_id }
+ *   PATCH { id, action: 'face_check', value: 'same_person' | 'different_person' }
+ *         The reviewer compared the in-app face photo with the ID-check
+ *         selfie, side by side. No automatic face matching.
  *         A reviewer called the person who vouched and they confirmed.
  */
 
@@ -66,6 +70,18 @@ export async function PATCH(request: NextRequest): Promise<NextResponse> {
     const pr = prRow as unknown as PersonRole;
     const now = new Date();
 
+    if (body.action === 'face_check') {
+      const value = body.value === 'same_person' || body.value === 'different_person' ? body.value : null;
+      if (!value) return NextResponse.json({ error: 'Say same person or different person.' }, { status: 400 });
+      const { error, count } = await admin
+        .from('person_faces')
+        .update({ face_check: value, checked_by: reviewer, checked_at: now.toISOString(), updated_at: now.toISOString() }, { count: 'exact' })
+        .eq('user_id', pr.user_id);
+      if (error) throw new Error(error.message);
+      if (!count) return NextResponse.json({ error: 'They have not added their photo yet.' }, { status: 409 });
+      return NextResponse.json({ ok: true, face_check: value });
+    }
+
     if (body.action === 'changes') {
       const note = typeof body.note === 'string' ? body.note.trim().slice(0, 1000) : '';
       if (note.length < MIN_NOTE) {
@@ -88,6 +104,7 @@ export async function PATCH(request: NextRequest): Promise<NextResponse> {
       if (!item) return NextResponse.json({ error: 'Vouch not found.' }, { status: 404 });
       const { error } = await admin.from('role_evidence').update({ verified_by: reviewer, verified_at: now.toISOString() }).eq('id', item.id);
       if (error) throw new Error(error.message);
+      await reembedQuietly(pr.id);
       return NextResponse.json({ ok: true });
     }
 
@@ -105,11 +122,19 @@ export async function PATCH(request: NextRequest): Promise<NextResponse> {
     const dob = bestDateOfBirth(meta?.id_document?.date_of_birth ?? null, pr.answers?.date_of_birth);
     // Approving confirms the documents in hand: treat them as checked here.
     const legal = reviewLegal(role, pr.answers, evidence.map((e) => (e.kind === 'document' ? { ...e, verified_at: now.toISOString() } : e)), dob, now);
-    if (legal.age === 'too_young' || legal.age === 'unknown') {
+    const { data: face } = await admin.from('person_faces').select('face_check').eq('user_id', pr.user_id).maybeSingle();
+    if (!face) return NextResponse.json({ error: 'Their photo is missing. Everyone offering work adds one.' }, { status: 409 });
+    if (face.face_check === 'different_person') {
+      return NextResponse.json({ error: 'You marked their photo as a different person from their ID. Ask them to retake it.' }, { status: 409 });
+    }
+    // A model's ID photo (age_18) lets the reviewer confirm 18+ by approving.
+    const idPhoto = evidence.some((e) => e.kind === 'document' && e.legal_code === 'age_18');
+    if (legal.age === 'too_young' || (legal.age === 'unknown' && !idPhoto)) {
       return NextResponse.json({ error: `Age not confirmed: they must be ${role.min_age} or older, and the date must match their ID.` }, { status: 409 });
     }
-    if (legal.missing.length) {
-      return NextResponse.json({ error: `Missing: ${legal.missing.map((r) => r.label).join(', ')}.` }, { status: 409 });
+    const lawMissing = legal.missing.filter((r) => r.basis === 'law');
+    if (lawMissing.length) {
+      return NextResponse.json({ error: `Missing: ${lawMissing.map((r) => r.label).join(', ')}.` }, { status: 409 });
     }
 
     // Mark what the reviewer looked at as checked.
@@ -151,6 +176,7 @@ export async function PATCH(request: NextRequest): Promise<NextResponse> {
       })
       .eq('id', id);
     if (error) throw new Error(error.message);
+    await reembedQuietly(pr.id);
     return NextResponse.json({ ok: true, status: 'approved', level });
   } catch (err) {
     console.error('[admin/roles] PATCH failed:', err);

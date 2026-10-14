@@ -54,7 +54,7 @@ export async function POST(req: NextRequest, ctx: Ctx): Promise<NextResponse> {
   try {
     const role = await getRole(slug);
     if (!role) return NextResponse.json({ error: 'Unknown kind of work.' }, { status: 404 });
-    const mine = await getMyPersonRole(supabase, user.id, slug);
+    const mine = await getMyPersonRole(user.id, slug);
     if (!mine) return NextResponse.json({ error: 'Start your profile first.' }, { status: 404 });
     if (mine.personRole.status === 'approved') return NextResponse.json({ error: 'Your profile is live already.' }, { status: 409 });
 
@@ -133,7 +133,7 @@ export async function DELETE(req: NextRequest, ctx: Ctx): Promise<NextResponse> 
   } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: 'Please sign in.' }, { status: 401 });
   try {
-    const mine = await getMyPersonRole(supabase, user.id, slug);
+    const mine = await getMyPersonRole(user.id, slug);
     if (!mine || !mine.evidence.some((e) => e.id === id)) return NextResponse.json({ error: 'Not found.' }, { status: 404 });
     // RLS refuses a checked item or an approved profile; the files stay in
     // storage for the reviewer's record and are swept with the account.

@@ -45,7 +45,7 @@ export async function POST(req: NextRequest, ctx: Ctx): Promise<NextResponse> {
     if (!role || !role.legal_requirements.some((r) => r.code === code && !r.code.startsWith('age_'))) {
       return NextResponse.json({ error: 'Unknown document.' }, { status: 400 });
     }
-    const mine = await getMyPersonRole(supabase, user.id, slug);
+    const mine = await getMyPersonRole(user.id, slug);
     if (!mine) return NextResponse.json({ error: 'Start your profile first.' }, { status: 404 });
     if (mine.personRole.status === 'approved') return NextResponse.json({ error: 'Your profile is live already.' }, { status: 409 });
 
