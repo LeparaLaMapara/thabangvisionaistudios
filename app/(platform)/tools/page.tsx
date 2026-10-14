@@ -63,7 +63,7 @@ export default async function ToolsPage() {
           <h1 className={`${UB_DISPLAY} mt-5 text-[2.5rem] leading-[1.08] text-[var(--ub-text)] sm:text-6xl md:text-7xl`}>
             {UBUNYE_STUDIO.hero.title}
           </h1>
-          <p className="mt-5 max-w-xl font-sans text-lg leading-relaxed text-[var(--ub-text-2)] sm:text-xl">
+          <p className="mt-5 max-w-2xl font-sans text-lg leading-relaxed text-[var(--ub-text-2)] sm:text-xl">
             {UBUNYE_STUDIO.hero.subtitle}
           </p>
           <div className="mt-8 w-full">

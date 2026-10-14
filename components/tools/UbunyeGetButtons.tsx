@@ -26,9 +26,9 @@ const OS: { id: UbunyePlatformId; label: string }[] = [
 const osLabel = (id: UbunyePlatformId): string => OS.find((o) => o.id === id)?.label ?? id;
 
 const PRIMARY =
-  'inline-flex min-h-[48px] items-center justify-center gap-2 rounded-full px-6 font-sans text-base font-medium transition-opacity hover:opacity-90';
+  'inline-flex min-h-[48px] items-center justify-center gap-2 whitespace-nowrap rounded-full px-6 font-sans text-base font-medium transition-opacity hover:opacity-90';
 const SECONDARY =
-  'inline-flex min-h-[48px] items-center justify-center gap-2 rounded-full border border-white/20 px-6 font-sans text-base text-[var(--ub-text)] transition-colors hover:border-white/40 hover:bg-white/5';
+  'inline-flex min-h-[48px] items-center justify-center gap-2 whitespace-nowrap rounded-full border border-white/20 px-6 font-sans text-base text-[var(--ub-text)] transition-colors hover:border-white/40 hover:bg-white/5';
 
 /** The calm "your computer may ask" line, shown near Download while the apps are unsigned. */
 export function UbunyeTrustNote({ os, className = '' }: { os: UbunyePlatformId | null; className?: string }) {
@@ -208,7 +208,7 @@ export function UbunyeAppButtons({ app }: { app: UbunyeAppLinks }) {
 
   return (
     <div>
-      <div className="flex flex-col gap-3 sm:flex-row">
+      <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
         {mobile && browser}
         {hasAny &&
           (direct && detected?.os ? (
