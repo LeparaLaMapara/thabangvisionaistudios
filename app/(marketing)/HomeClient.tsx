@@ -7,7 +7,7 @@ import { ServiceGrid } from '@/components/cinematic/ServiceGrid';
 import { LatestWorkCarousel, type CarouselItem } from '@/components/cinematic/LatestWorkCarousel';
 import { ArrowRight, Calendar, Search, MapPin, RotateCcw, MessageCircle, ShieldCheck } from 'lucide-react';
 import Image from 'next/image';
-import { STUDIO, UBUNYE_STUDIO, CREATOR_JOIN, EARN } from '@/lib/constants';
+import { STUDIO, UBUNYE_STUDIO, CREATOR_JOIN, EARN, CAPABILITIES, CAPABILITIES_PEOPLE, HOME_PEOPLE } from '@/lib/constants';
 import { formatRand } from '@/lib/format/money';
 import { PaymentsNotOpenNote } from '@/components/booking/PaymentsNotOpenNote';
 
@@ -18,7 +18,7 @@ const COLLECTION_POINT = collectionPoint();
 
 // ─── Hero ────────────────────────────────────────────────────────────────────
 
-const Hero = ({ minDayRate }: { minDayRate: number | null }) => {
+const Hero = ({ minDayRate, rolesOn }: { minDayRate: number | null; rolesOn: boolean }) => {
   const { scrollY } = useScroll();
   const y1 = useTransform(scrollY, [0, 500], [0, 200]);
   const opacity = useTransform(scrollY, [0, 300], [1, 0]);
@@ -88,21 +88,37 @@ const Hero = ({ minDayRate }: { minDayRate: number | null }) => {
             animate={{ opacity: 1, y: 0 }}
             className="text-4xl sm:text-5xl md:text-8xl font-display font-medium text-white tracking-tighter leading-[0.9] mb-8 uppercase max-w-full break-words"
           >
-            Rent Camera Gear <br />
-            <span className="text-neutral-400">In {STUDIO.location.city}.</span>
+            {rolesOn ? (
+              <>
+                {HOME_PEOPLE.titleTop} <br />
+                <span className="text-neutral-400">{HOME_PEOPLE.titleBottom}</span>
+              </>
+            ) : (
+              <>
+                Rent Camera Gear <br />
+                <span className="text-neutral-400">In {STUDIO.location.city}.</span>
+              </>
+            )}
           </motion.h1>
 
           <motion.div initial={false} animate={{ opacity: 1 }} className="max-w-xl">
             <p className="text-lg text-neutral-300 font-light leading-relaxed mb-10">
               Cameras, lenses, lights, sound and drones{minDayRate !== null ? ` from ${formatRand(minDayRate)} a day` : ''}. Book online and collect at {COLLECTION_POINT}.
+              {rolesOn && <> {HOME_PEOPLE.peopleLine}</>}
             </p>
             <div className="flex flex-wrap items-center gap-x-6 gap-y-4">
               <Link href="/rentals" className="group inline-flex items-center gap-2 min-h-[44px] bg-white text-black px-8 py-4 text-xs font-mono font-bold uppercase tracking-widest hover:opacity-80 transition-opacity">
-                Browse Gear <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                {rolesOn ? HOME_PEOPLE.rentLabel : 'Browse Gear'} <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
               </Link>
-              <Link href="/contact?type=production_brief" className="inline-flex items-center min-h-[44px] text-sm text-neutral-300 underline underline-offset-4 decoration-white/30 hover:text-white hover:decoration-white transition-colors">
-                Need a photographer? Send us a brief
-              </Link>
+              {rolesOn ? (
+                <Link href={HOME_PEOPLE.peopleHref} className="group inline-flex items-center gap-2 min-h-[44px] bg-[#D4A843] text-black px-8 py-4 text-xs font-mono font-bold uppercase tracking-widest hover:opacity-80 transition-opacity">
+                  {HOME_PEOPLE.peopleLabel} <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                </Link>
+              ) : (
+                <Link href="/contact?type=production_brief" className="inline-flex items-center min-h-[44px] text-sm text-neutral-300 underline underline-offset-4 decoration-white/30 hover:text-white hover:decoration-white transition-colors">
+                  Need a photographer? Send us a brief
+                </Link>
+              )}
             </div>
             <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-6">
               <span className="text-xs font-mono text-neutral-400 uppercase tracking-widest">Free To Join</span>
@@ -375,12 +391,12 @@ export default function HomeClient({
 }) {
   return (
     <div className="min-h-screen bg-[#050505] transition-colors duration-500">
-      <Hero minDayRate={minDayRate} />
+      <Hero minDayRate={minDayRate} rolesOn={rolesOn} />
       {/* Gear and recent shoots, directly under the hero. */}
       <LatestWorkCarousel items={carouselItems} />
       <HowItWorks paymentsOpen={paymentsOpen} />
-      {/* What we offer: the Rentals and Studio cards (owner asked to keep them). */}
-      <ServiceGrid />
+      {/* What we offer: Rentals and Studio, or with People on, Rentals and People (no Studio card). */}
+      <ServiceGrid capabilities={rolesOn ? CAPABILITIES_PEOPLE : CAPABILITIES} />
       <TrustSignals />
       <BookingCTA />
       <CreatorJoin earn={rolesOn} />
@@ -390,15 +406,21 @@ export default function HomeClient({
       <section className="py-40 relative bg-gradient-to-b from-neutral-950 via-neutral-900 to-neutral-950 overflow-hidden border-t border-white/5 transition-colors duration-500">
         <div className="container mx-auto px-6 relative z-10 text-center">
           <h2 className="text-5xl md:text-8xl font-display font-medium text-white tracking-tighter mb-12 uppercase">
-            Ready To <br /> Rent?
+            {rolesOn ? HOME_PEOPLE.finalTitle : <>Ready To <br /> Rent?</>}
           </h2>
           <div className="flex flex-wrap justify-center gap-4">
             <Link href="/rentals" className="inline-flex items-center justify-center min-h-[44px] bg-white text-black px-12 py-5 text-xs font-mono font-bold tracking-[0.2em] transition-all uppercase hover:opacity-80">
-              Browse Gear
+              {rolesOn ? HOME_PEOPLE.rentLabel : 'Browse Gear'}
             </Link>
-            <Link href="/contact" className="inline-flex items-center justify-center min-h-[44px] border border-white/20 hover:bg-white/5 text-white px-12 py-5 text-xs font-mono font-bold tracking-[0.2em] transition-all uppercase">
-              Contact Us
-            </Link>
+            {rolesOn ? (
+              <Link href={HOME_PEOPLE.peopleHref} className="inline-flex items-center justify-center min-h-[44px] bg-[#D4A843] text-black px-12 py-5 text-xs font-mono font-bold tracking-[0.2em] transition-all uppercase hover:opacity-80">
+                {HOME_PEOPLE.peopleLabel}
+              </Link>
+            ) : (
+              <Link href="/contact" className="inline-flex items-center justify-center min-h-[44px] border border-white/20 hover:bg-white/5 text-white px-12 py-5 text-xs font-mono font-bold tracking-[0.2em] transition-all uppercase">
+                Contact Us
+              </Link>
+            )}
           </div>
         </div>
       </section>

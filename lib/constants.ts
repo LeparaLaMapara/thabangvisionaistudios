@@ -1257,6 +1257,36 @@ export const CAPABILITIES = [
   },
 ];
 
+/**
+ * The home page with People switched on (roles_v1): two halves, people and
+ * things, as two equal doors. Replaces the Studio card and the "Need a
+ * photographer? Send us a brief" link (owner, 2026-10-14).
+ */
+export const CAPABILITIES_PEOPLE = [
+  {
+    title: 'Rentals',
+    subtitle: 'Gear for your shoot',
+    image: PLACEHOLDER_IMAGES.smartRentals,
+    link: '/rentals',
+  },
+  {
+    title: 'People',
+    subtitle: 'Photographers, make-up artists, models and drivers',
+    image: PLACEHOLDER_IMAGES.smartProductions,
+    link: '/people',
+  },
+];
+
+export const HOME_PEOPLE = {
+  titleTop: 'Gear and people',
+  titleBottom: 'for your shoot.',
+  peopleLine: 'Book photographers, make-up artists, models and drivers, chosen on their work.',
+  rentLabel: 'Rent gear',
+  peopleLabel: 'Book people',
+  peopleHref: '/people',
+  finalTitle: 'Ready to shoot?',
+} as const;
+
 export const SOCIAL_LINKS = [
   ...(STUDIO.social.youtube ? [{ platform: 'Youtube', href: STUDIO.social.youtube }] : []),
   ...(STUDIO.social.instagram ? [{ platform: 'Instagram', href: STUDIO.social.instagram }] : []),
