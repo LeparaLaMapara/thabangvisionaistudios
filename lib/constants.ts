@@ -456,6 +456,18 @@ export const STUDIO = {
     idleTimeoutMinutes: 30, // Auto-logout after 30 minutes of inactivity
   },
 
+  // Phone checks by WhatsApp (lib/phone-verify, docs/operations/whatsapp-setup.md).
+  // The person sends "<message> TV-482913" to the business number from their
+  // own WhatsApp; the sender's number is what gets confirmed.
+  phoneVerify: {
+    codePrefix: 'TV',
+    whatsappMessage: 'Verify my ThabangVision number:',
+    confirmedReply: 'Your number is confirmed on ThabangVision. You can go back to the site now.',
+    unmatchedReply: 'We could not match that code to this WhatsApp number. It may have expired, or it was sent from a different number than the one you entered. Start again on your ThabangVision profile page.',
+    // How often the profile page asks whether the message arrived.
+    pollSeconds: 4,
+  },
+
   // Phase 6 security limits (docs/security/phase-6-assessment.md).
   security: {
     // Server-side fetches of a URL a person or a model supplied
