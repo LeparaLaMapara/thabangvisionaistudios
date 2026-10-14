@@ -9,6 +9,7 @@ import { buildPageMetadata, metaDescription } from '@/lib/seo/metadata';
 import { productJsonLd, breadcrumbJsonLd, renderJsonLd } from '@/lib/seo/structured-data';
 import { formatRand } from '@/lib/format/money';
 import { collectionPointWithCity } from '@/lib/rental/collection-point';
+import { checkYouTubeVideo } from '@/lib/video/youtube';
 
 export const revalidate = 60;
 
@@ -64,11 +65,17 @@ export default async function RentalDetailPage({
     permanentRedirect(rentalPath(rental));
   }
 
-  const [relatedRentals, owner] = await Promise.all([
+  const [relatedRentals, owner, videoCheck] = await Promise.all([
     getRelatedRentals(rental.category, rental.id, 4),
     // Studio stock passes null and short-circuits inside the query.
     getRentalOwner(rental.owner_type === 'community' ? rental.owner_id : null),
+    // A video that is gone or blocked from other websites is not shown
+    // (YouTube's answer is cached for a day; an unclear answer shows it).
+    rental.video_provider === 'youtube' && rental.video_id
+      ? checkYouTubeVideo(rental.video_id, { next: { revalidate: 86_400 } })
+      : Promise.resolve(null),
   ]);
+  const videoPlayable = videoCheck === null || videoCheck.status === 'ok' || videoCheck.status === 'unknown';
 
   const cat = RENTAL_CATEGORIES.find((c) => c.value === rental.category);
   const jsonLd = [
@@ -105,6 +112,7 @@ export default async function RentalDetailPage({
         />
       ))}
       <RentalDetailView
+        videoPlayable={videoPlayable}
         rental={rental}
         category={rental.category ?? category}
         relatedRentals={relatedRentals}

@@ -287,6 +287,10 @@ export default function AdminRentalsPage() {
   // File input refs
   const galInputRef   = useRef<HTMLInputElement>(null);
 
+  // "Find video": a suggested YouTube video for this item (nothing saved until Save).
+  const [videoFinding, setVideoFinding] = useState(false);
+  const [videoNote,    setVideoNote]    = useState<string | null>(null);
+
   // Live form ref — always current for async handlers
   const formRef = useRef<Form>(form);
   formRef.current = form;
@@ -333,6 +337,39 @@ export default function AdminRentalsPage() {
     setEditingId(null);
     setForm(EMPTY_FORM);
     setFormError(null);
+  };
+
+  const findVideo = async () => {
+    const f = formRef.current;
+    setVideoFinding(true);
+    setVideoNote(null);
+    try {
+      const res = await fetch('/api/admin/rentals/find-video', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: f.title,
+          brand: f.brand,
+          model: f.model,
+          category: f.category,
+          description: f.description,
+          image_url: f.gallery[0]?.url ?? null,
+        }),
+      });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setVideoNote(j.error ?? 'Could not search for a video.');
+      } else if (j.found) {
+        setF('video_provider', 'youtube');
+        setF('video_url', j.pick.url);
+        setVideoNote(`${j.pick.official ? 'Official video' : 'Overview'}: "${j.pick.title}" by ${j.pick.channel}. ${j.pick.reason} Check it, then Save.`);
+      } else {
+        setVideoNote(`No suitable video found (${j.reason}). You can paste one yourself.`);
+      }
+    } catch {
+      setVideoNote('Could not search for a video. Check your connection.');
+    }
+    setVideoFinding(false);
   };
 
   const setF = <K extends keyof Form>(key: K, value: Form[K]) =>
@@ -1013,6 +1050,20 @@ export default function AdminRentalsPage() {
                     />
                   )}
                 </div>
+                <div className="mt-3 flex flex-wrap items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={findVideo}
+                    disabled={videoFinding || !form.title.trim()}
+                    className="text-xs font-mono uppercase tracking-widest border border-white/20 px-3 py-2 text-white hover:border-[#D4A843] disabled:opacity-40 min-h-[44px]"
+                  >
+                    {videoFinding ? 'Finding a video…' : 'Find video'}
+                  </button>
+                  <span className="text-xs font-mono text-neutral-500">
+                    Searches YouTube for this item (the maker&rsquo;s own video first) using the title, brand, model and first photo.
+                  </span>
+                </div>
+                {videoNote && <p className="mt-2 text-xs font-mono text-neutral-300">{videoNote}</p>}
                 {form.video_provider && form.video_url && (
                   <p className="mt-2 text-xs font-mono text-neutral-400">
                     Video ID:{' '}

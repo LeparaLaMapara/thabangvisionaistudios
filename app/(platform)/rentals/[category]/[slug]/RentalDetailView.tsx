@@ -11,6 +11,8 @@ import { Badge } from '@/components/ui/Badge';
 import { protectionLine } from '@/lib/rental/protection';
 import { formatRand } from '@/lib/format/money';
 import { ContactButtons } from '@/components/payments/ContactButtons';
+import { ProductVideo } from '@/components/rentals/ProductVideo';
+import { youtubePosterUrl } from '@/lib/video/youtube';
 
 // ─── Category label map ───────────────────────────────────────────────────────
 
@@ -54,6 +56,7 @@ export default function RentalDetailView({
   relatedRentals = [],
   owner = null,
   paymentsOpen,
+  videoPlayable = true,
 }: {
   rental: SmartRental;
   /** onlinePaymentsOpen() from the server. */
@@ -62,6 +65,8 @@ export default function RentalDetailView({
   relatedRentals?: SmartRental[];
   /** Community owner of this listing; null for studio-owned stock. */
   owner?: RentalOwner | null;
+  /** False when YouTube says the video is gone or may not play on other websites. */
+  videoPlayable?: boolean;
 }) {
   const categoryLabel = getCategoryLabel(category);
 
@@ -76,15 +81,12 @@ export default function RentalDetailView({
   const [activeTab, setActiveTab] = useState<Tab>('features');
   const tabsId = useId();
 
-  // Video embed URL
-  let videoEmbedUrl: string | null = null;
-  if (rental.video_id) {
-    if (rental.video_provider === 'youtube') {
-      videoEmbedUrl = `https://www.youtube.com/embed/${rental.video_id}`;
-    } else if (rental.video_provider === 'vimeo') {
-      videoEmbedUrl = `https://player.vimeo.com/video/${rental.video_id}`;
-    }
-  }
+  // The item's video, unless the server found it gone or blocked from other websites.
+  const video =
+    rental.video_id && videoPlayable && (rental.video_provider === 'youtube' || rental.video_provider === 'vimeo')
+      ? { provider: rental.video_provider as 'youtube' | 'vimeo', id: rental.video_id }
+      : null;
+  const videoEmbedUrl = video ? video.id : null;
 
   const hasFeatures  = rental.features  && rental.features.length > 0;
   const hasIncludes  = rental.rental_includes && rental.rental_includes.length > 0;
@@ -225,14 +227,8 @@ export default function RentalDetailView({
                 transition={{ duration: 0.3 }}
                 className="relative aspect-[4/3] overflow-hidden bg-neutral-900 mb-4"
               >
-                {activeMedia.type === 'video' && videoEmbedUrl ? (
-                  <iframe
-                    src={videoEmbedUrl}
-                    className="absolute inset-0 w-full h-full"
-                    allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture"
-                    allowFullScreen
-                    title={`${rental.title} video`}
-                  />
+                {activeMedia.type === 'video' && video ? (
+                  <ProductVideo provider={video.provider} videoId={video.id} title={rental.title} />
                 ) : activeMedia.type === 'image' ? (
                   <Image
                     src={activeMedia.src}
@@ -260,14 +256,8 @@ export default function RentalDetailView({
                 transition={{ duration: 0.3 }}
                 className="relative aspect-[4/3] overflow-hidden bg-neutral-900 mb-4"
               >
-                {activeMedia.type === 'video' && videoEmbedUrl ? (
-                  <iframe
-                    src={videoEmbedUrl}
-                    className="absolute inset-0 w-full h-full"
-                    allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture"
-                    allowFullScreen
-                    title={`${rental.title} video`}
-                  />
+                {activeMedia.type === 'video' && video ? (
+                  <ProductVideo provider={video.provider} videoId={video.id} title={rental.title} />
                 ) : activeMedia.type === 'image' ? (
                   <Image
                     src={activeMedia.src}
@@ -323,8 +313,11 @@ export default function RentalDetailView({
                         : 'border-transparent hover:border-white/30'
                     }`}
                   >
-                    {/* Dimmed first gallery image behind play icon */}
-                    {heroImage && (
+                    {/* The video's own picture (YouTube), else the dimmed first photo */}
+                    {video?.provider === 'youtube' ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={youtubePosterUrl(video.id)} alt="" className="absolute inset-0 w-full h-full object-cover opacity-70" loading="lazy" />
+                    ) : heroImage && (
                       <Image
                         src={heroImage}
                         alt=""
