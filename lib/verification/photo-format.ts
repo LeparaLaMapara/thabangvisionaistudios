@@ -12,8 +12,15 @@ export const ID_PHOTO_ACCEPT = ID_PHOTO_TYPES.join(',');
 /** Largest original photo (it goes straight to storage, not through Vercel). */
 export const MAX_ID_PHOTO_BYTES = 25 * 1024 * 1024;
 
-/** Smallest: anything under this is too low quality to read. */
-export const MIN_ID_PHOTO_BYTES = 50 * 1024;
+/**
+ * Smallest file: under this it is not a camera photo at all. A plain webcam
+ * shot can be small in bytes yet readable, so the real test is the size in
+ * pixels (MIN_ID_PHOTO_EDGE, checked on the server).
+ */
+export const MIN_ID_PHOTO_BYTES = 10 * 1024;
+
+/** Shortest side in pixels: a 640 x 480 webcam is the smallest we accept. */
+export const MIN_ID_PHOTO_EDGE = 480;
 
 export type IdPhotoType = 'image/jpeg' | 'image/png' | 'image/webp' | 'image/heic';
 

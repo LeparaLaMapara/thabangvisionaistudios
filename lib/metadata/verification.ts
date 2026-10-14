@@ -35,8 +35,6 @@ export async function extractPhotoMetadata(
     const exif = await exifr.parse(fileBuffer, {
       pick: [
         'DateTimeOriginal',
-        'GPSLatitude',
-        'GPSLongitude',
         'Make',
         'Model',
         'Software',
@@ -45,21 +43,25 @@ export async function extractPhotoMetadata(
       ],
     });
 
-    if (!exif) return emptyMetadata();
+    // GPSLatitude itself is degrees/minutes/seconds ([25, 44, 30]) without its
+    // N/S sign; exifr.gps() gives signed decimal degrees.
+    const gps = await exifr.gps(fileBuffer).catch(() => null);
+    const lat = cleanNumber(gps?.latitude);
+    const lon = cleanNumber(gps?.longitude);
 
+    if (!exif && (lat === null || lon === null)) return emptyMetadata();
+
+    const taken = exif?.DateTimeOriginal;
     return {
-      dateTaken: exif.DateTimeOriginal?.toISOString() || null,
+      dateTaken: taken instanceof Date && !Number.isNaN(taken.getTime()) ? taken.toISOString() : null,
       gps:
-        exif.GPSLatitude && exif.GPSLongitude
-          ? { latitude: exif.GPSLatitude, longitude: exif.GPSLongitude }
+        lat !== null && lon !== null && Math.abs(lat) <= 90 && Math.abs(lon) <= 180
+          ? { latitude: lat, longitude: lon }
           : null,
-      device:
-        exif.Make && exif.Model
-          ? `${exif.Make} ${exif.Model}`.trim()
-          : null,
-      software: exif.Software || null,
-      imageWidth: exif.ImageWidth || null,
-      imageHeight: exif.ImageHeight || null,
+      device: cleanText(exif?.Make) && cleanText(exif?.Model) ? `${exif.Make} ${exif.Model}`.trim() : null,
+      software: cleanText(exif?.Software),
+      imageWidth: cleanNumber(exif?.ImageWidth),
+      imageHeight: cleanNumber(exif?.ImageHeight),
     };
   } catch {
     return emptyMetadata();

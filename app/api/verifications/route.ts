@@ -16,8 +16,8 @@ import { STUDIO } from '@/lib/constants';
 import { logEvent } from '@/lib/data/events';
 import { isWriteDenied, writeDeniedEvent } from '@/lib/supabase/write-denied';
 import { checkCanSubmit, isOwnStagingPath } from '@/lib/verification/submit-guards';
-import { MAX_ID_PHOTO_BYTES, MIN_ID_PHOTO_BYTES, sniffPhotoType } from '@/lib/verification/photo-format';
-import { makeReviewCopy } from '@/lib/verification/review-copy';
+import { MAX_ID_PHOTO_BYTES, MIN_ID_PHOTO_BYTES, MIN_ID_PHOTO_EDGE, sniffPhotoType } from '@/lib/verification/photo-format';
+import { makeReviewCopy, photoSize } from '@/lib/verification/review-copy';
 import { parseIdReading, summariseIdReading, validSaIdNumber } from '@/lib/verification/id-reading';
 
 // Verification documents live in a private bucket. Since migration 067 they are
@@ -149,6 +149,15 @@ export async function POST(req: NextRequest) {
     }
     const idBytes = idOriginal as Buffer;
     const selfieBytes = selfieOriginal as Buffer;
+    for (const [label, file] of [['ID photo', idBytes], ['Selfie', selfieBytes]] as const) {
+      const size = await photoSize(file);
+      if (!size) {
+        return NextResponse.json({ error: `${label}: we could not open this photo. Please take it again.` }, { status: 400 });
+      }
+      if (Math.min(size.width, size.height) < MIN_ID_PHOTO_EDGE) {
+        return NextResponse.json({ error: `${label}: the photo is too small to read. Please take it again with your phone camera.` }, { status: 400 });
+      }
+    }
 
     // The page reads EXIF before converting a HEIC photo (the JPEG has none)
     // and sends it as client_metadata; the file's own EXIF wins when present.
@@ -196,7 +205,13 @@ export async function POST(req: NextRequest) {
       }),
     ]);
     const now = new Date();
-    if (reading) metadata.id_document = summariseIdReading(reading, now);
+    if (reading) {
+      try {
+        metadata.id_document = summariseIdReading(reading, now);
+      } catch (e) {
+        console.error('[verifications] ID summary failed:', e);
+      }
+    }
     if (faceMatch) {
       metadata.face_match = {
         match: faceMatch.match,
@@ -205,7 +220,15 @@ export async function POST(req: NextRequest) {
         checked_at: now.toISOString(),
       };
     }
-    const fraudFlags = detectFraudFlags(metadata, metadata.face_match);
+    // The automatic checks only help the reviewer: if one breaks, the
+    // submission still goes to a person, with a note saying so.
+    let fraudFlags: ReturnType<typeof detectFraudFlags>;
+    try {
+      fraudFlags = detectFraudFlags(metadata, metadata.face_match);
+    } catch (e) {
+      console.error('[verifications] Fraud checks failed:', e);
+      fraudFlags = [{ severity: 'medium', code: 'CHECKS_FAILED', message: 'Automatic checks could not run; review by eye' }];
+    }
 
     // Duplicate check: the database flags DUPLICATE_ID when another account
     // has the same hash. A valid ID number identifies the document (two photos
