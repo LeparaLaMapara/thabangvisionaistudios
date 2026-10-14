@@ -90,3 +90,23 @@ export function reviewLegal(
     .map((e) => ({ legal_code: e.legal_code, verified: !!e.verified_at }));
   return { ...legalStatus(role.legal_requirements, answers, held, { ageOk: age === 'ok' || age === 'not_required' }), age };
 }
+
+/** "N jobs · on time N/N", or "New on ThabangVision" at zero. Never invented. */
+export function recordLine(jobs: number, onTime: number | null): string {
+  return ROLES_POLICY.copy.recordLine(Math.max(0, Math.floor(jobs)), onTime === null ? null : Math.max(0, Math.floor(onTime)));
+}
+
+/** "Comes with": one label, optional evidence ids (person_roles.comes_with). */
+export interface ComesWith {
+  label: string;
+  evidenceIds: string[];
+}
+
+export function parseComesWith(raw: unknown): ComesWith | null {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+  const r = raw as Record<string, unknown>;
+  const label = typeof r.label === 'string' ? r.label.replace(/[<>]/g, '').trim().slice(0, 120) : '';
+  if (!label) return null;
+  const ids = Array.isArray(r.evidence_ids) ? r.evidence_ids.filter((x): x is string => typeof x === 'string' && /^[0-9a-f-]{36}$/i.test(x)).slice(0, 8) : [];
+  return { label, evidenceIds: ids };
+}

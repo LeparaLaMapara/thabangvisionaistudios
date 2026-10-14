@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { AlertTriangle, BadgeCheck, CheckCircle, FileText, Loader2, MessageSquare, Phone, Video } from 'lucide-react';
 import { useAdminUI } from '@/components/admin/shell/AdminUI';
-import { formatRolePrice, type EvidenceLevel, type PersonRole, type Role, type RoleEvidence } from '@/lib/roles';
+import { factsSummary, formatRolePrice, sanitizeFacts, type EvidenceLevel, type PersonRole, type Role, type RoleEvidence } from '@/lib/roles';
 
 /**
  * Role review queue (TASK-085). The submitted proof sits next to the role's
@@ -15,7 +15,8 @@ import { formatRolePrice, type EvidenceLevel, type PersonRole, type Role, type R
 type Item = {
   personRole: PersonRole;
   role: Role;
-  person: { display_name: string; avatar_url: string | null; location: string | null; identityVerified: boolean; email: string | null };
+  person: { label: string; displayName: string | null; identityVerified: boolean; email: string | null };
+  face: { url: string | null; idSelfieUrl: string | null; check: string | null } | null;
   evidence: (RoleEvidence & { viewUrl: string | null })[];
   dateOfBirth: string | null;
   suggestedLevel: EvidenceLevel;
@@ -68,11 +69,11 @@ export default function AdminRolesPage() {
     void load(status);
   }, [status, load]);
 
-  async function act(item: Item, action: 'approve' | 'changes' | 'verify_vouch', extra: Record<string, unknown> = {}) {
+  async function act(item: Item, action: 'approve' | 'changes' | 'verify_vouch' | 'face_check', extra: Record<string, unknown> = {}) {
     let note: string | null = null;
     if (action === 'changes') {
       note = await ui.ask({
-        title: `What should ${item.person.display_name} fix?`,
+        title: `What should ${item.person.displayName ?? item.person.label} fix?`,
         body: 'Say exactly how to get there: which photo to retake and how. They see these words.',
         label: 'How to get there',
         placeholder: 'Retake the before photo by a window, same angle as the after. Then send again.',
@@ -82,7 +83,7 @@ export default function AdminRolesPage() {
       if (!note) return;
     } else if (action === 'approve') {
       const ok = await ui.confirm({
-        title: `Approve ${item.person.display_name} as ${item.role.name.toLowerCase()}?`,
+        title: `Approve ${item.person.displayName ?? item.person.label} as ${item.role.name.toLowerCase()}?`,
         body: 'Their profile becomes visible to clients. Approving also confirms you checked their documents.',
         action: 'Approve',
       });
@@ -97,7 +98,7 @@ export default function AdminRolesPage() {
       });
       const body = (await res.json()) as { error?: string };
       if (!res.ok) throw new Error(body.error ?? 'Could not save.');
-      ui.notify(action === 'approve' ? 'Approved. The profile is live.' : action === 'changes' ? 'Sent back with your note.' : 'Vouch confirmed.', 'good');
+      ui.notify(action === 'approve' ? 'Approved. The profile is live.' : action === 'changes' ? 'Sent back with your note.' : action === 'face_check' ? 'Face check saved.' : 'Vouch confirmed.', 'good');
       await load(status);
     } catch (e) {
       ui.notify(e instanceof Error ? e.message : 'Could not save.', 'bad');
@@ -132,14 +133,15 @@ export default function AdminRolesPage() {
 
       <ul className="space-y-8">
         {items.map((item) => {
-          const work = item.evidence.filter((e) => e.kind === 'photo' || e.kind === 'video');
+          const work = item.evidence.filter((e) => (e.kind === 'photo' || e.kind === 'video') && e.step_key !== 'face');
           const docs = item.evidence.filter((e) => e.kind === 'document');
           const vouches = item.evidence.filter((e) => e.kind === 'vouch');
           const pr = item.personRole;
           return (
             <li key={pr.id} className="border border-white/10 bg-white/[0.02]">
               <div className="p-4 border-b border-white/10 flex flex-wrap items-center gap-x-4 gap-y-1">
-                <span className="text-white text-lg">{item.person.display_name}</span>
+                <span className="text-white text-lg">{item.person.displayName ?? '(no name)'}</span>
+                <span className="text-xs text-neutral-400">{item.person.label}</span>
                 <span className="text-xs font-mono uppercase tracking-widest text-accent-gold">{item.role.name}</span>
                 {pr.is_demo && <span className="text-xs px-2 py-0.5 border border-white/20 text-neutral-400">demo</span>}
                 <span className={`text-xs flex items-center gap-1 ${item.person.identityVerified ? 'text-emerald-300' : 'text-amber-300'}`}>
@@ -152,46 +154,86 @@ export default function AdminRolesPage() {
               <div className="grid lg:grid-cols-[1fr_320px]">
                 {/* The proof */}
                 <div className="p-4 space-y-5">
+                  {/* Face next to the ID-check selfie: the reviewer compares (no automatic matching). */}
+                  <div>
+                    <p className="text-sm text-white mb-2">Photo and ID selfie</p>
+                    {item.face ? (
+                      <>
+                        <div className="grid grid-cols-2 gap-2 max-w-sm">
+                          {[['In-app photo', item.face.url], ['ID-check selfie', item.face.idSelfieUrl]].map(([label, url]) => (
+                            <figure key={label as string} className="aspect-square bg-neutral-900 overflow-hidden relative">
+                              {url ? (
+                                // eslint-disable-next-line @next/next/no-img-element
+                                <img src={url as string} alt={label as string} className="w-full h-full object-cover" />
+                              ) : (
+                                <span className="w-full h-full flex items-center justify-center text-xs text-neutral-500 p-2 text-center">{label === 'ID-check selfie' ? 'No ID selfie yet' : 'Missing'}</span>
+                              )}
+                              <figcaption className="absolute left-1 bottom-1 px-1 text-[10px] font-mono bg-black/70 text-white">{label}</figcaption>
+                            </figure>
+                          ))}
+                        </div>
+                        <div className="flex flex-wrap items-center gap-2 mt-2 text-xs">
+                          <span className="text-neutral-400">Check: {item.face.check ?? 'not done'}</span>
+                          {item.face.idSelfieUrl && (
+                            <>
+                              <button type="button" onClick={() => act(item, 'face_check', { value: 'same_person' })} className="min-h-[36px] px-2 border border-white/15 hover:border-emerald-400">Same person</button>
+                              <button type="button" onClick={() => act(item, 'face_check', { value: 'different_person' })} className="min-h-[36px] px-2 border border-white/15 hover:border-red-400">Different person</button>
+                            </>
+                          )}
+                        </div>
+                      </>
+                    ) : (
+                      <p className="text-xs text-amber-300">No photo yet.</p>
+                    )}
+                  </div>
                   {pr.headline && <p className="text-neutral-200">{pr.headline}</p>}
                   <p className="text-xs text-neutral-400">
-                    {pr.area ?? item.person.location ?? 'No area'} | {pr.price_cents !== null ? formatRolePrice(item.role.pricing_unit, pr.price_cents, pr.per_km_cents) : 'No price'}
+                    {pr.area ?? 'No area'} | {pr.price_cents !== null ? formatRolePrice(item.role.pricing_unit, pr.price_cents, pr.per_km_cents) : 'No price'}
                     {item.dateOfBirth ? ` | Born ${item.dateOfBirth}` : item.role.min_age ? ' | No date of birth' : ''}
                   </p>
 
-                  {item.role.proof_task.map((step) => {
-                    const mine = work.filter((e) => e.step_key === step.key);
-                    return (
-                      <div key={step.key}>
-                        <p className="text-sm text-white mb-2">
-                          {step.title} <span className="text-neutral-500">({mine.length})</span>
-                        </p>
-                        {mine.length === 0 ? (
-                          <p className="text-xs text-neutral-500">Nothing yet{step.min === 0 ? ' (optional)' : ''}.</p>
-                        ) : (
-                          <ul className="grid grid-cols-3 sm:grid-cols-4 gap-2">
-                            {mine.map((e) => (
-                              <li key={e.id} className="relative aspect-square bg-neutral-900 overflow-hidden">
-                                {e.kind === 'video' ? (
-                                  <a href={e.viewUrl ?? '#'} target="_blank" rel="noreferrer" className="w-full h-full flex items-center justify-center text-neutral-300">
-                                    <Video className="w-6 h-6" aria-label="Open video" />
-                                  </a>
-                                ) : e.viewUrl ? (
-                                  <a href={e.viewUrl} target="_blank" rel="noreferrer">
-                                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                                    <img src={e.viewUrl} alt="" className="w-full h-full object-cover" loading="lazy" />
-                                  </a>
-                                ) : null}
-                                <span className={`absolute left-1 bottom-1 px-1 text-[10px] font-mono ${e.source === 'captured_in_app' ? 'bg-emerald-900/80 text-emerald-200' : 'bg-black/70 text-neutral-300'}`}>
-                                  {e.source === 'captured_in_app' ? 'in app' : e.source}
-                                </span>
-                                {e.pair_side && <span className="absolute left-1 top-1 px-1 text-[10px] font-mono uppercase bg-black/70 text-white">{e.pair_side}</span>}
-                              </li>
-                            ))}
-                          </ul>
-                        )}
-                      </div>
-                    );
-                  })}
+                  <div>
+                    <p className="text-sm text-white mb-2">
+                      Work ({item.role.proof_format}) <span className="text-neutral-500">({work.length})</span>
+                    </p>
+                    {work.length === 0 ? (
+                      <p className="text-xs text-neutral-500">Nothing yet.</p>
+                    ) : (
+                      <ul className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+                        {work.map((e) => (
+                          <li key={e.id} className={`relative bg-neutral-900 overflow-hidden ${e.media_kind === 'audio' ? 'col-span-3 sm:col-span-4 p-2' : 'aspect-square'}`}>
+                            {e.media_kind === 'audio' ? (
+                              <audio src={e.viewUrl ?? undefined} controls preload="none" className="w-full" />
+                            ) : e.kind === 'video' ? (
+                              <a href={e.viewUrl ?? '#'} target="_blank" rel="noreferrer" className="w-full h-full flex items-center justify-center text-neutral-300">
+                                <Video className="w-6 h-6" aria-label="Open video" />
+                              </a>
+                            ) : e.viewUrl ? (
+                              <a href={e.viewUrl} target="_blank" rel="noreferrer">
+                                {/* eslint-disable-next-line @next/next/no-img-element */}
+                                <img src={e.viewUrl} alt="" className="w-full h-full object-cover" loading="lazy" />
+                              </a>
+                            ) : null}
+                            {e.media_kind !== 'audio' && (
+                              <span className={`absolute left-1 bottom-1 px-1 text-[10px] font-mono ${e.source === 'captured_in_app' ? 'bg-emerald-900/80 text-emerald-200' : 'bg-black/70 text-neutral-300'}`}>
+                                {e.source === 'captured_in_app' ? 'in app' : e.source}
+                              </span>
+                            )}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                    {Object.keys(pr.facts ?? {}).length > 0 && (
+                      <p className="text-xs text-neutral-400 mt-2">Facts: {factsSummary(sanitizeFacts(pr.facts)).join(' | ') || 'none'}</p>
+                    )}
+                    {item.evidence.some((e) => e.step_key === 'cv' || e.step_key === 'voice') && (
+                      <p className="text-xs text-neutral-500 mt-1">
+                        Private: {item.evidence.filter((e) => e.step_key === 'cv' || e.step_key === 'voice').map((e) => (
+                          <a key={e.id} href={e.viewUrl ?? '#'} target="_blank" rel="noreferrer" className="text-accent-gold underline mr-2">{e.step_key === 'cv' ? 'CV' : 'voice note'}</a>
+                        ))}
+                      </p>
+                    )}
+                  </div>
 
                   {item.role.legal_requirements.length > 0 && (
                     <div>

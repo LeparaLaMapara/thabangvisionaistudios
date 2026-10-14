@@ -2,10 +2,22 @@
 
 **Show your face, show your work, set your price. We do the rest.**
 
-Status (2026-10-14): PR #132 ships the first slice behind the `roles_v1` flag
-(migration 090, dev only). Everything marked **Designed, not built yet** below
-was decided by the owner and is the next slice; it is not in PR #132.
-Owner decisions still open: see "Decisions for the owner" at the end.
+Status (2026-10-14): slice 1 (PR #132, migration 090) is on develop. Slice 2,
+"People complete" (branch `feature/people-complete`, migration 091), builds
+everything below that used to say "designed": equal chance, the three
+screens, names, comes with, CV facts, embeddings, proof formats, who/where/
+when and the face check. Everything is behind `roles_v1`; with it off every
+new page and API route is a 404 (tests: `roles-flag-off`,
+`roles-pages-flag-off`). Nothing goes to main until People is complete on
+develop. Owner decisions still open: see "Decisions for the owner" at the end.
+
+**Hidden machinery** (the person never sees it): the AI reads what they put in
+the box (agent `profile-extract` for a CV, voice note or text; agent
+`role-match` for the role), PII is stripped, facts are reviewed by the person,
+proof is filed by format (look, listen, thing, trust), the profile is embedded
+for matching (competence only), the record grows with every job, and a person
+on our team reviews against the guidelines with the face next to the ID
+selfie.
 
 ## Equal chance (the most important rule)
 
@@ -39,10 +51,15 @@ No bias by gender, race, age or looks.
   work, so their digitals are the proof. Review guideline line: "Reject proof
   that is just a selfie of the creator (except models)."
 
-**Built now vs designed:** PR #132 still shows the display name on approved
-demo profiles and has no booking for roles yet, so blind profiles and the
-reveal are **designed, not built yet**. With `roles_v1` off (production), none
-of these pages exist, so nothing is shown to anyone.
+**How it is enforced (slice 2):** browsers can read only the public columns of
+`person_roles` (migration 091 column grants: never `user_id`, `answers`, the
+reviewer's note). Faces live in `person_faces` and the private
+`role-documents` bucket; the server reads a face and a first name only inside
+`getRequestForViewer()` when `reveal()` allows it (confirmed booking, the
+client asking). `tests/unit/people-blind-access.test.ts` proves the People
+cards, profiles and an unconfirmed request carry no identity and never read a
+face. Payment for roles is not built, so `role_booking_requests.status =
+'confirmed'` is the DEV stand-in for "booked and paid, payment held".
 
 ## The vision
 
@@ -333,10 +350,12 @@ Who may do what (RLS + column grants + a trigger):
 5. **More roles:** open coming-soon roles one at a time, where "leave your
    number" shows demand.
 
-## Designed, not built yet (the next slice)
+## Slice 2: People complete (built on feature/people-complete)
 
-Decided by the owner on 2026-10-14. Not in PR #132; the first slice is kept
-stable so it can merge.
+Decided by the owner on 2026-10-14 and built in slice 2 (migration 091).
+Where this section and older sections below disagree, this section wins: the
+three screens replace the step-by-step profile maker and the separate legal
+and proof steps.
 
 ### Three screens for the person offering
 
@@ -379,9 +398,13 @@ gets one "What we look for" link.
   facts or the record change. A matching function does similarity search
   filtered by role, availability and area, ranked with the record, with fair
   "new" slots; admin-only at first.
-- **Proof formats per role** (a column on `roles`): look (photo grid), listen
-  (audio player, 30-second clips), thing (guided item photos), trust (facts
-  plus the record, for example drivers).
+- **Proof formats per role** (`roles.proof_format`): look (photo grid), listen
+  (audio player, 30-second clips; sound recordist), thing (guided item photos;
+  location or studio), trust (facts plus the record first; driver with
+  vehicle).
+- **Team signals (data shape only):** `team_signals` keeps co-booking pairs,
+  the client's rating per booking and a private "would work with them again",
+  so Teams are possible later.
 - **Who, where, when (Uber style).** A shared "Who's coming" card: who (photo,
   first name, role, Verified, record), where (the address, only to the booked
   person after booking), when (date, arrival time, how long). Shown only after
@@ -418,6 +441,23 @@ No general linking system.
   evidence ids).
 - **Self-drive vehicle hire** (no driver) would be a Rentals listing. Later,
   out of scope for the pilot.
+
+### CV retention
+
+The CV or voice-note original stays in the private bucket, readable by the
+person and admins only, and is to be deleted after
+`ROLES_POLICY.cvRetentionDays` (90 days). The existing daily job
+(`/api/cron/daily-maintenance`, step 17b, `lib/roles/retention.ts`) deletes
+those files and their evidence rows, plus CV and audio uploads that were
+never filed (the person stopped on screen 2). Legal photos and faces are
+never touched by it. It logs counts only, is idempotent, and does nothing
+while `roles_v1` is off or before migration 091. Only the reviewed, PII-free
+facts are kept and embedded.
+
+**Reveal demo (DEV):** `scripts/roles/seed-demo-people.sql` keeps a confirmed
+request between a demo client and the demo driver. Staff can open
+`/people/requests/de300000-0000-4000-a000-000000000001` and see what the
+client sees after confirmation.
 
 ## Teams (later phase, after People is live and we have track records)
 

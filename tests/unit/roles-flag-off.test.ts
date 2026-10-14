@@ -36,6 +36,12 @@ describe('roles API with roles_v1 off', () => {
     const evidence = await import('@/app/api/roles/[slug]/evidence/route');
     const document = await import('@/app/api/roles/[slug]/document/route');
     const admin = await import('@/app/api/admin/roles/route');
+    const face = await import('@/app/api/roles/face/route');
+    const intake = await import('@/app/api/roles/intake/route');
+    const offer = await import('@/app/api/roles/offer/route');
+    const requests = await import('@/app/api/roles/requests/route');
+    const adminMatch = await import('@/app/api/admin/roles/match/route');
+    const reembed = await import('@/app/api/admin/roles/reembed/route');
 
     const results = await Promise.all([
       interest.POST(req('POST', { role_slug: 'gaffer', phone: '0721234567' })),
@@ -48,8 +54,15 @@ describe('roles API with roles_v1 off', () => {
       document.POST(req('POST', {}), ctx),
       admin.GET(req('GET')),
       admin.PATCH(req('PATCH', {})),
+      face.GET(),
+      face.POST(req('POST', { action: 'upload' })),
+      intake.POST(req('POST', { action: 'analyze', text: 'make-up' })),
+      offer.POST(req('POST', { role_slug: 'model' })),
+      requests.POST(req('POST', {})),
+      adminMatch.GET(req('GET')),
+      reembed.POST(),
     ]);
-    expect(results.map((r) => r.status)).toEqual(Array(10).fill(404));
+    expect(results.map((r) => r.status)).toEqual(Array(17).fill(404));
     expect(tableReads).toEqual([]);
   });
 });

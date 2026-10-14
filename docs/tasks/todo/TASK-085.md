@@ -38,7 +38,20 @@ job count and a clear price.
 - [x] 7d. Stabilised for merge: every roles page and API route answers 404
       with roles_v1 off (no roles table is read), so main can take this code
       before production has migration 090.
-- [ ] Next slice (designed, see the design doc "Designed, not built yet"):
+- [x] Slice 2, People complete (feature/people-complete, migration 091 on
+      dev): equal chance enforced in data access (blind cards and profiles,
+      reveal() on a confirmed request, initials on reviews, competence-only
+      embeddings, the model exception, "no selfie as proof" in the
+      guidelines), the three screens with the preview, People/Rentals/Earn
+      names, comes with, CV/voice/text facts (agent profile-extract, PII
+      stripped, reviewed), profile embeddings and the admin matcher, proof
+      formats with Listen, who/where/when card and booking requests, the face
+      next to the ID selfie, team signals (shape only), demo data
+      (scripts/roles/seed-demo-people.sql). Flag-off 404 tests for every new
+      page and route.
+- [x] CV and voice retention on the existing daily cron (no new cron), plus a
+      lasting reveal demo on dev.
+- [ ] Was "next slice" (designed, see the design doc):
       equal chance (blind profiles, reveal on a confirmed paid booking,
       competence-only ranking, the model exception), the 3-screen Offer flow
       (photo, show us your work, price and area) with the profile preview,

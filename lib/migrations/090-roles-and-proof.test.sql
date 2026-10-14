@@ -2,6 +2,9 @@
 -- first failure.
 --
 --   psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f lib/migrations/090-roles-and-proof.test.sql
+--
+-- Rows are found by a unique headline, not user_id: since 091 browsers may
+-- not read person_roles.user_id (equal chance).
 
 begin;
 
@@ -71,39 +74,39 @@ set local role authenticated;
 select set_config('request.jwt.claims', json_build_object('sub', '00000000-0000-4000-8000-0000000900a1', 'role', 'authenticated')::text, true);
 
 insert into public.person_roles (user_id, role_slug, headline, price_cents)
-values ('00000000-0000-4000-8000-0000000900a1', 'makeup-artist', 'Soft glam', 65000);
+values ('00000000-0000-4000-8000-0000000900a1', 'makeup-artist', 't090 soft glam', 65000);
 
 insert into public.role_evidence (person_role_id, step_key, kind, source, storage_provider, storage_ref, url)
 select id, 'angles', 'photo', 'captured_in_app', 'cloudinary', 'x/y', 'https://res.cloudinary.com/demo/image/upload/x.jpg'
-  from public.person_roles where user_id = '00000000-0000-4000-8000-0000000900a1';
+  from public.person_roles where headline = 't090 soft glam';
 
 do $$
 begin
   -- A person cannot claim a job.
   begin
     insert into public.role_evidence (person_role_id, kind, source)
-    select id, 'booking', 'booking' from public.person_roles where user_id = '00000000-0000-4000-8000-0000000900a1';
+    select id, 'booking', 'booking' from public.person_roles where headline = 't090 soft glam';
     raise exception 'FAIL 6: a person added a booking as evidence';
   exception when insufficient_privilege or check_violation then null;
   end;
   -- Nor a public legal document.
   begin
     insert into public.role_evidence (person_role_id, kind, source, is_public)
-    select id, 'document', 'uploaded', true from public.person_roles where user_id = '00000000-0000-4000-8000-0000000900a1';
+    select id, 'document', 'uploaded', true from public.person_roles where headline = 't090 soft glam';
     raise exception 'FAIL 6: a public document was accepted';
   exception when check_violation then null;
   end;
   -- Nor approve themselves.
   begin
-    update public.person_roles set status = 'approved' where user_id = '00000000-0000-4000-8000-0000000900a1';
-    if exists (select 1 from public.person_roles where user_id = '00000000-0000-4000-8000-0000000900a1' and status = 'approved') then
+    update public.person_roles set status = 'approved' where headline = 't090 soft glam';
+    if exists (select 1 from public.person_roles where headline = 't090 soft glam' and status = 'approved') then
       raise exception 'FAIL 6: a person approved themselves';
     end if;
   exception when insufficient_privilege or check_violation then null;
   end;
 
-  update public.person_roles set status = 'submitted' where user_id = '00000000-0000-4000-8000-0000000900a1';
-  if (select submitted_at from public.person_roles where user_id = '00000000-0000-4000-8000-0000000900a1') is null then
+  update public.person_roles set status = 'submitted' where headline = 't090 soft glam';
+  if (select submitted_at from public.person_roles where headline = 't090 soft glam') is null then
     raise exception 'FAIL 6: submitting did not stamp submitted_at';
   end if;
   raise notice 'PASS 6: a person drafts, adds proof and submits, and nothing more';
@@ -113,9 +116,9 @@ end $$;
 select set_config('request.jwt.claims', json_build_object('sub', '00000000-0000-4000-8000-0000000900b1', 'role', 'authenticated')::text, true);
 do $$
 begin
-  if exists (select 1 from public.person_roles where user_id = '00000000-0000-4000-8000-0000000900a1')
+  if exists (select 1 from public.person_roles where headline = 't090 soft glam')
      or exists (select 1 from public.role_evidence e join public.person_roles pr on pr.id = e.person_role_id
-                 where pr.user_id = '00000000-0000-4000-8000-0000000900a1') then
+                 where pr.headline = 't090 soft glam') then
     raise exception 'FAIL 7: another person can read a submitted draft or its proof';
   end if;
   raise notice 'PASS 7: drafts are private';
@@ -125,9 +128,9 @@ end $$;
 --    public work, never the documents.
 reset role;
 select set_config('request.jwt.claims', '{}', true);
-update public.person_roles set status = 'approved' where user_id = '00000000-0000-4000-8000-0000000900a1';
+update public.person_roles set status = 'approved' where headline = 't090 soft glam';
 insert into public.role_evidence (person_role_id, kind, source, is_public, legal_code)
-select id, 'document', 'uploaded', false, 'drivers_licence' from public.person_roles where user_id = '00000000-0000-4000-8000-0000000900a1';
+select id, 'document', 'uploaded', false, 'drivers_licence' from public.person_roles where headline = 't090 soft glam';
 
 set local role anon;
 select set_config('request.jwt.claims', json_build_object('role', 'anon')::text, true);
@@ -135,13 +138,13 @@ do $$
 declare
   n integer;
 begin
-  if not exists (select 1 from public.person_roles where user_id = '00000000-0000-4000-8000-0000000900a1' and status = 'approved') then
+  if not exists (select 1 from public.person_roles where headline = 't090 soft glam' and status = 'approved') then
     raise exception 'FAIL 8: anon cannot read an approved profile';
   end if;
   select count(*) into n from public.role_evidence e join public.person_roles pr on pr.id = e.person_role_id
-   where pr.user_id = '00000000-0000-4000-8000-0000000900a1';
+   where pr.headline = 't090 soft glam';
   if n <> 1 then raise exception 'FAIL 8: anon sees % evidence rows, expected 1 (the photo, not the document)', n; end if;
-  if (select approved_at from public.person_roles where user_id = '00000000-0000-4000-8000-0000000900a1') is null then
+  if (select approved_at from public.person_roles where headline = 't090 soft glam') is null then
     raise exception 'FAIL 8: approving did not stamp approved_at';
   end if;
   raise notice 'PASS 8: public sees approved work only';

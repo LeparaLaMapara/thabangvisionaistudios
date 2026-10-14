@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="600" height="600" viewBox="0 0 600 600" role="img" aria-label="Sample face photo">
+<rect width="600" height="600" fill="#2e2e2e"/>
+<circle cx="300" cy="235" r="110" fill="#ffffff" fill-opacity="0.18"/>
+<path d="M110 600c20-140 110-210 190-210s170 70 190 210z" fill="#ffffff" fill-opacity="0.18"/>
+<text x="300" y="560" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="38" font-weight="700" fill="#ffffff" fill-opacity="0.8" letter-spacing="6">SAMPLE FACE</text>
+</svg>

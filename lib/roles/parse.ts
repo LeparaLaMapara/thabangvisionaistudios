@@ -1,9 +1,11 @@
 import {
   PRICING_UNITS,
+  PROOF_FORMATS,
   ROLE_GROUPS,
   ROLE_STATUSES,
   type LegalRequirement,
   type PricingUnit,
+  type ProofFormat,
   type ProofStep,
   type Role,
   type RoleGroup,
@@ -51,7 +53,7 @@ export function parseProofTask(raw: unknown): ProofStep[] {
     const title = str(s.title);
     const kind = s.kind;
     if (!key || !KEY.test(key) || !title) continue;
-    if (kind !== 'photo' && kind !== 'video' && kind !== 'pair' && kind !== 'text') continue;
+    if (kind !== 'photo' && kind !== 'video' && kind !== 'audio' && kind !== 'pair' && kind !== 'text') continue;
     out.push({
       key,
       title,
@@ -96,5 +98,7 @@ export function parseRole(row: Record<string, unknown>): Role | null {
     suggested_price_cents: parseSuggestedPrice(row.suggested_price_cents),
     existing_flow_href: str(row.existing_flow_href),
     sort: int(row.sort) ?? 100,
+    proof_format: (PROOF_FORMATS as readonly string[]).includes(row.proof_format as string) ? (row.proof_format as ProofFormat) : 'look',
+    code_prefix: typeof row.code_prefix === 'string' && /^[A-Z]{2,3}$/.test(row.code_prefix) ? row.code_prefix : null,
   };
 }

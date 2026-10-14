@@ -13,6 +13,10 @@ export type RoleStatus = (typeof ROLE_STATUSES)[number];
 export const PRICING_UNITS = ['hour', 'half_day', 'day', 'look', 'day_plus_km', 'project'] as const;
 export type PricingUnit = (typeof PRICING_UNITS)[number];
 
+/** How a role shows proof on its profile (migration 091). */
+export const PROOF_FORMATS = ['look', 'listen', 'thing', 'trust'] as const;
+export type ProofFormat = (typeof PROOF_FORMATS)[number];
+
 export const PERSON_ROLE_STATUSES = ['draft', 'submitted', 'approved', 'changes_requested'] as const;
 export type PersonRoleStatus = (typeof PERSON_ROLE_STATUSES)[number];
 
@@ -38,7 +42,7 @@ export interface LegalRequirement {
   help?: string;
 }
 
-export type ProofStepKind = 'photo' | 'video' | 'pair' | 'text';
+export type ProofStepKind = 'photo' | 'video' | 'audio' | 'pair' | 'text';
 
 export interface ProofStep {
   key: string;
@@ -74,6 +78,9 @@ export interface Role {
   suggested_price_cents: SuggestedPrice;
   existing_flow_href: string | null;
   sort: number;
+  proof_format: ProofFormat;
+  /** Prefix of the neutral profile code (MA-1042). */
+  code_prefix: string | null;
 }
 
 export interface PersonRole {
@@ -96,6 +103,12 @@ export interface PersonRole {
   is_demo: boolean;
   created_at: string;
   updated_at: string;
+  profile_code: string | null;
+  facts: Record<string, unknown>;
+  facts_source: 'cv' | 'voice' | 'text' | 'manual' | null;
+  facts_reviewed_at: string | null;
+  comes_with: Record<string, unknown>;
+  available_days: string[];
 }
 
 export interface RoleEvidence {
@@ -118,4 +131,6 @@ export interface RoleEvidence {
   verified_at: string | null;
   is_demo: boolean;
   created_at: string;
+  media_kind: 'image' | 'video' | 'audio' | null;
+  on_time: boolean | null;
 }
