@@ -1,9 +1,10 @@
 import { test, expect, type Page } from '@playwright/test';
 
 /**
- * Spec 9.1, account creation and sign-in: one screen with "Continue with
- * Google" or "Continue with email", passwordless email (a link that also
- * carries a code), no confirm-password field, and a clear terms disclosure.
+ * The sign-in screen. Owner decision 2026-10-14: the ONLY ways in are
+ * "Continue with Google" and email + password. Create account is email +
+ * password with a confirmation link; Forgot password sends a reset link.
+ * There is no magic link and no emailed sign-in code.
  *
  * Supabase is not reachable from the test server, so the auth API calls the
  * browser makes are intercepted with page.route(): only the request shape and
@@ -18,12 +19,22 @@ async function openLogin(page: Page, query = '') {
   await expect(page.locator('#email')).toBeVisible({ timeout: 15_000 });
 }
 
-test.describe('Sign-in screen (spec 9.1)', () => {
-  test('shows Continue with Google, Continue with email and the terms disclosure', async ({ page }) => {
+test.describe('Sign-in screen', () => {
+  test('shows Google, email + password, Forgot password and the terms disclosure', async ({ page }) => {
     await openLogin(page);
 
+    await expect(page.getByRole('heading', { name: /^sign in$/i })).toBeVisible();
     await expect(page.getByRole('button', { name: /continue with google/i })).toBeVisible();
-    await expect(page.getByRole('button', { name: /continue with email/i })).toBeVisible();
+    await expect(page.locator('#password')).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Sign In', exact: true })).toBeVisible();
+    await expect(page.getByRole('button', { name: /forgot password/i })).toBeVisible();
+    await expect(page.getByRole('button', { name: /create account/i })).toBeVisible();
+    await expect(page.getByText(/signed up with an email link before\? use forgot password to set a password/i)).toBeVisible();
+
+    // No passwordless path at all.
+    await expect(page.getByRole('button', { name: /continue with email/i })).toHaveCount(0);
+    await expect(page.getByText(/sign-in code|no password needed/i)).toHaveCount(0);
+    await expect(page.locator('#code')).toHaveCount(0);
 
     const notice = page.getByTestId('terms-notice');
     await expect(notice).toContainText(/by continuing you agree to our/i);
@@ -38,21 +49,28 @@ test.describe('Sign-in screen (spec 9.1)', () => {
     await expect(page.locator('input[type="checkbox"]')).toHaveCount(0);
   });
 
-  test('is passwordless by default and never asks to confirm a password', async ({ page }) => {
+  test('Create account shows the password rule and never asks to confirm the password', async ({ page }) => {
     await openLogin(page);
-    await expect(page.locator('input[type="password"]')).toHaveCount(0);
-
-    await page.getByRole('button', { name: /use a password instead/i }).click();
-    await expect(page.locator('#password')).toBeVisible();
+    await page.getByRole('button', { name: /create account/i }).click();
+    await expect(page.getByRole('heading', { name: /create your account/i })).toBeVisible();
     await expect(page.locator('input[type="password"]')).toHaveCount(1);
     await expect(page.locator('#confirmPassword')).toHaveCount(0);
-    await expect(page.getByRole('button', { name: /forgot password/i })).toBeVisible();
+    await expect(page.locator('#password')).toHaveAttribute('autocomplete', 'new-password');
+    await expect(page.getByText(/at least 8 characters/i)).toBeVisible();
 
-    await page.getByRole('button', { name: /email me a sign-in code instead/i }).click();
-    await expect(page.locator('input[type="password"]')).toHaveCount(0);
+    await page.getByRole('button', { name: /already have an account\? sign in/i }).click();
+    await expect(page.getByRole('heading', { name: /^sign in$/i })).toBeVisible();
+    await expect(page.locator('#password')).toHaveAttribute('autocomplete', 'current-password');
   });
 
-  test('/register redirects to /login, keeping the destination', async ({ page }) => {
+  test('Show reveals the password', async ({ page }) => {
+    await openLogin(page);
+    await page.locator('#password').fill('secret-123');
+    await page.getByRole('button', { name: /show password/i }).click();
+    await expect(page.locator('#password')).toHaveAttribute('type', 'text');
+  });
+
+  test('/register opens Create account, keeping the destination', async ({ page }) => {
     await page.goto('/register?redirect=%2Frentals%2Fx&reason=book');
     await expect(page).toHaveURL(/\/login\?/);
     const url = new URL(page.url());
@@ -70,7 +88,7 @@ test.describe('Sign-in screen (spec 9.1)', () => {
   test('an empty or malformed email is announced as an error on the field', async ({ page }) => {
     await openLogin(page);
     await page.locator('#email').fill('not-an-email');
-    await page.getByRole('button', { name: /continue with email/i }).click();
+    await page.getByRole('button', { name: 'Sign In', exact: true }).click();
 
     const alert = page.locator('main').getByRole('alert');
     await expect(alert).toContainText(/valid email/i);
@@ -80,76 +98,80 @@ test.describe('Sign-in screen (spec 9.1)', () => {
     await expect(page.locator(`#${describedBy}`)).toHaveAttribute('role', 'alert');
   });
 
-  test('Continue with email sends one email, then offers code entry or the link', async ({ page }) => {
-    let otpBody: Record<string, unknown> | null = null;
-    await page.route(AUTH_API('otp'), async (route) => {
-      otpBody = route.request().postDataJSON() as Record<string, unknown>;
+  test('a short password is refused before anything is sent', async ({ page }) => {
+    let called = false;
+    await page.route(AUTH_API('signup'), async (route) => {
+      called = true;
       await route.fulfill({ status: 200, contentType: 'application/json', body: '{}' });
     });
-    await page.route(AUTH_API('verify'), (route) =>
-      route.fulfill({
-        status: 403,
-        contentType: 'application/json',
-        body: JSON.stringify({ code: 403, error_code: 'otp_expired', msg: 'Token has expired or is invalid' }),
-      }),
-    );
-
-    await openLogin(page, '?redirect=%2Frentals%2Fx');
+    await openLogin(page, '?mode=signup');
     await page.locator('#email').fill('someone@example.com');
-    await page.getByRole('button', { name: /continue with email/i }).click();
+    await page.locator('#password').fill('short');
+    await page.getByRole('button', { name: /create account/i }).first().click();
+    await expect(page.locator('main').getByRole('alert')).toContainText(/at least 8 characters/i);
+    await expect(page.locator('#password')).toHaveAttribute('aria-invalid', 'true');
+    expect(called).toBe(false);
+  });
+
+  test('Create account calls signUp with the password and the callback, then asks to check email', async ({ page }) => {
+    let body: Record<string, unknown> | null = null;
+    let redirectTo = '';
+    await page.route(AUTH_API('signup'), async (route) => {
+      body = route.request().postDataJSON() as Record<string, unknown>;
+      redirectTo = new URL(route.request().url()).searchParams.get('redirect_to') ?? '';
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ id: '00000000-0000-4000-8000-000000000001', email: 'someone@example.com', identities: [{ id: 'x' }] }),
+      });
+    });
+
+    await openLogin(page, '?mode=signup&next=%2Frentals%2Fx');
+    await page.locator('#email').fill('someone@example.com');
+    await page.locator('#password').fill('long-enough-1');
+    await page.getByRole('button', { name: /create account/i }).first().click();
 
     await expect(page.getByRole('heading', { name: /check your email/i })).toBeVisible();
-    await expect(page.getByText(/tap the link in it, or enter the code/i)).toBeVisible();
-    const code = page.locator('#code');
-    await expect(code).toBeVisible();
-    await expect(code).toHaveAttribute('autocomplete', 'one-time-code');
-    await expect(code).toHaveAttribute('inputmode', 'numeric');
-
-    // The email link returns through the callback, carrying the destination.
-    expect(otpBody).not.toBeNull();
-    expect(JSON.stringify(otpBody)).toContain('someone@example.com');
-
-    // A wrong or expired code: a plain error tied to the field.
-    await code.fill('123456');
-    await page.getByRole('button', { name: /^continue$/i }).click();
-    await expect(page.locator('main').getByRole('alert')).toContainText(/didn't work/i);
-    await expect(code).toHaveAttribute('aria-invalid', 'true');
-
-    // Back to change the address, which is kept.
-    await page.getByRole('button', { name: /use a different email/i }).click();
-    await expect(page.locator('#email')).toHaveValue('someone@example.com');
+    await expect(page.getByText(/tap the link in it to confirm your address/i)).toBeVisible();
+    expect(body).not.toBeNull();
+    expect(JSON.stringify(body)).toContain('someone@example.com');
+    expect(JSON.stringify(body)).toContain('long-enough-1');
+    expect(redirectTo).toMatch(/\/auth\/callback\?next=%2Frentals%2Fx$/);
   });
 
-  test('the email-link return address keeps a safe destination and drops an unsafe one', async ({ page }) => {
-    const redirects: string[] = [];
-    await page.route(AUTH_API('otp'), async (route) => {
-      redirects.push(new URL(route.request().url()).searchParams.get('redirect_to') ?? '');
+  test('a wrong password says so plainly and points to Forgot password', async ({ page }) => {
+    await page.route(AUTH_API('token'), (route) =>
+      route.fulfill({
+        status: 400,
+        contentType: 'application/json',
+        body: JSON.stringify({ code: 400, error_code: 'invalid_credentials', msg: 'Invalid login credentials' }),
+      }),
+    );
+    await openLogin(page);
+    await page.locator('#email').fill('someone@example.com');
+    await page.locator('#password').fill('wrong-password');
+    await page.getByRole('button', { name: 'Sign In', exact: true }).click();
+    await expect(page.locator('main').getByRole('alert')).toContainText(/don't match/i);
+    await expect(page.locator('#password')).toHaveAttribute('aria-invalid', 'true');
+  });
+
+  test('Forgot password sends a reset link to /reset-password', async ({ page }) => {
+    let redirectTo = '';
+    await page.route(AUTH_API('recover'), async (route) => {
+      redirectTo = new URL(route.request().url()).searchParams.get('redirect_to') ?? '';
       await route.fulfill({ status: 200, contentType: 'application/json', body: '{}' });
     });
-
-    await openLogin(page, '?next=%2Frentals%2Fx');
+    await openLogin(page);
     await page.locator('#email').fill('someone@example.com');
-    await page.getByRole('button', { name: /continue with email/i }).click();
-    await expect(page.locator('#code')).toBeVisible();
-
-    await openLogin(page, '?next=https%3A%2F%2Fevil.example');
-    await page.locator('#email').fill('someone@example.com');
-    await page.getByRole('button', { name: /continue with email/i }).click();
-    await expect(page.locator('#code')).toBeVisible();
-
-    expect(redirects).toHaveLength(2);
-    expect(redirects[0]).toMatch(/\/auth\/callback\?next=%2Frentals%2Fx$/);
-    expect(redirects[1]).toMatch(/\/auth\/callback$/);
-    expect(redirects.join(' ')).not.toContain('evil');
-  });
-
-  test('a real sign-in with the emailed code', async () => {
-    test.skip(true, 'Needs a live Supabase project and a real inbox to read the code from.');
+    await page.getByRole('button', { name: /forgot password/i }).click();
+    await expect(page.locator('#resetEmail')).toHaveValue('someone@example.com');
+    await page.getByRole('button', { name: /send reset link/i }).click();
+    await expect(page.getByText(/sent a link to set a new password/i)).toBeVisible();
+    expect(redirectTo).toMatch(/\/reset-password$/);
   });
 
   test('every control on the screen is at least 44px tall', async ({ page }) => {
     await openLogin(page);
-    await page.getByRole('button', { name: /use a password instead/i }).click();
     const controls = page.locator('main button:visible, main input:visible, [data-testid="terms-notice"] a');
     const count = await controls.count();
     expect(count).toBeGreaterThan(4);
@@ -163,8 +185,10 @@ test.describe('Sign-in screen (spec 9.1)', () => {
   test('inputs are at least 16px on a phone, so iOS does not zoom', async ({ page }) => {
     await page.setViewportSize({ width: 393, height: 852 });
     await openLogin(page);
-    const size = await page.locator('#email').evaluate((el) => parseFloat(getComputedStyle(el).fontSize));
-    expect(size).toBeGreaterThanOrEqual(16);
+    for (const id of ['#email', '#password']) {
+      const size = await page.locator(id).evaluate((el) => parseFloat(getComputedStyle(el).fontSize));
+      expect(size).toBeGreaterThanOrEqual(16);
+    }
   });
 
   test('a signed-out visit to a dashboard page returns there after sign-in', async ({ page }) => {

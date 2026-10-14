@@ -16,7 +16,8 @@
     "mailer_autoconfirm": false,
     "smtp_host": "smtp.gmail.com",
     "smtp_sender_name": "ThabangVision",
-    "rate_limit_email_sent": 30
+    "rate_limit_email_sent": 30,
+    "password_min_length": 8
   },
   "maintenanceExpected": true
 }

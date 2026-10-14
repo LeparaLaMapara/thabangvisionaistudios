@@ -341,6 +341,7 @@ ${portfolioGuide}- Apply for job → /careers
 - Prices → /pricing (free to join, pay per booking)
 
 ===== ACCESS CONTROL =====
+- SIGNING IN: the only ways in are "Continue with Google" or email + password at [sign in](/login). New accounts confirm their email with a link. There is no email link or code to sign in. Someone who signed up with an email link before uses Forgot password on the sign-in page to set a password.
 - BOOKING equipment requires a signed-in account. If a non-logged-in user asks to book or rent, tell them they need to [sign in](/login) or [register](/register) first, then they can book from the equipment page.
 - BOOKING creators requires a signed-in account. If a non-logged-in user wants to book a creator, tell them to [sign in](/login) or [create an account](/register) first. They can still search and browse creator profiles without signing in.
 - LISTING gear: anyone signed in can save gear as drafts at [List my gear](${LIST_GEAR_HREF}) (photo first, we suggest the details); it goes live after the one [ID check](/dashboard/verification). Creator onboarding is for offering services, not for listing gear.

@@ -6,7 +6,7 @@ import { readFileSync } from 'node:fs';
 import { test, expect } from '@playwright/test';
 import { lit, one, rows, value } from './helpers/db';
 import { APP, APP_LOG, latestMail, linkFrom, uniqueEmail } from './helpers/env';
-import { followEmailLink, newContext, enterEmailCode, requestEmailCode, signUp, acceptTermsIfAsked, type Account } from './helpers/auth';
+import { newContext, signInWithPassword, signUp, acceptTermsIfAsked, type Account } from './helpers/auth';
 
 test.describe.configure({ mode: 'serial' });
 
@@ -19,7 +19,7 @@ test('signed-out /dashboard sends you to /login?next=', async ({ page }) => {
   await expect(page).toHaveURL(/\/login\?next=%2Fdashboard%2Forders/);
 });
 
-test('sign up with an email code, then accept the Terms on /welcome', async ({ page }) => {
+test('create an account with email + password, confirm by link, then accept the Terms on /welcome', async ({ page }) => {
   account = await signUp(page, email);
   const consents = rows<{ consent_purpose: string; source: string; document_version: string }>(
     `select consent_purpose, source, document_version from consent_records where user_id = ${lit(account.id)} order by 1`,
@@ -31,9 +31,7 @@ test('sign up with an email code, then accept the Terms on /welcome', async ({ p
 });
 
 test('sign out', async ({ page }) => {
-  await page.goto('/login');
-  const sent = await requestEmailCode(page, email);
-  await enterEmailCode(page, page.request, email, sent);
+  await signInWithPassword(page, account);
   await page.goto('/dashboard');
   await expect(page).toHaveURL(/\/dashboard/);
   await page.getByRole('button', { name: /^sign out$/i }).first().click();
@@ -42,21 +40,19 @@ test('sign out', async ({ page }) => {
   await expect(page).toHaveURL(/\/login/);
 });
 
-test('sign in with an email code honours next', async ({ page }) => {
-  const sent = await requestEmailCode(page, email, '/login?next=%2Fdashboard%2Forders');
-  await enterEmailCode(page, page.request, email, sent);
+test('password sign-in honours next', async ({ page }) => {
+  await signInWithPassword(page, account, '/dashboard/orders');
   await expect(page).toHaveURL(/\/dashboard\/orders/);
 });
 
-test('sign in with the link in the same email (auth callback) honours next', async ({ page }) => {
-  const sent = await requestEmailCode(page, email, '/login?next=%2Fdashboard%2Fbookings');
-  await followEmailLink(page, email, sent);
-  await expect(page).toHaveURL(/\/dashboard\/bookings/);
+test('the sign-in screen offers no email link or code', async ({ page }) => {
+  await page.goto('/login');
+  await expect(page.getByRole('button', { name: /continue with email/i })).toHaveCount(0);
+  await expect(page.locator('#code')).toHaveCount(0);
 });
 
 test('an outside next (open redirect) is refused', async ({ page }) => {
-  const sent = await requestEmailCode(page, email, '/login?next=https%3A%2F%2Fevil.example%2Fsteal');
-  await enterEmailCode(page, page.request, email, sent);
+  await signInWithPassword(page, account, 'https://evil.example/steal');
   await acceptTermsIfAsked(page);
   expect(new URL(page.url()).host).toBe(new URL(APP).host);
   // Protocol-relative variant.
@@ -67,12 +63,11 @@ test('an outside next (open redirect) is refused', async ({ page }) => {
 
 test('password reset email arrives and sets a password', async ({ page }) => {
   await page.goto('/login');
-  await page.getByRole('button', { name: /use a password instead/i }).click();
   await page.getByRole('button', { name: /forgot password/i }).click();
   await page.locator('#resetEmail').fill(email);
   const sentAt = new Date();
   await page.getByRole('button', { name: /send reset link/i }).click();
-  await expect(page.getByText(/we've sent a reset link/i)).toBeVisible();
+  await expect(page.getByText(/sent a link to set a new password/i)).toBeVisible();
   const mail = await latestMail(page.request, email, { after: sentAt, subject: /reset/i });
   const link = linkFrom(mail.html, 'type=recovery');
   await page.goto(link);
@@ -87,7 +82,6 @@ test('password sign-in works with the new password', async ({ browser }) => {
   const context = await newContext(browser);
   const page = await context.newPage();
   await page.goto('/login');
-  await page.getByRole('button', { name: /use a password instead/i }).click();
   await page.locator('#email').fill(email);
   await page.locator('#password').fill(newPassword);
   await page.getByRole('button', { name: 'Sign In', exact: true }).click();
@@ -100,8 +94,7 @@ test('password sign-in works with the new password', async ({ browser }) => {
 test('wrong password and unknown email get the same generic error', async ({ page }) => {
   const attempt = async (address: string): Promise<string> => {
     await page.goto('/login');
-    await page.getByRole('button', { name: /use a password instead/i }).click();
-    await page.locator('#email').fill(address);
+      await page.locator('#email').fill(address);
     await page.locator('#password').fill('Not-The-Password-1');
     await page.getByRole('button', { name: 'Sign In', exact: true }).click();
     const alert = page.locator('#login-error');
@@ -110,7 +103,7 @@ test('wrong password and unknown email get the same generic error', async ({ pag
   };
   const wrong = await attempt(email);
   const unknown = await attempt(uniqueEmail('nobody'));
-  expect(wrong).toMatch(/invalid login credentials/i);
+  expect(wrong).toMatch(/email and password don't match/i);
   expect(unknown).toBe(wrong);
 });
 
@@ -118,8 +111,7 @@ test('phone verification with the SMS code from the server log', async ({ browse
   test.skip(!APP_LOG, 'APP_LOG (the app server log) not set');
   const context = await newContext(browser);
   const page = await context.newPage();
-  const sent = await requestEmailCode(page, email);
-  await enterEmailCode(page, page.request, email, sent);
+  await signInWithPassword(page, account);
   const before = readFileSync(APP_LOG, 'utf8').length;
   const send = await page.request.post('/api/phone/send', { data: { phone: '082 555 0101' } });
   expect(send.status()).toBe(200);

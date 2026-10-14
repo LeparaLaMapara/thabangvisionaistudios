@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { motion } from 'framer-motion';
 import { createClient } from '@/lib/supabase/client';
 import { STUDIO } from '@/lib/constants';
+import { PASSWORD_RULE, newPasswordProblem } from '@/lib/auth/password-auth';
 
 const ERROR_ID = 'reset-error';
 
@@ -57,8 +58,9 @@ export default function ResetPasswordPage() {
     e.preventDefault();
     setError(null);
 
-    if (password.length < STUDIO.platform.minPasswordLength) {
-      setError(`Password must be at least ${STUDIO.platform.minPasswordLength} characters.`);
+    const problem = newPasswordProblem(password);
+    if (problem) {
+      setError(problem);
       return;
     }
 
@@ -114,8 +116,8 @@ export default function ResetPasswordPage() {
             <div className="space-y-5">
               <div role="alert" className="bg-red-500/10 border border-red-500/30 px-4 py-3">
                 <p className="text-xs text-red-400 font-mono leading-relaxed">
-                  This password reset link is invalid or has expired. Request a new one, or sign in
-                  with an email code instead.
+                  This password reset link is invalid or has expired. Request a new one from the
+                  sign-in page (Forgot password), or continue with Google.
                 </p>
               </div>
               <Link href="/login" className={primary}>
@@ -168,7 +170,7 @@ export default function ResetPasswordPage() {
                   className={`w-full bg-neutral-900 border ${error ? 'border-red-500/70' : 'border-white/10'} text-white px-4 py-3 min-h-[44px] text-base md:text-sm font-mono placeholder:text-neutral-400 focus:outline-none focus:border-[#D4A843] transition-colors`}
                 />
                 <p id="password-hint" className="text-xs font-mono text-neutral-400 mt-2">
-                  At least {STUDIO.platform.minPasswordLength} characters.
+                  {PASSWORD_RULE}
                 </p>
               </div>
 
