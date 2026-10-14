@@ -5,6 +5,7 @@ import { getFlag } from '@/lib/features';
 import { loginUrl } from '@/lib/auth/next-path';
 import { createClient } from '@/lib/supabase/server';
 import { getRequestForViewer } from '@/lib/supabase/queries/roles';
+import { isAdmin } from '@/lib/auth';
 import { buildPageMetadata } from '@/lib/seo/metadata';
 import { WhosComingCard } from '@/components/roles/WhosComingCard';
 
@@ -31,7 +32,7 @@ export default async function RequestStatusPage({ params }: { params: Promise<{ 
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) redirect(loginUrl(`/people/requests/${rid}`));
-  const card = await getRequestForViewer(rid, user.id);
+  const card = await getRequestForViewer(rid, user.id, { staff: await isAdmin(user.id, user.email ?? undefined) });
   if (!card) notFound();
 
   return (

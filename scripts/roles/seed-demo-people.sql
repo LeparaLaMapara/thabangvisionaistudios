@@ -87,6 +87,23 @@ update public.person_roles pr set comes_with = jsonb_set(pr.comes_with, '{eviden
     where e.person_role_id = pr.id and e.kind = 'photo' and e.step_key in ('outside', 'inside', 'kit')))
  where pr.is_demo and pr.comes_with ? 'label';
 
+-- A reveal demo that stays: a demo client booked the demo driver (DV),
+-- confirmed (the DEV stand-in for "booked and paid, payment held"). Open
+-- /people/requests/de300000-0000-4000-a000-000000000001 as an admin to see
+-- what the client sees after confirmation (face and first name revealed).
+insert into auth.users (id, instance_id, aud, role, email, encrypted_password, email_confirmed_at, raw_app_meta_data, raw_user_meta_data, created_at, updated_at)
+values ('de300000-0000-4000-8000-000000000011', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'roles-demo-11@example.com', '', now(),
+        '{"provider":"email","providers":["email"],"demo":true}'::jsonb, '{}'::jsonb, now(), now())
+on conflict (id) do nothing;
+insert into public.profiles (id, display_name, first_name, location, created_at, updated_at)
+values ('de300000-0000-4000-8000-000000000011', 'Kgomotso C. (demo client)', 'Kgomotso', 'Soweto', now(), now())
+on conflict (id) do nothing;
+update public.profiles set first_name = 'Sipho' where id = 'de300000-0000-4000-8000-000000000005';
+insert into public.role_booking_requests (id, person_role_id, client_id, requested_date, arrival_time, duration_hours, area, address, note, status, confirmed_at, is_demo)
+values ('de300000-0000-4000-a000-000000000001', 'de300000-0000-4000-9000-000000000005', 'de300000-0000-4000-8000-000000000011',
+        current_date + 14, '07:30', 8, 'Soweto', '14 Demo Street, Orlando West (demo address)', 'Crew of six and their gear (demo)', 'confirmed', now(), true)
+on conflict (id) do update set status = 'confirmed', requested_date = excluded.requested_date, confirmed_at = now();
+
 commit;
 
 notify pgrst, 'reload schema';

@@ -446,9 +446,18 @@ No general linking system.
 
 The CV or voice-note original stays in the private bucket, readable by the
 person and admins only, and is to be deleted after
-`ROLES_POLICY.cvRetentionDays` (90 days). The evidence row says so. A daily
-clean-up job is the next step; until it exists, delete by hand from the
-bucket. Only the reviewed, PII-free facts are kept and embedded.
+`ROLES_POLICY.cvRetentionDays` (90 days). The existing daily job
+(`/api/cron/daily-maintenance`, step 17b, `lib/roles/retention.ts`) deletes
+those files and their evidence rows, plus CV and audio uploads that were
+never filed (the person stopped on screen 2). Legal photos and faces are
+never touched by it. It logs counts only, is idempotent, and does nothing
+while `roles_v1` is off or before migration 091. Only the reviewed, PII-free
+facts are kept and embedded.
+
+**Reveal demo (DEV):** `scripts/roles/seed-demo-people.sql` keeps a confirmed
+request between a demo client and the demo driver. Staff can open
+`/people/requests/de300000-0000-4000-a000-000000000001` and see what the
+client sees after confirmation.
 
 ## Teams (later phase, after People is live and we have track records)
 

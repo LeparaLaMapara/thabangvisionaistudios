@@ -49,6 +49,8 @@ job count and a clear price.
       next to the ID selfie, team signals (shape only), demo data
       (scripts/roles/seed-demo-people.sql). Flag-off 404 tests for every new
       page and route.
+- [x] CV and voice retention on the existing daily cron (no new cron), plus a
+      lasting reveal demo on dev.
 - [ ] Was "next slice" (designed, see the design doc):
       equal chance (blind profiles, reveal on a confirmed paid booking,
       competence-only ranking, the model exception), the 3-screen Offer flow

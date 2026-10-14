@@ -92,5 +92,9 @@ describe('blind data access', () => {
     expect(card?.where.address).toBeNull(); // the address is for the booked person
     const stranger = await getRequestForViewer('00000000-0000-4000-8000-0000000000aa', 'someone-else');
     expect(stranger).toBeNull();
+    // Staff see it as the client would (to check what clients are shown).
+    const staff = await getRequestForViewer('00000000-0000-4000-8000-0000000000aa', 'admin-1', { staff: true });
+    expect(staff?.viewer).toBe('client');
+    expect(staff?.who.firstName).toBe('Thandi');
   });
 });

@@ -354,7 +354,7 @@ export async function createBookingRequest(i: RequestInput): Promise<string> {
  * The face and first name are fetched ONLY when reveal() says so; for anyone
  * else they are never read, so they cannot leak.
  */
-export async function getRequestForViewer(requestId: string, viewerId: string): Promise<(WhosComing & { viewer: 'client' | 'person'; clientFirstName: string | null; profileId: string }) | null> {
+export async function getRequestForViewer(requestId: string, viewerId: string, opts: { staff?: boolean } = {}): Promise<(WhosComing & { viewer: 'client' | 'person'; clientFirstName: string | null; profileId: string }) | null> {
   if (!/^[0-9a-f-]{36}$/i.test(requestId)) return null;
   const admin = createAdminClient();
   const { data: req } = await admin
@@ -366,7 +366,10 @@ export async function getRequestForViewer(requestId: string, viewerId: string): 
   const { data: pr } = await admin.from('person_roles').select(PERSON_ROLE_COLUMNS).eq('id', req.person_role_id).maybeSingle();
   if (!pr) return null;
   const personRole = pr as unknown as PersonRole;
-  const decision = reveal({ status: req.status as RequestStatus, client_id: req.client_id as string, person_user_id: personRole.user_id }, viewerId);
+  // Staff (admins) see a request as its client would, so they can check what
+  // a client is shown; everyone else outside the booking sees nothing.
+  const asViewer = opts.staff && viewerId !== personRole.user_id && viewerId !== req.client_id ? (req.client_id as string) : viewerId;
+  const decision = reveal({ status: req.status as RequestStatus, client_id: req.client_id as string, person_user_id: personRole.user_id }, asViewer);
   if (decision.viewer === 'other') return null;
 
   const roles = await getRoles();
