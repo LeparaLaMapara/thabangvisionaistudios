@@ -340,7 +340,7 @@ export function ProfileMaker({ role, initialPersonRole, initialEvidence, identit
                           <Check className="w-4 h-4" aria-hidden="true" /> Added
                         </span>
                       ) : (
-                        <CaptureInput label="Take a photo" capture="environment" accept="image/*" disabled={locked || busy !== null} busy={busy === r.code} onFiles={(f) => onDocument(r.code, f)} icon="camera" />
+                        <CaptureInput label="Take a photo" capture="environment" accept="image/*" disabled={locked || busy !== null} busy={busy === r.code} onFiles={(f) => onDocument(r.code, f)} icon="camera" variant="ghost" />
                       )}
                     </div>
                   </li>
@@ -424,7 +424,12 @@ export function ProfileMaker({ role, initialPersonRole, initialEvidence, identit
 
       {screen.id !== 'send' && (
         <div className="sticky bottom-0 mt-8 -mx-4 px-4 py-4 bg-[#0A0A0B]/95 backdrop-blur border-t border-white/10">
-          <button type="button" className={btnPrimary} disabled={busy !== null} onClick={next}>
+          <button
+            type="button"
+            className={screen.step && !progress.find((p) => p.key === screen.step?.key)?.complete ? `${btnGhost} w-full` : btnPrimary}
+            disabled={busy !== null}
+            onClick={next}
+          >
             {busy === 'save' ? <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" /> : null}
             {screen.step && (progress.find((p) => p.key === screen.step?.key)?.complete ? 'Next' : 'Skip for now')}
             {!screen.step && 'Next'}
@@ -467,6 +472,7 @@ function CaptureInput({
   onFiles,
   icon,
   multiple = false,
+  variant,
 }: {
   label: string;
   capture?: 'environment' | 'user';
@@ -476,10 +482,12 @@ function CaptureInput({
   onFiles: (files: FileList | null) => void;
   icon: 'camera' | 'video' | 'gallery';
   multiple?: boolean;
+  /** Ghost for secondary actions (gallery, documents) so "Next" stays the one gold button. */
+  variant?: 'primary' | 'ghost';
 }) {
   const Icon = icon === 'camera' ? Camera : icon === 'video' ? Video : ImagePlus;
   return (
-    <label className={`${icon === 'gallery' ? btnGhost : btnPrimary} cursor-pointer ${disabled ? 'opacity-40 pointer-events-none' : ''}`}>
+    <label className={`${(variant ?? (icon === 'gallery' ? 'ghost' : 'primary')) === 'ghost' ? `${btnGhost} w-full` : btnPrimary} cursor-pointer ${disabled ? 'opacity-40 pointer-events-none' : ''}`}>
       {busy ? <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" /> : <Icon className="w-4 h-4" aria-hidden="true" />}
       {busy ? 'Uploading...' : label}
       <input
