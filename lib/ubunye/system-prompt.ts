@@ -4,6 +4,7 @@ import { LIST_GEAR_HREF } from '@/lib/welcome';
 import { calculatePackagePrice } from '@/lib/productions/pricing';
 import { packageUnitWords } from '@/lib/bookings/pricing';
 import { creatorProfilePath } from '@/lib/seo/creator-url';
+import { collectionPoint } from '@/lib/rental/collection-point';
 
 export type UbunyeFlagsSnapshot = {
   smart_productions: boolean;
@@ -277,6 +278,7 @@ Deposit: a fixed, refundable amount per item, shown on each item before booking 
 Notice: book at least ${STUDIO.rental.minLeadTimeHours} hours ahead
 ID check: a photo of the ID and a selfie, once, before the first rental (no certified copy); a person checks it, ${STUDIO.verification.reviewTime}
 Delivery: collect in ${STUDIO.fulfilment.dispatchFrom.name}, Johannesburg (the exact place is sent only with a booking; never give it out), or delivery within ${STUDIO.fulfilment.delivery.maxRadiusKm} km at R${STUDIO.fulfilment.delivery.ratePerKm}/km (minimum R${STUDIO.fulfilment.delivery.minimumFee})
+Studios: items under /rentals/studios/ are rooms, not gear. They are used where they are, in ${collectionPoint()} (never delivered, nothing to collect). Booked online by the full day at the price in the catalogue; a half day (minimum booking) is arranged on WhatsApp ${STUDIO.whatsapp.display}, and its price is on the studio's page. Never quote a half-day price yourself
 Multi-day discount: 7+ days = weekly rate applies
 Cancellation: within ${STUDIO.legal.coolingOffDays} days of booking and before the hire or shoot starts, everything paid online is refunded. Otherwise equipment: full refund of the hire over 48h notice, 50% between 24-48h, none inside 24h; a deposit paid online is refunded in full. Processed automatically; the customer sees the amount before confirming.
 Max booking: ${STUDIO.rental.maxBookingDays} days

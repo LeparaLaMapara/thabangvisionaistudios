@@ -33,7 +33,7 @@ The newer pipeline (070–076) stores integer **cents** in columns named `*_cent
 | `refund_obligations` | `amount_cents`, `charged_cents` | — |
 | `rental_payment_intents` | `expected_amount_cents`, `hire_cents`, `deposit_cents`, `delivery_cents` | — |
 | `smart_productions` | — | `price` (whole) |
-| `smart_rentals` | — | `price_per_day`, `price_per_week`, `deposit_amount`, `replacement_value` |
+| `smart_rentals` | — | `price_per_day`, `price_per_half_day`, `price_per_week`, `deposit_amount`, `replacement_value` |
 | `subscription_plans` | — | `price` |
 | `subscriptions` | `expected_amount_cents` | — |
 
@@ -2173,9 +2173,9 @@ Gear for hire: studio stock and community (owner) listings. Public when publishe
 - References: `(owner_id) REFERENCES auth.users(id)`
 - Referenced by: `cart_items`, `equipment_bookings`, `listing_private`, `rental_blocks`, `reviews`, `unmet_demand`
 - Unique: `UNIQUE (slug)`
-- Checks: `smart_rentals_category_check`: `CHECK ((category = ANY (ARRAY['cameras-optics', 'lighting-power', 'audio', 'grip-motion', 'data-storage', 'specialized-solutions', 'aerial-support', 'sound-reinforcement'])))`; `smart_rentals_listing_status_check`: `CHECK ((listing_status = ANY (ARRAY['draft', 'pending_review', 'published', 'rejected', 'suspended'])))`
+- Checks: `smart_rentals_category_check`: `CHECK ((category = ANY (ARRAY['cameras-optics', 'lighting-power', 'audio', 'grip-motion', 'data-storage', 'specialized-solutions', 'aerial-support', 'sound-reinforcement', 'studios'])))` (studios: 093); `smart_rentals_price_per_half_day_check`: `CHECK ((price_per_half_day IS NULL) OR (price_per_half_day > 0))` (093); `smart_rentals_listing_status_check`: `CHECK ((listing_status = ANY (ARRAY['draft', 'pending_review', 'published', 'rejected', 'suspended'])))`
 
-<details><summary>Columns (41)</summary>
+<details><summary>Columns (42)</summary>
 
 | Column | Type | Null | Default | Money |
 |---|---|---|---|---|
@@ -2189,6 +2189,7 @@ Gear for hire: studio stock and community (owner) listings. Public when publishe
 | `model` | text | yes |  |  |
 | `price_per_day` | numeric | yes |  | rands |
 | `price_per_week` | numeric | yes |  | rands |
+| `price_per_half_day` | numeric | yes |  | rands (093; places only, null = no half day) |
 | `deposit_amount` | numeric | yes |  | rands |
 | `currency` | text | yes | `'ZAR'::text` |  |
 | `thumbnail_url` | text | yes |  |  |

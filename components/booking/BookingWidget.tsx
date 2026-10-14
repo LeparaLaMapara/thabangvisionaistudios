@@ -21,8 +21,11 @@ import { useCart } from '@/providers/CartProvider';
 import { createClient } from '@/lib/supabase/client';
 import { DateRangePicker, type DateRange } from '@/components/ui/DateRangePicker';
 import { calculateItemPrice, depositPerUnit } from '@/lib/cart/pricing';
-import { RENTAL_POLICY, STUDIO } from '@/lib/constants';
-import { earliestBookableDate, leadTimeMessage } from '@/lib/rental/leadTime';
+import { ON_SITE_RENTAL, RENTAL_POLICY, STUDIO } from '@/lib/constants';
+import { halfDayPrice, isOnSiteCategory } from '@/lib/rental/on-site';
+import { collectionPointWithCity } from '@/lib/rental/collection-point';
+import { whatsappLink } from '@/lib/payments/eft';
+import { earliestBookableDate, leadTimeMessage, studioLeadTimeMessage } from '@/lib/rental/leadTime';
 import { toLocalYmd, fromLocalYmd, checkHireRange } from '@/lib/rental/dates';
 import type { SmartRental } from '@/lib/supabase/queries/smartRentals';
 import type { ReadinessItem, RentalReadiness } from '@/lib/rental/eligibility-server';
@@ -265,7 +268,12 @@ function BookingWidgetInner({ rental, paymentsOpen: paymentsOpenProp }: Props) {
   // checkout API validates with, so the picker cannot offer a date the server
   // will refuse.
   const firstBookable = useMemo(() => earliestBookableDate(new Date()), []);
-  const noticeMessage = useMemo(() => leadTimeMessage(new Date()), []);
+  // A studio gets the same notice rule in studio words (lib/rental/leadTime.ts).
+  const studioNotice = isOnSiteCategory(rental.category);
+  const noticeMessage = useMemo(
+    () => (studioNotice ? studioLeadTimeMessage(new Date()) : leadTimeMessage(new Date())),
+    [studioNotice],
+  );
 
   const maxDate = useMemo(() => {
     const d = new Date(today);
@@ -295,6 +303,11 @@ function BookingWidgetInner({ rental, paymentsOpen: paymentsOpenProp }: Props) {
   const highValue =
     Math.round(itemValue(rental as { replacement_value?: number | null; deposit_amount?: number | null }) * 100) >
     RENTAL_POLICY.highValueCollectionThresholdCents;
+
+  // A place (the Studios category): booked by the full day and used where it
+  // is; a half day is arranged on WhatsApp (bookings are whole days).
+  const place = isOnSiteCategory(rental.category);
+  const halfDay = halfDayPrice(rental);
 
   // This page with the chosen dates and quantity, for sign-in and the checks to return to.
   const here = useMemo(() => pageHref(pathname, startStr, endStr, quantity), [pathname, startStr, endStr, quantity]);
@@ -428,7 +441,9 @@ function BookingWidgetInner({ rental, paymentsOpen: paymentsOpenProp }: Props) {
     !rangeCheck.ok && rangeCheck.problem !== 'incomplete'
       ? rangeCheck.message
       : dateRange.start && !dateRange.end
-        ? 'Now choose the return day. A one-day hire is returned the next day.'
+        ? place
+          ? 'Now choose the day after your last studio day. One full day: your day, then the next.'
+          : 'Now choose the return day. A one-day hire is returned the next day.'
         : undefined;
 
   // Whether this renter may pay now. The checklist decides when it loaded;
@@ -485,11 +500,28 @@ function BookingWidgetInner({ rental, paymentsOpen: paymentsOpenProp }: Props) {
       {/* Rate card */}
       <div className="border border-white/10 p-4 space-y-2 bg-[#0A0A0B]">
         <div className="flex justify-between text-sm">
-          <span className="text-neutral-400 font-mono">Daily rate</span>
+          <span className="text-neutral-400 font-mono">{place ? ON_SITE_RENTAL.fullDayLabel : 'Daily rate'}</span>
           <span className="font-mono font-bold text-white">
-            {formatRand(rental.price_per_day ?? 0)} a day
+            {formatRand(rental.price_per_day ?? 0)}{place ? '' : ' a day'}
           </span>
         </div>
+        {halfDay != null && (
+          <div className="flex justify-between items-center gap-3 text-sm">
+            <span className="text-neutral-400 font-mono">{ON_SITE_RENTAL.halfDayLabel}</span>
+            <span className="font-mono text-white">
+              {formatRand(halfDay)}:{' '}
+              <a
+                href={whatsappLink(ON_SITE_RENTAL.halfDayMessage(rental.title))}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex min-h-[44px] items-center text-[#D4A843] underline underline-offset-4"
+                data-testid="half-day-ask"
+              >
+                {ON_SITE_RENTAL.halfDayAsk}
+              </a>
+            </span>
+          </div>
+        )}
         {rental.price_per_week && (
           <div className="flex justify-between text-sm">
             <span className="text-neutral-400 font-mono">Weekly rate</span>
@@ -523,12 +555,15 @@ function BookingWidgetInner({ rental, paymentsOpen: paymentsOpenProp }: Props) {
           maxDate={maxDate}
           minNights={1}
           maxNights={STUDIO.rental.maxBookingDays}
-          label="Rental dates"
+          label={place ? 'Studio dates' : 'Rental dates'}
           hint={rangeHint}
         />
 
         <p className="text-xs font-mono text-neutral-400 leading-relaxed">
-          {noticeMessage} Pick up on the first day, return on the last.
+          {noticeMessage}{' '}
+          {place
+            ? 'Full days only online: choose your studio day, then the next day (two days: your first day, then the day after the last).'
+            : 'Pick up on the first day, return on the last.'}
         </p>
 
         {checkingAvailability && (
@@ -581,7 +616,7 @@ function BookingWidgetInner({ rental, paymentsOpen: paymentsOpenProp }: Props) {
           <div className="border border-white/10 p-4 space-y-2 bg-[#0A0A0B]">
             <div className="flex justify-between text-sm">
               <span className="text-neutral-400 font-mono">
-                {days} day{days !== 1 ? 's' : ''} rental{quantity > 1 ? ` x${quantity}` : ''}
+                {days} {place ? 'full ' : ''}day{days !== 1 ? 's' : ''} {place ? 'in the studio' : 'rental'}{quantity > 1 ? ` x${quantity}` : ''}
               </span>
               <span className="font-mono text-white">
                 {formatRand(rentalPrice)}
@@ -602,7 +637,9 @@ function BookingWidgetInner({ rental, paymentsOpen: paymentsOpenProp }: Props) {
               </span>
             </div>
             <p className="text-xs font-mono text-neutral-400">
-              {readiness?.collectionRequired
+              {place
+                ? `Used at the studio in ${collectionPointWithCity()}. Nothing to collect or deliver.`
+                : readiness?.collectionRequired
                 ? readiness.collectionReasons.includes('high_value_item')
                   ? `You collect this in person: items worth more than ${centsToRand(RENTAL_POLICY.highValueCollectionThresholdCents)} always are.`
                   : 'You collect this in person: a first hire always is. Delivery opens after your first clean return.'

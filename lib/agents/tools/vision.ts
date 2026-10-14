@@ -1,5 +1,5 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
-import { RENTAL_CATEGORIES, type RentalCategorySlug } from '@/lib/constants';
+import { GEAR_RENTAL_CATEGORIES, type RentalCategorySlug } from '@/lib/constants';
 import { trackedCompletion } from '@/lib/ai/tracked';
 import { firstJsonObject } from '@/lib/ai/json-answer';
 import { fetchImageAsBase64Safe } from '@/lib/security/safe-fetch';
@@ -12,7 +12,8 @@ const MODEL_ID = 'gemma-4-31b-it';
 const client = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
 const model = client.getGenerativeModel({ model: MODEL_ID });
 
-const CATEGORY_LIST = RENTAL_CATEGORIES.map(c => `"${c.value}" (${c.label})`).join(', ');
+// A gear photo is never a studio: places are listed by the studio only.
+const CATEGORY_LIST = GEAR_RENTAL_CATEGORIES.map(c => `"${c.value}" (${c.label})`).join(', ');
 
 /**
  * Fetch an image the SERVER chose (matchFaces: short-lived Supabase Storage
@@ -69,7 +70,7 @@ export async function identifyGear(
       const text = result.response.text().trim();
       const parsed = firstJsonObject(text);
       if (!parsed) throw new Error('Failed to parse gear identification response');
-      const validCategory = RENTAL_CATEGORIES.find(c => c.value === parsed.category);
+      const validCategory = GEAR_RENTAL_CATEGORIES.find(c => c.value === parsed.category);
       if (!validCategory) parsed.category = 'specialized-solutions' satisfies RentalCategorySlug;
 
       return {

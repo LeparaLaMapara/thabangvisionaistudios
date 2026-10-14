@@ -679,8 +679,16 @@ export const EARN = {
   homeText: 'Make-up, modelling, driving, photos, video, sound or gear: offer your skills, your gear or your vehicle. No portfolio needed.',
 } as const;
 
-/** Rentals categories shown as "coming soon" with roles_v1 on (labels only; nothing to book yet). */
-export const RENTALS_COMING_SOON = ['Studios and locations'] as const;
+/**
+ * Rentals categories shown as "coming soon" with roles_v1 on (labels only;
+ * nothing to book yet). `category`, when set, is the RENTAL_CATEGORIES slug
+ * that makes the label real: the tile disappears by itself as soon as that
+ * category has a published listing (lib/rental/coming-soon.ts). A label with
+ * no category stays until it is removed here.
+ */
+export const RENTALS_COMING_SOON: readonly { label: string; category?: string }[] = [
+  { label: 'Studios and locations', category: 'studios' },
+];
 
 export const CREATOR_JOIN = {
   href: '/onboarding',
@@ -766,6 +774,8 @@ export const PLACEHOLDER_IMAGES = {
   smartRentals: 'https://res.cloudinary.com/dzymetqjr/image/upload/v1773355515/smart_rentals_zagh26.png',
   ubunyeAi: 'https://res.cloudinary.com/dzymetqjr/image/upload/v1773355508/ubunye_studio_qt4xqk.png',
   communityGear: 'https://res.cloudinary.com/dzymetqjr/image/upload/v1773355512/community_gear_butskk.png',
+  // The owner's own studio, from his behind-the-scenes clips (public/media/rentals/studio).
+  studios: '/media/rentals/studio/studio-softbox.webp',
   creatorDashboard: 'https://res.cloudinary.com/dzymetqjr/image/upload/v1773355513/creator_dashboard_xolw82.png',
 } as const;
 
@@ -830,7 +840,40 @@ export const RENTAL_CATEGORIES = [
     description: 'PA systems and speakers for events.',
     fallbackImage: PLACEHOLDER_IMAGES.soundReinforcement,
   },
+  {
+    // A place, not gear: booked by the day and used where it is (ON_SITE_RENTAL).
+    // Like every category it shows only once it has a published listing.
+    value: 'studios',
+    label: 'Studios',
+    subtitle: 'Photo & Video Studios',
+    description: 'Photo and video studios with lights, backdrop and props, booked by the day.',
+    fallbackImage: PLACEHOLDER_IMAGES.studios,
+  },
 ] as const;
+
+/**
+ * Rental categories that are places (owner, 2026-10-15: his studio in
+ * Dainfern, Fourways). They are used where they are, so they are never
+ * delivered, and owners cannot list one as gear. The half-day price is the
+ * listing's own `smart_rentals.price_per_half_day` (rands, migration 093);
+ * clearing it removes the half-day option everywhere. Half days are not
+ * bookable online yet (bookings are whole days), so the page offers it as
+ * "ask us" on WhatsApp.
+ */
+export const ON_SITE_RENTAL = {
+  categories: ['studios'] as readonly string[],
+  minimumBooking: 'Half day',
+  fullDayLabel: 'Full day',
+  halfDayLabel: 'Half day',
+  halfDayAsk: 'ask us',
+  bookLabel: 'Book the studio',
+  halfDayMessage: (title: string): string => `Hi, I would like to book a half day at ${title}.`,
+  noDeliveryNote: 'A studio is used at the studio, so there is nothing to deliver.',
+  // Notice for a studio: the same STUDIO.rental.minLeadTimeHours rule that
+  // checkout enforces for every hire, in studio words.
+  leadTimeMessage: (hours: number, firstDate: string): string =>
+    `Book the studio at least ${hours} hours ahead so it is set up for you. The earliest date is ${firstDate}.`,
+} as const;
 
 // ─── RENTAL POLICIES ─────────────────────────────────────────────────────────
 // These are the values the RETURN pipeline actually enforces
@@ -1229,6 +1272,9 @@ export type CreatorSpecialization = (typeof CREATOR_SPECIALIZATIONS)[number]['va
 
 export const RENTAL_CATEGORY_VALUES = RENTAL_CATEGORIES.map(c => c.value);
 export type RentalCategorySlug = (typeof RENTAL_CATEGORIES)[number]['value'];
+
+/** Categories an owner can list gear in, and gear photos are recognised into: every category except places. */
+export const GEAR_RENTAL_CATEGORIES = RENTAL_CATEGORIES.filter((c) => !ON_SITE_RENTAL.categories.includes(c.value));
 
 export const LISTING_TO_RENTAL_CATEGORY: Record<string, RentalCategorySlug> = {
   cameras: 'cameras-optics',

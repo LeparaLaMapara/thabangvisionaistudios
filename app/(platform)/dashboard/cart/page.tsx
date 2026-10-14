@@ -11,7 +11,8 @@ import { useCart } from '@/providers/CartProvider';
 import { calculateItemPrice, calculateIncludedVat, depositPerUnit } from '@/lib/cart/pricing';
 import { TermsAcceptance } from '@/components/consent/TermsAcceptance';
 import DeliveryOptions, { centsToRand, selectionFromQuotes, useDeliveryEligibility, type DeliverySelection, type PendingApproval, type PublicQuote } from './DeliveryOptions';
-import { RENTAL_POLICY, STUDIO } from '@/lib/constants';
+import { ON_SITE_RENTAL, RENTAL_POLICY, STUDIO } from '@/lib/constants';
+import { hasOnSiteItem } from '@/lib/rental/on-site';
 import { DashboardSubTabs, ACTIVITY_TABS } from '@/components/dashboard/DashboardSubTabs';
 import type { CartItemWithRental } from '@/types/cart';
 import { isPaymentUrl } from '@/lib/payments/hosts';
@@ -183,7 +184,9 @@ export default function CartPage() {
   );
   // Delivery is shown only to renters who may have this cart delivered (spec §4.17).
   const deliveryEligibility = useDeliveryEligibility(!loading && items.length > 0 ? `v=${cartVersion}` : null);
-  const deliveryBlocked = !!readiness?.collectionRequired || deliveryEligibility?.delivery_available === false || !!deliveryNote;
+  // A studio in the cart is used where it is, so the order is never delivered.
+  const onSiteInCart = hasOnSiteItem(items);
+  const deliveryBlocked = onSiteInCart || !!readiness?.collectionRequired || deliveryEligibility?.delivery_available === false || !!deliveryNote;
   useEffect(() => {
     if (deliveryBlocked) setFulfilment('collection');
   }, [deliveryBlocked]);
@@ -876,9 +879,11 @@ export default function CartPage() {
                 })}
               </div>
 
-              {(deliveryBlocked || !STUDIO.fulfilment.delivery.enabled) && (deliveryEligibility !== null || !!readiness?.collectionRequired) && (
+              {(deliveryBlocked || !STUDIO.fulfilment.delivery.enabled) && (onSiteInCart || deliveryEligibility !== null || !!readiness?.collectionRequired) && (
                 <p id="delivery-reason" className="text-xs font-mono text-neutral-400 leading-relaxed">
-                  {!STUDIO.fulfilment.delivery.enabled
+                  {onSiteInCart
+                    ? ON_SITE_RENTAL.noDeliveryNote
+                    : !STUDIO.fulfilment.delivery.enabled
                     ? 'Delivery is not available at the moment.'
                     : deliveryNote ?? (!readiness?.collectionRequired && deliveryEligibility?.delivery_available === false
                       ? `Collection in person only: ${deliveryEligibility.message ?? 'delivery is not available for this order.'}`

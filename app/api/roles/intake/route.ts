@@ -4,7 +4,7 @@ import crypto from 'node:crypto';
 import { NextResponse, type NextRequest } from 'next/server';
 import { rolesOffResponse } from '@/lib/roles/flag';
 import { checkRateLimit } from '@/lib/auth';
-import { RENTAL_CATEGORIES, ROLES_POLICY } from '@/lib/constants';
+import { GEAR_RENTAL_CATEGORIES, ROLES_POLICY } from '@/lib/constants';
 import { createAdminClient, createClient } from '@/lib/supabase/server';
 import { getRoles, ROLE_DOCUMENT_BUCKET } from '@/lib/supabase/queries/roles';
 import { cleanMatchText, EMPTY_FACTS, keywordMatch, matchCandidates, sanitizeFacts, type ProfileFacts } from '@/lib/roles';
@@ -89,7 +89,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
   try {
     const roles = await getRoles();
-    const candidates = matchCandidates(roles.map((r) => ({ slug: r.slug, name: r.name, description: r.description })), RENTAL_CATEGORIES);
+    const candidates = matchCandidates(roles.map((r) => ({ slug: r.slug, name: r.name, description: r.description })), GEAR_RENTAL_CATEGORIES);
 
     // Facts: every CV or voice note, then the typed words.
     let facts: ProfileFacts = { ...EMPTY_FACTS };

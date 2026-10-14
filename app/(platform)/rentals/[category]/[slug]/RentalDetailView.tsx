@@ -13,6 +13,11 @@ import { formatRand } from '@/lib/format/money';
 import { ContactButtons } from '@/components/payments/ContactButtons';
 import { ProductVideo } from '@/components/rentals/ProductVideo';
 import { youtubePosterUrl } from '@/lib/video/youtube';
+import { RentalLoopVideo } from '@/components/rentals/RentalLoopVideo';
+import { ON_SITE_RENTAL } from '@/lib/constants';
+import { collectionPointWithCity } from '@/lib/rental/collection-point';
+import { halfDayPrice, isOnSiteCategory, rentalLoop } from '@/lib/rental/on-site';
+import { whatsappLink } from '@/lib/payments/eft';
 
 // ─── Category label map ───────────────────────────────────────────────────────
 
@@ -88,6 +93,13 @@ export default function RentalDetailView({
       : null;
   const videoEmbedUrl = video ? video.id : null;
 
+  // A place (the Studios category): priced by the full day, a half day on
+  // request, used where it is. Its own short loop, when it has one.
+  const place = isOnSiteCategory(rental.category);
+  const halfDay = halfDayPrice(rental);
+  const loop = rentalLoop(rental);
+  const bookLabel = place ? ON_SITE_RENTAL.bookLabel : 'Book This Equipment';
+
   const hasFeatures  = rental.features  && rental.features.length > 0;
   const hasIncludes  = rental.rental_includes && rental.rental_includes.length > 0;
   const hasMetadata  = rental.metadata  && Object.keys(rental.metadata).length > 0;
@@ -104,13 +116,13 @@ export default function RentalDetailView({
     <div className="lg:hidden fixed inset-x-0 bottom-0 z-40 border-t border-white/10 bg-[#050505]/95 backdrop-blur px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] flex items-center justify-between gap-3">
       <p className="font-mono text-sm text-white">
         {fmt(rental.price_per_day)}
-        <span className="text-neutral-400"> a day</span>
+        <span className="text-neutral-400">{place ? ` a ${ON_SITE_RENTAL.fullDayLabel.toLowerCase()}` : ' a day'}</span>
       </p>
       <a
         href="#book"
         className="min-h-[44px] inline-flex items-center px-5 bg-[#D4A843] text-black text-xs font-mono font-bold uppercase tracking-widest"
       >
-        Book This Equipment
+        {bookLabel}
       </a>
     </div>
   );
@@ -341,6 +353,17 @@ export default function RentalDetailView({
                 )}
               </div>
             )}
+
+            {/* The listing's own silent loop: poster first, plays only when cheap (RentalLoopVideo). */}
+            {loop && (
+              <div className="mt-6">
+                <RentalLoopVideo
+                  media={loop}
+                  alt={`${rental.title} in use: a shoot under the softbox lights, seen as silhouettes.`}
+                  label={rental.title}
+                />
+              </div>
+            )}
           </div>
 
           {/* ── RIGHT: Product info ── */}
@@ -382,7 +405,46 @@ export default function RentalDetailView({
             )}
 
             {/* Pricing */}
-            {(rental.price_per_day != null || rental.price_per_week != null) ? (
+            {place && rental.price_per_day != null ? (
+              <div className="border border-white/10 p-5 mb-6 space-y-3 bg-[#0A0A0B]" data-testid="studio-prices">
+                <div className="flex items-end justify-between">
+                  <span className="text-xs font-mono uppercase tracking-widest text-neutral-400">
+                    {ON_SITE_RENTAL.fullDayLabel}
+                  </span>
+                  <span className="text-2xl font-bold text-accent-gold">
+                    {fmt(rental.price_per_day)}
+                  </span>
+                </div>
+                {halfDay != null && (
+                  <div className="flex items-end justify-between gap-3 border-t border-white/5 pt-3">
+                    <span className="text-xs font-mono uppercase tracking-widest text-neutral-400">
+                      {ON_SITE_RENTAL.halfDayLabel}
+                    </span>
+                    <span className="text-right">
+                      <span className="text-lg font-semibold text-white">{fmt(halfDay)}</span>
+                      <a
+                        href={whatsappLink(ON_SITE_RENTAL.halfDayMessage(rental.title))}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="ml-2 inline-flex min-h-[44px] items-center text-xs font-mono uppercase tracking-widest text-[#D4A843] underline underline-offset-4"
+                      >
+                        {ON_SITE_RENTAL.halfDayAsk}
+                      </a>
+                    </span>
+                  </div>
+                )}
+                <dl className="border-t border-white/5 pt-3 space-y-2 text-xs font-mono text-neutral-400">
+                  <div className="flex justify-between gap-3">
+                    <dt className="uppercase tracking-widest">Minimum booking</dt>
+                    <dd className="text-white">{ON_SITE_RENTAL.minimumBooking}</dd>
+                  </div>
+                  <div className="flex justify-between gap-3">
+                    <dt className="uppercase tracking-widest">Where</dt>
+                    <dd className="text-white text-right">{collectionPointWithCity()}</dd>
+                  </div>
+                </dl>
+              </div>
+            ) : (rental.price_per_day != null || rental.price_per_week != null) ? (
               <div className="border border-white/10 p-5 mb-6 space-y-3 bg-[#0A0A0B]">
                 {rental.price_per_day != null && (
                   <div className="flex items-end justify-between">
@@ -528,7 +590,7 @@ export default function RentalDetailView({
             {/* ── Booking Widget: always visible in sidebar ── */}
             <div id="book" className="mb-8 border border-white/10 p-5 bg-[#0A0A0B] scroll-mt-24">
               <h2 className="text-xs font-mono font-bold uppercase tracking-widest text-neutral-400 mb-4 border-b border-white/5 pb-3">
-                Book This Equipment
+                {bookLabel}
               </h2>
               <BookingWidget rental={rental} paymentsOpen={paymentsOpen} />
               <div className="mt-5 pt-4 border-t border-white/5 space-y-2">

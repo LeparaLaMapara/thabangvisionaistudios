@@ -25,7 +25,7 @@ import {
 import { DashboardSubTabs, STUDIO_TABS } from '@/components/dashboard/DashboardSubTabs';
 import { uploadFile, type CloudinaryAsset } from '@/lib/cloudinary/upload';
 import { createClient } from '@/lib/supabase/client';
-import { LISTING_POLICY, LISTING_TO_RENTAL_CATEGORY, RENTAL_CATEGORIES, STUDIO } from '@/lib/constants';
+import { GEAR_RENTAL_CATEGORIES, LISTING_POLICY, LISTING_TO_RENTAL_CATEGORY, RENTAL_CATEGORIES, STUDIO } from '@/lib/constants';
 import {
   attestationsComplete,
   unconfirmedAiFields,
@@ -1136,7 +1136,8 @@ export default function ListingsPage() {
                 className={INPUT_CLASS}
               >
                 <option value="">Choose a category</option>
-                {RENTAL_CATEGORIES.map((c) => (
+                {/* Gear only: a studio is listed by ThabangVision, not by owners. */}
+                {GEAR_RENTAL_CATEGORIES.map((c) => (
                   <option key={c.value} value={c.value}>
                     {c.label}
                   </option>
