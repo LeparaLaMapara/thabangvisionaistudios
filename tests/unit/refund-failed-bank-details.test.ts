@@ -43,7 +43,7 @@ const { supabaseNotify, rentalNoticeText, PHONE_PUSH_KINDS, BANK_DETAILS_PATH } 
 const { DELIVERY_WHATSAPP_TEMPLATES } = await import('@/lib/whatsapp/delivery-templates');
 
 const msg = (channel: 'in_app' | 'email' | 'sms') => ({
-  dedupeKey: `refund_failed:${channel}:u1:r1`, kind: 'refund_failed' as const, channel, userId: 'u1', bookingIds: ['b1'], data: { amountCents: 25000 },
+  dedupeKey: `refund_failed:${channel}:u1:r1`, kind: 'refund_failed' as const, channel, userId: 'u1', bookingIds: ['b1'], data: { amountCents: 25000 }, sendAfter: null,
 });
 
 beforeEach(() => {
