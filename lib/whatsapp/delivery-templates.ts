@@ -23,7 +23,7 @@ export interface DeliveryWhatsAppTemplate {
   kind: RentalNoticeKind;
   body: string;
   /** What fills {{1}}, {{2}}, ... in order. */
-  params: readonly ('first_name' | 'driver_name' | 'pin' | 'tracking_url' | 'booking_url')[];
+  params: readonly ('first_name' | 'driver_name' | 'pin' | 'tracking_url' | 'booking_url' | 'bank_details_url')[];
 }
 
 export const DELIVERY_WHATSAPP_TEMPLATES: readonly DeliveryWhatsAppTemplate[] = [
@@ -58,5 +58,15 @@ export const DELIVERY_WHATSAPP_TEMPLATES: readonly DeliveryWhatsAppTemplate[] = 
     kind: 'delivery_return_reminder',
     body: 'Hi {{1}}, your ThabangVision return pickup is coming up. Please have every item and accessory packed and ready. Details: {{2}}',
     params: ['first_name', 'booking_url'],
+  },
+  {
+    // Not a delivery update, but the same kind of utility message: a card
+    // refund was refused and the renter must add a bank account (refund_failed).
+    name: 'tv_refund_needs_bank_details',
+    category: 'UTILITY',
+    language: 'en',
+    kind: 'refund_failed',
+    body: 'Hi {{1}}, we could not refund your ThabangVision payment to the card you paid with. The card may be cancelled or replaced. Please add your bank details so we can pay it into your account: {{2}}',
+    params: ['first_name', 'bank_details_url'],
   },
 ];
