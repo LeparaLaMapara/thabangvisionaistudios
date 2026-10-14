@@ -1,4 +1,5 @@
 import type { VerificationMetadata } from './verification';
+import { distanceKm, inSouthAfrica } from '@/lib/verification/device-location';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -157,6 +158,40 @@ export function detectFraudFlags(
     }
     if (doc.expired) {
       flags.push({ severity: 'medium', code: 'ID_EXPIRED', message: `The document expired on ${doc.expiry_date}` });
+    }
+  }
+
+  // 10. Where the browser says they were (asked at the camera step). Only a
+  // submission from the current page carries this; older ones have none.
+  const loc = metadata.device_location;
+  if (loc) {
+    if (loc.status !== 'shared' || loc.latitude === null || loc.longitude === null) {
+      flags.push({
+        severity: 'medium',
+        code: 'LOCATION_NOT_SHARED',
+        message: loc.status === 'denied' ? 'They refused to share their location' : `Location not available (${loc.status})`,
+      });
+    } else {
+      if (!inSouthAfrica(loc.latitude, loc.longitude)) {
+        flags.push({
+          severity: 'high',
+          code: 'LOCATION_OUTSIDE_SA',
+          message: `Submitted from outside South Africa (${loc.latitude.toFixed(2)}, ${loc.longitude.toFixed(2)})`,
+        });
+      }
+      const photoGps = [selfie.gps, id_front.gps].find(
+        (g) => g && Number.isFinite(g.latitude) && Number.isFinite(g.longitude),
+      );
+      if (photoGps) {
+        const km = distanceKm(loc as { latitude: number; longitude: number }, photoGps);
+        if (km > 100) {
+          flags.push({
+            severity: 'medium',
+            code: 'LOCATION_FAR_FROM_PHOTO',
+            message: `Photo location is ${Math.round(km)} km from where they submitted`,
+          });
+        }
+      }
     }
   }
 

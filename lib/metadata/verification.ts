@@ -1,5 +1,6 @@
 import exifr from 'exifr';
 import type { IdDocumentSummary } from '@/lib/verification/id-reading';
+import type { DeviceLocation } from '@/lib/verification/device-location';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -24,6 +25,8 @@ export interface VerificationMetadata {
   } | null;
   /** What the vision model read from the ID photo (lib/verification/id-reading.ts). */
   id_document?: IdDocumentSummary | null;
+  /** Where the browser said they were when they took the photos (lib/verification/device-location.ts). */
+  device_location?: DeviceLocation | null;
 }
 
 // ─── EXIF Extraction ────────────────────────────────────────────────────────
