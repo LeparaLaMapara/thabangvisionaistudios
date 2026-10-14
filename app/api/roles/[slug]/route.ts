@@ -3,8 +3,8 @@ export const dynamic = 'force-dynamic';
 import { NextResponse, type NextRequest } from 'next/server';
 import { checkRateLimit } from '@/lib/auth';
 import { createClient } from '@/lib/supabase/server';
-import { getIdentityFacts, getMyPersonRole, getRole, PERSON_ROLE_COLUMNS } from '@/lib/supabase/queries/roles';
-import { bestDateOfBirth, canSubmit, clampPerKm, clampPrice, legalQuestions } from '@/lib/roles';
+import { EVIDENCE_COLUMNS, getIdentityFacts, getMyPersonRole, getRole, PERSON_ROLE_COLUMNS } from '@/lib/supabase/queries/roles';
+import { bestDateOfBirth, canSubmit, clampPerKm, clampPrice, CREATOR_FLOW_ROLE, legalQuestions, portfolioEvidenceRows } from '@/lib/roles';
 
 /**
  * The signed-in person's profile for one role.
@@ -116,7 +116,19 @@ export async function PUT(req: NextRequest, ctx: Ctx): Promise<NextResponse> {
         .select(PERSON_ROLE_COLUMNS)
         .single();
       if (error) throw new Error(error.message);
-      return NextResponse.json({ personRole: data, evidence: [] }, { status: 201 });
+      // Someone who started the old creator onboarding keeps their photos:
+      // they become evidence (marked uploaded, not taken in the app).
+      let evidence: unknown[] = [];
+      if (slug === CREATOR_FLOW_ROLE) {
+        const { data: prof } = await supabase.from('profiles').select('portfolio_projects').eq('id', user.id).maybeSingle();
+        const rows = portfolioEvidenceRows((data as { id: string }).id, prof?.portfolio_projects);
+        if (rows.length) {
+          const { data: ev, error: evError } = await supabase.from('role_evidence').insert(rows).select(EVIDENCE_COLUMNS);
+          if (evError) console.error('[roles] portfolio import failed:', evError.message);
+          evidence = ev ?? [];
+        }
+      }
+      return NextResponse.json({ personRole: data, evidence }, { status: 201 });
     }
 
     if (Object.keys(patch).length === 0) return NextResponse.json(existing);

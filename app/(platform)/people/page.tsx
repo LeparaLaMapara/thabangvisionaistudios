@@ -2,7 +2,9 @@ export const dynamic = 'force-dynamic';
 
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { notFound } from 'next/navigation';
 import { BadgeCheck } from 'lucide-react';
+import { getFlag } from '@/lib/features';
 import { ROLES_POLICY, STUDIO } from '@/lib/constants';
 import { getRoles, listApprovedProfiles } from '@/lib/supabase/queries/roles';
 import { formatRolePrice, jobsLine } from '@/lib/roles';
@@ -21,6 +23,7 @@ interface Props {
 
 /** Approved role profiles, every one in the same card. */
 export default async function PeoplePage({ searchParams }: Props) {
+  if (!(await getFlag('roles_v1'))) notFound();
   const { role: roleParam } = await searchParams;
   const roles = (await getRoles()).filter((r) => r.status === 'live');
   const active = roles.find((r) => r.slug === roleParam)?.slug;

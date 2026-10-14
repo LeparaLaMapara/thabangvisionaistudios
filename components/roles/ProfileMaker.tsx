@@ -37,6 +37,8 @@ interface Props {
   initialPersonRole: PersonRole | null;
   initialEvidence: RoleEvidence[];
   identity: { verified: boolean; status: string | null; dateOfBirthFromId: string | null };
+  /** From the person's existing profile, used until they have a draft (nobody types twice). */
+  prefill?: { headline: string; area: string; about: string };
 }
 
 type Screen = { id: string; title: string; step?: ProofStep };
@@ -48,7 +50,7 @@ const btnGhost =
 const field =
   'w-full min-h-[48px] px-3 bg-black/40 border border-white/15 text-white placeholder:text-neutral-500 focus:border-accent-gold outline-none';
 
-export function ProfileMaker({ role, initialPersonRole, initialEvidence, identity }: Props) {
+export function ProfileMaker({ role, initialPersonRole, initialEvidence, identity, prefill }: Props) {
   const [personRole, setPersonRole] = useState<PersonRole | null>(initialPersonRole);
   const [evidence, setEvidence] = useState<RoleEvidence[]>(initialEvidence);
   const [index, setIndex] = useState(0);
@@ -56,9 +58,9 @@ export function ProfileMaker({ role, initialPersonRole, initialEvidence, identit
   const [error, setError] = useState<string | null>(null);
   const [todo, setTodo] = useState<string[]>([]);
 
-  const [headline, setHeadline] = useState(initialPersonRole?.headline ?? '');
-  const [area, setArea] = useState(initialPersonRole?.area ?? '');
-  const [about, setAbout] = useState(initialPersonRole?.about ?? '');
+  const [headline, setHeadline] = useState(initialPersonRole?.headline ?? prefill?.headline ?? '');
+  const [area, setArea] = useState(initialPersonRole?.area ?? prefill?.area ?? '');
+  const [about, setAbout] = useState(initialPersonRole?.about ?? prefill?.about ?? '');
   const [dob, setDob] = useState(typeof initialPersonRole?.answers?.date_of_birth === 'string' ? (initialPersonRole.answers.date_of_birth as string) : '');
   const [answers, setAnswers] = useState<Record<string, unknown>>(initialPersonRole?.answers ?? {});
   const band = role.suggested_price_cents;
@@ -89,9 +91,12 @@ export function ProfileMaker({ role, initialPersonRole, initialEvidence, identit
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(patch),
     });
-    const body = (await res.json().catch(() => ({}))) as { personRole?: PersonRole; error?: string };
+    const body = (await res.json().catch(() => ({}))) as { personRole?: PersonRole; evidence?: RoleEvidence[]; error?: string };
     if (!res.ok || !body.personRole) throw new Error(body.error ?? 'Could not save. Please try again.');
     setPersonRole(body.personRole);
+    // A new draft may arrive with photos carried over from the old creator portfolio.
+    const carried = body.evidence ?? [];
+    if (carried.length) setEvidence((prev) => (prev.length ? prev : carried));
     return body.personRole;
   }
 

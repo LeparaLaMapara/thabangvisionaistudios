@@ -1,18 +1,26 @@
 'use client';
 
 import { useState } from 'react';
-import { Camera, Users, Briefcase, Package, ArrowRight } from 'lucide-react';
+import { Camera, Users, Briefcase, Package, ArrowRight, HandHeart } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
-import { WELCOME_CHOICES, type WelcomeIntent, type SavedIntent } from '@/lib/welcome';
+import { WELCOME_CHOICES, type WelcomeChoice, type WelcomeIntent, type SavedIntent } from '@/lib/welcome';
 
-const ICONS: Record<WelcomeIntent, typeof Camera> = {
+const ICONS: Record<WelcomeIntent | 'offer', typeof Camera> = {
+  offer: HandHeart,
   rent: Camera,
   hire: Users,
   list: Package,
   supply: Briefcase,
 };
 
-export default function WelcomeChoices({ firstName }: { firstName: string | null }) {
+export default function WelcomeChoices({
+  firstName,
+  choices = WELCOME_CHOICES,
+}: {
+  firstName: string | null;
+  /** The list to show; roles_v1 passes WELCOME_CHOICES_ROLES (one Offer choice). */
+  choices?: readonly WelcomeChoice[];
+}) {
   const [busy, setBusy] = useState<SavedIntent | null>(null);
 
   const choose = async (intent: SavedIntent, href: string) => {
@@ -41,7 +49,7 @@ export default function WelcomeChoices({ firstName }: { firstName: string | null
       </p>
 
       <div className="mt-10 space-y-4">
-        {WELCOME_CHOICES.map((c) => {
+        {choices.map((c) => {
           const Icon = ICONS[c.intent];
           return (
             <button

@@ -6,6 +6,8 @@ import { checkConsents, requiredConsents } from '@/lib/consent';
 import { cleanNextPath, loginUrl } from '@/lib/auth/next-path';
 import { OnboardingAcceptance } from '@/components/consent/OnboardingAcceptance';
 import WelcomeChoices from './WelcomeChoices';
+import { getFlag } from '@/lib/features';
+import { WELCOME_CHOICES, WELCOME_CHOICES_ROLES } from '@/lib/welcome';
 import { buildPageMetadata } from '@/lib/seo/metadata';
 import { STUDIO } from '@/lib/constants';
 
@@ -66,5 +68,8 @@ export default async function WelcomePage({
   // Already accepted and on their way somewhere: go there.
   if (next) redirect(next);
 
-  return <WelcomeChoices firstName={firstName} />;
+  // roles_v1: one Offer choice replaces "list my gear" and "offer my
+  // services" (TASK-085); renting and booking stay as they are.
+  const rolesOn = await getFlag('roles_v1');
+  return <WelcomeChoices firstName={firstName} choices={rolesOn ? WELCOME_CHOICES_ROLES : WELCOME_CHOICES} />;
 }

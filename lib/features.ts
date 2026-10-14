@@ -15,8 +15,9 @@ export const FEATURE_KEYS = [
   // Ubunye Apps (/tools): shows "Apps" in the main nav. The page is
   // reachable by URL either way; the flag only controls the nav entry.
   'creative_tools',
-  // Many roles, honest proof (/join, TASK-085): shows "Join" in the main nav.
-  // Off (or absent) in production until the owner switches it on.
+  // Many roles, honest proof (TASK-085): the two journeys, Find and Offer, on
+  // the home hero and /welcome; /find, /offer and /people. Off (or absent) in
+  // production until the owner switches it on: today's behaviour unchanged.
   'roles_v1',
 ] as const;
 

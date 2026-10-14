@@ -3,6 +3,7 @@ export const dynamic = 'force-dynamic';
 import type { Metadata } from 'next';
 import { cache } from 'react';
 import { notFound } from 'next/navigation';
+import { getFlag } from '@/lib/features';
 import { STUDIO } from '@/lib/constants';
 import { getPublicRoleProfile } from '@/lib/supabase/queries/roles';
 import { buildPageMetadata, metaDescription } from '@/lib/seo/metadata';
@@ -29,6 +30,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 /** A role profile (approved only; anything else is a 404). */
 export default async function PersonRolePage({ params }: Props) {
+  if (!(await getFlag('roles_v1'))) notFound();
   const { id } = await params;
   const profile = await load(id);
   if (!profile) notFound();
