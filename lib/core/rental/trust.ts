@@ -42,6 +42,12 @@ export const TRUST_THRESHOLDS = RENTAL_POLICY.trustThresholds;
 export interface RenterFacts {
   emailVerified: boolean;
   phoneVerified: boolean;
+  /**
+   * Whether a confirmed phone number is required at all. False while no phone
+   * check is switched on (no SMS or WhatsApp sender): a step nobody can
+   * complete must not block bookings. Absent means required.
+   */
+  phoneRequired?: boolean;
   /** Government ID and selfie approved by a person (not an AI score alone). */
   identityApproved: boolean;
   /** Bank account validated against the renter's name by a provider. */
@@ -139,7 +145,7 @@ function historyDays(facts: RenterFacts, now: Date): number {
 export function earnedTier(facts: RenterFacts, now: Date): { tier: TrustTierRule; next: TrustAssessment['next'] } {
   const missingContactable: TrustRequirement[] = [];
   if (!facts.emailVerified) missingContactable.push({ code: 'verify_email', label: 'verify your email address' });
-  if (!facts.phoneVerified) missingContactable.push({ code: 'verify_phone', label: 'verify your phone number' });
+  if (facts.phoneRequired !== false && !facts.phoneVerified) missingContactable.push({ code: 'verify_phone', label: 'verify your phone number' });
   if (missingContactable.length) return { tier: tier('none'), next: nextTier('contactable', missingContactable) };
 
   const missingVerified: TrustRequirement[] = [];

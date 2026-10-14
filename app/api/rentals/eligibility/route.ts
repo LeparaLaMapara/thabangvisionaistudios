@@ -4,7 +4,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient, createAdminClient } from '@/lib/supabase/server';
 import { checkRateLimit } from '@/lib/auth';
 import { STUDIO } from '@/lib/constants';
-import { sms } from '@/lib/sms';
+import { phoneChecksAvailable } from '@/lib/sms/availability';
 import { getCartItems } from '@/lib/supabase/queries/cart';
 import { rentalReadiness, trustLineForRental, trustLinesFromCart } from '@/lib/rental/eligibility-server';
 
@@ -64,7 +64,7 @@ export async function GET(request: NextRequest) {
       // them the dates it is sent, so this answers what the checkout would.
       lines = trustLinesFromCart(await getCartItems(user.id), start && end ? { startDate: start, endDate: end } : undefined);
     }
-    const readiness = await rentalReadiness(admin, user, lines, delivery, sms.isConfigured());
+    const readiness = await rentalReadiness(admin, user, lines, delivery, phoneChecksAvailable());
     return NextResponse.json(readiness, { headers: { 'Cache-Control': 'no-store' } });
   } catch (err) {
     console.error('[rentals/eligibility]', err instanceof Error ? err.message : 'unknown error');

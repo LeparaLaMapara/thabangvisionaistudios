@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { CheckCircle2 } from 'lucide-react';
 import { STUDIO } from '@/lib/constants';
 
@@ -14,6 +14,18 @@ export function PhoneCheck({ phone, verified }: { phone: string; verified: boole
   const [code, setCode] = useState('');
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<string | null>(null);
+  // Hidden until a phone check is switched on (no SMS or WhatsApp sender yet).
+  const [available, setAvailable] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    if (verified) return;
+    let live = true;
+    fetch('/api/phone/status')
+      .then((r) => (r.ok ? r.json() : { available: false }))
+      .then((j: { available?: boolean }) => { if (live) setAvailable(j.available === true); })
+      .catch(() => { if (live) setAvailable(false); });
+    return () => { live = false; };
+  }, [verified]);
 
   const call = async (path: string, body: object) => {
     setBusy(true);
@@ -36,6 +48,8 @@ export function PhoneCheck({ phone, verified }: { phone: string; verified: boole
       </p>
     );
   }
+
+  if (available !== true) return null;
 
   return (
     <div id="phone" className="mt-2 space-y-2 scroll-mt-24">
