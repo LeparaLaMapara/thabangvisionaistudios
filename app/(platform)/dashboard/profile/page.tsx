@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import Image from 'next/image';
 import { motion } from 'framer-motion';
 import { Camera, Loader2, X, Plus } from 'lucide-react';
@@ -44,6 +44,13 @@ export default function ProfileEditPage() {
   const [phone, setPhone] = useState('');
   const [savedPhone, setSavedPhone] = useState('');
   const [phoneVerified, setPhoneVerified] = useState(false);
+  // A WhatsApp check confirms the number on the server: show it as saved and
+  // confirmed, so saving the form does not send a different spelling of it.
+  const handlePhoneVerified = useCallback((confirmed: string) => {
+    setPhone(confirmed);
+    setSavedPhone(confirmed);
+    setPhoneVerified(true);
+  }, []);
   const [avatarUrl, setAvatarUrl] = useState('');
   const [skills, setSkills] = useState<string[]>([]);
   const [newSkill, setNewSkill] = useState('');
@@ -527,6 +534,7 @@ export default function ProfileEditPage() {
               key={`${savedPhone}-${phoneVerified}`}
               phone={phone}
               verified={phoneVerified && phone.trim() === savedPhone.trim()}
+              onVerified={handlePhoneVerified}
             />
           </div>
         </div>
