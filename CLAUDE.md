@@ -43,6 +43,7 @@ Built by ThabangVision (Pty) Ltd, trading as ThabangVision Labs.
   - `bio-writer` — auto-bio from portfolio + profile (`claude-sonnet-4-20250514`)
   - `listing-describer` — draft rental listing title/description/includes (`claude-sonnet-4-20250514`)
   - `onboarding`, `portfolios` — vision/tagging helpers (`gemma-4-31b-it`, free tier)
+  - `role-match` — suggests a role or gear category from a person's own words or one photo in the Offer step (`gemma-4-31b-it`, free tier; fast text model, then keywords, as fallbacks; lib/roles/match-ai.ts)
   - `rates` — market-aligned rate suggestions (`claude-sonnet-4-20250514`)
 - Model pricing: `lib/ai/pricing.ts`. When adding a new model, add its cost there too so budget alerts work.
 - **Agent routing** (`lib/agents/router.ts`): intent classification picks the agent — priority is booking > portfolios > rates > assistant. The booking agent has a pre-selected creator flow (from portfolio page "Book Creator" button) that skips creator search.
@@ -226,7 +227,7 @@ sweep in particular is far more useful at 30-minute intervals than daily.
 
 ## Platform Conventions
 - **Proxy, not middleware** — Next.js 16 uses `proxy.ts` at repo root and exports a function named `proxy` (not `middleware`). It handles Supabase session refresh + CSRF Origin validation.
-- **Pending migrations are manual** — migrations live in `lib/migrations/` (001–089, plus the base schema and four April files in `supabase/migrations/`; order and skips in `docs/database/README.md`). Applied by hand (Supabase SQL Editor or the Management API); locally, `scripts/db/rebuild-local.sh` applies the canonical order. Production and dev are at 089 (2026-10-14; production order in `docs/release/2026-10-apply-order.md`). Before assuming a table exists, check `docs/database/README.md` / `docs/database/schema.md`.
+- **Pending migrations are manual** — migrations live in `lib/migrations/` (001–090, plus the base schema and four April files in `supabase/migrations/`; order and skips in `docs/database/README.md`). Applied by hand (Supabase SQL Editor or the Management API); locally, `scripts/db/rebuild-local.sh` applies the canonical order. Production is at 089 and dev at 090 (2026-10-14; production order in `docs/release/2026-10-apply-order.md`). Before assuming a table exists, check `docs/database/README.md` / `docs/database/schema.md`.
 - **Supabase clients** — three patterns:
   - `@/lib/supabase/server` (`createClient()`) — async, cookie-based. For Server Components and API routes. Cookies are async in Next.js 16 (`await cookies()`).
   - `@/lib/supabase/client` (`createClient()`) — `createBrowserClient`. For `'use client'` components.

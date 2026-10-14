@@ -1111,6 +1111,74 @@ export const LISTING_SUGGESTED_RATES = {
   weekBilledAsDays: 5,
 } as const;
 
+/**
+ * Many roles, honest proof (docs/processes/roles-and-proof.md, TASK-085).
+ *
+ * The role catalogue itself (names, legal requirements, proof steps, review
+ * guidelines, suggested prices) lives in the `roles` table (migration 090).
+ * What stays here is the ladder: how much evidence earns each level and the
+ * biggest single job each level may take. Like the renter trust tiers
+ * (RENTAL_POLICY.trustTierLimitsCents), nobody is blocked: a person is
+ * matched to jobs their record supports. REQUIRES_FOUNDER_APPROVAL for the
+ * final numbers.
+ */
+export const ROLES_POLICY = {
+  /** Biggest single job (client price, cents, VAT included) per evidence level. */
+  jobSizeLimitsCents: {
+    new: 150_000,
+    shown: 400_000,
+    vouched: 1_000_000,
+    proven: 2_500_000,
+    trusted: 8_000_000,
+  },
+  ladder: {
+    /** In-app captured photos or videos (accepted by a reviewer) for "shown". */
+    shownMinCaptured: 3,
+    /** Confirmed vouches (a past client or a proven pro) for "vouched". */
+    vouchedMinVouches: 1,
+    /** Confirmed ThabangVision jobs for "proven". */
+    provenMinJobs: 3,
+    /** "trusted": more jobs, good reviews, no disputes. */
+    trustedMinJobs: 10,
+    trustedMinReviews: 5,
+    trustedMinAverageRating: 4.5,
+  },
+  /**
+   * A photo counts as "captured in the app" only when it came from the camera
+   * button and the file is this fresh when it reaches us (EXIF date or the
+   * file's own time). Older files count as uploads. A signal for the
+   * reviewer, not proof on its own.
+   */
+  captureFreshnessMinutes: 15,
+  /** The person may move the suggested price within the role's low..high band. */
+  pricing: {
+    unitLabels: {
+      hour: 'per hour',
+      half_day: 'per half day',
+      day: 'per day',
+      look: 'per look',
+      day_plus_km: 'per day',
+      project: 'per project',
+    },
+    perKmLabel: 'per km',
+  },
+  /** Words clients see. Hide the machinery: one mark, a real count, the promise. */
+  copy: {
+    verified: 'Verified',
+    verifiedHelp: 'ID checked, and every legal check this kind of work needs.',
+    newOnPlatform: `New on ${STUDIO.shortName}`,
+    jobsDone: (n: number): string => `${n} job${n === 1 ? '' : 's'} done on ${STUDIO.shortName}`,
+    promise: `${STUDIO.shortName} stands behind every booking. We hold your payment until the work is delivered. If something goes wrong, we find a replacement or refund you.`,
+    reviewPromise: 'A person on our team will look at it, usually within 2 working days. If something needs fixing, we tell you exactly how.',
+  },
+  /** Role match (Find and Offer): tries per person (or per IP when signed out) per window. */
+  matchRateLimit: { max: 10, windowMs: 10 * 60 * 1000 },
+  /** Coming-soon interest: max sign-ups per IP per window. */
+  interestRateLimit: { max: 5, windowMs: 60 * 60 * 1000 },
+  /** Most photos or clips per proof step, so a cheap phone and little data still work. */
+  maxFilesPerStep: 6,
+} as const;
+
 // Creator specialisations (profiles.specializations), stored lower-case.
 // Search and the profile page use this list; onboarding maps detected skills
 // onto it (lib/creators/specializations.ts).
