@@ -35,6 +35,21 @@ job count and a clear price.
       scripts/roles/backfill-existing.sql (drafts only, never approved). Ran on
       dev: 0 drafts (no creator data there). Not run on production (would touch
       about 1 to 3 people).
+- [x] 7d. Stabilised for merge: every roles page and API route answers 404
+      with roles_v1 off (no roles table is read), so main can take this code
+      before production has migration 090.
+- [ ] Next slice (designed, see the design doc "Designed, not built yet"):
+      equal chance (blind profiles, reveal on a confirmed paid booking,
+      competence-only ranking, the model exception), the 3-screen Offer flow
+      (photo, show us your work, price and area) with the profile preview,
+      CV extraction with PII stripped (agent profile-extract), profile
+      embeddings and matching (migration 091), proof formats, the "Who's
+      coming" card and booking requests, the face check, the names (People,
+      Rentals, Earn with ThabangVision), "comes with".
+- [ ] Later: self-drive vehicle hire as a Rentals listing.
+- [ ] Later: Teams (after People is live and we have track records); start
+      collecting co-booking pairs, per-booking client ratings and a private
+      "would work with them again" now.
 - [ ] 8. Owner review on the preview: prices, first roles, guidelines wording
       (see "Decisions for the owner" in the design doc).
 - [ ] 9. A few real people try the maker on dev; fix what confuses them.

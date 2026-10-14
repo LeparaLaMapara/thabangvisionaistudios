@@ -1,7 +1,48 @@
 # Many roles, honest proof
 
-Status: first slice built on non-production (TASK-085, migration 090, flag `roles_v1`).
+**Show your face, show your work, set your price. We do the rest.**
+
+Status (2026-10-14): PR #132 ships the first slice behind the `roles_v1` flag
+(migration 090, dev only). Everything marked **Designed, not built yet** below
+was decided by the owner and is the next slice; it is not in PR #132.
 Owner decisions still open: see "Decisions for the owner" at the end.
+
+## Equal chance (the most important rule)
+
+Everyone gets an equal chance and is judged only on competence and delivery.
+No bias by gender, race, age or looks.
+
+- **Blind before booking.** Clients choose on the work, the record and the
+  price. Public cards and profiles show the role, the area, the work (or the
+  facts for trust roles), what the offer comes with, the price, the record line
+  ("N jobs, on time N/N") and work-only reviews with reviewers' initials. The
+  label is neutral ("Make-up artist, Soweto, MA-1042"), never a first name,
+  because names signal gender and ethnicity.
+- **Reveal on a confirmed booking.** The face, the first name and the "Who's
+  coming" card (who, where, when) are shown to the client only once a booking
+  is confirmed and paid (payment held). The booked person sees the client's
+  first name and the job details at the same moment. This is enforced where
+  the data is read, not only on screen: the face and name are never sent to an
+  unbooked viewer's browser.
+- **The face photo is still required** when offering (it is how we verify the
+  person and how the client knows who arrives), with the words: "Your photo.
+  Clients only see it after they book you, so everyone is chosen for their
+  work."
+- **Matching and ranking use competence only:** facts, work, record,
+  availability and distance. Never the name, photo, gender, age, race or
+  language as identity (languages spoken stay a skill a client can filter on).
+  The profile document we embed leaves out the name and any self-description
+  of gender or ethnicity. Fair "new" slots stay.
+- **Work proof shows the work, not the person.** No selfies as proof. Make-up
+  proof shows the client's face, which is fine: that is the work. The one
+  deliberate exception is on-camera talent (models), where appearance is the
+  work, so their digitals are the proof. Review guideline line: "Reject proof
+  that is just a selfie of the creator (except models)."
+
+**Built now vs designed:** PR #132 still shows the display name on approved
+demo profiles and has no booking for roles yet, so blind profiles and the
+reveal are **designed, not built yet**. With `roles_v1` off (production), none
+of these pages exist, so nothing is shown to anyone.
 
 ## The vision
 
@@ -291,6 +332,118 @@ Who may do what (RLS + column grants + a trigger):
    back.
 5. **More roles:** open coming-soon roles one at a time, where "leave your
    number" shows demand.
+
+## Designed, not built yet (the next slice)
+
+Decided by the owner on 2026-10-14. Not in PR #132; the first slice is kept
+stable so it can merge.
+
+### Three screens for the person offering
+
+Everything else is hidden machinery.
+
+1. **Your photo.** The face, camera capture, required. Nothing else on the
+   screen.
+2. **Show us your work.** One box that accepts anything: photos, a 30-second
+   clip, a CV (PDF, Word or a photo of it), a voice note, or a few typed lines.
+   The AI works out what it is (work photos: Look; audio: Listen; photos of
+   gear or a vehicle: Thing; a CV, voice note or text: facts) and suggests the
+   role, one tap to confirm. If a role legally needs one more thing, it is
+   asked inline as a single extra photo (licence and PrDP, licence disc, 18+
+   ID), only for those roles.
+3. **Your price and area.** Prefilled price, area and days available. Then
+   "Done. A person will check it within 2 working days."
+
+Then "Here's how clients will see you": the profile preview. The client-facing
+profile is three things: work (or facts for trust roles), price, and one record
+line. No levels, no jargon. The review guidelines are for admins; the person
+gets one "What we look for" link.
+
+### Hidden machinery behind the three screens
+
+- **CV, private: extract, structure, embed.** The original is stored privately
+  (the `role-documents` bucket, owner and admin only) and deleted after a set
+  retention period. Facts are extracted with the AI abstraction
+  (`trackedCompletion`, agent `profile-extract`) into a strict schema: roles
+  and skills, years, kinds of jobs, areas, languages, equipment, vehicles,
+  credits, certifications. ID numbers, addresses, phone numbers, emails, dates
+  of birth and references' contact details are stripped and never stored as
+  facts or embedded. The person reviews and edits the facts before anything is
+  saved. A voice note or a few typed lines produce the same schema. The CV is
+  never shown to anyone.
+- **Profile embedding that improves over time.** A profile document built from
+  the reviewed facts plus the record (jobs done, on-time rate, rebooked count,
+  reviews, vouches, credits from real bookings), never the raw CV, embedded
+  with `lib/rag/embeddings` (gemini-embedding-2, 768 dimensions) into a
+  pgvector table with the model and dimensions recorded. Re-embedded when the
+  facts or the record change. A matching function does similarity search
+  filtered by role, availability and area, ranked with the record, with fair
+  "new" slots; admin-only at first.
+- **Proof formats per role** (a column on `roles`): look (photo grid), listen
+  (audio player, 30-second clips), thing (guided item photos), trust (facts
+  plus the record, for example drivers).
+- **Who, where, when (Uber style).** A shared "Who's coming" card: who (photo,
+  first name, role, Verified, record), where (the address, only to the booked
+  person after booking), when (date, arrival time, how long). Shown only after
+  a confirmed booking (see Equal chance). A live arrival time on the day needs
+  the mobile app's location (TASK-084) and is a later step.
+- **Face check.** Where the ID-check selfie exists, the reviewer sees it next
+  to the in-app face photo and marks same or different. No automatic face
+  matching.
+
+### Names
+
+- The main menu becomes **People, Rentals, Apps, Help**. "People" replaces
+  "Studio": Studio sounded like a place to hire, not people to book. People
+  holds everyone bookable: today's photo and video packages plus approved role
+  profiles. `/studio` and `/smart-creators` redirect to People so old links and
+  search results keep working.
+- **Rentals** is things. Studios and locations sit there as a coming-soon
+  category.
+- The offer door is called **Earn with ThabangVision** everywhere ("Offer your
+  skills, your gear or your vehicle."). Copy that lists only "photographer,
+  videographer, editor or sound person" becomes inclusive.
+
+### "Comes with": people tied to things, kept simple
+
+One rule: a listing can say what it comes with, and one booking is one price.
+No general linking system.
+
+- **Driver with vehicle** is one People offering: booking the driver books the
+  car. The profile shows "Comes with: Toyota Quantum, 14 seats" with the
+  vehicle photos.
+- Same pattern: a photographer "comes with their own camera kit"; later, gear
+  "with operator" (drone with pilot, lights with gaffer).
+- Data: a small `comes_with` jsonb on `person_roles` (label plus optional
+  evidence ids).
+- **Self-drive vehicle hire** (no driver) would be a Rentals listing. Later,
+  out of scope for the pilot.
+
+## Teams (later phase, after People is live and we have track records)
+
+- **What:** once we have seen people's skills and delivery over time, the
+  platform forms teams for big jobs: music videos, films, productions, big
+  events.
+- **Consent:** people decide. A member accepts or declines an invitation. A
+  team lead (or the members) approves who joins. Nobody is put on a team
+  without saying yes.
+- **Equal chance stays:** approving and declining are blind too. Members see
+  each other's work, roles and record, not faces or names, until the team is
+  confirmed. A veto needs a work reason from a short list (availability, skill
+  fit, past delivery), and patterns are watched so a team cannot shut people
+  out unfairly.
+- **How teams are suggested:** the per-profile embeddings plus team signals:
+  which roles the job needs (coverage), each person's record, availability and
+  distance, budget fit, and "worked well together" (co-bookings clients rated
+  well, and members saying they would work together again). Whole teams are
+  ranked, not individuals, with fair spots for newer people.
+- **Stages:** (1) "My team": proven pros add the people they already work
+  with. (2) Suggested team packages, for example a music-video crew. (3) Full
+  production teams.
+- **Pricing:** decided later. A starting idea: the members' rates plus a
+  coordination fee, with the client seeing one price.
+- **Data to start collecting now:** co-booking pairs, the client's rating per
+  booking, and a private "would work with them again" after each shared job.
 
 ## Out of scope now
 
