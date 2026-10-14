@@ -70,3 +70,22 @@ describe('webcam photos (a small file can still be a readable photo)', () => {
     expect(await photoSize(Buffer.from('not a photo'))).toBeNull();
   });
 });
+
+describe('when the photo was taken (a Pixel 9 photo came through with no time)', () => {
+  const shot = async (exif: Record<string, Record<string, string>>) => {
+    const b = await sharp({ create: { width: 64, height: 48, channels: 3, background: '#888' } }).jpeg().withExif(exif).toBuffer();
+    return extractPhotoMetadata(b.buffer.slice(b.byteOffset, b.byteOffset + b.length) as ArrayBuffer);
+  };
+  it('uses the shutter time when there is one', async () => {
+    const m = await shot({ IFD0: { Make: 'Google', Model: 'Pixel 9' }, IFD2: { DateTimeOriginal: '2026:10:14 08:49:00' } });
+    expect(m.dateTaken).not.toBeNull();
+  });
+  it('falls back to the GPS clock (UTC)', async () => {
+    const m = await shot({ IFD0: { Make: 'Google', Model: 'Pixel 9' }, IFD3: { GPSDateStamp: '2026:10:14', GPSTimeStamp: '6/1 49/1 30/1' } });
+    expect(m.dateTaken).toBe('2026-10-14T06:49:30.000Z');
+  });
+  it('falls back to the saved time last', async () => {
+    const m = await shot({ IFD0: { Make: 'Google', Model: 'Pixel 9', DateTime: '2026:10:14 08:49:00' } });
+    expect(m.dateTaken).not.toBeNull();
+  });
+});

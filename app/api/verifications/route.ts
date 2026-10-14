@@ -1,6 +1,6 @@
 export const dynamic = 'force-dynamic';
 
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse, after } from 'next/server';
 import crypto from 'node:crypto';
 import { checkRateLimit } from '@/lib/auth';
 import { createClient, createAdminClient } from '@/lib/supabase/server';
@@ -19,6 +19,8 @@ import { checkCanSubmit, isOwnStagingPath } from '@/lib/verification/submit-guar
 import { MAX_ID_PHOTO_BYTES, MIN_ID_PHOTO_BYTES, MIN_ID_PHOTO_EDGE, sniffPhotoType } from '@/lib/verification/photo-format';
 import { makeReviewCopy, photoSize } from '@/lib/verification/review-copy';
 import { parseIdReading, summariseIdReading, validSaIdNumber } from '@/lib/verification/id-reading';
+import { submissionAlert } from '@/lib/verification/owner-alert';
+import { email as emailProvider } from '@/lib/email';
 
 // Verification documents live in a private bucket. Since migration 067 they are
 // written ONLY by the service role, each to a fresh unique path with no upsert,
@@ -301,6 +303,26 @@ export async function POST(req: NextRequest) {
       current?.selfie_with_id_path,
     ].filter((p): p is string => Boolean(p) && !newPaths.has(p as string));
     await removeQuietly(admin, oldPaths);
+
+    // Tell the owner straight away (after the reply, so the person does not wait).
+    // A failed email never undoes the submission.
+    after(async () => {
+      try {
+        const { data: who } = await admin.from('profiles').select('first_name, display_name').eq('id', user.id).maybeSingle();
+        const alert = submissionAlert({
+          name: (who as { first_name?: string | null; display_name?: string | null } | null)?.first_name
+            || (who as { display_name?: string | null } | null)?.display_name
+            || null,
+          email: user.email ?? null,
+          attempt: (current?.verification_attempts ?? 0) + 1,
+          flags: fraudFlags,
+          metadata,
+        });
+        await emailProvider.sendEmail({ to: STUDIO.ownerAlertsTo, subject: alert.subject, text: alert.text });
+      } catch (err) {
+        console.error('[verifications] owner alert failed:', err);
+      }
+    });
 
     logEvent({ eventType: 'verification_submitted', eventCategory: 'verification', userId: user.id, metadata: { flags: rpcResult.flags_detected ?? 0 } });
 
