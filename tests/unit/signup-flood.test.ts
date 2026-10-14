@@ -68,9 +68,11 @@ describe('signup webhook work only for confirmed accounts', () => {
   it('a confirmed account is drafted and announced', async () => {
     confirmed = '2026-10-13T10:00:00Z';
     expect(await processSignup('00000000-0000-4000-8000-000000000002')).toEqual({ status: 'drafted' });
-    expect(generateWithFallback).toHaveBeenCalledTimes(1);
+    // The welcome is one fixed text (owner, 2026-10-14): no AI call.
+    expect(generateWithFallback).not.toHaveBeenCalled();
     expect(sendEmail).toHaveBeenCalledTimes(1);
     expect(inserted).toHaveLength(1);
+    expect((inserted[0] as { drafted_by: string }).drafted_by).toBe('template');
   });
 
   it('past the hourly caps: template draft, no owner email', async () => {
