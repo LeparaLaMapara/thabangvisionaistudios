@@ -120,10 +120,11 @@ forward" by hand). The same order is proven on every PR by the CI
 
 Supabase → Authentication:
 
-- **Emails → Templates → "Magic Link" and "Confirm signup":** include the
-  6-digit code, e.g. `Your code: {{ .Token }}`, next to the existing link
-  (R-33).
-- **Sign In / Providers → Email → Minimum password length: 8** (R-33).
+- **Emails → Templates:** branded ThabangVision templates (Confirm signup,
+  Invite, Magic Link, Change Email, Reset Password). No sign-in code is
+  needed: sign-in is Google or email + password only (2026-10-14).
+- **Sign In / Providers → Email → Minimum password length: 8**, confirm email
+  on (R-33).
 - **URL Configuration:** Site URL = that environment's `NEXT_PUBLIC_APP_URL`;
   Redirect URLs include it with `/**`.
 - **JWT expiry (R-81, suggestion):** Project Settings → JWT Keys (older

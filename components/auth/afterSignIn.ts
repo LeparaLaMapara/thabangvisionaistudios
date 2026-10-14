@@ -40,8 +40,9 @@ async function homeForUser(user: User): Promise<string> {
 }
 
 /**
- * Finish a sign-in that happened in the browser (email code or password; the
- * Google and email-link paths finish in app/auth/callback): send the person
+ * Finish a sign-in that happened in the browser (email + password, or Google's
+ * own button; the Google redirect and the confirmation link finish in
+ * app/auth/callback): send the person
  * to /welcome first if their acceptance of the current terms is not on
  * record, otherwise straight on.
  */

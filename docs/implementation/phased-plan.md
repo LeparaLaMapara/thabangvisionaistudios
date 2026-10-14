@@ -86,7 +86,7 @@ Source: the founder's master engineering specification (2026-10-08). Each phase 
 - MCP and A2A are evaluated, but only behind OAuth scopes.
 
 ## Phase 3: Simplicity
-- Passwordless sign-in.
+- Simple sign-in: Google or email + password (passwordless was dropped on 2026-10-14).
 - Rent in four actions: item → dates → reserve → pay.
 - List gear in three steps. Offer a service in three steps.
 - Mobile-first: 44px touch targets, accessibility, performance budgets, and privacy-respecting funnel metrics.

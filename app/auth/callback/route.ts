@@ -7,7 +7,7 @@ import { sendWelcomeSoon } from '@/lib/engagement/runner';
 import { processSignup } from '@/lib/greetings/process';
 
 /**
- * Where Google and email sign-in links land.
+ * Where Google sign-in and the new-account confirmation link land.
  *
  * Until 2026-09-27 no Google sign-in ever finished: Supabase sent people to an
  * old test site because www.thabangvision.com was missing from its allowed
@@ -16,7 +16,7 @@ import { processSignup } from '@/lib/greetings/process';
  *
  * Anyone without a current acceptance of the Terms and Privacy Policy on
  * record goes to /welcome first (one tap records it), then on to `next`.
- * Before this, Google and email-link sign-ins with a `?next=` skipped
+ * Before this, Google and email sign-ins with a `?next=` skipped
  * /welcome and were never asked.
  */
 export async function GET(request: Request): Promise<NextResponse> {

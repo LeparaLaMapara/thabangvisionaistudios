@@ -18,7 +18,7 @@ Cross-reference what's built against the strategy levels:
 ```
 LEVEL 1 — AWARE (V3):
   ✓ Live website on Vercel
-  ✓ Auth (Google, magic link, password)
+  ✓ Auth (Google, email + password)
   ✓ Smart Rentals (gear listings)
   ✓ Ubunye Chat (AI assistant)
   ✓ Admin panel

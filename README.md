@@ -38,7 +38,7 @@ thabangvisionaistudios/
 │   ├── (immersive)/              # Full-screen: ubunye-ai-studio (Three.js energy sphere)
 │   ├── (admin)/                  # Auth-gated CMS: admin dashboard, content CRUD, bookings, verifications
 │   ├── api/                      # API routes (all auth-gated where needed)
-│   └── auth/callback/            # OAuth + magic link callback handler
+│   └── auth/callback/            # Google + email confirmation callback handler
 │
 ├── lib/                          # Business logic & abstraction layers
 │   ├── constants.ts              # STUDIO, PRODUCTION_SERVICES, ADMIN_EMAILS — single source of truth
@@ -293,7 +293,7 @@ Buyer pays → 10% platform fee deducted → 90% to seller
 Registration → Supabase Auth creates user → DB trigger creates profile row
                                            → Redirect to /onboarding (display name, skills, phone)
 
-Login → Email/password OR magic link (email OTP) OR Google OAuth
+Login → Google OAuth OR email + password (new accounts confirm their email by link)
       → proxy.ts refreshes session cookie on every request
       → Layouts check auth.getUser() → redirect to /login if null
 
@@ -305,7 +305,7 @@ Admin → Same login flow → admin layout checks ADMIN_EMAILS in constants.ts
 - `proxy.ts` — session refresh middleware (Next.js 16 convention: exports `proxy`, not `middleware`)
 - `lib/auth/` — auth abstraction (requireAuth, requireAdmin, checkRateLimit, isSafeUrl)
 - `providers/AuthProvider.tsx` — server→client auth bridge (prevents flash of unauthenticated content)
-- `app/auth/callback/route.ts` — handles OAuth and magic link redirects
+- `app/auth/callback/route.ts` — handles Google and email confirmation redirects
 
 ---
 
@@ -478,7 +478,7 @@ Key protections:
 | V2 — Architecture | Security hardening, provider abstractions (6 layers), dark mode lock, mobile rebuild | Complete (16 tasks) |
 | V3 — Intelligence | Context-aware Ubunye, RAG infrastructure, smart productions redesign, unified gear marketplace | Complete (17 tasks) |
 | V4 — Booking System | Service bookings with Paystack, creator payouts, Ubunye booking flow, verification redesign | Complete |
-| Auth Improvements | Registration trigger, magic link, Google OAuth, onboarding, auth flicker fix | Complete |
+| Auth Improvements | Registration trigger, Google OAuth, email + password, onboarding, auth flicker fix | Complete |
 
 **Test results:** 0 TS errors, 39/39 unit tests, 62 E2E tests pass (4 flaky on retry)
 
