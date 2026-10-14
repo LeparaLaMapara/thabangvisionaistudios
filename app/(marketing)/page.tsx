@@ -43,9 +43,10 @@ export const metadata = {
 };
 
 export default async function Home() {
-  const [smartProductionsEnabled, appsEnabled] = await Promise.all([
+  const [smartProductionsEnabled, appsEnabled, rolesEnabled] = await Promise.all([
     getFlag('smart_productions'),
     getFlag('creative_tools'),
+    getFlag('roles_v1'),
   ]);
 
   const [productions, rentals, priceRange] = await Promise.all([
@@ -93,6 +94,7 @@ export default async function Home() {
       minDayRate={priceRange?.min ?? null}
       paymentsOpen={onlinePaymentsOpen()}
       showApps={appsEnabled}
+      rolesOn={rolesEnabled}
     />
   );
 }

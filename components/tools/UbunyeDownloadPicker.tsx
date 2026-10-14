@@ -8,7 +8,9 @@ import {
   type UbunyePickerFile,
   type UbunyePlatformId,
 } from '@/lib/ubunye-release';
+import { UBUNYE_STUDIO } from '@/lib/constants';
 import { withAlpha } from './ubunye-styles';
+import { detectSystem, type Detected } from './detect-system';
 
 interface UbunyeDownloadPickerProps {
   appName: string;
@@ -30,46 +32,6 @@ const ARCH_LABEL: Record<UbunyeArch, string> = {
   x86: '32-bit',
   universal: 'Apple silicon and Intel',
 };
-
-interface Detected {
-  os: UbunyePlatformId | null;
-  arch: UbunyeArch | null;
-  mobile: boolean;
-}
-
-interface UADataLike {
-  mobile?: boolean;
-  platform?: string;
-  getHighEntropyValues?: (hints: string[]) => Promise<{ architecture?: string; bitness?: string }>;
-}
-
-/** Best guess at the visitor's system. Falls back to nothing rather than guessing wrong. */
-async function detectSystem(): Promise<Detected> {
-  const ua = navigator.userAgent;
-  const data = (navigator as Navigator & { userAgentData?: UADataLike }).userAgentData;
-  const ipadDesktopMode = /Macintosh/.test(ua) && navigator.maxTouchPoints > 1;
-  const mobile = Boolean(data?.mobile) || /Android|iPhone|iPad|iPod/i.test(ua) || ipadDesktopMode;
-  if (mobile) return { os: null, arch: null, mobile: true };
-
-  const platform = data?.platform ?? '';
-  let os: UbunyePlatformId | null = null;
-  if (/Windows/i.test(platform) || /Windows/.test(ua)) os = 'windows';
-  else if (/macOS/i.test(platform) || /Mac OS X|Macintosh/.test(ua)) os = 'macos';
-  else if (/Linux|Chrome OS/i.test(platform) || /Linux|X11|CrOS/.test(ua)) os = 'linux';
-
-  let arch: UbunyeArch | null = os === 'macos' ? 'universal' : null;
-  if (os === 'windows' || os === 'linux') {
-    arch = /aarch64|arm64/i.test(ua) ? 'arm64' : /WOW64|Win64|x86_64|x64|amd64/i.test(ua) ? 'x64' : null;
-    try {
-      const hints = await data?.getHighEntropyValues?.(['architecture', 'bitness']);
-      if (hints?.architecture === 'arm') arch = 'arm64';
-      else if (hints?.architecture === 'x86') arch = hints.bitness === '32' ? 'x86' : 'x64';
-    } catch {
-      // Hints refused: keep the user-agent guess.
-    }
-  }
-  return { os, arch, mobile: false };
-}
 
 export function UbunyeDownloadPicker({ appName, accent, webUrl, version, files }: UbunyeDownloadPickerProps) {
   const [os, setOs] = useState<UbunyePlatformId>('windows');
@@ -211,7 +173,7 @@ export function UbunyeDownloadPicker({ appName, accent, webUrl, version, files }
       {files && (
         <>
           <div className="mt-5 flex flex-wrap items-center justify-between gap-2 font-sans text-xs text-[var(--ub-text-2)]">
-            <span>{version ? `Version ${version}, preview build` : ''}</span>
+            <span>{version ? `Version ${version}, early version` : ''}</span>
             {others.length > 0 && (
               <button
                 type="button"
@@ -245,9 +207,12 @@ export function UbunyeDownloadPicker({ appName, accent, webUrl, version, files }
             </ul>
           )}
 
-          <p className="mt-4 font-sans text-xs leading-relaxed text-[var(--ub-text-2)]">
-            Not code signed yet: Windows and macOS will warn that the developer is unknown.
-          </p>
+          {!UBUNYE_STUDIO.install.signed && (
+            <p className="mt-4 font-sans text-xs leading-relaxed text-[var(--ub-text-2)]">
+              {UBUNYE_STUDIO.install.trustNote}
+              {os === 'macos' && ` ${UBUNYE_STUDIO.install.macNote}`}
+            </p>
+          )}
         </>
       )}
     </div>

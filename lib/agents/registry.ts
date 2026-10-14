@@ -55,4 +55,29 @@ export const UBUNYE_AGENTS: Record<string, UbunyeAgent> = {
     rateLimit: { guest: 0, free: 10, pro: 20, studio: 20 },
     costTier: 'medium',
   },
+  // Many roles (TASK-085): suggests one or two roles from what a person types
+  // or one photo of their work. Suggests only; the person confirms.
+  'role-match': {
+    id: 'role-match',
+    name: 'Ubunye Role Match',
+    description: 'Suggests the role (make-up artist, model, driver, ...) that fits what a person says they do',
+    provider: 'gemma',
+    model: 'gemma-4-31b-it',
+    tools: [],
+    rateLimit: { guest: 0, free: 10, pro: 10, studio: 10 },
+    costTier: 'free',
+  },
+  // People (TASK-085): reads a CV (PDF, Word, a photo of it), a voice note or
+  // a few typed lines into the strict facts schema, with personal details
+  // stripped. The person reviews the facts before anything is saved.
+  'profile-extract': {
+    id: 'profile-extract',
+    name: 'Ubunye Profile Facts',
+    description: 'Turns a CV, voice note or typed lines into work facts (no personal details)',
+    provider: 'google',
+    model: 'gemini-3.6-flash',
+    tools: [],
+    rateLimit: { guest: 0, free: 6, pro: 6, studio: 6 },
+    costTier: 'low',
+  },
 };

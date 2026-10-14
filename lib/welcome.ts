@@ -1,3 +1,7 @@
+import { STUDIO } from '@/lib/constants';
+
+const STUDIO_NAME = STUDIO.shortName;
+
 /**
  * The things people come to ThabangVision to do, asked once after signing up
  * (app/(platform)/welcome). One place, so the welcome page, the dashboard and
@@ -8,11 +12,14 @@
  * listing (/dashboard/listings?new=1), not through creator onboarding.
  */
 export type WelcomeIntent = 'rent' | 'hire' | 'list' | 'supply';
-/** An answer on the account: one of the four, or "just looking around". */
-export type SavedIntent = WelcomeIntent | 'browse';
+/**
+ * An answer on the account: one of the four, "just looking around", or (with
+ * roles_v1) one of the two journeys, find or offer.
+ */
+export type SavedIntent = WelcomeIntent | 'browse' | Journey;
 
 export interface WelcomeChoice {
-  intent: WelcomeIntent;
+  intent: WelcomeIntent | 'offer';
   title: string;
   detail: string;
   href: string;
@@ -49,13 +56,54 @@ export const WELCOME_CHOICES: readonly WelcomeChoice[] = [
 ] as const;
 
 export function isWelcomeIntent(value: unknown): value is SavedIntent {
-  return value === 'rent' || value === 'hire' || value === 'list' || value === 'supply' || value === 'browse';
+  return (
+    value === 'rent' || value === 'hire' || value === 'list' || value === 'supply' || value === 'browse' ||
+    value === 'find' || value === 'offer'
+  );
 }
 
 /** Where a signed-in person lands when nothing else says where to go. */
 export function homeFor(intent: unknown, onboarded: boolean): string {
   if (intent === 'supply') return onboarded ? '/dashboard' : '/onboarding';
+  if (intent === 'offer') return onboarded ? '/dashboard' : OFFER_PATH;
   if (intent === 'list') return '/dashboard/listings';
   if (isWelcomeIntent(intent)) return '/dashboard';
   return '/welcome';
+}
+
+// ─── One way in for offering (roles_v1, TASK-085) ───────────────────────────
+// Finding is already solved by the site: people browse photographers and gear,
+// pick, book, and the ID check follows. Offering had three doors (creator
+// onboarding, list my gear, join as a role). With roles_v1 on there is one:
+// Offer. The person says what they offer in their own words (or adds a photo),
+// we suggest where it fits, they tap to confirm: a skill goes to the profile
+// maker, gear to the photo-first listing, a vehicle to driver with vehicle.
+// /join, /onboarding and the welcome "offer" choice all land there.
+
+export type Journey = 'find' | 'offer';
+
+export const OFFER_PATH = '/offer';
+/** The profile maker for one role, inside Offer. */
+export function offerRolePath(slug: string): string {
+  return `${OFFER_PATH}/${encodeURIComponent(slug)}`;
+}
+
+/** The welcome question with roles_v1 on: renting and booking as today, one Offer choice. */
+export const WELCOME_CHOICES_ROLES: readonly WelcomeChoice[] = [
+  WELCOME_CHOICES[0],
+  WELCOME_CHOICES[1],
+  {
+    intent: 'offer',
+    title: `Earn with ${STUDIO_NAME}`,
+    detail: 'Offer your skills, your gear or your vehicle.',
+    href: OFFER_PATH,
+  },
+] as const;
+
+/** Which journey a saved answer belongs to. Old answers keep working. */
+export function journeyOf(intent: unknown): Journey | 'browse' | null {
+  if (intent === 'rent' || intent === 'hire' || intent === 'find') return 'find';
+  if (intent === 'list' || intent === 'supply' || intent === 'offer') return 'offer';
+  if (intent === 'browse') return 'browse';
+  return null;
 }

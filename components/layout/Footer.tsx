@@ -15,7 +15,9 @@ const IconMap: Record<string, React.ElementType> = {
   Mail
 };
 
-export const Footer = () => {
+type FooterSectionList = readonly { title: string; links: readonly { label: string; href: string }[] }[];
+
+export const Footer = ({ sections = FOOTER_SECTIONS }: { sections?: FooterSectionList } = {}) => {
   const [email, setEmail] = useState('');
   const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
   const [errorMsg, setErrorMsg] = useState('');
@@ -52,7 +54,7 @@ export const Footer = () => {
       <div className="container mx-auto px-6">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-12 mb-20">
 
-          {FOOTER_SECTIONS.map((section) => (
+          {sections.map((section) => (
             <div key={section.title}>
               <h2 className="text-sm font-bold tracking-widest text-black dark:text-white mb-6 uppercase">{section.title}</h2>
               <ul className="space-y-3 text-sm text-neutral-400 dark:text-neutral-400">

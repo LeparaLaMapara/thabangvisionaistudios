@@ -4,8 +4,14 @@ import { NextRequest, NextResponse } from 'next/server';
 import { routeQuery, generateWithFallback } from '@/lib/ai';
 import { createAdminClient } from '@/lib/supabase/server';
 import { buildSystemPrompt, fetchPlatformData } from '@/lib/ubunye/system-prompt';
-import { whatsapp } from '@/lib/whatsapp';
+import { whatsapp, whatsappProviderName } from '@/lib/whatsapp';
+import { meta, metaChallenge, metaSendConfigured, parseMetaInbound, verifyMetaSignature } from '@/lib/whatsapp/meta';
+import type { WhatsAppMessage } from '@/lib/whatsapp';
 import { logEvent } from '@/lib/data/events';
+import { confirmFromWhatsApp, supabasePhoneVerifyStore } from '@/lib/phone-verify';
+import { maskPhone, phoneCodeSecret } from '@/lib/sms/phone';
+import { checkRateLimit } from '@/lib/auth';
+import { STUDIO } from '@/lib/constants';
 
 // ─── Conversation Memory (in-memory, per phone number, 10 messages) ────────
 
@@ -24,9 +30,83 @@ function addToHistory(phone: string, role: 'user' | 'assistant', content: string
   conversations.set(phone, history);
 }
 
-// ─── POST handler (receives webhook from Twilio) ───────────────────────────
+// ─── Meta Cloud API: phone checks by inbound message ───────────────────────
+// docs/operations/whatsapp-setup.md. Message bodies and full numbers are never
+// logged; only the number is ever stored (on the profile, once confirmed).
+
+/** "27821234567" -> "***4567", for logs. */
+const maskWaId = (waId: string): string => `***${waId.slice(-4)}`;
+
+/** Meta's handshake when the callback URL is saved in the app dashboard. */
+export async function GET(request: NextRequest): Promise<NextResponse> {
+  const challenge = metaChallenge(request.nextUrl.searchParams, (process.env.WHATSAPP_VERIFY_TOKEN ?? '').trim());
+  if (challenge === null) return new NextResponse('Forbidden', { status: 403 });
+  return new NextResponse(challenge, { status: 200, headers: { 'Content-Type': 'text/plain' } });
+}
+
+/** A free-form reply inside the customer service window, at most once per inbound message. */
+async function replyOnce(message: WhatsAppMessage, body: string): Promise<void> {
+  if (!metaSendConfigured()) return;
+  if (message.messageId && !(await checkRateLimit(`wa-reply:${message.messageId}`, 1, 86_400_000))) return;
+  const sent = await meta.sendMessage({ to: message.from, body });
+  if (!sent.success) console.warn('[whatsapp/verify] reply not sent to', maskWaId(message.from));
+}
+
+async function handleMeta(request: NextRequest): Promise<NextResponse> {
+  const appSecret = (process.env.WHATSAPP_APP_SECRET ?? '').trim();
+  if (!appSecret) return new NextResponse('WhatsApp not configured', { status: 503 });
+
+  // The signature covers the exact bytes Meta sent, so read the raw body first.
+  const rawBody = await request.text();
+  if (!verifyMetaSignature(rawBody, request.headers.get('x-hub-signature-256'), appSecret)) {
+    return new NextResponse('Invalid signature', { status: 401 });
+  }
+
+  let payload: unknown;
+  try {
+    payload = JSON.parse(rawBody);
+  } catch {
+    return new NextResponse('Invalid payload', { status: 400 });
+  }
+
+  // Delivery statuses, other events and non-text messages: nothing to do.
+  const messages = parseMetaInbound(payload);
+  if (messages.length === 0) return new NextResponse('ok', { status: 200 });
+
+  const store = supabasePhoneVerifyStore(createAdminClient());
+  const secret = phoneCodeSecret();
+  let failed = false;
+  for (const message of messages) {
+    try {
+      const outcome = await confirmFromWhatsApp(message, { store, secret });
+      if (outcome.kind === 'confirmed') {
+        console.info('[whatsapp/verify] confirmed', maskPhone(outcome.phone));
+        logEvent({ eventType: 'phone_verified', eventCategory: 'verification', userId: outcome.userId, metadata: { channel: 'whatsapp' } });
+        await replyOnce(message, STUDIO.phoneVerify.confirmedReply);
+      } else if (outcome.kind === 'no_match') {
+        console.info('[whatsapp/verify] code did not match for', maskWaId(message.from));
+        await replyOnce(message, STUDIO.phoneVerify.unmatchedReply);
+      }
+      // no_code (ordinary chat), not_sa_mobile, already_done (duplicate): ignored.
+    } catch (err) {
+      // A 500 makes Meta retry; confirming is idempotent.
+      failed = true;
+      console.error('[whatsapp/verify] could not check a message from', maskWaId(message.from), err instanceof Error ? err.message : '');
+    }
+  }
+  return failed ? new NextResponse('Retry', { status: 500 }) : new NextResponse('ok', { status: 200 });
+}
+
+// ─── POST handler ───────────────────────────────────────────────────────────
+// Meta Cloud API when it is the active provider (WHATSAPP_PROVIDER=meta, or
+// WHATSAPP_APP_SECRET set); otherwise the older Twilio chat bot below.
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
+  if (whatsappProviderName() === 'meta') return handleMeta(request);
+  return handleTwilio(request);
+}
+
+async function handleTwilio(request: NextRequest): Promise<NextResponse> {
   if (!whatsapp.isConfigured()) {
     return new NextResponse('WhatsApp not configured', { status: 503 });
   }

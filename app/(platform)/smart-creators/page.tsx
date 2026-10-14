@@ -1,4 +1,6 @@
 import { getPublishedCreatorProfiles } from '@/lib/supabase/queries/smartProductions';
+import { redirect } from 'next/navigation';
+import { getFlag } from '@/lib/features';
 import { AskUbunyeButton } from '@/components/ubunye/AskUbunyeButton';
 import SmartCreatorsClient from './SmartCreatorsClient';
 import { buildPageMetadata } from '@/lib/seo/metadata';
@@ -13,6 +15,8 @@ export const metadata = buildPageMetadata({
 });
 
 export default async function SmartCreatorsPage() {
+  // roles_v1: everyone bookable lives on People; this address keeps old links working.
+  if (await getFlag('roles_v1')) redirect('/people');
   const creators = await getPublishedCreatorProfiles();
   return (
     <>

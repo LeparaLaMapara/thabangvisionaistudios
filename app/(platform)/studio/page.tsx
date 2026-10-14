@@ -1,6 +1,8 @@
 export const revalidate = 60;
 
 import SmartProductionClient from './SmartProductionClient';
+import { redirect } from 'next/navigation';
+import { getFlag } from '@/lib/features';
 import { STUDIO } from '@/lib/constants';
 import { AskUbunyeButton } from '@/components/ubunye/AskUbunyeButton';
 import { getPublishedProductions } from '@/lib/supabase/queries/smartProductions';
@@ -24,6 +26,8 @@ export const metadata = buildPageMetadata({
  * way in.
  */
 export default async function SmartProductionPage() {
+  // roles_v1: everyone bookable lives on People; this address keeps old links working.
+  if (await getFlag('roles_v1')) redirect('/people');
   const productions = await getPublishedProductions();
 
   return (

@@ -153,7 +153,7 @@ export function renderMarkdownTwin(path: string, c: Catalog, opts: MarkdownOptio
       return [
         `# ${UBUNYE_STUDIO.suiteName}`,
         '',
-        UBUNYE_STUDIO.intro,
+        `${UBUNYE_STUDIO.hero.title} ${UBUNYE_STUDIO.hero.subtitle}`,
         `Made by ${UBUNYE_STUDIO.maker}. ${UBUNYE_STUDIO.systemRequirements}`,
         '',
         ...c.tools.flatMap((t) => toolLines(t)),

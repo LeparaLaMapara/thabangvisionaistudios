@@ -32,6 +32,8 @@ export const PHONE_LIMITS = {
   sendsPerIpPerHour: 10,
   sendsPerNumberPerHour: 3,
   verifyPerIpPerHour: 30,
+  // GET /api/phone/status, polled every few seconds while a WhatsApp check is open.
+  statusPerUserPerHour: 600,
 } as const;
 
 /**

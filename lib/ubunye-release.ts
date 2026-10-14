@@ -154,6 +154,30 @@ export function pickerFiles(release: UbunyeRelease): Record<UbunyePlatformId, Ub
   return out;
 }
 
+/** The one installer we suggest per platform on /tools: what a typical computer needs. */
+export interface UbunyeInstaller {
+  url: string;
+  label: string;
+  size: number;
+}
+
+/**
+ * Picks the main installer per platform for the /tools Download buttons:
+ * Windows x64 .msi, the universal macOS .dmg, Linux x64 AppImage. Falls back to
+ * the first main installer of another arch, or null when the platform has none.
+ */
+export function primaryInstallers(release: UbunyeRelease | null): Record<UbunyePlatformId, UbunyeInstaller | null> {
+  const out: Record<UbunyePlatformId, UbunyeInstaller | null> = { windows: null, macos: null, linux: null };
+  if (!release) return out;
+  const files = pickerFiles(release);
+  for (const os of Object.keys(out) as UbunyePlatformId[]) {
+    const mains = files[os].filter((f) => f.main);
+    const pick = mains.find((f) => f.arch === 'x64' || f.arch === 'universal') ?? mains[0];
+    out[os] = pick ? { url: pick.url, label: pick.label, size: pick.size } : null;
+  }
+  return out;
+}
+
 export function formatSize(bytes: number): string {
   return `${Math.round(bytes / 1048576)} MB`;
 }

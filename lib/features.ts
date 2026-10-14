@@ -15,6 +15,10 @@ export const FEATURE_KEYS = [
   // Ubunye Apps (/tools): shows "Apps" in the main nav. The page is
   // reachable by URL either way; the flag only controls the nav entry.
   'creative_tools',
+  // Many roles, honest proof (TASK-085): the two journeys, Find and Offer, on
+  // the home hero and /welcome; /find, /offer and /people. Off (or absent) in
+  // production until the owner switches it on: today's behaviour unchanged.
+  'roles_v1',
 ] as const;
 
 export type FeatureKey = typeof FEATURE_KEYS[number];
@@ -25,6 +29,7 @@ const FLAG_DEFAULTS: Partial<Record<FeatureKey, boolean>> = {
   ai_portfolio_tagging: true,
   delivery_courier: false,
   creative_tools: false,
+  roles_v1: false,
 };
 
 export interface FeatureFlag {

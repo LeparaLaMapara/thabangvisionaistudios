@@ -458,6 +458,18 @@ export const STUDIO = {
     idleTimeoutMinutes: 30, // Auto-logout after 30 minutes of inactivity
   },
 
+  // Phone checks by WhatsApp (lib/phone-verify, docs/operations/whatsapp-setup.md).
+  // The person sends "<message> TV-482913" to the business number from their
+  // own WhatsApp; the sender's number is what gets confirmed.
+  phoneVerify: {
+    codePrefix: 'TV',
+    whatsappMessage: 'Verify my ThabangVision number:',
+    confirmedReply: 'Your number is confirmed on ThabangVision. You can go back to the site now.',
+    unmatchedReply: 'We could not match that code to this WhatsApp number. It may have expired, or it was sent from a different number than the one you entered. Start again on your ThabangVision profile page.',
+    // How often the profile page asks whether the message arrived.
+    pollSeconds: 4,
+  },
+
   // Phase 6 security limits (docs/security/phase-6-assessment.md).
   security: {
     // Server-side fetches of a URL a person or a model supplied
@@ -654,6 +666,22 @@ export const SHOW_CAREERS = true;
 // words. Not in the header: signed out, it went to the same sign-in page as
 // "Sign In", so the header keeps one door.
 // /onboarding sends someone signed out to sign up first, then back.
+/**
+ * The offer door with roles_v1 on: one name everywhere, "Earn with
+ * ThabangVision", for skills, gear and vehicles (TASK-085). CREATOR_JOIN below
+ * stays what the site says with the flag off.
+ */
+export const EARN = {
+  label: `Earn with ${STUDIO.shortName}`,
+  copy: 'Offer your skills, your gear or your vehicle.',
+  href: '/offer',
+  homeTitle: `Earn with ${STUDIO.shortName}`,
+  homeText: 'Make-up, modelling, driving, photos, video, sound or gear: offer your skills, your gear or your vehicle. No portfolio needed.',
+} as const;
+
+/** Rentals categories shown as "coming soon" with roles_v1 on (labels only; nothing to book yet). */
+export const RENTALS_COMING_SOON = ['Studios and locations'] as const;
+
 export const CREATOR_JOIN = {
   href: '/onboarding',
   ctaLabel: 'Join as a Creator',
@@ -1099,6 +1127,92 @@ export const LISTING_SUGGESTED_RATES = {
   weekBilledAsDays: 5,
 } as const;
 
+/**
+ * Many roles, honest proof (docs/processes/roles-and-proof.md, TASK-085).
+ *
+ * The role catalogue itself (names, legal requirements, proof steps, review
+ * guidelines, suggested prices) lives in the `roles` table (migration 090).
+ * What stays here is the ladder: how much evidence earns each level and the
+ * biggest single job each level may take. Like the renter trust tiers
+ * (RENTAL_POLICY.trustTierLimitsCents), nobody is blocked: a person is
+ * matched to jobs their record supports. REQUIRES_FOUNDER_APPROVAL for the
+ * final numbers.
+ */
+export const ROLES_POLICY = {
+  /** Biggest single job (client price, cents, VAT included) per evidence level. */
+  jobSizeLimitsCents: {
+    new: 150_000,
+    shown: 400_000,
+    vouched: 1_000_000,
+    proven: 2_500_000,
+    trusted: 8_000_000,
+  },
+  ladder: {
+    /** In-app captured photos or videos (accepted by a reviewer) for "shown". */
+    shownMinCaptured: 3,
+    /** Confirmed vouches (a past client or a proven pro) for "vouched". */
+    vouchedMinVouches: 1,
+    /** Confirmed ThabangVision jobs for "proven". */
+    provenMinJobs: 3,
+    /** "trusted": more jobs, good reviews, no disputes. */
+    trustedMinJobs: 10,
+    trustedMinReviews: 5,
+    trustedMinAverageRating: 4.5,
+  },
+  /**
+   * A photo counts as "captured in the app" only when it came from the camera
+   * button and the file is this fresh when it reaches us (EXIF date or the
+   * file's own time). Older files count as uploads. A signal for the
+   * reviewer, not proof on its own.
+   */
+  captureFreshnessMinutes: 15,
+  /** The person may move the suggested price within the role's low..high band. */
+  pricing: {
+    unitLabels: {
+      hour: 'per hour',
+      half_day: 'per half day',
+      day: 'per day',
+      look: 'per look',
+      day_plus_km: 'per day',
+      project: 'per project',
+    },
+    perKmLabel: 'per km',
+  },
+  /** Words clients see. Hide the machinery: one mark, a real count, the promise. */
+  copy: {
+    verified: 'Verified',
+    verifiedHelp: 'ID checked, and every legal check this kind of work needs.',
+    newOnPlatform: `New on ${STUDIO.shortName}`,
+    jobsDone: (n: number): string => `${n} job${n === 1 ? '' : 's'} done on ${STUDIO.shortName}`,
+    promise: `${STUDIO.shortName} stands behind every booking. We hold your payment until the work is delivered. If something goes wrong, we find a replacement or refund you.`,
+    reviewPromise: 'A person on our team will look at it, usually within 2 working days. If something needs fixing, we tell you exactly how.',
+    facePrompt: 'Clients only see it after they book you, so everyone is chosen for their work.',
+    done: 'Done. A person will check it within 2 working days.',
+    blindNote: 'Chosen for the work. You see who is coming once your booking is confirmed.',
+    recordLine: (jobs: number, onTime: number | null): string =>
+      jobs === 0 ? `New on ${STUDIO.shortName}` : `${jobs} job${jobs === 1 ? '' : 's'}${onTime === null ? '' : ` · on time ${onTime}/${jobs}`}`,
+  },
+  /** Matching (admin only for now): score weights and the fair "new" slots. */
+  matching: {
+    similarityWeight: 0.6,
+    reliabilityWeight: 0.3,
+    areaWeight: 0.1,
+    defaultLimit: 10,
+    /** Places in every top list kept for people with no jobs yet. */
+    newSlots: 2,
+  },
+  /** The private CV or voice-note original is deleted this many days after upload. */
+  cvRetentionDays: 90,
+  /** Facts extraction (CV, voice note, text): tries per person per window. */
+  extractRateLimit: { max: 6, windowMs: 60 * 60 * 1000 },
+  /** Role match (Find and Offer): tries per person (or per IP when signed out) per window. */
+  matchRateLimit: { max: 10, windowMs: 10 * 60 * 1000 },
+  /** Coming-soon interest: max sign-ups per IP per window. */
+  interestRateLimit: { max: 5, windowMs: 60 * 60 * 1000 },
+  /** Most photos or clips per proof step, so a cheap phone and little data still work. */
+  maxFilesPerStep: 6,
+} as const;
+
 // Creator specialisations (profiles.specializations), stored lower-case.
 // Search and the profile page use this list; onboarding maps detected skills
 // onto it (lib/creators/specializations.ts).
@@ -1431,21 +1545,64 @@ export interface UbunyeStudioApp {
   /** The browser version (served from R2 by the ubunye-creative-web Worker). */
   webUrl: string;
   upstream: { name: string; credit: string; url: string };
+  /** One plain sentence for /tools, in everyday words. */
+  plain: string;
+  /** Who it is for, e.g. "For photographers." */
+  audience: string;
+  /**
+   * A short silent loop of the real browser app (recorded with Playwright,
+   * 720px wide, under 600 KB) and its still. Files live in public/ubunye/media.
+   */
+  media: { mp4: string; webm: string; poster: string; alt: string };
 }
+
+/**
+ * The research lab behind the free apps and the editor in research (owner,
+ * 2026-10-14). Shown on /about in "From the lab".
+ */
+export const RESEARCH_LAB = {
+  name: 'Ubunye AI Ecosystems Research Lab',
+  url: 'https://uaie.vercel.app',
+  line: 'We build tools that make creative work easier, and give them away.',
+  why: 'Great work should not depend on who you know or what you can afford. So our lab takes the hard parts out of creating, and puts the tools in everyone’s hands.',
+  editor: {
+    name: 'Ubunye Studio',
+    status: 'In research',
+    desc: 'An AI editor that watches your footage, finds your best moments and cuts a first edit. Then it checks its own work.',
+  },
+} as const;
 
 export const UBUNYE_STUDIO = {
   suiteName: 'Ubunye Apps',
   shortName: 'Ubunye',
   wordmark: '/ubunye/ubunye-creative-studio-dark.svg',
   intro: 'Free apps for photo and film. Download them, or try them in your browser.',
-  footerLine: 'Three free apps. Light, Photo and Film.',
-  version: 'Preview',
+  version: 'Early version',
   status: 'preview' as UbunyeReleaseStatus,
   statusLabels: {
     'coming-soon': 'Coming soon',
-    preview: 'Preview',
+    preview: 'Early version',
     released: 'Available',
   } as Record<UbunyeReleaseStatus, string>,
+  /** The /tools hero: what it is, where it runs, what it costs. */
+  hero: {
+    title: 'Three free apps for your photos and videos.',
+    subtitle: 'Mac, Windows, Linux, or right in your browser. No account. No cost.',
+    browserCta: 'Try it in your browser',
+  },
+  /**
+   * The desktop downloads are not code signed (checked 2026-10-14: the Windows
+   * MSI has no Authenticode signature; the macOS app is ad-hoc signed only, no
+   * Developer ID, not notarized). Owner chose to ship unsigned. Set `signed`
+   * to true once they are, and the trust note disappears.
+   */
+  install: {
+    signed: false,
+    trustNote: "The first time, your computer may ask if you trust the app. That's normal for new apps.",
+    macNote: 'On a Mac, right-click the app and choose Open. On newer macOS, go to System Settings, Privacy & Security, and choose Open Anyway.',
+  },
+  /** Closing line on /tools, linked to RESEARCH_LAB.url. */
+  closing: `Made by the ${RESEARCH_LAB.name}, because great work shouldn’t depend on what you can afford.`,
   licence: 'MIT OR Apache-2.0',
   maker: 'Ubunye AI Ecosystems',
   systemRequirements: 'Windows (x64, x86 or Arm), macOS (Apple silicon or Intel) or Linux (x86_64 or Arm64). Or use the browser version.',
@@ -1487,6 +1644,14 @@ export const UBUNYE_STUDIO = {
         credit: 'Based on LightCraft by the ArtCraft team',
         url: 'https://github.com/storytold/lightcraft',
       },
+      plain: 'Develop the photos from your camera. Make them brighter, warmer and sharper, even RAW files.',
+      audience: 'For photographers.',
+      media: {
+        mp4: '/ubunye/media/light.mp4',
+        webm: '/ubunye/media/light.webm',
+        poster: '/ubunye/media/light-poster.webp',
+        alt: 'Ubunye Light in the browser: contrast, warmth and vibrance sliders move and a pale lake photo turns vivid.',
+      },
     },
     {
       slug: 'photo',
@@ -1509,6 +1674,14 @@ export const UBUNYE_STUDIO = {
         name: 'PhotoCraft',
         credit: 'Based on PhotoCraft by the ArtCraft team',
         url: 'https://github.com/storytold/photocraft',
+      },
+      plain: 'Edit and retouch pictures, like Photoshop. Opens Photoshop files.',
+      audience: 'For designers and retouchers.',
+      media: {
+        mp4: '/ubunye/media/photo.mp4',
+        webm: '/ubunye/media/photo.webm',
+        poster: '/ubunye/media/photo-poster.webp',
+        alt: 'Ubunye Photo in the browser: a Brightness and Contrast layer is added to a dark night photo and the building lights up.',
       },
     },
     {
@@ -1533,6 +1706,14 @@ export const UBUNYE_STUDIO = {
         name: 'FilmCraft',
         credit: 'Based on FilmCraft by the ArtCraft team',
         url: 'https://github.com/storytold/filmcraft',
+      },
+      plain: 'Cut your video, fix the colour and sound, and export it.',
+      audience: 'For filmmakers and content creators.',
+      media: {
+        mp4: '/ubunye/media/film.mp4',
+        webm: '/ubunye/media/film.webm',
+        poster: '/ubunye/media/film-poster.webp',
+        alt: 'Ubunye Film in the browser: a clip is trimmed on the timeline, then its colour is warmed and made richer.',
       },
     },
   ] as readonly UbunyeStudioApp[],

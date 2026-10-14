@@ -22,6 +22,8 @@ import { runOverdueLadder } from '@/lib/rental/workers';
 import { buildNotices } from '@/lib/core/rental/notifications';
 import { SupabaseAddressRetention, purgeDeliveryAddresses } from '@/lib/delivery/jobs';
 import { pruneLogs } from '@/lib/cron/retention';
+import { purgeExpiredIntake } from '@/lib/roles/retention';
+import { SupabaseIntakeRetention } from '@/lib/roles/retention-store';
 import { sortUnpaidServiceBookings, verifyAndConfirmServiceBooking } from '@/lib/payments/service-payment-check';
 import { answerWindowPassed, needsAnswerReminder } from '@/lib/bookings/answer-by';
 import {
@@ -47,6 +49,7 @@ import {
  * 9. Auto-escalate unreturned gear to disputes (14+ days overdue)
  * 10. Auto-flag/suspend users with 3+ active disputes
  * 11. Auto-suspend users with gear overdue 30+ days
+ * 17b. People: delete private CV and voice files past retention (TASK-085)
  * 19. Discovery sweep: ping IndexNow with pages changed in the last day
  */
 export async function GET(request: NextRequest): Promise<NextResponse> {
@@ -848,6 +851,16 @@ Please contact the client and the creator. They are not paid out or refunded aut
     results.logRetention = await pruneLogs(supabase);
   } catch (err) {
     results.logRetention = { error: String(err) };
+  }
+
+  // ─── 17b. People: private CV and voice files past retention (TASK-085) ───
+  // ROLES_POLICY.cvRetentionDays after upload: the file and its evidence row
+  // go, the reviewed facts stay. No-op while roles_v1 is off or before 091.
+  // Counts only in the result; never names or paths.
+  try {
+    results.peopleIntakeRetention = await purgeExpiredIntake(new SupabaseIntakeRetention(supabase), now);
+  } catch (err) {
+    results.peopleIntakeRetention = { error: err instanceof Error ? err.message.slice(0, 120) : 'failed' };
   }
 
   // ─── 18. Lifecycle emails and push (lib/engagement) ──────────────────────

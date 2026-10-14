@@ -89,6 +89,8 @@ export const ADMIN_SECTIONS: AdminSection[] = [
     tools: [
       { label: 'Everyone', href: '/admin/users', hint: 'Find a person, suspend or restore an account', keywords: 'users customers creators accounts suspend' },
       { label: 'ID checks', href: '/admin/verifications', hint: 'Approve or decline identity documents', countKey: 'idChecks', keywords: 'verification identity kyc' },
+      { label: 'Role profiles', href: '/admin/roles', hint: 'Check proof from make-up artists, models, drivers and more', keywords: 'roles join proof review makeup model driver crew' },
+      { label: 'Try the matcher', href: '/admin/roles/match', hint: 'Who fits a request (work only, never names or faces)', keywords: 'match embeddings people search' },
       { label: 'Welcome messages', href: '/admin/welcomes', hint: 'Check and send welcome notes to new people', countKey: 'welcomes', keywords: 'welcome email onboarding' },
       { label: 'Customer emails', href: '/admin/engagement', hint: 'Welcome, reminders and tips the site sent by itself', keywords: 'lifecycle email nudge reminder push notifications engagement unsubscribe' },
       { label: 'Outreach', href: '/admin/outreach', hint: 'Draft emails to win new business clients', keywords: 'outreach clients marketing email agencies' },

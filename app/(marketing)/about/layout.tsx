@@ -5,7 +5,7 @@ export const revalidate = 60;
 
 export const metadata = buildPageMetadata({
   title: `About ${STUDIO.shortName}`,
-  description: `${STUDIO.shortName} rents camera, lighting and sound gear in ${STUDIO.location.city}, and takes photo and video shoots by request.`,
+  description: `Book what a shoot needs on ${STUDIO.shortName}: camera, lighting and sound gear in ${STUDIO.location.city}, and photo and video shoots. Plus free creative apps from our research lab.`,
   path: '/about',
 });
 

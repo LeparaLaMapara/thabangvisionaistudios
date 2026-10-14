@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { describeFile, formatSize, groupDownloads, parseUbunyeRelease, pickerFiles, UBUNYE_DOWNLOADS_BASE, type UbunyeRelease } from '@/lib/ubunye-release';
+import { describeFile, formatSize, groupDownloads, parseUbunyeRelease, pickerFiles, primaryInstallers, UBUNYE_DOWNLOADS_BASE, type UbunyeRelease } from '@/lib/ubunye-release';
 
 const B = 'https://downloads.thabangvision.com/light/0.5.0';
 const file = (name: string, size = 80 * 1048576) => ({ name, url: `${B}/${name}`, size, sha256: 'ab' });
@@ -100,5 +100,21 @@ describe('pickerFiles', () => {
     const p = pickerFiles(release);
     expect(p.macos.filter((f) => f.main).map((f) => f.name)).toEqual(['ubunye-creative-film-0.5.0-macos-universal.dmg']);
     expect(p.macos.find((f) => f.name.includes('-cli-'))?.main).toBe(false);
+  });
+});
+
+describe('primaryInstallers', () => {
+  it('suggests the x64 .msi, the universal .dmg and the x64 AppImage', () => {
+    const p = primaryInstallers(release);
+    expect(p.windows?.url).toBe(`${B}/ubunye-creative-light-0.5.0-windows-x64.msi`);
+    expect(p.macos?.url).toBe(`${B}/ubunye-creative-light-0.5.0-macos-universal.dmg`);
+    expect(p.linux?.url).toBe(`${B}/ubunye-creative-light-0.5.0-linux-x86_64.AppImage`);
+  });
+
+  it('falls back to another arch, and to null without a release', () => {
+    const armOnly = { ...release, files: [file('ubunye-creative-light-0.5.0-windows-arm64.msi')] };
+    expect(primaryInstallers(armOnly).windows?.url).toBe(`${B}/ubunye-creative-light-0.5.0-windows-arm64.msi`);
+    expect(primaryInstallers(armOnly).macos).toBeNull();
+    expect(primaryInstallers(null)).toEqual({ windows: null, macos: null, linux: null });
   });
 });
