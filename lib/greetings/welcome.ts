@@ -2,7 +2,7 @@ import { STUDIO, ADMIN_EMAILS } from '@/lib/constants';
 import { SIGNATURE_TEXT } from '@/lib/email/signature';
 
 /**
- * Welcoming new people (TASK-065). Pure: no database, no AI, no email, so the
+ * Welcoming new people (TASK-065). Pure: no database, no email, so the
  * rules are tested directly. lib/greetings/process.ts does the I/O.
  *
  * Privacy rule: the only personal data that goes into a draft, or to an AI
@@ -85,59 +85,24 @@ export function describeActivity(a: SignupActivity): string[] {
   return done.length > 0 ? done : ['Nothing yet beyond signing up'];
 }
 
-/** The one next step that suits what they came for. */
-export function nextStepFor(a: SignupActivity): string {
-  if (a.intent === 'list') {
-    return `To list your gear, add a photo at ${STUDIO.meta.url}/dashboard/listings and check the details we suggest. We check your ID once before anything goes live.`;
-  }
-  if (a.intent === 'supply') {
-    return `To offer your services, finish the short setup at ${STUDIO.meta.url}/onboarding. We check your ID once before anything goes live.`;
-  }
-  if (a.intent === 'hire') {
-    return `To book a photographer or videographer, pick a package at ${STUDIO.meta.url}/studio. You see the full price before you pay.`;
-  }
-  if (a.verification === 'verified') {
-    return `Your ID check has passed, so you can book gear straight away at ${STUDIO.meta.url}/rentals.`;
-  }
-  if (a.verification === 'pending') {
-    return `Your ID check is with us. A person checks it ${STUDIO.verification.reviewTime}, and then you can book gear.`;
-  }
-  return `To rent gear, do the one-time ID check at ${STUDIO.meta.url}/dashboard/verification (a photo of your ID and a selfie). A person checks it ${STUDIO.verification.reviewTime}.`;
-}
-
-/** Instructions for the AI. Carries only the first name and site activity. */
-export function welcomePrompt(ctx: WelcomeContext): { system: string; prompt: string } {
-  const system = [
-    `You write short welcome emails for ${STUDIO.name}, a Johannesburg company where people rent camera gear and book photographers and videographers.`,
-    'Write like a friendly person, not a company. Plain words a first-time online buyer understands. No dashes, no emojis, no exclamation marks in a row, no marketing claims, no discounts or offers.',
-    'At most 120 words. Start with "Hi <first name>," or "Hi," if there is no name. Say who we are in one sentence, give the one next step exactly as provided, and end by inviting them to reply to this email with any question.',
-    'Do not add a closing line or a sign off; we add the signature.',
-    'Reply with the email body only, no subject line.',
-  ].join('\n');
-
-  const prompt = [
-    `First name: ${ctx.firstName ?? '(unknown)'}`,
-    `What they have done so far: ${describeActivity(ctx.activity).join('; ')}.`,
-    `The one next step: ${nextStepFor(ctx.activity)}`,
-  ].join('\n');
-
-  return { system, prompt };
-}
-
 export function welcomeSubject(ctx: WelcomeContext): string {
   return ctx.firstName ? `Welcome to ${STUDIO.name}, ${ctx.firstName}` : `Welcome to ${STUDIO.name}`;
 }
 
-/** Used when no AI provider is available. Same facts, same rules. */
+/**
+ * The welcome email: one fixed text for everyone, in the owner's words
+ * (2026-10-14). Only the name changes, and "Hi," is used when no name is known.
+ * No AI, no per-person next step: every new person reads the same message.
+ */
 export function welcomeTemplate(ctx: WelcomeContext): WelcomeDraft {
   const body = [
     ctx.firstName ? `Hi ${ctx.firstName},` : 'Hi,',
     '',
-    `Thank you for joining ${STUDIO.name}. We rent out camera gear and connect you with photographers and videographers in Gauteng.`,
+    `Thank you for joining ${STUDIO.name}. We rent out cameras and connect you with photographers and videographers in Gauteng.`,
     '',
-    nextStepFor(ctx.activity),
+    `To rent gear, do the one-time ID check at ${STUDIO.meta.url}/dashboard/verification (a photo of your ID and a selfie). A person checks it ${STUDIO.verification.reviewTime}.`,
     '',
-    'If anything is unclear, just reply to this email and a person will answer.',
+    'If anything is unclear, just reply to this email and a person will reply.',
     '',
     SIGNATURE_TEXT,
   ].join('\n');

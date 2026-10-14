@@ -1,20 +1,14 @@
 import { createAdminClient } from '@/lib/supabase/server';
-import { generateWithFallback } from '@/lib/ai/resilient';
-import { logTokenUsage } from '@/lib/ai/tracked';
 import { email as emailProvider } from '@/lib/email';
 import { STUDIO } from '@/lib/constants';
 import { checkRateLimit } from '@/lib/auth';
 import { sendLifecycleEmail } from '@/lib/engagement/send';
 import { contentFromText } from '@/lib/engagement/templates';
-import { withTextSignature } from '@/lib/email/signature';
 import { isUnsubscribeConfigured } from '@/lib/engagement/unsubscribe';
 import {
   describeActivity,
   firstNameFrom,
   isInternalAccount,
-  isSafeDraft,
-  welcomePrompt,
-  welcomeSubject,
   welcomeTemplate,
   type SignupActivity,
   type WelcomeContext,
@@ -82,24 +76,9 @@ export async function loadWelcomeContext(
   };
 }
 
-/** Ubunye's draft, or the plain template when no AI provider answers. */
+/** The welcome: always the one fixed text (owner, 2026-10-14). */
 export async function draftWelcome(ctx: WelcomeContext): Promise<{ subject: string; body: string; draftedBy: string }> {
-  try {
-    if (!(await checkRateLimit('signup-ai-draft', STUDIO.welcomes.aiDraftsPerHour, 3_600_000))) {
-      throw new Error('hourly AI draft cap reached');
-    }
-    const { system, prompt } = welcomePrompt(ctx);
-    const out = await generateWithFallback({ ref: 'fast', system, prompt, maxOutputTokens: 400, temperature: 0.6 });
-    logTokenUsage({ agentId: 'welcome', provider: out.servedBy, model: out.modelId, usage: out.usage });
-    const body = out.text.trim();
-    // The one signature, in place of any sign-off the model wrote anyway.
-    if (isSafeDraft(body)) return { subject: welcomeSubject(ctx), body: withTextSignature(body), draftedBy: `ai:${out.servedBy}` };
-    console.warn('[welcome] AI draft rejected by the safety check; using the template');
-  } catch (err) {
-    console.error('[welcome] AI draft failed; using the template:', err instanceof Error ? err.message : err);
-  }
-  const t = welcomeTemplate(ctx);
-  return { ...t, draftedBy: 'template' };
+  return { ...welcomeTemplate(ctx), draftedBy: 'template' };
 }
 
 /**
@@ -159,8 +138,8 @@ export async function processSignup(
           ...describeActivity(loaded.ctx.activity).map((l) => `- ${l}`),
           '',
           STUDIO.welcomes.autoSendAfterHours === null
-            ? `Ubunye has drafted a welcome for them. Read, edit and send it at ${STUDIO.meta.url}/admin/welcomes`
-            : `Ubunye has drafted a welcome for them. It goes out by itself once their email is confirmed. See it at ${STUDIO.meta.url}/admin/welcomes`,
+            ? `Their welcome is ready. Read, edit and send it at ${STUDIO.meta.url}/admin/welcomes`
+            : `Their welcome is ready. It goes out by itself once their email is confirmed. See it at ${STUDIO.meta.url}/admin/welcomes`,
         ].join('\n'),
       })
       .catch((err) => console.error('[welcome] owner note failed:', err));
