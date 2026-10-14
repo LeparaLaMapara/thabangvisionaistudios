@@ -1680,7 +1680,7 @@ export const UBUNYE_STUDIO = {
         mp4: '/ubunye/media/light.mp4',
         webm: '/ubunye/media/light.webm',
         poster: '/ubunye/media/light-poster.webp',
-        alt: 'Ubunye Light in the browser: contrast, warmth and vibrance sliders move and a pale lake photo turns vivid.',
+        alt: 'Ubunye Light in the browser: exposure, shadows, warmth and vibrance sliders move and a dark family portrait of a grandfather and grandson brightens and warms.',
       },
     },
     {
@@ -1743,7 +1743,7 @@ export const UBUNYE_STUDIO = {
         mp4: '/ubunye/media/film.mp4',
         webm: '/ubunye/media/film.webm',
         poster: '/ubunye/media/film-poster.webp',
-        alt: 'Ubunye Film in the browser: a clip is trimmed on the timeline, then its colour is warmed and made richer.',
+        alt: 'Ubunye Film in the browser: a behind-the-scenes studio clip is trimmed on the timeline, then its colour is warmed and made richer.',
       },
     },
   ] as readonly UbunyeStudioApp[],
