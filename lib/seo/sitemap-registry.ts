@@ -81,6 +81,12 @@ export const NOT_IN_SITEMAP: Record<string, 'noindex' | 'redirect'> = {
   '/support/tech': 'noindex',
   '/support/report-bug': 'noindex',
   '/qr': 'noindex',
+  // Many roles, honest proof (TASK-085): noindex while the roles_v1 trial
+  // runs (demo profiles live on dev). Move to SITEMAP_ROUTES at launch.
+  '/join': 'noindex',
+  '/join/[role]': 'noindex',
+  '/people': 'noindex',
+  '/people/[id]': 'noindex',
   // Retired gear and past work: nothing on it can be booked.
   '/archive': 'noindex',
   // Old or duplicate addresses that redirect to the real page.

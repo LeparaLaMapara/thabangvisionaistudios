@@ -5,9 +5,10 @@ type HrefEntry = { href: string } & Record<string, unknown>;
 const HREF_TO_FLAG: Array<{ pattern: RegExp; flag: FeatureKey }> = [
   { pattern: /^\/studio(\/|$)/, flag: 'smart_productions' },
   { pattern: /^\/tools(\/|$)/, flag: 'creative_tools' },
+  { pattern: /^\/join(\/|$)/, flag: 'roles_v1' },
 ];
 
-const NAV_FLAGS: readonly FeatureKey[] = ['smart_productions', 'creative_tools'];
+const NAV_FLAGS: readonly FeatureKey[] = ['smart_productions', 'creative_tools', 'roles_v1'];
 
 // A flag missing from flagsState counts as off.
 function isGatedHref(href: string, flagsState: Partial<Record<FeatureKey, boolean>>): boolean {
