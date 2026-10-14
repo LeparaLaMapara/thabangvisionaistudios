@@ -57,7 +57,7 @@ export function detectFraudFlags(
   }
 
   // 4. GPS outside South Africa
-  if (selfie.gps) {
+  if (selfie.gps && Number.isFinite(selfie.gps.latitude) && Number.isFinite(selfie.gps.longitude)) {
     const { latitude, longitude } = selfie.gps;
     const inSA =
       latitude >= -35 && latitude <= -22 && longitude >= 16 && longitude <= 33;

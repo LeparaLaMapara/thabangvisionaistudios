@@ -24,7 +24,7 @@ import { createClient } from '@/lib/supabase/client';
 import { DashboardSubTabs, ACCOUNT_TABS_USER } from '@/components/dashboard/DashboardSubTabs';
 import { ConsentStep } from '@/components/verification/ConsentStep';
 import type { PhotoMetadata } from '@/lib/metadata/verification';
-import { ID_PHOTO_ACCEPT, submitErrorMessage, validateIdPhoto } from '@/lib/verification/photo-format';
+import { submitErrorMessage, validateIdPhoto } from '@/lib/verification/photo-format';
 import { preparePhoto } from '@/lib/verification/prepare-photo';
 
 type VerificationStatus = 'unverified' | 'pending' | 'verified' | 'rejected';
@@ -41,7 +41,8 @@ interface FileSlot {
   label: string;
   description: string;
   key: string;
-  mode: 'upload' | 'camera';
+  /** Which camera takes it: the back camera for the ID, the front one for the selfie. */
+  facing: 'environment' | 'user';
   file: File | null;
   preview: string | null;
   /** EXIF read from the original before any conversion (lib/verification/prepare-photo.ts). */
@@ -141,9 +142,9 @@ function VerificationPageInner() {
   const [files, setFiles] = useState<FileSlot[]>([
     {
       label: 'Photo of your ID',
-      description: 'A clear photo of your ID card (front) or the photo page of your ID book. All the text must be readable. No certified copy needed.',
+      description: 'Take a photo of your ID card (front), the photo page of your ID book or your passport. Fill the frame and make sure all the text is sharp.',
       key: 'id_copy',
-      mode: 'upload',
+      facing: 'environment',
       file: null,
       preview: null,
       meta: null,
@@ -152,7 +153,7 @@ function VerificationPageInner() {
       label: 'Selfie with your ID',
       description: 'Hold your ID next to your face and take a photo. We need to see both your face and your ID clearly.',
       key: 'selfie_with_id',
-      mode: 'camera',
+      facing: 'user',
       file: null,
       preview: null,
       meta: null,
@@ -260,7 +261,7 @@ function VerificationPageInner() {
   const handleSubmit = async () => {
     const allUploaded = files.every((slot) => slot.file !== null);
     if (!allUploaded) {
-      setError('Please upload all required photos.');
+      setError('Please take both photos.');
       return;
     }
 
@@ -465,7 +466,7 @@ function VerificationPageInner() {
                   </p>
                 ) : (
                   <p className="text-xs font-mono text-neutral-400">
-                    Please re-upload your documents below to try again.
+                    Please take the photos again below.
                     <span className="text-neutral-400 ml-2">
                       (Attempt {attempts} of {MAX_ATTEMPTS})
                     </span>
@@ -637,82 +638,7 @@ function PhotoPreview({
   );
 }
 
-/* ── Upload dropzone (for ID copy) ─────────────────────────────────────────── */
-
-function UploadDropzone({
-  slot,
-  onFileChange,
-}: {
-  slot: FileSlot;
-  onFileChange: (file: File | null) => void;
-}) {
-  const inputRef = useRef<HTMLInputElement>(null);
-  const [validationError, setValidationError] = useState<string | null>(null);
-
-  const handleFile = (file: File) => {
-    const result = validateImage(file);
-    if (!result.valid) {
-      setValidationError(result.error ?? 'Invalid file.');
-      return;
-    }
-    setValidationError(null);
-    onFileChange(file);
-  };
-
-  return (
-    <div>
-      {validationError && (
-        <div className="mb-2 text-xs font-mono text-red-400 flex items-center gap-1.5">
-          <AlertTriangle className="w-3 h-3" />
-          {validationError}
-        </div>
-      )}
-
-      <div
-        onDragOver={(e) => e.preventDefault()}
-        onDrop={(e) => {
-          e.preventDefault();
-          const dropped = e.dataTransfer.files[0];
-          if (dropped) handleFile(dropped);
-        }}
-        onClick={() => inputRef.current?.click()}
-        className={[
-          'border-2 border-dashed p-4 text-center cursor-pointer transition-colors',
-          slot.file
-            ? 'border-emerald-500/30 bg-emerald-500/5'
-            : 'border-white/10 hover:border-white/20 bg-neutral-900',
-        ].join(' ')}
-      >
-        <input
-          ref={inputRef}
-          type="file"
-          accept={ID_PHOTO_ACCEPT}
-          onChange={(e) => {
-            const f = e.target.files?.[0];
-            if (f) handleFile(f);
-          }}
-          className="hidden"
-        />
-
-        {slot.file ? (
-          <PhotoPreview slot={slot} onRemove={() => { setValidationError(null); onFileChange(null); }} />
-        ) : (
-          <div className="py-4">
-            <Upload className="w-6 h-6 text-neutral-400 mx-auto mb-2" />
-            <p className="text-xs font-mono text-neutral-400">
-              Click to upload or drag &amp; drop
-            </p>
-            <p className="text-xs font-mono text-neutral-400 mt-1">
-              PDF, JPG, PNG, WebP, HEIC accepted
-            </p>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-/* ── Camera capture (for selfie — webcam on desktop, native on mobile) ─────── */
+/* ── Camera capture (both photos: the phone's camera, or the webcam on a computer) ── */
 
 function CameraCapture({
   slot,
@@ -758,7 +684,7 @@ function CameraCapture({
     setVideoReady(false);
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } },
+        video: { facingMode: { ideal: slot.facing }, width: { ideal: 1920 }, height: { ideal: 1080 } },
       });
       streamRef.current = stream;
       setCameraOpen(true);
@@ -791,7 +717,7 @@ function CameraCapture({
           setCameraError('Failed to capture photo. Please try again.');
           return;
         }
-        const file = new File([blob], 'selfie.jpg', { type: 'image/jpeg' });
+        const file = new File([blob], `${slot.key}.jpg`, { type: 'image/jpeg' });
         stopCamera();
         onFileChange(file);
       },
@@ -833,7 +759,7 @@ function CameraCapture({
         ref={mobileInputRef}
         type="file"
         accept="image/*"
-        capture="user"
+        capture={slot.facing}
         onChange={handleMobileCapture}
         className="hidden"
       />
@@ -854,7 +780,7 @@ function CameraCapture({
             muted
             onLoadedMetadata={() => setVideoReady(true)}
             className="w-full max-h-80 mx-auto rounded object-cover"
-            style={{ transform: 'scaleX(-1)' }}
+            style={slot.facing === 'user' ? { transform: 'scaleX(-1)' } : undefined}
           />
           <div className="flex items-center justify-center gap-4">
             <button
@@ -886,7 +812,9 @@ function CameraCapture({
               {isMobile ? 'Tap to open camera' : 'Click to open camera'}
             </p>
             <p className="text-xs font-mono text-neutral-400 mt-1">
-              Take a photo with your {isMobile ? 'phone' : 'webcam'}
+              {slot.facing === 'environment'
+                ? `Take a photo of your ID with your ${isMobile ? 'phone' : 'webcam'}`
+                : `Take a photo with your ${isMobile ? 'phone' : 'webcam'}`}
             </p>
           </div>
         </div>
@@ -895,7 +823,7 @@ function CameraCapture({
   );
 }
 
-/* ── Route to correct input per slot mode ──────────────────────────────────── */
+/* ── Every photo is taken now, never picked from files ───────────────────── */
 
 function PhotoDropzone({
   slot,
@@ -904,8 +832,5 @@ function PhotoDropzone({
   slot: FileSlot;
   onFileChange: (file: File | null) => void;
 }) {
-  if (slot.mode === 'camera') {
-    return <CameraCapture slot={slot} onFileChange={onFileChange} />;
-  }
-  return <UploadDropzone slot={slot} onFileChange={onFileChange} />;
+  return <CameraCapture slot={slot} onFileChange={onFileChange} />;
 }

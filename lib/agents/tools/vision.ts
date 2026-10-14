@@ -1,6 +1,7 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { RENTAL_CATEGORIES, type RentalCategorySlug } from '@/lib/constants';
 import { trackedCompletion } from '@/lib/ai/tracked';
+import { firstJsonObject } from '@/lib/ai/json-answer';
 import { fetchImageAsBase64Safe } from '@/lib/security/safe-fetch';
 import type {
   FaceMatchResult,
@@ -66,10 +67,8 @@ export async function identifyGear(
       ]);
 
       const text = result.response.text().trim();
-      const jsonMatch = text.match(/\{[\s\S]*\}/);
-      if (!jsonMatch) throw new Error('Failed to parse gear identification response');
-
-      const parsed = JSON.parse(jsonMatch[0]) as Record<string, unknown>;
+      const parsed = firstJsonObject(text);
+      if (!parsed) throw new Error('Failed to parse gear identification response');
       const validCategory = RENTAL_CATEGORIES.find(c => c.value === parsed.category);
       if (!validCategory) parsed.category = 'specialized-solutions' satisfies RentalCategorySlug;
 
@@ -126,10 +125,8 @@ export async function matchFacesFromData(
       ]);
 
       const text = result.response.text().trim();
-      const jsonMatch = text.match(/\{[\s\S]*\}/);
-      if (!jsonMatch) throw new Error('Failed to parse face-match response');
-
-      const parsed = JSON.parse(jsonMatch[0]) as FaceMatchResult;
+      const parsed = firstJsonObject(text) as Partial<FaceMatchResult> | null;
+      if (!parsed) throw new Error('Failed to parse face-match response');
 
       return {
         result: {
@@ -179,11 +176,11 @@ export async function readIdDocument(
       ]);
 
       const text = result.response.text().trim();
-      const jsonMatch = text.match(/\{[\s\S]*\}/);
-      if (!jsonMatch) throw new Error('Failed to parse ID reading response');
+      const parsed = firstJsonObject(text);
+      if (!parsed) throw new Error('Failed to parse ID reading response');
 
       return {
-        result: JSON.parse(jsonMatch[0]) as unknown,
+        result: parsed as unknown,
         usage: extractUsage(result.response.usageMetadata),
       };
     },

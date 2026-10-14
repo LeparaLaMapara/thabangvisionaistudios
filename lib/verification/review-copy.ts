@@ -14,3 +14,13 @@ export async function makeReviewCopy(original: Buffer): Promise<Buffer> {
     .jpeg({ quality: 85, mozjpeg: true })
     .toBuffer();
 }
+
+/** Width and height of a photo as stored (before EXIF rotation; the shortest side is what matters). */
+export async function photoSize(original: Buffer): Promise<{ width: number; height: number } | null> {
+  try {
+    const { width, height } = await sharp(original, { limitInputPixels: 120_000_000 }).metadata();
+    return width && height ? { width, height } : null;
+  } catch {
+    return null;
+  }
+}
