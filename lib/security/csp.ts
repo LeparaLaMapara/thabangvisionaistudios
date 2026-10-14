@@ -60,7 +60,7 @@ export function buildCsp(nonce: string, opts: { dev?: boolean } = {}): string {
     "img-src 'self' https://res.cloudinary.com https://*.supabase.co https://images.unsplash.com https://i.ytimg.com https://img.youtube.com data: blob:",
     "font-src 'self'",
     "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.anthropic.com https://api.paystack.co https://js.paystack.co https://api.cloudinary.com https://va.vercel-scripts.com https://vitals.vercel-insights.com https://nominatim.openstreetmap.org https://accounts.google.com/gsi/",
-    "frame-src https://accounts.google.com/gsi/ https://checkout.paystack.com https://www.youtube.com https://player.vimeo.com",
+    "frame-src https://accounts.google.com/gsi/ https://checkout.paystack.com https://www.youtube.com https://www.youtube-nocookie.com https://player.vimeo.com",
     "frame-ancestors 'none'",
     "media-src 'self' https://res.cloudinary.com",
     // The push service worker (/sw.js). Stated outright: workers fall back to
