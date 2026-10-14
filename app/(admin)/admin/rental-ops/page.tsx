@@ -31,6 +31,15 @@ interface RefundRow {
   booking_ids: string[] | null;
   created_at: string;
   updated_at: string;
+  /** Only on a failed card refund: the renter's bank account, if they added one. */
+  bank?: {
+    bank_name: string | null;
+    account_last4: string | null;
+    account_holder: string | null;
+    validated: boolean;
+    recipient_code: string | null;
+    updated_at: string | null;
+  } | null;
 }
 
 interface PayoutRow {
@@ -414,6 +423,7 @@ export default function RentalOpsPage() {
                       ]}
                     />
                     {r.last_error && <ErrorLine text={r.last_error} />}
+                    {r.bank !== undefined && <RefundBankLine bank={r.bank} />}
                     <Actions>
                       <Button
                         variant="outline"
@@ -856,3 +866,24 @@ function NoteForm({
     </form>
   );
 }
+
+/* ── A failed card refund: has the renter added a bank account? ─────────────── */
+
+function RefundBankLine({ bank }: { bank: NonNullable<RefundRow['bank']> | null }) {
+  if (!bank) {
+    return (
+      <p className="text-xs font-mono text-amber-400 mt-2">
+        No bank account yet. The renter has been asked to add one (email, phone and SMS when SMS is on).
+      </p>
+    );
+  }
+  return (
+    <p className="text-xs font-mono text-neutral-300 mt-2">
+      Bank account added: {bank.bank_name ?? 'bank'} ending {bank.account_last4 ?? '????'}, {bank.account_holder ?? 'holder not given'}
+      {bank.validated ? ' (validated)' : ' (NOT validated: check the name with them)'}
+      {bank.recipient_code && <> · Paystack recipient {bank.recipient_code}</>}
+      . Pay it from Paystack Transfers to this recipient.
+    </p>
+  );
+}
+

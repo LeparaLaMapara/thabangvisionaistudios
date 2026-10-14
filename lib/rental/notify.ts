@@ -67,6 +67,15 @@ export const DELIVERY_PUSH_KINDS: ReadonlySet<RentalNoticeKind> = new Set<Rental
   'delivery_return_collected',
 ]);
 
+/** Pushed to the phone straight away too: delivery updates, and anything the renter must act on. */
+export const PHONE_PUSH_KINDS: ReadonlySet<RentalNoticeKind> = new Set<RentalNoticeKind>([
+  ...DELIVERY_PUSH_KINDS,
+  'refund_failed',
+]);
+
+/** Where a renter adds the bank account a failed card refund is paid into. */
+export const BANK_DETAILS_PATH = '/dashboard/profile#banking-details-section';
+
 const money = (cents: unknown): string => (typeof cents === 'number' && Number.isFinite(cents) ? formatRand(cents / 100, { decimals: cents % 100 !== 0 }) : '');
 
 /** Wording for each notice. Pure, so it is tested. */
@@ -107,7 +116,18 @@ export function rentalNoticeText(kind: RentalNoticeKind, data: OutboxMessage['da
     case 'refund_processed':
       return { title: 'Refund processed', body: `The payment provider has processed your refund of ${amount}.` };
     case 'refund_failed':
-      return { title: 'Refund problem', body: `Your refund of ${amount} could not be completed automatically. We are looking into it and will contact you.` };
+      // The card refund was refused (often a cancelled or replaced card). The
+      // money is paid into their bank account instead, so ask for it, unless
+      // a validated account is already on file (data.hasBankAccount, read at send).
+      return data.hasBankAccount === true
+        ? {
+            title: 'Your refund is coming by bank transfer',
+            body: `We could not refund ${amount || 'your money'} to the card you paid with (the card may be cancelled or replaced). We will pay it into the bank account you saved with us instead. You do not need to do anything.`,
+          }
+        : {
+            title: 'Your refund needs your bank details',
+            body: `We could not refund ${amount || 'your money'} to the card you paid with (the card may be cancelled or replaced). Please add your bank details so we can pay it into your account instead.`,
+          };
     case 'late_payment_refund':
       return {
         title: 'Payment received after your hold expired',
@@ -191,6 +211,7 @@ export function rentalNoticeText(kind: RentalNoticeKind, data: OutboxMessage['da
 
 function linkFor(m: OutboxMessage): string {
   if (m.kind === 'staff_alert') return '/admin/rental-ops';
+  if (m.kind === 'refund_failed' && m.data?.hasBankAccount !== true) return BANK_DETAILS_PATH;
   if (m.kind === 'owner_pickup_scheduled' || m.kind === 'owner_pickup_collected' || m.kind === 'owner_gear_returned') return '/dashboard/listings#owner-pickups';
   return m.bookingIds[0] ? `/dashboard/bookings/${m.bookingIds[0]}` : '/dashboard/bookings';
 }
@@ -203,9 +224,16 @@ function linkFor(m: OutboxMessage): string {
  */
 export async function noticeData(
   db: Pick<ReturnType<typeof createAdminClient>, 'from'>,
-  m: Pick<OutboxMessage, 'kind' | 'bookingIds' | 'data'>,
+  m: Pick<OutboxMessage, 'kind' | 'bookingIds' | 'data'> & { userId?: string },
 ): Promise<OutboxMessage['data']> {
   if (m.kind === 'delivery_on_the_way' && m.bookingIds.length > 0) return onTheWayData(db, m);
+  if (m.kind === 'refund_failed' && m.userId && m.userId !== 'staff') {
+    const { data, error } = await db.from('banking_details').select('is_verified, paystack_recipient_code').eq('user_id', m.userId).maybeSingle();
+    // Never tell them "nothing to do" on a failed read: retried instead.
+    if (error) throw new Error(`bank details lookup failed: ${error.message}`);
+    const bank = data as { is_verified?: boolean | null; paystack_recipient_code?: string | null } | null;
+    return { ...m.data, hasBankAccount: bank?.is_verified === true && !!bank.paystack_recipient_code };
+  }
   if (m.kind !== 'booking_confirmed' || m.bookingIds.length === 0) return m.data;
   const { data, error } = await db.from('equipment_bookings').select('fulfilment_method').in('id', m.bookingIds);
   // Never guess "collection" on a failed read: the delivery is retried instead.
@@ -291,7 +319,7 @@ export const supabaseNotify: NotifyPort = {
       return { ok: false, retryable: true, message: err instanceof Error ? err.message : 'notice data unavailable' };
     }
     const { title, body } = rentalNoticeText(m.kind, facts);
-    const link = linkFor(m);
+    const link = linkFor({ ...m, data: facts });
 
     if (m.channel === 'in_app') {
       let userIds = [m.userId];
@@ -305,9 +333,10 @@ export const supabaseNotify: NotifyPort = {
         .insert(userIds.map((user_id) => ({ user_id, type: `rental_${m.kind}`, title, body, link })))
         .select('id, user_id');
       if (error) return { ok: false, retryable: true, message: error.message };
-      if (m.userId !== 'staff' && DELIVERY_PUSH_KINDS.has(m.kind)) {
+      if (m.userId !== 'staff' && PHONE_PUSH_KINDS.has(m.kind)) {
         // One tag per booking: each update replaces the last on the phone instead of stacking.
-        await pushDeliveryUpdate(db, (inserted ?? []) as { id: string; user_id: string }[], { title, body, url: link, tag: `delivery-${m.bookingIds[0] ?? 'update'}` });
+        const tag = `${DELIVERY_PUSH_KINDS.has(m.kind) ? 'delivery' : m.kind}-${m.bookingIds[0] ?? 'update'}`;
+        await pushDeliveryUpdate(db, (inserted ?? []) as { id: string; user_id: string }[], { title, body, url: link, tag });
       }
       return { ok: true };
     }
@@ -322,7 +351,7 @@ export const supabaseNotify: NotifyPort = {
         await emailProvider.sendEmail({
           to,
           subject: `${title} — ${STUDIO.name}`,
-          text: `${body}\n\nYour booking: ${STUDIO.meta.url}${link}\n\n${SIGNATURE_TEXT}`,
+          text: `${body}\n\n${link === BANK_DETAILS_PATH ? 'Add your bank details' : 'Your booking'}: ${STUDIO.meta.url}${link}\n\n${SIGNATURE_TEXT}`,
         });
         return { ok: true };
       } catch (err) {
@@ -335,7 +364,9 @@ export const supabaseNotify: NotifyPort = {
     const { data: profile } = await db.from('profiles').select('phone, phone_verified_at').eq('id', m.userId).maybeSingle();
     const p = profile as { phone?: string | null; phone_verified_at?: string | null } | null;
     if (!p?.phone || !p.phone_verified_at) return { ok: false, retryable: false, message: 'no verified phone' };
-    const r = await sms.send(p.phone, `${STUDIO.name}: ${body}`);
+    // A text the person must act on carries the link (the bank details page).
+    const smsText = link === BANK_DETAILS_PATH ? `${STUDIO.name}: ${body} ${STUDIO.meta.url}${link}` : `${STUDIO.name}: ${body}`;
+    const r = await sms.send(p.phone, smsText);
     return r.ok ? { ok: true } : { ok: false, retryable: true, message: r.error ?? 'sms failed' };
   },
 };

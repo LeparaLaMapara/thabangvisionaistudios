@@ -74,7 +74,8 @@ export const NOTICE_CHANNELS: Record<RentalNoticeKind, readonly NoticeChannel[]>
   inspection_completed: ['in_app', 'email'],
   refund_initiated: ['in_app', 'email'],
   refund_processed: ['in_app', 'email'],
-  refund_failed: ['in_app', 'email'],
+  // The renter must act (add bank details), so every channel, SMS included.
+  refund_failed: ['in_app', 'email', 'sms'],
   payout_scheduled: ['in_app', 'email'],
   payout_completed: ['in_app', 'email'],
   payout_failed: ['in_app', 'email'],
