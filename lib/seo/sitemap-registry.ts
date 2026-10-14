@@ -88,7 +88,11 @@ export const NOT_IN_SITEMAP: Record<string, 'noindex' | 'redirect'> = {
   '/people': 'noindex',
   '/people/[id]': 'noindex',
   '/offer': 'noindex',
-  '/offer/[role]': 'noindex',
+  '/offer/[role]': 'redirect',
+  '/offer/preview': 'noindex',
+  '/offer/guidelines': 'noindex',
+  '/people/[id]/request': 'noindex',
+  '/people/requests/[rid]': 'noindex',
   // Retired gear and past work: nothing on it can be booked.
   '/archive': 'noindex',
   // Old or duplicate addresses that redirect to the real page.

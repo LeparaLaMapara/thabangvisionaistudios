@@ -1,3 +1,7 @@
+import { STUDIO } from '@/lib/constants';
+
+const STUDIO_NAME = STUDIO.shortName;
+
 /**
  * The things people come to ThabangVision to do, asked once after signing up
  * (app/(platform)/welcome). One place, so the welcome page, the dashboard and
@@ -90,8 +94,8 @@ export const WELCOME_CHOICES_ROLES: readonly WelcomeChoice[] = [
   WELCOME_CHOICES[1],
   {
     intent: 'offer',
-    title: 'Offer something',
-    detail: 'Your skills, your gear or your vehicle. No portfolio needed.',
+    title: `Earn with ${STUDIO_NAME}`,
+    detail: 'Offer your skills, your gear or your vehicle.',
     href: OFFER_PATH,
   },
 ] as const;

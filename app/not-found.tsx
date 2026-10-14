@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { Header } from '@/components/layout/Header';
 import { Footer } from '@/components/layout/Footer';
 import { MAIN_NAVIGATION } from '@/lib/constants';
-import { filterNavForFlags } from '@/lib/nav';
+import { filterNavForFlags, footerSectionsForFlags } from '@/lib/nav';
 
 /**
  * A missing page keeps the site around it (header, menu, footer), so nobody
@@ -10,6 +10,7 @@ import { filterNavForFlags } from '@/lib/nav';
  */
 export default async function NotFound() {
   const navigation = await filterNavForFlags(MAIN_NAVIGATION);
+  const footerSections = await footerSectionsForFlags();
   return (
     <div className="flex flex-col min-h-screen bg-[#0A0A0B] text-white">
       <Header navigation={navigation} />
@@ -24,7 +25,7 @@ export default async function NotFound() {
           Return Home
         </Link>
       </main>
-      <Footer />
+      <Footer sections={footerSections} />
     </div>
   );
 }

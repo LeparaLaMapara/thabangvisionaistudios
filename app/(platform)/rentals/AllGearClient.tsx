@@ -132,8 +132,11 @@ export default function AllGearClient({
   rentals,
   initialCategory = ALL,
   loadFailed = false,
+  comingSoon = [],
 }: {
   rentals: RentalListItem[];
+  /** roles_v1: labels shown as coming-soon tiles (Studios and locations). */
+  comingSoon?: readonly string[];
   /** 'all', 'categories', or a category slug. */
   initialCategory?: string;
   loadFailed?: boolean;
@@ -235,6 +238,12 @@ export default function AllGearClient({
           <div className="grid grid-cols-2 gap-3 md:grid-cols-3 md:gap-5">
             {cats.map((c) => (
               <CategoryTile key={c.value} {...c} onOpen={go} />
+            ))}
+            {comingSoon.map((label) => (
+              <div key={label} className="flex min-h-[120px] flex-col justify-end border border-dashed border-white/15 p-4">
+                <span className="text-sm text-white">{label}</span>
+                <span className="text-xs font-mono uppercase tracking-widest text-neutral-500">Coming soon</span>
+              </div>
             ))}
           </div>
         ) : !loadFailed && shown.length === 0 ? (
