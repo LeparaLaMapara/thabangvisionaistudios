@@ -56,3 +56,18 @@ export async function readyForUpload(file: File): Promise<ReadyFile> {
   const prepared = await preparePhoto(file);
   return { file: await shrink(prepared.file), meta: prepared.meta, lastModified };
 }
+
+/** One photo for role match: small JPEG as base64 (no data: prefix), about 768 px. */
+export async function photoForMatch(file: File): Promise<string> {
+  const prepared = await preparePhoto(file);
+  const bitmap = await createImageBitmap(prepared.file);
+  const scale = Math.min(1, 768 / Math.max(bitmap.width, bitmap.height));
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.round(bitmap.width * scale);
+  canvas.height = Math.round(bitmap.height * scale);
+  const ctx = canvas.getContext('2d');
+  if (!ctx) throw new Error('This phone could not read the photo.');
+  ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+  bitmap.close();
+  return canvas.toDataURL('image/jpeg', 0.7).replace(/^data:image\/jpeg;base64,/, '');
+}

@@ -55,4 +55,16 @@ export const UBUNYE_AGENTS: Record<string, UbunyeAgent> = {
     rateLimit: { guest: 0, free: 10, pro: 20, studio: 20 },
     costTier: 'medium',
   },
+  // Many roles (TASK-085): suggests one or two roles from what a person types
+  // or one photo of their work. Suggests only; the person confirms.
+  'role-match': {
+    id: 'role-match',
+    name: 'Ubunye Role Match',
+    description: 'Suggests the role (make-up artist, model, driver, ...) that fits what a person says they do',
+    provider: 'gemma',
+    model: 'gemma-4-31b-it',
+    tools: [],
+    rateLimit: { guest: 0, free: 10, pro: 10, studio: 10 },
+    costTier: 'free',
+  },
 };

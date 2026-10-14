@@ -676,8 +676,6 @@ export const MAIN_NAVIGATION: {
     { label: 'Studio', href: '/studio' },
     // The free Ubunye apps. Hidden until the `creative_tools` flag is on (lib/nav.ts); /tools itself is always reachable by URL.
     { label: 'Apps', href: '/tools' },
-    // Many roles, honest proof. Hidden until the `roles_v1` flag is on (lib/nav.ts).
-    { label: 'Join', href: '/join' },
     { label: 'Help', href: '/faq' },
     // No "Offer Your Services": see CREATOR_JOIN.
     // No "Pricing" item: every listing and package shows its own price, and the
@@ -1161,6 +1159,8 @@ export const ROLES_POLICY = {
     promise: `${STUDIO.shortName} stands behind every booking. We hold your payment until the work is delivered. If something goes wrong, we find a replacement or refund you.`,
     reviewPromise: 'A person on our team will look at it, usually within 2 working days. If something needs fixing, we tell you exactly how.',
   },
+  /** Role match (Find and Offer): tries per person (or per IP when signed out) per window. */
+  matchRateLimit: { max: 10, windowMs: 10 * 60 * 1000 },
   /** Coming-soon interest: max sign-ups per IP per window. */
   interestRateLimit: { max: 5, windowMs: 60 * 60 * 1000 },
   /** Most photos or clips per proof step, so a cheap phone and little data still work. */

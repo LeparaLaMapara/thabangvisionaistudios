@@ -43,6 +43,7 @@ Built by ThabangVision (Pty) Ltd, trading as ThabangVision Labs.
   - `bio-writer` — auto-bio from portfolio + profile (`claude-sonnet-4-20250514`)
   - `listing-describer` — draft rental listing title/description/includes (`claude-sonnet-4-20250514`)
   - `onboarding`, `portfolios` — vision/tagging helpers (`gemma-4-31b-it`, free tier)
+  - `role-match` — suggests a role or gear category from a person's own words or one photo in the Offer step (`gemma-4-31b-it`, free tier; fast text model, then keywords, as fallbacks; lib/roles/match-ai.ts)
   - `rates` — market-aligned rate suggestions (`claude-sonnet-4-20250514`)
 - Model pricing: `lib/ai/pricing.ts`. When adding a new model, add its cost there too so budget alerts work.
 - **Agent routing** (`lib/agents/router.ts`): intent classification picks the agent — priority is booking > portfolios > rates > assistant. The booking agent has a pre-selected creator flow (from portfolio page "Book Creator" button) that skips creator search.
