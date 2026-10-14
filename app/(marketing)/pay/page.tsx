@@ -21,7 +21,7 @@ export const metadata: Metadata = buildPageMetadata({
  * bank details (the defence against fake "new bank details" messages).
  */
 export default function PayPage() {
-  const where = `${STUDIO.fulfilment.dispatchFrom.meetingPoint}, ${STUDIO.fulfilment.dispatchFrom.name}`;
+  const where = STUDIO.fulfilment.dispatchFrom.name;
   // With card payment open, checkout takes card only (app/api/cart/checkout),
   // so EFT and cash are not offered as checkout choices here.
   if (paymentsOpenForLegalPages()) return <CardPayPage />;

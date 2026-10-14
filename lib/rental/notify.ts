@@ -4,7 +4,7 @@ import { email as emailProvider } from '@/lib/email';
 import { sms } from '@/lib/sms';
 import { STUDIO } from '@/lib/constants';
 import { formatRand } from '@/lib/format/money';
-import { collectionPointWithCity } from '@/lib/rental/collection-point';
+import { exactCollectionPointWithCity } from '@/lib/rental/collection-point';
 import { isPushConfigured } from '@/lib/push';
 import { pushToUser } from '@/lib/push/to-user';
 import { safeTrackingUrl } from '@/lib/delivery/customer-view';
@@ -91,12 +91,12 @@ export function rentalNoticeText(kind: RentalNoticeKind, data: OutboxMessage['da
         ? { title: 'Booking confirmed', body: `Your gear hire is confirmed. Delivery updates are on your booking. Have the ID you verified with ready when the gear arrives.` }
         : {
             title: 'Booking confirmed',
-            body: `Your gear hire is confirmed. Collect it on your start date at ${collectionPointWithCity()} (${STUDIO.hours.weekday}, ${STUDIO.hours.weekend}). Bring the ID you verified with; we check it and the gear with you at handover.`,
+            body: `Your gear hire is confirmed. Collect it on your start date at ${exactCollectionPointWithCity()} (${STUDIO.hours.weekday}, ${STUDIO.hours.weekend}). Bring the ID you verified with; we check it and the gear with you at handover.`,
           };
     case 'collection_reminder':
       return {
         title: 'Collection today',
-        body: `Your gear is ready for collection today at ${collectionPointWithCity()} (${STUDIO.hours.weekday}, ${STUDIO.hours.weekend}). Please bring the ID you verified with.`,
+        body: `Your gear is ready for collection today at ${exactCollectionPointWithCity()} (${STUDIO.hours.weekday}, ${STUDIO.hours.weekend}). Please bring the ID you verified with.`,
       };
     case 'handover_completed':
       return { title: 'Gear handed over', body: `Your hire has started. The condition photos and agreement are saved on your booking.` };

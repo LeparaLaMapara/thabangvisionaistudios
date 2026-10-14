@@ -4,7 +4,7 @@ export const revalidate = 60;
 
 export const metadata = buildPageMetadata({
   title: 'Where to Collect',
-  description: 'Where to collect your gear in Braamfontein, Johannesburg, and our business hours.',
+  description: 'Where to collect your gear in Dainfern, Fourways, Johannesburg, and our business hours.',
   path: '/locations',
 });
 

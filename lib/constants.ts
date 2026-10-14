@@ -151,7 +151,7 @@ export const STUDIO = {
     title: 'ThabangVision',
     // Leads with gear rental, the offering that is live (2026-09-28).
     description:
-      'Rent cameras, lenses, lighting and sound in Johannesburg. Collect at 99 Smith Street, Braamfontein, and see the full price before you book. Photo and video shoots by request.',
+      'Rent cameras, lenses, lighting and sound in Johannesburg. Collect in Dainfern, Fourways, and see the full price before you book. Photo and video shoots by request.',
     ogImage: '/og-image.jpg',
   },
 
@@ -170,7 +170,7 @@ export const STUDIO = {
   locations: [
     {
       name: 'Johannesburg collection point',
-      address: '99 Smith Street, Braamfontein, Johannesburg. Collections by booking, during business hours.',
+      address: 'Dainfern, Fourways, Johannesburg. Collections by booking, during business hours; the exact place is sent with your booking.',
       city: 'Johannesburg',
       province: 'Gauteng',
       phone: '',
@@ -334,14 +334,16 @@ export const STUDIO = {
     // the city we present as our base, and from legal.registeredAddress, which
     // is the CIPC address and is not an operating site.
     //
-    // University of the Witwatersrand, Braamfontein, Johannesburg.
+    // Dainfern, Fourways (north Johannesburg), where most of the gear is
+    // kept (owner, 2026-10-14). The coordinates are the Dainfern estates
+    // (OpenStreetMap), close enough for delivery distances.
     dispatchFrom: {
-      name: 'Braamfontein',
-      lat: -26.1929,
-      lng: 28.0305,
-      // The exact meeting place, sent in every confirmation. Empty until the
-      // owner sets it; messages then say the spot follows the day before.
-      meetingPoint: '99 Smith Street',
+      name: 'Dainfern, Fourways',
+      lat: -25.9892,
+      lng: 28.0050,
+      // The exact place, sent only to someone with a booking (a residential
+      // estate: public pages name the area only, lib/rental/collection-point.ts).
+      meetingPoint: 'The View, Dainfern',
     },
     collection: {
       enabled: true,
@@ -370,9 +372,9 @@ export const STUDIO = {
       itemsIncluded: 3,
       surchargePerExtraItem: 25,
       // Past this we stop calculating and quote by hand. 100km reaches the
-      // whole of Gauteng from Braamfontein, including Tshwane North and
-      // Soshanguve at roughly 96km by road. Below 100 those fall outside,
-      // which would be odd for a Johannesburg-Pretoria operation.
+      // whole of Gauteng from Dainfern, including Tshwane North and
+      // Soshanguve. Below 100 parts of the south would fall outside, which
+      // would be odd for a Johannesburg-Pretoria operation.
       maxRadiusKm: 100,
     },
   },

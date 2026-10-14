@@ -1,6 +1,6 @@
 import { STUDIO } from '@/lib/constants';
 import { createAdminClient } from '@/lib/supabase/server';
-import { collectionPointWithCity } from '@/lib/rental/collection-point';
+import { exactCollectionPointWithCity } from '@/lib/rental/collection-point';
 import type { VerifiedAddress } from './address';
 
 /**
@@ -35,7 +35,7 @@ export function platformSiteRow(): Record<string, unknown> {
   return {
     user_id: null,
     purpose: 'platform_site',
-    formatted_address: collectionPointWithCity(),
+    formatted_address: exactCollectionPointWithCity(),
     suburb: f.name,
     city: STUDIO.location.city,
     province: STUDIO.serviceArea.province,

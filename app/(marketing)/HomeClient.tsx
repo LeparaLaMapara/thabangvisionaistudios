@@ -13,7 +13,7 @@ import { PaymentsNotOpenNote } from '@/components/booking/PaymentsNotOpenNote';
 
 import { collectionPoint } from '@/lib/rental/collection-point';
 
-/** Where gear is collected: "99 Smith Street, Braamfontein". */
+/** Where gear is collected (the area only): "Dainfern, Fourways". */
 const COLLECTION_POINT = collectionPoint();
 
 // ─── Hero ────────────────────────────────────────────────────────────────────
