@@ -35,6 +35,10 @@ export async function extractPhotoMetadata(
     const exif = await exifr.parse(fileBuffer, {
       pick: [
         'DateTimeOriginal',
+        'CreateDate',
+        'ModifyDate',
+        'GPSDateStamp',
+        'GPSTimeStamp',
         'Make',
         'Model',
         'Software',
@@ -51,9 +55,8 @@ export async function extractPhotoMetadata(
 
     if (!exif && (lat === null || lon === null)) return emptyMetadata();
 
-    const taken = exif?.DateTimeOriginal;
     return {
-      dateTaken: taken instanceof Date && !Number.isNaN(taken.getTime()) ? taken.toISOString() : null,
+      dateTaken: whenTaken(exif),
       gps:
         lat !== null && lon !== null && Math.abs(lat) <= 90 && Math.abs(lon) <= 180
           ? { latitude: lat, longitude: lon }
@@ -66,6 +69,25 @@ export async function extractPhotoMetadata(
   } catch {
     return emptyMetadata();
   }
+}
+
+/**
+ * When the photo was taken. Phones do not all write the same tag: try the
+ * shutter time, then the digitised time, then the GPS clock (UTC), then the
+ * last-modified time (on a camera photo, the moment it was saved).
+ */
+function whenTaken(exif: Record<string, unknown> | null | undefined): string | null {
+  if (!exif) return null;
+  const asDate = (v: unknown) => (v instanceof Date && !Number.isNaN(v.getTime()) ? v.toISOString() : null);
+  const fromGps = () => {
+    const d = exif.GPSDateStamp;
+    const t = exif.GPSTimeStamp;
+    if (typeof d !== 'string' || !/^\d{4}:\d{2}:\d{2}$/.test(d)) return null;
+    const [h, m, sec] = Array.isArray(t) ? t.map(Number) : typeof t === 'string' ? t.split(':').map(Number) : [0, 0, 0];
+    const iso = new Date(`${d.replace(/:/g, '-')}T00:00:00Z`).getTime() + ((h || 0) * 3600 + (m || 0) * 60 + (sec || 0)) * 1000;
+    return Number.isFinite(iso) ? new Date(iso).toISOString() : null;
+  };
+  return asDate(exif.DateTimeOriginal) ?? asDate(exif.CreateDate) ?? fromGps() ?? asDate(exif.ModifyDate);
 }
 
 function emptyMetadata(): PhotoMetadata {

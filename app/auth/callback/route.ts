@@ -2,6 +2,7 @@ import { NextResponse, after } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { checkConsents, requiredConsents } from '@/lib/consent';
 import { afterSignInPath, cleanNextPath, type ConsentState } from '@/lib/auth/next-path';
+import { isAdmin as isAdminUser } from '@/lib/auth';
 import { homeFor } from '@/lib/welcome';
 import { sendWelcomeSoon } from '@/lib/engagement/runner';
 import { processSignup } from '@/lib/greetings/process';
@@ -31,7 +32,9 @@ export async function GET(request: Request): Promise<NextResponse> {
     if (!error) {
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
-        const isAdmin = user.app_metadata?.role === 'admin';
+        // The same check as the admin area (profiles.role, app_metadata or the
+        // ADMIN_EMAILS break-glass list): an admin lands on /admin.
+        const isAdmin = await isAdminUser(user.id, user.email ?? undefined).catch(() => false);
         if (isAdmin) {
           return NextResponse.redirect(new URL(afterSignInPath({ isAdmin, consent: 'ok', next }), origin));
         }

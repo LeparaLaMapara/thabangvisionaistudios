@@ -40,6 +40,19 @@ async function homeForUser(user: User): Promise<string> {
 }
 
 /**
+ * Admins are marked on their profile (profiles.role). This only picks where to
+ * go: /admin itself checks again on the server and refuses anyone else.
+ */
+async function hasAdminRole(user: User): Promise<boolean> {
+  try {
+    const { data } = await createClient().from('profiles').select('role').eq('id', user.id).maybeSingle();
+    return data?.role === 'admin';
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Finish a sign-in that happened in the browser (email + password, or Google's
  * own button; the Google redirect and the confirmation link finish in
  * app/auth/callback): send the person
@@ -47,7 +60,7 @@ async function homeForUser(user: User): Promise<string> {
  * record, otherwise straight on.
  */
 export async function destinationAfterSignIn(user: User, next: string): Promise<string> {
-  const isAdmin = user.app_metadata?.role === 'admin';
+  const isAdmin = user.app_metadata?.role === 'admin' || (await hasAdminRole(user));
   if (isAdmin) return afterSignInPath({ isAdmin, consent: 'ok', next });
   const explicit = cleanNextPath(next);
   const [consent, fallback] = await Promise.all([
