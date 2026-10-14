@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { STUDIO } from '@/lib/constants';
 import { depositSettlement, lateFeeFor } from '@/lib/rental/late-fee';
 import { gearNoticeText, type NoticeBooking } from '@/lib/rental/notices';
 import { isManualReference, manualReference, refundPayment } from '@/lib/payments/routing';
@@ -31,7 +32,8 @@ describe('messages to the renter', () => {
   it('the confirmation says where, when and to bring ID', () => {
     const t = gearNoticeText('confirmed', items);
     expect(t.body).toMatch(/Sony FX3, 2026-10-01 to 2026-10-03/);
-    expect(t.body).toMatch(/Braamfontein/);
+    expect(t.body).toContain(STUDIO.fulfilment.dispatchFrom.meetingPoint);
+    expect(t.body).toContain(STUDIO.fulfilment.dispatchFrom.name);
     expect(t.body).toMatch(/ID card/);
   });
   it('the settlement says how much comes back and how', () => {
