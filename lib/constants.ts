@@ -869,6 +869,10 @@ export const ON_SITE_RENTAL = {
   bookLabel: 'Book the studio',
   halfDayMessage: (title: string): string => `Hi, I would like to book a half day at ${title}.`,
   noDeliveryNote: 'A studio is used at the studio, so there is nothing to deliver.',
+  // Notice for a studio: the same STUDIO.rental.minLeadTimeHours rule that
+  // checkout enforces for every hire, in studio words.
+  leadTimeMessage: (hours: number, firstDate: string): string =>
+    `Book the studio at least ${hours} hours ahead so it is set up for you. The earliest date is ${firstDate}.`,
 } as const;
 
 // ─── RENTAL POLICIES ─────────────────────────────────────────────────────────

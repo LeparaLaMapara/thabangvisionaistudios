@@ -6,6 +6,7 @@ import { resolveCategory } from '@/lib/core/listings/input';
 import { rentalCityPages, stockedRentalCategories } from '@/lib/seo/inventory';
 import { mayAutoplay } from '@/components/rentals/RentalLoopVideo';
 import type { SACity } from '@/lib/seo/cities';
+import { leadTimeMessage, meetsLeadTime, studioLeadTimeMessage } from '@/lib/rental/leadTime';
 
 /**
  * Studios as a rental category (owner request 2026-10-15): a place is shown
@@ -44,6 +45,26 @@ describe('the Studios category', () => {
     const pages = rentalCityPages(rows, [home, other]);
     expect(pages.filter((p) => p.category === 'studios').map((p) => p.city)).toEqual(['home']);
     expect(pages.filter((p) => p.category === 'audio').map((p) => p.city)).toEqual(['home', 'other']);
+  });
+});
+
+describe('studio notice', () => {
+  // Friday 14:00: Sunday is 34 hours away (refused), Monday 58 (allowed).
+  const friday = new Date(2030, 0, 11, 14, 0, 0);
+
+  it('uses studio words, not the equipment line', () => {
+    const msg = studioLeadTimeMessage(friday);
+    expect(msg).toContain('studio');
+    expect(msg).not.toContain('Equipment');
+    expect(leadTimeMessage(friday)).toContain('Equipment');
+  });
+
+  it('states the rule checkout really enforces', () => {
+    const msg = studioLeadTimeMessage(friday);
+    expect(msg).toContain(`${STUDIO.rental.minLeadTimeHours} hours`);
+    expect(msg).toContain('Monday');
+    expect(meetsLeadTime(new Date(2030, 0, 13), friday)).toBe(false);
+    expect(meetsLeadTime(new Date(2030, 0, 14), friday)).toBe(true);
   });
 });
 

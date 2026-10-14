@@ -25,7 +25,7 @@ import { ON_SITE_RENTAL, RENTAL_POLICY, STUDIO } from '@/lib/constants';
 import { halfDayPrice, isOnSiteCategory } from '@/lib/rental/on-site';
 import { collectionPointWithCity } from '@/lib/rental/collection-point';
 import { whatsappLink } from '@/lib/payments/eft';
-import { earliestBookableDate, leadTimeMessage } from '@/lib/rental/leadTime';
+import { earliestBookableDate, leadTimeMessage, studioLeadTimeMessage } from '@/lib/rental/leadTime';
 import { toLocalYmd, fromLocalYmd, checkHireRange } from '@/lib/rental/dates';
 import type { SmartRental } from '@/lib/supabase/queries/smartRentals';
 import type { ReadinessItem, RentalReadiness } from '@/lib/rental/eligibility-server';
@@ -268,7 +268,12 @@ function BookingWidgetInner({ rental, paymentsOpen: paymentsOpenProp }: Props) {
   // checkout API validates with, so the picker cannot offer a date the server
   // will refuse.
   const firstBookable = useMemo(() => earliestBookableDate(new Date()), []);
-  const noticeMessage = useMemo(() => leadTimeMessage(new Date()), []);
+  // A studio gets the same notice rule in studio words (lib/rental/leadTime.ts).
+  const studioNotice = isOnSiteCategory(rental.category);
+  const noticeMessage = useMemo(
+    () => (studioNotice ? studioLeadTimeMessage(new Date()) : leadTimeMessage(new Date())),
+    [studioNotice],
+  );
 
   const maxDate = useMemo(() => {
     const d = new Date(today);
