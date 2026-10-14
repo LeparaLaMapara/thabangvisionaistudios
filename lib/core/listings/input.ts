@@ -11,6 +11,7 @@
 import {
   LISTING_POLICY,
   LISTING_TO_RENTAL_CATEGORY,
+  ON_SITE_RENTAL,
   RENTAL_CATEGORY_VALUES,
   STUDIO,
   type RentalCategorySlug,
@@ -103,6 +104,8 @@ export function parseRands(raw: unknown, maxCents: number): { ok: true; value: n
 export function resolveCategory(raw: unknown): RentalCategorySlug | null {
   if (typeof raw !== 'string' || !raw.trim()) return null;
   const v = raw.trim();
+  // Places (studios) are not owner gear: an owner cannot list one.
+  if (ON_SITE_RENTAL.categories.includes(v)) return null;
   if ((RENTAL_CATEGORY_VALUES as readonly string[]).includes(v)) return v as RentalCategorySlug;
   return LISTING_TO_RENTAL_CATEGORY[v] ?? null;
 }

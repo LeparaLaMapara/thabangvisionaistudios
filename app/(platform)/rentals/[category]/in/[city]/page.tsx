@@ -7,6 +7,7 @@ import { notFound, redirect, permanentRedirect } from 'next/navigation';
 import { fetchPublishedRentalsByCategory } from '@/lib/supabase/queries/smartRentals';
 import { getRentalCityBySlug } from '@/lib/seo/cities';
 import { collectionPointWithCity } from '@/lib/rental/collection-point';
+import { isOnSiteCategory } from '@/lib/rental/on-site';
 import { RENTAL_CATEGORIES, STUDIO } from '@/lib/constants';
 import { buildPageMetadata } from '@/lib/seo/metadata';
 import { serviceJsonLd, breadcrumbJsonLd, renderJsonLd } from '@/lib/seo/structured-data';
@@ -25,11 +26,13 @@ export async function generateMetadata({ params }: Props) {
 
   // Pages exist only for cities our stock reaches; see the page below.
   const city = getRentalCityBySlug(citySlug);
-  if (!city) permanentRedirect(`/rentals/${category}`);
+  if (!city || (isOnSiteCategory(category) && city.name !== STUDIO.location.city)) permanentRedirect(`/rentals/${category}`);
   const locationName = city.name;
 
   const title = `${cat.label} Rentals in ${locationName}`;
-  const description = `Browse ${cat.label.toLowerCase()} for hire. ${cat.description} Collected at ${collectionPointWithCity()}; delivery within ${STUDIO.fulfilment.delivery.maxRadiusKm} km after your first hire. Book online with ${STUDIO.name}.`;
+  const description = isOnSiteCategory(category)
+    ? `Browse ${cat.label.toLowerCase()} for hire. ${cat.description} In ${collectionPointWithCity()}. Book online with ${STUDIO.name}.`
+    : `Browse ${cat.label.toLowerCase()} for hire. ${cat.description} Collected at ${collectionPointWithCity()}; delivery within ${STUDIO.fulfilment.delivery.maxRadiusKm} km after your first hire. Book online with ${STUDIO.name}.`;
 
   return buildPageMetadata({
     title,
@@ -53,7 +56,8 @@ export default async function RentalLocationPage({ params }: Props) {
   // or an unknown slug gets a 308 to the category page, not a page that lists
   // Johannesburg stock under another city's name.
   const city = getRentalCityBySlug(citySlug);
-  if (!city) permanentRedirect(`/rentals/${category}`);
+  // A place is only in its own city: delivery reach does not apply to it.
+  if (!city || (isOnSiteCategory(category) && city.name !== STUDIO.location.city)) permanentRedirect(`/rentals/${category}`);
 
   const locationName = city.name;
 

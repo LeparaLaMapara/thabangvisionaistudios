@@ -3,7 +3,7 @@
 import { useState, useCallback, useRef } from 'react';
 import Image from 'next/image';
 import { Upload, Loader2, Plus, Trash2 } from 'lucide-react';
-import { RENTAL_CATEGORIES, STUDIO } from '@/lib/constants';
+import { GEAR_RENTAL_CATEGORIES, STUDIO } from '@/lib/constants';
 import { LISTING_CONDITIONS, MIN_CONFIDENCE, normaliseCondition } from '@/lib/core/listings/suggest';
 import type { GearIdentificationResult } from '@/lib/agents/types';
 
@@ -143,7 +143,7 @@ export default function StepGearRentals({ onComplete, onSkip }: StepGearRentalsP
       if (agentRes.ok && agentData.data) {
         const result = agentData.data as GearIdentificationResult;
         const name = [result.brand, result.model].filter(Boolean).join(' ');
-        const category = RENTAL_CATEGORIES.some(c => c.value === result.category) ? result.category : '';
+        const category = GEAR_RENTAL_CATEGORIES.some(c => c.value === result.category) ? result.category : '';
         const condition = normaliseCondition(result.condition) ?? '';
         setItems(prev => {
           const updated = [...prev];
@@ -314,7 +314,7 @@ export default function StepGearRentals({ onComplete, onSkip }: StepGearRentalsP
                       className={FIELD_CLASS}
                     >
                       <option value="">Choose</option>
-                      {RENTAL_CATEGORIES.map(cat => (
+                      {GEAR_RENTAL_CATEGORIES.map(cat => (
                         <option key={cat.value} value={cat.value}>{cat.label}</option>
                       ))}
                     </select>

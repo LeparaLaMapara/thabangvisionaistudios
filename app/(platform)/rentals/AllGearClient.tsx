@@ -5,10 +5,11 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { ChevronLeft, RotateCcw } from 'lucide-react';
-import { PLACEHOLDER_IMAGES, RENTAL_CATEGORIES, STUDIO } from '@/lib/constants';
+import { ON_SITE_RENTAL, PLACEHOLDER_IMAGES, RENTAL_CATEGORIES, STUDIO } from '@/lib/constants';
 import { formatRand } from '@/lib/format/money';
 import { gearCardImage, gearCardImageFallback } from '@/lib/rental/gear-image';
 import type { RentalListItem } from '@/lib/supabase/queries/smartRentals';
+import { isOnSiteCategory } from '@/lib/rental/on-site';
 
 import { ALL, CATEGORIES } from '@/lib/rental/rentals-view';
 
@@ -78,6 +79,8 @@ function GearCard({ rental }: { rental: RentalListItem }): React.ReactElement {
     [hasFallback],
   );
   const src = photo ? (stage === 0 ? gearCardImage(photo) : gearCardImageFallback(photo)) : null;
+  // A studio is a room, not a product: its photo fills the card.
+  const place = isOnSiteCategory(rental.category);
 
   return (
     <Link
@@ -92,7 +95,7 @@ function GearCard({ rental }: { rental: RentalListItem }): React.ReactElement {
             alt={rental.title}
             fill
             sizes="(max-width: 768px) 50vw, 25vw"
-            className="object-contain transition-transform duration-500 group-hover:scale-[1.03]"
+            className={`${place ? 'object-cover' : 'object-contain'} transition-transform duration-500 group-hover:scale-[1.03]`}
             onError={onError}
           />
         ) : (
@@ -111,7 +114,7 @@ function GearCard({ rental }: { rental: RentalListItem }): React.ReactElement {
         {rental.price_per_day != null ? (
           <>
             {formatRand(rental.price_per_day)}
-            <span className="font-normal text-xs text-neutral-400"> / day</span>
+            <span className="font-normal text-xs text-neutral-400">{place ? ` / ${ON_SITE_RENTAL.fullDayLabel.toLowerCase()}` : ' / day'}</span>
           </>
         ) : (
           <span className="font-normal text-xs text-neutral-400">Ask for a price</span>
@@ -135,7 +138,7 @@ export default function AllGearClient({
   comingSoon = [],
 }: {
   rentals: RentalListItem[];
-  /** roles_v1: labels shown as coming-soon tiles (Studios and locations). */
+  /** roles_v1: labels shown as coming-soon tiles (lib/rental/on-site.ts comingSoonLabels). */
   comingSoon?: readonly string[];
   /** 'all', 'categories', or a category slug. */
   initialCategory?: string;
