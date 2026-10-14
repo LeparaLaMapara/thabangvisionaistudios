@@ -1,11 +1,13 @@
 name: Mobile app
 
-# Builds the Capacitor shell in mobile/.
+# Builds and smoke-tests the Capacitor shell in mobile/.
 # - Android: a debug APK on every change to mobile/, uploaded as an artifact
-#   so it can be installed on a phone straight from the run page.
-# - iOS: an unsigned simulator build, run by hand only (Actions tab, "Run
-#   workflow"), because macOS minutes cost ten times Linux minutes on a
-#   private repository.
+#   so it can be installed on a phone straight from the run page. On a manual
+#   run (or with "device tests" ticked) the APK is also installed on an
+#   Android emulator, launched, checked and screenshotted.
+# - iOS: an unsigned simulator build, installed on an iPhone simulator,
+#   launched and screenshotted. Manual runs only, because macOS minutes cost
+#   ten times Linux minutes on a private repository.
 # Store-signed builds (Play App Bundle, App Store archive) come later, once the
 # signing keys and store accounts exist: see docs/mobile/README.md.
 
@@ -18,9 +20,13 @@ on:
   workflow_dispatch:
     inputs:
       ios:
-        description: 'Also build iOS (simulator, unsigned, uses macOS minutes)'
+        description: 'Also build and test iOS (uses macOS minutes)'
         type: boolean
         default: false
+      device_tests:
+        description: 'Run the Android emulator smoke test'
+        type: boolean
+        default: true
 
 permissions:
   contents: read
@@ -29,10 +35,13 @@ concurrency:
   group: mobile-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  APP_ID: com.thabangvision.app
+
 jobs:
   android:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
     defaults:
       run:
         working-directory: mobile
@@ -52,10 +61,37 @@ jobs:
       - name: Build debug APK
         working-directory: mobile/android
         run: chmod +x gradlew && ./gradlew assembleDebug --no-daemon
+      - name: Unit tests (Gradle)
+        working-directory: mobile/android
+        run: ./gradlew testDebugUnitTest --no-daemon
       - uses: actions/upload-artifact@v4
         with:
           name: thabangvision-debug-apk
           path: mobile/android/app/build/outputs/apk/debug/*.apk
+          retention-days: 14
+
+      - name: Enable KVM for the emulator
+        if: github.event_name == 'workflow_dispatch' && inputs.device_tests
+        working-directory: .
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Emulator smoke test (install, launch, check, screenshot)
+        if: github.event_name == 'workflow_dispatch' && inputs.device_tests
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          arch: x86_64
+          target: google_apis
+          disable-animations: true
+          working-directory: mobile
+          script: bash scripts/android-smoke.sh
+      - uses: actions/upload-artifact@v4
+        if: always() && github.event_name == 'workflow_dispatch' && inputs.device_tests
+        with:
+          name: android-smoke
+          path: mobile/smoke-android/
           retention-days: 14
 
   ios:
@@ -79,4 +115,12 @@ jobs:
         run: |
           xcodebuild -project App.xcodeproj -scheme App -configuration Debug \
             -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' \
-            CODE_SIGNING_ALLOWED=NO build
+            -derivedDataPath build CODE_SIGNING_ALLOWED=NO build
+      - name: Simulator smoke test (install, launch, check, screenshot)
+        run: bash scripts/ios-smoke.sh
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ios-smoke
+          path: mobile/smoke-ios/
+          retention-days: 14
