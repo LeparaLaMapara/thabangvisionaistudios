@@ -77,6 +77,9 @@ export function OfferStep({
 
   async function match() {
     setError(null);
+    // Clear the last answer so an old suggestion never shows for new words.
+    setAsked(false);
+    setSuggestions([]);
     setBusy(true);
     try {
       const res = await fetch('/api/roles/match', {
