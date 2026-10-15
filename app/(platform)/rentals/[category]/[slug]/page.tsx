@@ -10,6 +10,7 @@ import { productJsonLd, breadcrumbJsonLd, renderJsonLd } from '@/lib/seo/structu
 import { formatRand } from '@/lib/format/money';
 import { collectionPointWithCity } from '@/lib/rental/collection-point';
 import { checkYouTubeVideo } from '@/lib/video/youtube';
+import { isOnSiteCategory } from '@/lib/rental/on-site';
 
 export const revalidate = 60;
 
@@ -31,7 +32,10 @@ export async function generateMetadata({
   const price = rental.price_per_day && rental.price_per_day > 0
     ? ` From ${formatRand(rental.price_per_day)} a day.`
     : '';
-  const fallback = `Hire the ${rental.title}${cat ? ` (${cat.label})` : ''} from ${STUDIO.name}.${price} Collect at ${collectionPointWithCity()} or have it delivered.`;
+  // A studio is booked where it is, so it never says "delivered".
+  const fallback = isOnSiteCategory(rental.category)
+    ? `Book ${rental.title} in ${collectionPointWithCity()}.${price}`
+    : `Hire the ${rental.title}${cat ? ` (${cat.label})` : ''} from ${STUDIO.name}.${price} Collect at ${collectionPointWithCity()} or have it delivered.`;
   return buildPageMetadata({
     title: rental.title,
     description: metaDescription(rental.description, fallback),
@@ -121,7 +125,7 @@ export default async function RentalDetailPage({
       />
       <AskUbunyeButton raised
         prompt={`Tell me more about the ${rental.title} and what it's best for`}
-        label="Questions about this gear?"
+        label={isOnSiteCategory(rental.category) ? 'Questions about the studio?' : 'Questions about this gear?'}
       />
       {/* No exit-intent modal here: this page is the start of a booking, and a
           pop-up on the way to the date picker is an interruption, not help

@@ -4,7 +4,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient, createAdminClient } from '@/lib/supabase/server';
 import { payments } from '@/lib/payments';
 import { checkRateLimit, checkNotSuspended } from '@/lib/auth';
-import { STUDIO } from '@/lib/constants';
+import { ON_SITE_RENTAL, STUDIO } from '@/lib/constants';
+import { hasOnSiteItem } from '@/lib/rental/on-site';
 import { getCartItems, clearCart } from '@/lib/supabase/queries/cart';
 import { calculateCartPricing, calculateCartPricingPerItem, splitAcrossLines } from '@/lib/cart/pricing';
 import { quoteOwnVehicleCents } from '@/lib/delivery/quote';
@@ -227,6 +228,15 @@ export async function POST(request: NextRequest) {
 
   if (items.length === 0) {
     return NextResponse.json({ error: 'Cart is empty.' }, { status: 400 });
+  }
+
+  // A studio is used where it is: an order with one is never delivered. The
+  // cart hides delivery for it; this is the rule, before any quote is read.
+  if (fulfilment === 'delivery' && hasOnSiteItem(items)) {
+    return NextResponse.json(
+      { error: `${ON_SITE_RENTAL.noDeliveryNote} Please choose collection.`, code: 'ON_SITE_ONLY' },
+      { status: 400 },
+    );
   }
 
   // Determine mode: per-item dates vs shared dates

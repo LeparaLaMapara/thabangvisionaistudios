@@ -6,6 +6,7 @@ import { serviceJsonLd, breadcrumbJsonLd, renderJsonLd } from '@/lib/seo/structu
 import AllGearClient from '../AllGearClient';
 import { RelatedCategories } from '@/components/seo/RelatedCategories';
 import { collectionPointWithCity } from '@/lib/rental/collection-point';
+import { isOnSiteCategory } from '@/lib/rental/on-site';
 
 export const revalidate = 60;
 
@@ -18,9 +19,13 @@ export async function generateMetadata({
   const cat = RENTAL_CATEGORIES.find((c) => c.value === category);
   if (!cat) return { title: 'Rentals' };
 
+  // A place is booked where it is: no "collect" or "delivery" words.
+  const onSite = isOnSiteCategory(category);
   return buildPageMetadata({
-    title: `${cat.label} Rentals — Equipment Hire`,
-    description: `${cat.description} Collect at ${collectionPointWithCity()}; delivery within ${STUDIO.fulfilment.delivery.maxRadiusKm} km after your first hire. Daily rates, book online with ${STUDIO.name}.`,
+    title: onSite ? `${cat.label} for Hire in ${collectionPointWithCity()}` : `${cat.label} Rentals — Equipment Hire`,
+    description: onSite
+      ? `${cat.description} In ${collectionPointWithCity()}. Book online with ${STUDIO.name}.`
+      : `${cat.description} Collect at ${collectionPointWithCity()}; delivery within ${STUDIO.fulfilment.delivery.maxRadiusKm} km after your first hire. Daily rates, book online with ${STUDIO.name}.`,
     path: `/rentals/${category}`,
     markdown: true,
   });

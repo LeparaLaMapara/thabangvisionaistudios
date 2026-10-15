@@ -8,6 +8,7 @@ import { getRequestForViewer } from '@/lib/supabase/queries/roles';
 import { isAdmin } from '@/lib/auth';
 import { buildPageMetadata } from '@/lib/seo/metadata';
 import { WhosComingCard } from '@/components/roles/WhosComingCard';
+import { formatRands } from '@/lib/roles';
 
 export const metadata = buildPageMetadata({ title: 'Your booking', description: 'Who, where, when.', path: '/people', noIndex: true });
 
@@ -42,6 +43,7 @@ export default async function RequestStatusPage({ params }: { params: Promise<{ 
         <p className="text-neutral-400 mb-6">{STATUS_WORDS[card.status] ?? card.status}</p>
         {card.viewer === 'person' && card.clientFirstName && <p className="text-white mb-4">Booked by {card.clientFirstName}</p>}
         <WhosComingCard card={card} title={card.viewer === 'client' ? "Who's coming" : 'Your job'} />
+        {card.totalCents !== null && <p className="mt-4 text-lg text-white">Total {formatRands(card.totalCents)}</p>}
       </div>
     </div>
   );

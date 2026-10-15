@@ -1,4 +1,4 @@
-import { STUDIO } from '@/lib/constants';
+import { ON_SITE_RENTAL, STUDIO } from '@/lib/constants';
 
 /**
  * How much notice a hire needs before it starts.
@@ -91,6 +91,21 @@ export function leadTimeMessage(
   });
   return `Equipment needs ${leadHours} hours' notice so it can be checked and prepared. `
     + `The earliest start date is ${formatted}.`;
+}
+
+/**
+ * The same notice rule for a studio (checkout enforces one rule for every
+ * hire), in studio words instead of "equipment ... checked and prepared".
+ */
+export function studioLeadTimeMessage(
+  now: Date,
+  leadHours: number = STUDIO.rental.minLeadTimeHours,
+): string {
+  const first = earliestBookableDate(now, leadHours);
+  const formatted = first.toLocaleDateString('en-ZA', {
+    weekday: 'long', day: 'numeric', month: 'long',
+  });
+  return ON_SITE_RENTAL.leadTimeMessage(leadHours, formatted);
 }
 
 /** `YYYY-MM-DD`, for the `min` attribute of a date input. */

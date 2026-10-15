@@ -459,6 +459,23 @@ request between a demo client and the demo driver. Staff can open
 `/people/requests/de300000-0000-4000-a000-000000000001` and see what the
 client sees after confirmation.
 
+## One person, one portfolio, one rate (owner, 2026-10-15)
+
+- A profile groups its work into **albums** (`role_evidence.album`): one
+  gallery with album tabs, the work shown large. Still blind: the label is
+  role, area and code.
+- A person can charge in **their own unit** (`person_roles.pricing_unit`),
+  for example per day when the role's default is per hour. Cards and
+  profiles show "R1 800 per day".
+- **Booking like Rentals:** the client picks the day or days (or hours for an
+  hourly person) and sees one total, rate x days or rate x hours, before
+  sending. The server works the total out again; the browser's number is
+  never trusted.
+- The owner's three studio packages become **one photographer portfolio** at
+  his day rate (`scripts/roles/owner-portfolio.sql`). A package whose work a
+  profile holds (`source_production_id`) is no longer listed on People, and
+  its old `/studio/<slug>` address redirects to the profile.
+
 ## Teams (later phase, after People is live and we have track records)
 
 - **What:** once we have seen people's skills and delivery over time, the

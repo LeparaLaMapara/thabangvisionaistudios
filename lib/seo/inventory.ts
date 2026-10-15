@@ -1,4 +1,5 @@
-import { RENTAL_CATEGORIES, PRODUCTION_CATEGORIES } from '@/lib/constants';
+import { RENTAL_CATEGORIES, PRODUCTION_CATEGORIES, STUDIO } from '@/lib/constants';
+import { isOnSiteCategory } from '@/lib/rental/on-site';
 import { getRentalCities, LISTED_CITIES, locationMatchesCity, type SACity } from '@/lib/seo/cities';
 import { creatorMatchesCategory, creatorProfilePath, isListedCreator } from '@/lib/seo/creator-url';
 import type { PortfolioProject } from '@/types/portfolio';
@@ -70,7 +71,9 @@ export function stockedRentalCategories(rows: RentalRow[]): { value: string; las
 export function rentalCityPages(rows: RentalRow[], cities: SACity[] = getRentalCities()): { category: string; city: string; lastModified?: string }[] {
   const out: { category: string; city: string; lastModified?: string }[] = [];
   for (const cat of stockedRentalCategories(rows)) {
-    for (const city of cities) out.push({ category: cat.value, city: city.slug, lastModified: cat.lastModified });
+    // A place (a studio) is only in its own city; delivery reach does not apply.
+    const reach = isOnSiteCategory(cat.value) ? cities.filter((c) => c.name === STUDIO.location.city) : cities;
+    for (const city of reach) out.push({ category: cat.value, city: city.slug, lastModified: cat.lastModified });
   }
   return out;
 }

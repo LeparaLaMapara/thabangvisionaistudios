@@ -6,7 +6,7 @@ import { notFound } from 'next/navigation';
 import { BadgeCheck, Package } from 'lucide-react';
 import { getFlag } from '@/lib/features';
 import { EARN, ROLES_POLICY, STUDIO } from '@/lib/constants';
-import { getRoles, listApprovedProfiles } from '@/lib/supabase/queries/roles';
+import { getRoles, heldProductions, listApprovedProfiles } from '@/lib/supabase/queries/roles';
 import { getPublishedProductions } from '@/lib/supabase/queries/smartProductions';
 import { formatRolePrice } from '@/lib/roles';
 import { formatRand } from '@/lib/format/money';
@@ -31,15 +31,21 @@ interface Props {
 export default async function PeoplePage({ searchParams }: Props) {
   if (!(await getFlag('roles_v1'))) notFound();
   const { role: roleParam } = await searchParams;
-  const roles = (await getRoles()).filter((r) => r.status === 'live');
+  const live = (await getRoles()).filter((r) => r.status === 'live');
+  const [everyone, allPackages, held] = await Promise.all([listApprovedProfiles(), getPublishedProductions(), heldProductions()]);
+  // Only kinds of work someone actually offers get a chip: an empty category is noise (owner, 2026-10-14).
+  const roles = live.filter((r) => everyone.some((c) => c.roleSlug === r.slug));
   const active = roles.find((r) => r.slug === roleParam)?.slug;
-  const [cards, packages] = await Promise.all([listApprovedProfiles(active), active ? Promise.resolve([]) : getPublishedProductions()]);
+  const cards = active ? everyone.filter((c) => c.roleSlug === active) : everyone;
+  // A package whose work a profile holds is shown once, as that profile (092).
+  const packages = active ? [] : allPackages.filter((p) => !held.has(p.id));
 
   return (
     <div className="pt-28 pb-20 px-4 sm:px-6">
       <div className="max-w-5xl mx-auto">
         <h1 className="text-4xl font-display font-medium text-white mb-2">People</h1>
         <p className="text-neutral-400 mb-6">{ROLES_POLICY.copy.blindNote}</p>
+        {roles.length > 1 && (
         <nav aria-label="Kinds of work" className="flex gap-2 overflow-x-auto pb-2 mb-8 -mx-4 px-4">
           <Link href="/people" className={`shrink-0 min-h-[44px] px-4 flex items-center border text-sm ${!active ? 'border-accent-gold text-accent-gold' : 'border-white/15 text-neutral-300'}`}>
             Everyone
@@ -50,6 +56,7 @@ export default async function PeoplePage({ searchParams }: Props) {
             </Link>
           ))}
         </nav>
+        )}
 
         {packages.length > 0 && (
           <section className="mb-12" aria-labelledby="packages-h">

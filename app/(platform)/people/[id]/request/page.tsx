@@ -7,7 +7,7 @@ import { getFlag } from '@/lib/features';
 import { loginUrl } from '@/lib/auth/next-path';
 import { createClient } from '@/lib/supabase/server';
 import { getPublicRoleProfile } from '@/lib/supabase/queries/roles';
-import { formatRolePrice } from '@/lib/roles';
+import { effectiveUnit, formatRolePrice } from '@/lib/roles';
 import { buildPageMetadata } from '@/lib/seo/metadata';
 import { RequestForm } from '@/components/roles/RequestForm';
 
@@ -25,6 +25,7 @@ export default async function RequestPage({ params }: { params: Promise<{ id: st
   const profile = await getPublicRoleProfile(id);
   if (!profile) notFound();
   const price = profile.personRole.price_cents ?? profile.role.suggested_price_cents.typical;
+  const unit = effectiveUnit(profile.role.pricing_unit, profile.personRole.pricing_unit);
 
   return (
     <div className="pt-28 pb-16 px-4">
@@ -34,9 +35,9 @@ export default async function RequestPage({ params }: { params: Promise<{ id: st
         </Link>
         <h1 className="text-3xl font-display font-medium text-white mb-1">Request a booking</h1>
         <p className="text-neutral-400 mb-6">
-          {profile.label} · {formatRolePrice(profile.role.pricing_unit, price, profile.personRole.per_km_cents)}
+          {profile.label} · {formatRolePrice(unit, price, profile.personRole.per_km_cents)}
         </p>
-        <RequestForm personRoleId={id} defaultArea={profile.personRole.area ?? ''} />
+        <RequestForm personRoleId={id} defaultArea={profile.personRole.area ?? ''} unit={unit} priceCents={price} />
       </div>
     </div>
   );

@@ -24,6 +24,7 @@ import { SupabaseAddressRetention, purgeDeliveryAddresses } from '@/lib/delivery
 import { pruneLogs } from '@/lib/cron/retention';
 import { purgeExpiredIntake } from '@/lib/roles/retention';
 import { SupabaseIntakeRetention } from '@/lib/roles/retention-store';
+import { reembedMissing } from '@/lib/roles/embed-server';
 import { sortUnpaidServiceBookings, verifyAndConfirmServiceBooking } from '@/lib/payments/service-payment-check';
 import { answerWindowPassed, needsAnswerReminder } from '@/lib/bookings/answer-by';
 import {
@@ -861,6 +862,14 @@ Please contact the client and the creator. They are not paid out or refunded aut
     results.peopleIntakeRetention = await purgeExpiredIntake(new SupabaseIntakeRetention(supabase), now);
   } catch (err) {
     results.peopleIntakeRetention = { error: err instanceof Error ? err.message.slice(0, 120) : 'failed' };
+  }
+
+  // ─── 17c. People: embed approved profiles that have no embedding yet ─────
+  // (for example one a data script approved). No-op while roles_v1 is off.
+  try {
+    results.peopleEmbeddings = await reembedMissing();
+  } catch (err) {
+    results.peopleEmbeddings = { error: err instanceof Error ? err.message.slice(0, 120) : 'failed' };
   }
 
   // ─── 18. Lifecycle emails and push (lib/engagement) ──────────────────────

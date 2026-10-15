@@ -109,6 +109,8 @@ export interface PersonRole {
   facts_reviewed_at: string | null;
   comes_with: Record<string, unknown>;
   available_days: string[];
+  /** The person's own unit (per day) over the role's default (092). */
+  pricing_unit: PricingUnit | null;
 }
 
 export interface RoleEvidence {
@@ -133,4 +135,8 @@ export interface RoleEvidence {
   created_at: string;
   media_kind: 'image' | 'video' | 'audio' | null;
   on_time: boolean | null;
+  /** Album label within one portfolio (092). */
+  album: string | null;
+  /** The smart_productions package this work was copied from (092). */
+  source_production_id: string | null;
 }

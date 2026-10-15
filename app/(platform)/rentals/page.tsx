@@ -7,6 +7,7 @@ import { STUDIO } from '@/lib/constants';
 import { collectionPointWithCity } from '@/lib/rental/collection-point';
 import { getFlag } from '@/lib/features';
 import { RENTALS_COMING_SOON } from '@/lib/constants';
+import { comingSoonLabels } from '@/lib/rental/on-site';
 
 export const revalidate = 60;
 
@@ -22,10 +23,11 @@ export default async function SmartRentalsPage({
   searchParams: Promise<{ view?: string }>;
 }) {
   // All the gear on one page; "Categories" swaps the grid for category tiles.
+  // A coming-soon label goes once its category has a real listing.
   const [{ rentals, failed }, { view }, rolesOn] = await Promise.all([fetchAllPublishedRentals(), searchParams, getFlag('roles_v1')]);
   return (
     <>
-      <AllGearClient rentals={rentals} loadFailed={failed} initialCategory={view === CATEGORIES ? CATEGORIES : ALL} comingSoon={rolesOn ? RENTALS_COMING_SOON : []} />
+      <AllGearClient rentals={rentals} loadFailed={failed} initialCategory={view === CATEGORIES ? CATEGORIES : ALL} comingSoon={rolesOn ? comingSoonLabels(RENTALS_COMING_SOON, rentals) : []} />
       <AskUbunyeButton prompt="Help me find the right equipment for my shoot" label="Need gear advice?" />
     </>
   );

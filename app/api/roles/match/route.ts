@@ -3,7 +3,7 @@ export const dynamic = 'force-dynamic';
 import { NextResponse, type NextRequest } from 'next/server';
 import { rolesOffResponse } from '@/lib/roles/flag';
 import { checkRateLimit } from '@/lib/auth';
-import { RENTAL_CATEGORIES, ROLES_POLICY } from '@/lib/constants';
+import { GEAR_RENTAL_CATEGORIES, ROLES_POLICY } from '@/lib/constants';
 import { createClient } from '@/lib/supabase/server';
 import { getRoles } from '@/lib/supabase/queries/roles';
 import { cleanMatchText, matchCandidates, type MatchMode } from '@/lib/roles';
@@ -69,7 +69,8 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     const roles = await getRoles();
     const candidates = matchCandidates(
       roles.map((r) => ({ slug: r.slug, name: r.name, description: r.description })),
-      RENTAL_CATEGORIES,
+      // Gear only: offering a studio space is the location-studio role.
+      GEAR_RENTAL_CATEGORIES,
     );
     const result = await suggestRoles({ text, imageBase64: image, roles: candidates, userId: user.id, mode });
     return NextResponse.json({

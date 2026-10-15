@@ -16,6 +16,8 @@ export type SmartRental = {
   model: string | null;
   price_per_day: number | null;
   price_per_week: number | null;
+  /** Half-day price in rands, places only (migration 093); absent on list queries. */
+  price_per_half_day?: number | null;
   deposit_amount: number | null;
   /** Gear protection (migration 062); absent on list queries. */
   replacement_value?: number | null;
