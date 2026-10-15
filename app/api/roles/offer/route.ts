@@ -10,6 +10,7 @@ import { createAdminClient, createClient } from '@/lib/supabase/server';
 import { getMyPersonRole, getRole, ROLE_DOCUMENT_BUCKET } from '@/lib/supabase/queries/roles';
 import { audioBecomes, classifySource, inlineLegalAsks, profilePrefill, sanitizeFacts } from '@/lib/roles';
 import { reembedQuietly } from '@/lib/roles/embed-server';
+import { ownUploadPublicId } from '@/lib/roles/own-upload';
 
 /**
  * Screen 2 confirmed: "Yes, that's me". Creates (or updates) the draft for the
@@ -87,10 +88,11 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     const work = Array.isArray(body.work) ? (body.work as WorkItem[]).slice(0, ROLES_POLICY.maxFilesPerStep * 2) : [];
     for (const w of work) {
       const url = typeof w.url === 'string' ? w.url : '';
-      const publicId = typeof w.public_id === 'string' ? w.public_id : '';
       // Their own upload: this account's storage, and the path carries their id
-      // (a member's folder is <root>/<id>/...; an admin's is the one they name).
-      if (!storage.ownsUrl?.(url) || !publicId.split('/').includes(user.id) || !url.includes(publicId)) continue;
+      // (a member's folder is <root>/<id>/...). The public id comes from the
+      // URL's path, never from the client (M3).
+      const publicId = storage.ownsUrl?.(url) ? ownUploadPublicId(url, user.id, process.env.CLOUDINARY_CLOUD_NAME) : null;
+      if (!publicId) continue;
       const meta = sanitizeClientMetadata(w.exif);
       const lastModified = typeof w.last_modified === 'number' ? w.last_modified : null;
       const isVideo = w.kind === 'video';
@@ -133,7 +135,8 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       }
     }
     if (rows.length) {
-      const { error } = await supabase.from('role_evidence').insert(rows);
+      // Service role after the checks above (094: no browser insert, M2).
+      const { error } = await admin.from('role_evidence').insert(rows);
       if (error) throw new Error(error.message);
     }
 

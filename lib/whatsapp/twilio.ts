@@ -86,10 +86,12 @@ export const twilio: WhatsAppProvider = {
     const signature = headers['x-twilio-signature'] ?? '';
     if (!signature) return false;
 
+    // Fail closed: without the exact webhook URL and the auth token there is
+    // nothing to check the signature against (security re-check 2026-10-15).
     const webhookUrl = process.env.TWILIO_WEBHOOK_URL;
-    if (!webhookUrl) {
-      console.warn('[whatsapp/twilio] TWILIO_WEBHOOK_URL not set — skipping signature validation');
-      return true;
+    if (!webhookUrl || !process.env.TWILIO_AUTH_TOKEN) {
+      console.warn('[whatsapp/twilio] TWILIO_WEBHOOK_URL or TWILIO_AUTH_TOKEN not set; webhook refused');
+      return false;
     }
 
     // Sort params and build validation string

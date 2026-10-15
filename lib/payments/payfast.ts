@@ -79,6 +79,14 @@ export const payfast: PaymentProvider = {
       raw: {},
     };
 
+    // 0. Fail closed without a passphrase: PayFast's MD5 signature is only a
+    //    secret check when a passphrase is mixed in. Without one anyone with
+    //    their own PayFast account could sign a notice for our references.
+    if (!process.env.PAYFAST_PASSPHRASE) {
+      console.error('[PayFast] Webhook refused: PAYFAST_PASSPHRASE is not set');
+      return invalid;
+    }
+
     // 1. IP check
     if (!isPayFastIP(request.ip)) {
       console.error(`[PayFast] Webhook from unauthorized IP: ${request.ip}`);
@@ -90,6 +98,13 @@ export const payfast: PaymentProvider = {
     new URLSearchParams(request.body).forEach((value, key) => {
       params[key] = value;
     });
+
+    // 2b. The notice must be for OUR merchant account, not another PayFast
+    //     merchant pointing its notify_url at us.
+    if (!process.env.PAYFAST_MERCHANT_ID || params.merchant_id !== process.env.PAYFAST_MERCHANT_ID) {
+      console.error('[PayFast] Webhook for another merchant account refused');
+      return invalid;
+    }
 
     // 3. Signature check
     const receivedSignature = params.signature ?? '';
