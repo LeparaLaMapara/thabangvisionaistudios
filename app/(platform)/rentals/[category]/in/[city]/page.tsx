@@ -29,7 +29,7 @@ export async function generateMetadata({ params }: Props) {
   if (!city || (isOnSiteCategory(category) && city.name !== STUDIO.location.city)) permanentRedirect(`/rentals/${category}`);
   const locationName = city.name;
 
-  const title = `${cat.label} Rentals in ${locationName}`;
+  const title = isOnSiteCategory(category) ? `${cat.label} in ${locationName}` : `${cat.label} for ${locationName} shoots, collected or delivered`;
   const description = isOnSiteCategory(category)
     ? `Browse ${cat.label.toLowerCase()} for hire. ${cat.description} In ${collectionPointWithCity()}. Book online with ${STUDIO.name}.`
     : `Browse ${cat.label.toLowerCase()} for hire. ${cat.description} Collected at ${collectionPointWithCity()}; delivery within ${STUDIO.fulfilment.delivery.maxRadiusKm} km after your first hire. Book online with ${STUDIO.name}.`;

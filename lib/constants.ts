@@ -1605,6 +1605,14 @@ export const UBUNYE_QUICK_ACTIONS: readonly QuickAction[] = [
   },
 ] as const;
 
+// The Ask Ubunye page's example questions under the box (clarity audit C12:
+// just the box and two or three examples). Questions the catalogue answers.
+export const UBUNYE_LANDING_QUESTIONS: readonly string[] = [
+  'What camera can I rent for a weekend, and what does it cost?',
+  'Which lens should I rent for portraits?',
+  'What do I need before I can rent gear?',
+] as const;
+
 export const UBUNYE_EXAMPLE_PROMPTS: readonly string[] = [
   'Build a podcast setup for 3 people.',
   'Which lens should I rent for portraits?',

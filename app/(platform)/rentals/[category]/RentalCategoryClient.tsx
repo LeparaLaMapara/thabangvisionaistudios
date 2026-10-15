@@ -7,8 +7,8 @@ import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ChevronDown, SlidersHorizontal, X, Check, ArrowRight, Users, Star, ShieldCheck, RotateCcw } from 'lucide-react';
 import { formatRand } from '@/lib/format/money';
-import { collectionPointWithCity } from '@/lib/rental/collection-point';
-import { specEntries } from '@/lib/rental/on-site';
+import { cityPageHeading, collectionPointWithCity } from '@/lib/rental/collection-point';
+import { isOnSiteCategory, specEntries } from '@/lib/rental/on-site';
 import { categoryLabel } from '@/lib/content/tags';
 import type { RentalListItem } from '@/lib/supabase/queries/smartRentals';
 import { STUDIO } from '@/lib/constants';
@@ -386,6 +386,13 @@ export default function RentalCategoryClient({
   };
 
   const categoryLabel = getCategoryLabel(category);
+  // City pages: the gear is collected in one place or delivered, never "in" that
+  // city (C7). A studio is used where it is, so it keeps "Studios in <city>".
+  const cityHeading = locationName
+    ? isOnSiteCategory(category)
+      ? { title: `${categoryLabel} in ${locationName}`, rest: '' }
+      : cityPageHeading(categoryLabel, locationName)
+    : null;
 
   // ── Filter panel (shared between desktop sidebar + mobile sheet) ──────────
   // A plain render function, not a component declared inside this one: a
@@ -554,9 +561,18 @@ export default function RentalCategoryClient({
               )}
             </ol>
           </nav>
-          <h1 className="text-4xl md:text-5xl font-display font-medium uppercase tracking-tight break-words">
-            {categoryLabel}{locationName ? ` in ${locationName}` : ''}
-          </h1>
+          {cityHeading ? (
+            <h1 className="text-4xl md:text-5xl font-display font-medium tracking-tight break-words">
+              {cityHeading.title}
+              {cityHeading.rest && (
+                <>
+                  ,{' '}<span className="text-neutral-400">{cityHeading.rest}</span>
+                </>
+              )}
+            </h1>
+          ) : (
+            <h1 className="text-4xl md:text-5xl font-display font-medium uppercase tracking-tight break-words">{categoryLabel}</h1>
+          )}
           {locationName && (
             <p className="mt-3 text-sm text-neutral-400 font-light">
               Collected at {collectionPointWithCity()}. After your first hire we can also deliver within {STUDIO.fulfilment.delivery.maxRadiusKm} km.

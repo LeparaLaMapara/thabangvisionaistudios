@@ -8,12 +8,11 @@ import { motion, AnimatePresence } from 'framer-motion';
 import type { Components } from 'react-markdown';
 import { chatMarkdownComponents } from '@/components/ubunye/chatMarkdown';
 import { createClient } from '@/lib/supabase/client';
-import { STUDIO, UBUNYE_QUICK_ACTIONS } from '@/lib/constants';
+import { STUDIO, UBUNYE_LANDING_QUESTIONS } from '@/lib/constants';
 import { GoldenSphere } from '@/components/ubunye/GoldenSphere';
 import { ChatMessageList } from '@/components/ubunye/ChatMessageList';
 import { ChatInputBar } from '@/components/ubunye/ChatInputBar';
-import type { StudioContext, OrbState } from '@/types/ubunye';
-import { formatRate } from '@/lib/format/money';
+import type { OrbState } from '@/types/ubunye';
 
 // ─── Constants ──────────────────────────────────────────────────────────────────
 
@@ -44,11 +43,7 @@ const fadeUp = {
 
 // ─── Component ──────────────────────────────────────────────────────────────────
 
-interface UbunyeStudioClientProps {
-  context: StudioContext;
-}
-
-export default function UbunyeStudioClient({ context }: UbunyeStudioClientProps) {
+export default function UbunyeStudioClient() {
   const [input, setInput] = useState('');
   const [userName, setUserName] = useState<string | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -366,123 +361,22 @@ export default function UbunyeStudioClient({ context }: UbunyeStudioClientProps)
                 </h1>
               </div>
 
-              {/* Quick action cards */}
+              {/* Just the box and two or three example questions (clarity
+                  audit C12): no action tiles, no "active gear" count. */}
               <motion.div
                 custom={1}
                 initial="hidden"
                 animate="visible"
                 variants={fadeUp}
-                className="grid grid-cols-2 md:grid-cols-3 gap-2 md:gap-3 mb-6 md:mb-8"
+                className="flex flex-col sm:flex-row sm:flex-wrap gap-2 justify-center mb-4"
               >
-                {UBUNYE_QUICK_ACTIONS.map((action, idx) => (
-                  <button
-                    key={action.id}
-                    onClick={() => sendQuickAction(action.prompt)}
-                    className={`group bg-[#0A0A0B] border border-white/5 p-3 md:p-4 text-left transition-all duration-200 hover:border-[#D4A843]/30 hover:-translate-y-0.5 active:scale-[0.98] ${
-                      idx === UBUNYE_QUICK_ACTIONS.length - 1 && UBUNYE_QUICK_ACTIONS.length % 2 !== 0
-                        ? 'col-span-2 md:col-span-1'
-                        : ''
-                    }`}
-                  >
-                    <span className="text-sm font-medium text-neutral-200 group-hover:text-[#D4A843] transition-colors block mb-0.5">
-                      {action.label}
-                    </span>
-                    <span className="text-xs text-neutral-400 leading-snug line-clamp-2">
-                      {action.description}
-                    </span>
-                  </button>
-                ))}
-              </motion.div>
-
-              {/* Studio insights — featured gear, creators, productions */}
-              {(context.featuredGear.length > 0 || context.featuredCreators.length > 0 || context.featuredProductions.length > 0) && (
-                <motion.div
-                  custom={2}
-                  initial="hidden"
-                  animate="visible"
-                  variants={fadeUp}
-                  className="mb-6"
-                >
-                  {/* Featured gear */}
-                  {context.featuredGear.length > 0 && (
-                    <div className="mb-4">
-                      <p className="text-xs font-mono text-neutral-400 uppercase tracking-widest mb-2">Active Gear</p>
-                      <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-none snap-x snap-mandatory -mx-4 px-4 md:mx-0 md:px-0">
-                        {context.featuredGear.map(gear => (
-                          <button
-                            key={gear.id}
-                            onClick={() => sendQuickAction(`Tell me about the ${gear.title}: pricing, availability, and what it's best for.`)}
-                            className="flex-shrink-0 snap-start bg-[#0A0A0B] border border-white/5 p-3 w-[200px] text-left hover:border-[#D4A843]/20 transition-colors group"
-                          >
-                            {gear.thumbnail_url && (
-                              <div className="w-full h-20 mb-2 overflow-hidden bg-neutral-900">
-                                <img src={gear.thumbnail_url} alt="" className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity" />
-                              </div>
-                            )}
-                            <span className="text-xs text-neutral-300 block truncate">{gear.title}</span>
-                            {gear.price_per_day && (
-                              <span className="text-xs text-neutral-400 font-mono">From {formatRate(Number(gear.price_per_day), 'day')}</span>
-                            )}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Recommended creators */}
-                  {context.featuredCreators.length > 0 && (
-                    <div className="mb-4">
-                      <p className="text-xs font-mono text-neutral-400 uppercase tracking-widest mb-2">People you can book</p>
-                      <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-none snap-x snap-mandatory -mx-4 px-4 md:mx-0 md:px-0">
-                        {context.featuredCreators.map(creator => (
-                          <button
-                            key={creator.id}
-                            onClick={() => sendQuickAction(`Tell me about ${creator.display_name ?? 'this person'}: their work, rates, and availability.`)}
-                            className="flex-shrink-0 snap-start bg-[#0A0A0B] border border-white/5 p-3 w-[180px] text-left hover:border-[#D4A843]/20 transition-colors"
-                          >
-                            <div className="flex items-center gap-2 mb-1.5">
-                              {creator.avatar_url ? (
-                                <img src={creator.avatar_url} alt="" className="w-7 h-7 rounded-full object-cover" />
-                              ) : (
-                                <div className="w-7 h-7 rounded-full bg-neutral-800 flex items-center justify-center text-xs text-neutral-400 font-mono">
-                                  {(creator.display_name ?? '?')[0]}
-                                </div>
-                              )}
-                              <span className="text-xs text-neutral-300 truncate">{creator.display_name}</span>
-                            </div>
-                            <div className="flex items-center gap-1.5 text-xs text-neutral-400 font-mono">
-                              {creator.hourly_rate && <span>{formatRate(Number(creator.hourly_rate), 'hour')}</span>}
-                              {creator.hourly_rate && creator.specializations?.[0] && <span>·</span>}
-                              {creator.specializations?.[0] && <span className="truncate">{creator.specializations[0]}</span>}
-                            </div>
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </motion.div>
-              )}
-
-              {/* Example prompts */}
-              <motion.div
-                custom={3}
-                initial="hidden"
-                animate="visible"
-                variants={fadeUp}
-                className="flex flex-wrap gap-1.5 md:gap-2 justify-center mb-4"
-              >
-                {UBUNYE_QUICK_ACTIONS.length > 0 && (
+                {(
                   <>
-                    {[
-                      'Build a podcast setup for 3 people.',
-                      `Find a photographer in ${STUDIO.location.city}.`,
-                      'Compare Sony cameras for documentary filmmaking.',
-                      'Create a wedding production package.',
-                    ].map(prompt => (
+                    {UBUNYE_LANDING_QUESTIONS.map(prompt => (
                       <button
                         key={prompt}
                         onClick={() => sendQuickAction(prompt)}
-                        className="min-h-[44px] px-3 py-2 text-xs text-neutral-400 border border-neutral-800/50 hover:text-[#D4A843]/80 hover:border-[#D4A843]/20 transition-all duration-200 truncate max-w-[220px]"
+                        className="min-h-[44px] px-3 py-2 text-sm text-neutral-300 border border-neutral-800 hover:text-[#D4A843] hover:border-[#D4A843]/30 transition-all duration-200 text-left sm:text-center"
                       >
                         &ldquo;{prompt}&rdquo;
                       </button>
@@ -491,22 +385,6 @@ export default function UbunyeStudioClient({ context }: UbunyeStudioClientProps)
                 )}
               </motion.div>
 
-              {/* Pulse of life */}
-              <motion.p
-                custom={4}
-                initial="hidden"
-                animate="visible"
-                variants={fadeUp}
-                className="text-xs text-neutral-400 text-center mb-4"
-              >
-                {context.featuredCreators.length > 0 && (
-                  <>{context.featuredCreators.length} creators available</>
-                )}
-                {context.featuredCreators.length > 0 && context.featuredGear.length > 0 && ' · '}
-                {context.featuredGear.length > 0 && (
-                  <>{context.featuredGear.length} gear items ready</>
-                )}
-              </motion.p>
             </motion.div>
           )}
         </AnimatePresence>

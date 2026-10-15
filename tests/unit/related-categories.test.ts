@@ -16,3 +16,13 @@ describe('related rental categories link only to stocked ones', () => {
     expect(relatedRentalCategories('audio', ['crew-services', 'grip-motion']).map((l) => l.slug)).toEqual(['grip-motion']);
   });
 });
+
+import { cityPageHeading } from '@/lib/rental/collection-point';
+
+describe('city pages say where the gear really is', () => {
+  it('for <city> shoots, collected in Fourways or delivered', () => {
+    const h = cityPageHeading('Cameras & Optics', 'Soweto');
+    expect(h.title).toBe('Cameras & Optics for Soweto shoots');
+    expect(h.rest).toBe('collected in Dainfern, Fourways or delivered');
+  });
+});
