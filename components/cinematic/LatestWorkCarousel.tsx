@@ -69,7 +69,20 @@ const RESUME_DELAY_MS = 3000;
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export function LatestWorkCarousel({ items }: { items: CarouselItem[] }) {
+/**
+ * One row of cards that scrolls by itself. The home page uses it for gear
+ * only (clarity audit C14: one gear row, not gear and past shoots mixed),
+ * with one "see all" link.
+ */
+export function LatestWorkCarousel({
+  items,
+  title = 'Gear to rent',
+  link = { label: 'See all gear', href: '/rentals' },
+}: {
+  items: CarouselItem[];
+  title?: string;
+  link?: { label: string; href: string };
+}) {
   const displayItems = items.length > 0 ? items : PLACEHOLDER_ITEMS;
   const isPlaceholder = items.length === 0;
 
@@ -124,29 +137,14 @@ export function LatestWorkCarousel({ items }: { items: CarouselItem[] }) {
       `}</style>
 
       {/* Header */}
-      <div className="container mx-auto px-6 mb-16 flex justify-between items-end">
-        <div>
-          <h2 className="text-4xl md:text-5xl font-display font-medium text-black dark:text-white uppercase">
-            Our Gear <span className="text-neutral-400 dark:text-neutral-400">And Recent Shoots</span>
-          </h2>
-        </div>
-        {/* Two destinations, because the rail carries both hire stock and
-            creative work. A single "View All Work" link sent everyone to the
-            studio even when the card that caught their eye was a camera. */}
-        <div className="hidden md:flex items-center gap-6">
-          <Link
-            href="/rentals"
-            className="flex items-center gap-2 text-xs font-mono text-neutral-400 hover:text-black dark:text-neutral-400 dark:hover:text-white transition-colors uppercase tracking-widest"
-          >
-            Browse Gear <ChevronRight className="w-4 h-4" />
-          </Link>
-          <Link
-            href="/studio"
-            className="flex items-center gap-2 text-xs font-mono text-neutral-400 hover:text-black dark:text-neutral-400 dark:hover:text-white transition-colors uppercase tracking-widest"
-          >
-            View All Work <ChevronRight className="w-4 h-4" />
-          </Link>
-        </div>
+      <div className="container mx-auto px-6 mb-16 flex flex-wrap justify-between items-end gap-4">
+        <h2 className="text-4xl md:text-5xl font-display font-medium text-black dark:text-white uppercase">{title}</h2>
+        <Link
+          href={link.href}
+          className="inline-flex items-center gap-2 min-h-[44px] text-xs font-mono text-neutral-400 hover:text-black dark:text-neutral-400 dark:hover:text-white transition-colors uppercase tracking-widest"
+        >
+          {link.label} <ChevronRight className="w-4 h-4" />
+        </Link>
       </div>
 
       {/* Marquee */}
@@ -176,21 +174,6 @@ export function LatestWorkCarousel({ items }: { items: CarouselItem[] }) {
         </div>
       </div>
 
-      {/* Mobile link */}
-      <div className="md:hidden flex justify-center gap-6 mt-8">
-        <Link
-          href="/rentals"
-          className="flex items-center gap-2 text-xs font-mono text-neutral-400 hover:text-black dark:text-neutral-400 dark:hover:text-white transition-colors uppercase tracking-widest"
-        >
-          Browse Gear <ChevronRight className="w-4 h-4" />
-        </Link>
-        <Link
-          href="/studio"
-          className="flex items-center gap-2 text-xs font-mono text-neutral-400 hover:text-black dark:text-neutral-400 dark:hover:text-white transition-colors uppercase tracking-widest"
-        >
-          View All Work <ChevronRight className="w-4 h-4" />
-        </Link>
-      </div>
     </section>
   );
 }

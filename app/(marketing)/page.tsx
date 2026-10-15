@@ -1,16 +1,15 @@
 export const revalidate = 60;
 
-import { getFeaturedProductions } from '@/lib/supabase/queries/smartProductions';
 import { getShowcaseRentals, getRentalPriceRange } from '@/lib/supabase/queries/smartRentals';
 import { formatRand } from '@/lib/format/money';
 import { onlinePaymentsOpen } from '@/lib/payments/status';
-import { interleaveShowcase } from '@/lib/home/showcase';
 import HomeClient from './HomeClient';
 import { buildPageMetadata } from '@/lib/seo/metadata';
 import { STUDIO, SITE_TAGLINE } from '@/lib/constants';
 import type { CarouselItem } from '@/components/cinematic/LatestWorkCarousel';
 import { getFlag } from '@/lib/features';
-import { getOfferedRoles } from '@/lib/supabase/queries/roles';
+import { getOfferedRoles, listApprovedProfiles } from '@/lib/supabase/queries/roles';
+import { formatRolePrice } from '@/lib/roles/pricing';
 import { peopleWords } from '@/lib/roles/offered';
 
 /** Build a Cloudinary delivery URL from a public_id. */
@@ -45,33 +44,16 @@ export const metadata = {
 };
 
 export default async function Home() {
-  const [smartProductionsEnabled, appsEnabled, rolesEnabled] = await Promise.all([
-    getFlag('smart_productions'),
-    getFlag('creative_tools'),
-    getFlag('roles_v1'),
-  ]);
+  const rolesEnabled = await getFlag('roles_v1');
 
-  const [productions, rentals, priceRange, roles] = await Promise.all([
-    smartProductionsEnabled ? getFeaturedProductions(8) : Promise.resolve([]),
+  const [rentals, priceRange, roles, profiles] = await Promise.all([
     getShowcaseRentals(8),
     getRentalPriceRange(),
     rolesEnabled ? getOfferedRoles() : Promise.resolve(null),
+    rolesEnabled ? listApprovedProfiles() : Promise.resolve([]),
   ]);
   // People: name only the kinds of work someone approved offers.
   const people = roles ? peopleWords(roles.offered, roles.live) : undefined;
-
-  const productionItems: CarouselItem[] = productions.map((p) => ({
-    id: p.id,
-    slug: p.slug,
-    title: p.title,
-    description: p.description,
-    thumbnail_url: resolveImage(p.thumbnail_url, p.cover_public_id, p.gallery),
-    video_url: p.video_url,
-    tags: p.tags ?? [],
-    category: 'production' as const,
-    meta: [p.client, p.year].filter(Boolean).join(' / ') || 'Production',
-    created_at: p.created_at,
-  })).sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
   const rentalItems: CarouselItem[] = rentals.map((r) => ({
     id: r.id,
@@ -90,15 +72,20 @@ export default async function Home() {
     created_at: r.created_at,
   }));
 
-  // Work first, then gear, alternating — see lib/home/showcase.ts.
-  const carouselItems = interleaveShowcase(productionItems, rentalItems);
+  // One People row (roles_v1): blind cards, the same as /people.
+  const peopleCards = profiles.slice(0, 4).map((c) => ({
+    id: c.id,
+    label: c.label,
+    cover: c.cover,
+    price: c.priceCents !== null ? formatRolePrice(c.unit, c.priceCents, c.perKmCents) : null,
+  }));
 
   return (
     <HomeClient
-      carouselItems={carouselItems}
+      carouselItems={rentalItems}
+      peopleCards={peopleCards}
       minDayRate={priceRange?.min ?? null}
       paymentsOpen={onlinePaymentsOpen()}
-      showApps={appsEnabled}
       rolesOn={rolesEnabled}
       people={people}
     />
