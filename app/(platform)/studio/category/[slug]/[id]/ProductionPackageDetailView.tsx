@@ -95,15 +95,15 @@ export default function ProductionPackageDetailView({
       <div className="bg-[#080808] border-b border-white/5 py-6">
         <div className="container mx-auto px-6">
           <div className="flex flex-wrap items-center gap-2 text-xs font-mono uppercase tracking-widest text-neutral-400">
-            <Link href="/" className="hover:text-white transition-colors">Home</Link>
+            <Link href="/" className="inline-flex min-h-[44px] items-center hover:text-white transition-colors">Home</Link>
             <ChevronRight className="w-3 h-3 flex-shrink-0" />
-            <Link href="/studio" className="hover:text-white transition-colors">
+            <Link href="/studio" className="inline-flex min-h-[44px] items-center hover:text-white transition-colors">
               Studio
             </Link>
             <ChevronRight className="w-3 h-3 flex-shrink-0" />
             <Link
               href={`/studio/category/${category.slug}`}
-              className="hover:text-white transition-colors"
+              className="inline-flex min-h-[44px] items-center hover:text-white transition-colors"
             >
               {category.name}
             </Link>

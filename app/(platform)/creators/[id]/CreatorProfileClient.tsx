@@ -111,7 +111,7 @@ export default function CreatorProfileClient({
       <div className="container mx-auto px-6 -mt-4 relative z-10 mb-2">
         <Link
           href="/"
-          className="hover:text-accent-gold transition-colors flex items-center gap-2 text-xs tracking-widest text-neutral-400"
+          className="hover:text-accent-gold transition-colors inline-flex min-h-[44px] items-center gap-2 text-xs tracking-widest text-neutral-400"
         >
           <ArrowLeft className="w-3 h-3" /> HOME
         </Link>

@@ -301,7 +301,7 @@ export default function MarketplaceClient({
               <div className="flex gap-1 flex-wrap">
                 <button
                   onClick={() => setCategoryFilter(null)}
-                  className={`px-3 py-1.5 text-xs font-mono uppercase tracking-widest transition-colors ${
+                  className={`min-h-[44px] px-3 py-1.5 text-xs font-mono uppercase tracking-widest transition-colors ${
                     !categoryFilter
                       ? 'bg-black/10 dark:bg-white/10 text-black dark:text-white'
                       : 'text-neutral-400 hover:text-black dark:hover:text-white'
@@ -313,7 +313,7 @@ export default function MarketplaceClient({
                   <button
                     key={cat}
                     onClick={() => setCategoryFilter(cat)}
-                    className={`px-3 py-1.5 text-xs font-mono uppercase tracking-widest transition-colors ${
+                    className={`min-h-[44px] px-3 py-1.5 text-xs font-mono uppercase tracking-widest transition-colors ${
                       categoryFilter === cat
                         ? 'bg-black/10 dark:bg-white/10 text-black dark:text-white'
                         : 'text-neutral-400 hover:text-black dark:hover:text-white'

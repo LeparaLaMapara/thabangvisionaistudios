@@ -766,6 +766,7 @@ export const FOOTER_SECTIONS = [
   {
     title: 'Support',
     links: [
+      { label: 'Help and FAQ', href: '/faq' },
       { label: 'How to Pay', href: '/pay' },
       { label: 'How Pricing Works', href: '/pricing' },
       { label: 'Contact', href: '/contact' },
