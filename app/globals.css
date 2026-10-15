@@ -42,6 +42,12 @@ body {
   overflow-x: hidden;
 }
 
+/* Floating buttons (Ask Ubunye) step aside while a calendar is open, so
+   they never cover a date (components/ui/DateRangePicker.tsx sets it). */
+body[data-calendar-open='true'] [data-floating] {
+  display: none;
+}
+
 /* Custom scrollbar — industrial feel */
 ::-webkit-scrollbar        { width: 4px; }
 ::-webkit-scrollbar-track  { background: #050505; }
