@@ -20,7 +20,7 @@ export async function generateMetadata({ params }: Props) {
   if (!article) return { title: 'Not Found' };
   return buildPageMetadata({
     title: article.title,
-    description: article.excerpt ?? `${article.title} — ${STUDIO.name} Press`,
+    description: article.excerpt ?? `${article.title}. ${STUDIO.name} press.`,
     path: `/press/${slug}`,
     markdown: true,
     imageUrl: article.cover_url ?? undefined,

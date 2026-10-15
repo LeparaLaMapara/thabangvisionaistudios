@@ -108,7 +108,7 @@ export default async function CareersPage() {
                               key={i}
                               className="text-xs font-mono text-neutral-400 flex items-start gap-2"
                             >
-                              <span className="mt-0.5 text-[#D4A843]">—</span>
+                              <span className="mt-0.5 text-[#D4A843]" aria-hidden="true">•</span>
                               {req}
                             </li>
                           ))}

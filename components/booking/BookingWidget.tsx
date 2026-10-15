@@ -500,7 +500,7 @@ function BookingWidgetInner({ rental, paymentsOpen: paymentsOpenProp }: Props) {
       className="w-full flex items-center justify-center gap-2 min-h-[44px] py-2.5 border border-emerald-500/30 text-emerald-400 text-xs font-mono font-bold uppercase tracking-widest hover:opacity-80 transition-all"
     >
       <Check className="w-3.5 h-3.5" aria-hidden="true" />
-      Added — View Cart
+      Added. View cart
     </Link>
   ) : (
     <button

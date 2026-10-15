@@ -411,7 +411,7 @@ export default function UbunyeStudioClient({ context }: UbunyeStudioClientProps)
                         {context.featuredGear.map(gear => (
                           <button
                             key={gear.id}
-                            onClick={() => sendQuickAction(`Tell me about the ${gear.title} — pricing, availability, and what it's best for.`)}
+                            onClick={() => sendQuickAction(`Tell me about the ${gear.title}: pricing, availability, and what it's best for.`)}
                             className="flex-shrink-0 snap-start bg-[#0A0A0B] border border-white/5 p-3 w-[200px] text-left hover:border-[#D4A843]/20 transition-colors group"
                           >
                             {gear.thumbnail_url && (
@@ -437,7 +437,7 @@ export default function UbunyeStudioClient({ context }: UbunyeStudioClientProps)
                         {context.featuredCreators.map(creator => (
                           <button
                             key={creator.id}
-                            onClick={() => sendQuickAction(`Tell me about ${creator.display_name ?? 'this creator'} — their work, rates, and availability.`)}
+                            onClick={() => sendQuickAction(`Tell me about ${creator.display_name ?? 'this person'}: their work, rates, and availability.`)}
                             className="flex-shrink-0 snap-start bg-[#0A0A0B] border border-white/5 p-3 w-[180px] text-left hover:border-[#D4A843]/20 transition-colors"
                           >
                             <div className="flex items-center gap-2 mb-1.5">

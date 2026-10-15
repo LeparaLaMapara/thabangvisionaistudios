@@ -193,7 +193,7 @@ export function DateRangePicker({
   const isSelected = (day: Date): boolean => (!!value.start && sameDay(day, value.start)) || (!!value.end && sameDay(day, value.end));
 
   const fmt = (d: Date) => d.toLocaleDateString('en-ZA', { day: '2-digit', month: 'short', year: 'numeric' });
-  const display = !value.start ? 'Select dates' : !value.end ? `${fmt(value.start)} — choose the last day` : `${fmt(value.start)} — ${fmt(value.end)}`;
+  const display = !value.start ? 'Select dates' : !value.end ? `${fmt(value.start)}: choose the last day` : `${fmt(value.start)} to ${fmt(value.end)}`;
   const monthLabel = viewDate.toLocaleDateString('en-ZA', { month: 'long', year: 'numeric' });
   const describedBy = [error ? errorId : null, hint ? hintId : null].filter(Boolean).join(' ') || undefined;
 

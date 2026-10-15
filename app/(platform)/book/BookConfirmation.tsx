@@ -61,7 +61,7 @@ export default function BookConfirmation({
           creator_id: creatorId,
           booking_type: 'production',
           project_category: category,
-          project_description: description || (pkg ? `Package: ${pkg.title}` : `${category} booking — ${hours} hours`),
+          project_description: description || (pkg ? `Package: ${pkg.title}` : `${category} booking: ${hours} hours`),
           deliverables,
           duration_hours: hours,
           location: location || null,

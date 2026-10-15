@@ -6,10 +6,10 @@ import { createClient } from '@/lib/supabase/client';
 import { Bug, Send, ArrowLeft, CheckCircle, AlertTriangle } from 'lucide-react';
 
 const SEVERITY_OPTIONS = [
-  { value: 'low', label: 'Low — Minor issue, workaround exists' },
-  { value: 'medium', label: 'Medium — Feature not working correctly' },
-  { value: 'high', label: 'High — Major feature broken' },
-  { value: 'critical', label: 'Critical — Cannot use the platform' },
+  { value: 'low', label: 'Low: a small problem, with a way round it' },
+  { value: 'medium', label: 'Medium: something does not work properly' },
+  { value: 'high', label: 'High: a main feature is broken' },
+  { value: 'critical', label: 'Critical: I cannot use the site' },
 ] as const;
 
 export default function ReportBugPage() {

@@ -1470,19 +1470,19 @@ export const PRODUCTION_CATEGORIES: ProductionCategory[] = [
 
 export const PRODUCTION_SERVICES = {
   photography: {
-    portrait: { rate: 1500, unit: "hour", description: "Portrait / Headshot — Studio or on-location, includes lighting setup" },
-    commercial: { rate: 1500, unit: "hour", description: "Commercial / Product — Products, branding, look-book, flat-lay" },
-    lifestyle: { rate: 1500, unit: "hour", description: "Lifestyle / Editorial — Outdoor narrative sessions, full art direction" },
+    portrait: { rate: 1500, unit: "hour", description: "Portrait / Headshot: Studio or on-location, includes lighting setup" },
+    commercial: { rate: 1500, unit: "hour", description: "Commercial / Product: Products, branding, look-book, flat-lay" },
+    lifestyle: { rate: 1500, unit: "hour", description: "Lifestyle / Editorial: Outdoor narrative sessions, full art direction" },
   },
   cinematography: {
-    shortForm: { rate: 2850, unit: "hour", description: "Short-Form Video — TikTok / IG optimized, 4K capture" },
-    musicVideo: { rate: 2850, unit: "hour", description: "Music Video Production — Multi-setup shoot, advanced SFX, cinema glass" },
-    corporate: { rate: 2850, unit: "hour", description: "Corporate / Industrial Film — 2-camera setup, script assist, voice-over" },
+    shortForm: { rate: 2850, unit: "hour", description: "Short-Form Video: TikTok / IG optimized, 4K capture" },
+    musicVideo: { rate: 2850, unit: "hour", description: "Music Video Production: Multi-setup shoot, advanced SFX, cinema glass" },
+    corporate: { rate: 2850, unit: "hour", description: "Corporate / Industrial Film: 2-camera setup, script assist, voice-over" },
   },
   postProduction: {
-    photoRetouch: { rate: 650, unit: "hour", description: "Photo Retouching & Colour Grading — Skin retouch, compositing, tone matching" },
-    videoEdit: { rate: 650, unit: "hour", description: "Video Editing & Assembly — Rough cut through final master, audio sync" },
-    cinemaGrade: { rate: 650, unit: "hour", description: "Cinema Colour Grade / SFX — DaVinci Resolve grade, motion graphics, VFX" },
+    photoRetouch: { rate: 650, unit: "hour", description: "Photo Retouching & Colour Grading: Skin retouch, compositing, tone matching" },
+    videoEdit: { rate: 650, unit: "hour", description: "Video Editing & Assembly: Rough cut through final master, audio sync" },
+    cinemaGrade: { rate: 650, unit: "hour", description: "Cinema Colour Grade / SFX: DaVinci Resolve grade, motion graphics, VFX" },
   },
   // Travel, fuel surcharge, overtime, instalments and the "competitive edge"
   // claims were removed 2026-10-08 (Phase 0): nothing in the product charged

@@ -61,11 +61,11 @@ export default function PaiaPage() {
 
           <Section title="3. What You Can Ask For">
             <ul className="list-disc pl-5 space-y-1">
-              <li><span className="text-white">Access</span> — confirmation of whether we hold personal information about you, a description of it, and a copy.</li>
-              <li><span className="text-white">Correction</span> — that we correct or complete information that is inaccurate, out of date or incomplete.</li>
-              <li><span className="text-white">Deletion</span> — that we delete information we no longer have a lawful reason to keep. Some records, such as transaction records required by tax law, we must keep; we will tell you what we keep and why.</li>
-              <li><span className="text-white">Objection</span> — to processing based on our legitimate interests, or to direct marketing.</li>
-              <li><span className="text-white">Withdrawal of consent</span> — for processing that relies on your consent, such as the identity check.</li>
+              <li><span className="text-white">Access</span>: confirmation of whether we hold personal information about you, a description of it, and a copy.</li>
+              <li><span className="text-white">Correction</span>: that we correct or complete information that is inaccurate, out of date or incomplete.</li>
+              <li><span className="text-white">Deletion</span>: that we delete information we no longer have a lawful reason to keep. Some records, such as transaction records required by tax law, we must keep; we will tell you what we keep and why.</li>
+              <li><span className="text-white">Objection</span>: to processing based on our legitimate interests, or to direct marketing.</li>
+              <li><span className="text-white">Withdrawal of consent</span>: for processing that relies on your consent, such as the identity check.</li>
             </ul>
           </Section>
 
