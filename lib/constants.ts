@@ -661,6 +661,17 @@ export const SITE_SUFFIX = '.LAB';
 export const SITE_TAGLINE = 'Rent camera gear in Johannesburg';
 export const SITE_COPYRIGHT = `© ${new Date().getFullYear()} ${STUDIO.legal.companyName} (reg. ${STUDIO.legal.registrationNumber}), trading as ${STUDIO.shortName}. All rights reserved.`;
 
+// ─── PRESS NOTES ──────────────────────────────────────────────────────────────
+// A dated note shown at the top of a press article, keyed by its slug, for
+// articles that describe something not live (articles live in the database).
+export const PRESS_NOTES: Record<string, { date: string; text: string }> = {
+  // The student programme is planned, not built (docs/tasks/todo/TASK-086.md).
+  'making-film-equipment-accessible-to-students': {
+    date: '2026-10-15',
+    text: 'The student verification programme in this article is planned, not live yet. For now students pay the same deposit as everyone else.',
+  },
+};
+
 // CONFIGURATION FLAGS
 // Careers is hidden (owner 2026-10-15): no roles are really open. False
 // sends /careers to /contact, drops it from the sitemap, the footer, About,

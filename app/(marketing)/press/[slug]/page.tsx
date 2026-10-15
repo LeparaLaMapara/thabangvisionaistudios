@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { ArrowLeft } from 'lucide-react';
 import { getPressBySlug } from '@/lib/supabase/queries/press';
-import { STUDIO } from '@/lib/constants';
+import { PRESS_NOTES, STUDIO } from '@/lib/constants';
 import { buildPageMetadata } from '@/lib/seo/metadata';
 import { breadcrumbJsonLd, renderJsonLd } from '@/lib/seo/structured-data';
 import { ShareButtons } from '@/components/social/ShareButtons';
@@ -86,6 +86,13 @@ export default async function PressArticlePage({ params }: Props) {
           <h1 className="text-4xl md:text-6xl font-display font-medium text-black dark:text-white tracking-tighter uppercase mb-8 leading-[0.95]">
             {article.title}
           </h1>
+
+          {PRESS_NOTES[slug] && (
+            <p role="note" className="mb-8 border border-[#D4A843]/40 bg-[#D4A843]/5 p-4 text-sm text-neutral-300 leading-relaxed">
+              <span className="font-mono uppercase tracking-widest text-[#D4A843]">Note, {formatDate(PRESS_NOTES[slug].date)}:</span>{' '}
+              {PRESS_NOTES[slug].text}
+            </p>
+          )}
 
           {article.excerpt && (
             <p className="text-xl text-neutral-400 dark:text-neutral-400 font-light leading-relaxed mb-12 border-l-2 border-black/10 dark:border-white/10 pl-6">
