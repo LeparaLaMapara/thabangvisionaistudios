@@ -38,7 +38,7 @@ export function WhosComingCard({ card, title = "Who's coming" }: { card: WhosCom
       </div>
       {!revealed && (
         <p className="mx-4 mb-3 flex items-start gap-2 text-xs text-neutral-400">
-          <Lock className="w-3.5 h-3.5 shrink-0 mt-0.5" aria-hidden="true" /> Their photo and first name show here once the booking is confirmed. Everyone is chosen for their work.
+          <Lock className="w-3.5 h-3.5 shrink-0 mt-0.5" aria-hidden="true" /> Their photo and first name show here once the booking is paid and confirmed. Everyone is chosen for their work.
         </p>
       )}
 

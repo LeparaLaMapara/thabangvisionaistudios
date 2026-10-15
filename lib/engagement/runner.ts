@@ -1,4 +1,5 @@
 import { createAdminClient } from '@/lib/supabase/server';
+import { getFlag } from '@/lib/features';
 import { STUDIO } from '@/lib/constants';
 import { dispatchEngagement, type DispatchResult } from './dispatch';
 import { getAuthUsers, listAuthUsers, loadFacts, loadTailoredProfile } from './load';
@@ -109,7 +110,7 @@ async function previewSamples(
       const { data } = await admin.from('welcome_messages').select('subject, body').eq('user_id', m.userId).maybeSingle();
       if (data) content = contentFromText(data.subject, data.body);
     } else if (m.data.stage === 'nudge' && m.data.reason) {
-      content = nudgeContent({ reason: m.data.reason, nudge: m.data.nudge ?? 1, firstName: person.firstName, intent: person.intent, cartItems: person.cart.items });
+      content = nudgeContent({ reason: m.data.reason, nudge: m.data.nudge ?? 1, firstName: person.firstName, intent: person.intent, cartItems: person.cart.items, people: await peopleOn() });
     } else if (m.data.stage === 'tailored') {
       const d = await draftTailored(await loadTailoredProfile(admin, person));
       content = d.content;
@@ -133,4 +134,9 @@ export async function sendWelcomeSoon(userId: string): Promise<void> {
   } catch (err) {
     console.error('[engagement] immediate welcome failed:', err instanceof Error ? err.message : err);
   }
+}
+
+/** People (roles_v1) on: nudges point at /people and /offer (lib/engagement/templates.ts). */
+async function peopleOn(): Promise<boolean> {
+  return getFlag('roles_v1').catch(() => false);
 }

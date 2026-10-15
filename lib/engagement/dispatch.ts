@@ -1,4 +1,5 @@
 import { createAdminClient } from '@/lib/supabase/server';
+import { getFlag } from '@/lib/features';
 import { STUDIO } from '@/lib/constants';
 import { sendWelcome } from '@/lib/greetings/process';
 import { isPushConfigured, safePushUrl } from '@/lib/push';
@@ -88,7 +89,7 @@ async function deliver(
 
   if (row.channel === 'push') {
     if (data.stage !== 'nudge' || !data.reason) return { status: 'skipped', why: 'push only for nudges' };
-    const c = nudgeContent({ reason: data.reason as NudgeReason, nudge: data.nudge ?? 1, firstName: person.firstName, intent: person.intent, cartItems: person.cart.items });
+    const c = nudgeContent({ reason: data.reason as NudgeReason, nudge: data.nudge ?? 1, firstName: person.firstName, intent: person.intent, cartItems: person.cart.items, people: await peopleOn() });
     if (dryRun) return { status: 'skipped', why: 'dry run' };
     const r = await pushToUser(admin, person.userId, { title: c.subject, body: c.preheader, url: c.cta?.href ?? '/dashboard', tag: `nudge-${data.reason}` });
     if (r.sent > 0) return { status: 'sent', subject: c.subject, gone: r.gone };
@@ -106,7 +107,7 @@ async function deliver(
   // Every lifecycle stage is a service message (owner, 2026-10-13).
   const why = 'service' as const;
   if (data.stage === 'nudge' && data.reason) {
-    content = nudgeContent({ reason: data.reason, nudge: data.nudge ?? 1, firstName: person.firstName, intent: person.intent, cartItems: person.cart.items });
+    content = nudgeContent({ reason: data.reason, nudge: data.nudge ?? 1, firstName: person.firstName, intent: person.intent, cartItems: person.cart.items, people: await peopleOn() });
   } else if (data.stage === 'tailored') {
     content = (await draftTailored(await loadTailoredProfile(admin, person))).content;
   } else {
@@ -179,4 +180,9 @@ export async function kickPushDispatch(now: number = Date.now()): Promise<void> 
   } catch (err) {
     console.error('[engagement] push kick failed:', err instanceof Error ? err.message : err);
   }
+}
+
+/** People (roles_v1) on: nudges point at /people and /offer (lib/engagement/templates.ts). */
+async function peopleOn(): Promise<boolean> {
+  return getFlag('roles_v1').catch(() => false);
 }

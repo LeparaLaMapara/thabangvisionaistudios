@@ -19,7 +19,9 @@ export type CountKey =
   | 'welcomes'
   | 'bugs'
   | 'pressDrafts'
-  | 'listings';
+  | 'listings'
+  | 'peopleRequests'
+  | 'peopleProfiles';
 
 export interface AdminTool {
   label: string;
@@ -67,6 +69,7 @@ export const ADMIN_SECTIONS: AdminSection[] = [
       },
       { label: 'Crew and studio bookings', href: '/admin/service-bookings', hint: 'Photographers, videographers and shoots', keywords: 'service creator shoot studio' },
       { label: 'Booking requests', href: '/admin/creator-requests', hint: 'People asking to book a creator', countKey: 'requests', keywords: 'crew request enquiry quote' },
+      { label: 'People requests', href: '/admin/roles/requests', hint: 'Clients asking to book a person on People: answer, then mark paid', countKey: 'peopleRequests', keywords: 'people roles request booking accept decline eft' },
       { label: 'Pickups and deliveries', href: '/admin/delivery-ops', hint: 'Couriers, collections and drop-offs', keywords: 'delivery courier pickup collection bob go' },
     ],
   },
@@ -89,7 +92,7 @@ export const ADMIN_SECTIONS: AdminSection[] = [
     tools: [
       { label: 'Everyone', href: '/admin/users', hint: 'Find a person, suspend or restore an account', keywords: 'users customers creators accounts suspend' },
       { label: 'ID checks', href: '/admin/verifications', hint: 'Approve or decline identity documents', countKey: 'idChecks', keywords: 'verification identity kyc' },
-      { label: 'Role profiles', href: '/admin/roles', hint: 'Check proof from make-up artists, models, drivers and more', keywords: 'roles join proof review makeup model driver crew' },
+      { label: 'Role profiles', href: '/admin/roles', hint: 'Check proof from make-up artists, models, drivers and more', countKey: 'peopleProfiles', keywords: 'roles join proof review makeup model driver crew' },
       { label: 'Try the matcher', href: '/admin/roles/match', hint: 'Who fits a request (work only, never names or faces)', keywords: 'match embeddings people search' },
       { label: 'Welcome messages', href: '/admin/welcomes', hint: 'Check and send welcome notes to new people', countKey: 'welcomes', keywords: 'welcome email onboarding' },
       { label: 'Customer emails', href: '/admin/engagement', hint: 'Welcome, reminders and tips the site sent by itself', keywords: 'lifecycle email nudge reminder push notifications engagement unsubscribe' },

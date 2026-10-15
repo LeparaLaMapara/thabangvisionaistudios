@@ -1,5 +1,6 @@
 import type { createAdminClient } from '@/lib/supabase/server';
 import { firstNameFrom } from '@/lib/greetings/welcome';
+import { getFlag } from '@/lib/features';
 import { roleOf, type TailoredProfile } from './templates';
 import type { HistoryRow, Intent, PersonFacts, Verification } from './types';
 
@@ -231,5 +232,6 @@ export async function loadTailoredProfile(admin: Admin, person: PersonFacts): Pr
     bookingsAsClient: person.bookingsAsClient,
     gigs,
     categories,
+    people: await getFlag('roles_v1').catch(() => false),
   };
 }

@@ -74,6 +74,8 @@ interface ChatMessageListProps {
   onSend: (text: string) => void;
   /** Re-sends the last message after a failed request. Omit to hide the button. */
   onRetry?: () => void;
+  /** People (roles_v1) is on: the fallback link goes to /people, never the old /book. */
+  people?: boolean;
 }
 
 export function ChatMessageList({
@@ -86,6 +88,7 @@ export function ChatMessageList({
   mdComponents,
   onSend,
   onRetry,
+  people = false,
 }: ChatMessageListProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -263,16 +266,29 @@ export function ChatMessageList({
           {/* A dead end here used to be a dead end for the booking too: the
               only link to the booking form lived in this assistant's system
               prompt, so a customer who got this message had nowhere to go. */}
-          <div className="text-[14px] text-neutral-400 leading-relaxed pt-1">
-            You can also{' '}
-            <Link
-              href="/book"
-              className="text-[#D4A843] underline underline-offset-2 hover:opacity-80 transition-opacity"
-            >
-              book a shoot directly
-            </Link>{' '}
-            without me: pick your date, hours and type of shoot.
-          </div>
+          {people ? (
+            <div className="text-[14px] text-neutral-400 leading-relaxed pt-1">
+              You can also{' '}
+              <Link
+                href="/people"
+                className="text-[#D4A843] underline underline-offset-2 hover:opacity-80 transition-opacity"
+              >
+                choose a person yourself
+              </Link>{' '}
+              on People. You see the price before you send a request.
+            </div>
+          ) : (
+            <div className="text-[14px] text-neutral-400 leading-relaxed pt-1">
+              You can also{' '}
+              <Link
+                href="/book"
+                className="text-[#D4A843] underline underline-offset-2 hover:opacity-80 transition-opacity"
+              >
+                book a shoot directly
+              </Link>{' '}
+              without me: pick your date, hours and type of shoot.
+            </div>
+          )}
         </motion.div>
       )}
 

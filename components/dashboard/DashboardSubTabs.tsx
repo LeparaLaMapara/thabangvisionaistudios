@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { HIDDEN_WITH_PEOPLE, PEOPLE_PROFILE_HREF, usePeopleMode } from './PeopleMode';
 
 interface SubTab {
   href: string;
@@ -17,8 +18,13 @@ interface DashboardSubTabsProps {
  * Used inside Activity (Rentals / Hires / Cart) and Studio (Portfolio / Gigs / Listings / Orders).
  * Visible on mobile where the bottom tab bar groups these pages together.
  */
-export function DashboardSubTabs({ tabs }: DashboardSubTabsProps) {
+export function DashboardSubTabs({ tabs: given }: DashboardSubTabsProps) {
   const pathname = usePathname();
+  // People on: Gigs, Portfolio and the Pricing Guide give way to one People profile.
+  const people = usePeopleMode();
+  const tabs = people && given.some((t) => HIDDEN_WITH_PEOPLE.includes(t.href))
+    ? [{ href: PEOPLE_PROFILE_HREF, label: 'People profile' }, ...given.filter((t) => !HIDDEN_WITH_PEOPLE.includes(t.href))]
+    : given;
 
   const isActive = (href: string) =>
     pathname === href || pathname.startsWith(href + '/');

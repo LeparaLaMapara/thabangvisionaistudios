@@ -18,6 +18,19 @@ export function hasOnSiteItem(items: readonly { rental: { category?: string | nu
 }
 
 /**
+ * Whether every item is a place (a studio): then nothing is collected or
+ * delivered, and checkout asks no "how do you receive it" question.
+ */
+export function onlyOnSiteItems(items: readonly { rental: { category?: string | null } }[]): boolean {
+  return items.length > 0 && items.every((i) => isOnSiteCategory(i.rental.category));
+}
+
+/** What a studio-only cart says instead of the collect or deliver choice. */
+export function studioUseNote(place: string, city: string): string {
+  return `You use the studio at ${place}, ${city}, on the days you booked. There is nothing to collect or deliver. Bring the ID you verified with.`;
+}
+
+/**
  * The half-day price in rands, or null when the listing has none (the option
  * is then not shown). Only places have half days.
  */

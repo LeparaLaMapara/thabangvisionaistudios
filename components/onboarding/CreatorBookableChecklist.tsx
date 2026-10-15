@@ -1,12 +1,19 @@
+'use client';
+
 import Link from 'next/link';
 import { CircleCheck, Circle, ArrowRight } from 'lucide-react';
 import { creatorBookableChecklist, type BookableFacts } from '@/lib/creators/bookable';
+import { usePeopleMode } from '@/components/dashboard/PeopleMode';
 
 /**
  * "What makes you bookable", shown to creators on their profile and
  * portfolio pages, so the requirements are visible before they are hit.
  */
 export default function CreatorBookableChecklist({ facts, className = '' }: { facts: BookableFacts; className?: string }) {
+  // People on: creator search is gone (it redirects to /people), so this
+  // checklist would promise what People does not do. Hidden.
+  const people = usePeopleMode();
+  if (people) return null;
   const items = creatorBookableChecklist(facts);
   const remaining = items.filter((i) => !i.done).length;
   return (
