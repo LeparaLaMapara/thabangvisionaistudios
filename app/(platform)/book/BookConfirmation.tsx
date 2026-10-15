@@ -121,7 +121,7 @@ export default function BookConfirmation({
             <div className="space-y-2 text-sm">
               <div className="flex justify-between text-neutral-400">
                 <span>{pkg ? 'Package' : 'Rate'}</span>
-                <span>{rateLine ?? `${formatRand(hourlyRate)}/hr × ${hours}hrs`}</span>
+                <span>{rateLine ?? `${formatRand(hourlyRate)} an hour × ${hours} hours`}</span>
               </div>
               <div className="flex justify-between border-t border-neutral-700 pt-2 text-lg font-bold text-white">
                 <span>Total</span>

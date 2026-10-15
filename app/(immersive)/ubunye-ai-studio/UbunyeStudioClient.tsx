@@ -13,6 +13,7 @@ import { GoldenSphere } from '@/components/ubunye/GoldenSphere';
 import { ChatMessageList } from '@/components/ubunye/ChatMessageList';
 import { ChatInputBar } from '@/components/ubunye/ChatInputBar';
 import type { StudioContext, OrbState } from '@/types/ubunye';
+import { formatRate } from '@/lib/format/money';
 
 // ─── Constants ──────────────────────────────────────────────────────────────────
 
@@ -420,7 +421,7 @@ export default function UbunyeStudioClient({ context }: UbunyeStudioClientProps)
                             )}
                             <span className="text-xs text-neutral-300 block truncate">{gear.title}</span>
                             {gear.price_per_day && (
-                              <span className="text-xs text-neutral-400 font-mono">From {STUDIO.currency.symbol}{gear.price_per_day}/day</span>
+                              <span className="text-xs text-neutral-400 font-mono">From {formatRate(Number(gear.price_per_day), 'day')}</span>
                             )}
                           </button>
                         ))}
@@ -450,7 +451,7 @@ export default function UbunyeStudioClient({ context }: UbunyeStudioClientProps)
                               <span className="text-xs text-neutral-300 truncate">{creator.display_name}</span>
                             </div>
                             <div className="flex items-center gap-1.5 text-xs text-neutral-400 font-mono">
-                              {creator.hourly_rate && <span>{STUDIO.currency.symbol}{creator.hourly_rate}/hr</span>}
+                              {creator.hourly_rate && <span>{formatRate(Number(creator.hourly_rate), 'hour')}</span>}
                               {creator.hourly_rate && creator.specializations?.[0] && <span>·</span>}
                               {creator.specializations?.[0] && <span className="truncate">{creator.specializations[0]}</span>}
                             </div>

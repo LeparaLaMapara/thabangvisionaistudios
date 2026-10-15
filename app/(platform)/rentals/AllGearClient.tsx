@@ -112,7 +112,7 @@ function GearCard({ rental }: { rental: RentalListItem }): React.ReactElement {
         {rental.price_per_day != null ? (
           <>
             {formatRand(rental.price_per_day)}
-            <span className="font-normal text-xs text-neutral-400">{place ? ` / ${ON_SITE_RENTAL.fullDayLabel.toLowerCase()}` : ' / day'}</span>
+            <span className="font-normal text-xs text-neutral-400">{place ? ` a ${ON_SITE_RENTAL.fullDayLabel.toLowerCase()}` : ' a day'}</span>
           </>
         ) : (
           <span className="font-normal text-xs text-neutral-400">Ask for a price</span>

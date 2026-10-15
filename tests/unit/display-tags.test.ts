@@ -26,3 +26,20 @@ describe('visitors never read a raw slug', () => {
     expect(categoryLabel('new-thing')).toBe('New thing');
   });
 });
+
+import { formatRate, rateWords } from '@/lib/format/money';
+
+describe('one price format: "R1 300 a day"', () => {
+  it('rand symbol, a space between thousands, the unit in words', () => {
+    expect(formatRate(1300, 'day')).toBe('R1 300 a day');
+    expect(formatRate(900, 'hour')).toBe('R900 an hour');
+    expect(formatRate(4500, 'week')).toBe('R4 500 a week');
+    expect(formatRate(3500, 'full_day')).toBe('R3 500 a full day');
+    expect(formatRate(11, 'km')).toBe('R11 a km');
+  });
+
+  it('unknown units read "a project"', () => {
+    expect(rateWords('mystery')).toBe('a project');
+    expect(rateWords('event')).toBe('an event');
+  });
+});

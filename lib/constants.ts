@@ -1240,15 +1240,16 @@ export const ROLES_POLICY = {
   captureFreshnessMinutes: 15,
   /** The person may move the suggested price within the role's low..high band. */
   pricing: {
+    // The same words as formatRate (lib/format/money.ts): "R1 800 a day".
     unitLabels: {
-      hour: 'per hour',
-      half_day: 'per half day',
-      day: 'per day',
-      look: 'per look',
-      day_plus_km: 'per day',
-      project: 'per project',
+      hour: 'an hour',
+      half_day: 'a half day',
+      day: 'a day',
+      look: 'a look',
+      day_plus_km: 'a day',
+      project: 'a project',
     },
-    perKmLabel: 'per km',
+    perKmLabel: 'a km',
   },
   /** Words clients see. Hide the machinery: one mark, a real count, the promise. */
   copy: {

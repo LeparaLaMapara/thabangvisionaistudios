@@ -255,8 +255,8 @@ describe('pricing', () => {
   });
 
   it('formats a clear price with its unit', () => {
-    expect(formatRolePrice('look', 65000)).toBe('R650 per look');
-    expect(formatRolePrice('day_plus_km', 180000, 600)).toMatch(/^R1.800 per day \+ R6 per km$/);
+    expect(formatRolePrice('look', 65000)).toBe('R650 a look');
+    expect(formatRolePrice('day_plus_km', 180000, 600)).toMatch(/^R1.800 a day \+ R6 a km$/);
   });
 
   it('reads rands typed by a person', () => {

@@ -371,7 +371,7 @@ export default function ProductionPackageDetailView({
                         <div>
                           <p className="text-sm text-white">{item.service}</p>
                           <p className="text-xs font-mono text-neutral-400">
-                            {item.hours}hr × {formatRand(item.rate)}/hr
+                            {item.hours} {item.hours === 1 ? 'hour' : 'hours'} × {formatRand(item.rate)} an hour
                           </p>
                         </div>
                         <span className="text-sm font-mono font-bold text-white">
@@ -438,7 +438,7 @@ export default function ProductionPackageDetailView({
                   Effective Rate
                 </span>
                 <span className="text-sm font-mono text-neutral-400">
-                  ~{formatRand(Math.round(pricing.total / totalHours))}/hr
+                  About {formatRand(Math.round(pricing.total / totalHours))} an hour
                 </span>
               </div>
             </div>
@@ -511,7 +511,7 @@ export default function ProductionPackageDetailView({
                               {formatRand(relPricing.total)}
                             </p>
                             <p className="text-xs font-mono text-neutral-400">
-                              {relHours}hrs · ~{formatRand(Math.round(relPricing.total / relHours))}/hr
+                              {relHours} hours · about {formatRand(Math.round(relPricing.total / relHours))} an hour
                             </p>
                           </div>
                           <ArrowRight className="w-4 h-4 text-neutral-400 group-hover:text-[#D4A843] group-hover:translate-x-1 transition-all" />

@@ -9,6 +9,7 @@ import type { CreatorProfile } from '@/lib/supabase/queries/smartProductions';
 import { STUDIO, CREATOR_JOIN, EARN } from '@/lib/constants';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { creatorProfilePath } from '@/lib/seo/creator-url';
+import { formatRate } from '@/lib/format/money';
 
 // ─── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -119,8 +120,7 @@ function CreatorCard({
 
             {creator.hourly_rate && (
               <p className="text-[#D4A843] text-xs font-medium">
-                From {STUDIO.currency.symbol}
-                {creator.hourly_rate}/hr
+                From {formatRate(creator.hourly_rate, 'hour')}
               </p>
             )}
           </div>

@@ -16,6 +16,7 @@
  */
 import { priceWithVat, type TaxConfig } from '@/lib/core/pricing/tax';
 import { toCents } from '@/lib/core/pricing/money';
+import { rateWords } from '@/lib/format/money';
 
 /** When the sale happens and (for tests) which tax config to apply. */
 export interface QuoteOptions {
@@ -40,13 +41,9 @@ export interface ServiceQuote {
 // Plain spaces as thousands separators (en-ZA uses a non-breaking space).
 const rand = (n: number): string => `R${Math.round(n).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ' ')}`;
 
+/** "an hour", "a session", "an event", else "a project" (lib/format/money rateWords). */
 export function packageUnitWords(unit: string): string {
-  switch (unit) {
-    case 'hour': return 'per hour';
-    case 'session': return 'per session';
-    case 'event': return 'per event';
-    default: return 'per project';
-  }
+  return rateWords(unit === 'hour' || unit === 'session' || unit === 'event' ? unit : 'project');
 }
 
 /**
@@ -66,7 +63,7 @@ export function serviceVat(price: number, opts: QuoteOptions = {}): { subtotal: 
  *   core, which is 0 while the company is not VAT-registered.
  */
 export function quoteHourly(rate: number, hours: number, _legacyVatRate?: number, opts?: QuoteOptions): ServiceQuote {
-  return { basis: 'hourly', line: `${rand(rate)}/hr × ${hours}hrs`, ...serviceVat(Math.round(rate * hours), opts) };
+  return { basis: 'hourly', line: `${rand(rate)} an hour × ${hours} hours`, ...serviceVat(Math.round(rate * hours), opts) };
 }
 
 /**
@@ -76,7 +73,7 @@ export function quoteHourly(rate: number, hours: number, _legacyVatRate?: number
 export function quotePackage(price: number, unit: string, hours: number, _legacyVatRate?: number, opts?: QuoteOptions): ServiceQuote {
   const perHour = unit === 'hour';
   const amount = Math.round(perHour ? price * hours : price);
-  const line = perHour ? `${rand(price)}/hr × ${hours}hrs` : `${rand(price)} ${packageUnitWords(unit)}`;
+  const line = perHour ? `${rand(price)} an hour × ${hours} hours` : `${rand(price)} ${packageUnitWords(unit)}`;
   return { basis: 'package', line, ...serviceVat(amount, opts) };
 }
 

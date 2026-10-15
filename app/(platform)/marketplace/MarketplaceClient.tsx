@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import type { Listing, ListingType } from '@/types/marketplace';
 import { STUDIO } from '@/lib/constants';
+import { formatRand, formatRate } from '@/lib/format/money';
 
 // ─── Filter types ────────────────────────────────────────────────────────────
 
@@ -22,25 +23,9 @@ type TypeFilter = 'all' | ListingType;
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-function formatPrice(price: number, currency: string, pricingModel: string) {
-  const formatted = new Intl.NumberFormat('en-ZA', {
-    style: 'currency',
-    currency: currency || 'ZAR',
-    minimumFractionDigits: 0,
-  }).format(price);
-
-  const suffix =
-    pricingModel === 'hourly'
-      ? '/hr'
-      : pricingModel === 'daily'
-        ? '/day'
-        : pricingModel === 'weekly'
-          ? '/wk'
-          : pricingModel === 'monthly'
-            ? '/mo'
-            : '';
-
-  return `${formatted}${suffix}`;
+function formatPrice(price: number, _currency: string, pricingModel: string) {
+  const unit: Record<string, string> = { hourly: 'hour', daily: 'day', weekly: 'week' };
+  return unit[pricingModel] ? formatRate(price, unit[pricingModel]) : formatRand(price);
 }
 
 function conditionLabel(condition: string | null) {
@@ -272,7 +257,7 @@ export default function MarketplaceClient({
                   {item.title}
                 </h3>
                 <p className="text-xs font-mono text-neutral-400">
-                  {item.count !== null ? `${item.count} listings` : item.desc}
+                  {item.count !== null ? `${item.count} ${item.count === 1 ? 'listing' : 'listings'}` : item.desc}
                 </p>
               </motion.div>
             ))}

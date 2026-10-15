@@ -23,6 +23,7 @@ import { Card } from '@/components/ui/Card';
 import { Rating } from '@/components/ui/Rating';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { STUDIO } from '@/lib/constants';
+import { formatRand } from '@/lib/format/money';
 
 interface ReviewData {
   id: string;
@@ -305,8 +306,8 @@ export default function CreatorProfileClient({
                         )}
                         {rental.price_per_day != null && (
                           <p className="text-sm font-mono font-bold text-accent-gold mt-2">
-                            R{Number(rental.price_per_day).toLocaleString('en-ZA')}
-                            <span className="text-neutral-400 font-normal"> / day</span>
+                            {formatRand(Number(rental.price_per_day))}
+                            <span className="text-neutral-400 font-normal"> a day</span>
                           </p>
                         )}
                       </div>
@@ -360,7 +361,7 @@ export default function CreatorProfileClient({
                         </p>
                         {listing.price != null && (
                           <p className="text-sm font-mono font-bold text-accent-gold mt-2">
-                            {listing.currency} {listing.price.toLocaleString()}
+                            {formatRand(listing.price)}
                           </p>
                         )}
                       </div>

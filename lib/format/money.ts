@@ -19,6 +19,49 @@ export function formatRand(amount: number, opts?: { decimals?: boolean }): strin
   return `${negative ? '-' : ''}${STUDIO.currency.symbol}${grouped}${cents ? `.${cents}` : ''}`;
 }
 
+/** What a price is for. Every unit a customer price is quoted in on the site. */
+export type RateUnit =
+  | 'hour'
+  | 'day'
+  | 'week'
+  | 'half_day'
+  | 'full_day'
+  | 'look'
+  | 'session'
+  | 'event'
+  | 'project'
+  | 'day_plus_km'
+  | 'km';
+
+const RATE_WORDS: Record<RateUnit, string> = {
+  hour: 'an hour',
+  day: 'a day',
+  week: 'a week',
+  half_day: 'a half day',
+  full_day: 'a full day',
+  look: 'a look',
+  session: 'a session',
+  event: 'an event',
+  project: 'a project',
+  // The day rate; the per-km part is quoted on its own ("+ R6 a km").
+  day_plus_km: 'a day',
+  km: 'a km',
+};
+
+/** "a day", "an hour": the words after a price. Unknown units read "a project". */
+export function rateWords(unit: string): string {
+  return RATE_WORDS[unit as RateUnit] ?? RATE_WORDS.project;
+}
+
+/**
+ * One way to write a price with its unit, everywhere (pages, cards, emails
+ * and the Ubunye prompt): "R1 300 a day", "R900 an hour". Built on
+ * formatRand, so the thousands space never wraps.
+ */
+export function formatRate(amount: number, unit: RateUnit | string, opts?: { decimals?: boolean }): string {
+  return `${formatRand(amount, opts)} ${rateWords(unit)}`;
+}
+
 /**
  * The VAT rate (percent) on services right now, from the tax core: 0 while
  * the company is not VAT-registered. Evaluated at module load; use
