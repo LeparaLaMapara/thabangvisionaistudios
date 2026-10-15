@@ -76,7 +76,7 @@ export default async function RentalCategoryPage({
         />
       ))}
       <AllGearClient rentals={rentals} initialCategory={category} loadFailed={failed} />
-      <RelatedCategories currentSlug={category} type="rentals" />
+      <RelatedCategories currentSlug={category} type="rentals" stocked={[...new Set(rentals.map((r) => r.category))]} />
     </>
   );
 }
