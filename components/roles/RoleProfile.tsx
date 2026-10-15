@@ -1,7 +1,8 @@
 import Link from 'next/link';
 import { BadgeCheck, Briefcase, CalendarPlus, MapPin, Package, ShieldCheck, Star } from 'lucide-react';
 import { ROLES_POLICY } from '@/lib/constants';
-import { factsSummary, formatRolePrice, selfieIsProof } from '@/lib/roles';
+import { effectiveUnit, factsSummary, formatRolePrice, groupAlbums, selfieIsProof } from '@/lib/roles';
+import { AlbumGallery } from './AlbumGallery';
 import type { PublicRoleProfile } from '@/lib/supabase/queries/roles';
 import type { RoleEvidence } from '@/lib/roles';
 import { WhosComingCard } from './WhosComingCard';
@@ -34,8 +35,11 @@ export function RoleProfile({ profile, preview = false }: { profile: PublicRoleP
   const format = role.proof_format;
   const audio = work.filter((e) => e.media_kind === 'audio');
   const visual = work.filter((e) => e.media_kind !== 'audio' && !(comesWith?.evidenceIds.includes(e.id)));
-  const hero = format === 'trust' || format === 'listen' ? null : visual.find((e) => e.kind === 'photo') ?? null;
-  const rest = visual.filter((e) => e !== hero);
+  // A portfolio with albums (092) is one gallery with album tabs.
+  const albums = visual.some((e) => e.album) ? groupAlbums(visual) : null;
+  const hero = albums || format === 'trust' || format === 'listen' ? null : visual.find((e) => e.kind === 'photo') ?? null;
+  const rest = albums ? [] : visual.filter((e) => e !== hero);
+  const unit = effectiveUnit(role.pricing_unit, personRole.pricing_unit);
   const summary = factsSummary(facts);
 
   return (
@@ -68,6 +72,8 @@ export function RoleProfile({ profile, preview = false }: { profile: PublicRoleP
           )}
         </ul>
 
+        {albums && <AlbumGallery albums={albums} />}
+
         {/* Trust roles: the facts and the record ARE the proof. */}
         {format === 'trust' && summary.length > 0 && (
           <section className="mb-6 border border-white/10 p-4" aria-label="Facts">
@@ -91,7 +97,7 @@ export function RoleProfile({ profile, preview = false }: { profile: PublicRoleP
         )}
 
         <div className="border border-white/10 bg-white/[0.02] p-4 mb-6">
-          <p className="text-2xl text-white font-display">{formatRolePrice(role.pricing_unit, price, personRole.per_km_cents)}</p>
+          <p className="text-2xl text-white font-display">{formatRolePrice(unit, price, personRole.per_km_cents)}</p>
           <p className="text-xs text-neutral-500 mt-1">The price you pay. Shown before you book.</p>
           {preview ? (
             <p className="mt-4 text-sm text-neutral-400">Clients see a &ldquo;Request a booking&rdquo; button here.</p>

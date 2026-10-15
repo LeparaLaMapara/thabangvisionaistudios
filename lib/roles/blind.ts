@@ -8,7 +8,7 @@
 
 /** Columns of person_roles a browser may read (matches migration 091's grant). */
 export const PUBLIC_PERSON_ROLE_COLUMNS =
-  'id, role_slug, status, evidence_level, headline, about, area, price_cents, per_km_cents, legal_verified_at, submitted_at, approved_at, is_demo, created_at, updated_at, profile_code, facts, facts_reviewed_at, comes_with, available_days';
+  'id, role_slug, status, evidence_level, headline, about, area, price_cents, per_km_cents, legal_verified_at, submitted_at, approved_at, is_demo, created_at, updated_at, profile_code, facts, facts_reviewed_at, comes_with, available_days, pricing_unit';
 
 /** Fields that identify a person. Never in a blind payload, never in an embedding. */
 export const IDENTITY_FIELDS = ['user_id', 'display_name', 'first_name', 'last_name', 'full_name', 'avatar_url', 'face', 'face_url', 'selfie_with_id_path', 'email', 'phone', 'answers'] as const;

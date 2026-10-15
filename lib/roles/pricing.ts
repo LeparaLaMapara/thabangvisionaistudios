@@ -47,3 +47,45 @@ export function randsToCents(input: string): number | null {
   if (!/^\d{1,7}(\.\d{1,2})?$/.test(cleaned)) return null;
   return Math.round(Number(cleaned) * 100);
 }
+
+/** The unit a person charges in: their own, else the role's (092). */
+export function effectiveUnit(roleUnit: PricingUnit, personUnit: PricingUnit | null | undefined): PricingUnit {
+  return personUnit ?? roleUnit;
+}
+
+export interface BookingTotal {
+  totalCents: number;
+  /** How many units were counted (days, hours or 1). */
+  quantity: number;
+  /** "R1 800 x 2 days". */
+  label: string;
+}
+
+const DAY_UNITS: readonly PricingUnit[] = ['day', 'half_day', 'day_plus_km'];
+
+/** Whether the client picks dates (days) or hours for this unit. */
+export function pricedByDays(unit: PricingUnit): boolean {
+  return DAY_UNITS.includes(unit);
+}
+
+/**
+ * One price, shown before booking, like Rentals: rate x days for day units,
+ * rate x hours for an hourly person, the rate once for a look or a project.
+ * Kilometres for day_plus_km are added when the trip is known, not here.
+ */
+export function bookingTotal(unit: PricingUnit, priceCents: number, input: { days?: number; hours?: number }): BookingTotal {
+  const days = Math.max(1, Math.min(31, Math.floor(input.days ?? 1)));
+  const hours = Math.max(0.5, Math.min(24, Math.round((input.hours ?? 1) * 2) / 2));
+  const price = Math.max(0, Math.round(priceCents));
+  if (pricedByDays(unit)) {
+    return { totalCents: price * days, quantity: days, label: `${rand(price)} x ${days} day${days === 1 ? '' : 's'}` };
+  }
+  if (unit === 'hour') {
+    return { totalCents: Math.round(price * hours), quantity: hours, label: `${rand(price)} x ${hours} hour${hours === 1 ? '' : 's'}` };
+  }
+  return { totalCents: price, quantity: 1, label: `${rand(price)} ${unitLabel(unit)}` };
+}
+
+export function formatRands(cents: number): string {
+  return rand(cents);
+}

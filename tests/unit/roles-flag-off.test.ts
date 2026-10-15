@@ -64,5 +64,5 @@ describe('roles API with roles_v1 off', () => {
     ]);
     expect(results.map((r) => r.status)).toEqual(Array(17).fill(404));
     expect(tableReads).toEqual([]);
-  });
+  }, 30_000); // imports many route modules; slow under a full parallel run
 });

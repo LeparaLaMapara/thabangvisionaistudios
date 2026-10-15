@@ -1,4 +1,5 @@
 import { createAdminClient } from '@/lib/supabase/server';
+import { getFlag } from '@/lib/features';
 import { embedding as embeddingProvider, generateEmbedding } from '@/lib/rag/embeddings';
 import { getRoles, loadRecords, PERSON_ROLE_COLUMNS } from '@/lib/supabase/queries/roles';
 import { buildProfileDocument, documentHash } from './document';
@@ -107,4 +108,25 @@ export async function matchPeople(query: string, opts: { role?: string | null; l
     const role = roles.find((r) => r.slug === pr.role_slug);
     return { ...m, roleSlug: pr.role_slug, label: [role?.name ?? pr.role_slug, pr.area, pr.profile_code].filter(Boolean).join(' · ') };
   });
+}
+
+/**
+ * Daily (daily-maintenance step 17c): embed approved profiles that have no
+ * embedding yet, for example one an admin script approved
+ * (scripts/roles/owner-portfolio.sql). No-op while roles_v1 is off or before
+ * 091. Counts only.
+ */
+export async function reembedMissing(limit = 25): Promise<Record<string, number | string>> {
+  if (!(await getFlag('roles_v1'))) return { skipped: 'roles_v1 off' };
+  const admin = createAdminClient();
+  const [{ data: approved, error }, { data: embedded }] = await Promise.all([
+    admin.from('person_roles').select('id').eq('status', 'approved').limit(500),
+    admin.from('person_role_embeddings').select('person_role_id').limit(1000),
+  ]);
+  if (error) return { skipped: 'tables missing' };
+  const have = new Set((embedded ?? []).map((r) => r.person_role_id as string));
+  const todo = (approved ?? []).map((r) => r.id as string).filter((id) => !have.has(id)).slice(0, limit);
+  const counts: Record<string, number> = { embedded: 0, unchanged: 0, skipped: 0 };
+  for (const id of todo) counts[await reembedPersonRole(id)] += 1;
+  return counts;
 }
