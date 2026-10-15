@@ -446,8 +446,8 @@ export default function RentalDetailView({
                 )}
                 <dl className="border-t border-white/5 pt-3 space-y-2 text-xs font-mono text-neutral-400">
                   <div className="flex justify-between gap-3">
-                    <dt className="uppercase tracking-widest">Minimum booking</dt>
-                    <dd className="text-white">{ON_SITE_RENTAL.minimumBooking}</dd>
+                    <dt className="uppercase tracking-widest">Booking</dt>
+                    <dd className="text-white text-right">{ON_SITE_RENTAL.bookingRule}</dd>
                   </div>
                   <div className="flex justify-between gap-3">
                     <dt className="uppercase tracking-widest">Where</dt>

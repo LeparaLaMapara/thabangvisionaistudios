@@ -47,9 +47,11 @@ function getToolStates(msg: UIMessage) {
     .map((p) => ({ name: toolName(p), label: TOOL_LABELS[toolName(p)] || 'Processing' }));
 }
 
-function getLastCompletedTool(msg: UIMessage): string | null {
+function getLastCompletedTool(msg: UIMessage): { name: string; output: unknown } | null {
   const done = toolParts(msg).filter((p) => p.state === 'output-available');
-  return done.length > 0 ? toolName(done[done.length - 1]) : null;
+  if (done.length === 0) return null;
+  const last = done[done.length - 1];
+  return { name: toolName(last), output: last.output };
 }
 
 /** The latest proposal in this message that is waiting for approval, if any. */
@@ -164,7 +166,7 @@ export function ChatMessageList({
             {proposalId && <ApprovalCard key={proposalId} proposalId={proposalId} />}
 
             {completedTool && (
-              <FollowUpSuggestions toolName={completedTool} onSelect={onSend} />
+              <FollowUpSuggestions toolName={completedTool.name} output={completedTool.output} onSelect={onSend} />
             )}
           </motion.div>
         );

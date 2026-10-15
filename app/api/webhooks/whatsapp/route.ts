@@ -140,8 +140,13 @@ async function handleTwilio(request: NextRequest): Promise<NextResponse> {
     // Build system prompt with platform data
     const supabase = createAdminClient();
     const { getFlags } = await import('@/lib/features');
-    const flagsState = await getFlags(['smart_productions']);
-    const flags = { smart_productions: flagsState.smart_productions };
+    const { paymentsOpenForLegalPages } = await import('@/lib/consent/legal-facts');
+    const flagsState = await getFlags(['smart_productions', 'roles_v1']);
+    const flags = {
+      smart_productions: flagsState.smart_productions,
+      roles_v1: flagsState.roles_v1,
+      payments_open: paymentsOpenForLegalPages(),
+    };
     const platformData = await fetchPlatformData(supabase, flags);
     let systemPrompt = buildSystemPrompt(platformData, null, flags);
     systemPrompt += '\n\nYou are responding via WhatsApp. Keep responses concise (under 1000 characters). Use plain text, no markdown. Be warm and helpful. The user\'s name is ' + (message.profileName || 'there') + '.';

@@ -18,7 +18,7 @@ const COLLECTION_POINT = collectionPoint();
 
 // ─── Hero ────────────────────────────────────────────────────────────────────
 
-const Hero = ({ minDayRate, rolesOn }: { minDayRate: number | null; rolesOn: boolean }) => {
+const Hero = ({ minDayRate, rolesOn, peopleLine }: { minDayRate: number | null; rolesOn: boolean; peopleLine: string }) => {
   const { scrollY } = useScroll();
   const y1 = useTransform(scrollY, [0, 500], [0, 200]);
   const opacity = useTransform(scrollY, [0, 300], [1, 0]);
@@ -104,7 +104,7 @@ const Hero = ({ minDayRate, rolesOn }: { minDayRate: number | null; rolesOn: boo
           <motion.div initial={false} animate={{ opacity: 1 }} className="max-w-xl">
             <p className="text-lg text-neutral-300 font-light leading-relaxed mb-10">
               Cameras, lenses, lights, sound and drones{minDayRate !== null ? ` from ${formatRand(minDayRate)} a day` : ''}. Book online and collect at {COLLECTION_POINT}.
-              {rolesOn && <> {HOME_PEOPLE.peopleLine}</>}
+              {rolesOn && <> {peopleLine}</>}
             </p>
             <div className="flex flex-wrap items-center gap-x-6 gap-y-4">
               <Link href="/rentals" className="group inline-flex items-center gap-2 min-h-[44px] bg-white text-black px-8 py-4 text-xs font-mono font-bold uppercase tracking-widest hover:opacity-80 transition-opacity">
@@ -378,6 +378,7 @@ export default function HomeClient({
   paymentsOpen,
   showApps = false,
   rolesOn = false,
+  people,
 }: {
   carouselItems: CarouselItem[];
   /** Cheapest live day rate, or null when no priced stock is published. */
@@ -388,15 +389,24 @@ export default function HomeClient({
   showApps?: boolean;
   /** roles_v1: the creator block becomes Earn with ThabangVision. */
   rolesOn?: boolean;
+  /**
+   * With People on: words naming only the kinds of work someone approved
+   * offers (lib/roles/offered.ts peopleWords), read on the server.
+   */
+  people?: { heroLine: string; tileSubtitle: string; offerLine: string };
 }) {
+  const peopleCapabilities = CAPABILITIES_PEOPLE.map((c) => (c.link === HOME_PEOPLE.peopleHref && people ? { ...c, subtitle: people.tileSubtitle } : c));
   return (
     <div className="min-h-screen bg-[#050505] transition-colors duration-500">
-      <Hero minDayRate={minDayRate} rolesOn={rolesOn} />
+      <Hero minDayRate={minDayRate} rolesOn={rolesOn} peopleLine={people?.heroLine ?? HOME_PEOPLE.peopleLine} />
       {/* Gear and recent shoots, directly under the hero. */}
       <LatestWorkCarousel items={carouselItems} />
       <HowItWorks paymentsOpen={paymentsOpen} />
       {/* What we offer: Rentals and Studio, or with People on, Rentals and People (no Studio card). */}
-      <ServiceGrid capabilities={rolesOn ? CAPABILITIES_PEOPLE : CAPABILITIES} />
+      <ServiceGrid
+        capabilities={rolesOn ? peopleCapabilities : CAPABILITIES}
+        offerLine={rolesOn ? (people?.offerLine ?? HOME_PEOPLE.offerLine) : undefined}
+      />
       <TrustSignals />
       <BookingCTA />
       <CreatorJoin earn={rolesOn} />

@@ -11,13 +11,18 @@ import { getPublishedProductions } from '@/lib/supabase/queries/smartProductions
 import { formatRolePrice } from '@/lib/roles';
 import { formatRand } from '@/lib/format/money';
 import { buildPageMetadata } from '@/lib/seo/metadata';
+import { peopleWords } from '@/lib/roles/offered';
+import { whatsappLink } from '@/lib/payments/eft';
 
 export const metadata: Metadata = buildPageMetadata({
   title: 'People',
-  description: `Photo and video shoots, make-up artists, models and drivers on ${STUDIO.shortName}. Chosen for their work.`,
+  description: `People you can book for your shoot on ${STUDIO.shortName}. Chosen for their work.`,
   path: '/people',
   noIndex: true,
 });
+
+/** The message the WhatsApp link opens with, for anyone the page does not list. */
+const PEOPLE_ASK_MESSAGE = 'Hi, I need someone for my shoot. My date is:';
 
 interface Props {
   searchParams: Promise<{ role?: string }>;
@@ -35,6 +40,8 @@ export default async function PeoplePage({ searchParams }: Props) {
   const [everyone, allPackages, held] = await Promise.all([listApprovedProfiles(), getPublishedProductions(), heldProductions()]);
   // Only kinds of work someone actually offers get a chip: an empty category is noise (owner, 2026-10-14).
   const roles = live.filter((r) => everyone.some((c) => c.roleSlug === r.slug));
+  // Name only the kinds of work someone offers; one honest line for the rest.
+  const words = peopleWords(roles, live);
   const active = roles.find((r) => r.slug === roleParam)?.slug;
   const cards = active ? everyone.filter((c) => c.roleSlug === active) : everyone;
   // A package whose work a profile holds is shown once, as that profile (092).
@@ -84,7 +91,7 @@ export default async function PeoplePage({ searchParams }: Props) {
         )}
 
         <section aria-labelledby="people-h">
-          <h2 id="people-h" className="text-sm font-mono uppercase tracking-widest text-neutral-400 mb-3">Make-up, models, drivers and more</h2>
+          <h2 id="people-h" className="text-sm font-mono uppercase tracking-widest text-neutral-400 mb-3">{words.heading}</h2>
           {cards.length === 0 ? (
             <p className="text-neutral-400">
               Nobody here yet. <Link href={EARN.href} className="text-accent-gold underline underline-offset-4">{EARN.label}</Link>
@@ -117,6 +124,17 @@ export default async function PeoplePage({ searchParams }: Props) {
               ))}
             </ul>
           )}
+          <p className="mt-8 text-neutral-300">
+            {words.askLine}{' '}
+            <a
+              href={whatsappLink(PEOPLE_ASK_MESSAGE)}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex min-h-[44px] items-center text-accent-gold underline underline-offset-4"
+            >
+              WhatsApp us
+            </a>
+          </p>
         </section>
       </div>
     </div>
