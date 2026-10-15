@@ -228,7 +228,7 @@ export function RentalVideoCarousel({ videos, label }: { videos: RentalVideo[]; 
       </div>
 
       <div className="mt-2 flex items-center justify-between gap-3">
-        <p className="min-w-0 truncate font-mono text-xs uppercase tracking-widest text-neutral-400" aria-live="polite">
+        <p className="min-w-0 font-mono text-xs uppercase leading-snug tracking-wider text-neutral-400" aria-live="polite">
           {current.title ?? label}
           {count > 1 && <span className="sr-only">, video {active + 1} of {count}</span>}
         </p>
