@@ -27,14 +27,16 @@ const data: CachedData = {
 };
 
 describe('Ubunye payment rule follows the /pay switch (B1)', () => {
-  it('card open: card only, no EFT, cash or WhatsApp proof of payment, and the bank warning', () => {
+  it('card open: online first, EFT or in person only as a backup arranged with us, and the bank warning', () => {
     const p = buildSystemPrompt(data, null, { smart_productions: true, payments_open: true });
     expect(p).toContain('paid by card when you book');
+    expect(p).toContain('Online is the normal way to pay');
+    expect(p).toContain('arrange an EFT to our business account or paying in person (cash or card)');
     expect(p).toContain('never change');
     expect(p).toContain(`${STUDIO.meta.url}/pay`);
     expect(p).not.toContain('or in cash when you collect');
     expect(p).not.toContain('then send proof of payment');
-    expect(p).toContain('never ask anyone to send proof of payment');
+    expect(p).toContain('never ask for proof of payment');
     expect(p).not.toContain(STUDIO.bank.accountNumber);
   });
 

@@ -36,7 +36,7 @@ const PAY_HOURS = STUDIO.bank.payWithinHours;
 /** The one line a client reads before and after sending: what happens next, and how they pay. */
 export const REQUEST_NEXT_STEPS: readonly string[] = [
   `Nothing is paid now. We check the date with them and email you within ${replyWithin}.`,
-  `If they can do it, you pay by EFT to our business account. We email you the amount and your reference.`,
+  `If they can do it, we email you a secure link to pay online. You can also pay by EFT or in person if you prefer.`,
   'Your booking is confirmed once your payment shows. Then you see who is coming.',
 ];
 
@@ -91,7 +91,7 @@ export function requestStatusWords(status: RequestStatus, viewer: Viewer): strin
     case 'requested':
       return REQUEST_NEXT_STEPS.join(' ');
     case 'accepted':
-      return `They can do it. Pay by EFT within ${PAY_HOURS} hours to confirm, using the details below. Your booking is confirmed once your payment shows.`;
+      return `They can do it. We are sending you a secure link to pay online within ${PAY_HOURS} hours. Your booking is confirmed once your payment shows. Prefer EFT or paying in person? The details are below.`;
     case 'confirmed':
       return 'Booked and paid. Here is who is coming.';
     case 'completed':
@@ -355,7 +355,7 @@ export function clientRequestReceivedEmail(f: RequestFacts, baseUrl: string): Em
   };
 }
 
-/** To the client when staff accept: pay by EFT, with the reference. */
+/** To the client when staff accept: pay online (main), EFT or in person as a backup (owner, 2026-10-15). */
 export function clientAcceptedEmail(f: RequestFacts, baseUrl: string): EmailText {
   const ref = requestReference(f.requestId);
   return {
@@ -367,10 +367,13 @@ export function clientAcceptedEmail(f: RequestFacts, baseUrl: string): EmailText
       '',
       ...whenLines(f).slice(1),
       '',
-      `To confirm, pay ${f.totalCents === null ? 'the total on your request page' : formatRands(f.totalCents)} by EFT within ${PAY_HOURS} hours:`,
-      bankDetailsText(ref),
+      `To confirm, pay ${f.totalCents === null ? 'the total on your request page' : formatRands(f.totalCents)} within ${PAY_HOURS} hours. We are sending you a secure link to pay online.`,
       '',
       'Your booking is confirmed once your payment shows. We email you then, and you see who is coming.',
+      '',
+      'Prefer to pay by EFT? Use these details and your reference:',
+      bankDetailsText(ref),
+      'Or pay in person, in cash or by card: reply to this email and we arrange it.',
       BANK_DETAILS_NEVER_CHANGE,
       '',
       `See your request: ${baseUrl}/people/requests/${f.requestId}`,
