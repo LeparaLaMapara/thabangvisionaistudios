@@ -6,9 +6,10 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { MapPin, Star, ArrowUpRight, Search, Filter, X, Command } from 'lucide-react';
 import type { CreatorProfile } from '@/lib/supabase/queries/smartProductions';
-import { STUDIO, CREATOR_JOIN } from '@/lib/constants';
+import { STUDIO, CREATOR_JOIN, EARN } from '@/lib/constants';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { creatorProfilePath } from '@/lib/seo/creator-url';
+import { formatRate } from '@/lib/format/money';
 
 // ─── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -119,8 +120,7 @@ function CreatorCard({
 
             {creator.hourly_rate && (
               <p className="text-[#D4A843] text-xs font-medium">
-                From {STUDIO.currency.symbol}
-                {creator.hourly_rate}/hr
+                From {formatRate(creator.hourly_rate, 'hour')}
               </p>
             )}
           </div>
@@ -179,16 +179,12 @@ export default function SmartCreatorsClient({
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Header */}
         <div className="mb-12">
-          <p className="text-[#D4A843] text-xs uppercase tracking-[0.3em] font-medium mb-3">
-            Smart Creators
-          </p>
           <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-white mb-4">
-            Verified Creative Talent
+            People
           </h1>
           <p className="text-white/50 max-w-2xl text-sm sm:text-base">
-            Browse verified South African filmmakers, photographers, and content
-            creators. Every creator on this page has been verified and has a
-            complete portfolio.
+            Photographers and filmmakers you can book. Everyone on this page has
+            passed an ID check and has a complete portfolio.
           </p>
         </div>
 
@@ -245,7 +241,7 @@ export default function SmartCreatorsClient({
         {hasFilters && (
           <div className="flex items-center gap-2 mb-6">
             <span className="text-white/40 text-xs">
-              {filtered.length} creator{filtered.length !== 1 ? 's' : ''} found
+              {filtered.length} {filtered.length !== 1 ? 'people' : 'person'} found
             </span>
             <button
               onClick={() => {
@@ -272,7 +268,7 @@ export default function SmartCreatorsClient({
             icon={<Star className="w-10 h-10 text-[#D4A843]/40" />}
             title={CREATOR_JOIN.emptyDirectoryTitle}
             description={CREATOR_JOIN.emptyDirectoryText}
-            action={{ label: CREATOR_JOIN.emptyDirectoryCta, href: CREATOR_JOIN.href }}
+            action={{ label: CREATOR_JOIN.emptyDirectoryCta, href: EARN.href }}
           />
         ) : (
           <EmptyState

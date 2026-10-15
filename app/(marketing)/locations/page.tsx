@@ -1,11 +1,13 @@
 'use client';
 
 import { motion } from 'framer-motion';
+import Link from 'next/link';
 import { MapPin, Clock, Phone, Mail } from 'lucide-react';
 import { STUDIO } from '@/lib/constants';
 
-const LocationCard = ({ name, address, city, province, phone, email, isPrimary, delay }: {
+const LocationCard = ({ name, address, city, province, phone, email, isPrimary, href, delay }: {
   name: string;
+  href?: string;
   address: string;
   city: string;
   province: string;
@@ -48,6 +50,14 @@ const LocationCard = ({ name, address, city, province, phone, email, isPrimary, 
              <Mail className="w-4 h-4 flex-shrink-0 text-[#D4A843]" />
              <a href={`mailto:${email}`} className="hover:text-white transition-colors">{email}</a>
           </div>
+          {href && (
+            <Link
+              href={href}
+              className="inline-flex min-h-[44px] items-center text-xs uppercase tracking-widest text-[#D4A843] underline underline-offset-4"
+            >
+              Book the studio
+            </Link>
+          )}
           {/* Hours only where there are set hours: the by-appointment
               location listed Mon to Sat hours under "by appointment". */}
           {isPrimary && (
@@ -90,6 +100,7 @@ export default function LocationsPage() {
                  phone={loc.phone}
                  email={loc.email}
                  isPrimary={loc.isPrimary}
+                 href={loc.href}
                  delay={index * 0.1}
                />
              ))}

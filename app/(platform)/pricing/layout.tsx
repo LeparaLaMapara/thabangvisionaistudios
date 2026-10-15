@@ -7,6 +7,8 @@ import { STUDIO } from '@/lib/constants';
 import { ExitIntentModal } from '@/components/engagement/ExitIntentModal';
 import { onlinePaymentsOpen } from '@/lib/payments/status';
 import { PAYMENTS_NOT_OPEN_NOTICE } from '@/lib/payments/offline-message';
+import { activePaymentProviderLabel } from '@/lib/consent/legal-facts';
+import { PaymentProviderNameProvider } from '@/components/payments/PaymentProviderName';
 
 export const metadata: Metadata = buildPageMetadata({
   title: 'Pricing',
@@ -15,16 +17,16 @@ export const metadata: Metadata = buildPageMetadata({
 });
 
 /** The answers follow the payment switch, like the page. */
-function faqItems(paymentsOpen: boolean) {
+function faqItems(paymentsOpen: boolean, provider: string) {
   return [
     {
       question: `How much does ${STUDIO.shortName} cost?`,
-      answer: 'Creating an account and browsing is free. You pay per booking: equipment hire is charged at the daily or weekly rate shown on each listing, plus a refundable security deposit, and shoots at the package price shown. The price shown is the price you pay.',
+      answer: 'Creating an account and browsing is free. You pay per booking: rentals are charged at the daily or weekly rate shown on each listing, plus a refundable security deposit, and shoots at the package price shown. The price shown is the price you pay.',
     },
     {
       question: 'What payment methods do you accept?',
       answer: paymentsOpen
-        ? `We accept South African credit cards, debit cards, and EFT through our authorised payment gateway. All prices are in South African Rand.`
+        ? `South African credit and debit cards, through ${provider}, our payment provider. All prices are in South African Rand.`
         : `${PAYMENTS_NOT_OPEN_NOTICE} All prices are in South African Rand.`,
     },
     {
@@ -35,7 +37,8 @@ function faqItems(paymentsOpen: boolean) {
 }
 
 export default function PricingLayout({ children }: { children: React.ReactNode }) {
-  const jsonLd = faqPageJsonLd(faqItems(onlinePaymentsOpen()));
+  const provider = activePaymentProviderLabel();
+  const jsonLd = faqPageJsonLd(faqItems(onlinePaymentsOpen(), provider));
 
   return (
     <>
@@ -43,7 +46,7 @@ export default function PricingLayout({ children }: { children: React.ReactNode 
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: renderJsonLd(jsonLd) }}
       />
-      {children}
+      <PaymentProviderNameProvider name={provider}>{children}</PaymentProviderNameProvider>
       <ExitIntentModal
         prompt="Help me choose gear or a package for my shoot"
         heading="Not sure what you need?"

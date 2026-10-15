@@ -1,6 +1,7 @@
 import { createAdminClient, createClient } from '@/lib/supabase/server';
 import {
   blindLabel,
+  referenceLabel,
   bestDateOfBirth,
   confirmedJobCount,
   evidenceLevel,
@@ -221,7 +222,7 @@ async function buildBlind(rows: PersonRole[], roles: Role[], opts: { withReviews
     out.push({
       personRole: publicPart(pr),
       role,
-      label: blindLabel(role.name, pr.area, pr.profile_code),
+      label: blindLabel(role.name, pr.area),
       work,
       facts: sanitizeFacts(pr.facts),
       comesWith: comes ? { ...comes, photos: work.filter((e) => comes.evidenceIds.includes(e.id)) } : null,
@@ -268,7 +269,7 @@ export async function getMyPreview(userId: string, slug: string): Promise<Public
   return {
     personRole: publicPart(pr),
     role,
-    label: blindLabel(role.name, pr.area, pr.profile_code),
+    label: blindLabel(role.name, pr.area),
     work,
     facts: sanitizeFacts(pr.facts),
     comesWith: comes ? { ...comes, photos: work.filter((e) => comes.evidenceIds.includes(e.id)) } : null,
@@ -406,7 +407,7 @@ export async function getRequestForViewer(requestId: string, viewerId: string, o
     profileId: personRole.id,
     clientFirstName: clientFirst,
     status: req.status as RequestStatus,
-    who: { label: blind.label, roleName: blind.role.name, verified: blind.verified, record: blind.record.line, firstName: name, faceUrl: face },
+    who: { label: referenceLabel(blind.role.name, blind.personRole.area, blind.personRole.profile_code), roleName: blind.role.name, verified: blind.verified, record: blind.record.line, firstName: name, faceUrl: face },
     where: {
       area: req.area as string,
       address: decision.address ? ((req.address as string | null) ?? null) : null,
@@ -490,7 +491,7 @@ export async function listReviewQueue(status: PersonRole['status'] = 'submitted'
       personRole: pr,
       role,
       person: {
-        label: blindLabel(role.name, pr.area, pr.profile_code),
+        label: referenceLabel(role.name, pr.area, pr.profile_code),
         identityVerified,
         email: emails.get(pr.user_id) ?? null,
         displayName: (p.display_name as string | null) ?? null,

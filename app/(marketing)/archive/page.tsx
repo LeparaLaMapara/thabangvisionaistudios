@@ -4,14 +4,13 @@ import Link from 'next/link';
 import { getArchivedProductions } from '@/lib/supabase/queries/smartProductions';
 import { getArchivedRentals } from '@/lib/supabase/queries/smartRentals';
 import ArchiveClient from './ArchiveClient';
-import { STUDIO } from '@/lib/constants';
 import { getFlag } from '@/lib/features';
 import { buildPageMetadata } from '@/lib/seo/metadata';
 
 // Retired gear and past work: useful to browse, not a page to send search
 // traffic to (nothing on it can be booked).
 export const metadata = buildPageMetadata({
-  title: `Archive — ${STUDIO.name}`,
+  title: 'Archive',
   description: 'Browse our archived productions, equipment, and past work.',
   path: '/archive',
   noIndex: true,

@@ -9,7 +9,7 @@ describe('service booking prices', () => {
   it('charges a studio package its own price, no VAT added, whatever the hours', () => {
     // Family Birthday: R1 500 per project.
     const q = quotePackage(1500, 'project', 1, 15);
-    expect(q).toMatchObject({ basis: 'package', subtotal: 1500, vat: 0, total: 1500, line: 'R1 500 per project' });
+    expect(q).toMatchObject({ basis: 'package', subtotal: 1500, vat: 0, total: 1500, line: 'R1 500 a project' });
     expect(quotePackage(1500, 'project', 4, 15).total).toBe(1500);
   });
 
@@ -37,8 +37,8 @@ describe('service booking prices', () => {
   });
 
   it('names the unit in plain words', () => {
-    expect(packageUnitWords('session')).toBe('per session');
-    expect(packageUnitWords('anything')).toBe('per project');
+    expect(packageUnitWords('session')).toBe('a session');
+    expect(packageUnitWords('anything')).toBe('a project');
   });
 });
 

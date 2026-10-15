@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { UBUNYE_QUICK_ACTIONS } from '../../lib/constants';
+import { UBUNYE_LANDING_QUESTIONS } from '../../lib/constants';
 
 // All tests in this file run on iPhone 14 (393×852) via the "mobile" project
 // in playwright.config.ts using Chromium with mobile emulation.
@@ -402,16 +402,12 @@ test.describe('Mobile Ubunye AI', () => {
       return;
     }
 
-    // One card per UBUNYE_QUICK_ACTIONS entry (the count used to be
-    // hardcoded as 5 and went stale when "Hire Crew" was removed).
-    const labels = UBUNYE_QUICK_ACTIONS.map((a) => a.label);
-    const chips = page.locator('button').filter({ hasText: new RegExp(labels.join('|'), 'i') });
-    await expect(chips.first()).toBeVisible({ timeout: 15000 });
-    const count = await chips.count();
-    expect(count).toBe(labels.length);
-
-    for (let i = 0; i < count; i++) {
-      const box = await chips.nth(i).boundingBox();
+    // One button per example question (UBUNYE_LANDING_QUESTIONS): the page
+    // is just the box and two or three examples (clarity audit C12).
+    for (const question of UBUNYE_LANDING_QUESTIONS) {
+      const chip = page.getByRole('button', { name: question });
+      await expect(chip).toBeVisible({ timeout: 15000 });
+      const box = await chip.boundingBox();
       if (box) {
         expect(box.x).toBeGreaterThanOrEqual(0);
         expect(box.x + box.width).toBeLessThanOrEqual(VIEWPORT_WIDTH + 20);

@@ -250,7 +250,7 @@ export function ChatMessageList({
             Ubunye
           </span>
           <div className="text-[15px] text-neutral-400 leading-relaxed">
-            I couldn&apos;t get a reply through. Your message is safe — try sending it again.
+            I couldn&apos;t get a reply through. Your message is safe. Try sending it again.
           </div>
           {onRetry && (
             <button
@@ -286,7 +286,7 @@ export function ChatMessageList({
               >
                 book a shoot directly
               </Link>{' '}
-              without me — pick your date, hours and type of shoot.
+              without me: pick your date, hours and type of shoot.
             </div>
           )}
         </motion.div>

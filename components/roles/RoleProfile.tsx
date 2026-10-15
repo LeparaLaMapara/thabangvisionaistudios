@@ -52,7 +52,6 @@ export function RoleProfile({ profile, preview = false }: { profile: PublicRoleP
       )}
 
       <div className={`max-w-3xl mx-auto px-4 relative ${hero ? '-mt-12' : 'pt-8'}`}>
-        <p className="text-xs font-mono uppercase tracking-widest text-accent-gold mb-2">{role.name}</p>
         <h1 className="text-3xl font-display font-medium text-white mb-1">{label}</h1>
         {personRole.headline && <p className="text-lg text-neutral-300 mb-3">{personRole.headline}</p>}
 

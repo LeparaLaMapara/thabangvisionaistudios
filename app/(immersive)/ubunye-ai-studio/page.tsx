@@ -1,23 +1,18 @@
 import { Suspense } from 'react';
-import { unstable_cache } from 'next/cache';
-import { createAdminClient } from '@/lib/supabase/server';
-import { loadStudioContext } from '@/lib/supabase/queries/ubunyeStudio';
 import UbunyeStudioClient from './UbunyeStudioClient';
 import { getFlag } from '@/lib/features';
-import type { StudioContext } from '@/types/ubunye';
 
-const getStudioContext = unstable_cache(
-  async (): Promise<StudioContext> => loadStudioContext(createAdminClient()),
-  ['studio-context'],
-  { revalidate: 300, tags: ['studio-context'] },
-);
-
+/**
+ * Ask Ubunye: just the box and a few example questions (clarity audit C12).
+ * The featured gear and people strips, and their counts, are gone, so the
+ * page no longer loads the studio context. It reads only the People switch,
+ * so the error fallback links to /people (not /book) when People is on.
+ */
 export default async function UbunyeAIStudioPage() {
-  const [context, people] = await Promise.all([getStudioContext(), getFlag('roles_v1')]);
-
+  const people = await getFlag('roles_v1');
   return (
     <Suspense>
-      <UbunyeStudioClient context={context} people={people} />
+      <UbunyeStudioClient people={people} />
     </Suspense>
   );
 }

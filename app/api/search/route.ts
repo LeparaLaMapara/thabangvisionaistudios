@@ -2,6 +2,7 @@ export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
 import { checkRateLimit } from '@/lib/auth';
+import { SHOW_CAREERS } from '@/lib/constants';
 import { recordUnmetDemandAsync } from '@/lib/demand/record';
 import { search } from '@/lib/search';
 import type { SearchResponse, SearchResultItem } from '@/lib/search';
@@ -73,6 +74,7 @@ export async function GET(req: NextRequest) {
     for (const rag of newRag) {
       const category = RAG_CATEGORY_MAP[rag.content_type];
       if (!category) continue;
+      if (rag.content_type === 'career' && !SHOW_CAREERS) continue;
 
       const slugInfo = slugMap.get(rag.content_id);
 

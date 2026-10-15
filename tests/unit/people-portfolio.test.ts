@@ -5,7 +5,7 @@ describe('one rate per person', () => {
   it("the person's own unit wins over the role's", () => {
     expect(effectiveUnit('hour', 'day')).toBe('day');
     expect(effectiveUnit('hour', null)).toBe('hour');
-    expect(formatRolePrice(effectiveUnit('hour', 'day'), 180000)).toMatch(/^R1.800 per day$/);
+    expect(formatRolePrice(effectiveUnit('hour', 'day'), 180000)).toMatch(/^R1.800 a day$/);
   });
 });
 

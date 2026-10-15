@@ -1,4 +1,5 @@
 import { ROLES_POLICY } from '@/lib/constants';
+import { formatRand } from '@/lib/format/money';
 import type { PricingUnit, SuggestedPrice } from './types';
 
 /**
@@ -29,10 +30,10 @@ export function unitLabel(unit: PricingUnit): string {
 
 const rand = (cents: number): string => {
   const r = cents / 100;
-  return `R${(Number.isInteger(r) ? r : Number(r.toFixed(2))).toLocaleString('en-ZA')}`;
+  return formatRand(r, { decimals: !Number.isInteger(r) });
 };
 
-/** "R650 per look", "R1 800 per day + R6 per km". */
+/** "R650 a look", "R1 800 a day + R6 a km" (the site's one price format, lib/format/money). */
 export function formatRolePrice(unit: PricingUnit, priceCents: number, perKmCents?: number | null): string {
   const base = `${rand(priceCents)} ${unitLabel(unit)}`;
   if (unit === 'day_plus_km' && perKmCents !== null && perKmCents !== undefined) {

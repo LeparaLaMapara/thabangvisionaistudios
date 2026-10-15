@@ -67,6 +67,23 @@ export function stockedRentalCategories(rows: RentalRow[]): { value: string; las
     .map(({ value, lastModified }) => ({ value, lastModified }));
 }
 
+/**
+ * The other rental categories worth linking from a category page: only those
+ * with published items, since an empty category's page is a 404. Catalogue
+ * order, the current one left out.
+ */
+export function relatedRentalCategories(
+  currentSlug: string,
+  stocked: readonly string[],
+): { slug: string; label: string; description: string }[] {
+  const have = new Set(stocked);
+  return RENTAL_CATEGORIES.filter((c) => c.value !== currentSlug && have.has(c.value)).map((c) => ({
+    slug: c.value,
+    label: c.label,
+    description: c.description,
+  }));
+}
+
 /** Rental category x city pages that pass the rule. */
 export function rentalCityPages(rows: RentalRow[], cities: SACity[] = getRentalCities()): { category: string; city: string; lastModified?: string }[] {
   const out: { category: string; city: string; lastModified?: string }[] = [];
