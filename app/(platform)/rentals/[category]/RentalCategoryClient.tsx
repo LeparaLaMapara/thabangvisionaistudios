@@ -8,6 +8,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { ChevronDown, SlidersHorizontal, X, Check, ArrowRight, Users, Star, ShieldCheck, RotateCcw } from 'lucide-react';
 import { formatRand } from '@/lib/format/money';
 import { collectionPointWithCity } from '@/lib/rental/collection-point';
+import { specEntries } from '@/lib/rental/on-site';
 import type { RentalListItem } from '@/lib/supabase/queries/smartRentals';
 import { RENTAL_CATEGORIES, STUDIO } from '@/lib/constants';
 import { useFocusTrap } from '@/components/ui/useFocusTrap';
@@ -152,7 +153,7 @@ function RentalCard({ rental, category }: { rental: RentalListItem; category: st
   // Top 3 features used as spec chips; fall back to metadata keys
   const specs = useMemo(() => {
     if (rental.features && rental.features.length > 0) return rental.features.slice(0, 3);
-    if (rental.metadata) return Object.keys(rental.metadata).slice(0, 3);
+    if (rental.metadata) return specEntries(rental.metadata).map(([key]) => key).slice(0, 3);
     return [];
   }, [rental]);
 

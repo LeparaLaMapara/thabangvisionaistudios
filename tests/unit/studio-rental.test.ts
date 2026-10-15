@@ -1,7 +1,9 @@
 import { describe, it, expect, vi } from 'vitest';
 import { NextRequest } from 'next/server';
 import { GEAR_RENTAL_CATEGORIES, ON_SITE_RENTAL, RENTAL_CATEGORIES, RENTALS_COMING_SOON, STUDIO } from '@/lib/constants';
-import { comingSoonLabels, halfDayPrice, hasOnSiteItem, isOnSiteCategory, rentalLoop } from '@/lib/rental/on-site';
+import { comingSoonLabels, halfDayPrice, hasOnSiteItem, isOnSiteCategory, MAX_RENTAL_VIDEOS, rentalLoop, rentalVideos, specEntries } from '@/lib/rental/on-site';
+import { readFileSync, existsSync } from 'node:fs';
+import { join } from 'node:path';
 import { resolveCategory } from '@/lib/core/listings/input';
 import { rentalCityPages, stockedRentalCategories } from '@/lib/seo/inventory';
 import { mayAutoplay } from '@/components/rentals/RentalLoopVideo';
@@ -116,6 +118,59 @@ describe('a listing loop', () => {
     expect(mayAutoplay(win(false, { effectiveType: '4g', saveData: true }))).toBe(false);
     expect(mayAutoplay(win(false, { effectiveType: '3g' }))).toBe(false);
     expect(mayAutoplay(win(false))).toBe(false);
+  });
+});
+
+describe('the videos on a listing', () => {
+  const v = (n: number) => ({ url: `/media/rentals/studio/studio-video-${n}.mp4`, poster: `/media/rentals/studio/studio-video-${n}-poster.webp`, title: `Video ${n}` });
+
+  it('are read from metadata.videos, in order', () => {
+    expect(rentalVideos({ metadata: { videos: [v(1), v(2), v(3)] } }).map((x) => x.url)).toEqual([v(1).url, v(2).url, v(3).url]);
+    expect(rentalVideos({ metadata: { videos: [v(1)] } })).toEqual([v(1)]);
+  });
+
+  it('are empty when the listing has no list, so the page falls back to the single loop', () => {
+    expect(rentalVideos({ metadata: null })).toEqual([]);
+    expect(rentalVideos({ metadata: {} })).toEqual([]);
+    expect(rentalVideos({ metadata: { videos: 'x' } })).toEqual([]);
+    expect(rentalVideos({})).toEqual([]);
+    const gear = { metadata: { sensor: 'Full frame' }, video_provider: 'file', video_url: '/media/rentals/studio/studio-loop.mp4' };
+    expect(rentalVideos(gear)).toEqual([]);
+    expect(rentalLoop(gear)?.mp4).toBe('/media/rentals/studio/studio-loop.mp4');
+  });
+
+  it('drop other servers and odd paths, and a bad poster or title only loses that field', () => {
+    const list = [
+      { url: 'https://evil.example/x.mp4' },
+      { url: '//evil.example/media/x.mp4' },
+      { url: '/media/../x.mp4' },
+      { url: '/media/x.webm' },
+      null,
+      'x',
+      { url: '/media/rentals/studio/ok.mp4', poster: 'https://evil.example/p.webp', title: '   ' },
+    ];
+    expect(rentalVideos({ metadata: { videos: list } })).toEqual([{ url: '/media/rentals/studio/ok.mp4', poster: null, title: null }]);
+  });
+
+  it('stop at the most a page shows', () => {
+    const many = Array.from({ length: MAX_RENTAL_VIDEOS + 3 }, (_, i) => v(i + 1));
+    expect(rentalVideos({ metadata: { videos: many } })).toHaveLength(MAX_RENTAL_VIDEOS);
+  });
+
+  it('never show as a specification row', () => {
+    expect(specEntries({ sensor: 'Full frame', weight_kg: 2, videos: [v(1)], extra: { a: 1 } })).toEqual([
+      ['sensor', 'Full frame'],
+      ['weight_kg', '2'],
+    ]);
+    expect(specEntries(null)).toEqual([]);
+    expect(specEntries([1, 2])).toEqual([]);
+  });
+
+  it('in the studio listing script point at files that exist', () => {
+    const sql = readFileSync(join(process.cwd(), 'scripts/rentals/studio-listing.sql'), 'utf8');
+    const paths = [...sql.matchAll(/"(\/media\/rentals\/studio\/[^"]+)"/g)].map((m) => m[1]);
+    expect(paths.filter((p) => p.endsWith('.mp4'))).toHaveLength(3);
+    for (const p of paths) expect(existsSync(join(process.cwd(), 'public', p))).toBe(true);
   });
 });
 
