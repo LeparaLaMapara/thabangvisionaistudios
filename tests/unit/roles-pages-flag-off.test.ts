@@ -47,5 +47,5 @@ describe('People pages with roles_v1 off', () => {
       await expect(run(), name).rejects.toThrow('NOT_FOUND');
     }
     expect(tableReads).toEqual([]);
-  });
+  }, 30_000); // imports many route modules; slow under a full parallel run
 });

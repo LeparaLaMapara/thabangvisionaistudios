@@ -15,6 +15,7 @@ import {
   sanitizeFacts,
   durationLabel,
   arrivalLabel,
+  effectiveUnit,
   type ComesWith,
   type EvidenceFact,
   type EvidenceLevel,
@@ -45,7 +46,7 @@ export const PERSON_ROLE_COLUMNS =
   `${PUBLIC_PERSON_ROLE_COLUMNS}, user_id, answers, reviewer_note, reviewed_at, facts_source`;
 
 export const EVIDENCE_COLUMNS =
-  'id, person_role_id, step_key, kind, source, legal_code, storage_provider, storage_ref, url, is_public, pair_group, pair_side, captured_at, device_summary, note, booking_id, verified_at, is_demo, created_at, media_kind, on_time';
+  'id, person_role_id, step_key, kind, source, legal_code, storage_provider, storage_ref, url, is_public, pair_group, pair_side, captured_at, device_summary, note, booking_id, verified_at, is_demo, created_at, media_kind, on_time, album, source_production_id';
 
 const ROLE_COLUMNS =
   'slug, name, role_group, description, status, min_age, legal_requirements, proof_task, guidelines, pricing_unit, suggested_price_cents, existing_flow_href, sort, proof_format, code_prefix';
@@ -169,7 +170,7 @@ export interface PublicReview {
 }
 
 export interface PublicRoleProfile {
-  personRole: Pick<PersonRole, 'id' | 'role_slug' | 'headline' | 'about' | 'area' | 'price_cents' | 'per_km_cents' | 'profile_code' | 'available_days' | 'approved_at'>;
+  personRole: Pick<PersonRole, 'id' | 'role_slug' | 'headline' | 'about' | 'area' | 'price_cents' | 'per_km_cents' | 'profile_code' | 'available_days' | 'approved_at' | 'pricing_unit'>;
   role: Role;
   label: string;
   /** Work proof: never the face. Images, videos and audio by format. */
@@ -193,6 +194,7 @@ function publicPart(pr: PersonRole): PublicRoleProfile['personRole'] {
     profile_code: pr.profile_code,
     available_days: pr.available_days ?? [],
     approved_at: pr.approved_at,
+    pricing_unit: pr.pricing_unit ?? null,
   };
 }
 
@@ -309,7 +311,7 @@ export async function listApprovedProfiles(roleSlug?: string): Promise<ProfileCa
     cover: p.work.find((e) => e.kind === 'photo')?.url ?? null,
     priceCents: p.personRole.price_cents,
     perKmCents: p.personRole.per_km_cents,
-    unit: p.role.pricing_unit,
+    unit: effectiveUnit(p.role.pricing_unit, p.personRole.pricing_unit),
     verified: p.verified,
     record: p.record.line,
     comesWith: p.comesWith?.label ?? null,
@@ -327,6 +329,10 @@ export interface RequestInput {
   area: string;
   address: string | null;
   note: string | null;
+  /** 092: every day asked for, the unit, and the one total shown before sending. */
+  dates?: string[];
+  unit?: string;
+  totalCents?: number;
 }
 
 export async function createBookingRequest(i: RequestInput): Promise<string> {
@@ -342,6 +348,9 @@ export async function createBookingRequest(i: RequestInput): Promise<string> {
       area: i.area,
       address: i.address,
       note: i.note,
+      ...(i.dates ? { requested_dates: i.dates } : {}),
+      ...(i.unit ? { unit: i.unit } : {}),
+      ...(i.totalCents !== undefined ? { total_cents: i.totalCents } : {}),
     })
     .select('id')
     .single();
@@ -354,12 +363,12 @@ export async function createBookingRequest(i: RequestInput): Promise<string> {
  * The face and first name are fetched ONLY when reveal() says so; for anyone
  * else they are never read, so they cannot leak.
  */
-export async function getRequestForViewer(requestId: string, viewerId: string, opts: { staff?: boolean } = {}): Promise<(WhosComing & { viewer: 'client' | 'person'; clientFirstName: string | null; profileId: string }) | null> {
+export async function getRequestForViewer(requestId: string, viewerId: string, opts: { staff?: boolean } = {}): Promise<(WhosComing & { viewer: 'client' | 'person'; clientFirstName: string | null; profileId: string; totalCents: number | null }) | null> {
   if (!/^[0-9a-f-]{36}$/i.test(requestId)) return null;
   const admin = createAdminClient();
   const { data: req } = await admin
     .from('role_booking_requests')
-    .select('id, person_role_id, client_id, requested_date, arrival_time, duration_hours, area, address, status')
+    .select('id, person_role_id, client_id, requested_date, arrival_time, duration_hours, area, address, status, requested_dates, total_cents')
     .eq('id', requestId)
     .maybeSingle();
   if (!req) return null;
@@ -403,7 +412,12 @@ export async function getRequestForViewer(requestId: string, viewerId: string, o
       address: decision.address ? ((req.address as string | null) ?? null) : null,
       addressNote: decision.viewer === 'client' ? 'Your address is shared with them only after the booking is confirmed.' : decision.address ? 'The address for this job.' : 'The address is shared once the booking is confirmed.',
     },
-    when: { date: req.requested_date as string, arrival: arrivalLabel(req.arrival_time as string), duration: durationLabel(Number(req.duration_hours)) },
+    when: {
+      date: Array.isArray(req.requested_dates) && req.requested_dates.length > 1 ? (req.requested_dates as string[]).join(', ') : (req.requested_date as string),
+      arrival: arrivalLabel(req.arrival_time as string),
+      duration: durationLabel(Number(req.duration_hours)),
+    },
+    totalCents: typeof req.total_cents === 'number' ? req.total_cents : null,
   };
 }
 
@@ -518,6 +532,29 @@ export async function loadRecords(rows: Pick<PersonRole, 'id' | 'user_id'>[]): P
   for (const r of rows) {
     const ratings = (revRes.data ?? []).filter((x) => x.reviewee_id === r.user_id).map((x) => Number(x.rating)).filter(Number.isFinite);
     out.set(r.id, recordFrom(evidence.filter((e) => e.person_role_id === r.id), ratings));
+  }
+  return out;
+}
+
+// ─── Packages held by a portfolio (092) ─────────────────────────────────────
+
+/**
+ * smart_productions ids whose work an approved profile holds, with the
+ * profile id. Such a package is not listed on People, and its old address
+ * redirects to the profile. Empty before 092 (the column is missing).
+ */
+export async function heldProductions(): Promise<Map<string, string>> {
+  const out = new Map<string, string>();
+  const admin = createAdminClient();
+  const { data, error } = await admin
+    .from('role_evidence')
+    .select('source_production_id, person_role_id, person_roles!inner(status)')
+    .not('source_production_id', 'is', null)
+    .eq('person_roles.status', 'approved')
+    .limit(500);
+  if (error) return out;
+  for (const r of (data ?? []) as { source_production_id: string; person_role_id: string }[]) {
+    if (!out.has(r.source_production_id)) out.set(r.source_production_id, r.person_role_id);
   }
   return out;
 }

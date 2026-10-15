@@ -1,6 +1,8 @@
 export const revalidate = 60;
 
-import { notFound } from 'next/navigation';
+import { notFound, permanentRedirect } from 'next/navigation';
+import { getFlag } from '@/lib/features';
+import { heldProductions } from '@/lib/supabase/queries/roles';
 import type { Metadata } from 'next';
 import { getProductionBySlug } from '@/lib/supabase/queries/smartProductions';
 import { createClient } from '@/lib/supabase/server';
@@ -206,6 +208,13 @@ export default async function ProjectDetailPage({
   const project   = await getProductionBySlug(slug);
 
   if (!project) notFound();
+
+  // People (roles_v1, 092): a package now held by a photographer's portfolio
+  // lives on that profile; the old address keeps working by sending people there.
+  if (await getFlag('roles_v1')) {
+    const holder = (await heldProductions()).get(project.id);
+    if (holder) permanentRedirect(`/people/${holder}`);
+  }
 
   const matchedGear = await matchGearFromMetadata(project.image_metadata ?? []);
 

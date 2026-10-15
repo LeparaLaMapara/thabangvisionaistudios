@@ -6,7 +6,7 @@ import { notFound } from 'next/navigation';
 import { BadgeCheck, Package } from 'lucide-react';
 import { getFlag } from '@/lib/features';
 import { EARN, ROLES_POLICY, STUDIO } from '@/lib/constants';
-import { getRoles, listApprovedProfiles } from '@/lib/supabase/queries/roles';
+import { getRoles, heldProductions, listApprovedProfiles } from '@/lib/supabase/queries/roles';
 import { getPublishedProductions } from '@/lib/supabase/queries/smartProductions';
 import { formatRolePrice } from '@/lib/roles';
 import { formatRand } from '@/lib/format/money';
@@ -32,12 +32,13 @@ export default async function PeoplePage({ searchParams }: Props) {
   if (!(await getFlag('roles_v1'))) notFound();
   const { role: roleParam } = await searchParams;
   const live = (await getRoles()).filter((r) => r.status === 'live');
-  const [everyone, allPackages] = await Promise.all([listApprovedProfiles(), getPublishedProductions()]);
+  const [everyone, allPackages, held] = await Promise.all([listApprovedProfiles(), getPublishedProductions(), heldProductions()]);
   // Only kinds of work someone actually offers get a chip: an empty category is noise (owner, 2026-10-14).
   const roles = live.filter((r) => everyone.some((c) => c.roleSlug === r.slug));
   const active = roles.find((r) => r.slug === roleParam)?.slug;
   const cards = active ? everyone.filter((c) => c.roleSlug === active) : everyone;
-  const packages = active ? [] : allPackages;
+  // A package whose work a profile holds is shown once, as that profile (092).
+  const packages = active ? [] : allPackages.filter((p) => !held.has(p.id));
 
   return (
     <div className="pt-28 pb-20 px-4 sm:px-6">

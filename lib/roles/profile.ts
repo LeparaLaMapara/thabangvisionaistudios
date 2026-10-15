@@ -110,3 +110,23 @@ export function parseComesWith(raw: unknown): ComesWith | null {
   const ids = Array.isArray(r.evidence_ids) ? r.evidence_ids.filter((x): x is string => typeof x === 'string' && /^[0-9a-f-]{36}$/i.test(x)).slice(0, 8) : [];
   return { label, evidenceIds: ids };
 }
+
+export interface Album<T> {
+  name: string;
+  items: T[];
+}
+
+/**
+ * Work grouped into albums, in the order albums first appear. Work without
+ * an album goes under `fallback`. One album only: no tabs needed.
+ */
+export function groupAlbums<T extends { album: string | null }>(items: readonly T[], fallback = 'Work'): Album<T>[] {
+  const out: Album<T>[] = [];
+  for (const item of items) {
+    const name = item.album?.trim() || fallback;
+    const found = out.find((a) => a.name === name);
+    if (found) found.items.push(item);
+    else out.push({ name, items: [item] });
+  }
+  return out;
+}
