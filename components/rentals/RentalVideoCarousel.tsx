@@ -136,6 +136,9 @@ export function RentalVideoCarousel({ videos, label }: { videos: RentalVideo[]; 
       aria-roledescription="carousel"
       aria-label={`${label}: videos from our shoots`}
       className="mx-auto w-full max-w-sm"
+      // On a phone the whole carousel (video, dots) fits between the header and
+      // the booking bar: the width follows the screen height, the 9:16 box follows the width.
+      style={{ maxWidth: 'max(14rem, min(24rem, calc((100svh - 17rem) * 9 / 16)))' }}
     >
       <div className="relative">
         <div
@@ -177,8 +180,8 @@ export function RentalVideoCarousel({ videos, label }: { videos: RentalVideo[]; 
           ))}
         </div>
 
-        {/* Play and sound, for the video on screen. */}
-        <div className="pointer-events-none absolute inset-x-3 bottom-3 flex justify-end gap-2">
+        {/* Play and sound, for the video on screen (top corner, clear of the chat button). */}
+        <div className="pointer-events-none absolute inset-x-3 top-3 flex justify-end gap-2">
           <button
             type="button"
             onClick={toggleSound}
