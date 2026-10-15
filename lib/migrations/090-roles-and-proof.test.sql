@@ -76,9 +76,12 @@ select set_config('request.jwt.claims', json_build_object('sub', '00000000-0000-
 insert into public.person_roles (user_id, role_slug, headline, price_cents)
 values ('00000000-0000-4000-8000-0000000900a1', 'makeup-artist', 't090 soft glam', 65000);
 
+-- Proof is written by the server (service role) after its checks since 094.
+reset role;
 insert into public.role_evidence (person_role_id, step_key, kind, source, storage_provider, storage_ref, url)
 select id, 'angles', 'photo', 'captured_in_app', 'cloudinary', 'x/y', 'https://res.cloudinary.com/demo/image/upload/x.jpg'
   from public.person_roles where headline = 't090 soft glam';
+set local role authenticated;
 
 do $$
 begin
@@ -94,7 +97,7 @@ begin
     insert into public.role_evidence (person_role_id, kind, source, is_public)
     select id, 'document', 'uploaded', true from public.person_roles where headline = 't090 soft glam';
     raise exception 'FAIL 6: a public document was accepted';
-  exception when check_violation then null;
+  exception when insufficient_privilege or check_violation then null;
   end;
   -- Nor approve themselves.
   begin

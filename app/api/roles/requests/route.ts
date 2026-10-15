@@ -4,7 +4,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { rolesOffResponse } from '@/lib/roles/flag';
 import { checkRateLimit } from '@/lib/auth';
 import { createClient } from '@/lib/supabase/server';
-import { createBookingRequest, getPublicRoleProfile } from '@/lib/supabase/queries/roles';
+import { createBookingRequest, getMyPersonRoles, getPublicRoleProfile } from '@/lib/supabase/queries/roles';
 import { bookingTotal, effectiveUnit, pricedByDays } from '@/lib/roles';
 
 /**
@@ -52,6 +52,10 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   try {
     const profile = await getPublicRoleProfile(id);
     if (!profile) return NextResponse.json({ error: 'That profile is not available.' }, { status: 404 });
+    // Nobody books themselves (a self-booking would grow their own record).
+    if ((await getMyPersonRoles(user.id)).some((r) => r.id === profile.personRole.id)) {
+      return NextResponse.json({ error: 'That is your own profile.' }, { status: 409 });
+    }
     // The one price, worked out here from the profile, never from the browser.
     const unit = effectiveUnit(profile.role.pricing_unit, profile.personRole.pricing_unit);
     const price = profile.personRole.price_cents ?? profile.role.suggested_price_cents.typical;

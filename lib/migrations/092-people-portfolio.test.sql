@@ -30,9 +30,12 @@ set local role authenticated;
 select set_config('request.jwt.claims', json_build_object('sub', '00000000-0000-4000-8000-0000000920a1', 'role', 'authenticated')::text, true);
 insert into public.person_roles (user_id, role_slug, headline, price_cents) values ('00000000-0000-4000-8000-0000000920a1', 'photographer-videographer', 't092 photographer', 180000);
 update public.person_roles set pricing_unit = 'day' where headline = 't092 photographer';
+-- Proof is written by the server (service role) since 094.
+reset role;
 insert into public.role_evidence (person_role_id, step_key, kind, source, media_kind, url, album)
 select id, 'work', 'photo', 'uploaded', 'image', 'https://res.cloudinary.com/demo/image/upload/x.jpg', 'Maternity'
   from public.person_roles where headline = 't092 photographer';
+set local role authenticated;
 
 do $$
 begin

@@ -3,6 +3,7 @@ import { crewRequestIdFromReference } from '@/lib/payments/crew-reference';
 import { createAdminClient } from '@/lib/supabase/server';
 import type { WebhookResult } from '@/lib/payments';
 import { payfast } from '@/lib/payments/payfast';
+import { isPayFastWebhookOpen } from '@/lib/payments/payfast-gate';
 import { STUDIO } from '@/lib/constants';
 import { confirmSubscriptionPayment } from '@/lib/payments/fulfil';
 
@@ -336,6 +337,12 @@ async function handlePaymentPending(webhook: WebhookResult) {
 // ─── POST handler (receives webhook from payment provider) ───────────────────
 
 export async function POST(request: NextRequest) {
+  // Only while PayFast is the active provider. Configured keys alone used to
+  // open this route, which still carries the old, unguarded handlers
+  // (security re-check 2026-10-15, H1).
+  if (!isPayFastWebhookOpen()) {
+    return NextResponse.json({ error: 'PayFast is not the active payment provider' }, { status: 410 });
+  }
   if (!payfast.isConfigured()) {
     return NextResponse.json(
       { error: 'Payment provider is not configured' },
