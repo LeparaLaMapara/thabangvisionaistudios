@@ -2,6 +2,7 @@ export const dynamic = 'force-dynamic';
 export const maxDuration = 45;
 
 import { NextRequest, NextResponse } from 'next/server';
+import { aiBudgetResponse } from '@/lib/ai/budget-response';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { generateText } from 'ai';
 import { anthropic } from '@ai-sdk/anthropic';
@@ -112,6 +113,8 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ vision, ...output });
   } catch (err) {
     console.error('[agents/production-describer] error:', err);
+    const budgetRes = aiBudgetResponse(err);
+    if (budgetRes) return budgetRes;
     return NextResponse.json(
       { error: 'Failed to generate production description. Please try again.' },
       { status: 500 },

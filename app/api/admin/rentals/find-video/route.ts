@@ -2,6 +2,7 @@ export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
 import { NextRequest, NextResponse } from 'next/server';
+import { aiBudgetResponse } from '@/lib/ai/budget-response';
 import { requireAdmin, rateLimitAdmin } from '@/lib/auth';
 import { findProductVideo } from '@/lib/video/find-product-video';
 import { youtubeSearchConfigured } from '@/lib/video/youtube';
@@ -43,6 +44,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(result);
   } catch (err) {
     console.error('[admin/rentals/find-video]', err instanceof Error ? err.message : err);
+    const budgetRes = aiBudgetResponse(err);
+    if (budgetRes) return budgetRes;
     return NextResponse.json({ error: 'Could not search for a video right now. Try again in a minute.' }, { status: 502 });
   }
 }

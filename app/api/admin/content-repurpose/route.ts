@@ -1,6 +1,7 @@
 export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
+import { aiBudgetResponse } from '@/lib/ai/budget-response';
 import { requireAdmin } from '@/lib/auth';
 import { getPressBySlug } from '@/lib/supabase/queries/press';
 import { trackedCompletion } from '@/lib/ai/tracked';
@@ -64,6 +65,8 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ content: result, article: article.title });
   } catch (err) {
     console.error('[content-repurpose]', err);
+    const budgetRes = aiBudgetResponse(err);
+    if (budgetRes) return budgetRes;
     return NextResponse.json({ error: 'Failed to generate content' }, { status: 500 });
   }
 }

@@ -2,6 +2,7 @@ export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
 import { NextRequest, NextResponse } from 'next/server';
+import { aiBudgetResponse } from '@/lib/ai/budget-response';
 import { checkNotSuspended, checkRateLimit, requireAuth } from '@/lib/auth';
 import { identifyGear } from '@/lib/agents/tools';
 import { describeListing, listingDescriberAgent } from '@/lib/agents/agents/listing-describer';
@@ -139,6 +140,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       };
     } catch (err) {
       console.error('[listings/suggest] vision failed:', err);
+      const budgetRes = aiBudgetResponse(err);
+      if (budgetRes) return budgetRes;
     }
     if (!facts || !(facts.brand || facts.model)) {
       return NextResponse.json(
@@ -212,6 +215,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     );
   } catch (err) {
     console.error('[listings/suggest] error:', err);
+    const budgetRes = aiBudgetResponse(err);
+    if (budgetRes) return budgetRes;
     return NextResponse.json({ error: 'Could not suggest details. Fill them in yourself, or try again.' }, { status: 500 });
   }
 }

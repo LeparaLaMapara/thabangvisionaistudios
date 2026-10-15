@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { aiBudgetResponse } from '@/lib/ai/budget-response';
 import { requireAuth, checkNotSuspended, checkRateLimit } from '@/lib/auth';
 import { identifyGear } from '@/lib/agents/tools';
 import { isOwnImageUrl } from '@/app/api/listings/_lib/images';
@@ -59,6 +60,8 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     }
   } catch (err) {
     console.error('[POST /api/agents/onboarding]', err);
+    const budgetRes = aiBudgetResponse(err);
+    if (budgetRes) return budgetRes;
     return NextResponse.json({ error: 'Internal server error.' }, { status: 500 });
   }
 }

@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { STUDIO } from '@/lib/constants';
+import { createAdminClient } from '@/lib/supabase/server';
 
 /**
  * The enforced spend ceiling for AI.
@@ -132,6 +133,53 @@ export async function checkAiBudget(
   }
 
   return { allowed, spent, budget, ratio };
+}
+
+/** What a person sees when the monthly AI budget is used up. */
+export const AI_BUDGET_MESSAGE =
+  'Our AI helper has reached its limit for this month. Please try again later, or fill this in yourself.';
+
+/** Thrown by the shared AI gateway when the monthly ceiling is crossed. */
+export class AiBudgetExceededError extends Error {
+  readonly code = 'AI_BUDGET_EXCEEDED';
+  readonly userMessage = AI_BUDGET_MESSAGE;
+  constructor(readonly spent: number, readonly budget: number) {
+    super(`[ai/budget] monthly AI budget reached: R${spent.toFixed(2)} of R${budget}`);
+    this.name = 'AiBudgetExceededError';
+  }
+}
+
+export function isAiBudgetError(err: unknown): err is AiBudgetExceededError {
+  return err instanceof AiBudgetExceededError
+    || (typeof err === 'object' && err !== null && (err as { code?: unknown }).code === 'AI_BUDGET_EXCEEDED');
+}
+
+/**
+ * Refuse the call when the monthly ceiling is crossed. Every non-streaming AI
+ * call goes through this (trackedCompletion and generateWithFallback), so no
+ * feature can spend past the budget just because it forgot to ask.
+ */
+export async function assertAiBudget(
+  estimatedCost = 0,
+  db?: SupabaseClient,
+  now: Date = new Date(),
+): Promise<void> {
+  let client = db;
+  if (!client) {
+    try {
+      client = createAdminClient();
+    } catch (err) {
+      // Same fail-open rule as a failed read: a missing key must not take AI
+      // features down; the daily budget cron still measures spend.
+      console.error('[ai/budget] no admin client, budget not checked:', err);
+      return;
+    }
+  }
+  const verdict = await checkAiBudget(client, estimatedCost, now);
+  if (!verdict.allowed) {
+    console.error(`[ai/budget] BLOCKED: R${verdict.spent.toFixed(2)} of R${verdict.budget} spent this month.`);
+    throw new AiBudgetExceededError(verdict.spent, verdict.budget);
+  }
 }
 
 /** Test seam: drop the per-lambda cache. */

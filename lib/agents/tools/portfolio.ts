@@ -1,5 +1,6 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { trackedCompletion } from '@/lib/ai/tracked';
+import { isAiBudgetError } from '@/lib/ai/budget';
 import { fetchImageAsBase64Safe } from '@/lib/security/safe-fetch';
 import { mapScenesToSkills } from '@/lib/ubunye/skill-taxonomy';
 import type { SceneAnalysisResult, SkillDetectionResult } from '../types';
@@ -78,6 +79,7 @@ export async function analyzeScene(
       },
     });
   } catch (err) {
+    if (isAiBudgetError(err)) throw err;
     console.warn('[analyzeScene] model call failed', err);
     return fallbackAnalysis('model call failed');
   }

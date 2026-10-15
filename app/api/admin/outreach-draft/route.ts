@@ -1,6 +1,7 @@
 export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
+import { aiBudgetResponse } from '@/lib/ai/budget-response';
 import { requireAdmin } from '@/lib/auth';
 import { trackedCompletion } from '@/lib/ai/tracked';
 import { getModel } from '@/lib/ai';
@@ -58,6 +59,8 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ emails: result, recipient: recipientCompany });
   } catch (err) {
     console.error('[outreach-draft]', err);
+    const budgetRes = aiBudgetResponse(err);
+    if (budgetRes) return budgetRes;
     return NextResponse.json({ error: 'Failed to generate outreach emails' }, { status: 500 });
   }
 }

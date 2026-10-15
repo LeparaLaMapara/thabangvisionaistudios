@@ -1,8 +1,11 @@
 export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
+import { aiBudgetResponse } from '@/lib/ai/budget-response';
 import { requireAdmin, rateLimitAdmin } from '@/lib/auth';
-import { getModel } from '@/lib/ai';
+import { getModel, getModelId } from '@/lib/ai';
+import { trackedCompletion } from '@/lib/ai/tracked';
+import { estimateCostZAR } from '@/lib/ai/pricing';
 import { generateText } from 'ai';
 
 // ─── POST — Extract rental items from a PDF rate card ────────────────────────
@@ -72,12 +75,24 @@ export async function POST(req: NextRequest) {
     }
 
     // Send to AI for structured extraction
+    // Through trackedCompletion, so the monthly AI budget is enforced and the
+    // spend is recorded like every other AI call.
     const model = getModel();
-    const { text: aiResponse } = await generateText({
-      model,
-      prompt: EXTRACTION_PROMPT + pdfText,
-      temperature: 0.1,
-      maxOutputTokens: 8000,
+    const modelId = getModelId();
+    const prompt = EXTRACTION_PROMPT + pdfText;
+    const aiResponse = await trackedCompletion<string>({
+      agentId: 'admin:import-ratecard',
+      provider: (process.env.AI_PROVIDER ?? 'anthropic').toLowerCase(),
+      model: modelId,
+      userId: auth.user.id,
+      estimatedCost: estimateCostZAR(modelId, Math.ceil(prompt.length / 4), 8000),
+      call: async () => {
+        const res = await generateText({ model, prompt, temperature: 0.1, maxOutputTokens: 8000 });
+        return {
+          result: res.text,
+          usage: { inputTokens: res.usage?.inputTokens ?? 0, outputTokens: res.usage?.outputTokens ?? 0 },
+        };
+      },
     });
 
     // Parse AI response as JSON
@@ -132,6 +147,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ items: normalised, pageCount });
   } catch (err) {
     console.error('[admin/import-ratecard] Error:', err);
+    const budgetRes = aiBudgetResponse(err);
+    if (budgetRes) return budgetRes;
     return NextResponse.json({ error: 'Failed to process rate card.' }, { status: 500 });
   }
 }

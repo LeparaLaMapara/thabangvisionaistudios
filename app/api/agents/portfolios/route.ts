@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { aiBudgetResponse } from '@/lib/ai/budget-response';
+import { isAiBudgetError } from '@/lib/ai/budget';
 import { requireAuth, checkNotSuspended, checkRateLimit } from '@/lib/auth';
 import { createAdminClient, createClient } from '@/lib/supabase/server';
 import { analyzeScene, detectSkills } from '@/lib/agents/tools';
@@ -90,6 +92,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
               hashtags: analysis.hashtags,
             });
           } catch (analyzeErr) {
+            if (isAiBudgetError(analyzeErr)) throw analyzeErr;
             console.error(`[analyze-portfolio] Failed for ${imageUrl}:`, analyzeErr);
             // Push a fallback result so the client knows which one failed
             results.push({
@@ -164,6 +167,8 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     }
   } catch (err) {
     console.error('[POST /api/agents/portfolios]', err);
+    const budgetRes = aiBudgetResponse(err);
+    if (budgetRes) return budgetRes;
     return NextResponse.json({ error: 'Internal server error.' }, { status: 500 });
   }
 }

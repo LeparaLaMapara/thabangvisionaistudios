@@ -2,6 +2,7 @@ export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
 import { NextRequest, NextResponse } from 'next/server';
+import { aiBudgetResponse } from '@/lib/ai/budget-response';
 import { requireAuth, checkNotSuspended, checkRateLimit } from '@/lib/auth';
 import { createAdminClient } from '@/lib/supabase/server';
 import { describeListing, listingDescriberAgent, type ListingDescriberOutput } from '@/lib/agents/agents/listing-describer';
@@ -199,6 +200,8 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     });
   } catch (err) {
     console.error('[POST /api/onboarding/create-rentals]', err);
+    const budgetRes = aiBudgetResponse(err);
+    if (budgetRes) return budgetRes;
     return NextResponse.json({ error: 'Failed to draft listings.' }, { status: 500 });
   }
 }

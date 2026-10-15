@@ -2,6 +2,8 @@ import { generateText, APICallError } from 'ai';
 import type { LanguageModel } from 'ai';
 import { resolveEntry, buildModel, fallbackChain, providerDefault, type Provider, type ModelEntry } from './registry';
 import { shouldFailover, markFailed, markHealthy, byHealth } from './health';
+import { assertAiBudget } from './budget';
+import { estimateCostZAR } from './pricing';
 
 /**
  * Failover for AI calls — the reliability piece a gateway is supposed to have.
@@ -39,6 +41,11 @@ export interface ResilientParams {
   timeoutMs?: number;
   /** Override the failover order; defaults to the configured chain. */
   providers?: Provider[];
+  /**
+   * Set only when the caller already ran the monthly budget check for this
+   * call (it is wrapped in trackedCompletion), so it is not charged twice.
+   */
+  budgetChecked?: boolean;
 }
 
 export interface ResilientResult {
@@ -123,6 +130,14 @@ export async function generateWithFallback(params: ResilientParams): Promise<Res
   const order = attemptOrder(params.ref, providers);
   const timeoutMs = params.timeoutMs ?? DEFAULT_TIMEOUT_MS;
   const attempts: { provider: Provider; error: string }[] = [];
+
+  // Budget gate before any provider is called (throws AiBudgetExceededError).
+  if (!params.budgetChecked) {
+    const first = order[0];
+    await assertAiBudget(
+      first ? estimateCostZAR(first.modelId, 4000, params.maxOutputTokens ?? 1500) : 0,
+    );
+  }
 
   let lastError: unknown;
 

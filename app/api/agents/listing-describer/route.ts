@@ -2,6 +2,7 @@ export const dynamic = 'force-dynamic';
 export const maxDuration = 30;
 
 import { NextRequest, NextResponse } from 'next/server';
+import { aiBudgetResponse } from '@/lib/ai/budget-response';
 import { requireAuth, checkNotSuspended, checkRateLimit } from '@/lib/auth';
 import {
   listingDescriberAgent,
@@ -61,6 +62,8 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     return NextResponse.json(output);
   } catch (err) {
     console.error('[agents/listing-describer] error:', err);
+    const budgetRes = aiBudgetResponse(err);
+    if (budgetRes) return budgetRes;
     return NextResponse.json(
       { error: 'Failed to draft listing description. Please try again.' },
       { status: 500 },
