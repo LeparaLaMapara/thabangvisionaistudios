@@ -26,8 +26,10 @@ const hoursToText = (h: number): string => (h % 24 === 0 ? `${h / 24} day${h ===
  * cash at collection); they switch back by themselves when it opens. Without the
  * argument the answers take the cautious (closed) wording.
  */
-export function coreFaqs(opts: { paymentsOpen?: boolean } = {}): CoreFaq[] {
+export function coreFaqs(opts: { paymentsOpen?: boolean; rolesOn?: boolean } = {}): CoreFaq[] {
   const paymentsOpen = opts.paymentsOpen === true;
+  // People (roles_v1): a person is booked on their People profile, the one way to book.
+  const rolesOn = opts.rolesOn === true;
   const notice = STUDIO.rental.minLeadTimeHours;
   const delivery = STUDIO.fulfilment.delivery;
   const limits = RENTAL_POLICY.trustTierLimitsCents;
@@ -136,7 +138,9 @@ export function coreFaqs(opts: { paymentsOpen?: boolean } = {}): CoreFaq[] {
       id: 'core-photographer',
       category: 'creators',
       question: 'How do I book a photographer or videographer?',
-      answer: `Shoots are by request for now. Choose a package on the Studio page and send a request, and we contact you to confirm who will shoot it, the date and the price. You see the full price before you send it.`,
+      answer: rolesOn
+        ? 'Go to People and choose a person. Each profile shows their price. Pick your days, see the total, and send a request. Nothing is paid when you ask: we confirm the booking with you first. You see who is coming once your booking is confirmed.'
+        : `Shoots are by request for now. Choose a package on the Studio page and send a request, and we contact you to confirm who will shoot it, the date and the price. You see the full price before you send it.`,
     },
     ...(paymentsOpen
       ? []

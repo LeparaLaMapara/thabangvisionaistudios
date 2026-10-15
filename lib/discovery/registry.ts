@@ -141,7 +141,8 @@ export const DISCOVERY_ENTITIES: DiscoveryEntity[] = [
     label: 'Creators list',
     sitemap: 'creators',
     routes: ['/smart-creators'],
-    entries: (c) => (c.creators.length > 0 ? [entry('/smart-creators', null, 0.8, 'Creators')] : []),
+    // With People on, /smart-creators redirects to /people.
+    entries: (c) => (c.creators.length > 0 && !c.rolesOn ? [entry('/smart-creators', null, 0.8, 'Creators')] : []),
   },
   {
     type: 'creator',
@@ -149,7 +150,7 @@ export const DISCOVERY_ENTITIES: DiscoveryEntity[] = [
     sitemap: 'creators',
     routes: ['/studio/category/[slug]/[id]'],
     // Creator profiles live under /studio, which the smart_productions flag can switch off.
-    entries: (c) => (c.studioOn ? c.creators.map((p) => entry(p.path, null, 0.7, p.name)) : []),
+    entries: (c) => (c.studioOn && !c.rolesOn ? c.creators.map((p) => entry(p.path, null, 0.7, p.name)) : []),
     jsonLd: (c, path) => {
       const p = c.creators.find((x) => x.path === path);
       return p
@@ -177,14 +178,16 @@ export const DISCOVERY_ENTITIES: DiscoveryEntity[] = [
     label: 'Studio',
     sitemap: 'studio',
     routes: ['/studio'],
-    entries: (c) => (c.studioOn ? [entry('/studio', newest(c.productions.map((p) => p.updatedAt)), 0.9, 'Studio')] : []),
+    // With People on, /studio redirects to /people.
+    entries: (c) => (c.studioOn && !c.rolesOn ? [entry('/studio', newest(c.productions.map((p) => p.updatedAt)), 0.9, 'Studio')] : []),
   },
   {
     type: 'studio-category',
     label: 'Studio categories',
     sitemap: 'studio',
     routes: ['/studio/category/[slug]'],
-    entries: (c) => (c.studioOn ? c.studioCategories.map((s) => entry(s.path, s.updatedAt, 0.8, s.name)) : []),
+    // With People on, every /studio/category page redirects to /people.
+    entries: (c) => (c.studioOn && !c.rolesOn ? c.studioCategories.map((s) => entry(s.path, s.updatedAt, 0.8, s.name)) : []),
     markdownTwin: true,
   },
   {
@@ -199,7 +202,7 @@ export const DISCOVERY_ENTITIES: DiscoveryEntity[] = [
     label: 'Studio by city',
     sitemap: 'studio',
     routes: ['/studio/category/[slug]/in/[city]'],
-    entries: (c) => (c.studioOn ? studioCityPagesOf(c).map((p) => entry(`/studio/category/${enc(p.category)}/in/${p.city}`, null, 0.6)) : []),
+    entries: (c) => (c.studioOn && !c.rolesOn ? studioCityPagesOf(c).map((p) => entry(`/studio/category/${enc(p.category)}/in/${p.city}`, null, 0.6)) : []),
   },
   {
     type: 'press-index',

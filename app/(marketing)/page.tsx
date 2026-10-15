@@ -10,6 +10,8 @@ import { buildPageMetadata } from '@/lib/seo/metadata';
 import { STUDIO, SITE_TAGLINE } from '@/lib/constants';
 import type { CarouselItem } from '@/components/cinematic/LatestWorkCarousel';
 import { getFlag } from '@/lib/features';
+import { getOfferedRoles } from '@/lib/supabase/queries/roles';
+import { peopleWords } from '@/lib/roles/offered';
 
 /** Build a Cloudinary delivery URL from a public_id. */
 function cloudinaryUrl(publicId: string): string {
@@ -49,11 +51,14 @@ export default async function Home() {
     getFlag('roles_v1'),
   ]);
 
-  const [productions, rentals, priceRange] = await Promise.all([
+  const [productions, rentals, priceRange, roles] = await Promise.all([
     smartProductionsEnabled ? getFeaturedProductions(8) : Promise.resolve([]),
     getShowcaseRentals(8),
     getRentalPriceRange(),
+    rolesEnabled ? getOfferedRoles() : Promise.resolve(null),
   ]);
+  // People: name only the kinds of work someone approved offers.
+  const people = roles ? peopleWords(roles.offered, roles.live) : undefined;
 
   const productionItems: CarouselItem[] = productions.map((p) => ({
     id: p.id,
@@ -95,6 +100,7 @@ export default async function Home() {
       paymentsOpen={onlinePaymentsOpen()}
       showApps={appsEnabled}
       rolesOn={rolesEnabled}
+      people={people}
     />
   );
 }

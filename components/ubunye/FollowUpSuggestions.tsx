@@ -9,14 +9,31 @@ const FOLLOW_UPS: Record<string, string[]> = {
   improve_brief: ['Submit the improved brief', 'Add more details'],
 };
 
+/**
+ * The follow-up buttons for a finished tool. A creator search that found
+ * nobody offers nothing, and one that found a single person never offers to
+ * compare rates or pick a "top match".
+ */
+export function followUpsFor(toolName: string, output?: unknown): string[] {
+  const suggestions = FOLLOW_UPS[toolName] ?? [];
+  if (toolName !== 'search_creators') return suggestions;
+  const results = (output as { results?: unknown } | null | undefined)?.results;
+  const count = Array.isArray(results) ? results.length : 0;
+  if (count === 0) return [];
+  if (count === 1) return ['See their portfolio'];
+  return suggestions;
+}
+
 interface FollowUpSuggestionsProps {
   toolName: string;
+  /** What the tool returned, so the buttons match what it found. */
+  output?: unknown;
   onSelect: (prompt: string) => void;
 }
 
-export function FollowUpSuggestions({ toolName, onSelect }: FollowUpSuggestionsProps) {
-  const suggestions = FOLLOW_UPS[toolName];
-  if (!suggestions) return null;
+export function FollowUpSuggestions({ toolName, output, onSelect }: FollowUpSuggestionsProps) {
+  const suggestions = followUpsFor(toolName, output);
+  if (suggestions.length === 0) return null;
 
   return (
     <motion.div

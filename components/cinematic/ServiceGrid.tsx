@@ -8,7 +8,13 @@ import { ArrowUpRight } from 'lucide-react';
 
 type Capability = (typeof CAPABILITIES)[number];
 
-export const ServiceGrid = ({ capabilities = CAPABILITIES }: { capabilities?: readonly Capability[] } = {}) => {
+/** The line under "What we offer" when no other is given (People off). */
+const DEFAULT_OFFER_LINE = 'Camera gear to rent, and photo and video shoots by request.';
+
+export const ServiceGrid = ({
+  capabilities = CAPABILITIES,
+  offerLine = DEFAULT_OFFER_LINE,
+}: { capabilities?: readonly Capability[]; offerLine?: string } = {}) => {
   return (
     <section className="py-32 bg-neutral-50 dark:bg-[#050505] relative border-t border-black/5 dark:border-white/5 transition-colors duration-500">
        {/* Background Grid */}
@@ -27,7 +33,7 @@ export const ServiceGrid = ({ capabilities = CAPABILITIES }: { capabilities?: re
           </motion.div>
           <div className="max-w-md mt-8 md:mt-0">
             <p className="text-neutral-400 dark:text-neutral-400 font-light leading-relaxed">
-              Camera gear to rent, and photo and video shoots by request.
+              {offerLine}
             </p>
           </div>
         </div>

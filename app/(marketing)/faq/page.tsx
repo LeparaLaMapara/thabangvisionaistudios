@@ -7,6 +7,7 @@ import { faqPageJsonLd, breadcrumbJsonLd, renderJsonLd } from '@/lib/seo/structu
 import { STUDIO } from '@/lib/constants';
 import { coreFaqs } from '@/lib/content/faqs';
 import { onlinePaymentsOpen } from '@/lib/payments/status';
+import { getFlag } from '@/lib/features';
 
 export const metadata = buildPageMetadata({
   title: 'Frequently Asked Questions',
@@ -27,9 +28,9 @@ const FAQ_CATEGORIES: Record<string, string> = {
 export default async function FaqPage() {
   // The core answers come from the same settings checkout uses; published
   // FAQs from /admin/faqs follow them.
-  const published = await getPublishedFaqs(100);
+  const [published, rolesOn] = await Promise.all([getPublishedFaqs(100), getFlag('roles_v1')]);
   const faqs: { id: string; category: string | null; question: string; answer: string }[] = [
-    ...coreFaqs({ paymentsOpen: onlinePaymentsOpen() }),
+    ...coreFaqs({ paymentsOpen: onlinePaymentsOpen(), rolesOn }),
     ...published.map((f) => ({ id: f.id, category: f.category, question: f.question, answer: f.answer })),
   ];
 

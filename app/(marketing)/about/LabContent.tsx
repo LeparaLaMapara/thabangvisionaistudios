@@ -1,7 +1,7 @@
 'use client';
 
 import { motion } from 'framer-motion';
-import { Sparkles, Camera, Bot, Workflow, ArrowRight, Download, FlaskConical } from 'lucide-react';
+import { Sparkles, Camera, Bot, Workflow, ArrowRight, Download } from 'lucide-react';
 import Link from 'next/link';
 import { STUDIO, RESEARCH_LAB, UBUNYE_STUDIO, CREATOR_JOIN } from '@/lib/constants';
 import { collectionPoint } from '@/lib/rental/collection-point';
@@ -96,7 +96,8 @@ export default function LabContent({ appsLive }: { appsLive: boolean }) {
           About the lab <ArrowRight className="w-4 h-4" aria-hidden="true" />
         </a>
 
-        <div className="mt-10 grid grid-cols-1 md:grid-cols-2 gap-px bg-white/10 border border-white/10">
+        {/* The free apps only: the in-research editor card is hidden until it ships (owner rule: hide unfinished features). */}
+        <div className="mt-10 grid grid-cols-1 gap-px bg-white/10 border border-white/10">
           <div className="bg-[#0A0A0B] p-10 flex flex-col justify-between">
             <div>
               <div className="flex items-center justify-between mb-6">
@@ -113,16 +114,6 @@ export default function LabContent({ appsLive }: { appsLive: boolean }) {
                 Get the apps <ArrowRight className="w-4 h-4" aria-hidden="true" />
               </Link>
             )}
-          </div>
-          <div className="bg-[#0A0A0B] p-10">
-            <div className="flex items-center justify-between mb-6">
-              <FlaskConical className="w-8 h-8 text-white opacity-80" aria-hidden="true" />
-              <span className="text-xs font-mono uppercase tracking-widest text-neutral-300 border border-white/20 px-3 py-1">
-                {RESEARCH_LAB.editor.status}
-              </span>
-            </div>
-            <h3 className="text-2xl font-display uppercase mb-4 text-white tracking-tight">{RESEARCH_LAB.editor.name}</h3>
-            <p className="text-neutral-400 font-mono text-xs leading-relaxed">{RESEARCH_LAB.editor.desc}</p>
           </div>
         </div>
       </section>

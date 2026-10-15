@@ -105,6 +105,9 @@ function intro(c: Catalog): string[] {
   return [parts.join(' ')];
 }
 
+/** People (roles_v1): one way to book a person, at the price on their profile. */
+const PEOPLE_LLMS_LINE = `Photographers, videographers and other people are booked on ${absUrl('/people')}: choose a person, pick your days, see the total and send a request. Each profile shows its price.`;
+
 /** /llms.txt: a short guide with the most useful links. */
 export function buildLlmsTxt(c: Catalog, opts: LlmsOptions): string {
   const cats = rentalCategoryStats(c).sort((a, b) => b.count - a.count);
@@ -138,7 +141,8 @@ export function buildLlmsTxt(c: Catalog, opts: LlmsOptions): string {
     '',
   ];
 
-  if (c.studioOn) {
+  if (c.rolesOn) out.push('## People', PEOPLE_LLMS_LINE, '');
+  if (c.studioOn && !c.rolesOn) {
     out.push(
       '## Creators you can book',
       ...(creators.length > 0 ? creators.map(creatorLine) : ['- No creators are open for bookings right now.']),
@@ -162,7 +166,7 @@ export function buildLlmsTxt(c: Catalog, opts: LlmsOptions): string {
     '## Key pages',
     `- Home: ${STUDIO.meta.url}`,
     `- Equipment rentals: ${absUrl('/rentals')}`,
-    ...(c.studioOn ? [`- Studio (shoots by request): ${absUrl('/studio')}`, `- Creators: ${absUrl('/smart-creators')}`] : []),
+    ...(c.studioOn && !c.rolesOn ? [`- Studio (shoots by request): ${absUrl('/studio')}`, `- Creators: ${absUrl('/smart-creators')}`] : []),
     `- Free tools: ${absUrl('/tools')}`,
     `- FAQ: ${absUrl('/faq')}`,
     `- Pricing: ${absUrl('/pricing')}`,
@@ -216,7 +220,8 @@ export function buildLlmsFullTxt(c: Catalog, opts: LlmsOptions): string {
   }
   if (c.rentals.length === 0) out.push('No gear is listed right now.', '');
 
-  if (c.studioOn) {
+  if (c.rolesOn) out.push('## People', '', PEOPLE_LLMS_LINE, '');
+  if (c.studioOn && !c.rolesOn) {
     out.push('## Creators you can book', '');
     for (const p of c.creators) {
       out.push(`### ${p.name}`, `- Profile: ${absUrl(p.path)}`);
@@ -241,7 +246,7 @@ export function buildLlmsFullTxt(c: Catalog, opts: LlmsOptions): string {
   out.push(`## Free tools: ${UBUNYE_STUDIO.suiteName}`, '', ...c.tools.flatMap((t) => toolLines(t, true)), '');
 
   out.push('## Questions people ask', '');
-  for (const f of [...coreFaqs({ paymentsOpen: opts.paymentsOpen }), ...c.faqs]) {
+  for (const f of [...coreFaqs({ paymentsOpen: opts.paymentsOpen, rolesOn: c.rolesOn }), ...c.faqs]) {
     out.push(`### ${f.question}`, f.answer, '');
   }
 

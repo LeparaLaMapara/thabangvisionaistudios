@@ -1,4 +1,6 @@
-import { ON_SITE_RENTAL } from '@/lib/constants';
+import { ON_SITE_RENTAL, RENTAL_POLICY } from '@/lib/constants';
+import { formatRand } from '@/lib/format/money';
+import { collectionPointWithCity } from '@/lib/rental/collection-point';
 
 /**
  * Places for hire (the Studios category): pure rules shared by the pages, the
@@ -115,4 +117,30 @@ export function comingSoonLabels(
 ): string[] {
   const stocked = new Set(rentals.map((r) => r.category));
   return list.filter((c) => !c.category || !stocked.has(c.category)).map((c) => c.label);
+}
+
+const rand = (cents: number): string => formatRand(Math.round(cents / 100));
+
+/**
+ * What a first-time studio booker needs, in the order checkout checks it
+ * (app/api/cart/checkout: the renter checks in lib/rental/eligibility-server).
+ * A studio is held against the same "gear at a time" limit as gear, valued
+ * as checkout values it (lib/rental/protection itemValue), so the limit line
+ * says whether a new account can book this studio and how to raise it.
+ */
+export function studioNeeds(valueCents: number): string[] {
+  const limits = RENTAL_POLICY.trustTierLimitsCents;
+  const value = rand(valueCents);
+  const limitLine =
+    valueCents <= limits.contactable
+      ? `New accounts can book up to ${rand(limits.contactable)} at a time. This studio counts as ${value}, so it fits. Gear you book for the same days counts too; a bank account in your own name raises the limit to ${rand(limits.verified)}.`
+      : valueCents <= limits.verified
+        ? `This studio counts as ${value}. New accounts can book up to ${rand(limits.contactable)} at a time, so you also need a bank account in your own name, which raises the limit to ${rand(limits.verified)}.`
+        : `This studio counts as ${value}, more than a new account can book. WhatsApp us and we will arrange it.`;
+  return [
+    'An account with a confirmed email address and phone number.',
+    'A one-time ID check (ID and selfie), approved by a person before you pay.',
+    limitLine,
+    `Nothing to collect or deliver: you use it at the studio in ${collectionPointWithCity()}.`,
+  ];
 }

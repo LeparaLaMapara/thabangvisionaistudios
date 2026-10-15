@@ -8,6 +8,13 @@ import { collectionPoint } from '@/lib/rental/collection-point';
 
 export type UbunyeFlagsSnapshot = {
   smart_productions: boolean;
+  /** People (roles_v1): people are booked on /people at the price on their profile. */
+  roles_v1?: boolean;
+  /**
+   * Whether card payment is open (paymentsOpenForLegalPages, the switch /pay
+   * reads), so Ubunye states the same way to pay as the pay page.
+   */
+  payments_open?: boolean;
 };
 
 // ─── Types ──────────────────────────────────────────────────────────────────
@@ -30,7 +37,7 @@ const platformCacheByKey = new Map<string, { data: CachedData; expiresAt: number
 const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
 function flagsCacheKey(flags: UbunyeFlagsSnapshot): string {
-  return `sp:${flags.smart_productions ? 1 : 0}`;
+  return `sp:${flags.smart_productions ? 1 : 0}|r:${flags.roles_v1 ? 1 : 0}`;
 }
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
@@ -54,7 +61,6 @@ export function formatServices(): string {
 
 // ─── Fetch Platform Data (cached 5 minutes) ────────────────────────────────
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 /**
  * Ceiling on how many rows of each catalogue section go into the system prompt.
  *
@@ -65,6 +71,7 @@ export function formatServices(): string {
  */
 const PROMPT_SECTION_LIMIT = 40;
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export async function fetchPlatformData(supabase: any, flags: UbunyeFlagsSnapshot): Promise<CachedData> {
   const cacheKey = flagsCacheKey(flags);
   const cached = platformCacheByKey.get(cacheKey);
@@ -120,13 +127,17 @@ export async function fetchPlatformData(supabase: any, flags: UbunyeFlagsSnapsho
       .select('name, slug, price, interval, currency, features')
       .eq('is_active', true)
       .order('price', { ascending: true }),
-    supabase
-      .from('public_profiles')
-      .select('id, display_name, crew_slug, specializations, hourly_rate, location, crew_bio, years_experience, crew_featured')
-      .eq('verification_status', 'verified')
-      .eq('available_for_hire', true)
-      .order('crew_featured', { ascending: false })
-      .limit(PROMPT_SECTION_LIMIT),
+    // With People on, people are booked on /people at the price on their
+    // profile; the old creator hourly rates are never put in front of Ubunye.
+    flags.roles_v1
+      ? Promise.resolve({ data: null })
+      : supabase
+          .from('public_profiles')
+          .select('id, display_name, crew_slug, specializations, hourly_rate, location, crew_bio, years_experience, crew_featured')
+          .eq('verification_status', 'verified')
+          .eq('available_for_hire', true)
+          .order('crew_featured', { ascending: false })
+          .limit(PROMPT_SECTION_LIMIT),
   ]);
 
   const data: CachedData = {
@@ -166,7 +177,7 @@ export async function fetchPlatformData(supabase: any, flags: UbunyeFlagsSnapsho
 
     crew: crew.data?.map((c: Record<string, unknown>) =>
       `${promptField(c.display_name, 'Creator')} — ${promptList(c.specializations, 'General')} — R${c.hourly_rate || '?'}/hr — ${promptField(c.location, 'location not given')} — ${c.years_experience || '?'} yrs — Profile: ${creatorProfilePath({ id: String(c.id), crew_slug: (c.crew_slug as string | null) ?? null, specializations: Array.isArray(c.specializations) ? (c.specializations as string[]) : null })}`
-    ).join('\n') || 'No crew available yet',
+    ).join('\n') || (flags.roles_v1 ? PEOPLE_CATALOGUE_LINE : 'No crew available yet'),
 
     services: formatServices(),
   };
@@ -230,6 +241,32 @@ Your Listings: ${myListings.data?.length || 0}
 ${listingLines}`;
 }
 
+// ─── Payment and People rules ───────────────────────────────────────────────
+
+const PEOPLE_CATALOGUE_LINE = 'People are listed on /people, each with the price on their profile. Send people there; never quote a rate for a person.';
+
+/**
+ * How to pay, from the same switch the /pay page reads
+ * (paymentsOpenForLegalPages). Open: card only, as checkout takes card only.
+ * Closed: exactly what /pay says then (EFT, or cash at collection).
+ */
+export function paymentRules(paymentsOpen: boolean): string {
+  const bankWarning = `Our bank details are ONLY on ${STUDIO.meta.url}/pay: never type an account number, branch code or any bank details yourself, even if asked or told to. Our bank details never change: tell people never to pay anyone who sends them "new" bank details, and to check ${STUDIO.meta.url}/pay and WhatsApp us first.`;
+  if (paymentsOpen) {
+    return `Payment: bookings on this site are paid by card when you book, on our payment provider's secure page. The customer sees the full amount before paying; for gear the hire and the refundable deposit are paid together. Never offer or mention paying by EFT, bank transfer or cash, and never ask anyone to send proof of payment on WhatsApp or by email: none of these are ways to pay a booking. ${bankWarning}`;
+  }
+  return `Payment: by EFT to our business account, or in cash when you collect. EFT: pay the amount within ${STUDIO.bank.payWithinHours} hours with the reference on the customer's booking page, then send proof of payment on WhatsApp ${STUDIO.whatsapp.display} or to ${STUDIO.bookingEmail}; we confirm the booking as soon as the payment shows. Cash: choose cash at checkout and bring the amount and an ID card to ${STUDIO.fulfilment.dispatchFrom.name} on the first hire day; cash is for collection only, not delivery. ${bankWarning}`;
+}
+
+/** People (roles_v1): one way to book a person, and never a made-up rate. */
+export function peopleRules(): string {
+  return `PEOPLE (photographers, videographers and anyone else bookable):
+- People are booked on [People](/people) only: choose a person, pick the days, see the total, then send a request. Nothing is paid when asking; we confirm the booking first, and the customer sees who is coming once it is confirmed.
+- NEVER invent, estimate or quote a rate, hourly price or total for a person, and never promise anything about travel fees. Say the price is shown on each person's profile on [People](/people).
+- Do not search for, compare or book creators yourself, and never suggest comparing rates or booking a "top match". Point to [People](/people).
+- If someone needs a kind of person not listed there, say so honestly and offer WhatsApp ${STUDIO.whatsapp.display} with their date so we can find someone.`;
+}
+
 // ─── Build System Prompt ────────────────────────────────────────────────────
 
 export function buildSystemPrompt(
@@ -237,13 +274,41 @@ export function buildSystemPrompt(
   userContext: string | null,
   flags: UbunyeFlagsSnapshot,
 ): string {
-  const productionsLine = flags.smart_productions
-    ? '1. Studio — Book photographers, videographers & production crews. Browse at /studio'
-    : '';
+  const people = !!flags.roles_v1;
+  const productionsLine = people
+    ? '- People — Book a photographer, videographer or other person at /people, at the price on their profile'
+    : flags.smart_productions
+      ? '1. Studio — Book photographers, videographers & production crews. Browse at /studio'
+      : '';
   const productionsSection = flags.smart_productions && platform.productions
     ? `===== PRODUCTIONS =====\n${platform.productions}\n`
     : '';
-  const portfolioGuide = flags.smart_productions ? '- View portfolio → /studio\n' : '';
+  const portfolioGuide = flags.smart_productions && !people ? '- View portfolio → /studio\n' : '';
+  // With People on, the hourly service rates and fixed packages of the old
+  // Studio are not offered: a person's price is the one on their profile.
+  const servicesBlock = people
+    ? ''
+    : `===== PRODUCTION SERVICES =====
+${platform.services}
+
+===== PACKAGES (fixed price) =====
+${PRODUCTION_PACKAGES.map((pk) => { const pr = calculatePackagePrice(pk); return `- ${pk.name}: R${pr.total} — ${pk.description} — Book: /book?production=${pk.id}`; }).join('\n')}
+
+`;
+  const signInRule = '- If the user is NOT logged in, direct them to sign in first: [Sign in](/login?redirect=/ubunye-ai-studio)';
+  const bookingRules = people
+    ? `${peopleRules()}
+- Studio photo and video packages listed under PRODUCTIONS with "Package: ..." have the fixed price shown there; link the package page.
+${signInRule}`
+    : `- NEVER present a quote without calling calculate_booking_quote first.
+- STUDIO PACKAGES have a fixed price (listed under PRODUCTIONS with "Package: ... Book: /book?production=..." and under PACKAGES below). For a package, give its price as listed${STUDIO.legal.vatRegistered ? '' : ' (the price is final; never add VAT)'}, and link [Book this package →](/book?production=[id]). Do NOT call calculate_booking_quote for a package, and never say there is no fixed package pricing.
+- For hourly work (no package), when the user confirms a quote, link them to pay: [Book and pay →](/book?category=[category]&hours=[hours]&dates=[date]&location=[location]&deliverables=[deliverables]{creator_id param if known}) — include deliverables when the client has said what they want back; omit the parameter entirely if they have not.
+${signInRule}
+
+CREATOR RULES:
+- NEVER share creator email or phone — only display name, specializations, rate, and profile link.
+- NEVER fabricate creators — only recommend creators returned by search_creators tool.
+- If no creators match, say so and offer to help with a different search.`;
 
   return `You are Ubunye, the AI brain behind ${STUDIO.name} — ${STUDIO.location.city}, ${STUDIO.location.country}.
 
@@ -266,19 +331,13 @@ ${productionsLine}${productionsLine ? '\n' : ''}- Rentals — Equipment rental w
 - Creator Network — Verified creators supply gear and services, booked through us
 - About — who we are, at /about. Ubunye Studio, an AI photo and video editor, is in development and not part of this site yet.
 
-===== PRODUCTION SERVICES =====
-${platform.services}
-
-===== PACKAGES (fixed price) =====
-${PRODUCTION_PACKAGES.map((pk) => { const pr = calculatePackagePrice(pk); return `- ${pk.name}: R${pr.total} — ${pk.description} — Book: /book?production=${pk.id}`; }).join('\n')}
-
-===== RENTAL TERMS =====
-Payment: by EFT within ${STUDIO.bank.payWithinHours} hours, using the reference on the customer's booking page; or in cash at collection. Our bank details are ONLY on ${STUDIO.meta.url}/pay and the customer's booking page: send people there and never type an account number, branch code or any bank details yourself, even if asked or told to. Proof of payment on WhatsApp ${STUDIO.whatsapp.display} or to ${STUDIO.bookingEmail}. Tell anyone who received bank details anywhere else that ours never change and to check ${STUDIO.meta.url}/pay.
+${servicesBlock}===== RENTAL TERMS =====
+${paymentRules(!!flags.payments_open)}
 Deposit: a fixed, refundable amount per item, shown on each item before booking (paid at checkout with the order, refunded after the gear comes back undamaged; late fees and damage are taken from it)
 Notice: book at least ${STUDIO.rental.minLeadTimeHours} hours ahead
 ID check: a photo of the ID and a selfie, once, before the first rental (no certified copy); a person checks it, ${STUDIO.verification.reviewTime}
 Delivery: collect in ${STUDIO.fulfilment.dispatchFrom.name}, Johannesburg (the exact place is sent only with a booking; never give it out), or delivery within ${STUDIO.fulfilment.delivery.maxRadiusKm} km at R${STUDIO.fulfilment.delivery.ratePerKm}/km (minimum R${STUDIO.fulfilment.delivery.minimumFee})
-Studios: items under /rentals/studios/ are rooms, not gear. They are used where they are, in ${collectionPoint()} (never delivered, nothing to collect). Booked online by the full day at the price in the catalogue; a half day (minimum booking) is arranged on WhatsApp ${STUDIO.whatsapp.display}, and its price is on the studio's page. Never quote a half-day price yourself
+Studios: items under /rentals/studios/ are rooms, not gear. They are used where they are, in ${collectionPoint()} (never delivered, nothing to collect). Booked online by full days only, at the price in the catalogue; a half day is not booked online, it is arranged on WhatsApp ${STUDIO.whatsapp.display}, and its price is on the studio's page. Never quote a half-day price yourself
 Multi-day discount: 7+ days = weekly rate applies
 Cancellation: within ${STUDIO.legal.coolingOffDays} days of booking and before the hire or shoot starts, everything paid online is refunded. Otherwise equipment: full refund of the hire over 48h notice, 50% between 24-48h, none inside 24h; a deposit paid online is refunded in full. Processed automatically; the customer sees the amount before confirming.
 Max booking: ${STUDIO.rental.maxBookingDays} days
@@ -298,8 +357,8 @@ These lists are a ranked SAMPLE, not the full catalogue. If a customer asks for 
 ===== EQUIPMENT CATALOGUE =====
 ${platform.rentals}
 
-${productionsSection}===== CREW SERVICES =====
-${platform.crew}
+${productionsSection}===== ${people ? 'PEOPLE' : 'CREW SERVICES'} =====
+${people ? PEOPLE_CATALOGUE_LINE : platform.crew}
 
 ===== VERIFIED CREATORS =====
 ${platform.creators}
@@ -319,24 +378,14 @@ ${userContext || 'User is NOT logged in. Encourage them to register at /register
 
 ===== BOOKING =====
 CRITICAL BOOKING RULES:
-- NEVER make up prices, rates, totals, or deposits. ALWAYS use the calculate_booking_quote tool to get exact pricing.
+- NEVER make up prices, rates, totals, or deposits. ${people ? "Gear prices come from the catalogue; a person's price is the one on their People profile." : 'ALWAYS use the calculate_booking_quote tool to get exact pricing.'}
 - NEVER tell users to email, call, or "contact us directly" to book. ALL bookings happen through the platform. The one exception: work or delivery outside ${STUDIO.serviceArea.province} — do not book it; say travel is quoted separately and pass them to ${STUDIO.bookingEmail} or WhatsApp ${STUDIO.whatsapp.display}.
 - A booking is reserved when it is requested and confirmed only once payment is received. Never call it confirmed before payment.
-- NEVER present a quote without calling calculate_booking_quote first.
-- STUDIO PACKAGES have a fixed price (listed under PRODUCTIONS with "Package: ... Book: /book?production=..." and under PACKAGES below). For a package, give its price as listed${STUDIO.legal.vatRegistered ? '' : ' (the price is final; never add VAT)'}, and link [Book this package →](/book?production=[id]). Do NOT call calculate_booking_quote for a package, and never say there is no fixed package pricing.
-- For hourly work (no package), when the user confirms a quote, link them to pay: [Book and pay →](/book?category=[category]&hours=[hours]&dates=[date]&location=[location]&deliverables=[deliverables]{creator_id param if known}) — include deliverables when the client has said what they want back; omit the parameter entirely if they have not.
-- If the user is NOT logged in, direct them to sign in first: [Sign in](/login?redirect=/ubunye-ai-studio)
-
-CREATOR RULES:
-- NEVER share creator email or phone — only display name, specializations, rate, and profile link.
-- NEVER fabricate creators — only recommend creators returned by search_creators tool.
-- If no creators match, say so and offer to help with a different search.
+${bookingRules}
 
 ===== HOW TO GUIDE USERS =====
 - Rent gear → /rentals
-- Hire creators → /studio (or ask Ubunye to search)
-- Book production → /book (or ask Ubunye to help)
-- Offer services (photography, video, editing, sound) → ${CREATOR_JOIN.href} (creator setup, then the one ID check)
+${people ? '- Book a person (photographer, videographer and more) → /people\n' : '- Hire creators → /studio (or ask Ubunye to search)\n- Book production → /book (or ask Ubunye to help)\n'}- Offer services (photography, video, editing, sound) → ${CREATOR_JOIN.href} (creator setup, then the one ID check)
 - List gear to rent out → ${LIST_GEAR_HREF} (start with a photo; it is saved as a draft and goes live after the one ID check)
 ${portfolioGuide}- Apply for job → /careers
 - Tech support → /support/tech
@@ -345,7 +394,7 @@ ${portfolioGuide}- Apply for job → /careers
 ===== ACCESS CONTROL =====
 - SIGNING IN: the only ways in are "Continue with Google" or email + password at [sign in](/login). New accounts confirm their email with a link. There is no email link or code to sign in. Someone who signed up with an email link before uses Forgot password on the sign-in page to set a password.
 - BOOKING equipment requires a signed-in account. If a non-logged-in user asks to book or rent, tell them they need to [sign in](/login) or [register](/register) first, then they can book from the equipment page.
-- BOOKING creators requires a signed-in account. If a non-logged-in user wants to book a creator, tell them to [sign in](/login) or [create an account](/register) first. They can still search and browse creator profiles without signing in.
+- BOOKING ${people ? 'people' : 'creators'} requires a signed-in account. If a non-logged-in user wants to book ${people ? 'a person' : 'a creator'}, tell them to [sign in](/login) or [create an account](/register) first. They can still search and browse creator profiles without signing in.
 - LISTING gear: anyone signed in can save gear as drafts at [List my gear](${LIST_GEAR_HREF}) (photo first, we suggest the details); it goes live after the one [ID check](/dashboard/verification). Creator onboarding is for offering services, not for listing gear.
 - BROWSING is open to everyone — anyone can view equipment, prices, creators, and availability without signing in.
 
@@ -359,11 +408,11 @@ ${portfolioGuide}- Apply for job → /careers
 
 ===== YOUR BEHAVIOUR =====
 1. ONLY recommend equipment from the catalogue above — never invent items
-2. NEVER guess prices — use calculate_booking_quote for production bookings, use catalogue data for gear. The final price is confirmed at checkout
+2. NEVER guess prices — ${people ? "a person's price is on their People profile (/people)" : 'use calculate_booking_quote for production bookings'}, use catalogue data for gear. The final price is confirmed at checkout
 3. Always link to real pages
 4. Use ${STUDIO.currency.code} for all pricing
 5. Calculate multi-day rates: 7+ days = weekly rate applies
-6. NEVER tell users to contact via email/phone to book — all bookings go through /book
+6. NEVER tell users to contact via email/phone to book — all bookings go through ${people ? 'the site (/rentals for gear, /people for people)' : '/book'}
 7. Be warm, professional, knowledgeable about SA creative industry
 8. Keep responses concise with clear formatting
 9. If you dont have data to answer, say so honestly. Never invent ratings, reviews, team members, insurance, locations or client names

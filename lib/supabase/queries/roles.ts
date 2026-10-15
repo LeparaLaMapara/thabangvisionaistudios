@@ -558,3 +558,29 @@ export async function heldProductions(): Promise<Map<string, string>> {
   }
   return out;
 }
+
+/**
+ * The live roles, and those with at least one approved person (the same rule
+ * as the /people chips), for pages that must only promise work someone can
+ * be booked for. Server key and no cookies, so a cached page (home) can call
+ * it. Any read error gives empty lists, and the pages fall back to generic words.
+ */
+export async function getOfferedRoles(): Promise<{ live: { slug: string; name: string }[]; offered: { slug: string; name: string }[] }> {
+  try {
+    const admin = createAdminClient();
+    const [roles, people] = await Promise.all([
+      admin.from('roles').select('slug, name, status, sort').eq('status', 'live').order('sort'),
+      admin.from('person_roles').select('role_slug').eq('status', 'approved').limit(500),
+    ]);
+    if (roles.error || people.error) {
+      console.error('[roles] getOfferedRoles:', roles.error?.message ?? people.error?.message);
+      return { live: [], offered: [] };
+    }
+    const live = ((roles.data ?? []) as { slug: string; name: string }[]).map((r) => ({ slug: r.slug, name: r.name }));
+    const approved = new Set(((people.data ?? []) as { role_slug: string }[]).map((p) => p.role_slug));
+    return { live, offered: live.filter((r) => approved.has(r.slug)) };
+  } catch (err) {
+    console.error('[roles] getOfferedRoles:', err instanceof Error ? err.message : 'unknown error');
+    return { live: [], offered: [] };
+  }
+}

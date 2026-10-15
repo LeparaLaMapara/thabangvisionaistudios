@@ -862,7 +862,13 @@ export const RENTAL_CATEGORIES = [
  */
 export const ON_SITE_RENTAL = {
   categories: ['studios'] as readonly string[],
-  minimumBooking: 'Half day',
+  // One rule: full days online, a half day on WhatsApp (no "minimum booking" row).
+  bookingRule: 'Book full days here. For a half day, WhatsApp us.',
+  // The calendar's last tap is the day after the last studio day (the same
+  // date rule as gear and checkout), so the taps are spelled out.
+  tapsHelp: 'One day: tap your day, then tap the next day. More days: tap your first day, then the day after your last.',
+  tapsNext: 'Now tap the day after your last studio day. For one day, that is the next day.',
+  needsTitle: 'What you need to book the studio',
   fullDayLabel: 'Full day',
   halfDayLabel: 'Half day',
   halfDayAsk: 'ask us',
@@ -1317,7 +1323,9 @@ export const CAPABILITIES_PEOPLE = [
   },
   {
     title: 'People',
-    subtitle: 'Photographers, make-up artists, models and drivers',
+    // Replaced on the home page by the kinds of work someone approved offers
+    // (lib/roles/offered.ts); this is the fallback when that cannot be read.
+    subtitle: 'People for your shoot',
     image: PLACEHOLDER_IMAGES.smartProductions,
     link: '/people',
   },
@@ -1326,7 +1334,10 @@ export const CAPABILITIES_PEOPLE = [
 export const HOME_PEOPLE = {
   titleTop: 'Gear and people',
   titleBottom: 'for your shoot.',
-  peopleLine: 'Book photographers, make-up artists, models and drivers, chosen on their work.',
+  // Fallbacks: the home page names only the kinds of work someone approved
+  // offers (lib/roles/offered.ts peopleWords).
+  peopleLine: 'Book people for your shoot, chosen on their work.',
+  offerLine: 'Camera gear to rent, and people to book for your shoot.',
   rentLabel: 'Rent gear',
   peopleLabel: 'Book people',
   peopleHref: '/people',

@@ -13,6 +13,7 @@ import { clientIp } from '@/lib/http/clientIp';
 import { createClient, createAdminClient } from '@/lib/supabase/server';
 import { fetchPlatformData, fetchUserContext, type UbunyeFlagsSnapshot } from '@/lib/ubunye/system-prompt';
 import { getFlags } from '@/lib/features';
+import { paymentsOpenForLegalPages } from '@/lib/consent/legal-facts';
 import { isRagEnabled, searchSimilar, formatRetrievalContext } from '@/lib/rag';
 import { UBUNYE_AGENTS } from '@/lib/agents/registry';
 import { createSearchTools } from '@/lib/agents/tools/search';
@@ -75,15 +76,29 @@ function resolveLimit(
 
 // ─── Agent Tool Factory ─────────────────────────────────────────────────────
 
+/** Creator tools that read the old profiles.hourly_rate; off with People (roles_v1) on. */
+export const PEOPLE_RETIRED_TOOLS = ['search_creators', 'get_creator_detail', 'calculate_booking_quote', 'prepare_service_booking'] as const;
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function getToolsForAgent(agentId: string, supabase: any, isAuthenticated: boolean, flags: UbunyeFlagsSnapshot, hasPreSelectedCreator = false, conversationId: string | null = null): Record<string, any> {
   switch (agentId) {
-    case 'assistant':
+    case 'assistant': {
       // Delivery tools are read-only (plus reporting an issue); each checks sign-in itself.
-      return { ...createSearchTools(supabase, flags), ...createDeliveryTools(supabase, isAuthenticated) };
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const tools: Record<string, any> = { ...createSearchTools(supabase, flags), ...createDeliveryTools(supabase, isAuthenticated) };
+      if (flags.roles_v1) for (const name of PEOPLE_RETIRED_TOOLS) delete tools[name];
+      return tools;
+    }
     case 'booking': {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const tools: Record<string, any> = { ...createBookingTools(supabase, isAuthenticated, flags, conversationId), ...createDeliveryTools(supabase, isAuthenticated) };
+      // People (roles_v1): people are booked on /people at the price on their
+      // profile. The old creator tools read profiles.hourly_rate, so they must
+      // not quote or book anyone.
+      if (flags.roles_v1) {
+        for (const name of PEOPLE_RETIRED_TOOLS) delete tools[name];
+        return tools;
+      }
       // Remove search tools when creator is already selected — no searching needed
       if (hasPreSelectedCreator) {
         delete tools.search_creators;
@@ -330,8 +345,13 @@ export async function executeAgent(
     }
 
     // ── Fetch feature flags (shared for prompt + tools) ──
-    const flagsState = await getFlags(['smart_productions']);
-    const flags: UbunyeFlagsSnapshot = { smart_productions: flagsState.smart_productions };
+    const flagsState = await getFlags(['smart_productions', 'roles_v1']);
+    const flags: UbunyeFlagsSnapshot = {
+      smart_productions: flagsState.smart_productions,
+      roles_v1: flagsState.roles_v1,
+      // The same switch /pay reads, so Ubunye never states another way to pay.
+      payments_open: paymentsOpenForLegalPages(),
+    };
 
     // ── Build context-aware system prompt ──
     let systemPrompt = await buildPromptForAgent(agentId, supabase, user?.id ?? null, isFirstGuestMessage, flags);

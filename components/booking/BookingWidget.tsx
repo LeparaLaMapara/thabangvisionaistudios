@@ -22,7 +22,7 @@ import { createClient } from '@/lib/supabase/client';
 import { DateRangePicker, type DateRange } from '@/components/ui/DateRangePicker';
 import { calculateItemPrice, depositPerUnit } from '@/lib/cart/pricing';
 import { ON_SITE_RENTAL, RENTAL_POLICY, STUDIO } from '@/lib/constants';
-import { halfDayPrice, isOnSiteCategory } from '@/lib/rental/on-site';
+import { halfDayPrice, isOnSiteCategory, studioNeeds } from '@/lib/rental/on-site';
 import { collectionPointWithCity } from '@/lib/rental/collection-point';
 import { whatsappLink } from '@/lib/payments/eft';
 import { earliestBookableDate, leadTimeMessage, studioLeadTimeMessage } from '@/lib/rental/leadTime';
@@ -193,6 +193,31 @@ function SignedOutSummary({ highValue }: { highValue: boolean }) {
         {highValue && (
           <li>Items worth more than {centsToRand(RENTAL_POLICY.highValueCollectionThresholdCents)} are always collected in person.</li>
         )}
+      </ul>
+    </section>
+  );
+}
+
+/** What booking a studio needs, from the rules checkout enforces (lib/rental/on-site studioNeeds). */
+function StudioNeeds({ valueCents, title }: { valueCents: number; title: string }) {
+  return (
+    <section aria-label={ON_SITE_RENTAL.needsTitle} className="border border-white/10 bg-[#0A0A0B] p-4 space-y-2">
+      <p className="text-xs font-mono uppercase tracking-widest text-neutral-400">{ON_SITE_RENTAL.needsTitle}</p>
+      <ul className="space-y-1.5 text-xs font-mono text-neutral-300 list-disc pl-4">
+        {studioNeeds(valueCents).map((line) => (
+          <li key={line}>{line}</li>
+        ))}
+        <li>
+          {ON_SITE_RENTAL.bookingRule}{' '}
+          <a
+            href={whatsappLink(ON_SITE_RENTAL.halfDayMessage(title))}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex min-h-[44px] items-center text-[#D4A843] underline underline-offset-4"
+          >
+            WhatsApp us
+          </a>
+        </li>
       </ul>
     </section>
   );
@@ -442,7 +467,7 @@ function BookingWidgetInner({ rental, paymentsOpen: paymentsOpenProp }: Props) {
       ? rangeCheck.message
       : dateRange.start && !dateRange.end
         ? place
-          ? 'Now choose the day after your last studio day. One full day: your day, then the next.'
+          ? ON_SITE_RENTAL.tapsNext
           : 'Now choose the return day. A one-day hire is returned the next day.'
         : undefined;
 
@@ -562,7 +587,7 @@ function BookingWidgetInner({ rental, paymentsOpen: paymentsOpenProp }: Props) {
         <p className="text-xs font-mono text-neutral-400 leading-relaxed">
           {noticeMessage}{' '}
           {place
-            ? 'Full days only online: choose your studio day, then the next day (two days: your first day, then the day after the last).'
+            ? `${ON_SITE_RENTAL.bookingRule} ${ON_SITE_RENTAL.tapsHelp}`
             : 'Pick up on the first day, return on the last.'}
         </p>
 
@@ -668,7 +693,14 @@ function BookingWidgetInner({ rental, paymentsOpen: paymentsOpenProp }: Props) {
           <p className="text-xs font-mono text-neutral-400 text-center">
             {datesReady ? 'You sign in next. Your dates are kept.' : 'Choose your dates above to see the price.'}
           </p>
-          <SignedOutSummary highValue={highValue} />
+          {place ? (
+            <StudioNeeds
+              valueCents={Math.round(itemValue(rental as { replacement_value?: number | null; deposit_amount?: number | null }) * 100)}
+              title={rental.title}
+            />
+          ) : (
+            <SignedOutSummary highValue={highValue} />
+          )}
         </div>
       ) : canPay ? (
         <div className="space-y-4">
@@ -743,13 +775,15 @@ function BookingWidgetInner({ rental, paymentsOpen: paymentsOpenProp }: Props) {
           itself once online payment opens (onlinePaymentsOpen). */}
       <PaymentsNotOpenNote open={paymentsOpen} />
 
-      {/* Info line */}
-      <div className="flex items-start gap-2 text-xs font-mono text-neutral-400">
-        <Info className="w-3 h-3 mt-0.5 flex-shrink-0" aria-hidden="true" />
-        <span>
-          Renting 3 or more items? Add them to your cart for a bulk discount.
-        </span>
-      </div>
+      {/* Info line (gear only: a studio is booked on its own, not in a cart for a discount) */}
+      {!place && (
+        <div className="flex items-start gap-2 text-xs font-mono text-neutral-400">
+          <Info className="w-3 h-3 mt-0.5 flex-shrink-0" aria-hidden="true" />
+          <span>
+            Renting 3 or more items? Add them to your cart for a bulk discount.
+          </span>
+        </div>
+      )}
     </motion.div>
   );
 }

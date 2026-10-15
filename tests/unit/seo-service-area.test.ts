@@ -34,7 +34,8 @@ vi.mock('@/lib/supabase/server', () => {
   const client = { from: (t: string) => make(t) };
   return { createAdminClient: () => client, createClient: async () => client };
 });
-vi.mock('@/lib/features', () => ({ getFlag: async () => true }));
+// People (roles_v1) off: these cases cover the creator and studio sitemap; with People on they redirect (tests/unit/clarity-blockers.test.ts).
+vi.mock('@/lib/features', () => ({ getFlag: async (key: string) => key !== 'roles_v1' }));
 vi.mock('@/lib/ubunye-release', () => ({ getUbunyeRelease: async () => null }));
 
 // permanentRedirect throws in Next; record the target and throw the same way
