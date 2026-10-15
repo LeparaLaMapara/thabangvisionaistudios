@@ -28,10 +28,11 @@ select 'thabangvisionstudios@gmail.com'::text as email,
 
 -- Package title -> album label. A package not listed keeps its own title.
 create temporary table _owner_albums (title text primary key, album text, ord int) on commit drop;
+-- Portraits first: the owner wants his Portraits cover (the first Professional Portraits image) as the profile preview (owner, 2026-10-15).
 insert into _owner_albums values
-  ('Studio Maternity Portraits', 'Maternity', 1),
-  ('Family Birthday', 'Family and events', 2),
-  ('Professional Portraits', 'Portraits', 3);
+  ('Professional Portraits', 'Portraits', 1),
+  ('Studio Maternity Portraits', 'Maternity', 2),
+  ('Family Birthday', 'Family and events', 3);
 
 do $$
 declare

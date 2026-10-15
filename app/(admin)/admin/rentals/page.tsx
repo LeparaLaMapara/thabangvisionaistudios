@@ -10,6 +10,7 @@ import {
 import { uploadFile, type CloudinaryAsset } from '@/lib/cloudinary/upload';
 import { STUDIO, RENTAL_CATEGORIES as RENTAL_CATEGORIES_CONST } from '@/lib/constants';
 import { dropzoneAccept, uploadAccept } from '@/lib/storage/upload-policy';
+import { specEntries } from '@/lib/rental/on-site';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -78,6 +79,8 @@ type Form = {
   features: string;
   rental_includes: string;
   meta_rows: MetaRow[];
+  /** Structured metadata the form does not edit (such as `videos`), kept as is on save. */
+  meta_extra: Record<string, unknown>;
   video_provider: string;
   video_url: string;
 };
@@ -108,6 +111,7 @@ const EMPTY_FORM: Form = {
   features: '',
   rental_includes: '',
   meta_rows: [],
+  meta_extra: {},
   video_provider: '',
   video_url: '',
 };
@@ -203,11 +207,11 @@ function formToPayload(f: Form) {
     rental_includes: f.rental_includes.trim()
       ? f.rental_includes.split('\n').map(s => s.trim()).filter(Boolean)
       : [],
-    metadata:        f.meta_rows.reduce<Record<string, string>>((acc, row) => {
+    metadata:        f.meta_rows.reduce<Record<string, unknown>>((acc, row) => {
       const key = row.key.trim();
       if (key) acc[key] = row.value.trim();
       return acc;
-    }, {}),
+    }, { ...f.meta_extra }),
     video_provider:  f.video_provider || null,
     video_url:       f.video_url.trim() || null,
     video_id:        f.video_provider && f.video_url.trim()
@@ -245,9 +249,10 @@ function rentalToForm(r: Rental): Form {
     tags:            (r.tags ?? []).join(', '),
     features:        (r.features ?? []).join('\n'),
     rental_includes: (r.rental_includes ?? []).join('\n'),
-    meta_rows:       r.metadata
-      ? Object.entries(r.metadata).map(([key, value]) => ({ key, value }))
-      : [],
+    meta_rows:       specEntries(r.metadata).map(([key, value]) => ({ key, value })),
+    meta_extra:      Object.fromEntries(
+      Object.entries((r.metadata ?? {}) as Record<string, unknown>).filter(([, v]) => typeof v !== 'string' && typeof v !== 'number'),
+    ),
     video_provider:  r.video_provider ?? '',
     video_url:       r.video_url      ?? '',
   };

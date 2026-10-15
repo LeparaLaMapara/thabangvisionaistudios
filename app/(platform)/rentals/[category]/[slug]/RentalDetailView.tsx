@@ -14,9 +14,10 @@ import { ContactButtons } from '@/components/payments/ContactButtons';
 import { ProductVideo } from '@/components/rentals/ProductVideo';
 import { youtubePosterUrl } from '@/lib/video/youtube';
 import { RentalLoopVideo } from '@/components/rentals/RentalLoopVideo';
+import { RentalVideoCarousel } from '@/components/rentals/RentalVideoCarousel';
 import { ON_SITE_RENTAL } from '@/lib/constants';
 import { collectionPointWithCity } from '@/lib/rental/collection-point';
-import { halfDayPrice, isOnSiteCategory, rentalLoop } from '@/lib/rental/on-site';
+import { halfDayPrice, isOnSiteCategory, rentalLoop, rentalVideos, specEntries } from '@/lib/rental/on-site';
 import { whatsappLink } from '@/lib/payments/eft';
 
 // ─── Category label map ───────────────────────────────────────────────────────
@@ -94,15 +95,18 @@ export default function RentalDetailView({
   const videoEmbedUrl = video ? video.id : null;
 
   // A place (the Studios category): priced by the full day, a half day on
-  // request, used where it is. Its own short loop, when it has one.
+  // request, used where it is. Its own videos to swipe through when it has a
+  // list (metadata.videos), else its single short loop, when it has one.
   const place = isOnSiteCategory(rental.category);
   const halfDay = halfDayPrice(rental);
-  const loop = rentalLoop(rental);
+  const videos = rentalVideos(rental);
+  const loop = videos.length > 0 ? null : rentalLoop(rental);
   const bookLabel = place ? ON_SITE_RENTAL.bookLabel : 'Book This Equipment';
 
   const hasFeatures  = rental.features  && rental.features.length > 0;
   const hasIncludes  = rental.rental_includes && rental.rental_includes.length > 0;
-  const hasMetadata  = rental.metadata  && Object.keys(rental.metadata).length > 0;
+  const specs        = specEntries(rental.metadata);
+  const hasMetadata  = specs.length > 0;
   const hasAnyTab    = hasFeatures || hasIncludes;
   // The tab whose panel is on screen (Includes when there are no features).
   const shownTab: Tab = activeTab === 'features' && hasFeatures ? 'features' : 'includes';
@@ -351,6 +355,13 @@ export default function RentalDetailView({
                     </div>
                   </button>
                 )}
+              </div>
+            )}
+
+            {/* The listing's own videos, swiped through one at a time (RentalVideoCarousel). */}
+            {videos.length > 0 && (
+              <div className="mt-6">
+                <RentalVideoCarousel videos={videos} label={rental.title} />
               </div>
             )}
 
@@ -682,7 +693,7 @@ export default function RentalDetailView({
                     Technical Specifications
                   </h2>
                   <dl className="grid grid-cols-1 sm:grid-cols-2 gap-px bg-white/10 border border-white/10 max-w-3xl">
-                    {Object.entries(rental.metadata!).map(([key, val]) => (
+                    {specs.map(([key, val]) => (
                       <div
                         key={key}
                         className="flex flex-col gap-1 p-4 bg-[#0A0A0B] min-w-0"
