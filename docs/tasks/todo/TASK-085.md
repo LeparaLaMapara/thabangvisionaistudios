@@ -51,6 +51,8 @@ job count and a clear price.
       page and route.
 - [x] CV and voice retention on the existing daily cron (no new cron), plus a
       lasting reveal demo on dev.
+- [x] One person, one portfolio, one rate (migration 092, albums, own unit,
+      booking totals, owner-portfolio.sql proved on dev).
 - [ ] Was "next slice" (designed, see the design doc):
       equal chance (blind profiles, reveal on a confirmed paid booking,
       competence-only ranking, the model exception), the 3-screen Offer flow
