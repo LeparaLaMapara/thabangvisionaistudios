@@ -14,6 +14,7 @@ import {
   recordLine,
   reveal,
   sanitizeFacts,
+  scrubPublicWork,
   durationLabel,
   arrivalLabel,
   effectiveUnit,
@@ -216,7 +217,7 @@ async function buildBlind(rows: PersonRole[], roles: Role[], opts: { withReviews
     const mine = evidence.filter((e) => e.person_role_id === pr.id);
     const reviews = (revRes.data ?? []).filter((r) => r.reviewee_id === pr.user_id);
     const ratings = reviews.map((r) => Number(r.rating)).filter((n) => Number.isFinite(n));
-    const work = mine.filter((e) => e.is_public && (e.kind === 'photo' || e.kind === 'video') && e.url && e.step_key !== 'face');
+    const work = mine.filter((e) => e.is_public && (e.kind === 'photo' || e.kind === 'video') && e.url && e.step_key !== 'face').map(scrubPublicWork);
     const comes = parseComesWith(pr.comes_with);
     const identityVerified = (profRes.data ?? []).find((p) => p.id === pr.user_id)?.verification_status === 'verified';
     out.push({
@@ -264,7 +265,7 @@ export async function getMyPreview(userId: string, slug: string): Promise<Public
   const evidence = ((ev ?? []) as unknown as RoleEvidence[]).map((e) => ({ ...e, is_public: e.kind !== 'document' && e.kind !== 'vouch' }));
   const role = roles.find((r) => r.slug === slug);
   if (!role) return null;
-  const work = evidence.filter((e) => e.is_public && (e.kind === 'photo' || e.kind === 'video') && e.url && e.step_key !== 'face');
+  const work = evidence.filter((e) => e.is_public && (e.kind === 'photo' || e.kind === 'video') && e.url && e.step_key !== 'face').map(scrubPublicWork);
   const comes = parseComesWith(pr.comes_with);
   return {
     personRole: publicPart(pr),

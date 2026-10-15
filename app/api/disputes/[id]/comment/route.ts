@@ -1,8 +1,12 @@
 export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
-import { requireAuth, isAdmin } from '@/lib/auth';
+import { requireAuth, isAdmin, checkRateLimit, checkNotSuspended } from '@/lib/auth';
 import { createAdminClient } from '@/lib/supabase/server';
+import { REPORT_MAX_CHARS, evidencePhotoList } from '@/lib/disputes/report';
+
+/** A dispute still being worked on; comments on a closed one are refused (staff excepted). */
+const LIVE_DISPUTE_STATUSES = ['open', 'investigating', 'escalated'];
 
 // ─── POST — Add a comment to a dispute ──────────────────────────────────────
 
@@ -29,6 +33,22 @@ export async function POST(
 
   if (!comment || typeof comment !== 'string' || comment.trim().length === 0) {
     return NextResponse.json({ error: 'Comment is required.' }, { status: 400 });
+  }
+  if (comment.length > REPORT_MAX_CHARS) {
+    return NextResponse.json({ error: `Keep the comment under ${REPORT_MAX_CHARS} characters.` }, { status: 400 });
+  }
+  // Attachments are shown to staff and the other party as links and images:
+  // our own Cloudinary images only (security re-check 2026-10-15, M6).
+  const photos = evidencePhotoList(attachments);
+  if (photos === null) {
+    return NextResponse.json({ error: 'Attachments must be photos uploaded here.' }, { status: 400 });
+  }
+  if (!(await checkRateLimit(`dispute-comment:${auth.user.id}`, 10, 60_000))) {
+    return NextResponse.json({ error: 'Too many comments. Wait a moment.' }, { status: 429 });
+  }
+  const suspendCheck = await checkNotSuspended(auth.user.id);
+  if (suspendCheck.suspended) {
+    return NextResponse.json({ error: 'Your account is suspended.' }, { status: 403 });
   }
 
   try {
@@ -84,6 +104,9 @@ export async function POST(
       if (!isParty) {
         return NextResponse.json({ error: 'Access denied.' }, { status: 403 });
       }
+      if (!LIVE_DISPUTE_STATUSES.includes(String(dispute.status))) {
+        return NextResponse.json({ error: 'This dispute is closed.' }, { status: 409 });
+      }
     }
 
     // Only admins can post internal comments
@@ -96,7 +119,7 @@ export async function POST(
         dispute_id: disputeId,
         author_id: auth.user.id,
         comment: comment.trim(),
-        attachments: attachments ?? [],
+        attachments: photos,
         is_internal: internal,
       })
       .select('id')

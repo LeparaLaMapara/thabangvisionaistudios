@@ -66,3 +66,18 @@ export function findIdentityFields(value: unknown, path = ''): string[] {
 export function selfieIsProof(roleSlug: string): boolean {
   return roleSlug === 'model';
 }
+
+/** Evidence fields a browser never needs for a work gallery (device, dates, notes, links back to a person). */
+export const PRIVATE_EVIDENCE_FIELDS = ['storage_ref', 'device_summary', 'captured_at', 'note', 'booking_id', 'verified_at', 'source_production_id', 'legal_code', 'on_time'] as const;
+
+/**
+ * A work item as a blind profile may send it to the browser: the picture and
+ * how to lay it out, nothing else. storage_ref (a path with the person's
+ * user id), the phone's make and model, dates, notes and the package it came
+ * from are nulled (security re-check 2026-10-15, M1). Pure.
+ */
+export function scrubPublicWork<T extends Partial<Record<(typeof PRIVATE_EVIDENCE_FIELDS)[number], unknown>>>(item: T): T {
+  const out = { ...item } as Record<string, unknown>;
+  for (const k of PRIVATE_EVIDENCE_FIELDS) if (k in out) out[k] = null;
+  return out as T;
+}

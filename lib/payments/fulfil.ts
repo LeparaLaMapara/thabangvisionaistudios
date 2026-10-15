@@ -163,110 +163,18 @@ export async function handlePaymentComplete(webhook: WebhookResult) {
       await markGroupPaid(bookingIds);
     }
   } else if (paymentType === 'equipment_booking') {
-    // Reconcile payment amount before confirming
-    const { data: booking, error: lookupErr } = await supabase
-      .from('equipment_bookings')
-      .select('total_price')
-      .eq('id', paymentId)
-      .single();
-
-    // Without the booking there is nothing to check the amount against: never confirm blind.
-    if (lookupErr || !booking) {
-      console.error('[payment-webhook] Could not load the booking to check the amount; not confirmed:', paymentId);
-      throw new Error('equipment booking lookup failed');
-    }
-    if (Math.abs(booking.total_price - amountGross) > 0.01) {
-      console.error('[payment-webhook] Amount mismatch:', {
-        expected: booking.total_price,
-        received: amountGross,
-        bookingId: paymentId,
-      });
-      const { error: flagErr } = await supabase
-        .from('equipment_bookings')
-        .update({
-          status: 'pending',
-          notes: `AMOUNT MISMATCH: expected ${booking.total_price}, received ${amountGross}. Requires manual review.`,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', paymentId)
-        .eq('status', 'pending');
-      if (flagErr) {
-        console.error('[payment-webhook] Could not flag the amount mismatch:', paymentId, flagErr.message);
-        throw new Error('equipment mismatch flag failed');
-      }
-      return;
-    }
-
-    // Update booking status to confirmed
-    const { data: confirmedRow, error: bookingErr } = await supabase
-      .from('equipment_bookings')
-      .update({
-        status: 'confirmed',
-        payfast_payment_id: providerPaymentId,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', paymentId)
-      .eq('status', 'pending')
-      .select('id');
-
-    if (bookingErr) {
-      console.error('[payment-webhook] Failed to confirm booking:', bookingErr.message);
-      throw new Error('equipment booking confirmation failed');
-    }
-
-    // Record the payment once. Retried on failure: the retry finds the booking
-    // already confirmed by this payment and finishes this step.
-    const recordPayment = async () => {
-      const { data: existingPayment, error: existingErr } = await supabase
-        .from('booking_payments')
-        .select('id')
-        .eq('booking_id', paymentId)
-        .eq('payfast_payment_id', providerPaymentId)
-        .maybeSingle();
-      if (existingErr) {
-        console.error('[payment-webhook] Could not check the payment record:', paymentId, existingErr.message);
-        throw new Error('equipment payment record lookup failed');
-      }
-      if (existingPayment) {
-        console.log(`[payment-webhook] Payment already recorded: booking=${paymentId} provider=${providerPaymentId}`);
-        return;
-      }
-      const { error: insertErr } = await supabase.from('booking_payments').insert({
-        booking_id: paymentId,
-        payfast_payment_id: providerPaymentId,
-        amount: amountGross,
-        currency: 'ZAR',
-        status: 'succeeded',
-      });
-      // 23505: a concurrent delivery recorded it first (unique index, 040).
-      if (insertErr && (insertErr as { code?: string }).code !== '23505') {
-        console.error('[payment-webhook] Booking confirmed but payment not recorded:', paymentId, insertErr.message);
-        throw new Error('equipment payment record insert failed');
-      }
-    };
-
-    if (!confirmedRow || confirmedRow.length === 0) {
-      const { data: mine, error: mineErr } = await supabase
-        .from('equipment_bookings')
-        .select('id')
-        .eq('id', paymentId)
-        .eq('payfast_payment_id', providerPaymentId)
-        .maybeSingle();
-      if (mineErr) {
-        console.error('[payment-webhook] Could not re-read the booking:', paymentId, mineErr.message);
-        throw new Error('equipment booking re-read failed');
-      }
-      if (mine) {
-        await recordPayment();
-        console.log(`[payment-webhook] Booking already confirmed by this payment: ref=${paymentId}`);
-      } else {
-        console.error('[payment-webhook] Payment matched no pending booking; needs manual review:', paymentId);
-      }
-    } else {
-      await sendGearNotice('confirmed', await loadNoticeBookings([paymentId]));
-      await recordPayment();
-      console.log(`[payment-webhook] Booking confirmed: ref=${paymentId}`);
-    }
+    // Retired (security re-check 2026-10-15, M4). No checkout makes this
+    // payment type any more: rentals pay through rental_payment_intents. The
+    // old branch confirmed a booking when the payer's amount equalled
+    // total_price, the hire alone (no deposit, no delivery), and the payer
+    // controls a Paystack charge's metadata. The payment is recorded
+    // (payment_confirmations) for a person to look at; nothing is confirmed.
+    console.error('[payment-webhook] Retired equipment_booking payment type; not confirmed, needs manual review:', {
+      bookingId: paymentId,
+      providerPaymentId,
+      amount: amountGross,
+    });
+    return;
   } else if (paymentType === 'service_booking') {
     await confirmServiceBookingPayment(webhook);
   } else if (paymentType === 'subscription') {

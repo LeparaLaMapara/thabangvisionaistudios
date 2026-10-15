@@ -129,31 +129,16 @@ describe('cart checkout confirmation', () => {
   });
 });
 
-describe('single gear booking confirmation', () => {
+describe('single gear booking (retired payment type, security re-check M4)', () => {
   beforeEach(() => {
     tables.equipment_bookings = [{ id: 'eb-1', status: 'pending', total_price: 500, payfast_payment_id: null }];
     tables.booking_payments = [];
   });
 
-  it('records the payment once confirmed', async () => {
-    await handlePaymentComplete(gearHook());
-    expect(tables.booking_payments).toHaveLength(1);
-    expect(tables.booking_payments[0]).toMatchObject({ booking_id: 'eb-1', status: 'succeeded', payfast_payment_id: 'yc_2' });
-  });
-
-  it('throws when the payment record insert fails, and the retry records it', async () => {
-    failures.set('booking_payments:insert', { message: 'disk full' });
-    await expect(handlePaymentComplete(gearHook())).rejects.toThrow();
-    expect(tables.equipment_bookings[0].status).toBe('confirmed');
-    expect(tables.booking_payments).toHaveLength(0);
-
-    await handlePaymentComplete(gearHook());
-    expect(tables.booking_payments).toHaveLength(1);
-  });
-
-  it('a duplicate-key insert (recorded concurrently) is not an error', async () => {
-    failures.set('booking_payments:insert', { message: 'duplicate key', code: '23505' });
+  it('never confirms a booking from a payer-made equipment_booking charge, even at the hire price', async () => {
     await expect(handlePaymentComplete(gearHook())).resolves.toBeUndefined();
+    expect(tables.equipment_bookings[0].status).toBe('pending');
+    expect(tables.booking_payments).toHaveLength(0);
   });
 });
 
