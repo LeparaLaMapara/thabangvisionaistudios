@@ -20,10 +20,12 @@
 --   Location: not stored here. The page names the place with
 --   collectionPoint() (lib/rental/collection-point.ts), so it cannot drift
 --   from the collection point.
---   Media: the owner's own behind-the-scenes clips, files in
---   public/media/rentals/studio (frames chosen without identifiable faces).
---   video_provider 'file' points at the loop; the WebM and poster sit next to
---   it (lib/rental/on-site.ts rentalLoop).
+--   Media: the owner's own behind-the-scenes videos, files in
+--   public/media/rentals/studio. metadata.videos lists the three full videos
+--   (with sound, faces included, at the owner's request 2026-10-15) that the
+--   page shows as a swipeable carousel, in this order (lib/rental/on-site.ts
+--   rentalVideos). video_provider 'file' still points at the short silent
+--   loop, the fallback if metadata.videos is ever cleared (rentalLoop).
 
 begin;
 
@@ -56,7 +58,13 @@ insert into public.smart_rentals (
   array['studio', 'photo studio', 'video studio'],
   array[]::text[],
   array['Backdrop', 'Softbox lights', 'Changing area', 'Wi-Fi', 'Cameras', 'Props'],
-  '{}'::jsonb,
+  '{
+    "videos": [
+      {"url": "/media/rentals/studio/studio-video-1.mp4", "poster": "/media/rentals/studio/studio-video-1-poster.webp", "title": "Couple shoot"},
+      {"url": "/media/rentals/studio/studio-video-2.mp4", "poster": "/media/rentals/studio/studio-video-2-poster.webp", "title": "Family portraits"},
+      {"url": "/media/rentals/studio/studio-video-3.mp4", "poster": "/media/rentals/studio/studio-video-3-poster.webp", "title": "Fashion shoot"}
+    ]
+  }'::jsonb,
   'file', '/media/rentals/studio/studio-loop.mp4', null
 )
 on conflict (slug) do update set

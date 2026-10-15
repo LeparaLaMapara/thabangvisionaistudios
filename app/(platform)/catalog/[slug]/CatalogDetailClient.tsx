@@ -6,6 +6,7 @@ import { motion } from 'framer-motion';
 import { ArrowLeft, Tag, Package, Check } from 'lucide-react';
 import type { SmartRental } from '@/lib/supabase/queries/smartRentals';
 import { Badge } from '@/components/ui/Badge';
+import { specEntries } from '@/lib/rental/on-site';
 
 interface Props {
   rental: SmartRental;
@@ -17,7 +18,7 @@ export default function CatalogDetailClient({ rental }: Props) {
   const features = rental.features ?? [];
   const includes = rental.rental_includes ?? [];
   const tags = rental.tags ?? [];
-  const metadata = rental.metadata ?? {};
+  const specs = specEntries(rental.metadata);
 
   const displayPrice = rental.price_per_day
     ? `${rental.currency} ${rental.price_per_day}/day`
@@ -172,13 +173,13 @@ export default function CatalogDetailClient({ rental }: Props) {
             )}
 
             {/* Metadata / Specs */}
-            {Object.keys(metadata).length > 0 && (
+            {specs.length > 0 && (
               <section>
                 <h2 className="text-2xl font-bold tracking-tight mb-8 border-l-2 border-black dark:border-white pl-4">
                   SPECIFICATIONS
                 </h2>
                 <dl className="space-y-4">
-                  {Object.entries(metadata).map(([key, val]) => (
+                  {specs.map(([key, val]) => (
                     <div
                       key={key}
                       className="flex justify-between border-b border-black/10 dark:border-white/10 pb-2"
