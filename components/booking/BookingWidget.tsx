@@ -31,6 +31,7 @@ import type { SmartRental } from '@/lib/supabase/queries/smartRentals';
 import type { ReadinessItem, RentalReadiness } from '@/lib/rental/eligibility-server';
 import { formatRand } from '@/lib/format/money';
 import { itemValue } from '@/lib/rental/protection';
+import { gearLimitNote } from '@/lib/rental/limit-note';
 import { usePaymentsOpen } from '@/lib/payments/usePaymentsOpen';
 import { PaymentsNotOpenNote } from '@/components/booking/PaymentsNotOpenNote';
 import { reportFunnel } from '@/lib/analytics/client';
@@ -329,6 +330,11 @@ function BookingWidgetInner({ rental, paymentsOpen: paymentsOpenProp }: Props) {
     Math.round(itemValue(rental as { replacement_value?: number | null; deposit_amount?: number | null }) * 100) >
     RENTAL_POLICY.highValueCollectionThresholdCents;
 
+  // Above a new account's limit: said before dates are picked, from the
+  // rules checkout enforces. Hidden once the renter's own limit covers it.
+  const valueCents = Math.round(itemValue(rental as { replacement_value?: number | null; deposit_amount?: number | null }) * 100);
+  const limitNote = isOnSiteCategory(rental.category) ? null : gearLimitNote(valueCents);
+
   // A place (the Studios category): booked by the full day and used where it
   // is; a half day is arranged on WhatsApp (bookings are whole days).
   const place = isOnSiteCategory(rental.category);
@@ -564,6 +570,13 @@ function BookingWidgetInner({ rental, paymentsOpen: paymentsOpenProp }: Props) {
           </div>
         )}
       </div>
+
+      {limitNote && (!isLoggedIn || (readiness !== null && readiness.limitCents < valueCents)) && (
+        <p className="flex items-start gap-2 border border-[#D4A843]/30 bg-[#D4A843]/5 p-3 text-xs font-mono text-neutral-200 leading-relaxed" data-testid="limit-note">
+          <Info className="w-3.5 h-3.5 mt-0.5 flex-shrink-0 text-[#D4A843]" aria-hidden="true" />
+          <span>{limitNote}</span>
+        </p>
+      )}
 
       {error && (
         <p role="alert" className="text-xs font-mono text-red-400">
