@@ -4,7 +4,6 @@ import Link from 'next/link';
 import { getArchivedProductions } from '@/lib/supabase/queries/smartProductions';
 import { getArchivedRentals } from '@/lib/supabase/queries/smartRentals';
 import ArchiveClient from './ArchiveClient';
-import { STUDIO } from '@/lib/constants';
 import { getFlag } from '@/lib/features';
 import { buildPageMetadata } from '@/lib/seo/metadata';
 

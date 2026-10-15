@@ -58,7 +58,7 @@ describe('blind data access', () => {
     const { listApprovedProfiles } = await import('@/lib/supabase/queries/roles');
     const cards = await listApprovedProfiles();
     expect(cards).toHaveLength(1);
-    expect(cards[0].label).toBe('Make-up artist · Soweto · MA-1001');
+    expect(cards[0].label).toBe('Make-up artist in Soweto');
     expect(findIdentityFields(cards)).toEqual([]);
     expect(JSON.stringify(cards)).not.toMatch(/Thandi|Mokoena|u-thandi|face\.svg|1998/);
     expect(reads).not.toContain('person_faces');
