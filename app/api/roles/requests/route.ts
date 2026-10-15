@@ -1,17 +1,20 @@
 export const dynamic = 'force-dynamic';
 
-import { NextResponse, type NextRequest } from 'next/server';
+import { NextResponse, after, type NextRequest } from 'next/server';
 import { rolesOffResponse } from '@/lib/roles/flag';
 import { checkRateLimit } from '@/lib/auth';
 import { createClient } from '@/lib/supabase/server';
 import { createBookingRequest, getPublicRoleProfile } from '@/lib/supabase/queries/roles';
 import { bookingTotal, effectiveUnit, pricedByDays } from '@/lib/roles';
+import { notifyNewRequest } from '@/lib/roles/request-notify-server';
 
 /**
- * Ask to book a person: who, where, when. No payment (payment for roles is
- * not built). POST { person_role_id, date, arrival, hours, area, address?, note? }
- * -> { id }. The address is never shown to the person until a booking is
- * confirmed (lib/roles/reveal.ts).
+ * Ask to book a person: who, where, when. Nothing is paid here. POST
+ * { person_role_id, date, arrival, hours, area, address?, note? } -> { id }.
+ * Once saved, the owner, the person asked (blind) and the client are told,
+ * after the response is sent (lib/roles/request-notify-server.ts). The
+ * address is never shown to the person until a booking is confirmed
+ * (lib/roles/reveal.ts).
  */
 
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
@@ -69,6 +72,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       unit,
       totalCents: total.totalCents,
     });
+    after(() => notifyNewRequest(requestId).then(() => undefined));
     return NextResponse.json({ id: requestId }, { status: 201 });
   } catch {
     console.error('[roles/requests] failed');

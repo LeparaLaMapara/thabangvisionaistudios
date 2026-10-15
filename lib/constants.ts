@@ -1233,13 +1233,19 @@ export const ROLES_POLICY = {
     verifiedHelp: 'ID checked, and every legal check this kind of work needs.',
     newOnPlatform: `New on ${STUDIO.shortName}`,
     jobsDone: (n: number): string => `${n} job${n === 1 ? '' : 's'} done on ${STUDIO.shortName}`,
-    promise: `${STUDIO.shortName} stands behind every booking. We hold your payment until the work is delivered. If something goes wrong, we find a replacement or refund you.`,
+    // Only what the request loop really does (lib/roles/request-loop.ts):
+    // no held payment, no refund or replacement promise for People.
+    promise: `Nothing is paid when you ask. We check the date with them and email you within 1 working day. If they can do it, you pay by EFT to our business account, and your booking is confirmed once the payment shows.`,
     reviewPromise: 'A person on our team will look at it, usually within 2 working days. If something needs fixing, we tell you exactly how.',
     facePrompt: 'Clients only see it after they book you, so everyone is chosen for their work.',
-    done: 'Done. A person will check it within 2 working days.',
+    done: 'Sent. A person on our team checks it within 2 working days.',
     blindNote: 'Chosen for the work. You see who is coming once your booking is confirmed.',
     recordLine: (jobs: number, onTime: number | null): string =>
       jobs === 0 ? `New on ${STUDIO.shortName}` : `${jobs} job${jobs === 1 ? '' : 's'}${onTime === null ? '' : ` · on time ${onTime}/${jobs}`}`,
+  },
+  /** People requests (migration 095): how soon a client hears back. Keep copy.promise in step. */
+  requests: {
+    replyWithinWorkingDays: 1,
   },
   /** Matching (admin only for now): score weights and the fair "new" slots. */
   matching: {

@@ -148,7 +148,8 @@ export async function fetchPlatformData(supabase: any, flags: UbunyeFlagsSnapsho
     productions: flags.smart_productions
       ? (productions.data?.map((p: Record<string, unknown>) =>
           `${promptField(p.title, 'Untitled')} — ${promptField(p.client, 'Independent')} (${p.year}) [${promptField(p.project_type, 'production')}] — View: /studio/${p.slug}`
-          + (typeof p.price === 'number' && p.price > 0
+          // With People on there are no package prices or /book links: one person, one price.
+          + (!flags.roles_v1 && typeof p.price === 'number' && p.price > 0
             ? ` — Package: R${p.price} ${packageUnitWords(String(p.price_unit ?? 'project'))}${STUDIO.legal.vatRegistered ? ', before VAT' : ''} — Book: /book?production=${p.id}`
             : '')
         ).join('\n') || 'No productions yet')
@@ -298,7 +299,6 @@ ${PRODUCTION_PACKAGES.map((pk) => { const pr = calculatePackagePrice(pk); return
   const signInRule = '- If the user is NOT logged in, direct them to sign in first: [Sign in](/login?redirect=/ubunye-ai-studio)';
   const bookingRules = people
     ? `${peopleRules()}
-- Studio photo and video packages listed under PRODUCTIONS with "Package: ..." have the fixed price shown there; link the package page.
 ${signInRule}`
     : `- NEVER present a quote without calling calculate_booking_quote first.
 - STUDIO PACKAGES have a fixed price (listed under PRODUCTIONS with "Package: ... Book: /book?production=..." and under PACKAGES below). For a package, give its price as listed${STUDIO.legal.vatRegistered ? '' : ' (the price is final; never add VAT)'}, and link [Book this package →](/book?production=[id]). Do NOT call calculate_booking_quote for a package, and never say there is no fixed package pricing.

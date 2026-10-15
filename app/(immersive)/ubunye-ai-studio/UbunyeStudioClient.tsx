@@ -45,9 +45,11 @@ const fadeUp = {
 
 interface UbunyeStudioClientProps {
   context: StudioContext;
+  /** People (roles_v1) is on: the error fallback points to /people, not /book. */
+  people?: boolean;
 }
 
-export default function UbunyeStudioClient({ context }: UbunyeStudioClientProps) {
+export default function UbunyeStudioClient({ context, people = false }: UbunyeStudioClientProps) {
   const [input, setInput] = useState('');
   const [userName, setUserName] = useState<string | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -522,6 +524,7 @@ export default function UbunyeStudioClient({ context }: UbunyeStudioClientProps)
             mdComponents={mdComponents}
             onSend={sendQuickAction}
             onRetry={handleRetry}
+            people={people}
           />
         )}
 

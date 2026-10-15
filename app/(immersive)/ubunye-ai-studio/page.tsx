@@ -3,6 +3,7 @@ import { unstable_cache } from 'next/cache';
 import { createAdminClient } from '@/lib/supabase/server';
 import { loadStudioContext } from '@/lib/supabase/queries/ubunyeStudio';
 import UbunyeStudioClient from './UbunyeStudioClient';
+import { getFlag } from '@/lib/features';
 import type { StudioContext } from '@/types/ubunye';
 
 const getStudioContext = unstable_cache(
@@ -12,11 +13,11 @@ const getStudioContext = unstable_cache(
 );
 
 export default async function UbunyeAIStudioPage() {
-  const context = await getStudioContext();
+  const [context, people] = await Promise.all([getStudioContext(), getFlag('roles_v1')]);
 
   return (
     <Suspense>
-      <UbunyeStudioClient context={context} />
+      <UbunyeStudioClient context={context} people={people} />
     </Suspense>
   );
 }

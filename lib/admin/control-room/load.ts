@@ -2,6 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { checkAiBudget } from '@/lib/ai/budget';
 import { isMissingPipeline } from '@/lib/rental/repos';
 import { summarise as summariseEngagement } from '@/lib/engagement/admin';
+import { getFlag } from '@/lib/features';
 import type {
   BugRow,
   ChatRow,
@@ -12,6 +13,8 @@ import type {
   IdCheckRow,
   ListingRow,
   OwnerPayoutRow,
+  PeopleProfileRow,
+  PeopleRequestRow,
   RefundRow,
   RequestRow,
   ServiceBookingRow,
@@ -168,8 +171,11 @@ export async function loadTodayFacts(db: Db, now: Date = new Date()): Promise<To
   const engagementRows = await rows<{ status: string; created_at: string; sent_at: string | null }>('customer emails',
     db.from('notification_outbox').select('status, created_at, sent_at').like('kind', 'engage_%').gte('created_at', twoWeeksAgo).limit(CAP));
 
+  const peopleWork = await loadPeople(db);
+
   return {
     now,
+    ...peopleWork,
     idChecks: (idChecks as (ProfileName & { verification_submitted_at: string | null })[] | null)?.map(
       (p): IdCheckRow => ({ id: p.id, name: asName(p), submittedAt: p.verification_submitted_at }),
     ) ?? null,
@@ -261,5 +267,54 @@ export async function loadTodayFacts(db: Db, now: Date = new Date()): Promise<To
     ) ?? null,
     payments: paymentsMode(),
     engagement: engagementRows ? summariseEngagement(engagementRows, now) : null,
+  };
+}
+
+/**
+ * People work for Today (roles_v1): requests still waiting on us and profiles
+ * sent for review. Nothing is read with People off, so Today is unchanged.
+ * Demo rows are left out.
+ */
+async function loadPeople(db: Db): Promise<{ peopleRequests: PeopleRequestRow[] | null; peopleProfiles: PeopleProfileRow[] | null }> {
+  const on = await getFlag('roles_v1').catch(() => false);
+  if (!on) return { peopleRequests: null, peopleProfiles: null };
+  const [reqs, profs, roles] = await Promise.all([
+    rows<{ id: string; status: 'requested' | 'accepted'; client_id: string; person_role_id: string; requested_date: string; area: string; created_at: string; responded_at: string | null }>(
+      'people requests',
+      db.from('role_booking_requests')
+        .select('id, status, client_id, person_role_id, requested_date, area, created_at, responded_at')
+        .in('status', ['requested', 'accepted']).eq('is_demo', false).order('created_at').limit(CAP),
+    ),
+    rows<{ id: string; user_id: string; role_slug: string; submitted_at: string | null }>(
+      'people profiles',
+      db.from('person_roles').select('id, user_id, role_slug, submitted_at').eq('status', 'submitted').eq('is_demo', false).order('submitted_at').limit(CAP),
+    ),
+    rows<{ slug: string; name: string }>('roles', db.from('roles').select('slug, name')),
+  ]);
+  const roleName = new Map((roles ?? []).map((r) => [r.slug, r.name]));
+  const slugOf = new Map<string, string>();
+  const prIds = [...new Set((reqs ?? []).map((r) => r.person_role_id))];
+  if (prIds.length) {
+    const { data } = await db.from('person_roles').select('id, role_slug').in('id', prIds);
+    for (const p of (data ?? []) as { id: string; role_slug: string }[]) slugOf.set(p.id, p.role_slug);
+  }
+  const names = await namesFor(db, [...(reqs ?? []).map((r) => r.client_id), ...(profs ?? []).map((p) => p.user_id)]);
+  return {
+    peopleRequests: reqs?.map((r): PeopleRequestRow => ({
+      id: r.id,
+      status: r.status,
+      client: nameOf(names.get(r.client_id), 'A client'),
+      roleName: roleName.get(slugOf.get(r.person_role_id) ?? '') ?? 'person',
+      firstDate: r.requested_date,
+      area: r.area,
+      createdAt: r.created_at,
+      respondedAt: r.responded_at,
+    })) ?? null,
+    peopleProfiles: profs?.map((p): PeopleProfileRow => ({
+      id: p.id,
+      person: nameOf(names.get(p.user_id), 'Someone'),
+      roleName: roleName.get(p.role_slug) ?? 'role',
+      submittedAt: p.submitted_at,
+    })) ?? null,
   };
 }

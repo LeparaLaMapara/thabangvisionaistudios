@@ -9,6 +9,8 @@ import { DashboardTabBar } from '@/components/dashboard/DashboardTabBar';
 import { DashboardSidebar } from '@/components/dashboard/DashboardSidebar';
 import { SuspensionBanner } from '@/components/dashboard/SuspensionBanner';
 import { RedirectToLogin } from '@/components/auth/RedirectToLogin';
+import { PeopleModeProvider } from '@/components/dashboard/PeopleMode';
+import { getFlag } from '@/lib/features';
 
 export default async function DashboardLayout({
   children,
@@ -28,13 +30,14 @@ export default async function DashboardLayout({
 
   // Fetch verification status and what they came to do
   const supabase = await createClient();
-  const [{ data: profile }, { data: { user: authUser } }] = await Promise.all([
+  const [{ data: profile }, { data: { user: authUser } }, people] = await Promise.all([
     supabase
       .from('profiles')
       .select('verification_status, is_suspended, suspension_reason, onboarding_completed_at')
       .eq('id', user.id)
       .single(),
     supabase.auth.getUser(),
+    getFlag('roles_v1'),
   ]);
 
   const isVerified = profile?.verification_status === 'verified';
@@ -67,19 +70,19 @@ export default async function DashboardLayout({
         <div className="grid grid-cols-1 md:grid-cols-[200px_1fr] gap-10">
           {/* Desktop sidebar — grouped sections */}
           <div className="hidden md:block">
-            <DashboardSidebar isCreator={isCreator} isVerified={isVerified} />
+            <DashboardSidebar isCreator={isCreator} isVerified={isVerified} people={people} />
             <div className="border-t border-white/10 mt-6 pt-4">
               <SignOutButton />
             </div>
           </div>
 
           {/* Content */}
-          <div>{children}</div>
+          <div><PeopleModeProvider on={people}>{children}</PeopleModeProvider></div>
         </div>
       </div>
 
       {/* Mobile bottom tab bar */}
-      <DashboardTabBar isCreator={isCreator} />
+      <DashboardTabBar isCreator={isCreator} people={people} />
     </div>
   );
 }

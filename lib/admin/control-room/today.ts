@@ -74,6 +74,10 @@ export interface RefundRow { id: string; state: string; amountCents: number; rea
 export interface ListingRow { id: string; title: string; owner: string; createdAt: string }
 export interface ChatRow { agentId: string | null; startedAt: string }
 export interface SignupRow { id: string; name: string; createdAt: string }
+/** A People request still waiting on us (095): requested (answer it) or accepted (watch for the EFT). */
+export interface PeopleRequestRow { id: string; status: 'requested' | 'accepted'; client: string; roleName: string; firstDate: string; area: string; createdAt: string; respondedAt: string | null }
+/** A People profile sent for review. */
+export interface PeopleProfileRow { id: string; person: string; roleName: string; submittedAt: string | null }
 
 export interface TodayFacts {
   now: Date;
@@ -98,6 +102,9 @@ export interface TodayFacts {
   payments: 'live' | 'test' | 'off';
   /** Lifecycle emails and push (087). Undefined or null: not on this database. */
   engagement?: { sentToday: number; waiting: number; failed: number } | null;
+  /** People (roles_v1). Undefined or null: People is off or not on this database. */
+  peopleRequests?: PeopleRequestRow[] | null;
+  peopleProfiles?: PeopleProfileRow[] | null;
 }
 
 // ─── What the page shows ─────────────────────────────────────────────────────
@@ -420,6 +427,42 @@ export function buildNeeds(f: TodayFacts): NeedItem[] {
     });
   }
 
+  for (const r of f.peopleRequests ?? []) {
+    if (r.status === 'requested') {
+      out.push({
+        id: `peoplereq:${r.id}`,
+        urgency: ageMs(f.now, r.createdAt) > DAY ? 'now' : 'today',
+        area: 'bookings',
+        title: `${r.client} asked to book a ${r.roleName.toLowerCase()}`,
+        detail: `${r.firstDate} in ${r.area}. Check the date with them, then answer the client. Nothing is paid yet.`,
+        action: { label: 'Answer', href: '/admin/roles/requests' },
+        since: r.createdAt,
+      });
+    } else {
+      out.push({
+        id: `peoplepay:${r.id}`,
+        urgency: 'soon',
+        area: 'money',
+        title: `Watch for ${r.client}'s EFT`,
+        detail: `${r.roleName}, ${r.firstDate}. Mark it paid when it shows, so the booking is confirmed.`,
+        action: { label: 'Open', href: '/admin/roles/requests?group=accepted' },
+        since: r.respondedAt ?? r.createdAt,
+      });
+    }
+  }
+
+  for (const p of f.peopleProfiles ?? []) {
+    out.push({
+      id: `peopleprofile:${p.id}`,
+      urgency: ageMs(f.now, p.submittedAt) > 2 * DAY ? 'now' : 'today',
+      area: 'people',
+      title: `Check ${p.person}'s ${p.roleName.toLowerCase()} profile`,
+      detail: 'Sent for review. We promise an answer within 2 working days.',
+      action: { label: 'Review', href: '/admin/roles' },
+      since: p.submittedAt,
+    });
+  }
+
   for (const l of f.listings ?? []) {
     out.push({
       id: `listing:${l.id}`,
@@ -723,6 +766,7 @@ export function buildActivity(f: TodayFacts, limit = 12): ActivityItem[] {
     out.push({ id: `svc:${s.id}`, at: s.createdAt, text: `${s.client} booked ${s.creator} for ${rand(s.total)}`, href: `/admin/service-bookings?open=${s.id}` });
   }
   for (const r of f.requests ?? []) out.push({ id: `req:${r.id}`, at: r.createdAt, text: `${r.client} asked to book a creator`, href: `/admin/creator-requests?open=${r.id}` });
+  for (const r of f.peopleRequests ?? []) out.push({ id: `preq:${r.id}`, at: r.createdAt, text: `${r.client} asked to book a ${r.roleName.toLowerCase()}`, href: '/admin/roles/requests' });
   for (const b of f.bugs ?? []) out.push({ id: `bug:${b.id}`, at: b.createdAt, text: `Bug reported: ${b.title}`, href: '/admin/bug-reports' });
   return out
     .filter((a) => a.at && Number.isFinite(new Date(a.at).getTime()))
@@ -782,6 +826,8 @@ export function buildToday(f: TodayFacts, agentNames: Record<string, string>): T
       bugs: count('bug:'),
       pressDrafts: count('press:'),
       listings: count('listing:'),
+      peopleRequests: count('peoplereq:'),
+      peopleProfiles: count('peopleprofile:'),
     },
     areas: needs.reduce<Partial<Record<SectionId, number>>>((m, n) => ({ ...m, [n.area]: (m[n.area] ?? 0) + 1 }), {}),
     notSetUp,

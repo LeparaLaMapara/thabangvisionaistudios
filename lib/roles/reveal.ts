@@ -5,10 +5,12 @@
  * a name. At that moment the client sees who is coming (face, first name,
  * role, Verified, record) and the booked person sees the client's first name
  * and the job: where (the address) and when. Payment for roles is not built
- * yet, so 'confirmed' on role_booking_requests is the stand-in on DEV.
+ * online: staff mark a request 'confirmed' once the client's EFT shows
+ * (app/api/admin/roles/requests).
  */
 
-export type RequestStatus = 'requested' | 'confirmed' | 'withdrawn' | 'declined' | 'completed';
+/** 'accepted' (095): the person can do it and the client has been asked to pay. Still blind. */
+export type RequestStatus = 'requested' | 'accepted' | 'confirmed' | 'withdrawn' | 'declined' | 'completed';
 
 export interface BookingForReveal {
   status: RequestStatus;
