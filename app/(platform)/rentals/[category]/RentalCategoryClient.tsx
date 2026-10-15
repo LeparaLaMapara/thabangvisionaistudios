@@ -9,8 +9,9 @@ import { ChevronDown, SlidersHorizontal, X, Check, ArrowRight, Users, Star, Shie
 import { formatRand } from '@/lib/format/money';
 import { collectionPointWithCity } from '@/lib/rental/collection-point';
 import { specEntries } from '@/lib/rental/on-site';
+import { categoryLabel } from '@/lib/content/tags';
 import type { RentalListItem } from '@/lib/supabase/queries/smartRentals';
-import { RENTAL_CATEGORIES, STUDIO } from '@/lib/constants';
+import { STUDIO } from '@/lib/constants';
 import { useFocusTrap } from '@/components/ui/useFocusTrap';
 
 // ─── Cloudinary thumbnail helper ──────────────────────────────────────────────
@@ -32,19 +33,9 @@ function ImageSkeleton(): React.ReactElement {
   );
 }
 
-// ─── Category label map ───────────────────────────────────────────────────────
-// Owned locally. No data.ts dependency.
+// ─── Category label: one source (lib/content/tags) ───────────────────────────
 
-const CATEGORY_LABELS: Record<string, string> = Object.fromEntries(
-  RENTAL_CATEGORIES.map(c => [c.value, c.label]),
-);
-
-function getCategoryLabel(slug: string): string {
-  return (
-    CATEGORY_LABELS[slug] ??
-    slug.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
-  );
-}
+const getCategoryLabel = categoryLabel;
 
 // ─── Accordion filter section ─────────────────────────────────────────────────
 

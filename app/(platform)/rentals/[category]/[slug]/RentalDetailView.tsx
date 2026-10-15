@@ -19,24 +19,11 @@ import { ON_SITE_RENTAL } from '@/lib/constants';
 import { collectionPointWithCity } from '@/lib/rental/collection-point';
 import { halfDayPrice, isOnSiteCategory, rentalLoop, rentalVideos, specEntries } from '@/lib/rental/on-site';
 import { whatsappLink } from '@/lib/payments/eft';
+import { categoryLabel, displayTag } from '@/lib/content/tags';
 
-// ─── Category label map ───────────────────────────────────────────────────────
+// ─── Category label: one source (lib/content/tags) ───────────────────────────
 
-const CATEGORY_LABELS: Record<string, string> = {
-  'cameras-optics':        'Cameras & Optics',
-  'lighting-power':        'Lighting & Power',
-  'audio':                 'Audio',
-  'grip-motion':           'Grip & Motion',
-  'data-storage':          'Data & Storage',
-  'specialized-solutions': 'Specialized Solutions',
-};
-
-function getCategoryLabel(slug: string): string {
-  return (
-    CATEGORY_LABELS[slug] ??
-    slug.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
-  );
-}
+const getCategoryLabel = categoryLabel;
 
 // ─── Humanise metadata keys ───────────────────────────────────────────────────
 
@@ -678,7 +665,7 @@ export default function RentalDetailView({
                     key={i}
                     className="text-xs font-mono uppercase tracking-widest text-neutral-400 border border-white/10 px-2 py-1 bg-white/5 break-all"
                   >
-                    {tag}
+                    {displayTag(tag)}
                   </span>
                 ))}
               </div>

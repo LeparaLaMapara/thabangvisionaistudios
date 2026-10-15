@@ -825,7 +825,7 @@ export const RENTAL_CATEGORIES = [
   },
   {
     value: 'specialized-solutions',
-    label: 'Specialized Solutions',
+    label: 'Specialised Solutions',
     subtitle: 'Specialist Kit',
     description: 'Radios and other specialist equipment.',
     fallbackImage: PLACEHOLDER_IMAGES.specializedSolutions,

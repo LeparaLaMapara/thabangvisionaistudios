@@ -10,17 +10,15 @@ import { formatRand } from '@/lib/format/money';
 import { gearCardImage, gearCardImageFallback } from '@/lib/rental/gear-image';
 import type { RentalListItem } from '@/lib/supabase/queries/smartRentals';
 import { isOnSiteCategory } from '@/lib/rental/on-site';
+import { categoryLabel } from '@/lib/content/tags';
 
 import { ALL, CATEGORIES } from '@/lib/rental/rentals-view';
 
 export { ALL, CATEGORIES };
 
-const LABELS: Record<string, string> = Object.fromEntries(RENTAL_CATEGORIES.map((c) => [c.value, c.label]));
 const TILE_IMAGES: Record<string, string> = Object.fromEntries(RENTAL_CATEGORIES.map((c) => [c.value, c.fallbackImage]));
 
-export function categoryLabel(slug: string): string {
-  return LABELS[slug] ?? slug.replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
-}
+export { categoryLabel };
 
 /** Categories that have gear, biggest first, with their counts. */
 export function categoryCounts(rentals: RentalListItem[]): { value: string; label: string; count: number }[] {

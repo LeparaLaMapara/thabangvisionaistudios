@@ -6,6 +6,7 @@ import {
 import {
   audioBecomes,
   blindLabel,
+  referenceLabel,
   buildExtractPrompt,
   buildProfileDocument,
   classifyIntakeFile,
@@ -76,9 +77,15 @@ describe('facts schema', () => {
 });
 
 describe('equal chance: blind labels and identity guard', () => {
-  it('a neutral label: role, area, code; never a name', () => {
-    expect(blindLabel('Make-up artist', 'Soweto', 'MA-1042')).toBe('Make-up artist · Soweto · MA-1042');
-    expect(blindLabel('Model', null, 'MO-1003')).toBe('Model · MO-1003');
+  it('a neutral label: role and area, never a name and never the internal code', () => {
+    expect(blindLabel('Make-up artist', 'Soweto')).toBe('Make-up artist in Soweto');
+    expect(blindLabel('Model', null)).toBe('Model');
+    expect(blindLabel('Photographer', '  ')).toBe('Photographer');
+  });
+
+  it('the code shows only as a booking reference', () => {
+    expect(referenceLabel('Make-up artist', 'Soweto', 'MA-1042')).toBe('Make-up artist in Soweto (ref MA-1042)');
+    expect(referenceLabel('Model', null, null)).toBe('Model');
   });
 
   it('initials for reviews, first name only for the reveal', () => {
