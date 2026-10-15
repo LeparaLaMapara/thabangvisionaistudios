@@ -60,9 +60,9 @@ insert into public.smart_rentals (
   array['Backdrop', 'Softbox lights', 'Changing area', 'Wi-Fi', 'Cameras', 'Props'],
   '{
     "videos": [
-      {"url": "/media/rentals/studio/studio-video-1.mp4", "poster": "/media/rentals/studio/studio-video-1-poster.webp", "title": "Behind the Vision: a couple shoot"},
+      {"url": "/media/rentals/studio/studio-video-1.mp4", "poster": "/media/rentals/studio/studio-video-1-poster.webp", "title": "Couple shoot"},
       {"url": "/media/rentals/studio/studio-video-2.mp4", "poster": "/media/rentals/studio/studio-video-2-poster.webp", "title": "Family portraits"},
-      {"url": "/media/rentals/studio/studio-video-3.mp4", "poster": "/media/rentals/studio/studio-video-3-poster.webp", "title": "A fashion shoot"}
+      {"url": "/media/rentals/studio/studio-video-3.mp4", "poster": "/media/rentals/studio/studio-video-3-poster.webp", "title": "Fashion shoot"}
     ]
   }'::jsonb,
   'file', '/media/rentals/studio/studio-loop.mp4', null
