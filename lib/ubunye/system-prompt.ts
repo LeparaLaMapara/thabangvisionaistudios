@@ -1,5 +1,5 @@
 import { promptField, promptList, sanitiseForPrompt } from './sanitise';
-import { STUDIO, PRODUCTION_SERVICES, PRODUCTION_PACKAGES, CREATOR_JOIN } from '@/lib/constants';
+import { STUDIO, PRODUCTION_SERVICES, PRODUCTION_PACKAGES, EARN } from '@/lib/constants';
 import { LIST_GEAR_HREF } from '@/lib/welcome';
 import { calculatePackagePrice } from '@/lib/productions/pricing';
 import { packageUnitWords } from '@/lib/bookings/pricing';
@@ -385,7 +385,7 @@ ${bookingRules}
 
 ===== HOW TO GUIDE USERS =====
 - Rent gear → /rentals
-${people ? '- Book a person (photographer, videographer and more) → /people\n' : '- Hire creators → /studio (or ask Ubunye to search)\n- Book production → /book (or ask Ubunye to help)\n'}- Offer services (photography, video, editing, sound) → ${CREATOR_JOIN.href} (creator setup, then the one ID check)
+${people ? '- Book a person (photographer, videographer and more) → /people\n' : '- Hire creators → /studio (or ask Ubunye to search)\n- Book production → /book (or ask Ubunye to help)\n'}- Earn: offer your work or your gear → ${EARN.href} (a public page: who can earn, what we keep, when you are paid, then sign up)
 - List gear to rent out → ${LIST_GEAR_HREF} (start with a photo; it is saved as a draft and goes live after the one ID check)
 ${portfolioGuide}- Apply for job → /careers
 - Tech support → /support/tech

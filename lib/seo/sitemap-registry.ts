@@ -23,6 +23,7 @@ export type SitemapId = (typeof SITEMAP_IDS)[number];
 export const SITEMAP_ROUTES: Record<string, SitemapId> = {
   '/': 'static',
   '/about': 'static',
+  '/earn': 'static',
   '/contact': 'static',
   '/careers': 'static',
   '/locations': 'static',

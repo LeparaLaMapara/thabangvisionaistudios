@@ -247,7 +247,7 @@ describe('names with roles_v1', () => {
     const on = footerSectionsSync(true).flatMap((s) => s.links);
     expect(on.some((l) => l.href === '/smart-creators')).toBe(false);
     expect(on.find((l) => l.href === '/people')?.label).toBe('People');
-    expect(on.find((l) => l.href === '/offer')?.label).toMatch(/^Earn with /);
+    expect(on.find((l) => l.href === '/earn')?.label).toMatch(/^Earn with /);
     expect(footerSectionsSync(false).flatMap((s) => s.links).some((l) => l.href === '/smart-creators')).toBe(true);
   });
 });

@@ -6,7 +6,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { MapPin, Star, ArrowUpRight, Search, Filter, X, Command } from 'lucide-react';
 import type { CreatorProfile } from '@/lib/supabase/queries/smartProductions';
-import { STUDIO, CREATOR_JOIN } from '@/lib/constants';
+import { STUDIO, CREATOR_JOIN, EARN } from '@/lib/constants';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { creatorProfilePath } from '@/lib/seo/creator-url';
 
@@ -272,7 +272,7 @@ export default function SmartCreatorsClient({
             icon={<Star className="w-10 h-10 text-[#D4A843]/40" />}
             title={CREATOR_JOIN.emptyDirectoryTitle}
             description={CREATOR_JOIN.emptyDirectoryText}
-            action={{ label: CREATOR_JOIN.emptyDirectoryCta, href: CREATOR_JOIN.href }}
+            action={{ label: CREATOR_JOIN.emptyDirectoryCta, href: EARN.href }}
           />
         ) : (
           <EmptyState

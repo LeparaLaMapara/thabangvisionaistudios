@@ -255,7 +255,7 @@ const CreatorJoin = ({ earn }: { earn: boolean }) => (
         <p className="text-neutral-400 font-light leading-relaxed mb-8 max-w-md">
           {earn ? EARN.homeText : CREATOR_JOIN.homeText}
         </p>
-        <Link href={earn ? EARN.href : CREATOR_JOIN.href} className="inline-flex items-center gap-2 min-h-[44px] bg-[#D4A843] text-black px-8 py-4 text-xs font-mono font-bold uppercase tracking-widest hover:opacity-80 transition-opacity">
+        <Link href={EARN.href} className="inline-flex items-center gap-2 min-h-[44px] bg-[#D4A843] text-black px-8 py-4 text-xs font-mono font-bold uppercase tracking-widest hover:opacity-80 transition-opacity">
           {earn ? EARN.label : CREATOR_JOIN.ctaLabel} <ArrowRight className="w-3 h-3" />
         </Link>
       </motion.div>

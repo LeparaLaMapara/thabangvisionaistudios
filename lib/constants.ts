@@ -678,7 +678,9 @@ export const SHOW_CAREERS = true;
 export const EARN = {
   label: `Earn with ${STUDIO.shortName}`,
   copy: 'Offer your skills, your gear or your vehicle.',
-  href: '/offer',
+  // The public Earn page (who can earn, what we keep, when you are paid).
+  // Every Earn and Join link goes here; its button starts the sign-up.
+  href: '/earn',
   homeTitle: `Earn with ${STUDIO.shortName}`,
   homeText: 'Make-up, modelling, driving, photos, video, sound or gear: offer your skills, your gear or your vehicle. No portfolio needed.',
 } as const;
@@ -696,7 +698,7 @@ export const RENTALS_COMING_SOON: readonly { label: string; category?: string }[
 
 export const CREATOR_JOIN = {
   href: '/onboarding',
-  ctaLabel: 'Join as a Creator',
+  ctaLabel: `Earn with ${STUDIO.shortName}`,
   homeTitle: 'Get Booked',
   homeText: 'Photographer, videographer, editor or sound person? Join free, set up your profile and get booked for shoots.',
   loginLine: 'Want to get booked?',
@@ -744,7 +746,7 @@ export const FOOTER_SECTIONS = [
       { label: 'Sign In', href: '/login' },
       { label: 'Create Account', href: '/register' },
       { label: 'Dashboard', href: '/dashboard' },
-      { label: CREATOR_JOIN.footerLabel, href: CREATOR_JOIN.href },
+      { label: CREATOR_JOIN.footerLabel, href: '/earn' },
     ],
   },
   {
