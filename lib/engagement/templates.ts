@@ -80,14 +80,33 @@ const INTENT_WORDS: Record<Exclude<Intent, null | 'browse'>, { want: string; cta
   },
 };
 
+/**
+ * With People on (roles_v1), booking a person is on /people and offering is
+ * the three-screen Offer flow: no packages, no four-step creator setup.
+ */
+const PEOPLE_INTENT_WORDS: Partial<Record<Exclude<Intent, null | 'browse'>, { want: string; cta: Link; how: string }>> = {
+  hire: {
+    want: 'book a person for your shoot or event',
+    cta: { label: 'See people', href: '/people' },
+    how: 'Choose a person, pick your days and see the total before you send a request. Nothing is paid until they say yes.',
+  },
+  supply: {
+    want: 'offer your work',
+    cta: { label: 'Start my profile', href: '/offer' },
+    how: 'Three short screens: your photo, your work and your price. A person on our team checks it within 2 working days.',
+  },
+};
+
 export function nudgeContent(params: {
   reason: NudgeReason;
   nudge: number;
   firstName: string | null;
   intent: Intent;
   cartItems: number;
+  /** People (roles_v1) is on: point at /people and /offer, never /studio or /onboarding. */
+  people?: boolean;
 }): EmailContent {
-  const { reason, nudge, firstName, intent, cartItems } = params;
+  const { reason, nudge, firstName, intent, cartItems, people = false } = params;
   const last = nudge >= 2 ? 'This is the last reminder we send about this.' : '';
   const reply = 'If something is not working, reply to this email and a person will help.';
   const wrap = (c: Omit<EmailContent, 'paragraphs'> & { body: string[] }): EmailContent => ({
@@ -120,6 +139,18 @@ export function nudgeContent(params: {
         'Open your listing, check the details and send it. We look at every listing before it goes live, and we tell you when it is up.',
       ],
       cta: { label: 'Finish my listing', href: '/dashboard/listings' },
+    });
+  }
+
+  if (reason.startsWith('onboarding_step_') && people) {
+    return wrap({
+      subject: 'Finish your profile and get booked',
+      preheader: 'Three short screens: your photo, your work and your price.',
+      body: [
+        'You started offering your work but have not sent your profile yet.',
+        'It takes three short screens: your photo, your work and your price. Once you send it, a person on our team checks it within 2 working days.',
+      ],
+      cta: { label: 'Finish my profile', href: '/offer' },
     });
   }
 
@@ -163,7 +194,7 @@ export function nudgeContent(params: {
   }
 
   // intent_only
-  const words = intent && intent !== 'browse' ? INTENT_WORDS[intent] : INTENT_WORDS.rent;
+  const words = intent && intent !== 'browse' ? (people ? PEOPLE_INTENT_WORDS[intent] : undefined) ?? INTENT_WORDS[intent] : INTENT_WORDS.rent;
   return wrap({
     subject: `Ready to ${words.want}?`,
     preheader: words.how,
@@ -199,6 +230,8 @@ export interface TailoredProfile {
   gigs: number;
   /** Rental categories they looked at (cart) or booked. */
   categories: string[];
+  /** People (roles_v1) is on: steps point at /offer and /people, not the old creator pages. */
+  people?: boolean;
 }
 
 export function roleOf(p: { intent: Intent; onboardingCompleted: boolean; publishedListings: number; draftListings?: number }): TailoredProfile['role'] {
@@ -214,7 +247,10 @@ function categoryLabel(slug: string): string | null {
 /** The concrete next steps, worked out in code (the AI explains them, it never invents them). At most 3. */
 export function tailoredSteps(p: TailoredProfile): Link[] {
   const steps: Link[] = [];
-  if (p.role === 'creator') {
+  if (p.role === 'creator' && p.people) {
+    steps.push({ label: 'Check where your profile is, or finish it', href: '/offer' });
+    if (!p.verified) steps.push({ label: 'Finish your ID check: we approve profiles only once it passes', href: '/dashboard/verification' });
+  } else if (p.role === 'creator') {
     if (p.portfolioItems < 3) steps.push({ label: `Add ${p.portfolioItems === 0 ? 'three' : 'more'} projects to your portfolio (people book from what they can see)`, href: '/dashboard/portfolio' });
     if (!p.hasAvatar) steps.push({ label: 'Add a clear profile photo', href: '/dashboard/profile' });
     if (!p.bio) steps.push({ label: 'Write two lines about the work you do', href: '/dashboard/profile' });
@@ -233,7 +269,7 @@ export function tailoredSteps(p: TailoredProfile): Link[] {
     }
     if (steps.length === 0) steps.push({ label: 'See all the gear you can rent', href: '/rentals' });
     if (!p.verified) steps.push({ label: 'Do the one-time ID check so you can book', href: '/dashboard/verification' });
-    if (p.intent === 'hire') steps.push({ label: 'Book a photographer or videographer', href: '/studio' });
+    if (p.intent === 'hire') steps.push(p.people ? { label: 'Book a person for your shoot or event', href: '/people' } : { label: 'Book a photographer or videographer', href: '/studio' });
   }
   return steps.slice(0, 3);
 }

@@ -125,10 +125,10 @@ describe('dashboard home for creators', () => {
 });
 
 describe('a way in for creators', () => {
-  it('the footer links to creator onboarding; the header keeps one door (Sign In)', () => {
+  it('the footer links to the public Earn page; the header keeps one door (Sign In)', () => {
     expect(MAIN_NAVIGATION.some((i) => i.href === CREATOR_JOIN.href)).toBe(false);
     const links = FOOTER_SECTIONS.flatMap((s) => s.links);
-    expect(links.some((l) => l.href === CREATOR_JOIN.href && l.label === CREATOR_JOIN.footerLabel)).toBe(true);
+    expect(links.some((l) => l.href === '/earn' && l.label === CREATOR_JOIN.footerLabel)).toBe(true);
   });
 
   it('the words have no dashes', () => {

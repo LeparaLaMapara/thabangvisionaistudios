@@ -13,6 +13,7 @@ import { clientIp } from '@/lib/http/clientIp';
 import { createClient, createAdminClient } from '@/lib/supabase/server';
 import { fetchPlatformData, fetchUserContext, type UbunyeFlagsSnapshot } from '@/lib/ubunye/system-prompt';
 import { getFlags } from '@/lib/features';
+import { paymentsOpenForLegalPages } from '@/lib/consent/legal-facts';
 import { isRagEnabled, searchSimilar, formatRetrievalContext } from '@/lib/rag';
 import { UBUNYE_AGENTS } from '@/lib/agents/registry';
 import { createSearchTools } from '@/lib/agents/tools/search';
@@ -26,6 +27,7 @@ import { promptField, promptList, sanitiseForPrompt } from '@/lib/ubunye/sanitis
 import { SupabaseAgentActions } from '@/lib/agent/repo';
 import { pendingProposalBlock } from '@/lib/agent/prompt';
 import { releaseMessage, reserveMessage, type Reservation } from '@/lib/agents/usage';
+import { formatRate } from '@/lib/format/money';
 
 // Writes that touch money or status go through the service role, after the
 // route has checked who the user is and that the record is theirs. The users'
@@ -75,15 +77,29 @@ function resolveLimit(
 
 // ─── Agent Tool Factory ─────────────────────────────────────────────────────
 
+/** Creator tools that read the old profiles.hourly_rate; off with People (roles_v1) on. */
+export const PEOPLE_RETIRED_TOOLS = ['search_creators', 'get_creator_detail', 'calculate_booking_quote', 'prepare_service_booking'] as const;
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function getToolsForAgent(agentId: string, supabase: any, isAuthenticated: boolean, flags: UbunyeFlagsSnapshot, hasPreSelectedCreator = false, conversationId: string | null = null): Record<string, any> {
   switch (agentId) {
-    case 'assistant':
+    case 'assistant': {
       // Delivery tools are read-only (plus reporting an issue); each checks sign-in itself.
-      return { ...createSearchTools(supabase, flags), ...createDeliveryTools(supabase, isAuthenticated) };
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const tools: Record<string, any> = { ...createSearchTools(supabase, flags), ...createDeliveryTools(supabase, isAuthenticated) };
+      if (flags.roles_v1) for (const name of PEOPLE_RETIRED_TOOLS) delete tools[name];
+      return tools;
+    }
     case 'booking': {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const tools: Record<string, any> = { ...createBookingTools(supabase, isAuthenticated, flags, conversationId), ...createDeliveryTools(supabase, isAuthenticated) };
+      // People (roles_v1): people are booked on /people at the price on their
+      // profile. The old creator tools read profiles.hourly_rate, so they must
+      // not quote or book anyone.
+      if (flags.roles_v1) {
+        for (const name of PEOPLE_RETIRED_TOOLS) delete tools[name];
+        return tools;
+      }
       // Remove search tools when creator is already selected — no searching needed
       if (hasPreSelectedCreator) {
         delete tools.search_creators;
@@ -330,8 +346,13 @@ export async function executeAgent(
     }
 
     // ── Fetch feature flags (shared for prompt + tools) ──
-    const flagsState = await getFlags(['smart_productions']);
-    const flags: UbunyeFlagsSnapshot = { smart_productions: flagsState.smart_productions };
+    const flagsState = await getFlags(['smart_productions', 'roles_v1']);
+    const flags: UbunyeFlagsSnapshot = {
+      smart_productions: flagsState.smart_productions,
+      roles_v1: flagsState.roles_v1,
+      // The same switch /pay reads, so Ubunye never states another way to pay.
+      payments_open: paymentsOpenForLegalPages(),
+    };
 
     // ── Build context-aware system prompt ──
     let systemPrompt = await buildPromptForAgent(agentId, supabase, user?.id ?? null, isFirstGuestMessage, flags);
@@ -352,7 +373,7 @@ export async function executeAgent(
   Do NOT call search_creators. Do NOT ask "any specific creator?" or "what type of shoot?"
   Creator: ${promptField(preCreator.display_name)} (ID: ${preCreator.id}, slug: ${promptField(preCreator.crew_slug)})
   Specializations: ${promptList(preCreator.specializations, 'Not listed')}
-  Rate: R${Number(preCreator.hourly_rate ?? 0)}/hr | Location: ${promptField(preCreator.location, 'SA')} | Experience: ${Number(preCreator.years_experience ?? 0)} years
+  Rate: ${formatRate(Number(preCreator.hourly_rate ?? 0), 'hour')} | Location: ${promptField(preCreator.location, 'SA')} | Experience: ${Number(preCreator.years_experience ?? 0)} years
   Only ask: how many hours, when, and where. Then prepare the booking for their approval.`;
       }
     }

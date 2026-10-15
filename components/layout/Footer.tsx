@@ -5,6 +5,8 @@ import Link from 'next/link';
 import { Youtube, Instagram, Facebook, Twitter, Linkedin, Mail, Loader2, CheckCircle2 } from 'lucide-react';
 import { ContactButtons } from '@/components/payments/ContactButtons';
 import { FOOTER_SECTIONS, SOCIAL_LINKS, SITE_COPYRIGHT, SITE_NAME } from '@/lib/constants';
+import { useAuth } from '@/providers/AuthProvider';
+import { footerForViewer } from '@/lib/nav-viewer';
 
 const IconMap: Record<string, React.ElementType> = {
   Youtube,
@@ -17,7 +19,9 @@ const IconMap: Record<string, React.ElementType> = {
 
 type FooterSectionList = readonly { title: string; links: readonly { label: string; href: string }[] }[];
 
-export const Footer = ({ sections = FOOTER_SECTIONS }: { sections?: FooterSectionList } = {}) => {
+export const Footer = ({ sections: allSections = FOOTER_SECTIONS }: { sections?: FooterSectionList } = {}) => {
+  const { user } = useAuth();
+  const sections = footerForViewer(allSections, !!user);
   const [email, setEmail] = useState('');
   const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
   const [errorMsg, setErrorMsg] = useState('');
@@ -57,15 +61,15 @@ export const Footer = ({ sections = FOOTER_SECTIONS }: { sections?: FooterSectio
           {sections.map((section) => (
             <div key={section.title}>
               <h2 className="text-sm font-bold tracking-widest text-black dark:text-white mb-6 uppercase">{section.title}</h2>
-              <ul className="space-y-3 text-sm text-neutral-400 dark:text-neutral-400">
+              <ul className="text-sm text-neutral-400 dark:text-neutral-400">
                 {section.links.map((link) => (
                   <li key={link.label}>
                      {link.href.startsWith('/') ? (
-                        <Link href={link.href} className="inline-block py-2 hover:text-black dark:hover:text-white transition-colors cursor-pointer">
+                        <Link href={link.href} className="inline-flex items-center min-h-[44px] hover:text-black dark:hover:text-white transition-colors cursor-pointer">
                           {link.label}
                         </Link>
                      ) : (
-                        <a href={link.href} className="hover:text-black dark:hover:text-white transition-colors cursor-pointer">
+                        <a href={link.href} className="inline-flex items-center min-h-[44px] hover:text-black dark:hover:text-white transition-colors cursor-pointer">
                           {link.label}
                         </a>
                      )}
@@ -102,7 +106,7 @@ export const Footer = ({ sections = FOOTER_SECTIONS }: { sections?: FooterSectio
                   <button
                     type="submit"
                     disabled={status === 'loading'}
-                    className="text-black dark:text-white text-xs font-bold tracking-widest hover:text-neutral-400 dark:hover:text-neutral-400 disabled:opacity-50 flex items-center gap-1.5"
+                    className="min-h-[44px] min-w-[44px] px-2 text-black dark:text-white text-xs font-bold tracking-widest hover:text-neutral-400 dark:hover:text-neutral-400 disabled:opacity-50 flex items-center justify-center gap-1.5"
                   >
                     {status === 'loading' ? <Loader2 className="w-3 h-3 animate-spin" /> : 'SUBSCRIBE'}
                   </button>
@@ -126,14 +130,14 @@ export const Footer = ({ sections = FOOTER_SECTIONS }: { sections?: FooterSectio
 
             <ContactButtons message="Hi, I have a question about ThabangVision" className="mb-8" />
 
-            <div className="flex gap-6">
+            <div className="flex flex-wrap gap-2">
               {SOCIAL_LINKS.map((social) => {
                 const Icon = IconMap[social.platform];
                 return (
                   <a
                     key={social.platform}
                     href={social.href}
-                    className="text-neutral-400 hover:text-black dark:hover:text-white transition-colors transform hover:-translate-y-1 duration-300"
+                    className="inline-flex items-center justify-center min-w-[44px] min-h-[44px] text-neutral-400 hover:text-black dark:hover:text-white transition-colors transform hover:-translate-y-1 duration-300"
                     aria-label={social.platform}
                   >
                     {Icon && <Icon className="w-5 h-5" />}

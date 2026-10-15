@@ -136,6 +136,12 @@ export interface Catalog {
   members: CatalogMember[];
   /** Whether the /studio tree is on (smart_productions flag). */
   studioOn: boolean;
+  /**
+   * People (roles_v1) is on: people are booked on /people, and the old
+   * creator, category and creators-list pages redirect there, so they are
+   * listed nowhere. Optional so older snapshots read as off.
+   */
+  rolesOn?: boolean;
   productions: CatalogProduction[];
   studioCategories: CatalogStudioCategory[];
   press: CatalogPress[];

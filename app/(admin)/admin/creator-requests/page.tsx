@@ -1,5 +1,7 @@
 export const dynamic = 'force-dynamic';
 
+import { redirect } from 'next/navigation';
+import { requireAdmin } from '@/lib/auth';
 import { getAllCrewRequests } from '@/lib/supabase/queries/crew';
 import CreatorRequestsManager from './CreatorRequestsManager';
 
@@ -8,6 +10,10 @@ export const metadata = {
 };
 
 export default async function AdminCreatorRequestsPage() {
+  // The page reads every request (names, emails, phones) with the service
+  // role, so it checks admin itself instead of trusting the layout alone.
+  const gate = await requireAdmin();
+  if (gate.error) redirect('/');
   const requests = await getAllCrewRequests();
 
   return (

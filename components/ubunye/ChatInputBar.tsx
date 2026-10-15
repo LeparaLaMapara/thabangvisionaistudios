@@ -1,6 +1,7 @@
 'use client';
 
 import { useRef, useCallback, useState, useEffect } from 'react';
+import Link from 'next/link';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowUp, Sparkles } from 'lucide-react';
 import { UBUNYE_EXAMPLE_PROMPTS } from '@/lib/constants';
@@ -134,7 +135,16 @@ export function ChatInputBar({
         </p>
         {!limitReached && remaining !== -1 && (
           <p className="text-xs text-neutral-400 shrink-0" aria-live="polite">
-            {remaining} free message{remaining === 1 ? '' : 's'} left{isAuthenticated ? ' today' : ''}
+            {isAuthenticated ? (
+              <>{remaining} question{remaining === 1 ? '' : 's'} left today</>
+            ) : (
+              <>
+                {remaining} free question{remaining === 1 ? '' : 's'}.{' '}
+                <Link href="/login?next=/ubunye-ai-studio" className="text-[#D4A843] underline underline-offset-2">
+                  Sign in for more
+                </Link>
+              </>
+            )}
           </p>
         )}
       </div>

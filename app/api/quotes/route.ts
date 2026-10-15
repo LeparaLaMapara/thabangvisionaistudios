@@ -1,19 +1,23 @@
 export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { requireAdmin, checkRateLimit } from '@/lib/auth';
 import { generateQuotePDF, generateQuoteNumber, quoteTotals } from '@/lib/pdf/quote';
 import type { QuoteData, QuoteLineItem } from '@/lib/pdf/quote';
 import { STUDIO } from '@/lib/constants';
 
 // ─── POST /api/quotes — Generate a PDF quote ───────────────────────────────
 
-export async function POST(req: NextRequest) {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+// Staff only (security re-check 2026-10-15, M7): prices come from the body,
+// so any signed-in person could print official-looking ThabangVision quotes
+// with any prices. Nothing in the site calls this route.
+const MAX_QUOTE_ITEMS = 30;
 
-  if (!user) {
-    return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });
+export async function POST(req: NextRequest) {
+  const gate = await requireAdmin();
+  if (gate.error) return gate.error;
+  if (!(await checkRateLimit(`quotes:${gate.user.id}`, 20, 60_000))) {
+    return NextResponse.json({ error: 'Too many quotes. Wait a moment.' }, { status: 429 });
   }
 
   let body: {
@@ -64,6 +68,9 @@ export async function POST(req: NextRequest) {
   ];
 
   // Add any additional items
+  if (Array.isArray(body.additionalItems) && body.additionalItems.length > MAX_QUOTE_ITEMS) {
+    return NextResponse.json({ error: `At most ${MAX_QUOTE_ITEMS} extra lines.` }, { status: 400 });
+  }
   if (body.additionalItems?.length) {
     for (const item of body.additionalItems) {
       lineItems.push({

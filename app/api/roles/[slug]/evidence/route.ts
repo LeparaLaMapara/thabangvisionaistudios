@@ -3,12 +3,13 @@ export const dynamic = 'force-dynamic';
 import { NextResponse, type NextRequest } from 'next/server';
 import { rolesOffResponse } from '@/lib/roles/flag';
 import { checkRateLimit } from '@/lib/auth';
-import { ROLES_POLICY, STUDIO } from '@/lib/constants';
+import { ROLES_POLICY } from '@/lib/constants';
 import { sanitizeClientMetadata } from '@/lib/metadata/verification';
 import { storage } from '@/lib/storage';
-import { createClient } from '@/lib/supabase/server';
+import { createAdminClient, createClient } from '@/lib/supabase/server';
 import { EVIDENCE_COLUMNS, getMyPersonRole, getRole } from '@/lib/supabase/queries/roles';
 import { classifySource } from '@/lib/roles';
+import { ownUploadPublicId } from '@/lib/roles/own-upload';
 
 /**
  * Proof for one role.
@@ -69,10 +70,10 @@ export async function POST(req: NextRequest, ctx: Ctx): Promise<NextResponse> {
         return NextResponse.json({ error: 'That step is full. Remove one to add another.' }, { status: 409 });
       }
       const url = typeof body.url === 'string' ? body.url : '';
-      const publicId = typeof body.public_id === 'string' ? body.public_id : '';
-      // Only the person's own uploads in this account's storage.
-      const ownFolder = `${STUDIO.security.uploads.userRoot}/${user.id}/`;
-      if (!storage.ownsUrl?.(url) || !(publicId.startsWith(ownFolder) || publicId.split('/').includes(user.id)) || !url.includes(publicId)) {
+      // Only the person's own uploads in this account's storage. The public
+      // id comes from the URL's path, never from the client (M3).
+      const publicId = storage.ownsUrl?.(url) ? ownUploadPublicId(url, user.id, process.env.CLOUDINARY_CLOUD_NAME) : null;
+      if (!publicId) {
         return NextResponse.json({ error: 'That file did not upload properly. Please try again.' }, { status: 400 });
       }
       const meta = sanitizeClientMetadata(body.exif);
@@ -112,7 +113,9 @@ export async function POST(req: NextRequest, ctx: Ctx): Promise<NextResponse> {
       return NextResponse.json({ error: 'Unknown step.' }, { status: 400 });
     }
 
-    const { data, error } = await supabase.from('role_evidence').insert(row).select(EVIDENCE_COLUMNS).single();
+    // Written with the service role after the checks above: browsers can no
+    // longer insert proof straight through the REST API (094, M2).
+    const { data, error } = await createAdminClient().from('role_evidence').insert(row).select(EVIDENCE_COLUMNS).single();
     if (error) throw new Error(error.message);
     return NextResponse.json({ evidence: data }, { status: 201 });
   } catch (err) {

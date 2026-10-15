@@ -67,10 +67,10 @@ export default function RefundsPage() {
             )}
             <p>When the equipment comes back we inspect each item and photograph its condition, then compare it against the record made when it left us. The deposit is then settled in one of four ways:</p>
             <ul className="list-disc pl-5 space-y-1">
-              <li><span className="text-white">Released in full</span> — everything came back on time and in the condition it went out in.</li>
-              <li><span className="text-white">Released in part</span> — a deduction is made for a late return, damage, or a missing item, and the balance is refunded to you.</li>
-              <li><span className="text-white">Withheld</span> — the deduction equals or exceeds the deposit.</li>
-              <li><span className="text-white">Held pending a dispute</span> — where the position is not clear, or the equipment has not come back, the deposit is held while we investigate.</li>
+              <li><span className="text-white">Released in full</span>: everything came back on time and in the condition it went out in.</li>
+              <li><span className="text-white">Released in part</span>: a deduction is made for a late return, damage, or a missing item, and the balance is refunded to you.</li>
+              <li><span className="text-white">Withheld</span>: the deduction equals or exceeds the deposit.</li>
+              <li><span className="text-white">Held pending a dispute</span>: where the position is not clear, or the equipment has not come back, the deposit is held while we investigate.</li>
             </ul>
             <p>Deductions are made only as our{' '}
               <Link href="/legal" className={link}>Terms of Service</Link>{' '}
@@ -96,9 +96,9 @@ export default function RefundsPage() {
             <p>You can cancel an equipment booking yourself from your dashboard while it is still pending payment or confirmed. Once the equipment has been released to you, the return process applies instead and you should contact us.</p>
             <p>If you booked less than {STUDIO.legal.coolingOffDays} days ago, everything you paid online comes back: see section 10. Otherwise the refund is worked out automatically from how much notice you give, measured to the start of your first hire day, and refunded the way you paid: to your card for an online payment, or by EFT for an EFT or cash payment. You are shown the exact amount before you confirm the cancellation.</p>
             <ul className="list-disc pl-5 space-y-1">
-              <li><span className="text-white">More than 48 hours before the hire starts</span> — the hire charge is refunded in full.</li>
-              <li><span className="text-white">Between 24 and 48 hours before</span> — 50% of the hire charge is refunded.</li>
-              <li><span className="text-white">Less than 24 hours before, or after the hire has started</span> — the hire charge is not refunded, because the equipment has been held for you and turned away from other bookings.</li>
+              <li><span className="text-white">More than 48 hours before the hire starts</span>: the hire charge is refunded in full.</li>
+              <li><span className="text-white">Between 24 and 48 hours before</span>: 50% of the hire charge is refunded.</li>
+              <li><span className="text-white">Less than 24 hours before, or after the hire has started</span>: the hire charge is not refunded, because the equipment has been held for you and turned away from other bookings.</li>
             </ul>
             <p><span className="text-white">A deposit you paid online is always refunded in full when you cancel</span>, whatever notice you give. It secures equipment against damage and late return, and on a cancellation no equipment ever left us. A deposit due at collection is simply never taken.</p>
             <p>Where you had a bulk discount, the refund is worked out on the discounted price you actually paid.</p>
@@ -113,9 +113,9 @@ export default function RefundsPage() {
             <p>You can cancel a service booking up to the point where the work is delivered. After delivery, the approval process in section 7 applies instead.</p>
             <p>If you booked less than {STUDIO.legal.coolingOffDays} days ago and the shoot has not started, you get everything back: see section 10. Otherwise the refund is worked out from how much notice you give, measured to the start of your shoot day, and refunded the way you paid:</p>
             <ul className="list-disc pl-5 space-y-1">
-              <li><span className="text-white">More than 48 hours before the shoot</span> — refunded in full.</li>
-              <li><span className="text-white">Between 24 and 48 hours before</span> — 50% refunded.</li>
-              <li><span className="text-white">Less than 24 hours before</span> — no refund, because crew and equipment have been committed to your date and turned away from other work.</li>
+              <li><span className="text-white">More than 48 hours before the shoot</span>: refunded in full.</li>
+              <li><span className="text-white">Between 24 and 48 hours before</span>: 50% refunded.</li>
+              <li><span className="text-white">Less than 24 hours before</span>: no refund, because crew and equipment have been committed to your date and turned away from other work.</li>
             </ul>
             <p>Where a booking was made without a fixed shoot date, we cannot measure the notice automatically, so a person assesses it. Contact{' '}
               <a href={`mailto:${STUDIO.supportEmail}`} className={link}>{STUDIO.supportEmail}</a>{' '}

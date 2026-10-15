@@ -1,11 +1,12 @@
 export const dynamic = 'force-dynamic';
 
-import { NextResponse, type NextRequest } from 'next/server';
+import { NextResponse, after, type NextRequest } from 'next/server';
 import { rolesOffResponse } from '@/lib/roles/flag';
 import { requireAdmin } from '@/lib/auth';
 import { createAdminClient } from '@/lib/supabase/server';
 import { listReviewQueue, reviewCounts, EVIDENCE_COLUMNS, PERSON_ROLE_COLUMNS, getRole } from '@/lib/supabase/queries/roles';
 import { reembedQuietly } from '@/lib/roles/embed-server';
+import { notifyProfileDecision } from '@/lib/roles/request-notify-server';
 import { bestDateOfBirth, confirmedJobCount, evidenceLevel, PERSON_ROLE_STATUSES, reviewLegal, type PersonRole, type RoleEvidence } from '@/lib/roles';
 
 /**
@@ -19,7 +20,9 @@ import { bestDateOfBirth, confirmedJobCount, evidenceLevel, PERSON_ROLE_STATUSES
  *         met. Marks the documents and the in-app proof checked, sets the
  *         legal check and works out the evidence level.
  *   PATCH { id, action: 'changes', note }
- *         The note is required and must say how to get there.
+ *         The note is required and must say how to get there. The person
+ *         gets it by email and in the bell, and sees it on /offer.
+ *   Approving also tells the person, by email and in the bell.
  *   PATCH { id, action: 'verify_vouch', evidence_id }
  *   PATCH { id, action: 'face_check', value: 'same_person' | 'different_person' }
  *         The reviewer compared the in-app face photo with the ID-check
@@ -92,6 +95,8 @@ export async function PATCH(request: NextRequest): Promise<NextResponse> {
         .update({ status: 'changes_requested', reviewer_note: note, reviewed_by: reviewer, reviewed_at: now.toISOString() })
         .eq('id', id);
       if (error) throw new Error(error.message);
+      const sentBack = await getRole(pr.role_slug);
+      after(() => notifyProfileDecision({ userId: pr.user_id, roleName: sentBack?.name ?? 'Your', personRoleId: pr.id, decision: 'changes', note }).then(() => undefined));
       return NextResponse.json({ ok: true, status: 'changes_requested' });
     }
 
@@ -177,6 +182,7 @@ export async function PATCH(request: NextRequest): Promise<NextResponse> {
       .eq('id', id);
     if (error) throw new Error(error.message);
     await reembedQuietly(pr.id);
+    after(() => notifyProfileDecision({ userId: pr.user_id, roleName: role.name, personRoleId: pr.id, decision: 'approved', note: null }).then(() => undefined));
     return NextResponse.json({ ok: true, status: 'approved', level });
   } catch (err) {
     console.error('[admin/roles] PATCH failed:', err);

@@ -52,7 +52,7 @@ export function renderMarkdownTwin(path: string, c: Catalog, opts: MarkdownOptio
 
   switch (route) {
     case '/faq': {
-      const faqs = [...coreFaqs({ paymentsOpen: opts.paymentsOpen }), ...c.faqs];
+      const faqs = [...coreFaqs({ paymentsOpen: opts.paymentsOpen, rolesOn: c.rolesOn }), ...c.faqs];
       return [
         `# ${STUDIO.name}: frequently asked questions`,
         '',

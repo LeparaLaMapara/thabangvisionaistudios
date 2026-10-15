@@ -464,11 +464,11 @@ export default function CategoryPageClient({ category, packages, productions, cr
       <div className="bg-[#080808] border-b border-white/5 py-12">
         <div className="container mx-auto px-6">
           <div className="flex items-center gap-2 text-xs font-mono uppercase tracking-widest text-neutral-400 mb-6">
-            <Link href="/" className="hover:text-white">Home</Link>
+            <Link href="/" className="inline-flex min-h-[44px] items-center hover:text-white">Home</Link>
             <span>/</span>
-            <Link href="/studio" className="hover:text-white">Studio</Link>
+            <Link href="/studio" className="inline-flex min-h-[44px] items-center hover:text-white">Studio</Link>
             <span>/</span>
-            <Link href={`/studio/category/${category.slug}`} className="hover:text-white">{category.name}</Link>
+            <Link href={`/studio/category/${category.slug}`} className="inline-flex min-h-[44px] items-center hover:text-white">{category.name}</Link>
             {locationName && (
               <>
                 <span>/</span>

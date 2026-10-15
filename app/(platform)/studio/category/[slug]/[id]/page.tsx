@@ -23,7 +23,7 @@ export async function generateMetadata({ params }: Props) {
   const pkg = PRODUCTION_PACKAGES.find((p) => p.id === id && p.category === slug);
   if (pkg) {
     return buildPageMetadata({
-      title: `${pkg.name} — ${category?.name ?? 'Productions'}`,
+      title: `${pkg.name}: ${category?.name ?? 'Shoots'}`,
       description: pkg.description ?? `${pkg.name} production package by ${STUDIO.shortName}.`,
       path: `/studio/category/${slug}/${id}`,
     });
@@ -32,9 +32,9 @@ export async function generateMetadata({ params }: Props) {
   const crew = await getCrewBySlug(id);
   if (crew) {
     const name = crew.display_name ?? 'Creator';
-    const spec = crew.specializations.join(', ') || 'Creative Professional';
+    const spec = crew.specializations.join(', ') || 'Photo and video';
     return buildPageMetadata({
-      title: `${name} — ${spec}`,
+      title: `${name}: ${spec}`,
       description: metaDescription(
         crew.crew_bio ?? crew.bio,
         `Book ${name} for ${spec.toLowerCase()} in ${crew.location ?? STUDIO.serviceArea.province}. View portfolio, reviews, and rates on ${STUDIO.shortName}.`,

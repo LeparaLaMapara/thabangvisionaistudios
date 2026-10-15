@@ -1,9 +1,9 @@
 export const dynamic = 'force-dynamic';
 
 import { redirect } from 'next/navigation';
-import { OFFER_PATH } from '@/lib/welcome';
+import { EARN } from '@/lib/constants';
 
-/** Old link from the first roles slice: a deep link into Offer, the one way to join. */
+/** /join is public: it shows the Earn page, which says how it works before any sign-in. */
 export default function JoinPage() {
-  redirect(OFFER_PATH);
+  redirect(EARN.href);
 }

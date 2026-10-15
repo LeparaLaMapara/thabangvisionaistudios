@@ -10,13 +10,18 @@ import { createClient } from '@/lib/supabase/client';
 import { photoForMatch, readyForUpload } from '@/lib/roles/client';
 import {
   classifyIntakeFile,
+  earningsLine,
   EMPTY_FACTS,
+  idCheckLine,
+  PERSON_PAYOUT_LINE,
+  PRICE_MEANING_LINE,
   FACT_LIST_KEYS,
   formatRolePrice,
   inlineLegalAsks,
   photoLooksLikeCv,
   randsToCents,
   unitLabel,
+  type IdentityState,
   type ProfileFacts,
   type Role,
 } from '@/lib/roles';
@@ -26,7 +31,9 @@ import { RoleIcon } from './RoleIcon';
  * Earn with ThabangVision: three screens, one idea each.
  *   1. Your photo     (required, camera; clients see it only after booking)
  *   2. Show us your work (one box takes anything; we sort it and suggest the role)
- *   3. Price and area (prefilled), then Done.
+ *   3. Price and area (prefilled), then Done. This screen says what the
+ *      client pays, what the person gets (our 15% cut, before VAT) and when
+ *      they are paid; it and Done say approval waits for the ID check.
  * Everything else (facts extraction, proof kinds, embeddings, review) is
  * hidden machinery.
  */
@@ -90,6 +97,7 @@ export function OfferFlow({
   preselect,
   prefillArea,
   userId,
+  identity = 'none',
 }: {
   roles: Role[];
   hasFace: boolean;
@@ -98,6 +106,8 @@ export function OfferFlow({
   prefillArea: string;
   /** Puts uploads in a folder that carries the person's id (members and admins alike). */
   userId: string;
+  /** The ID check: approval waits for it, so the flow says so and links it. */
+  identity?: IdentityState;
 }) {
   const [step, setStep] = useState<Step>(hasFace ? 'work' : 'face');
   const [face, setFace] = useState<string | null>(faceUrl);
@@ -124,6 +134,7 @@ export function OfferFlow({
   const [todo, setTodo] = useState<string[]>([]);
 
   const live = roles.filter((r) => r.status === 'live');
+  const idLine = idCheckLine(identity);
   const asks = useMemo(() => (role ? inlineLegalAsks(role.legal_requirements, role.slug) : []), [role]);
 
   async function takeFace(files: FileList | null) {
@@ -455,6 +466,13 @@ export function OfferFlow({
                 <input className={field} value={comesWith} maxLength={120} onChange={(e) => setComesWith(e.target.value)} placeholder={role.proof_format === 'trust' ? 'Toyota Quantum, 14 seats' : 'Own camera kit and lights'} />
               </label>
             )}
+            <div className="border border-white/10 p-4 space-y-2 text-sm text-neutral-300" data-testid="offer-money">
+              <p className="text-white">Your money</p>
+              <p>{PRICE_MEANING_LINE}</p>
+              {randsToCents(price) !== null && <p>{earningsLine(role.pricing_unit, randsToCents(price) as number)}</p>}
+              <p>{PERSON_PAYOUT_LINE}</p>
+            </div>
+            {identity !== 'verified' && <p className="text-sm text-neutral-400">{idLine.text}</p>}
             {todo.length > 0 && <ul className="text-sm text-amber-200 list-disc pl-5">{todo.map((t) => <li key={t}>{t}</li>)}</ul>}
             <button type="button" className={big} disabled={!!busy} onClick={finish}>
               {busy === 'finish' && <Loader2 className="w-5 h-5 animate-spin" aria-hidden="true" />} Done
@@ -467,7 +485,12 @@ export function OfferFlow({
         <section className="text-center pt-8">
           <Check className="w-14 h-14 text-accent-gold mx-auto mb-4" aria-hidden="true" />
           <h1 className="text-3xl font-display font-medium text-white mb-3">{ROLES_POLICY.copy.done}</h1>
-          <Link href={`/offer/preview?role=${role.slug}`} className={`${big} mt-8`}>Here&apos;s how clients will see you</Link>
+          <p className="text-neutral-300">We email you the answer. If something needs changing, the email and this page say exactly what.</p>
+          <div className="mt-6 border border-white/10 p-4 text-left">
+            <p className="text-sm text-neutral-200">{idLine.text}</p>
+            {idLine.action && <Link href={idLine.action.href} className={`${big} mt-4`}>{idLine.action.label}</Link>}
+          </div>
+          <Link href={`/offer/preview?role=${role.slug}`} className={`${idLine.action ? ghost : big} mt-6`}>Here&apos;s how clients will see you</Link>
         </section>
       )}
 

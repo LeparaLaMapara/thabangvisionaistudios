@@ -12,7 +12,7 @@ import { calculateItemPrice, calculateIncludedVat, depositPerUnit } from '@/lib/
 import { TermsAcceptance } from '@/components/consent/TermsAcceptance';
 import DeliveryOptions, { centsToRand, selectionFromQuotes, useDeliveryEligibility, type DeliverySelection, type PendingApproval, type PublicQuote } from './DeliveryOptions';
 import { ON_SITE_RENTAL, RENTAL_POLICY, STUDIO } from '@/lib/constants';
-import { hasOnSiteItem } from '@/lib/rental/on-site';
+import { hasOnSiteItem, onlyOnSiteItems, studioUseNote } from '@/lib/rental/on-site';
 import { DashboardSubTabs, ACTIVITY_TABS } from '@/components/dashboard/DashboardSubTabs';
 import type { CartItemWithRental } from '@/types/cart';
 import { isPaymentUrl } from '@/lib/payments/hosts';
@@ -186,6 +186,8 @@ export default function CartPage() {
   const deliveryEligibility = useDeliveryEligibility(!loading && items.length > 0 ? `v=${cartVersion}` : null);
   // A studio in the cart is used where it is, so the order is never delivered.
   const onSiteInCart = hasOnSiteItem(items);
+  // Only studios: used where they are, so no collect or deliver choice at all.
+  const studioOnly = onlyOnSiteItems(items);
   const deliveryBlocked = onSiteInCart || !!readiness?.collectionRequired || deliveryEligibility?.delivery_available === false || !!deliveryNote;
   useEffect(() => {
     if (deliveryBlocked) setFulfilment('collection');
@@ -845,9 +847,10 @@ export default function CartPage() {
           {items.length > 0 && (
             <div className="border border-white/10 bg-[#0A0A0B] p-5 space-y-4">
               <p id="fulfilment-label" className="text-xs font-mono uppercase tracking-widest text-neutral-400">
-                How would you like to receive your gear?
+                {studioOnly ? 'Where you use it' : 'How would you like to receive your gear?'}
               </p>
 
+              {!studioOnly && (
               <div className="grid grid-cols-2 gap-3" role="group" aria-labelledby="fulfilment-label">
                 {(['collection', 'delivery'] as const).map((method) => {
                   const disabled = method === 'delivery' && (deliveryBlocked || !STUDIO.fulfilment.delivery.enabled || deliveryEligibility === null);
@@ -878,8 +881,9 @@ export default function CartPage() {
                   );
                 })}
               </div>
+              )}
 
-              {(deliveryBlocked || !STUDIO.fulfilment.delivery.enabled) && (onSiteInCart || deliveryEligibility !== null || !!readiness?.collectionRequired) && (
+              {!studioOnly && (deliveryBlocked || !STUDIO.fulfilment.delivery.enabled) && (onSiteInCart || deliveryEligibility !== null || !!readiness?.collectionRequired) && (
                 <p id="delivery-reason" className="text-xs font-mono text-neutral-400 leading-relaxed">
                   {onSiteInCart
                     ? ON_SITE_RENTAL.noDeliveryNote
@@ -902,10 +906,16 @@ export default function CartPage() {
 
               {fulfilment === 'collection' ? (
                 <div className="space-y-3">
+                  {studioOnly ? (
+                    <p className="text-xs font-mono text-neutral-400 leading-relaxed" data-testid="studio-use-note">
+                      {studioUseNote(collectionPoint(), STUDIO.location.city)}
+                    </p>
+                  ) : (
                   <p className="text-xs font-mono text-neutral-400 leading-relaxed">
                     Collect at {collectionPoint()}, {STUDIO.location.city}. {STUDIO.hours.weekday},{' '}
                     {STUDIO.hours.weekend}. Bring the ID you verified with.
                   </p>
+                  )}
 
                   {paymentsOpen === false && (
                     <fieldset className="space-y-2">
@@ -915,7 +925,7 @@ export default function CartPage() {
                       {(
                         [
                           ['eft', `Pay by EFT within ${STUDIO.bank.payWithinHours} hours`],
-                          ['cash', 'Pay cash when I collect'],
+                          ['cash', studioOnly ? 'Pay cash on the day' : 'Pay cash when I collect'],
                         ] as const
                       ).map(([method, label]) => (
                         <label
@@ -943,7 +953,7 @@ export default function CartPage() {
                       {(
                         [
                           ['full', 'Pay everything now'],
-                          ['deposit_only', 'Pay the deposit now, the rest on collection'],
+                          ['deposit_only', studioOnly ? 'Pay the deposit now, the rest on the day' : 'Pay the deposit now, the rest on collection'],
                         ] as const
                       ).map(([plan, label]) => (
                         <label
@@ -995,7 +1005,7 @@ export default function CartPage() {
           {/* Notes */}
           <div>
             <label htmlFor="cart-notes" className="block text-xs font-mono uppercase tracking-widest text-neutral-400 mb-2">
-              Notes for collection or delivery (optional)
+              {studioOnly ? 'Notes for your studio day (optional)' : 'Notes for collection or delivery (optional)'}
             </label>
             <textarea
               id="cart-notes"

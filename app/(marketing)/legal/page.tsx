@@ -17,7 +17,7 @@ import { buildPageMetadata } from '@/lib/seo/metadata';
 export const metadata: Metadata = buildPageMetadata({
   title: 'Terms of Service',
   description:
-    `${STUDIO.shortName} Terms of Service — who you contract with, equipment hire, deposits, damage and loss, production services, payment, cancellations, and dispute resolution.`,
+    `${STUDIO.shortName} Terms of Service: who you contract with, equipment hire, deposits, damage and loss, production services, payment, cancellations, and dispute resolution.`,
   path: '/legal',
 });
 
@@ -67,7 +67,7 @@ export default function LegalPage() {
         <p className="text-sm font-mono text-neutral-400 mb-10">Last updated {LAST_UPDATED}</p>
 
         <div className="space-y-10 text-sm font-mono text-neutral-400 leading-relaxed">
-          <Part title="Part A — General" />
+          <Part title="Part A: General" />
 
           <Section title="1. Acceptance of Terms">
             <p>By accessing or using the {STUDIO.shortName} website and services, including equipment hire, production services, and our online booking tools, you agree to be bound by these Terms of Service. If you do not agree to these terms, please do not use our services.</p>
@@ -117,7 +117,7 @@ export default function LegalPage() {
             <p>A booking is confirmed only once payment or the required deposit has been received and we have sent you a written confirmation.</p>
           </Section>
 
-          <Part id="equipment-hire" title="Part B — Equipment Hire" />
+          <Part id="equipment-hire" title="Part B: Equipment Hire" />
 
           <Section title="7. Eligibility to Hire">
             <p>Equipment may only be hired by an account that has completed identity verification. Our checkout will not accept an equipment order from an unverified account. You must be 18 years or older.</p>
@@ -171,7 +171,7 @@ export default function LegalPage() {
             <p>You choose collection or delivery at checkout.</p>
             <p><span className="text-white">Collection.</span> Collect in {STUDIO.fulfilment.dispatchFrom.name}, {STUDIO.location.city}, at the exact place in your booking confirmation, during business hours, on the day in that confirmation. The person collecting must be the verified account holder, or someone you have nominated to us in writing beforehand.</p>
             <p><span className="text-white">Delivery.</span> We deliver in our own vehicle within {STUDIO.fulfilment.delivery.maxRadiusKm}km of our collection point. The delivery fee is calculated from an estimate of the road distance to your address and the size of your order, and the exact amount is shown to you at checkout before you pay. Beyond that radius, contact us for a quote. Delivery is charged in full at checkout and is not refundable once the vehicle has been dispatched.</p>
-            <p>Equipment is collected in {STUDIO.fulfilment.dispatchFrom.name}, {STUDIO.location.city}, at the exact place in your booking confirmation. Our Pretoria studio is open by appointment only. Our business hours are {STUDIO.hours.weekday}, {STUDIO.hours.weekend}, {STUDIO.hours.sunday}. Collections, deliveries and returns outside these hours are by prior arrangement only, and a fee may apply.</p>
+            <p>Equipment is collected in {STUDIO.fulfilment.dispatchFrom.name}, {STUDIO.location.city}, at the exact place in your booking confirmation. Our business hours are {STUDIO.hours.weekday}, {STUDIO.hours.weekend}, {STUDIO.hours.sunday}. Collections, deliveries and returns outside these hours are by prior arrangement only, and a fee may apply.</p>
             <p>Each item is inspected and its condition recorded with photographs both when it leaves us and when it comes back. That pair of records is what your deposit is assessed against. You are welcome to be present at either inspection, and to ask us for a copy of both records.</p>
           </Section>
 
@@ -203,7 +203,7 @@ export default function LegalPage() {
             <p>If we introduce our own cover in future, the position will be set out in this section and confirmed to you in writing before your hire begins. Until then, no cover is in place.</p>
           </Section>
 
-          <Part title="Part C — Production and Creative Services" />
+          <Part title="Part C: Production and Creative Services" />
 
           <Section title="16. Booking, Delivery and Approval">
             <p>Production and creative service bookings are either charged by the hour, for {STUDIO.booking.minBookingHours} to {STUDIO.booking.maxBookingHours} hours at the rate confirmed in your booking, or as a studio package at its fixed price.</p>
@@ -215,7 +215,7 @@ export default function LegalPage() {
             <p>Rights in production deliverables are dealt with in your production agreement.</p>
           </Section>
 
-          <Part title="Part D — Creators and Suppliers" />
+          <Part title="Part D: Creators and Suppliers" />
 
           <Section title="17. Creators and Suppliers">
             <p>This section applies if you supply equipment or services to {STUDIO.shortName} as a verified creator or partner. It does not apply to you as a customer.</p>
@@ -226,7 +226,7 @@ export default function LegalPage() {
             <p>Where disputes are opened against your account we may withhold payouts pending resolution. Accounts with three or more open disputes are suspended and their listings are removed from sale. We will tell you when this happens and why.</p>
           </Section>
 
-          <Part title="Part E — General" />
+          <Part title="Part E: General" />
 
           <Section title="18. Cancellations and Refunds">
             <p>Cancellation windows, deposit release, refund timeframes, faulty or misdescribed equipment, and your cooling off rights are all set out in our{' '}

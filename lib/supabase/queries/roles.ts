@@ -1,6 +1,7 @@
 import { createAdminClient, createClient } from '@/lib/supabase/server';
 import {
   blindLabel,
+  referenceLabel,
   bestDateOfBirth,
   confirmedJobCount,
   evidenceLevel,
@@ -13,6 +14,7 @@ import {
   recordLine,
   reveal,
   sanitizeFacts,
+  scrubPublicWork,
   durationLabel,
   arrivalLabel,
   effectiveUnit,
@@ -215,13 +217,13 @@ async function buildBlind(rows: PersonRole[], roles: Role[], opts: { withReviews
     const mine = evidence.filter((e) => e.person_role_id === pr.id);
     const reviews = (revRes.data ?? []).filter((r) => r.reviewee_id === pr.user_id);
     const ratings = reviews.map((r) => Number(r.rating)).filter((n) => Number.isFinite(n));
-    const work = mine.filter((e) => e.is_public && (e.kind === 'photo' || e.kind === 'video') && e.url && e.step_key !== 'face');
+    const work = mine.filter((e) => e.is_public && (e.kind === 'photo' || e.kind === 'video') && e.url && e.step_key !== 'face').map(scrubPublicWork);
     const comes = parseComesWith(pr.comes_with);
     const identityVerified = (profRes.data ?? []).find((p) => p.id === pr.user_id)?.verification_status === 'verified';
     out.push({
       personRole: publicPart(pr),
       role,
-      label: blindLabel(role.name, pr.area, pr.profile_code),
+      label: blindLabel(role.name, pr.area),
       work,
       facts: sanitizeFacts(pr.facts),
       comesWith: comes ? { ...comes, photos: work.filter((e) => comes.evidenceIds.includes(e.id)) } : null,
@@ -263,12 +265,12 @@ export async function getMyPreview(userId: string, slug: string): Promise<Public
   const evidence = ((ev ?? []) as unknown as RoleEvidence[]).map((e) => ({ ...e, is_public: e.kind !== 'document' && e.kind !== 'vouch' }));
   const role = roles.find((r) => r.slug === slug);
   if (!role) return null;
-  const work = evidence.filter((e) => e.is_public && (e.kind === 'photo' || e.kind === 'video') && e.url && e.step_key !== 'face');
+  const work = evidence.filter((e) => e.is_public && (e.kind === 'photo' || e.kind === 'video') && e.url && e.step_key !== 'face').map(scrubPublicWork);
   const comes = parseComesWith(pr.comes_with);
   return {
     personRole: publicPart(pr),
     role,
-    label: blindLabel(role.name, pr.area, pr.profile_code),
+    label: blindLabel(role.name, pr.area),
     work,
     facts: sanitizeFacts(pr.facts),
     comesWith: comes ? { ...comes, photos: work.filter((e) => comes.evidenceIds.includes(e.id)) } : null,
@@ -406,7 +408,7 @@ export async function getRequestForViewer(requestId: string, viewerId: string, o
     profileId: personRole.id,
     clientFirstName: clientFirst,
     status: req.status as RequestStatus,
-    who: { label: blind.label, roleName: blind.role.name, verified: blind.verified, record: blind.record.line, firstName: name, faceUrl: face },
+    who: { label: referenceLabel(blind.role.name, blind.personRole.area, blind.personRole.profile_code), roleName: blind.role.name, verified: blind.verified, record: blind.record.line, firstName: name, faceUrl: face },
     where: {
       area: req.area as string,
       address: decision.address ? ((req.address as string | null) ?? null) : null,
@@ -490,7 +492,7 @@ export async function listReviewQueue(status: PersonRole['status'] = 'submitted'
       personRole: pr,
       role,
       person: {
-        label: blindLabel(role.name, pr.area, pr.profile_code),
+        label: referenceLabel(role.name, pr.area, pr.profile_code),
         identityVerified,
         email: emails.get(pr.user_id) ?? null,
         displayName: (p.display_name as string | null) ?? null,
@@ -557,4 +559,30 @@ export async function heldProductions(): Promise<Map<string, string>> {
     if (!out.has(r.source_production_id)) out.set(r.source_production_id, r.person_role_id);
   }
   return out;
+}
+
+/**
+ * The live roles, and those with at least one approved person (the same rule
+ * as the /people chips), for pages that must only promise work someone can
+ * be booked for. Server key and no cookies, so a cached page (home) can call
+ * it. Any read error gives empty lists, and the pages fall back to generic words.
+ */
+export async function getOfferedRoles(): Promise<{ live: { slug: string; name: string }[]; offered: { slug: string; name: string }[] }> {
+  try {
+    const admin = createAdminClient();
+    const [roles, people] = await Promise.all([
+      admin.from('roles').select('slug, name, status, sort').eq('status', 'live').order('sort'),
+      admin.from('person_roles').select('role_slug').eq('status', 'approved').limit(500),
+    ]);
+    if (roles.error || people.error) {
+      console.error('[roles] getOfferedRoles:', roles.error?.message ?? people.error?.message);
+      return { live: [], offered: [] };
+    }
+    const live = ((roles.data ?? []) as { slug: string; name: string }[]).map((r) => ({ slug: r.slug, name: r.name }));
+    const approved = new Set(((people.data ?? []) as { role_slug: string }[]).map((p) => p.role_slug));
+    return { live, offered: live.filter((r) => approved.has(r.slug)) };
+  } catch (err) {
+    console.error('[roles] getOfferedRoles:', err instanceof Error ? err.message : 'unknown error');
+    return { live: [], offered: [] };
+  }
 }

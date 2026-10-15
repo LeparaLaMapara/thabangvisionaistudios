@@ -34,7 +34,8 @@ vi.mock('@/lib/supabase/server', () => {
   const client = { from: (t: string) => make(t) };
   return { createAdminClient: () => client, createClient: async () => client };
 });
-vi.mock('@/lib/features', () => ({ getFlag: async () => true }));
+// People (roles_v1) off: these cases cover the creator and studio sitemap; with People on they redirect (tests/unit/clarity-blockers.test.ts).
+vi.mock('@/lib/features', () => ({ getFlag: async (key: string) => key !== 'roles_v1' }));
 vi.mock('@/lib/ubunye-release', () => ({ getUbunyeRelease: async () => null }));
 
 // permanentRedirect throws in Next; record the target and throw the same way
@@ -56,6 +57,8 @@ vi.mock('next/navigation', () => ({
 // One item in every rental category except data-storage, which is empty.
 vi.mock('@/lib/supabase/queries/smartRentals', () => ({
   getPublishedRentalsByCategory: async () => [],
+  // Related categories on a city page link only stocked ones.
+  getRentalCategoryCounts: async () => ({ counts: [{ category: 'cameras-optics', count: 1 }], failed: false }),
   fetchPublishedRentalsByCategory: async (category: string) => ({
     rentals: category === 'data-storage' ? [] : [{ id: 'r1', slug: 'r1', category }],
     failed: false,

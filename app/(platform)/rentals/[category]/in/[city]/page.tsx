@@ -4,7 +4,7 @@ export const revalidate = 60;
 export const dynamicParams = true;
 
 import { notFound, redirect, permanentRedirect } from 'next/navigation';
-import { fetchPublishedRentalsByCategory } from '@/lib/supabase/queries/smartRentals';
+import { fetchPublishedRentalsByCategory, getRentalCategoryCounts } from '@/lib/supabase/queries/smartRentals';
 import { getRentalCityBySlug } from '@/lib/seo/cities';
 import { collectionPointWithCity } from '@/lib/rental/collection-point';
 import { isOnSiteCategory } from '@/lib/rental/on-site';
@@ -29,7 +29,7 @@ export async function generateMetadata({ params }: Props) {
   if (!city || (isOnSiteCategory(category) && city.name !== STUDIO.location.city)) permanentRedirect(`/rentals/${category}`);
   const locationName = city.name;
 
-  const title = `${cat.label} Rentals in ${locationName}`;
+  const title = isOnSiteCategory(category) ? `${cat.label} in ${locationName}` : `${cat.label} for ${locationName} shoots, collected or delivered`;
   const description = isOnSiteCategory(category)
     ? `Browse ${cat.label.toLowerCase()} for hire. ${cat.description} In ${collectionPointWithCity()}. Book online with ${STUDIO.name}.`
     : `Browse ${cat.label.toLowerCase()} for hire. ${cat.description} Collected at ${collectionPointWithCity()}; delivery within ${STUDIO.fulfilment.delivery.maxRadiusKm} km after your first hire. Book online with ${STUDIO.name}.`;
@@ -63,7 +63,10 @@ export default async function RentalLocationPage({ params }: Props) {
 
   // Same read as the category page: a failed read shows an error with a retry,
   // not "nothing here", and a capped list says there is more.
-  const { rentals, failed, hasMore } = await fetchPublishedRentalsByCategory(category);
+  const [{ rentals, failed, hasMore }, { counts }] = await Promise.all([
+    fetchPublishedRentalsByCategory(category),
+    getRentalCategoryCounts(),
+  ]);
 
   // No stock in the category: no category page, so no city page either.
   if (!failed && rentals.length === 0) notFound();
@@ -99,7 +102,7 @@ export default async function RentalLocationPage({ params }: Props) {
         loadFailed={failed}
         hasMore={hasMore}
       />
-      <RelatedCategories currentSlug={category} type="rentals" locationSlug={citySlug} />
+      <RelatedCategories currentSlug={category} type="rentals" locationSlug={citySlug} stocked={counts.map((c) => c.category)} />
     </>
   );
 }

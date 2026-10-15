@@ -13,6 +13,8 @@ import {
 
 interface DashboardTabBarProps {
   isCreator: boolean;
+  /** People (roles_v1) is on: the Studio tab opens gear listings, not Gigs. */
+  people?: boolean;
 }
 
 interface Tab {
@@ -80,11 +82,13 @@ const TABS: Tab[] = [
   },
 ];
 
-export function DashboardTabBar({ isCreator }: DashboardTabBarProps) {
+export function DashboardTabBar({ isCreator, people = false }: DashboardTabBarProps) {
   const pathname = usePathname();
   const [unreadCount, setUnreadCount] = useState(0);
 
-  const visibleTabs = TABS.filter((t) => !t.creatorOnly || isCreator);
+  const visibleTabs = TABS.filter((t) => !t.creatorOnly || isCreator).map((t) =>
+    people && t.id === 'studio' ? { ...t, href: '/dashboard/listings' } : t,
+  );
 
   const fetchUnread = useCallback(async () => {
     try {

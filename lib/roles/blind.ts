@@ -2,7 +2,7 @@
  * Equal chance: what an unbooked viewer may see. Pure.
  *
  * Clients choose on the work, the record and the price. Before a confirmed
- * booking a profile shows a neutral label ("Make-up artist, Soweto, MA-1042"),
+ * booking a profile shows a neutral label ("Make-up artist in Soweto"),
  * never a face and never a name: names signal gender and ethnicity.
  */
 
@@ -13,8 +13,25 @@ export const PUBLIC_PERSON_ROLE_COLUMNS =
 /** Fields that identify a person. Never in a blind payload, never in an embedding. */
 export const IDENTITY_FIELDS = ['user_id', 'display_name', 'first_name', 'last_name', 'full_name', 'avatar_url', 'face', 'face_url', 'selfie_with_id_path', 'email', 'phone', 'answers'] as const;
 
-export function blindLabel(roleName: string, area: string | null | undefined, code: string | null | undefined): string {
-  return [roleName, area?.trim() || null, code || null].filter(Boolean).join(' · ');
+/**
+ * The public heading of a blind profile: "Photographer in Johannesburg".
+ * No profile code: a code like PV-1004 is internal and reads like a database
+ * row (clarity audit 2026-10-15, C4). Use referenceLabel where a booking
+ * reference is genuinely needed.
+ */
+export function blindLabel(roleName: string, area: string | null | undefined): string {
+  const where = area?.trim();
+  return where ? `${roleName} in ${where}` : roleName;
+}
+
+/**
+ * The label with the profile code as a reference, for the booking request
+ * and its confirmation (and staff screens), where both sides need to name
+ * the same profile: "Photographer in Johannesburg (ref PV-1004)".
+ */
+export function referenceLabel(roleName: string, area: string | null | undefined, code: string | null | undefined): string {
+  const label = blindLabel(roleName, area);
+  return code ? `${label} (ref ${code})` : label;
 }
 
 /** "Thandi Mokoena" -> "T.M."; empty for nothing. Reviews show initials only. */
@@ -48,4 +65,19 @@ export function findIdentityFields(value: unknown, path = ''): string[] {
  */
 export function selfieIsProof(roleSlug: string): boolean {
   return roleSlug === 'model';
+}
+
+/** Evidence fields a browser never needs for a work gallery (device, dates, notes, links back to a person). */
+export const PRIVATE_EVIDENCE_FIELDS = ['storage_ref', 'device_summary', 'captured_at', 'note', 'booking_id', 'verified_at', 'source_production_id', 'legal_code', 'on_time'] as const;
+
+/**
+ * A work item as a blind profile may send it to the browser: the picture and
+ * how to lay it out, nothing else. storage_ref (a path with the person's
+ * user id), the phone's make and model, dates, notes and the package it came
+ * from are nulled (security re-check 2026-10-15, M1). Pure.
+ */
+export function scrubPublicWork<T extends Partial<Record<(typeof PRIVATE_EVIDENCE_FIELDS)[number], unknown>>>(item: T): T {
+  const out = { ...item } as Record<string, unknown>;
+  for (const k of PRIVATE_EVIDENCE_FIELDS) if (k in out) out[k] = null;
+  return out as T;
 }

@@ -22,7 +22,7 @@ import { createClient } from '@/lib/supabase/client';
 import { DateRangePicker, type DateRange } from '@/components/ui/DateRangePicker';
 import { calculateItemPrice, depositPerUnit } from '@/lib/cart/pricing';
 import { ON_SITE_RENTAL, RENTAL_POLICY, STUDIO } from '@/lib/constants';
-import { halfDayPrice, isOnSiteCategory } from '@/lib/rental/on-site';
+import { halfDayPrice, isOnSiteCategory, studioNeeds } from '@/lib/rental/on-site';
 import { collectionPointWithCity } from '@/lib/rental/collection-point';
 import { whatsappLink } from '@/lib/payments/eft';
 import { earliestBookableDate, leadTimeMessage, studioLeadTimeMessage } from '@/lib/rental/leadTime';
@@ -31,6 +31,7 @@ import type { SmartRental } from '@/lib/supabase/queries/smartRentals';
 import type { ReadinessItem, RentalReadiness } from '@/lib/rental/eligibility-server';
 import { formatRand } from '@/lib/format/money';
 import { itemValue } from '@/lib/rental/protection';
+import { gearLimitNote } from '@/lib/rental/limit-note';
 import { usePaymentsOpen } from '@/lib/payments/usePaymentsOpen';
 import { PaymentsNotOpenNote } from '@/components/booking/PaymentsNotOpenNote';
 import { reportFunnel } from '@/lib/analytics/client';
@@ -198,6 +199,31 @@ function SignedOutSummary({ highValue }: { highValue: boolean }) {
   );
 }
 
+/** What booking a studio needs, from the rules checkout enforces (lib/rental/on-site studioNeeds). */
+function StudioNeeds({ valueCents, title }: { valueCents: number; title: string }) {
+  return (
+    <section aria-label={ON_SITE_RENTAL.needsTitle} className="border border-white/10 bg-[#0A0A0B] p-4 space-y-2">
+      <p className="text-xs font-mono uppercase tracking-widest text-neutral-400">{ON_SITE_RENTAL.needsTitle}</p>
+      <ul className="space-y-1.5 text-xs font-mono text-neutral-300 list-disc pl-4">
+        {studioNeeds(valueCents).map((line) => (
+          <li key={line}>{line}</li>
+        ))}
+        <li>
+          {ON_SITE_RENTAL.bookingRule}{' '}
+          <a
+            href={whatsappLink(ON_SITE_RENTAL.halfDayMessage(title))}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex min-h-[44px] items-center text-[#D4A843] underline underline-offset-4"
+          >
+            WhatsApp us
+          </a>
+        </li>
+      </ul>
+    </section>
+  );
+}
+
 /**
  * Pick dates, see the price and what you need, book.
  *
@@ -303,6 +329,11 @@ function BookingWidgetInner({ rental, paymentsOpen: paymentsOpenProp }: Props) {
   const highValue =
     Math.round(itemValue(rental as { replacement_value?: number | null; deposit_amount?: number | null }) * 100) >
     RENTAL_POLICY.highValueCollectionThresholdCents;
+
+  // Above a new account's limit: said before dates are picked, from the
+  // rules checkout enforces. Hidden once the renter's own limit covers it.
+  const valueCents = Math.round(itemValue(rental as { replacement_value?: number | null; deposit_amount?: number | null }) * 100);
+  const limitNote = isOnSiteCategory(rental.category) ? null : gearLimitNote(valueCents);
 
   // A place (the Studios category): booked by the full day and used where it
   // is; a half day is arranged on WhatsApp (bookings are whole days).
@@ -442,7 +473,7 @@ function BookingWidgetInner({ rental, paymentsOpen: paymentsOpenProp }: Props) {
       ? rangeCheck.message
       : dateRange.start && !dateRange.end
         ? place
-          ? 'Now choose the day after your last studio day. One full day: your day, then the next.'
+          ? ON_SITE_RENTAL.tapsNext
           : 'Now choose the return day. A one-day hire is returned the next day.'
         : undefined;
 
@@ -469,7 +500,7 @@ function BookingWidgetInner({ rental, paymentsOpen: paymentsOpenProp }: Props) {
       className="w-full flex items-center justify-center gap-2 min-h-[44px] py-2.5 border border-emerald-500/30 text-emerald-400 text-xs font-mono font-bold uppercase tracking-widest hover:opacity-80 transition-all"
     >
       <Check className="w-3.5 h-3.5" aria-hidden="true" />
-      Added — View Cart
+      Added. View cart
     </Link>
   ) : (
     <button
@@ -540,6 +571,13 @@ function BookingWidgetInner({ rental, paymentsOpen: paymentsOpenProp }: Props) {
         )}
       </div>
 
+      {limitNote && (!isLoggedIn || (readiness !== null && readiness.limitCents < valueCents)) && (
+        <p className="flex items-start gap-2 border border-[#D4A843]/30 bg-[#D4A843]/5 p-3 text-xs font-mono text-neutral-200 leading-relaxed" data-testid="limit-note">
+          <Info className="w-3.5 h-3.5 mt-0.5 flex-shrink-0 text-[#D4A843]" aria-hidden="true" />
+          <span>{limitNote}</span>
+        </p>
+      )}
+
       {error && (
         <p role="alert" className="text-xs font-mono text-red-400">
           {error}
@@ -562,7 +600,7 @@ function BookingWidgetInner({ rental, paymentsOpen: paymentsOpenProp }: Props) {
         <p className="text-xs font-mono text-neutral-400 leading-relaxed">
           {noticeMessage}{' '}
           {place
-            ? 'Full days only online: choose your studio day, then the next day (two days: your first day, then the day after the last).'
+            ? `${ON_SITE_RENTAL.bookingRule} ${ON_SITE_RENTAL.tapsHelp}`
             : 'Pick up on the first day, return on the last.'}
         </p>
 
@@ -668,7 +706,14 @@ function BookingWidgetInner({ rental, paymentsOpen: paymentsOpenProp }: Props) {
           <p className="text-xs font-mono text-neutral-400 text-center">
             {datesReady ? 'You sign in next. Your dates are kept.' : 'Choose your dates above to see the price.'}
           </p>
-          <SignedOutSummary highValue={highValue} />
+          {place ? (
+            <StudioNeeds
+              valueCents={Math.round(itemValue(rental as { replacement_value?: number | null; deposit_amount?: number | null }) * 100)}
+              title={rental.title}
+            />
+          ) : (
+            <SignedOutSummary highValue={highValue} />
+          )}
         </div>
       ) : canPay ? (
         <div className="space-y-4">
@@ -743,13 +788,15 @@ function BookingWidgetInner({ rental, paymentsOpen: paymentsOpenProp }: Props) {
           itself once online payment opens (onlinePaymentsOpen). */}
       <PaymentsNotOpenNote open={paymentsOpen} />
 
-      {/* Info line */}
-      <div className="flex items-start gap-2 text-xs font-mono text-neutral-400">
-        <Info className="w-3 h-3 mt-0.5 flex-shrink-0" aria-hidden="true" />
-        <span>
-          Renting 3 or more items? Add them to your cart for a bulk discount.
-        </span>
-      </div>
+      {/* Info line (gear only: a studio is booked on its own, not in a cart for a discount) */}
+      {!place && (
+        <div className="flex items-start gap-2 text-xs font-mono text-neutral-400">
+          <Info className="w-3 h-3 mt-0.5 flex-shrink-0" aria-hidden="true" />
+          <span>
+            Renting 3 or more items? Add them to your cart for a bulk discount.
+          </span>
+        </div>
+      )}
     </motion.div>
   );
 }

@@ -177,16 +177,20 @@ export const STUDIO = {
       email: 'hello@thabangvision.com',
       isPrimary: true,
     },
+    // The only studio (owner 2026-10-15): ThaBangVision Studio Labs, at the
+    // same place as the collection point and booked under Rentals > Studios.
+    // There is no Pretoria studio; do not list one.
     {
-      name: 'Pretoria Studio',
-      address: 'By appointment.',
-      city: 'Pretoria',
+      name: 'ThaBangVision Studio Labs',
+      address: 'Dainfern, Fourways, Johannesburg. Book it online under Rentals, then Studios.',
+      city: 'Johannesburg',
       province: 'Gauteng',
       phone: '',
       email: 'hello@thabangvision.com',
       isPrimary: false,
+      href: '/rentals/studios',
     },
-  ],
+  ] as readonly { name: string; address: string; city: string; province: string; phone: string; email: string; isPrimary: boolean; href?: string }[],
 
   nav: {
     sections: [
@@ -657,8 +661,22 @@ export const SITE_SUFFIX = '.LAB';
 export const SITE_TAGLINE = 'Rent camera gear in Johannesburg';
 export const SITE_COPYRIGHT = `© ${new Date().getFullYear()} ${STUDIO.legal.companyName} (reg. ${STUDIO.legal.registrationNumber}), trading as ${STUDIO.shortName}. All rights reserved.`;
 
+// ─── PRESS NOTES ──────────────────────────────────────────────────────────────
+// A dated note shown at the top of a press article, keyed by its slug, for
+// articles that describe something not live (articles live in the database).
+export const PRESS_NOTES: Record<string, { date: string; text: string }> = {
+  // The student programme is planned, not built (docs/tasks/todo/TASK-086.md).
+  'making-film-equipment-accessible-to-students': {
+    date: '2026-10-15',
+    text: 'The student verification programme in this article is planned, not live yet. For now students pay the same deposit as everyone else.',
+  },
+};
+
 // CONFIGURATION FLAGS
-export const SHOW_CAREERS = true;
+// Careers is hidden (owner 2026-10-15): no roles are really open. False
+// sends /careers to /contact, drops it from the sitemap, the footer, About,
+// search and Ubunye. Set true to bring it all back.
+export const SHOW_CAREERS = false;
 
 // ─── CREATOR JOIN ────────────────────────────────────────────────────────────
 // The way in for a creator who wants to offer their services: the home page,
@@ -674,7 +692,9 @@ export const SHOW_CAREERS = true;
 export const EARN = {
   label: `Earn with ${STUDIO.shortName}`,
   copy: 'Offer your skills, your gear or your vehicle.',
-  href: '/offer',
+  // The public Earn page (who can earn, what we keep, when you are paid).
+  // Every Earn and Join link goes here; its button starts the sign-up.
+  href: '/earn',
   homeTitle: `Earn with ${STUDIO.shortName}`,
   homeText: 'Make-up, modelling, driving, photos, video, sound or gear: offer your skills, your gear or your vehicle. No portfolio needed.',
 } as const;
@@ -692,15 +712,15 @@ export const RENTALS_COMING_SOON: readonly { label: string; category?: string }[
 
 export const CREATOR_JOIN = {
   href: '/onboarding',
-  ctaLabel: 'Join as a Creator',
+  ctaLabel: `Earn with ${STUDIO.shortName}`,
   homeTitle: 'Get Booked',
   homeText: 'Photographer, videographer, editor or sound person? Join free, set up your profile and get booked for shoots.',
   loginLine: 'Want to get booked?',
   footerLabel: `Earn with ${STUDIO.shortName}`,
-  emptyDirectoryTitle: 'No creators yet',
+  emptyDirectoryTitle: 'Nobody here yet',
   emptyDirectoryText:
-    'Verified creators appear here once their profiles and portfolios are ready. Are you a photographer, videographer, editor or sound person? Join and get booked.',
-  emptyDirectoryCta: 'Offer your services',
+    'People appear here once their profiles and portfolios are ready. Are you a photographer, videographer, editor or sound person? Earn with us.',
+  emptyDirectoryCta: `Earn with ${STUDIO.shortName}`,
 } as const;
 
 export const MAIN_NAVIGATION: {
@@ -726,7 +746,7 @@ export const FOOTER_SECTIONS = [
       { label: 'Rentals', href: '/rentals' },
       // The list of bookable creators. Nothing linked to it, so neither
       // visitors nor crawlers could find it.
-      { label: 'Creators', href: '/smart-creators' },
+      { label: 'People', href: '/smart-creators' },
       { label: 'Where to Collect', href: '/locations' },
       { label: 'About', href: '/about' },
       ...(SHOW_CAREERS ? [{ label: 'Careers', href: '/careers' }] : []),
@@ -740,12 +760,13 @@ export const FOOTER_SECTIONS = [
       { label: 'Sign In', href: '/login' },
       { label: 'Create Account', href: '/register' },
       { label: 'Dashboard', href: '/dashboard' },
-      { label: CREATOR_JOIN.footerLabel, href: CREATOR_JOIN.href },
+      { label: CREATOR_JOIN.footerLabel, href: '/earn' },
     ],
   },
   {
     title: 'Support',
     links: [
+      { label: 'Help and FAQ', href: '/faq' },
       { label: 'How to Pay', href: '/pay' },
       { label: 'How Pricing Works', href: '/pricing' },
       { label: 'Contact', href: '/contact' },
@@ -821,7 +842,7 @@ export const RENTAL_CATEGORIES = [
   },
   {
     value: 'specialized-solutions',
-    label: 'Specialized Solutions',
+    label: 'Specialised Solutions',
     subtitle: 'Specialist Kit',
     description: 'Radios and other specialist equipment.',
     fallbackImage: PLACEHOLDER_IMAGES.specializedSolutions,
@@ -862,7 +883,16 @@ export const RENTAL_CATEGORIES = [
  */
 export const ON_SITE_RENTAL = {
   categories: ['studios'] as readonly string[],
-  minimumBooking: 'Half day',
+  // The one studio, always written this way (owner 2026-10-15).
+  studioName: 'ThaBangVision Studio Labs',
+  studiosPath: '/rentals/studios',
+  // One rule: full days online, a half day on WhatsApp (no "minimum booking" row).
+  bookingRule: 'Book full days here. For a half day, WhatsApp us.',
+  // The calendar's last tap is the day after the last studio day (the same
+  // date rule as gear and checkout), so the taps are spelled out.
+  tapsHelp: 'One day: tap your day, then tap the next day. More days: tap your first day, then the day after your last.',
+  tapsNext: 'Now tap the day after your last studio day. For one day, that is the next day.',
+  needsTitle: 'What you need to book the studio',
   fullDayLabel: 'Full day',
   halfDayLabel: 'Half day',
   halfDayAsk: 'ask us',
@@ -1211,15 +1241,16 @@ export const ROLES_POLICY = {
   captureFreshnessMinutes: 15,
   /** The person may move the suggested price within the role's low..high band. */
   pricing: {
+    // The same words as formatRate (lib/format/money.ts): "R1 800 a day".
     unitLabels: {
-      hour: 'per hour',
-      half_day: 'per half day',
-      day: 'per day',
-      look: 'per look',
-      day_plus_km: 'per day',
-      project: 'per project',
+      hour: 'an hour',
+      half_day: 'a half day',
+      day: 'a day',
+      look: 'a look',
+      day_plus_km: 'a day',
+      project: 'a project',
     },
-    perKmLabel: 'per km',
+    perKmLabel: 'a km',
   },
   /** Words clients see. Hide the machinery: one mark, a real count, the promise. */
   copy: {
@@ -1227,13 +1258,19 @@ export const ROLES_POLICY = {
     verifiedHelp: 'ID checked, and every legal check this kind of work needs.',
     newOnPlatform: `New on ${STUDIO.shortName}`,
     jobsDone: (n: number): string => `${n} job${n === 1 ? '' : 's'} done on ${STUDIO.shortName}`,
-    promise: `${STUDIO.shortName} stands behind every booking. We hold your payment until the work is delivered. If something goes wrong, we find a replacement or refund you.`,
+    // Only what the request loop really does (lib/roles/request-loop.ts):
+    // no held payment, no refund or replacement promise for People.
+    promise: `Nothing is paid when you ask. We check the date with them and email you within 1 working day. If they can do it, you pay by EFT to our business account, and your booking is confirmed once the payment shows.`,
     reviewPromise: 'A person on our team will look at it, usually within 2 working days. If something needs fixing, we tell you exactly how.',
     facePrompt: 'Clients only see it after they book you, so everyone is chosen for their work.',
-    done: 'Done. A person will check it within 2 working days.',
+    done: 'Sent. A person on our team checks it within 2 working days.',
     blindNote: 'Chosen for the work. You see who is coming once your booking is confirmed.',
     recordLine: (jobs: number, onTime: number | null): string =>
       jobs === 0 ? `New on ${STUDIO.shortName}` : `${jobs} job${jobs === 1 ? '' : 's'}${onTime === null ? '' : ` · on time ${onTime}/${jobs}`}`,
+  },
+  /** People requests (migration 095): how soon a client hears back. Keep copy.promise in step. */
+  requests: {
+    replyWithinWorkingDays: 1,
   },
   /** Matching (admin only for now): score weights and the fair "new" slots. */
   matching: {
@@ -1317,7 +1354,9 @@ export const CAPABILITIES_PEOPLE = [
   },
   {
     title: 'People',
-    subtitle: 'Photographers, make-up artists, models and drivers',
+    // Replaced on the home page by the kinds of work someone approved offers
+    // (lib/roles/offered.ts); this is the fallback when that cannot be read.
+    subtitle: 'People for your shoot',
     image: PLACEHOLDER_IMAGES.smartProductions,
     link: '/people',
   },
@@ -1326,7 +1365,10 @@ export const CAPABILITIES_PEOPLE = [
 export const HOME_PEOPLE = {
   titleTop: 'Gear and people',
   titleBottom: 'for your shoot.',
-  peopleLine: 'Book photographers, make-up artists, models and drivers, chosen on their work.',
+  // Fallbacks: the home page names only the kinds of work someone approved
+  // offers (lib/roles/offered.ts peopleWords).
+  peopleLine: 'Book people for your shoot, chosen on their work.',
+  offerLine: 'Camera gear to rent, and people to book for your shoot.',
   rentLabel: 'Rent gear',
   peopleLabel: 'Book people',
   peopleHref: '/people',
@@ -1435,19 +1477,19 @@ export const PRODUCTION_CATEGORIES: ProductionCategory[] = [
 
 export const PRODUCTION_SERVICES = {
   photography: {
-    portrait: { rate: 1500, unit: "hour", description: "Portrait / Headshot — Studio or on-location, includes lighting setup" },
-    commercial: { rate: 1500, unit: "hour", description: "Commercial / Product — Products, branding, look-book, flat-lay" },
-    lifestyle: { rate: 1500, unit: "hour", description: "Lifestyle / Editorial — Outdoor narrative sessions, full art direction" },
+    portrait: { rate: 1500, unit: "hour", description: "Portrait / Headshot: Studio or on-location, includes lighting setup" },
+    commercial: { rate: 1500, unit: "hour", description: "Commercial / Product: Products, branding, look-book, flat-lay" },
+    lifestyle: { rate: 1500, unit: "hour", description: "Lifestyle / Editorial: Outdoor narrative sessions, full art direction" },
   },
   cinematography: {
-    shortForm: { rate: 2850, unit: "hour", description: "Short-Form Video — TikTok / IG optimized, 4K capture" },
-    musicVideo: { rate: 2850, unit: "hour", description: "Music Video Production — Multi-setup shoot, advanced SFX, cinema glass" },
-    corporate: { rate: 2850, unit: "hour", description: "Corporate / Industrial Film — 2-camera setup, script assist, voice-over" },
+    shortForm: { rate: 2850, unit: "hour", description: "Short-Form Video: TikTok / IG optimized, 4K capture" },
+    musicVideo: { rate: 2850, unit: "hour", description: "Music Video Production: Multi-setup shoot, advanced SFX, cinema glass" },
+    corporate: { rate: 2850, unit: "hour", description: "Corporate / Industrial Film: 2-camera setup, script assist, voice-over" },
   },
   postProduction: {
-    photoRetouch: { rate: 650, unit: "hour", description: "Photo Retouching & Colour Grading — Skin retouch, compositing, tone matching" },
-    videoEdit: { rate: 650, unit: "hour", description: "Video Editing & Assembly — Rough cut through final master, audio sync" },
-    cinemaGrade: { rate: 650, unit: "hour", description: "Cinema Colour Grade / SFX — DaVinci Resolve grade, motion graphics, VFX" },
+    photoRetouch: { rate: 650, unit: "hour", description: "Photo Retouching & Colour Grading: Skin retouch, compositing, tone matching" },
+    videoEdit: { rate: 650, unit: "hour", description: "Video Editing & Assembly: Rough cut through final master, audio sync" },
+    cinemaGrade: { rate: 650, unit: "hour", description: "Cinema Colour Grade / SFX: DaVinci Resolve grade, motion graphics, VFX" },
   },
   // Travel, fuel surcharge, overtime, instalments and the "competitive edge"
   // claims were removed 2026-10-08 (Phase 0): nothing in the product charged
@@ -1567,6 +1609,14 @@ export const UBUNYE_QUICK_ACTIONS: readonly QuickAction[] = [
     icon: 'Scale',
     prompt: `Give me a breakdown of typical production costs in ${STUDIO.currency.code} for a 1-minute commercial in ${STUDIO.location.country}.`,
   },
+] as const;
+
+// The Ask Ubunye page's example questions under the box (clarity audit C12:
+// just the box and two or three examples). Questions the catalogue answers.
+export const UBUNYE_LANDING_QUESTIONS: readonly string[] = [
+  'What camera can I rent for a weekend, and what does it cost?',
+  'Which lens should I rent for portraits?',
+  'What do I need before I can rent gear?',
 ] as const;
 
 export const UBUNYE_EXAMPLE_PROMPTS: readonly string[] = [

@@ -6,6 +6,7 @@ import type {
   SearchOptions,
 } from './types';
 import { filterIlikePattern } from './types';
+import { SHOW_CAREERS } from '@/lib/constants';
 
 // ─── Supabase Search Provider ───────────────────────────────────────────────
 
@@ -115,7 +116,7 @@ export const supabaseSearch: SearchProvider = {
       });
     }
 
-    for (const c of careers.data ?? []) {
+    for (const c of SHOW_CAREERS ? careers.data ?? [] : []) {
       results.push({
         id: c.id,
         title: c.title,

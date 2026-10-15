@@ -50,17 +50,19 @@ begin
   raise notice 'PASS 3: proof formats and code prefixes';
 end $$;
 
--- 4. As person A: a new draft gets a neutral code; evidence can still be added
---    (the insert policy reads user_id without a column grant).
+-- 4. As person A: a new draft gets a neutral code; evidence is added (by the
+--    server since 094) and facts saved.
 set local role authenticated;
 select set_config('request.jwt.claims', json_build_object('sub', '00000000-0000-4000-8000-0000000910a1', 'role', 'authenticated')::text, true);
 
 insert into public.person_roles (user_id, role_slug, headline, price_cents)
 values ('00000000-0000-4000-8000-0000000910a1', 'model', 't091 model', 45000);
 
+reset role;
 insert into public.role_evidence (person_role_id, step_key, kind, source, media_kind, url)
 select id, 'digitals', 'photo', 'captured_in_app', 'image', 'https://res.cloudinary.com/demo/image/upload/x.jpg'
   from public.person_roles where headline = 't091 model';
+set local role authenticated;
 
 do $$
 begin

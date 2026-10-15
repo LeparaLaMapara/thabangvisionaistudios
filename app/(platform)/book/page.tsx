@@ -10,6 +10,7 @@ import BookConfirmation from './BookConfirmation';
 import { getBookablePackage } from '@/lib/bookings/packages';
 import { quoteHourly, quotePackage, packageUnitWords } from '@/lib/bookings/pricing';
 import { onlinePaymentsOpen } from '@/lib/payments/status';
+import { getFlag } from '@/lib/features';
 
 interface BookPageProps {
   searchParams: Promise<{
@@ -25,6 +26,10 @@ interface BookPageProps {
 }
 
 export default async function BookPage({ searchParams }: BookPageProps) {
+  // With People on, a person is booked on /people at the price on their
+  // profile. This older hourly and package flow (and its creator names
+  // before payment) is not reachable then.
+  if (await getFlag('roles_v1')) redirect('/people');
   const params = await searchParams;
   const supabase = await createClient();
   const {

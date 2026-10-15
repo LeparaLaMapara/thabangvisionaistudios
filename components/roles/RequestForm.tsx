@@ -3,11 +3,12 @@
 import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Loader2, Plus, X } from 'lucide-react';
-import { bookingTotal, formatRands, pricedByDays, type PricingUnit } from '@/lib/roles';
+import { bookingTotal, formatRands, pricedByDays, REQUEST_NEXT_STEPS, type PricingUnit } from '@/lib/roles';
 
 /**
  * Ask to book, like Rentals: pick the day or days (or the hours, for an
- * hourly person) and see the one total before sending. No payment yet.
+ * hourly person) and see the one total before sending. Nothing is paid here:
+ * what happens next is spelled out under the button (lib/roles/request-loop.ts).
  */
 export function RequestForm({
   personRoleId,
@@ -120,7 +121,12 @@ export function RequestForm({
       <button type="submit" disabled={busy} className="w-full min-h-[52px] bg-accent-gold text-black text-sm font-mono font-bold uppercase tracking-widest flex items-center justify-center gap-2 disabled:opacity-50">
         {busy && <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />} Send request
       </button>
-      <p className="text-xs text-neutral-500">No payment now. We confirm the booking with you first; then payment is held until the work is done.</p>
+      <div className="text-xs text-neutral-400 space-y-1">
+        <p className="text-neutral-300">What happens next</p>
+        <ol className="list-decimal pl-4 space-y-1">
+          {REQUEST_NEXT_STEPS.map((s) => <li key={s}>{s}</li>)}
+        </ol>
+      </div>
     </form>
   );
 }

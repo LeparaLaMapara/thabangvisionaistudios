@@ -2,12 +2,16 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { EARN } from '@/lib/constants';
+import { HIDDEN_WITH_PEOPLE, PEOPLE_PROFILE_HREF } from './PeopleMode';
 
 interface DashboardSidebarProps {
   /** Offers gear or services (verified, and not a renter-only account): sees the studio tools and payouts. */
   isCreator: boolean;
   /** ID check done. Defaults to isCreator for callers that only pass that. */
   isVerified?: boolean;
+  /** People (roles_v1) is on: one "My People profile" entry instead of Gigs, Portfolio and the Pricing Guide. */
+  people?: boolean;
 }
 
 interface NavItem {
@@ -49,21 +53,25 @@ const STUDIO_TOOLS: NavGroup = {
  * until the ID check is done, and a way in to offering gear or services for
  * a verified renter.
  */
-export function sidebarGroups(isCreator: boolean, isVerified: boolean): NavGroup[] {
+export function sidebarGroups(isCreator: boolean, isVerified: boolean, people = false): NavGroup[] {
   const account: NavItem[] = [{ href: '/dashboard/profile', label: 'Profile' }];
   if (isCreator) account.push({ href: '/dashboard/banking', label: 'Payouts' });
   account.push({ href: '/dashboard/notifications', label: 'Notifications' });
   if (!isVerified) account.push({ href: '/dashboard/verification', label: 'Get Verified' });
-  if (isVerified && !isCreator) account.push({ href: '/onboarding', label: 'Offer gear or services' });
+  if (isVerified && !isCreator) account.push(people ? { href: PEOPLE_PROFILE_HREF, label: EARN.label } : { href: '/onboarding', label: 'Offer gear or services' });
+
+  const studio: NavGroup = people
+    ? { title: STUDIO_TOOLS.title, items: [{ href: PEOPLE_PROFILE_HREF, label: 'My People profile' }, ...STUDIO_TOOLS.items.filter((i) => !HIDDEN_WITH_PEOPLE.includes(i.href))] }
+    : STUDIO_TOOLS;
 
   return [
     ACTIVITY,
-    ...(isCreator ? [STUDIO_TOOLS] : []),
+    ...(isCreator ? [studio] : []),
     { title: 'Account', items: account },
   ];
 }
 
-export function DashboardSidebar({ isCreator, isVerified = isCreator }: DashboardSidebarProps) {
+export function DashboardSidebar({ isCreator, isVerified = isCreator, people = false }: DashboardSidebarProps) {
   const pathname = usePathname();
 
   const isActive = (href: string, exact?: boolean) => {
@@ -71,7 +79,7 @@ export function DashboardSidebar({ isCreator, isVerified = isCreator }: Dashboar
     return pathname === href || pathname.startsWith(href + '/');
   };
 
-  const groups = sidebarGroups(isCreator, isVerified);
+  const groups = sidebarGroups(isCreator, isVerified, people);
 
   return (
     <nav className="space-y-6">

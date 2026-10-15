@@ -86,6 +86,10 @@ export function evidencePhotoList(raw: unknown): string[] | null {
       return null;
     }
     if (url.protocol !== 'https:' || url.hostname !== 'res.cloudinary.com' || url.username || url.password || url.port) return null;
+    // Our own Cloudinary account only, when it is known (any account's
+    // images used to pass).
+    const cloud = process.env.CLOUDINARY_CLOUD_NAME;
+    if (cloud && !url.pathname.startsWith(`/${cloud}/`)) return null;
     out.push(url.href);
   }
   return out;

@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { BadgeCheck, Briefcase, CalendarPlus, MapPin, Package, ShieldCheck, Star } from 'lucide-react';
 import { ROLES_POLICY } from '@/lib/constants';
-import { effectiveUnit, factsSummary, formatRolePrice, groupAlbums, selfieIsProof } from '@/lib/roles';
+import { earningsLine, effectiveUnit, factsSummary, formatRolePrice, groupAlbums, selfieIsProof } from '@/lib/roles';
 import { AlbumGallery } from './AlbumGallery';
 import type { PublicRoleProfile } from '@/lib/supabase/queries/roles';
 import type { RoleEvidence } from '@/lib/roles';
@@ -52,7 +52,6 @@ export function RoleProfile({ profile, preview = false }: { profile: PublicRoleP
       )}
 
       <div className={`max-w-3xl mx-auto px-4 relative ${hero ? '-mt-12' : 'pt-8'}`}>
-        <p className="text-xs font-mono uppercase tracking-widest text-accent-gold mb-2">{role.name}</p>
         <h1 className="text-3xl font-display font-medium text-white mb-1">{label}</h1>
         {personRole.headline && <p className="text-lg text-neutral-300 mb-3">{personRole.headline}</p>}
 
@@ -98,7 +97,7 @@ export function RoleProfile({ profile, preview = false }: { profile: PublicRoleP
 
         <div className="border border-white/10 bg-white/[0.02] p-4 mb-6">
           <p className="text-2xl text-white font-display">{formatRolePrice(unit, price, personRole.per_km_cents)}</p>
-          <p className="text-xs text-neutral-500 mt-1">The price you pay. Shown before you book.</p>
+          <p className="text-xs text-neutral-500 mt-1">{preview ? earningsLine(unit, price) : 'The price you pay. Shown before you book.'}</p>
           {preview ? (
             <p className="mt-4 text-sm text-neutral-400">Clients see a &ldquo;Request a booking&rdquo; button here.</p>
           ) : (

@@ -2,6 +2,7 @@
 // Generates embeddings for content and stores them in the content_embeddings table.
 
 import { generateEmbedding, isEmbeddingConfigured } from './embeddings';
+import { formatRate } from '@/lib/format/money';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -23,8 +24,8 @@ function buildRentalContent(item: Record<string, unknown>): string {
     item.model ? `Model: ${item.model}` : null,
     item.category ? `Category: ${item.category}` : null,
     item.description ? `Description: ${item.description}` : null,
-    item.price_per_day ? `Price: R${item.price_per_day}/day` : null,
-    item.price_per_week ? `Weekly: R${item.price_per_week}/week` : null,
+    item.price_per_day ? `Price: ${formatRate(Number(item.price_per_day), 'day')}` : null,
+    item.price_per_week ? `Weekly: ${formatRate(Number(item.price_per_week), 'week')}` : null,
     Array.isArray(item.features) && item.features.length > 0
       ? `Features: ${(item.features as string[]).join(', ')}`
       : null,

@@ -5,7 +5,7 @@ import { buildPageMetadata } from '@/lib/seo/metadata';
 export const revalidate = 60;
 
 export const metadata: Metadata = buildPageMetadata({
-  title: 'Ubunye AI Studio',
+  title: 'Ask Ubunye',
   description: `Ubunye, the ${STUDIO.shortName} AI assistant. Ask about gear, dates and prices, or get help planning a shoot in ${STUDIO.serviceArea.province}. Prices are confirmed at checkout.`,
   path: '/ubunye-ai-studio',
 });

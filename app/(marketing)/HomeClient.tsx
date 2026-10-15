@@ -3,11 +3,9 @@
 import { useEffect, useState } from 'react';
 import { motion, useScroll, useTransform } from 'framer-motion';
 import Link from 'next/link';
-import { ServiceGrid } from '@/components/cinematic/ServiceGrid';
 import { LatestWorkCarousel, type CarouselItem } from '@/components/cinematic/LatestWorkCarousel';
-import { ArrowRight, Calendar, Search, MapPin, RotateCcw, MessageCircle, ShieldCheck } from 'lucide-react';
-import Image from 'next/image';
-import { STUDIO, UBUNYE_STUDIO, CREATOR_JOIN, EARN, CAPABILITIES, CAPABILITIES_PEOPLE, HOME_PEOPLE } from '@/lib/constants';
+import { ArrowRight, Calendar, Search, MapPin, RotateCcw, ShieldCheck } from 'lucide-react';
+import { STUDIO, EARN, HOME_PEOPLE } from '@/lib/constants';
 import { formatRand } from '@/lib/format/money';
 import { PaymentsNotOpenNote } from '@/components/booking/PaymentsNotOpenNote';
 
@@ -18,7 +16,7 @@ const COLLECTION_POINT = collectionPoint();
 
 // ─── Hero ────────────────────────────────────────────────────────────────────
 
-const Hero = ({ minDayRate, rolesOn }: { minDayRate: number | null; rolesOn: boolean }) => {
+const Hero = ({ minDayRate, rolesOn, peopleLine }: { minDayRate: number | null; rolesOn: boolean; peopleLine: string }) => {
   const { scrollY } = useScroll();
   const y1 = useTransform(scrollY, [0, 500], [0, 200]);
   const opacity = useTransform(scrollY, [0, 300], [1, 0]);
@@ -104,11 +102,11 @@ const Hero = ({ minDayRate, rolesOn }: { minDayRate: number | null; rolesOn: boo
           <motion.div initial={false} animate={{ opacity: 1 }} className="max-w-xl">
             <p className="text-lg text-neutral-300 font-light leading-relaxed mb-10">
               Cameras, lenses, lights, sound and drones{minDayRate !== null ? ` from ${formatRand(minDayRate)} a day` : ''}. Book online and collect at {COLLECTION_POINT}.
-              {rolesOn && <> {HOME_PEOPLE.peopleLine}</>}
+              {rolesOn && <> {peopleLine}</>}
             </p>
             <div className="flex flex-wrap items-center gap-x-6 gap-y-4">
               <Link href="/rentals" className="group inline-flex items-center gap-2 min-h-[44px] bg-white text-black px-8 py-4 text-xs font-mono font-bold uppercase tracking-widest hover:opacity-80 transition-opacity">
-                {rolesOn ? HOME_PEOPLE.rentLabel : 'Browse Gear'} <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                {HOME_PEOPLE.rentLabel} <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
               </Link>
               {rolesOn ? (
                 <Link href={HOME_PEOPLE.peopleHref} className="group inline-flex items-center gap-2 min-h-[44px] bg-[#D4A843] text-black px-8 py-4 text-xs font-mono font-bold uppercase tracking-widest hover:opacity-80 transition-opacity">
@@ -199,70 +197,6 @@ const HowItWorks = ({ paymentsOpen }: { paymentsOpen: boolean }) => {
   );
 };
 
-// ─── Booking CTA ─────────────────────────────────────────────────────────────
-
-/**
- * The rentals block. It used to carry four stat tiles ("Categories 6+",
- * "Online booking Yes", "Deposit protection Secured") that said little, and
- * "from cinema cameras" when no cinema camera is in stock. The cheapest day
- * rate now sits in the hero line, read from stock.
- */
-const BookingCTA = () => (
-  <section className="py-24 bg-[#080808] border-t border-white/5 transition-colors duration-500">
-    <div className="container mx-auto px-6">
-      <motion.div
-        initial={{ opacity: 0, x: -20 }}
-        whileInView={{ opacity: 1, x: 0 }}
-        viewport={{ once: true }}
-        className="max-w-2xl"
-      >
-        <h2 className="text-4xl md:text-5xl font-display font-medium text-white tracking-tighter uppercase mb-6 leading-[0.95]">
-          Book <br />
-          <span className="text-neutral-400">Professional Gear</span>
-        </h2>
-        <p className="text-neutral-400 font-light leading-relaxed mb-8 max-w-md">
-          From mirrorless cameras to lighting kits. See live availability and the full price before you book.
-        </p>
-        <div className="flex flex-wrap gap-4">
-          <Link href="/rentals" className="inline-flex items-center gap-2 min-h-[44px] bg-white text-black px-8 py-4 text-xs font-mono font-bold uppercase tracking-widest hover:opacity-80 transition-opacity">
-            Browse Equipment <ArrowRight className="w-3 h-3" />
-          </Link>
-          <Link href="/register" className="inline-flex items-center gap-2 min-h-[44px] border border-white/20 text-white px-8 py-4 text-xs font-mono font-bold uppercase tracking-widest hover:bg-white/5 transition-colors">
-            Create Account
-          </Link>
-        </div>
-      </motion.div>
-    </div>
-  </section>
-);
-
-// ─── Creator Join ────────────────────────────────────────────────────────────
-// The creator's way in, now that it is not in the header (see CREATOR_JOIN).
-
-const CreatorJoin = ({ earn }: { earn: boolean }) => (
-  <section className="py-24 bg-[#050505] border-t border-white/5">
-    <div className="container mx-auto px-6">
-      <motion.div
-        initial={{ opacity: 0, x: -20 }}
-        whileInView={{ opacity: 1, x: 0 }}
-        viewport={{ once: true }}
-        className="max-w-2xl"
-      >
-        <span className="text-xs font-mono text-[#D4A843] uppercase tracking-[0.3em] mb-4 block">For Creators</span>
-        <h2 className="text-4xl md:text-5xl font-display font-medium text-white tracking-tighter uppercase mb-6 leading-[0.95]">
-          {earn ? EARN.homeTitle : CREATOR_JOIN.homeTitle}
-        </h2>
-        <p className="text-neutral-400 font-light leading-relaxed mb-8 max-w-md">
-          {earn ? EARN.homeText : CREATOR_JOIN.homeText}
-        </p>
-        <Link href={earn ? EARN.href : CREATOR_JOIN.href} className="inline-flex items-center gap-2 min-h-[44px] bg-[#D4A843] text-black px-8 py-4 text-xs font-mono font-bold uppercase tracking-widest hover:opacity-80 transition-opacity">
-          {earn ? EARN.label : CREATOR_JOIN.ctaLabel} <ArrowRight className="w-3 h-3" />
-        </Link>
-      </motion.div>
-    </div>
-  </section>
-);
-
 // ─── Trust Signals ───────────────────────────────────────────────────────────
 
 /**
@@ -285,81 +219,44 @@ const TrustSignals = () => (
   </section>
 );
 
-// ─── Ubunye AI Section ───────────────────────────────────────────────────────
+// ─── People row ──────────────────────────────────────────────────────────────
 
-const UbunyeSection = () => (
+export interface HomePersonCard {
+  id: string;
+  label: string;
+  cover: string | null;
+  price: string | null;
+}
+
+/** One row of people to book (roles_v1): blind cards, the same as /people. */
+const PeopleRow = ({ cards }: { cards: HomePersonCard[] }) => (
   <section className="py-24 bg-[#050505] border-t border-white/5">
     <div className="container mx-auto px-6">
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        whileInView={{ opacity: 1, y: 0 }}
-        viewport={{ once: true }}
-        className="max-w-2xl mx-auto text-center"
-      >
-        <MessageCircle className="w-10 h-10 text-accent mx-auto mb-6" />
-        <h2 className="text-3xl md:text-4xl font-display font-medium text-white uppercase mb-4">
-          Need Help <span className="text-neutral-400">Deciding?</span>
-        </h2>
-        <p className="text-neutral-400 font-light leading-relaxed mb-8">
-          Ask Ubunye, our AI assistant, about gear, dates and prices.
-        </p>
+      <div className="mb-12 flex flex-wrap justify-between items-end gap-4">
+        <h2 className="text-4xl md:text-5xl font-display font-medium text-white uppercase">People to book</h2>
         <Link
-          href="/ubunye-ai-studio"
-          className="group inline-flex items-center gap-2 min-h-[44px] border border-accent/30 text-accent px-8 py-4 text-xs font-mono font-bold uppercase tracking-widest hover:bg-accent/10 transition-colors"
+          href={HOME_PEOPLE.peopleHref}
+          className="inline-flex items-center gap-2 min-h-[44px] text-xs font-mono text-neutral-400 hover:text-white transition-colors uppercase tracking-widest"
         >
-          Ask Ubunye <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+          See everyone <ArrowRight className="w-4 h-4" />
         </Link>
-      </motion.div>
-    </div>
-  </section>
-);
-
-// ─── Ubunye Apps ─────────────────────────────────────────────────────────────
-
-/**
- * The free apps, in one strip. Shown with the "Apps" nav item (creative_tools
- * flag). Each icon opens that app's page; the button opens all three.
- */
-const AppsStrip = () => (
-  <section className="py-24 bg-[#080808] border-t border-white/5">
-    <div className="container mx-auto px-6">
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        whileInView={{ opacity: 1, y: 0 }}
-        viewport={{ once: true }}
-        className="max-w-3xl mx-auto text-center"
-      >
-        <h2 className="text-4xl md:text-5xl font-display font-medium text-white uppercase">
-          Free Apps <span className="text-neutral-400">For Creators</span>
-        </h2>
-        <p className="text-neutral-400 font-light leading-relaxed mt-4 mb-10 max-w-xl mx-auto">
-          {UBUNYE_STUDIO.intro}
-        </p>
-        <ul className="grid grid-cols-3 gap-4 sm:gap-8 max-w-md mx-auto mb-10">
-          {UBUNYE_STUDIO.apps.map((app) => (
-            <li key={app.slug}>
-              <Link href={`/tools/${app.slug}`} className="group flex flex-col items-center gap-3 min-h-[44px]">
-                <Image
-                  src={app.iconPng}
-                  alt=""
-                  width={80}
-                  height={80}
-                  unoptimized
-                  className="h-16 w-16 sm:h-20 sm:w-20 transition-transform group-hover:scale-105"
-                />
-                <span className="text-sm text-white">{app.shortName}</span>
-                <span className="text-xs font-mono text-neutral-400 leading-snug">{app.category}</span>
-              </Link>
-            </li>
-          ))}
-        </ul>
-        <Link
-          href="/tools"
-          className="group inline-flex items-center gap-2 min-h-[44px] border border-white/20 text-white px-8 py-4 text-xs font-mono font-bold uppercase tracking-widest hover:bg-white/5 transition-colors"
-        >
-          Get The Free Apps <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
-        </Link>
-      </motion.div>
+      </div>
+      <ul className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
+        {cards.map((c) => (
+          <li key={c.id}>
+            <Link href={`/people/${c.id}`} className="group block border border-white/10 hover:border-accent-gold/60 transition-colors">
+              <div className="aspect-[4/3] bg-neutral-900 overflow-hidden">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                {c.cover && <img src={c.cover} alt="" className="w-full h-full object-cover" loading="lazy" />}
+              </div>
+              <div className="p-4">
+                <p className="text-white">{c.label}</p>
+                {c.price && <p className="text-sm text-neutral-300 mt-1">{c.price}</p>}
+              </div>
+            </Link>
+          </li>
+        ))}
+      </ul>
     </div>
   </section>
 );
@@ -367,41 +264,46 @@ const AppsStrip = () => (
 // ─── Main Export ──────────────────────────────────────────────────────────────
 
 /**
- * The home page leads with gear rental, the offering that is live (owner's
- * decision, 2026-09-28). Shoots are reached by one quiet link in the hero.
- * The "What we offer" grid and the supplier and community cards were removed:
- * no supplier listings or community features exist yet.
+ * The home page, said once (clarity audit C14, owner 2026-10-15): the hero
+ * (Rent gear / Book people), How it works, one gear row, one People row, the
+ * trust line and one closing call to action. The Rentals/People tiles, the
+ * "Book professional gear" block, the creator block, the apps strip and the
+ * Ubunye block repeated the hero and the menu, so they are gone; Earn is one
+ * quiet link under the closing call to action. With roles_v1 off there is no
+ * People row and the hero keeps its "send us a brief" link.
  */
 export default function HomeClient({
   carouselItems,
+  peopleCards = [],
   minDayRate,
   paymentsOpen,
-  showApps = false,
   rolesOn = false,
+  people,
 }: {
+  /** Gear only: one gear row. */
   carouselItems: CarouselItem[];
+  /** With People on: up to four blind cards for the one People row. */
+  peopleCards?: HomePersonCard[];
   /** Cheapest live day rate, or null when no priced stock is published. */
   minDayRate: number | null;
   /** onlinePaymentsOpen() from the server. */
   paymentsOpen: boolean;
-  /** The creative_tools flag: shows the free apps strip. */
-  showApps?: boolean;
   /** roles_v1: the creator block becomes Earn with ThabangVision. */
   rolesOn?: boolean;
+  /**
+   * With People on: words naming only the kinds of work someone approved
+   * offers (lib/roles/offered.ts peopleWords), read on the server.
+   */
+  people?: { heroLine: string; tileSubtitle: string; offerLine: string };
 }) {
   return (
     <div className="min-h-screen bg-[#050505] transition-colors duration-500">
-      <Hero minDayRate={minDayRate} rolesOn={rolesOn} />
-      {/* Gear and recent shoots, directly under the hero. */}
-      <LatestWorkCarousel items={carouselItems} />
+      <Hero minDayRate={minDayRate} rolesOn={rolesOn} peopleLine={people?.heroLine ?? HOME_PEOPLE.peopleLine} />
       <HowItWorks paymentsOpen={paymentsOpen} />
-      {/* What we offer: Rentals and Studio, or with People on, Rentals and People (no Studio card). */}
-      <ServiceGrid capabilities={rolesOn ? CAPABILITIES_PEOPLE : CAPABILITIES} />
+      {/* One gear row, one People row (clarity audit C14: no repeated blocks). */}
+      <LatestWorkCarousel items={carouselItems} />
+      {rolesOn && peopleCards.length > 0 && <PeopleRow cards={peopleCards} />}
       <TrustSignals />
-      <BookingCTA />
-      <CreatorJoin earn={rolesOn} />
-      {showApps && <AppsStrip />}
-      <UbunyeSection />
       {/* Final CTA */}
       <section className="py-40 relative bg-gradient-to-b from-neutral-950 via-neutral-900 to-neutral-950 overflow-hidden border-t border-white/5 transition-colors duration-500">
         <div className="container mx-auto px-6 relative z-10 text-center">
@@ -410,7 +312,7 @@ export default function HomeClient({
           </h2>
           <div className="flex flex-wrap justify-center gap-4">
             <Link href="/rentals" className="inline-flex items-center justify-center min-h-[44px] bg-white text-black px-12 py-5 text-xs font-mono font-bold tracking-[0.2em] transition-all uppercase hover:opacity-80">
-              {rolesOn ? HOME_PEOPLE.rentLabel : 'Browse Gear'}
+              {HOME_PEOPLE.rentLabel}
             </Link>
             {rolesOn ? (
               <Link href={HOME_PEOPLE.peopleHref} className="inline-flex items-center justify-center min-h-[44px] bg-[#D4A843] text-black px-12 py-5 text-xs font-mono font-bold tracking-[0.2em] transition-all uppercase hover:opacity-80">
@@ -422,6 +324,12 @@ export default function HomeClient({
               </Link>
             )}
           </div>
+          <p className="mt-10 text-sm text-neutral-400">
+            Want to earn with your skills or your gear?{' '}
+            <Link href={EARN.href} className="inline-flex min-h-[44px] items-center text-[#D4A843] underline underline-offset-4">
+              {EARN.label}
+            </Link>
+          </p>
         </div>
       </section>
     </div>

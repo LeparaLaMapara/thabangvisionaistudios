@@ -296,10 +296,11 @@ async function readFaqs(): Promise<CatalogFaq[]> {
 
 /** Reads the catalogue straight from the database (no cache). */
 export async function readCatalogFresh(): Promise<Catalog> {
-  const [rentals, creators, studioOn, studio, press, listings, tools, faqs] = await Promise.all([
+  const [rentals, creators, studioOn, rolesOn, studio, press, listings, tools, faqs] = await Promise.all([
     readRentals(),
     readCreators(),
     getFlag('smart_productions').catch(() => false),
+    getFlag('roles_v1').catch(() => false),
     readStudio(),
     readPress(),
     readListings(),
@@ -309,11 +310,14 @@ export async function readCatalogFresh(): Promise<Catalog> {
   return {
     generatedAt: new Date().toISOString(),
     rentals,
-    creators,
+    // With People on, the old creator and category pages redirect to /people
+    // (app/(platform)/studio/category/layout.tsx): no surface lists them.
+    creators: rolesOn ? [] : creators,
     members: membersOf(rentals, creators),
     studioOn,
+    rolesOn,
     productions: studio.productions,
-    studioCategories: studio.categories,
+    studioCategories: rolesOn ? [] : studio.categories,
     press,
     listings,
     tools,
@@ -321,7 +325,7 @@ export async function readCatalogFresh(): Promise<Catalog> {
   };
 }
 
-const loadCatalogCached = unstable_cache(readCatalogFresh, ['discovery-catalog-v1'], {
+const loadCatalogCached = unstable_cache(readCatalogFresh, ['discovery-catalog-v2'], {
   revalidate: DISCOVERY_CACHE_SECONDS,
   tags: [DISCOVERY_CACHE_TAG],
 });
