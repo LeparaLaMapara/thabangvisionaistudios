@@ -177,16 +177,20 @@ export const STUDIO = {
       email: 'hello@thabangvision.com',
       isPrimary: true,
     },
+    // The only studio (owner 2026-10-15): ThaBangVision Studio Labs, at the
+    // same place as the collection point and booked under Rentals > Studios.
+    // There is no Pretoria studio; do not list one.
     {
-      name: 'Pretoria Studio',
-      address: 'By appointment.',
-      city: 'Pretoria',
+      name: 'ThaBangVision Studio Labs',
+      address: 'Dainfern, Fourways, Johannesburg. Book it online under Rentals, then Studios.',
+      city: 'Johannesburg',
       province: 'Gauteng',
       phone: '',
       email: 'hello@thabangvision.com',
       isPrimary: false,
+      href: '/rentals/studios',
     },
-  ],
+  ] as readonly { name: string; address: string; city: string; province: string; phone: string; email: string; isPrimary: boolean; href?: string }[],
 
   nav: {
     sections: [
@@ -862,6 +866,9 @@ export const RENTAL_CATEGORIES = [
  */
 export const ON_SITE_RENTAL = {
   categories: ['studios'] as readonly string[],
+  // The one studio, always written this way (owner 2026-10-15).
+  studioName: 'ThaBangVision Studio Labs',
+  studiosPath: '/rentals/studios',
   // One rule: full days online, a half day on WhatsApp (no "minimum booking" row).
   bookingRule: 'Book full days here. For a half day, WhatsApp us.',
   // The calendar's last tap is the day after the last studio day (the same
