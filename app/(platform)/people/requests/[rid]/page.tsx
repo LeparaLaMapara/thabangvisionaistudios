@@ -41,7 +41,9 @@ export default async function RequestStatusPage({ params }: { params: Promise<{ 
         {clientNote && <p className="text-neutral-300 mb-6 border-l-2 border-white/20 pl-3">{clientNote}</p>}
         {showPaymentDetails(card.status, card.viewer) && (
           <div className="border border-accent-gold/40 bg-accent-gold/5 p-4 mb-6 text-sm">
-            <p className="text-white mb-2">Pay {card.totalCents !== null ? formatRands(card.totalCents) : 'the total below'} by EFT</p>
+            <p className="text-white mb-1">Pay {card.totalCents !== null ? formatRands(card.totalCents) : 'the total below'} online</p>
+            <p className="text-neutral-300 mb-4">We are sending you a secure link to pay online. Look out for our email.</p>
+            <p className="text-white mb-2">Prefer EFT? Use these details</p>
             <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-neutral-300">
               {BANK_LINES.map((l) => (
                 <div key={l.label} className="contents">
@@ -52,6 +54,7 @@ export default async function RequestStatusPage({ params }: { params: Promise<{ 
               <dt className="text-neutral-500">Reference</dt>
               <dd className="font-mono text-accent-gold">{requestReference(rid)}</dd>
             </dl>
+            <p className="text-neutral-300 mt-3">Or pay in person, in cash or by card: WhatsApp us and we arrange it.</p>
             <p className="text-xs text-neutral-500 mt-3">{BANK_DETAILS_NEVER_CHANGE}</p>
           </div>
         )}

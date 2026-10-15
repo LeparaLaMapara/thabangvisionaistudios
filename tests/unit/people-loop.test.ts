@@ -203,7 +203,8 @@ describe('request status words', () => {
   it('the client is told when they hear back and how they pay', () => {
     const w = requestStatusWords('requested', 'client');
     expect(w).toContain(`within ${ROLES_POLICY.requests.replyWithinWorkingDays} working day`);
-    expect(w).toContain('EFT');
+    expect(w).toContain('pay online');
+    expect(w).toContain('EFT or in person');
     expect(w).toContain('Nothing is paid now');
   });
 

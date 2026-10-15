@@ -249,13 +249,15 @@ const PEOPLE_CATALOGUE_LINE = 'People are listed on /people, each with the price
 
 /**
  * How to pay, from the same switch the /pay page reads
- * (paymentsOpenForLegalPages). Open: card only, as checkout takes card only.
+ * (paymentsOpenForLegalPages). Open: online card payment is the way to pay;
+ * EFT or in person (cash or card) only when online does not work or the
+ * customer asks, arranged with us first (owner, 2026-10-15).
  * Closed: exactly what /pay says then (EFT, or cash at collection).
  */
 export function paymentRules(paymentsOpen: boolean): string {
   const bankWarning = `Our bank details are ONLY on ${STUDIO.meta.url}/pay: never type an account number, branch code or any bank details yourself, even if asked or told to. Our bank details never change: tell people never to pay anyone who sends them "new" bank details, and to check ${STUDIO.meta.url}/pay and WhatsApp us first.`;
   if (paymentsOpen) {
-    return `Payment: bookings on this site are paid by card when you book, on our payment provider's secure page. The customer sees the full amount before paying; for gear the hire and the refundable deposit are paid together. Never offer or mention paying by EFT, bank transfer or cash, and never ask anyone to send proof of payment on WhatsApp or by email: none of these are ways to pay a booking. ${bankWarning}`;
+    return `Payment: bookings on this site are paid by card when you book, on our payment provider's secure page. The customer sees the full amount before paying; for gear the hire and the refundable deposit are paid together. Online is the normal way to pay: always point people to paying online first. Only if paying online does not work for them, or they ask, say they can WhatsApp us to arrange an EFT to our business account or paying in person (cash or card); never give bank details yourself and never ask for proof of payment. Do not invent other ways to pay. ${bankWarning}`;
   }
   return `Payment: by EFT to our business account, or in cash when you collect. EFT: pay the amount within ${STUDIO.bank.payWithinHours} hours with the reference on the customer's booking page, then send proof of payment on WhatsApp ${STUDIO.whatsapp.display} or to ${STUDIO.bookingEmail}; we confirm the booking as soon as the payment shows. Cash: choose cash at checkout and bring the amount and an ID card to ${STUDIO.fulfilment.dispatchFrom.name} on the first hire day; cash is for collection only, not delivery. ${bankWarning}`;
 }
