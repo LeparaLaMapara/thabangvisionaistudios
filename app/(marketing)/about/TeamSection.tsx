@@ -3,7 +3,7 @@
 import { motion } from 'framer-motion';
 import { ArrowRight } from 'lucide-react';
 import Link from 'next/link';
-import { CREATOR_JOIN } from '@/lib/constants';
+import { CREATOR_JOIN, EARN, SHOW_CAREERS } from '@/lib/constants';
 
 // The three department cards (Creative, Operations, Engineering) and the
 // "Our network" header were removed on 2026-09-28: they described staffed
@@ -30,14 +30,16 @@ export default function TeamSection() {
           We&apos;re always glad to hear from creatives, engineers and production people.
         </p>
         <div className="flex flex-col sm:flex-row gap-4 justify-center">
+          {SHOW_CAREERS && (
+            <Link
+              href="/careers"
+              className="inline-flex items-center justify-center gap-3 bg-[#D4A843] text-black px-8 py-4 text-xs font-mono font-bold uppercase tracking-widest hover:opacity-80 transition-opacity"
+            >
+              Open Positions <ArrowRight className="w-4 h-4" />
+            </Link>
+          )}
           <Link
-            href="/careers"
-            className="inline-flex items-center justify-center gap-3 bg-[#D4A843] text-black px-8 py-4 text-xs font-mono font-bold uppercase tracking-widest hover:opacity-80 transition-opacity"
-          >
-            Open Positions <ArrowRight className="w-4 h-4" />
-          </Link>
-          <Link
-            href={CREATOR_JOIN.href}
+            href={EARN.href}
             className="inline-flex items-center justify-center gap-3 border border-white/20 text-white px-8 py-4 text-xs font-mono font-bold uppercase tracking-widest hover:border-white/50 transition-colors"
           >
             {CREATOR_JOIN.footerLabel} <ArrowRight className="w-4 h-4" />

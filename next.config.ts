@@ -67,6 +67,17 @@ const nextConfig: NextConfig = {
       destination: '/rentals/:path*',
       permanent: true,
     },
+    // The menu calls the free apps "Apps", so people type /apps. They live at /tools.
+    {
+      source: '/apps',
+      destination: '/tools',
+      permanent: true,
+    },
+    {
+      source: '/apps/:path*',
+      destination: '/tools/:path*',
+      permanent: true,
+    },
   ],
 
   // M2: Security headers

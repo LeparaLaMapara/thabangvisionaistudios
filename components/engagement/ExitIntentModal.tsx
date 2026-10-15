@@ -17,7 +17,7 @@ interface ExitIntentModalProps {
 export function ExitIntentModal({
   prompt,
   heading = 'Before you go...',
-  body = 'Have questions? Our AI assistant can help you find exactly what you need — pricing, availability, or a custom quote.',
+  body = 'Have questions? Our AI assistant can help you find exactly what you need: prices, dates, or a quote.',
   ctaLabel = 'Chat with Ubunye AI',
   ctaHref = '/ubunye-ai-studio',
 }: ExitIntentModalProps) {

@@ -6,6 +6,7 @@ import { MapPin, Star } from 'lucide-react';
 import type { CreatorProfile } from '@/lib/supabase/queries/smartProductions';
 import { STUDIO } from '@/lib/constants';
 import { creatorProfilePath } from '@/lib/seo/creator-url';
+import { formatRate } from '@/lib/format/money';
 
 interface CreatorCardProps {
   member: CreatorProfile;
@@ -71,7 +72,7 @@ export default function CreatorCard({ member, avgRating, totalReviews = 0 }: Cre
           <div className="flex items-center justify-between mt-3 pt-3 border-t border-white/5">
             <span className="text-xs font-mono text-white">
               {member.hourly_rate
-                ? `${STUDIO.currency.symbol}${member.hourly_rate.toLocaleString()}/hr`
+                ? formatRate(member.hourly_rate, 'hour')
                 : 'Contact for rate'}
             </span>
 

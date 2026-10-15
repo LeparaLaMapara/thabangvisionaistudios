@@ -86,7 +86,7 @@ describe('/rentals all-gear page', () => {
     const { container } = render(h(AllGearClient, { rentals: gear }));
     expect(screen.getAllByRole('link')).toHaveLength(4);
     expect(screen.getByRole('link', { name: /Item 1/ }).getAttribute('href')).toBe('/rentals/cameras-optics/item-1');
-    expect(container.textContent).toContain('R1 300 / day');
+    expect(container.textContent).toMatch(/R1.300 a day/);
     expect(screen.getByRole('button', { name: /^All/ }).getAttribute('aria-pressed')).toBe('true');
   });
 

@@ -263,9 +263,9 @@ export default function ProductionDetailView({
 
 function priceUnitLabel(unit: string): string {
   switch (unit) {
-    case 'hour': return '/hr';
-    case 'session': return '/session';
-    case 'event': return '/event';
+    case 'hour': return ' an hour';
+    case 'session': return ' a session';
+    case 'event': return ' an event';
     case 'project':
     default: return '';
   }

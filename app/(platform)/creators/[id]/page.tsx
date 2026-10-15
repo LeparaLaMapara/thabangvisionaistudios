@@ -55,7 +55,7 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { id } = await params;
   const profile = await loadProfile(id);
-  if (!profile) return { title: 'Creator Profile' };
+  if (!profile) return { title: 'Profile' };
   const name = profile.display_name ?? 'Creator';
   // A member who is not bookable is worth indexing only while they have gear
   // for hire; an empty profile is a thin page.

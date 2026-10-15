@@ -13,6 +13,7 @@ import { AskUbunyeButton } from '@/components/ubunye/AskUbunyeButton';
 import { isPaymentUrl } from '@/lib/payments/hosts';
 import { usePaymentsOpen } from '@/lib/payments/usePaymentsOpen';
 import { PaymentsNotOpenNote } from '@/components/booking/PaymentsNotOpenNote';
+import { usePaymentProviderName } from '@/components/payments/PaymentProviderName';
 
 type BillingPeriod = 'monthly' | 'annual';
 
@@ -95,6 +96,7 @@ const PLANS: Plan[] = [
 ];
 
 export default function PricingPage() {
+  const providerName = usePaymentProviderName();
   const [billing, setBilling] = useState<BillingPeriod>('monthly');
   const [dbPlans, setDbPlans] = useState<Plan[]>([]);
   const [loadingPlan, setLoadingPlan] = useState<string | null>(null);
@@ -373,7 +375,7 @@ export default function PricingPage() {
             All prices in {STUDIO.currency.code}. {STUDIO.shortName} is the seller of record on
             every order. Where you supply an item or service, we retain a{' '}
             {STUDIO.creators.commissionRate}% commission and pay you the balance. Payments
-            processed securely via our authorised payment gateway.{' '}
+            are processed by {providerName ?? 'our payment provider'}.{' '}
             <Link
               href="/contact"
               className="text-black dark:text-white underline underline-offset-2"
@@ -394,14 +396,15 @@ export default function PricingPage() {
  */
 function PayAsYouGoPricing() {
   const paymentsOpen = usePaymentsOpen();
+  const providerName = usePaymentProviderName();
   // The supplier row ("Become a supplier") was removed on 2026-09-28: no
   // supplier listings exist yet and the site leads with our own gear.
   const rows = [
     {
-      title: 'Equipment hire',
+      title: 'Rentals',
       body: `Charged at the daily or weekly rate shown on each listing. A refundable security deposit is shown with it and returned after the gear comes back and passes inspection.`,
       href: '/rentals',
-      cta: 'Browse equipment',
+      cta: 'Rent gear',
     },
     {
       title: 'Photo and video shoots',
@@ -466,7 +469,7 @@ function PayAsYouGoPricing() {
           {paymentsOpen === false
             ? 'Pay by EFT to our business account, or in cash when you collect. See How to Pay.'
             : paymentsOpen
-              ? 'Payments processed securely via our authorised payment gateway.'
+              ? `Card payments are processed by ${providerName ?? 'our payment provider'}.`
               : ''}{' '}
           <Link href="/contact" className="text-black dark:text-white underline underline-offset-2">
             Questions? Contact us

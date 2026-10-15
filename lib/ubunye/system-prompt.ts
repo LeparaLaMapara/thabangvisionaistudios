@@ -1,8 +1,9 @@
 import { promptField, promptList, sanitiseForPrompt } from './sanitise';
-import { STUDIO, PRODUCTION_SERVICES, PRODUCTION_PACKAGES, CREATOR_JOIN } from '@/lib/constants';
+import { STUDIO, PRODUCTION_SERVICES, PRODUCTION_PACKAGES, EARN, ON_SITE_RENTAL, SHOW_CAREERS } from '@/lib/constants';
 import { LIST_GEAR_HREF } from '@/lib/welcome';
 import { calculatePackagePrice } from '@/lib/productions/pricing';
 import { packageUnitWords } from '@/lib/bookings/pricing';
+import { formatRand, formatRate } from '@/lib/format/money';
 import { creatorProfilePath } from '@/lib/seo/creator-url';
 import { collectionPoint } from '@/lib/rental/collection-point';
 
@@ -49,7 +50,7 @@ export function formatServices(): string {
   for (const [key, label] of Object.entries(cats)) {
     const category = PRODUCTION_SERVICES[key as keyof typeof cats];
     for (const svc of Object.values(category)) {
-      lines.push(`- ${label}: R${svc.rate}/${svc.unit} — ${svc.description}`);
+      lines.push(`- ${label}: ${formatRate(Number(svc.rate), svc.unit)} — ${svc.description}`);
     }
   }
 
@@ -142,14 +143,14 @@ export async function fetchPlatformData(supabase: any, flags: UbunyeFlagsSnapsho
 
   const data: CachedData = {
     rentals: rentals.data?.map((r: Record<string, unknown>) =>
-      `${promptField(r.title, 'Untitled')} (${promptField(r.brand, '')} ${promptField(r.model, '')}) — R${r.price_per_day}/day | R${r.price_per_week}/week | Deposit: R${r.deposit_amount} — ${r.is_available ? 'Available' : 'Unavailable'} — Book: /rentals/${r.category}/${r.slug}`
+      `${promptField(r.title, 'Untitled')} (${promptField(r.brand, '')} ${promptField(r.model, '')}) — ${formatRate(Number(r.price_per_day ?? 0), 'day')}${r.price_per_week ? ` | ${formatRate(Number(r.price_per_week), 'week')}` : ''} | Deposit: ${formatRand(Number(r.deposit_amount ?? 0))} — ${r.is_available ? 'Available' : 'Unavailable'} — Book: /rentals/${r.category}/${r.slug}`
     ).join('\n') || 'No equipment listed yet',
 
     productions: flags.smart_productions
       ? (productions.data?.map((p: Record<string, unknown>) =>
           `${promptField(p.title, 'Untitled')} — ${promptField(p.client, 'Independent')} (${p.year}) [${promptField(p.project_type, 'production')}] — View: /studio/${p.slug}`
           + (typeof p.price === 'number' && p.price > 0
-            ? ` — Package: R${p.price} ${packageUnitWords(String(p.price_unit ?? 'project'))}${STUDIO.legal.vatRegistered ? ', before VAT' : ''} — Book: /book?production=${p.id}`
+            ? ` — Package: ${formatRand(p.price)} ${packageUnitWords(String(p.price_unit ?? 'project'))}${STUDIO.legal.vatRegistered ? ', before VAT' : ''} — Book: /book?production=${p.id}`
             : '')
         ).join('\n') || 'No productions yet')
       : null,
@@ -158,7 +159,7 @@ export async function fetchPlatformData(supabase: any, flags: UbunyeFlagsSnapsho
       `${promptField(p.title, 'Untitled')} (${p.published_at}) — ${sanitiseForPrompt(p.excerpt, 300)} — Read: /press/${p.slug}`
     ).join('\n') || 'No articles yet',
 
-    careers: careers.data?.map((c: Record<string, unknown>) =>
+    careers: !SHOW_CAREERS ? 'None listed. Do not offer jobs; to earn with us, point to the Earn page.' : careers.data?.map((c: Record<string, unknown>) =>
       `${promptField(c.title, 'Role')} — ${promptField(c.department, '')} — ${promptField(c.employment_type, '')} — ${promptField(c.location, 'SA')} — Apply: ${STUDIO.careersEmail}`
     ).join('\n') || 'No open positions',
 
@@ -168,7 +169,7 @@ export async function fetchPlatformData(supabase: any, flags: UbunyeFlagsSnapsho
 
     listings: listings.data?.map((l: Record<string, unknown>) => {
       const profile = l.profiles as { display_name?: string } | null;
-      return `${promptField(l.title, 'Untitled')} — R${l.price}/${l.pricing_model} [${promptField(l.category, 'other')}] — Listed by ${promptField(profile?.display_name, 'Unknown')}`;
+      return `${promptField(l.title, 'Untitled')} — ${formatRand(Number(l.price ?? 0))} ${promptField(l.pricing_model, '')} [${promptField(l.category, 'other')}] — Listed by ${promptField(profile?.display_name, 'Unknown')}`;
     }).join('\n') || 'No community listings yet',
 
     plans: plans.data?.map((p: Record<string, unknown>) =>
@@ -176,7 +177,7 @@ export async function fetchPlatformData(supabase: any, flags: UbunyeFlagsSnapsho
     ).join('\n') || 'Contact for pricing',
 
     crew: crew.data?.map((c: Record<string, unknown>) =>
-      `${promptField(c.display_name, 'Creator')} — ${promptList(c.specializations, 'General')} — R${c.hourly_rate || '?'}/hr — ${promptField(c.location, 'location not given')} — ${c.years_experience || '?'} yrs — Profile: ${creatorProfilePath({ id: String(c.id), crew_slug: (c.crew_slug as string | null) ?? null, specializations: Array.isArray(c.specializations) ? (c.specializations as string[]) : null })}`
+      `${promptField(c.display_name, 'Creator')} — ${promptList(c.specializations, 'General')} — ${c.hourly_rate ? formatRate(Number(c.hourly_rate), 'hour') : 'rate not set'} — ${promptField(c.location, 'location not given')} — ${c.years_experience || '?'} yrs — Profile: ${creatorProfilePath({ id: String(c.id), crew_slug: (c.crew_slug as string | null) ?? null, specializations: Array.isArray(c.specializations) ? (c.specializations as string[]) : null })}`
     ).join('\n') || (flags.roles_v1 ? PEOPLE_CATALOGUE_LINE : 'No crew available yet'),
 
     services: formatServices(),
@@ -222,11 +223,11 @@ export async function fetchUserContext(supabase: any, userId: string): Promise<s
 
   const bookingLines = bookings.data?.map((b: Record<string, unknown>) => {
     const rental = b.smart_rentals as { title?: string } | null;
-    return `- ${promptField(rental?.title)} — ${b.start_date} to ${b.end_date} — ${b.status} — R${Number(b.total_price ?? 0)}`;
+    return `- ${promptField(rental?.title)} — ${b.start_date} to ${b.end_date} — ${b.status} — ${formatRand(Number(b.total_price ?? 0))}`;
   }).join('\n') || 'No bookings';
 
   const listingLines = myListings.data?.map((l: Record<string, unknown>) =>
-    `- ${promptField(l.title)} — R${Number(l.price ?? 0)}/${promptField(l.pricing_model, '')}`
+    `- ${promptField(l.title)} — ${formatRand(Number(l.price ?? 0))} ${promptField(l.pricing_model, '')}`
   ).join('\n') || 'No listings';
 
   return `
@@ -292,7 +293,7 @@ export function buildSystemPrompt(
 ${platform.services}
 
 ===== PACKAGES (fixed price) =====
-${PRODUCTION_PACKAGES.map((pk) => { const pr = calculatePackagePrice(pk); return `- ${pk.name}: R${pr.total} — ${pk.description} — Book: /book?production=${pk.id}`; }).join('\n')}
+${PRODUCTION_PACKAGES.map((pk) => { const pr = calculatePackagePrice(pk); return `- ${pk.name}: ${formatRand(pr.total)} — ${pk.description} — Book: /book?production=${pk.id}`; }).join('\n')}
 
 `;
   const signInRule = '- If the user is NOT logged in, direct them to sign in first: [Sign in](/login?redirect=/ubunye-ai-studio)';
@@ -336,7 +337,7 @@ ${paymentRules(!!flags.payments_open)}
 Deposit: a fixed, refundable amount per item, shown on each item before booking (paid at checkout with the order, refunded after the gear comes back undamaged; late fees and damage are taken from it)
 Notice: book at least ${STUDIO.rental.minLeadTimeHours} hours ahead
 ID check: a photo of the ID and a selfie, once, before the first rental (no certified copy); a person checks it, ${STUDIO.verification.reviewTime}
-Delivery: collect in ${STUDIO.fulfilment.dispatchFrom.name}, Johannesburg (the exact place is sent only with a booking; never give it out), or delivery within ${STUDIO.fulfilment.delivery.maxRadiusKm} km at R${STUDIO.fulfilment.delivery.ratePerKm}/km (minimum R${STUDIO.fulfilment.delivery.minimumFee})
+Delivery: collect in ${STUDIO.fulfilment.dispatchFrom.name}, Johannesburg (the exact place is sent only with a booking; never give it out), or delivery within ${STUDIO.fulfilment.delivery.maxRadiusKm} km at ${formatRate(STUDIO.fulfilment.delivery.ratePerKm, 'km')} (minimum ${formatRand(STUDIO.fulfilment.delivery.minimumFee)})
 Studios: items under /rentals/studios/ are rooms, not gear. They are used where they are, in ${collectionPoint()} (never delivered, nothing to collect). Booked online by full days only, at the price in the catalogue; a half day is not booked online, it is arranged on WhatsApp ${STUDIO.whatsapp.display}, and its price is on the studio's page. Never quote a half-day price yourself
 Multi-day discount: 7+ days = weekly rate applies
 Cancellation: within ${STUDIO.legal.coolingOffDays} days of booking and before the hire or shoot starts, everything paid online is refunded. Otherwise equipment: full refund of the hire over 48h notice, 50% between 24-48h, none inside 24h; a deposit paid online is refunded in full. Processed automatically; the customer sees the amount before confirming.
@@ -385,9 +386,9 @@ ${bookingRules}
 
 ===== HOW TO GUIDE USERS =====
 - Rent gear → /rentals
-${people ? '- Book a person (photographer, videographer and more) → /people\n' : '- Hire creators → /studio (or ask Ubunye to search)\n- Book production → /book (or ask Ubunye to help)\n'}- Offer services (photography, video, editing, sound) → ${CREATOR_JOIN.href} (creator setup, then the one ID check)
+${people ? '- Book a person (photographer, videographer and more) → /people\n' : '- Hire creators → /studio (or ask Ubunye to search)\n- Book production → /book (or ask Ubunye to help)\n'}- Earn: offer your work or your gear → ${EARN.href} (a public page: who can earn, what we keep, when you are paid, then sign up)
 - List gear to rent out → ${LIST_GEAR_HREF} (start with a photo; it is saved as a draft and goes live after the one ID check)
-${portfolioGuide}- Apply for job → /careers
+${portfolioGuide}${SHOW_CAREERS ? '- Apply for job → /careers' : ''}
 - Tech support → /support/tech
 - Prices → /pricing (free to join, pay per booking)
 
@@ -410,7 +411,7 @@ ${portfolioGuide}- Apply for job → /careers
 1. ONLY recommend equipment from the catalogue above — never invent items
 2. NEVER guess prices — ${people ? "a person's price is on their People profile (/people)" : 'use calculate_booking_quote for production bookings'}, use catalogue data for gear. The final price is confirmed at checkout
 3. Always link to real pages
-4. Use ${STUDIO.currency.code} for all pricing
+4. Write every price the way the site does: the rand symbol, a space between thousands and the unit in words, for example "${formatRate(1300, 'day')}" or "${formatRate(900, 'hour')}". Never "ZAR", "/day", "/hr" or "per day"
 5. Calculate multi-day rates: 7+ days = weekly rate applies
 6. NEVER tell users to contact via email/phone to book — all bookings go through ${people ? 'the site (/rentals for gear, /people for people)' : '/book'}
 7. Be warm, professional, knowledgeable about SA creative industry
@@ -418,5 +419,6 @@ ${portfolioGuide}- Apply for job → /careers
 9. If you dont have data to answer, say so honestly. Never invent ratings, reviews, team members, insurance, locations or client names
 10. Walk users through booking process step by step when interested
 11. When sharing page links, ALWAYS format them as markdown links: [Page Name](/path). Example: [View our portfolio](/studio) NOT /studio. Example: [Sony Alpha A7 III](/rentals/cameras-optics/sony-alpha-a7-iii) NOT just the path. Never write raw URLs or paths — always wrap in markdown link syntax.
-12. Never use emojis in responses. Keep the tone professional and clean.`;
+12. Never use emojis in responses. Keep the tone professional and clean.
+13. Use the site's words: Rentals for gear hire, People for booking a person, Apps for the free apps ([Apps](/tools)). The one studio is ${ON_SITE_RENTAL.studioName} in ${collectionPoint()}, booked under [Rentals, Studios](${ON_SITE_RENTAL.studiosPath}). There is no other studio.`;
 }

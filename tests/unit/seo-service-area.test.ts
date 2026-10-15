@@ -57,6 +57,8 @@ vi.mock('next/navigation', () => ({
 // One item in every rental category except data-storage, which is empty.
 vi.mock('@/lib/supabase/queries/smartRentals', () => ({
   getPublishedRentalsByCategory: async () => [],
+  // Related categories on a city page link only stocked ones.
+  getRentalCategoryCounts: async () => ({ counts: [{ category: 'cameras-optics', count: 1 }], failed: false }),
   fetchPublishedRentalsByCategory: async (category: string) => ({
     rentals: category === 'data-storage' ? [] : [{ id: 'r1', slug: 'r1', category }],
     failed: false,

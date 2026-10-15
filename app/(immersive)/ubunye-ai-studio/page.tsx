@@ -1,22 +1,15 @@
 import { Suspense } from 'react';
-import { unstable_cache } from 'next/cache';
-import { createAdminClient } from '@/lib/supabase/server';
-import { loadStudioContext } from '@/lib/supabase/queries/ubunyeStudio';
 import UbunyeStudioClient from './UbunyeStudioClient';
-import type { StudioContext } from '@/types/ubunye';
 
-const getStudioContext = unstable_cache(
-  async (): Promise<StudioContext> => loadStudioContext(createAdminClient()),
-  ['studio-context'],
-  { revalidate: 300, tags: ['studio-context'] },
-);
-
-export default async function UbunyeAIStudioPage() {
-  const context = await getStudioContext();
-
+/**
+ * Ask Ubunye: just the box and a few example questions (clarity audit C12).
+ * The featured gear and people strips, and their counts, are gone, so the
+ * page no longer loads the studio context.
+ */
+export default function UbunyeAIStudioPage() {
   return (
     <Suspense>
-      <UbunyeStudioClient context={context} />
+      <UbunyeStudioClient />
     </Suspense>
   );
 }

@@ -18,7 +18,8 @@ describe('main navigation', () => {
   it('keeps one account door in the header: no creator join item', () => {
     expect(MAIN_NAVIGATION.some((i) => i.href === CREATOR_JOIN.href)).toBe(false);
     const footerLinks = FOOTER_SECTIONS.flatMap((s) => s.links);
-    expect(footerLinks.some((l) => l.href === CREATOR_JOIN.href)).toBe(true);
+    // The footer's way in is the public Earn page, which starts the sign-up.
+    expect(footerLinks.some((l) => l.href === '/earn')).toBe(true);
   });
 
   it('shows Apps only when the creative_tools switch is on', () => {

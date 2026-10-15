@@ -1,5 +1,6 @@
 import { PRODUCTION_SERVICES } from '@/lib/constants';
 import { createAdminClient } from '@/lib/supabase/server';
+import { formatRand } from '@/lib/format/money';
 
 // ─── Rate Suggestion Types ──────────────────────────────────────────────────
 
@@ -114,7 +115,7 @@ export async function suggestRates(creatorId: string): Promise<RateSuggestion[]>
       marketRange: { low: market.low, high: market.high },
       confidence,
       reasoning: parts.length > 0
-        ? `Based on ${parts.join(', ')}. Market range: R${market.low}–R${market.high}/hr.`
+        ? `Based on ${parts.join(', ')}. Market range: ${formatRand(market.low)} to ${formatRand(market.high)} an hour.`
         : `Based on market average for ${spec}. Build your profile for more accurate suggestions.`,
     });
   }

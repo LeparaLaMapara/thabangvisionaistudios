@@ -27,3 +27,14 @@ export function exactCollectionPoint(): string {
 export function exactCollectionPointWithCity(): string {
   return `${exactCollectionPoint()}, ${STUDIO.location.city}`;
 }
+
+/**
+ * The heading of a rentals city page (clarity audit C7). The gear is not in
+ * that city: it is collected at our one collection point, or delivered once a
+ * first hire is done (city pages exist only where delivery reaches). So:
+ * "Cameras & Optics for Soweto shoots", "collected in Dainfern, Fourways or
+ * delivered".
+ */
+export function cityPageHeading(categoryLabel: string, city: string): { title: string; rest: string } {
+  return { title: `${categoryLabel} for ${city} shoots`, rest: `collected in ${collectionPoint()} or delivered` };
+}

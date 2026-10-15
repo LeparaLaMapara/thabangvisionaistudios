@@ -703,7 +703,7 @@ const LensComparator = () => {
                    </dl>
 
                    <div className="pt-8 mt-6 border-t border-black/5 dark:border-white/5">
-                      <Link href="/catalog" className="block text-center w-full py-3 bg-black text-white dark:bg-white dark:text-black text-xs font-bold uppercase tracking-widest hover:opacity-80 transition-opacity">
+                      <Link href="/rentals" className="block text-center w-full py-3 bg-black text-white dark:bg-white dark:text-black text-xs font-bold uppercase tracking-widest hover:opacity-80 transition-opacity">
                          Request Rental
                       </Link>
                    </div>

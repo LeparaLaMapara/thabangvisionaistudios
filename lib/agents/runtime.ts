@@ -27,6 +27,7 @@ import { promptField, promptList, sanitiseForPrompt } from '@/lib/ubunye/sanitis
 import { SupabaseAgentActions } from '@/lib/agent/repo';
 import { pendingProposalBlock } from '@/lib/agent/prompt';
 import { releaseMessage, reserveMessage, type Reservation } from '@/lib/agents/usage';
+import { formatRate } from '@/lib/format/money';
 
 // Writes that touch money or status go through the service role, after the
 // route has checked who the user is and that the record is theirs. The users'
@@ -372,7 +373,7 @@ export async function executeAgent(
   Do NOT call search_creators. Do NOT ask "any specific creator?" or "what type of shoot?"
   Creator: ${promptField(preCreator.display_name)} (ID: ${preCreator.id}, slug: ${promptField(preCreator.crew_slug)})
   Specializations: ${promptList(preCreator.specializations, 'Not listed')}
-  Rate: R${Number(preCreator.hourly_rate ?? 0)}/hr | Location: ${promptField(preCreator.location, 'SA')} | Experience: ${Number(preCreator.years_experience ?? 0)} years
+  Rate: ${formatRate(Number(preCreator.hourly_rate ?? 0), 'hour')} | Location: ${promptField(preCreator.location, 'SA')} | Experience: ${Number(preCreator.years_experience ?? 0)} years
   Only ask: how many hours, when, and where. Then prepare the booking for their approval.`;
       }
     }

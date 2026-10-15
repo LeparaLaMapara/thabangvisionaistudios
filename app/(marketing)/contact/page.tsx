@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { motion } from 'framer-motion';
 import { ArrowRight, Mail, MapPin, Send, Loader2, MessageCircle } from 'lucide-react';
 import { STUDIO } from '@/lib/constants';
@@ -179,6 +180,7 @@ export default function ContactPage() {
                     </>
                   )}
                 </button>
+                <p className="text-xs font-mono text-neutral-400">We reply {STUDIO.responseTime}.</p>
               </form>
             )}
           </div>
@@ -195,6 +197,11 @@ export default function ContactPage() {
                          <p className="text-white text-xs font-bold uppercase tracking-widest mb-1">{loc.name}</p>
                          {loc.address && <p>{loc.address}</p>}
                          <p>{loc.city}, {loc.province}</p>
+                         {loc.href && (
+                           <Link href={loc.href} className="inline-flex min-h-[44px] items-center text-[#D4A843] underline underline-offset-4">
+                             Book the studio
+                           </Link>
+                         )}
                        </div>
                      </div>
                    ))}

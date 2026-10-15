@@ -5,7 +5,8 @@ import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
 import { createClient } from '@/lib/supabase/client';
-import { STUDIO, CREATOR_JOIN } from '@/lib/constants';
+import { STUDIO, CREATOR_JOIN, EARN } from '@/lib/constants';
+import { OFFER_PATH } from '@/lib/welcome';
 import { authCallbackUrl, bannedMessage, signInErrorMessage } from '@/lib/auth/redirect';
 import { readNextParam } from '@/lib/auth/next-path';
 import { destinationAfterSignIn } from '@/components/auth/afterSignIn';
@@ -542,10 +543,10 @@ function LoginForm() {
         </div>
 
         {/* The creator's way in (not in the header, see CREATOR_JOIN). Hidden when they are already on their way there. */}
-        {onForm && next !== CREATOR_JOIN.href && (
+        {onForm && next !== CREATOR_JOIN.href && next !== OFFER_PATH && (
           <p className="text-xs font-mono text-neutral-400 text-center mt-6">
             {CREATOR_JOIN.loginLine}{' '}
-            <Link href={CREATOR_JOIN.href} className="text-[#D4A843] hover:underline">
+            <Link href={EARN.href} className="text-[#D4A843] hover:underline">
               {CREATOR_JOIN.ctaLabel}
             </Link>
           </p>

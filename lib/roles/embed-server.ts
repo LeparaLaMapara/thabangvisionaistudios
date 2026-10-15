@@ -4,6 +4,7 @@ import { embedding as embeddingProvider, generateEmbedding } from '@/lib/rag/emb
 import { getRoles, loadRecords, PERSON_ROLE_COLUMNS } from '@/lib/supabase/queries/roles';
 import { buildProfileDocument, documentHash } from './document';
 import { sanitizeFacts } from './facts';
+import { blindLabel } from './blind';
 import { parseComesWith } from './profile';
 import { rankMatches, type RankedMatch } from './ranking';
 import type { PersonRole } from './types';
@@ -106,7 +107,7 @@ export async function matchPeople(query: string, opts: { role?: string | null; l
   return ranked.map((m) => {
     const pr = rows.find((r) => r.id === m.id) as PersonRole;
     const role = roles.find((r) => r.slug === pr.role_slug);
-    return { ...m, roleSlug: pr.role_slug, label: [role?.name ?? pr.role_slug, pr.area, pr.profile_code].filter(Boolean).join(' · ') };
+    return { ...m, roleSlug: pr.role_slug, label: blindLabel(role?.name ?? pr.role_slug, pr.area) };
   });
 }
 

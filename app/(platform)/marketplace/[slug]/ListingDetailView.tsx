@@ -5,24 +5,13 @@ import { ArrowLeft, MapPin, Tag, ShoppingBag, Wrench, MessageSquare } from 'luci
 import Link from 'next/link';
 import { PhotographyGallery } from '@/components/projects/ProjectsComponents';
 import type { Listing } from '@/types/marketplace';
+import { formatRand, formatRate } from '@/lib/format/money';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-function formatPrice(price: number, currency: string, pricingModel: string) {
-  const formatted = new Intl.NumberFormat('en-ZA', {
-    style: 'currency',
-    currency: currency || 'ZAR',
-    minimumFractionDigits: 0,
-  }).format(price);
-
-  const suffix: Record<string, string> = {
-    hourly: '/hr',
-    daily: '/day',
-    weekly: '/wk',
-    monthly: '/mo',
-  };
-
-  return `${formatted}${suffix[pricingModel] ?? ''}`;
+function formatPrice(price: number, _currency: string, pricingModel: string) {
+  const unit: Record<string, string> = { hourly: 'hour', daily: 'day', weekly: 'week' };
+  return unit[pricingModel] ? formatRate(price, unit[pricingModel]) : formatRand(price);
 }
 
 function conditionLabel(condition: string | null) {

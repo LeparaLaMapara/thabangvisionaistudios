@@ -57,7 +57,7 @@ export function ShareButtons({ title, path, className = '' }: ShareButtonsProps)
           target="_blank"
           rel="noopener noreferrer"
           aria-label={`Share on ${label}`}
-          className="p-2 text-neutral-400 hover:text-white transition-colors"
+          className="inline-flex items-center justify-center min-w-[44px] min-h-[44px] text-neutral-400 hover:text-white transition-colors"
         >
           <Icon className="w-3.5 h-3.5" />
         </a>
@@ -65,7 +65,7 @@ export function ShareButtons({ title, path, className = '' }: ShareButtonsProps)
       <button
         onClick={handleCopy}
         aria-label="Copy link"
-        className="p-2 text-neutral-400 hover:text-white transition-colors"
+        className="inline-flex items-center justify-center min-w-[44px] min-h-[44px] text-neutral-400 hover:text-white transition-colors"
       >
         {copied ? (
           <Check className="w-3.5 h-3.5 text-emerald-500" />

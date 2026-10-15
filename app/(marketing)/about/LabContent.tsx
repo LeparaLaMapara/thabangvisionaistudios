@@ -3,7 +3,7 @@
 import { motion } from 'framer-motion';
 import { Sparkles, Camera, Bot, Workflow, ArrowRight, Download } from 'lucide-react';
 import Link from 'next/link';
-import { STUDIO, RESEARCH_LAB, UBUNYE_STUDIO, CREATOR_JOIN } from '@/lib/constants';
+import { STUDIO, RESEARCH_LAB, UBUNYE_STUDIO, CREATOR_JOIN, EARN } from '@/lib/constants';
 import { collectionPoint } from '@/lib/rental/collection-point';
 
 const HERO_CAPABILITY = {
@@ -128,7 +128,7 @@ export default function LabContent({ appsLive }: { appsLive: boolean }) {
           <Link href="/contact" className="inline-flex items-center gap-3 bg-[#D4A843] text-black px-8 py-4 min-h-[44px] text-xs font-mono font-bold uppercase tracking-widest hover:opacity-80 transition-opacity">
             Get In Touch <ArrowRight className="w-4 h-4" />
           </Link>
-          <Link href={CREATOR_JOIN.href} className="inline-flex items-center gap-3 border border-white/20 text-white px-8 py-4 min-h-[44px] text-xs font-mono font-bold uppercase tracking-widest hover:border-[#D4A843] transition-colors">
+          <Link href={EARN.href} className="inline-flex items-center gap-3 border border-white/20 text-white px-8 py-4 min-h-[44px] text-xs font-mono font-bold uppercase tracking-widest hover:border-[#D4A843] transition-colors">
             {CREATOR_JOIN.footerLabel} <ArrowRight className="w-4 h-4" />
           </Link>
         </div>
