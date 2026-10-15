@@ -1470,6 +1470,11 @@ export default function ListingsPage() {
                           Waiting for a person to review it. Editing it takes it back to draft.
                         </p>
                       )}
+                      {listing.listing_status === 'published' && (
+                        <p className="mt-2 text-xs font-mono text-neutral-500">
+                          Live. Changing the details, price or photos takes it off the site until it is reviewed again.
+                        </p>
+                      )}
                       {unconfirmed.length > 0 && (
                         <p className="mt-2 text-xs font-mono text-[#D4A843]">
                           Suggested, not yet checked: {unconfirmed.map((f) => FIELD_LABELS[f]).join(', ')}

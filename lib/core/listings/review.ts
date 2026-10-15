@@ -560,16 +560,20 @@ export function adminRentalEditConflict(
 /**
  * Changing any of these on a live or queued listing takes it back to draft:
  * what a reviewer (or the auto-publish rule) looked at is no longer what a
- * renter would see. The cover photo (thumbnail_url) is what search results
- * and cards show, so it counts like the gallery. Day rate and description
- * edits keep it live.
+ * renter would see. That is everything a renter relies on when they book,
+ * including the words (a description can carry contact details or promise
+ * something else) and the day rate (what they pay). The cover photo
+ * (thumbnail_url) is what search results and cards show, so it counts like
+ * the gallery.
  */
 export const MATERIAL_FIELDS = [
   'title',
+  'description',
   'category',
   'condition',
   'brand',
   'model',
+  'price_per_day',
   'price_per_week',
   'replacement_value',
   'rental_includes',
@@ -578,6 +582,44 @@ export const MATERIAL_FIELDS = [
   'gallery',
   'thumbnail_url',
 ] as const;
+
+const FIELD_WORDS: Record<(typeof MATERIAL_FIELDS)[number], string> = {
+  title: 'title',
+  description: 'description',
+  category: 'category',
+  condition: 'condition',
+  brand: 'brand',
+  model: 'model',
+  price_per_day: 'day rate',
+  price_per_week: 'week rate',
+  replacement_value: 'replacement value',
+  rental_includes: "what's included",
+  serial_number: 'serial number',
+  location: 'location',
+  gallery: 'photos',
+  thumbnail_url: 'cover photo',
+};
+
+/**
+ * What the owner reads when an edit took a live listing back to draft: what
+ * they changed, that it is off the site, and what to do next. Plain words.
+ */
+export function resubmissionNotice(changedFields: readonly string[]): string {
+  const words = [
+    ...new Set(
+      changedFields
+        .filter((f): f is (typeof MATERIAL_FIELDS)[number] => (MATERIAL_FIELDS as readonly string[]).includes(f))
+        .map((f) => FIELD_WORDS[f]),
+    ),
+  ];
+  const what =
+    words.length === 0
+      ? 'You changed this listing'
+      : words.length === 1
+        ? `You changed the ${words[0]}`
+        : `You changed the ${words.slice(0, -1).join(', ')} and ${words[words.length - 1]}`;
+  return `${what}, so it is off the site for now. Renters must see what a person checked. Submit it again and it goes back live after a quick review.`;
+}
 
 export function editNeedsResubmission(status: unknown, changedFields: readonly string[]): boolean {
   if (status === 'pending_review') return changedFields.length > 0;

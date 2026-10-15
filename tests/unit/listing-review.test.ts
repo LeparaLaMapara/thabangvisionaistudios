@@ -11,6 +11,7 @@ import {
   confirmAiFields,
   decideSubmission,
   editNeedsResubmission,
+  resubmissionNotice,
   LISTING_TRANSITIONS,
   markAiSuggested,
   needsAdminReview,
@@ -299,7 +300,9 @@ describe('edits to a live or queued listing', () => {
   it('sends a live listing back to draft when what was reviewed changes', () => {
     expect(editNeedsResubmission('published', ['replacement_value'])).toBe(true);
     expect(editNeedsResubmission('published', ['gallery'])).toBe(true);
-    expect(editNeedsResubmission('published', ['price_per_day', 'description'])).toBe(false);
+    expect(editNeedsResubmission('published', ['price_per_day'])).toBe(true);
+    expect(editNeedsResubmission('published', ['description'])).toBe(true);
+    expect(editNeedsResubmission('published', [])).toBe(false);
   });
 
   it('sends a queued listing back to draft on any change', () => {
@@ -327,5 +330,13 @@ describe('open disputes and generic admin edits', () => {
     expect(adminRentalEditConflict(community, { is_published: false, title: 'x' })).toBeNull();
     expect(adminRentalEditConflict({ owner_type: 'studio', is_published: false }, { is_published: true })).toBeNull();
     expect(adminRentalEditConflict({ owner_type: null, is_published: false }, { is_published: true })).toBeNull();
+  });
+});
+
+describe('resubmissionNotice', () => {
+  it('names what changed in plain words', () => {
+    expect(resubmissionNotice(['price_per_day'])).toMatch(/^You changed the day rate, so it is off the site/);
+    expect(resubmissionNotice(['description', 'price_per_day', 'gallery'])).toMatch(/description, day rate and photos/);
+    expect(resubmissionNotice([])).toMatch(/^You changed this listing/);
   });
 });

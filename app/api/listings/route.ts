@@ -7,6 +7,7 @@ import {
   checkListingTransition,
   confirmAiFields,
   editNeedsResubmission,
+  resubmissionNotice,
   markAiSuggested,
   readAiFields,
   weekRateProblem,
@@ -451,7 +452,11 @@ export async function PUT(request: NextRequest): Promise<NextResponse> {
     if (row.listing_status === 'published') notifyDiscovery(rentalPaths(row));
 
     return ownListingResponse(admin, row.id, auth.user.id, {
-      notice: backToDraft ? 'Your changes took this listing back to draft. Submit it again to go live.' : undefined,
+      notice: backToDraft
+        ? row.listing_status === 'published'
+          ? resubmissionNotice(changed)
+          : 'Your changes took this listing back to draft. Submit it again when it is ready.'
+        : undefined,
     });
   } catch (err) {
     console.error('[listings] PUT error:', err);

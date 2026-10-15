@@ -141,10 +141,11 @@ never published automatically, and an admin approval re-checks the owner.
 | suspended | draft | admin (reinstate; must be submitted again) |
 
 **Edits:** any change to a `pending_review` listing, or a change to title,
-category, condition, brand, model, week rate, replacement value, what's
-included, serial number, location, photos or the cover photo on a
-`published` one, takes it back to `draft` (`MATERIAL_FIELDS`). Day rate and
-description edits keep it live.
+description, category, condition, brand, model, day rate, week rate,
+replacement value, what's included, serial number, location, photos or the
+cover photo on a `published` one, takes it back to `draft`
+(`MATERIAL_FIELDS`). The owner is told in plain words which change did it
+and that submitting again puts it back live after review.
 
 **What's included on an edit:** a list sent back equal to the stored one
 once normalised (items trimmed, blanks and repeats dropped, order kept) is

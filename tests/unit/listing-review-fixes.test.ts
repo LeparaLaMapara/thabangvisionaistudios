@@ -236,7 +236,9 @@ describe('cover photo is one of the listing photos', () => {
     for (const f of ['thumbnail_url', 'condition', 'price_per_week', 'rental_includes']) {
       expect(editNeedsResubmission('published', [f])).toBe(true);
     }
-    expect(editNeedsResubmission('published', ['price_per_day', 'description'])).toBe(false);
+    expect(editNeedsResubmission('published', ['price_per_day'])).toBe(true);
+    expect(editNeedsResubmission('published', ['description'])).toBe(true);
+    expect(editNeedsResubmission('published', [])).toBe(false);
   });
 
   it('PUT: swapping the cover on a live listing takes it back to draft', async () => {
@@ -263,9 +265,24 @@ describe('cover photo is one of the listing photos', () => {
     expect((mainUpdate()?.payload as Record<string, unknown>).listing_status).toBe('draft');
   });
 
-  it('PUT: a day-rate-only edit keeps it live', async () => {
+  it('PUT: a day-rate change takes a live listing back to review, and says why in plain words', async () => {
     state.resolver = routeResolver(storedRow());
-    await put(editBody({ price_per_day: 380 }));
+    const res = await put(editBody({ price_per_day: 380 }));
+    expect((mainUpdate()?.payload as Record<string, unknown>).listing_status).toBe('draft');
+    const body = await res.json();
+    expect(JSON.stringify(body)).toMatch(/day rate/);
+    expect(JSON.stringify(body)).toMatch(/off the site/);
+  });
+
+  it('PUT: a description change takes a live listing back to review', async () => {
+    state.resolver = routeResolver(storedRow());
+    await put(editBody({ description: 'Call me on 082 000 0000 and pay cash.' }));
+    expect((mainUpdate()?.payload as Record<string, unknown>).listing_status).toBe('draft');
+  });
+
+  it('PUT: re-saving a live listing unchanged keeps it live', async () => {
+    state.resolver = routeResolver(storedRow());
+    await put(editBody({}));
     expect('listing_status' in (mainUpdate()?.payload as Record<string, unknown>)).toBe(false);
   });
 });
