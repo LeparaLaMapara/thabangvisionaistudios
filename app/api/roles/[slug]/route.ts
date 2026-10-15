@@ -3,7 +3,7 @@ export const dynamic = 'force-dynamic';
 import { NextResponse, type NextRequest } from 'next/server';
 import { rolesOffResponse } from '@/lib/roles/flag';
 import { checkRateLimit } from '@/lib/auth';
-import { createClient } from '@/lib/supabase/server';
+import { createAdminClient, createClient } from '@/lib/supabase/server';
 import { getMyFace, getMyPersonRole, getRole } from '@/lib/supabase/queries/roles';
 import { clampPerKm, clampPrice, finishTodo, inlineLegalAsks, sanitizeFacts, FACT_LIST_KEYS } from '@/lib/roles';
 import { reembedQuietly } from '@/lib/roles/embed-server';
@@ -16,12 +16,16 @@ import { reembedQuietly } from '@/lib/roles/embed-server';
  *                             save fields on their own draft
  *   POST { action: 'submit' } send for review, when finishTodo() is empty
  *
- * Writes run as the person (RLS + column grants): they can never approve
- * themselves. Reads of their own private columns use the service role after
- * the session check.
+ * Since 096 the browser cannot write person_roles at all: this route checks
+ * the session, cleans and clamps every field, and writes with the service
+ * role, only to the person's own row and only while it is not approved. It
+ * only ever sets status to draft or submitted, so nobody approves themselves.
  */
 
 type Ctx = { params: Promise<{ slug: string }> };
+
+/** Statuses in which the person may still change or send their own profile. */
+const OWNER_EDITABLE = ['draft', 'submitted', 'changes_requested'];
 
 const DAYS = new Set(['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun']);
 
@@ -60,7 +64,7 @@ export async function PUT(req: NextRequest, ctx: Ctx): Promise<NextResponse> {
   const off = await rolesOffResponse();
   if (off) return off;
   const { slug } = await ctx.params;
-  const { supabase, user } = await session();
+  const { user } = await session();
   if (!user) return NextResponse.json({ error: 'Please sign in.' }, { status: 401 });
   if (!(await checkRateLimit(`roles-save:${user.id}`, 60, 60_000))) {
     return NextResponse.json({ error: 'Too many saves. Wait a moment.' }, { status: 429 });
@@ -102,8 +106,15 @@ export async function PUT(req: NextRequest, ctx: Ctx): Promise<NextResponse> {
     if (existing.personRole.status === 'approved') return NextResponse.json({ error: 'Your profile is live. Contact us to change it.' }, { status: 409 });
     if (existing.personRole.status !== 'draft') patch.status = 'draft';
     if (Object.keys(patch).length) {
-      const { error } = await supabase.from('person_roles').update(patch).eq('id', existing.personRole.id);
+      const { data: saved, error } = await createAdminClient()
+        .from('person_roles')
+        .update(patch)
+        .eq('id', existing.personRole.id)
+        .eq('user_id', user.id)
+        .in('status', OWNER_EDITABLE)
+        .select('id');
       if (error) throw new Error(error.message);
+      if (!saved?.length) return NextResponse.json({ error: 'Your profile changed. Reload and try again.' }, { status: 409 });
     }
     if (patch.facts !== undefined) await reembedQuietly(existing.personRole.id);
     const fresh = await getMyPersonRole(user.id, slug);
@@ -118,7 +129,7 @@ export async function POST(req: NextRequest, ctx: Ctx): Promise<NextResponse> {
   const off = await rolesOffResponse();
   if (off) return off;
   const { slug } = await ctx.params;
-  const { supabase, user } = await session();
+  const { user } = await session();
   if (!user) return NextResponse.json({ error: 'Please sign in.' }, { status: 401 });
 
   let body: Record<string, unknown> = {};
@@ -150,8 +161,15 @@ export async function POST(req: NextRequest, ctx: Ctx): Promise<NextResponse> {
     });
     if (todo.length) return NextResponse.json({ error: 'A few things are left.', todo }, { status: 422 });
 
-    const { error } = await supabase.from('person_roles').update({ status: 'submitted' }).eq('id', mine.personRole.id);
+    const { data: sent, error } = await createAdminClient()
+      .from('person_roles')
+      .update({ status: 'submitted' })
+      .eq('id', mine.personRole.id)
+      .eq('user_id', user.id)
+      .in('status', OWNER_EDITABLE)
+      .select('id');
     if (error) throw new Error(error.message);
+    if (!sent?.length) return NextResponse.json({ error: 'Your profile changed. Reload and try again.' }, { status: 409 });
     const fresh = await getMyPersonRole(user.id, slug);
     return NextResponse.json({ personRole: fresh?.personRole ?? null });
   } catch {

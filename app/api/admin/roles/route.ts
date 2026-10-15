@@ -3,6 +3,7 @@ export const dynamic = 'force-dynamic';
 import { NextResponse, type NextRequest } from 'next/server';
 import { rolesOffResponse } from '@/lib/roles/flag';
 import { requireAdmin } from '@/lib/auth';
+import { recordSelfReview } from '@/lib/admin/self-review';
 import { createAdminClient } from '@/lib/supabase/server';
 import { listReviewQueue, reviewCounts, EVIDENCE_COLUMNS, PERSON_ROLE_COLUMNS, getRole } from '@/lib/supabase/queries/roles';
 import { reembedQuietly } from '@/lib/roles/embed-server';
@@ -79,6 +80,7 @@ export async function PATCH(request: NextRequest): Promise<NextResponse> {
         .eq('user_id', pr.user_id);
       if (error) throw new Error(error.message);
       if (!count) return NextResponse.json({ error: 'They have not added their photo yet.' }, { status: 409 });
+      if (pr.user_id === reviewer) await recordSelfReview(admin, { adminId: reviewer, what: 'role_face_check', ref: pr.id });
       return NextResponse.json({ ok: true, face_check: value });
     }
 
@@ -92,6 +94,7 @@ export async function PATCH(request: NextRequest): Promise<NextResponse> {
         .update({ status: 'changes_requested', reviewer_note: note, reviewed_by: reviewer, reviewed_at: now.toISOString() })
         .eq('id', id);
       if (error) throw new Error(error.message);
+      if (pr.user_id === reviewer) await recordSelfReview(admin, { adminId: reviewer, what: 'role_changes', ref: pr.id });
       return NextResponse.json({ ok: true, status: 'changes_requested' });
     }
 
@@ -104,6 +107,7 @@ export async function PATCH(request: NextRequest): Promise<NextResponse> {
       if (!item) return NextResponse.json({ error: 'Vouch not found.' }, { status: 404 });
       const { error } = await admin.from('role_evidence').update({ verified_by: reviewer, verified_at: now.toISOString() }).eq('id', item.id);
       if (error) throw new Error(error.message);
+      if (pr.user_id === reviewer) await recordSelfReview(admin, { adminId: reviewer, what: 'role_vouch_verified', ref: pr.id });
       await reembedQuietly(pr.id);
       return NextResponse.json({ ok: true });
     }
@@ -176,6 +180,7 @@ export async function PATCH(request: NextRequest): Promise<NextResponse> {
       })
       .eq('id', id);
     if (error) throw new Error(error.message);
+    if (pr.user_id === reviewer) await recordSelfReview(admin, { adminId: reviewer, what: 'role_approved', ref: pr.id });
     await reembedQuietly(pr.id);
     return NextResponse.json({ ok: true, status: 'approved', level });
   } catch (err) {

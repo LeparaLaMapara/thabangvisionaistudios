@@ -18,6 +18,8 @@ type SupabaseClient = any;
 export function createSearchTools(
   supabase: SupabaseClient,
   flags: { smart_productions: boolean } = { smart_productions: false },
+  /** Server-side client for busy_creator_ids() (not executable by visitors since 096). */
+  busyClient: SupabaseClient = supabase,
 ): Record<string, any> {
   const tools: Record<string, any> = {
     search_creators: {
@@ -50,7 +52,7 @@ export function createSearchTools(
         if (error) return { error: 'Search is unavailable just now.' };
         if (!data || data.length === 0) return { results: [], message: 'No creators found matching your criteria.' };
 
-        const busyIds = await getBusyCreatorIds(supabase, data.map((c: { id: string }) => c.id));
+        const busyIds = await getBusyCreatorIds(busyClient, data.map((c: { id: string }) => c.id));
 
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         return { results: data.map((c: any) => ({

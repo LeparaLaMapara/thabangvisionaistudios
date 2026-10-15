@@ -74,6 +74,16 @@ export interface StorageProvider {
   deleteFolder(folder: string): Promise<DeleteResult>;
 
   /**
+   * Move an asset to a new id (same account), dropping the old delivery URL
+   * from the CDN. Optional: a provider without it cannot move assets.
+   */
+  renameAsset?(
+    fromPublicId: string,
+    toPublicId: string,
+    resourceType?: 'image' | 'video' | 'raw',
+  ): Promise<StorageAsset>;
+
+  /**
    * Generate signed parameters for client-side direct upload.
    * The client uses these to upload directly to the provider
    * without the server proxying the file bytes.

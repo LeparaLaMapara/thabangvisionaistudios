@@ -10,6 +10,7 @@ import { createAdminClient, createClient } from '@/lib/supabase/server';
 import { EVIDENCE_COLUMNS, getMyPersonRole, getRole } from '@/lib/supabase/queries/roles';
 import { classifySource } from '@/lib/roles';
 import { ownUploadPublicId } from '@/lib/roles/own-upload';
+import { moveToRoleWork, resourceTypeOfUrl } from '@/lib/roles/work-path';
 
 /**
  * Proof for one role.
@@ -78,11 +79,17 @@ export async function POST(req: NextRequest, ctx: Ctx): Promise<NextResponse> {
       }
       const meta = sanitizeClientMetadata(body.exif);
       const lastModified = typeof body.last_modified === 'number' ? body.last_modified : null;
+      if (step.kind === 'pair' && !(typeof body.pair_group === 'string' && /^[a-z0-9-]{1,40}$/.test(body.pair_group) && (body.pair_side === 'before' || body.pair_side === 'after'))) {
+        return NextResponse.json({ error: 'Say if this is the before or the after photo.' }, { status: 400 });
+      }
+      // Filed under the profile, not the user id: the URL is shown on the
+      // blind public profile (M1b). Done last, after every check.
+      const moved = await moveToRoleWork(storage, publicId, mine.personRole.id, resourceTypeOfUrl(url));
       row.step_key = step.key;
       row.kind = kind;
-      row.url = url;
+      row.url = moved.url;
       row.storage_provider = storage.name === 'cloudinary' ? 'cloudinary' : 'local';
-      row.storage_ref = publicId;
+      row.storage_ref = moved.public_id;
       row.source = classifySource({ fromCameraButton: body.from_camera === true, exifDate: meta?.dateTaken ?? null, fileLastModified: lastModified, now: Date.now() });
       row.captured_at = meta?.dateTaken ?? (lastModified ? new Date(lastModified).toISOString() : null);
       row.device_summary = meta ? { device: meta.device, software: meta.software, dateTaken: meta.dateTaken, imageWidth: meta.imageWidth, imageHeight: meta.imageHeight } : null;

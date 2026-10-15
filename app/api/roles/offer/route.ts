@@ -3,7 +3,7 @@ export const dynamic = 'force-dynamic';
 import { NextResponse, type NextRequest } from 'next/server';
 import { rolesOffResponse } from '@/lib/roles/flag';
 import { checkRateLimit } from '@/lib/auth';
-import { ROLES_POLICY, STUDIO } from '@/lib/constants';
+import { ROLES_POLICY } from '@/lib/constants';
 import { sanitizeClientMetadata } from '@/lib/metadata/verification';
 import { storage } from '@/lib/storage';
 import { createAdminClient, createClient } from '@/lib/supabase/server';
@@ -11,6 +11,7 @@ import { getMyPersonRole, getRole, ROLE_DOCUMENT_BUCKET } from '@/lib/supabase/q
 import { audioBecomes, classifySource, inlineLegalAsks, profilePrefill, sanitizeFacts } from '@/lib/roles';
 import { reembedQuietly } from '@/lib/roles/embed-server';
 import { ownUploadPublicId } from '@/lib/roles/own-upload';
+import { moveToRoleWork, resourceTypeOfUrl, roleWorkFolder } from '@/lib/roles/work-path';
 
 /**
  * Screen 2 confirmed: "Yes, that's me". Creates (or updates) the draft for the
@@ -65,8 +66,10 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     if (!mine) {
       const { data: prof } = await admin.from('profiles').select('bio, crew_bio, location, city, specializations').eq('id', user.id).maybeSingle();
       const pre = profilePrefill(prof);
-      const { error } = await supabase.from('person_roles').insert({
+      // Service role after the checks above (096: no browser writes on person_roles).
+      const { error } = await admin.from('person_roles').insert({
         user_id: user.id,
+        status: 'draft',
         role_slug: role.slug,
         headline: pre.headline || null,
         about: pre.about || null,
@@ -78,13 +81,17 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       mine = await getMyPersonRole(user.id, role.slug);
       if (!mine) throw new Error('draft not found');
     } else if (mine.personRole.status !== 'draft') {
-      await supabase.from('person_roles').update({ status: 'draft' }).eq('id', mine.personRole.id);
+      await admin
+        .from('person_roles')
+        .update({ status: 'draft' })
+        .eq('id', mine.personRole.id)
+        .eq('user_id', user.id)
+        .in('status', ['submitted', 'changes_requested']);
     }
     const prId = mine.personRole.id;
     const rows: Record<string, unknown>[] = [];
 
     // Work: photos and clips the browser put in the person's own folder.
-    const ownFolder = `${STUDIO.security.uploads.userRoot}/${user.id}/`;
     const work = Array.isArray(body.work) ? (body.work as WorkItem[]).slice(0, ROLES_POLICY.maxFilesPerStep * 2) : [];
     for (const w of work) {
       const url = typeof w.url === 'string' ? w.url : '';
@@ -93,6 +100,9 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       // URL's path, never from the client (M3).
       const publicId = storage.ownsUrl?.(url) ? ownUploadPublicId(url, user.id, process.env.CLOUDINARY_CLOUD_NAME) : null;
       if (!publicId) continue;
+      // Filed under the profile, not the user id: the URL is shown on the
+      // blind public profile (M1b). Throws rather than store the old URL.
+      const moved = await moveToRoleWork(storage, publicId, prId, resourceTypeOfUrl(url));
       const meta = sanitizeClientMetadata(w.exif);
       const lastModified = typeof w.last_modified === 'number' ? w.last_modified : null;
       const isVideo = w.kind === 'video';
@@ -103,8 +113,8 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         media_kind: isVideo ? 'video' : 'image',
         source: classifySource({ fromCameraButton: w.from_camera === true, exifDate: meta?.dateTaken ?? null, fileLastModified: lastModified, now: Date.now() }),
         storage_provider: 'cloudinary',
-        storage_ref: publicId,
-        url,
+        storage_ref: moved.public_id,
+        url: moved.url,
         captured_at: meta?.dateTaken ?? (lastModified ? new Date(lastModified).toISOString() : null),
         device_summary: meta ? { device: meta.device, software: meta.software, dateTaken: meta.dateTaken } : null,
       });
@@ -124,10 +134,11 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         rows.push({ person_role_id: prId, step_key: 'cv', kind: 'document', source: 'uploaded', storage_provider: 'supabase', storage_ref: path, is_public: false, note: `private CV, delete after ${ROLES_POLICY.cvRetentionDays} days` });
       } else if (p.kind === 'audio') {
         if (audioBecomes(role.proof_format) === 'listen') {
-          // A Listen clip is public work: publish a copy to the person's own folder.
+          // A Listen clip is public work: publish a copy under the profile's
+          // folder (no user id in its URL, M1b).
           const { data: blob } = await admin.storage.from(ROLE_DOCUMENT_BUCKET).download(path);
           if (!blob || blob.size > 15 * 1024 * 1024) continue;
-          const asset = await storage.uploadImage(Buffer.from(await blob.arrayBuffer()), `${ownFolder}roles/listen`, 'video');
+          const asset = await storage.uploadImage(Buffer.from(await blob.arrayBuffer()), roleWorkFolder(prId), 'video');
           rows.push({ person_role_id: prId, step_key: 'listen', kind: 'video', media_kind: 'audio', source: 'uploaded', storage_provider: 'cloudinary', storage_ref: asset.public_id, url: asset.url });
         } else {
           rows.push({ person_role_id: prId, step_key: 'voice', kind: 'document', source: 'uploaded', storage_provider: 'supabase', storage_ref: path, is_public: false, media_kind: 'audio', note: `private voice note, delete after ${ROLES_POLICY.cvRetentionDays} days` });
@@ -143,7 +154,12 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     // The facts the person reviewed.
     if (body.facts !== undefined) {
       const source = body.facts_source === 'cv' || body.facts_source === 'voice' || body.facts_source === 'text' ? body.facts_source : 'manual';
-      const { error } = await supabase.from('person_roles').update({ facts: sanitizeFacts(body.facts), facts_source: source }).eq('id', prId);
+      const { error } = await admin
+        .from('person_roles')
+        .update({ facts: sanitizeFacts(body.facts), facts_source: source })
+        .eq('id', prId)
+        .eq('user_id', user.id)
+        .neq('status', 'approved');
       if (error) throw new Error(error.message);
       await reembedQuietly(prId);
     }

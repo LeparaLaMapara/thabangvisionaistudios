@@ -80,19 +80,33 @@ function resolveLimit(
 /** Creator tools that read the old profiles.hourly_rate; off with People (roles_v1) on. */
 export const PEOPLE_RETIRED_TOOLS = ['search_creators', 'get_creator_detail', 'calculate_booking_quote', 'prepare_service_booking'] as const;
 
+/**
+ * busy_creator_ids() returns creator ids only, but since 096 a visitor cannot
+ * call it directly; the server asks with the service role. Falls back to the
+ * caller's client if the service key is missing.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function busyLookupClient(fallback: any): any {
+  try {
+    return createAdminClient();
+  } catch {
+    return fallback;
+  }
+}
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function getToolsForAgent(agentId: string, supabase: any, isAuthenticated: boolean, flags: UbunyeFlagsSnapshot, hasPreSelectedCreator = false, conversationId: string | null = null): Record<string, any> {
   switch (agentId) {
     case 'assistant': {
       // Delivery tools are read-only (plus reporting an issue); each checks sign-in itself.
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const tools: Record<string, any> = { ...createSearchTools(supabase, flags), ...createDeliveryTools(supabase, isAuthenticated) };
+      const tools: Record<string, any> = { ...createSearchTools(supabase, flags, busyLookupClient(supabase)), ...createDeliveryTools(supabase, isAuthenticated) };
       if (flags.roles_v1) for (const name of PEOPLE_RETIRED_TOOLS) delete tools[name];
       return tools;
     }
     case 'booking': {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const tools: Record<string, any> = { ...createBookingTools(supabase, isAuthenticated, flags, conversationId), ...createDeliveryTools(supabase, isAuthenticated) };
+      const tools: Record<string, any> = { ...createBookingTools(supabase, isAuthenticated, flags, conversationId, busyLookupClient(supabase)), ...createDeliveryTools(supabase, isAuthenticated) };
       // People (roles_v1): people are booked on /people at the price on their
       // profile. The old creator tools read profiles.hourly_rate, so they must
       // not quote or book anyone.

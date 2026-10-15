@@ -492,6 +492,10 @@ export const STUDIO = {
     // types can be stored (no SVG, HTML, PDF or raw files).
     uploads: {
       userRoot: 'thabangvision_usecase/users',
+      // People work, once filed as proof, is moved here as
+      // <roleWorkRoot>/<person_role id>/<random> so the public URL never
+      // carries the person's user id (lib/roles/work-path.ts, security M1b).
+      roleWorkRoot: 'thabangvision_usecase/roles',
       imageFormats: ['jpg', 'jpeg', 'png', 'webp', 'heic', 'heif', 'avif', 'gif'],
       // Portfolio project videos (STUDIO.creators.portfolio.acceptedVideoTypes).
       videoFormats: ['mp4'],

@@ -137,6 +137,32 @@ export const cloudinary: StorageProvider = {
     return { success: true };
   },
 
+  async renameAsset(
+    fromPublicId: string,
+    toPublicId: string,
+    resourceType: 'image' | 'video' | 'raw' = 'image',
+  ): Promise<StorageAsset> {
+    const { cloudName, apiKey, apiSecret } = getConfig();
+    const timestamp = Math.round(Date.now() / 1000).toString();
+    const params: Record<string, string> = {
+      from_public_id: fromPublicId,
+      invalidate: 'true',
+      timestamp,
+      to_public_id: toPublicId,
+    };
+    const form = new URLSearchParams({ ...params, signature: sign(params, apiSecret), api_key: apiKey });
+    const res = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/${resourceType}/rename`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: form.toString(),
+    });
+    const data = (await res.json().catch(() => ({}))) as { secure_url?: string; public_id?: string; error?: { message?: string } };
+    if (!res.ok || !data.secure_url || !data.public_id) {
+      throw new Error(data.error?.message ?? `Rename failed (${res.status})`);
+    }
+    return { url: data.secure_url, public_id: data.public_id };
+  },
+
   async deleteFolder(folder: string): Promise<DeleteResult> {
     const { cloudName, apiKey, apiSecret } = getConfig();
     const basicAuth = Buffer.from(`${apiKey}:${apiSecret}`).toString('base64');

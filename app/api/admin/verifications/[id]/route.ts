@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient, createAdminClient } from '@/lib/supabase/server';
 import { sendVerificationApproved, sendVerificationRejected } from '@/lib/email';
 import { requireAdmin, rateLimitAdmin } from '@/lib/auth';
+import { recordSelfReview } from '@/lib/admin/self-review';
 import { logEvent } from '@/lib/data/events';
 import { notifyDiscovery } from '@/lib/discovery/notify';
 import { creatorPathsById } from '@/lib/discovery/paths';
@@ -185,6 +186,9 @@ export async function PUT(req: NextRequest, context: RouteContext) {
       userId: auth.user.id,
       metadata: { subjectId: id, reason: action === 'reject' ? reason : null, notes: adminNotes || null },
     });
+    if (id === auth.user.id) {
+      await recordSelfReview(db, { adminId: auth.user.id, what: action === 'approve' ? 'verification_approved' : 'verification_rejected' });
+    }
     if (action === 'reject') {
       await db.from('moderation_log').insert({
         user_id: id,
