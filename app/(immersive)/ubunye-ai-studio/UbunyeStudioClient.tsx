@@ -432,7 +432,7 @@ export default function UbunyeStudioClient({ context }: UbunyeStudioClientProps)
                   {/* Recommended creators */}
                   {context.featuredCreators.length > 0 && (
                     <div className="mb-4">
-                      <p className="text-xs font-mono text-neutral-400 uppercase tracking-widest mb-2">Recommended Creators</p>
+                      <p className="text-xs font-mono text-neutral-400 uppercase tracking-widest mb-2">People you can book</p>
                       <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-none snap-x snap-mandatory -mx-4 px-4 md:mx-0 md:px-0">
                         {context.featuredCreators.map(creator => (
                           <button

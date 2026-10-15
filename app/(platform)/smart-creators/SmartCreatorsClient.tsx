@@ -179,16 +179,12 @@ export default function SmartCreatorsClient({
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Header */}
         <div className="mb-12">
-          <p className="text-[#D4A843] text-xs uppercase tracking-[0.3em] font-medium mb-3">
-            Smart Creators
-          </p>
           <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-white mb-4">
-            Verified Creative Talent
+            People
           </h1>
           <p className="text-white/50 max-w-2xl text-sm sm:text-base">
-            Browse verified South African filmmakers, photographers, and content
-            creators. Every creator on this page has been verified and has a
-            complete portfolio.
+            Photographers and filmmakers you can book. Everyone on this page has
+            passed an ID check and has a complete portfolio.
           </p>
         </div>
 
@@ -245,7 +241,7 @@ export default function SmartCreatorsClient({
         {hasFilters && (
           <div className="flex items-center gap-2 mb-6">
             <span className="text-white/40 text-xs">
-              {filtered.length} creator{filtered.length !== 1 ? 's' : ''} found
+              {filtered.length} {filtered.length !== 1 ? 'people' : 'person'} found
             </span>
             <button
               onClick={() => {

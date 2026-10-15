@@ -9,7 +9,7 @@ import { STUDIO } from '@/lib/constants';
 export const revalidate = 60;
 
 export const metadata = buildPageMetadata({
-  title: 'Creators for Hire',
+  title: 'People to book',
   description: `Browse ID-checked photographers, filmmakers and content creators you can book through ${STUDIO.shortName} in ${STUDIO.serviceArea.province}.`,
   path: '/smart-creators',
 });

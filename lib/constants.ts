@@ -717,10 +717,10 @@ export const CREATOR_JOIN = {
   homeText: 'Photographer, videographer, editor or sound person? Join free, set up your profile and get booked for shoots.',
   loginLine: 'Want to get booked?',
   footerLabel: `Earn with ${STUDIO.shortName}`,
-  emptyDirectoryTitle: 'No creators yet',
+  emptyDirectoryTitle: 'Nobody here yet',
   emptyDirectoryText:
-    'Verified creators appear here once their profiles and portfolios are ready. Are you a photographer, videographer, editor or sound person? Join and get booked.',
-  emptyDirectoryCta: 'Offer your services',
+    'People appear here once their profiles and portfolios are ready. Are you a photographer, videographer, editor or sound person? Earn with us.',
+  emptyDirectoryCta: `Earn with ${STUDIO.shortName}`,
 } as const;
 
 export const MAIN_NAVIGATION: {
@@ -746,7 +746,7 @@ export const FOOTER_SECTIONS = [
       { label: 'Rentals', href: '/rentals' },
       // The list of bookable creators. Nothing linked to it, so neither
       // visitors nor crawlers could find it.
-      { label: 'Creators', href: '/smart-creators' },
+      { label: 'People', href: '/smart-creators' },
       { label: 'Where to Collect', href: '/locations' },
       { label: 'About', href: '/about' },
       ...(SHOW_CAREERS ? [{ label: 'Careers', href: '/careers' }] : []),

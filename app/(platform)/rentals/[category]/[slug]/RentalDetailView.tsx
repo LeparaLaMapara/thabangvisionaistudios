@@ -88,7 +88,8 @@ export default function RentalDetailView({
   const halfDay = halfDayPrice(rental);
   const videos = rentalVideos(rental);
   const loop = videos.length > 0 ? null : rentalLoop(rental);
-  const bookLabel = place ? ON_SITE_RENTAL.bookLabel : 'Book This Equipment';
+  const bookLabel = place ? ON_SITE_RENTAL.bookLabel : 'Rent this';
+  // A studio's name is a name: "ThaBangVision Studio Labs", never shouted in capitals.
 
   const hasFeatures  = rental.features  && rental.features.length > 0;
   const hasIncludes  = rental.rental_includes && rental.rental_includes.length > 0;
@@ -197,7 +198,7 @@ export default function RentalDetailView({
               {/* No staggered fade-in: the title and description were hidden
                   for up to 1.1s after the page had arrived. break-words keeps a
                   long model name from widening the page on a phone. */}
-              <h1 className="text-4xl md:text-7xl font-display font-black tracking-tighter uppercase mb-4 text-white break-words hyphens-auto">
+              <h1 className={`text-4xl md:text-7xl font-display font-black tracking-tighter ${place ? '' : 'uppercase'} mb-4 text-white break-words hyphens-auto`}>
                 {rental.title}
               </h1>
               {(rental.brand || rental.model) && (
@@ -377,7 +378,7 @@ export default function RentalDetailView({
                 <p className="text-xs font-mono uppercase tracking-widest text-neutral-400 mb-3">
                   {categoryLabel}
                 </p>
-                <h1 className="text-3xl md:text-4xl font-display font-medium uppercase tracking-tight leading-tight text-white mb-2 break-words hyphens-auto">
+                <h1 className={`text-3xl md:text-4xl font-display font-medium ${place ? '' : 'uppercase'} tracking-tight leading-tight text-white mb-2 break-words hyphens-auto`}>
                   {rental.title}
                 </h1>
                 {(rental.brand || rental.model) && (

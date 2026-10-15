@@ -13,7 +13,7 @@ const CATEGORY_META: Record<string, { label: string; icon: typeof Film; color: s
   equipment:       { label: 'Equipment',      icon: Camera,    color: 'text-emerald-400' },
   press:           { label: 'Press',           icon: Newspaper, color: 'text-violet-400' },
   careers:         { label: 'Careers',         icon: Briefcase, color: 'text-amber-400' },
-  creators:        { label: 'Creators',        icon: User,      color: 'text-pink-400' },
+  creators:        { label: 'People',          icon: User,      color: 'text-pink-400' },
   'community-gear': { label: 'Community Gear', icon: Store,     color: 'text-teal-400' },
 };
 

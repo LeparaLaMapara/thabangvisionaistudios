@@ -241,7 +241,7 @@ export default function MarketplaceClient({
               {
                 icon: SlidersHorizontal,
                 title: 'Verified',
-                desc: 'Creators Pass An ID Check',
+                desc: 'Everyone passes an ID check',
                 count: null,
               },
             ].map((item, idx) => (

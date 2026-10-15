@@ -22,7 +22,7 @@ export async function generateMetadata({
   // A place is booked where it is: no "collect" or "delivery" words.
   const onSite = isOnSiteCategory(category);
   return buildPageMetadata({
-    title: onSite ? `${cat.label} for Hire in ${collectionPointWithCity()}` : `${cat.label} Rentals — Equipment Hire`,
+    title: onSite ? `${cat.label} to rent in ${collectionPointWithCity()}` : `${cat.label} Rentals in ${STUDIO.location.city}`,
     description: onSite
       ? `${cat.description} In ${collectionPointWithCity()}. Book online with ${STUDIO.name}.`
       : `${cat.description} Collect at ${collectionPointWithCity()}; delivery within ${STUDIO.fulfilment.delivery.maxRadiusKm} km after your first hire. Daily rates, book online with ${STUDIO.name}.`,

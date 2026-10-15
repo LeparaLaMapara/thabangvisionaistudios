@@ -12,7 +12,7 @@ import { comingSoonLabels } from '@/lib/rental/on-site';
 export const revalidate = 60;
 
 export const metadata = buildPageMetadata({
-  title: 'Camera, Lighting and Audio Gear Hire',
+  title: 'Rent camera, lighting and sound gear',
   description: `Hire cameras, lenses, lights, audio and grip by the day from ${STUDIO.name}. Collect at ${collectionPointWithCity()} or have it delivered in ${STUDIO.serviceArea.province}. Book and pay online.`,
   path: '/rentals',
 });

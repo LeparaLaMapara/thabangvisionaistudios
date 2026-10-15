@@ -398,10 +398,10 @@ function PayAsYouGoPricing() {
   // supplier listings exist yet and the site leads with our own gear.
   const rows = [
     {
-      title: 'Equipment hire',
+      title: 'Rentals',
       body: `Charged at the daily or weekly rate shown on each listing. A refundable security deposit is shown with it and returned after the gear comes back and passes inspection.`,
       href: '/rentals',
-      cta: 'Browse equipment',
+      cta: 'Rent gear',
     },
     {
       title: 'Photo and video shoots',

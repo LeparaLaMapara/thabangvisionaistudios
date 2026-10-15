@@ -25,7 +25,7 @@ export async function generateMetadata({ params }: Props) {
 
   if (!category) return { title: 'Category Not Found' };
   return buildPageMetadata({
-    title: `${category.name} — Production Services`,
+    title: `${category.name}: people to book`,
     description: (() => {
       const from = categoryFromPrice(PRODUCTION_PACKAGES.filter((p) => p.category === slug));
       return `${category.description} By request in ${STUDIO.serviceArea.province}${from !== null ? `, from ${formatRand(from)}` : ''}.`;
@@ -83,7 +83,7 @@ export default async function CategoryPage({ params }: Props) {
       />
       <RelatedCategories currentSlug={slug} type="studio" />
       <AskUbunyeButton
-        prompt={`I need a quote for ${category.name.toLowerCase()} production services`}
+        prompt={`I need someone for ${category.name.toLowerCase()}`}
         label="Ask Ubunye about this"
       />
     </>
