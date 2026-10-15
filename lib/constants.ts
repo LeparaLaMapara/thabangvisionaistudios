@@ -662,7 +662,10 @@ export const SITE_TAGLINE = 'Rent camera gear in Johannesburg';
 export const SITE_COPYRIGHT = `© ${new Date().getFullYear()} ${STUDIO.legal.companyName} (reg. ${STUDIO.legal.registrationNumber}), trading as ${STUDIO.shortName}. All rights reserved.`;
 
 // CONFIGURATION FLAGS
-export const SHOW_CAREERS = true;
+// Careers is hidden (owner 2026-10-15): no roles are really open. False
+// sends /careers to /contact, drops it from the sitemap, the footer, About,
+// search and Ubunye. Set true to bring it all back.
+export const SHOW_CAREERS = false;
 
 // ─── CREATOR JOIN ────────────────────────────────────────────────────────────
 // The way in for a creator who wants to offer their services: the home page,

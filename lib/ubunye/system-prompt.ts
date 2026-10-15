@@ -1,5 +1,5 @@
 import { promptField, promptList, sanitiseForPrompt } from './sanitise';
-import { STUDIO, PRODUCTION_SERVICES, PRODUCTION_PACKAGES, EARN } from '@/lib/constants';
+import { STUDIO, PRODUCTION_SERVICES, PRODUCTION_PACKAGES, EARN, SHOW_CAREERS } from '@/lib/constants';
 import { LIST_GEAR_HREF } from '@/lib/welcome';
 import { calculatePackagePrice } from '@/lib/productions/pricing';
 import { packageUnitWords } from '@/lib/bookings/pricing';
@@ -158,7 +158,7 @@ export async function fetchPlatformData(supabase: any, flags: UbunyeFlagsSnapsho
       `${promptField(p.title, 'Untitled')} (${p.published_at}) — ${sanitiseForPrompt(p.excerpt, 300)} — Read: /press/${p.slug}`
     ).join('\n') || 'No articles yet',
 
-    careers: careers.data?.map((c: Record<string, unknown>) =>
+    careers: !SHOW_CAREERS ? 'None listed. Do not offer jobs; to earn with us, point to the Earn page.' : careers.data?.map((c: Record<string, unknown>) =>
       `${promptField(c.title, 'Role')} — ${promptField(c.department, '')} — ${promptField(c.employment_type, '')} — ${promptField(c.location, 'SA')} — Apply: ${STUDIO.careersEmail}`
     ).join('\n') || 'No open positions',
 
@@ -387,7 +387,7 @@ ${bookingRules}
 - Rent gear → /rentals
 ${people ? '- Book a person (photographer, videographer and more) → /people\n' : '- Hire creators → /studio (or ask Ubunye to search)\n- Book production → /book (or ask Ubunye to help)\n'}- Earn: offer your work or your gear → ${EARN.href} (a public page: who can earn, what we keep, when you are paid, then sign up)
 - List gear to rent out → ${LIST_GEAR_HREF} (start with a photo; it is saved as a draft and goes live after the one ID check)
-${portfolioGuide}- Apply for job → /careers
+${portfolioGuide}${SHOW_CAREERS ? '- Apply for job → /careers' : ''}
 - Tech support → /support/tech
 - Prices → /pricing (free to join, pay per booking)
 

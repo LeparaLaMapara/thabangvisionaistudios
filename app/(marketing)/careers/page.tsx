@@ -1,8 +1,9 @@
 export const revalidate = 60;
 
+import { redirect } from 'next/navigation';
 import { ArrowRight } from 'lucide-react';
 import { getPublishedCareers } from '@/lib/supabase/queries/careers';
-import { STUDIO } from '@/lib/constants';
+import { SHOW_CAREERS, STUDIO } from '@/lib/constants';
 import { cleanRequirements } from '@/lib/content/requirements';
 import { buildPageMetadata } from '@/lib/seo/metadata';
 
@@ -13,6 +14,8 @@ export const metadata = buildPageMetadata({
 });
 
 export default async function CareersPage() {
+  // Hidden (SHOW_CAREERS false): send people to Contact instead.
+  if (!SHOW_CAREERS) redirect('/contact');
   const published = await getPublishedCareers();
 
   return (

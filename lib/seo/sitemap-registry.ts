@@ -16,6 +16,8 @@
  * discovery-registry test enforces that.
  */
 
+import { SHOW_CAREERS } from '@/lib/constants';
+
 export const SITEMAP_IDS = ['static', 'rentals', 'creators', 'studio', 'press', 'marketplace', 'tools'] as const;
 export type SitemapId = (typeof SITEMAP_IDS)[number];
 
@@ -25,7 +27,6 @@ export const SITEMAP_ROUTES: Record<string, SitemapId> = {
   '/about': 'static',
   '/earn': 'static',
   '/contact': 'static',
-  '/careers': 'static',
   '/locations': 'static',
   '/faq': 'static',
   '/pricing': 'static',
@@ -62,6 +63,8 @@ export const SITEMAP_ROUTES: Record<string, SitemapId> = {
 
   '/tools': 'tools',
   '/tools/[app]': 'tools',
+  // Hidden careers (SHOW_CAREERS false) redirect to /contact instead.
+  ...(SHOW_CAREERS ? { '/careers': 'static' as const } : {}),
 };
 
 /**
@@ -100,6 +103,7 @@ export const NOT_IN_SITEMAP: Record<string, 'noindex' | 'redirect'> = {
   '/cart': 'redirect',
   '/creators': 'redirect',
   '/catalog/[slug]': 'redirect',
+  ...(SHOW_CAREERS ? {} : { '/careers': 'redirect' as const }),
 };
 
 /** Route-group folders whose pages are private (signed in) and never crawled. */
