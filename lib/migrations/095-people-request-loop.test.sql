@@ -5,16 +5,16 @@
 
 begin;
 
+insert into auth.users (id, email) values ('00000000-0000-4000-8000-0000000950a1', 't095-a@example.invalid');
+insert into public.profiles (id) values ('00000000-0000-4000-8000-0000000950a1') on conflict (id) do nothing;
+
 do $$
 declare
   u uuid;
   pr uuid;
   rq uuid;
 begin
-  select id into u from auth.users limit 1;
-  if u is null then
-    raise exception 'FAIL 0: no user to test with';
-  end if;
+  u := '00000000-0000-4000-8000-0000000950a1';
 
   if (select count(*) from information_schema.columns
       where table_schema = 'public' and table_name = 'role_booking_requests'
@@ -22,12 +22,9 @@ begin
     raise exception 'FAIL 1: responded_at, responded_by or client_note is missing';
   end if;
 
-  select id into pr from public.person_roles limit 1;
-  if pr is null then
-    insert into public.person_roles (user_id, role_slug, status)
-    values (u, (select slug from public.roles limit 1), 'draft')
-    returning id into pr;
-  end if;
+  insert into public.person_roles (user_id, role_slug, status)
+  values (u, (select slug from public.roles order by sort limit 1), 'draft')
+  returning id into pr;
 
   insert into public.role_booking_requests (person_role_id, client_id, requested_date, arrival_time, duration_hours, area)
   values (pr, u, current_date + 3, '08:00', 4, 'Soweto')
