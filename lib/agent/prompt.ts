@@ -10,6 +10,13 @@ const rands = (cents: number): string => `R${(cents / 100).toFixed(2)}`;
  */
 export function pendingProposalBlock(a: AgentActionRecord): string {
   const s = a.summary;
+  if (a.kind === 'project_update') {
+    return `===== PLAN MOVE WAITING FOR APPROVAL (server state) =====
+Plan move ${a.id}: ${sanitiseForPrompt(s.title)} | to ${sanitiseForPrompt(s.period)} | nothing to pay.
+Expires: ${a.expiresAt}.
+If the person says yes, ok or similar, it refers to THIS move. You cannot approve it yourself: tell them to press Approve on the card above. It moves only the plan date and the do by dates; bookings and requests are not changed.
+===== END PLAN MOVE =====`;
+  }
   if (a.kind === 'project_create') {
     return `===== PLAN WAITING FOR APPROVAL (server state) =====
 Plan proposal ${a.id}: ${sanitiseForPrompt(s.title)} | ${sanitiseForPrompt(s.period)} | nothing to pay.

@@ -24,6 +24,7 @@ interface Summary {
   nextStep: string;
   /** A plan: nothing is paid or booked, so no money is shown. */
   noCharge?: boolean;
+  doneMessage?: string;
 }
 
 type State =
@@ -59,9 +60,10 @@ export function ApprovalCard({ proposalId }: { proposalId: string }) {
           return;
         }
         if (body.state !== 'prepared') {
-          const plan = (body.summary as Summary | undefined)?.noCharge === true;
+          const summary = body.summary as Summary | undefined;
+          const plan = summary?.noCharge === true;
           if (plan && (body.state === 'committed' || body.state === 'committing')) {
-            setState({ kind: 'closed', message: 'This plan is saved.', next: '/dashboard/plans' });
+            setState({ kind: 'closed', message: typeof summary?.doneMessage === 'string' && summary.doneMessage ? summary.doneMessage : 'This plan is saved.', next: '/dashboard/plans' });
             return;
           }
           setState({ kind: 'closed', message: closedMessage(body.state) });

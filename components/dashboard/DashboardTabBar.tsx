@@ -9,12 +9,15 @@ import {
   Clapperboard,
   User,
   Bell,
+  ListChecks,
 } from 'lucide-react';
 
 interface DashboardTabBarProps {
   isCreator: boolean;
   /** People (roles_v1) is on: the Studio tab opens gear listings, not Gigs. */
   people?: boolean;
+  /** Ubunye plans (ubunye_projects) is on: a Plans tab after Activity. */
+  plans?: boolean;
 }
 
 interface Tab {
@@ -24,6 +27,8 @@ interface Tab {
   icon: React.ComponentType<{ size?: number; className?: string }>;
   matchPaths: string[];
   creatorOnly?: boolean;
+  /** Shown only with the plans flag on. */
+  plansOnly?: boolean;
 }
 
 const TABS: Tab[] = [
@@ -45,6 +50,14 @@ const TABS: Tab[] = [
       '/dashboard/disputes',
       '/dashboard/cart',
     ],
+  },
+  {
+    id: 'plans',
+    href: '/dashboard/plans',
+    label: 'Plans',
+    icon: ListChecks,
+    matchPaths: ['/dashboard/plans'],
+    plansOnly: true,
   },
   {
     id: 'studio',
@@ -82,11 +95,11 @@ const TABS: Tab[] = [
   },
 ];
 
-export function DashboardTabBar({ isCreator, people = false }: DashboardTabBarProps) {
+export function DashboardTabBar({ isCreator, people = false, plans = false }: DashboardTabBarProps) {
   const pathname = usePathname();
   const [unreadCount, setUnreadCount] = useState(0);
 
-  const visibleTabs = TABS.filter((t) => !t.creatorOnly || isCreator).map((t) =>
+  const visibleTabs = TABS.filter((t) => (!t.creatorOnly || isCreator) && (!t.plansOnly || plans)).map((t) =>
     people && t.id === 'studio' ? { ...t, href: '/dashboard/listings' } : t,
   );
 

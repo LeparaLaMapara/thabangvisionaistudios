@@ -14,7 +14,9 @@
  * the client presses Approve (lib/core/agent, kind project_create).
  */
 
-import { PLAN_POLICY } from '@/lib/constants';
+import { PLAN_POLICY, RENTAL_CATEGORY_VALUES } from '@/lib/constants';
+import { shootTypeBySlug, type ShootType } from '@/lib/ubunye/shoot-types';
+import { assignTimeline } from './timeline';
 import { formatSaDay, isIsoDate, saToday, type ResolvedDate } from '@/lib/dates/johannesburg';
 import type { ApprovalSummary } from '@/lib/core/agent/use-cases';
 import { briefLine, cleanLine, dedupeParts, isRefKind, isUuid, makeBrief, needWords, planNeeded, type PlanNeed, type PlanPart, type PlanPayload, type ProjectRefKind } from './plan';
@@ -34,7 +36,7 @@ export interface PlanLookups {
   /** An approved blind profile: its role only. Null when not approved or missing. */
   personRole(id: string): Promise<{ id: string; roleSlug: string } | null>;
   /** A published listing. Null when missing. */
-  rental(id: string): Promise<{ id: string; title: string } | null>;
+  rental(id: string): Promise<{ id: string; title: string; category?: string } | null>;
   /** One blind line for the client's own booking or request ("Photographer or videographer (Sat 24 Oct): waiting for their reply"). Null when not theirs. */
   describeRef(clientId: string, kind: ProjectRefKind, id: string): Promise<string | null>;
   /** Ids our tools returned in earlier turns of this conversation. */
@@ -49,6 +51,7 @@ export interface RawPlanPart {
   role?: unknown;
   person_id?: unknown;
   rental_id?: unknown;
+  category?: unknown;
   existing_kind?: unknown;
   existing_id?: unknown;
 }
@@ -60,8 +63,22 @@ export interface ProposePlanInput {
   date?: unknown;
   date_end?: unknown;
   budget?: unknown;
+  /** A shoot type slug (plan_outline returned it), for the timeline. */
+  shoot_type?: unknown;
   parts?: unknown;
 }
+
+/**
+ * The shoot type for a plan: only a slug from our catalogue that the model
+ * passed on from plan_outline. No guessing from the title here: a plan made
+ * without an outline keeps its parts as they were, with no timeline.
+ */
+export function planShootType(slug: unknown): ShootType | null {
+  const given = shootTypeBySlug(slug);
+  return given && given.slug !== 'general' ? given : null;
+}
+
+const categoryOf = (v: unknown): string | undefined => (typeof v === 'string' && (RENTAL_CATEGORY_VALUES as readonly string[]).includes(v) ? v : undefined);
 
 const UNKNOWN_ID: Refusal = {
   ok: false,
@@ -145,9 +162,11 @@ export async function buildPlanProposal(
           if (!isUuid(raw.rental_id) || !(await known(raw.rental_id))) return UNKNOWN_ID;
           const rental = await lookups.rental(raw.rental_id);
           if (!rental) return { ok: false, code: 'not_found', message: 'That gear is not listed any more. Search again.' };
-          parts.push({ kind: 'need', need: { type: 'gear', status: 'to_book', label: cleanLine(rental.title, PLAN_POLICY.maxPartLabelChars), rental_id: rental.id } });
+          const category = categoryOf(rental.category) ?? categoryOf(raw.category);
+          parts.push({ kind: 'need', need: { type: 'gear', status: 'to_book', label: cleanLine(rental.title, PLAN_POLICY.maxPartLabelChars), rental_id: rental.id, ...(category ? { category } : {}) } });
         } else {
-          parts.push({ kind: 'need', need: { type: 'gear', status: 'to_book', label: label || 'Gear' } });
+          const category = categoryOf(raw.category);
+          parts.push({ kind: 'need', need: { type: 'gear', status: 'to_book', label: label || 'Gear', ...(category ? { category } : {}) } });
         }
       } else if (type === 'person') {
         const need = asRole(cleanLine(raw.role, 60) || label, label);
@@ -168,15 +187,22 @@ export async function buildPlanProposal(
     return { ok: false, code: 'check_failed', message: 'Could not check that just now. Try again in a moment.' };
   }
 
-  const unique = dedupeParts(parts);
-  const needed = planNeeded(unique);
+  const deduped = dedupeParts(parts);
+  const needed = planNeeded(deduped);
   if (!needed.ok) return needed;
-  const refs = await checkRefs(lookups.store, ctx.clientId, unique);
+  const refs = await checkRefs(lookups.store, ctx.clientId, deduped);
   if (!refs.ok) return refs;
 
-  const brief = makeBrief({ outcome: outcome || title, place: input.place, date: date.date, dateEnd: dateEnd.date?.iso ?? null, budget: input.budget });
+  // The timeline: each part not booked yet gets a "do by" date from the shoot type.
+  const shootType = planShootType(input.shoot_type);
+  const unique = shootType && date.date ? assignTimeline(shootType, date.date.iso, deduped) : deduped;
+  const brief = makeBrief({ outcome: outcome || title, place: input.place, date: date.date, dateEnd: dateEnd.date?.iso ?? null, budget: input.budget, shootType: shootType?.slug ?? null });
   const payload: PlanPayload = { title, brief, parts: unique, source_conversation_id: ctx.conversationId };
-  const lines = unique.map((p) => (p.kind === 'need' ? needWords(p.need) : p.label));
+  const byPosition = [...unique].sort((a, b) => (a.position ?? 100) - (b.position ?? 100));
+  const lines = byPosition.map((p) => {
+    const line = p.kind === 'need' ? needWords(p.need) : p.label;
+    return p.due_date ? `${line} (do by ${formatSaDay(p.due_date)})` : line;
+  });
   const summary: ApprovalSummary = {
     title: `Plan: ${title}`,
     details: [briefLine(brief), ...lines].filter(Boolean),

@@ -2,10 +2,14 @@ import { createAdminClient } from '@/lib/supabase/server';
 import { PLAN_POLICY } from '@/lib/constants';
 import { isExpiredHold } from '@/lib/rental/availability';
 import { requestDays } from '@/lib/roles';
+import { saToday } from '@/lib/dates/johannesburg';
+import { planSteps, type PlanStep } from '@/lib/core/projects/timeline';
 import {
   briefLine,
+  orderParts,
   partView,
   planNextAction,
+  type PartTimeline,
   type LivePart,
   type PartView,
   type PlanBrief,
@@ -35,6 +39,7 @@ interface ItemRef {
   kind: ProjectItemKind;
   refId: string | null;
   need: PlanNeed | null;
+  timeline?: PartTimeline;
 }
 
 async function roleInfo(db: Admin, slugs: string[]): Promise<Map<string, { name: string; status: string }>> {
@@ -113,6 +118,7 @@ export async function liveParts(clientId: string, items: ItemRef[], now: Date = 
         requestId: r.id,
         roleName: (slug && roles.get(slug)?.name) || 'Person',
         roleSlug: slug,
+        personRoleId: r.person_role_id,
         status: r.status,
         dates: requestDays(r),
         totalCents: typeof r.total_cents === 'number' ? r.total_cents : null,
@@ -178,6 +184,19 @@ export interface ProjectView {
   sourceConversationId: string | null;
   parts: PartView[];
   next: ReturnType<typeof planNextAction>;
+  /** The plan's own steps (the shoot day, the edit afterwards), from its shoot type. */
+  steps: PlanStep[];
+}
+
+type ItemRow = { id: string; kind: ProjectItemKind; ref_id: string | null; need: unknown; due_date?: string | null; step?: string | null; position?: number | null };
+
+/** The plan's items, with the timeline (098) when the columns exist; without it before 098. */
+export async function readItems(db: Admin, projectId: string): Promise<ItemRow[]> {
+  const read = (cols: string) => db.from('project_items').select(cols).eq('project_id', projectId).order('created_at', { ascending: true });
+  let res = await read('id, kind, ref_id, need, due_date, step, position');
+  if (res.error) res = await read('id, kind, ref_id, need');
+  if (res.error) throw new Error(res.error.message);
+  return (res.data ?? []) as unknown as ItemRow[];
 }
 
 /** One of the client's plans with every part read live. Null when it is not theirs or does not exist. */
@@ -191,17 +210,19 @@ export async function getProjectView(clientId: string, projectId: string, db: Ad
     .maybeSingle();
   if (error) throw new Error(error.message);
   if (!p) return null;
-  const { data: rows, error: itemsError } = await db.from('project_items').select('id, kind, ref_id, need').eq('project_id', projectId).order('created_at', { ascending: true });
-  if (itemsError) throw new Error(itemsError.message);
-  const items: ItemRef[] = ((rows ?? []) as { id: string; kind: ProjectItemKind; ref_id: string | null; need: unknown }[]).map((r) => ({
+  const rows = await readItems(db, projectId);
+  const items: ItemRef[] = rows.map((r) => ({
     itemId: r.id,
     kind: r.kind,
     refId: r.ref_id,
     need: r.kind === 'need' ? validateNeed(r.need) : null,
+    timeline: { due_date: r.due_date ?? null, step: r.step ?? null, position: r.position ?? null },
   }));
   const brief = (p.brief ?? {}) as Partial<PlanBrief>;
-  const live = await liveParts(clientId, items, new Date(), db);
-  const parts = live.map((l) => partView(l, projectId, brief));
+  const now = new Date();
+  const today = saToday(now);
+  const live = await liveParts(clientId, items, now, db);
+  const parts = orderParts(live.map((l, i) => partView(l, projectId, brief, { timeline: items[i].timeline, today })));
   return {
     id: p.id as string,
     title: p.title as string,
@@ -212,7 +233,35 @@ export async function getProjectView(clientId: string, projectId: string, db: Ad
     sourceConversationId: (p.source_conversation_id as string | null) ?? null,
     parts,
     next: p.status === 'open' ? planNextAction(parts) : null,
+    steps: planSteps(brief, today),
   };
+}
+
+/**
+ * The client's open plan that came from this chat, newest first, with its
+ * People needs (item id and role), for "Add to my plan" on chat People
+ * cards. Null when there is none. Blind: no people data at all.
+ */
+export async function openPlanForConversation(clientId: string, conversationId: string, db: Admin = createAdminClient()): Promise<{ id: string; needs: { itemId: string; roleSlug: string }[] } | null> {
+  if (!/^[0-9a-f-]{36}$/i.test(conversationId)) return null;
+  const { data, error } = await db
+    .from('projects')
+    .select('id')
+    .eq('client_id', clientId)
+    .eq('source_conversation_id', conversationId)
+    .eq('status', 'open')
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  if (!data) return null;
+  const { data: items, error: e2 } = await db.from('project_items').select('id, need').eq('project_id', data.id).eq('kind', 'need');
+  if (e2) throw new Error(e2.message);
+  const needs = ((items ?? []) as { id: string; need: unknown }[])
+    .map((r) => ({ itemId: r.id, need: validateNeed(r.need) }))
+    .filter((r) => r.need?.type === 'person' && r.need.status === 'to_book' && !!r.need.role_slug)
+    .map((r) => ({ itemId: r.itemId, roleSlug: r.need!.role_slug as string }));
+  return { id: data.id as string, needs };
 }
 
 export interface PlanListItem {

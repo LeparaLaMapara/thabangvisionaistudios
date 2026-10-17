@@ -1876,3 +1876,21 @@ export const PLAN_POLICY = {
   /** How many earlier assistant messages are read for ids tools returned. */
   priorMessagesForIds: 40,
 } as const;
+
+/**
+ * Shoot types (lib/ubunye/shoot-types.ts): one catalogue of outcomes, one
+ * engine. These are the planning knobs; the catalogue itself is matching
+ * vocabulary and typical parts, not business values.
+ */
+export const SHOOT_PLAN_POLICY = {
+  /** Most questions plan_outline asks back (only the ones not answered yet). */
+  maxQuestions: 3,
+  /** Below this a match is "unsure": the model checks the type with the client. */
+  sureConfidence: 0.6,
+  /** Default "send the request by" for a person, days before the shoot, when the type gives none. */
+  defaultPeopleLeadDays: 14,
+  /** Default "book by" for gear and the studio, days before the shoot. Never later than STUDIO.rental.minLeadTimeHours. */
+  defaultGearLeadDays: 7,
+  /** Most days a plan can be moved by at once (a typo guard). */
+  maxMoveDays: 365,
+} as const;

@@ -10,7 +10,8 @@
  * (migration 097).
  */
 
-import { PLAN_POLICY } from '@/lib/constants';
+import { PLAN_POLICY, RENTAL_CATEGORY_VALUES } from '@/lib/constants';
+import { isIsoDate } from '@/lib/dates/johannesburg';
 import {
   cleanLine,
   dedupeParts,
@@ -18,6 +19,7 @@ import {
   isUuid,
   planNeeded,
   type PlanBrief,
+  type PartTimeline,
   type PlanNeed,
   type PlanPart,
   type PlanPayload,
@@ -61,11 +63,25 @@ export function validateNeed(raw: unknown): PlanNeed | null {
   if (typeof n.role_slug === 'string' && SLUG.test(n.role_slug)) need.role_slug = n.role_slug;
   if (isUuid(n.person_role_id)) need.person_role_id = n.person_role_id;
   if (isUuid(n.rental_id)) need.rental_id = n.rental_id;
+  if (typeof n.category === 'string' && (RENTAL_CATEGORY_VALUES as readonly string[]).includes(n.category)) need.category = n.category;
   // A person must name a role; a person or gear "to book" is the only kind that points at a profile or listing.
   if (type === 'person' && status === 'to_book' && !need.role_slug) return null;
   if (type !== 'person') delete need.person_role_id;
-  if (type !== 'gear') delete need.rental_id;
+  if (type !== 'gear') {
+    delete need.rental_id;
+    delete need.category;
+  }
   return need;
+}
+
+/** A part's timeline as stored: a real date, one plain line, a small position. Unknown values dropped. */
+export function validateTimeline(raw: Record<string, unknown>): PartTimeline {
+  const t: PartTimeline = {};
+  if (isIsoDate(raw.due_date)) t.due_date = raw.due_date;
+  const step = cleanLine(raw.step, 120);
+  if (step) t.step = step;
+  if (Number.isSafeInteger(raw.position) && (raw.position as number) >= 0 && (raw.position as number) <= 100) t.position = raw.position as number;
+  return t;
 }
 
 /** A stored proposal payload, re-checked before it is used (it came from our own row, but checks are cheap). */
@@ -81,9 +97,12 @@ export function validatePayload(raw: unknown): PlanPayload | null {
     if (part.kind === 'need') {
       const need = validateNeed(part.need);
       if (!need) return null;
-      parts.push({ kind: 'need', need });
+      parts.push({ kind: 'need', need, ...validateTimeline(part) });
     } else if (isRefKind(part.kind) && isUuid(part.ref_id)) {
-      parts.push({ kind: part.kind, ref_id: part.ref_id, label: cleanLine(part.label, 120) });
+      // A booking has its own dates: no due date on a reference.
+      const timeline = validateTimeline(part);
+      delete timeline.due_date;
+      parts.push({ kind: part.kind, ref_id: part.ref_id, label: cleanLine(part.label, 120), ...timeline });
     } else {
       return null;
     }
@@ -96,6 +115,7 @@ export function validatePayload(raw: unknown): PlanPayload | null {
     date_label: typeof b.date_label === 'string' ? cleanLine(b.date_label, 60) : null,
     date_end: typeof b.date_end === 'string' ? b.date_end : null,
     budget_cents: Number.isSafeInteger(b.budget_cents) && (b.budget_cents as number) > 0 ? (b.budget_cents as number) : null,
+    ...(typeof b.shoot_type === 'string' && SLUG.test(b.shoot_type) ? { shoot_type: b.shoot_type } : {}),
   };
   return { title, brief, parts: dedupeParts(parts), source_conversation_id: isUuid(p.source_conversation_id) ? p.source_conversation_id : null };
 }
@@ -193,5 +213,72 @@ export async function closeProject(store: ProjectStore, p: { clientId: string; p
     return (await store.close({ projectId: p.projectId, clientId: p.clientId })) ? { ok: true } : { ok: false, code: 'not_found', message: 'That plan is not open.' };
   } catch {
     return CHECK_FAILED;
+  }
+}
+
+// ── Moving a plan to a new date (098) ───────────────────────────────────────
+
+export interface PlanMoveStore {
+  flagOn(): Promise<boolean>;
+  /** The client's plan: its brief date and whether it is open. Null when it is not theirs. */
+  planDate(p: { projectId: string; clientId: string }): Promise<{ date: string | null; open: boolean } | null>;
+  /** Move the client's open plan (project_move_date). False when it is not their open plan. */
+  moveDate(p: { projectId: string; clientId: string; date: string; dateEnd: string | null; label: string; shiftDays: number }): Promise<boolean>;
+}
+
+export interface MoveRequest {
+  projectId: string;
+  date: string;
+  dateEnd: string | null;
+  label: string;
+  shiftDays: number;
+}
+
+/**
+ * Check a move before it is proposed or done: the flag, the shape, a date
+ * that is not past and not more than SHOOT_PLAN_POLICY.maxMoveDays away, an
+ * end not before the start, and the client's own open plan. Fails closed.
+ */
+export async function checkMove(
+  store: PlanMoveStore,
+  p: { clientId: string; projectId: unknown; date: unknown; dateEnd?: unknown; today: string; maxDays: number; label: (iso: string) => string },
+): Promise<{ ok: true; move: MoveRequest } | Refusal> {
+  try {
+    if (!(await store.flagOn())) return PLANS_OFF;
+  } catch {
+    return CHECK_FAILED;
+  }
+  if (!isUuid(p.clientId) || !isUuid(p.projectId)) return { ok: false, code: 'bad_request', message: 'That plan does not exist.' };
+  if (!isIsoDate(p.date)) return { ok: false, code: 'bad_date', message: 'Give the new date as a day, for example 2027-03-20.' };
+  if (p.date < p.today) return { ok: false, code: 'bad_date', message: 'That date has passed. Choose a day from today on.' };
+  const end = isIsoDate(p.dateEnd) ? p.dateEnd : null;
+  if (end && end < p.date) return { ok: false, code: 'bad_date', message: 'The last day cannot come before the first day.' };
+  let plan: { date: string | null; open: boolean } | null;
+  try {
+    plan = await store.planDate({ projectId: p.projectId, clientId: p.clientId });
+  } catch {
+    return CHECK_FAILED;
+  }
+  if (!plan) return { ok: false, code: 'not_found', message: 'That plan does not exist.' };
+  if (!plan.open) return { ok: false, code: 'closed', message: 'That plan is closed, so it cannot be moved.' };
+  const shiftDays = plan.date && isIsoDate(plan.date) ? Math.round((Date.parse(p.date) - Date.parse(plan.date)) / 86_400_000) : 0;
+  if (Math.abs(shiftDays) > p.maxDays) return { ok: false, code: 'bad_date', message: 'That is too far to move a plan in one go.' };
+  if (plan.date === p.date && !end) return { ok: false, code: 'same_date', message: 'The plan is already on that date.' };
+  return { ok: true, move: { projectId: p.projectId, date: p.date, dateEnd: end, label: p.label(p.date), shiftDays } };
+}
+
+/** Move the plan after the client approved (or pressed Move on their plan page). Checks everything again. */
+export async function movePlanDate(
+  store: PlanMoveStore,
+  p: { clientId: string; projectId: unknown; date: unknown; dateEnd?: unknown; today: string; maxDays: number; label: (iso: string) => string },
+): Promise<{ ok: true; projectId: string; date: string } | Refusal> {
+  const checked = await checkMove(store, p);
+  if (!checked.ok) return checked;
+  const m = checked.move;
+  try {
+    const moved = await store.moveDate({ projectId: m.projectId, clientId: p.clientId, date: m.date, dateEnd: m.dateEnd, label: m.label, shiftDays: m.shiftDays });
+    return moved ? { ok: true, projectId: m.projectId, date: m.date } : { ok: false, code: 'not_found', message: 'That plan is not open.' };
+  } catch {
+    return { ok: false, code: 'failed', message: 'Could not move the plan. Nothing changed; try again.' };
   }
 }

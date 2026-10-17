@@ -630,3 +630,34 @@ export async function getRentalOwner(ownerId: string | null): Promise<RentalOwne
     is_bookable: Boolean(row.available_for_hire),
   };
 }
+
+export type GearCategorySummary = Map<string, { count: number; cheapestPerDay: number | null }>;
+
+/**
+ * How many published listings each category has, and the cheapest day price
+ * (rands), for plan_outline. Public catalogue fields only (category and day
+ * price). Server key, no cookies, so it runs inside a chat tool. Throws on a
+ * read error, so the caller says "could not check" instead of "none".
+ */
+export async function gearCategorySummary(categories: readonly string[]): Promise<GearCategorySummary> {
+  const out: GearCategorySummary = new Map();
+  if (!categories.length) return out;
+  const { createAdminClient } = await import('@/lib/supabase/server');
+  const { data, error } = await createAdminClient()
+    .from('smart_rentals')
+    .select('category, price_per_day')
+    .eq('is_published', true)
+    .is('deleted_at', null)
+    .in('category', [...new Set(categories)])
+    .limit(RENTAL_COUNT_SCAN_LIMIT);
+  if (error) throw new Error(`gear summary failed: ${error.message}`);
+  for (const row of (data ?? []) as { category: string; price_per_day: number | null }[]) {
+    const now = out.get(row.category) ?? { count: 0, cheapestPerDay: null };
+    const price = typeof row.price_per_day === 'number' && row.price_per_day > 0 ? row.price_per_day : null;
+    out.set(row.category, {
+      count: now.count + 1,
+      cheapestPerDay: price === null ? now.cheapestPerDay : now.cheapestPerDay === null ? price : Math.min(now.cheapestPerDay, price),
+    });
+  }
+  return out;
+}
