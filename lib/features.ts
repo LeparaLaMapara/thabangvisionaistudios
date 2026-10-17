@@ -52,6 +52,18 @@ export function isFeatureKey(key: string): key is FeatureKey {
   return (FEATURE_KEYS as readonly string[]).includes(key);
 }
 
+/**
+ * Flags forced on for ONE deployment: FEATURE_FLAGS_FORCE_ON=ubunye_projects,...
+ * Flags live in the database, which a hidden production test copy shares with
+ * the live site, so switching a flag there would switch it for every
+ * customer. This env var is set only on that one deployment (vercel deploy
+ * -e), never in the project's environment variables. It can only turn a
+ * known flag on, never off.
+ */
+export function forcedOnFlags(raw: string | undefined = process.env.FEATURE_FLAGS_FORCE_ON): Set<FeatureKey> {
+  return new Set((raw ?? '').split(',').map((s) => s.trim()).filter(isFeatureKey));
+}
+
 async function readAllFlagsFromDb(): Promise<FeatureFlag[]> {
   // Use admin client so the cached fn doesn't read cookies.
   // Flags are globally readable (RLS "anyone_reads_flags") — service role
@@ -73,10 +85,13 @@ const getAllFlagsCached = unstable_cache(
 );
 
 export async function getAllFlags(): Promise<FeatureFlag[]> {
-  return getAllFlagsCached();
+  const forced = forcedOnFlags();
+  const flags = await getAllFlagsCached();
+  return forced.size ? flags.map((f) => (forced.has(f.key) ? { ...f, enabled: true } : f)) : flags;
 }
 
 export async function getFlag(key: FeatureKey): Promise<boolean> {
+  if (forcedOnFlags().has(key)) return true;
   const flags = await getAllFlagsCached();
   const row = flags.find((f) => f.key === key);
   return row?.enabled ?? (FLAG_DEFAULTS[key] ?? false);
@@ -86,9 +101,10 @@ export async function getFlags(
   keys: readonly FeatureKey[],
 ): Promise<Record<FeatureKey, boolean>> {
   const flags = await getAllFlagsCached();
+  const forced = forcedOnFlags();
   const out = {} as Record<FeatureKey, boolean>;
   for (const key of keys) {
-    out[key] = flags.find((f) => f.key === key)?.enabled ?? (FLAG_DEFAULTS[key] ?? false);
+    out[key] = forced.has(key) || (flags.find((f) => f.key === key)?.enabled ?? (FLAG_DEFAULTS[key] ?? false));
   }
   return out;
 }

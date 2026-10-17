@@ -1,0 +1,142 @@
+name: Ubunye eval
+
+# Runs the live Ubunye eval (scripts/eval/ubunye-live-eval.mjs) against a real
+# deployed preview, signed in as the dev eval account:
+#   - every Vercel preview whose changes touch Ubunye (the tuning set, once);
+#   - every night against develop (both sets, twice each, so a flaky answer
+#     shows as a rate, not a pass or a fail);
+#   - by hand (Actions, Run workflow).
+# A rate below tests/eval/thresholds.json fails the check. Previews use the
+# DEV database, never production. Costs a few rand of AI per run.
+#
+# Repository settings it needs (dev only, nothing production):
+#   secrets  EVAL_USER_EMAIL, EVAL_USER_PASSWORD   the dev eval account
+#            VERCEL_AUTOMATION_BYPASS_SECRET        previews are behind SSO
+#   vars     EVAL_SUPABASE_URL, EVAL_SUPABASE_ANON_KEY   the DEV project (public values)
+#            EVAL_DEVELOP_URL                       the develop preview address
+
+on:
+  deployment_status:
+  schedule:
+    - cron: '30 1 * * *' # 03:30 in Johannesburg
+  workflow_dispatch:
+    inputs:
+      base:
+        description: 'Preview address (empty: develop)'
+        required: false
+      set:
+        description: 'outcomes, holdout or both'
+        default: 'both'
+      repeat:
+        description: 'Runs per sentence'
+        default: '1'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ubunye-eval-${{ github.event.deployment.sha || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  eval:
+    # Vercel previews only (never a production deployment), once they are ready.
+    if: >-
+      github.event_name != 'deployment_status' ||
+      (github.event.deployment_status.state == 'success' &&
+       github.event.deployment.creator.login == 'vercel[bot]' &&
+       !contains(github.event.deployment.environment, 'Production'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.deployment.sha || github.sha }}
+          fetch-depth: 0
+
+      - name: What to run
+        id: plan
+        env:
+          EVENT: ${{ github.event_name }}
+          PREVIEW_URL: ${{ github.event.deployment_status.environment_url || github.event.deployment_status.target_url }}
+          INPUT_BASE: ${{ inputs.base }}
+          INPUT_SET: ${{ inputs.set }}
+          INPUT_REPEAT: ${{ inputs.repeat }}
+          DEVELOP_URL: ${{ vars.EVAL_DEVELOP_URL }}
+        run: |
+          set -euo pipefail
+          if [ "$EVENT" = "deployment_status" ]; then
+            git fetch -q origin develop
+            BASE_SHA=$(git merge-base HEAD origin/develop)
+            # On develop itself, look at what this merge brought in.
+            if [ "$BASE_SHA" = "$(git rev-parse HEAD)" ]; then BASE_SHA=$(git rev-parse HEAD^1); fi
+            CHANGED=$(git diff --name-only "$BASE_SHA" HEAD)
+            if echo "$CHANGED" | grep -qE '^(lib/(agents|ubunye|ai|agent|projects|core/projects|core/agent|roles|dates)/|tests/eval/|scripts/eval/|app/api/ubunye-chat/)'; then
+              echo "run=true" >> "$GITHUB_OUTPUT"
+            else
+              echo "Nothing Ubunye changed; skipping."
+              echo "run=false" >> "$GITHUB_OUTPUT"
+            fi
+            echo "base=$PREVIEW_URL" >> "$GITHUB_OUTPUT"
+            echo "sets=outcomes" >> "$GITHUB_OUTPUT"
+            echo "repeat=1" >> "$GITHUB_OUTPUT"
+          elif [ "$EVENT" = "schedule" ]; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+            echo "base=$DEVELOP_URL" >> "$GITHUB_OUTPUT"
+            echo "sets=outcomes holdout" >> "$GITHUB_OUTPUT"
+            echo "repeat=2" >> "$GITHUB_OUTPUT"
+          else
+            echo "run=true" >> "$GITHUB_OUTPUT"
+            echo "base=${INPUT_BASE:-$DEVELOP_URL}" >> "$GITHUB_OUTPUT"
+            if [ "${INPUT_SET:-both}" = "both" ]; then echo "sets=outcomes holdout" >> "$GITHUB_OUTPUT"; else echo "sets=$INPUT_SET" >> "$GITHUB_OUTPUT"; fi
+            echo "repeat=${INPUT_REPEAT:-1}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/setup-node@v4
+        if: steps.plan.outputs.run == 'true'
+        with:
+          node-version: 22
+
+      - name: Install the Supabase client only (not the whole app)
+        if: steps.plan.outputs.run == 'true'
+        run: |
+          mkdir -p "$RUNNER_TEMP/session"
+          npm install --prefix "$RUNNER_TEMP/session" --no-audit --no-fund @supabase/ssr @supabase/supabase-js
+          cp scripts/eval/eval-session.mjs "$RUNNER_TEMP/session/"
+
+      - name: Sign in the eval account
+        if: steps.plan.outputs.run == 'true'
+        env:
+          SUPABASE_URL: ${{ vars.EVAL_SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ vars.EVAL_SUPABASE_ANON_KEY }}
+          EVAL_USER_EMAIL: ${{ secrets.EVAL_USER_EMAIL }}
+          EVAL_USER_PASSWORD: ${{ secrets.EVAL_USER_PASSWORD }}
+        run: node "$RUNNER_TEMP/session/eval-session.mjs" "$RUNNER_TEMP/eval-cookie"
+
+      - name: Run the eval
+        if: steps.plan.outputs.run == 'true'
+        env:
+          BASE: ${{ steps.plan.outputs.base }}
+          SETS: ${{ steps.plan.outputs.sets }}
+          REPEAT: ${{ steps.plan.outputs.repeat }}
+          VERCEL_PROTECTION_BYPASS: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
+          DELAY_MS: '2000'
+        run: |
+          set -uo pipefail
+          status=0
+          for SET in $SETS; do
+            echo "::group::set $SET"
+            SET="$SET" COOKIE_FILE="$RUNNER_TEMP/eval-cookie" RESULTS_JSON="eval-$SET.json" \
+              node scripts/eval/ubunye-live-eval.mjs | tee "eval-$SET.txt" || status=1
+            echo "::endgroup::"
+            { echo "### Ubunye eval: $SET"; echo '```'; sed -n '/^Score/,$p' "eval-$SET.txt"; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          done
+          exit $status
+
+      - name: Keep the results
+        if: always() && steps.plan.outputs.run == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ubunye-eval-${{ github.run_id }}
+          path: eval-*.json
+          retention-days: 30
