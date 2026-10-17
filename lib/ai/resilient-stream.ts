@@ -2,6 +2,7 @@ import { streamText, createUIMessageStream, createUIMessageStreamResponse } from
 import type { LanguageModel, UIMessageChunk } from 'ai';
 import { resolveEntry, buildModel, fallbackChain, providerDefault, type ModelEntry } from './registry';
 import { shouldFailover, markFailed, markHealthy, byHealth, errorText, ASSISTANT_UNAVAILABLE } from './health';
+import { plainDashesTransform } from './plain-dashes';
 
 /**
  * Streaming completion with provider failover — before the first token.
@@ -110,6 +111,8 @@ export function streamWithFallback(params: StreamFallbackParams): Response {
             // onFinish only matters for the provider we commit to; a failed
             // attempt never reaches a finish.
             ...(params.onFinish ? { onFinish: params.onFinish } : {}),
+            // No long dashes in a reply, saved history included (plain-dashes.ts).
+            experimental_transform: plainDashesTransform(),
           } as Parameters<typeof streamText>[0];
           const result = streamText(streamArgs);
 

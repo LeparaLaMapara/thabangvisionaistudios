@@ -127,7 +127,14 @@ function score(c, r) {
   const lower = reply.toLowerCase();
   const toolText = squash(JSON.stringify(r.outputs.map((o) => o.output)));
   const amounts = [...reply.matchAll(/R\s?\d[\d\s ,]*(\.\d{2})?/g)].map((m) => m[0].trim());
-  const unseen = amounts.filter((a) => !toolText.includes(squash(a)));
+  // A tool may hold the amount as a plain number ("deposit": 25000), and the
+  // client may have given it (their own budget): neither is an invented price.
+  const numbers = new Set([...toolText.matchAll(/\d+(?:\.\d+)?/g)].map((m) => String(Number(m[0]))));
+  const asked = squash(c.text);
+  const unseen = amounts.filter((a) => {
+    const digits = squash(a).replace(/^R/, '');
+    return !toolText.includes(squash(a)) && !numbers.has(String(Number(digits))) && !asked.includes(digits);
+  });
   return {
     type: outline ? (outline.type?.slug === c.type ? 'ok' : `got ${outline.type?.slug}`) : 'n/a',
     first: first === c.first_tool ? 'ok' : `got ${first}`,

@@ -185,6 +185,18 @@ async function buildPromptForAgent(
       break;
   }
 
+  if (flags.ubunye_projects) {
+    // The model cannot see the session, and once told a signed-in client to
+    // sign in to save a plan. Say which it is, from the server.
+    systemPrompt += userId
+      ? `
+
+This client is signed in. A plan can be saved for them with propose_plan; never ask them to sign in or create an account.`
+      : `
+
+This person is not signed in (a guest). propose_plan is not available; after the outline, say in one line that signing in lets them save it as a plan.`;
+  }
+
   if (isFirstGuestMessage) {
     // A real request is answered first: no self-introduction in front of it.
     systemPrompt += `\n\nThis is the person's first message. If it asks for something (a person, gear, a date), answer it straight away and do not introduce yourself. If it is only a greeting, say in one short line who you are and what you can help with. You may mention once, briefly, that signing in is needed to send a request or book.`;
