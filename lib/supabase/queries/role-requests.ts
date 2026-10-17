@@ -1,5 +1,5 @@
 import { createAdminClient } from '@/lib/supabase/server';
-import { arrivalLabel, BOOKED_REQUEST_STATUSES, firstName, OPEN_REQUEST_STATUSES, overlappingRequest, requestReference, type DatedRequest, type RequestFacts, type RequestStatus } from '@/lib/roles';
+import { arrivalLabel, BOOKED_REQUEST_STATUSES, firstName, OPEN_REQUEST_STATUSES, overlappingRequest, requestDays, requestReference, type DatedRequest, type RequestFacts, type RequestStatus } from '@/lib/roles';
 
 /**
  * People requests after they are sent (migration 095): who to tell, what the
@@ -45,10 +45,6 @@ export function requestPersonLabel(roleName: string, area: string | null, code: 
   return code ? `${label} (ref ${code})` : label;
 }
 
-function datesOf(r: Pick<RequestRow, 'requested_dates' | 'requested_date'>): string[] {
-  return Array.isArray(r.requested_dates) && r.requested_dates.length ? r.requested_dates : [r.requested_date];
-}
-
 async function roleNames(slugs: string[]): Promise<Map<string, string>> {
   const out = new Map<string, string>();
   if (!slugs.length) return out;
@@ -70,7 +66,7 @@ function toFacts(r: RequestRow, pr: PersonRoleBits | undefined, roleName: string
     requestId: r.id,
     roleName,
     personLabel: requestPersonLabel(roleName, pr?.area ?? null, pr?.profile_code ?? null),
-    dates: datesOf(r),
+    dates: requestDays(r),
     arrival: arrivalLabel(r.arrival_time),
     durationHours: Number(r.duration_hours),
     area: r.area,
