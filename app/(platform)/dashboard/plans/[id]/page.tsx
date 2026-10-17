@@ -9,6 +9,7 @@ import { getProjectView, listLinkableParts, type LinkablePart, type ProjectView 
 import { AddToPlan, ClosePlan } from '@/components/plans/PlanActions';
 import { MovePlan } from '@/components/plans/MovePlan';
 import { saToday } from '@/lib/dates/johannesburg';
+import { readinessWords } from '@/lib/core/projects/readiness';
 import type { PartView } from '@/lib/core/projects/plan';
 
 export const metadata = { title: 'Plan' };
@@ -52,6 +53,7 @@ export default async function PlanPage({ params }: { params: Promise<{ id: strin
   }
   if (!plan) notFound();
 
+  const readyLine = readinessWords(plan.readiness);
   let linkable: LinkablePart[] = [];
   if (plan.status === 'open') {
     try {
@@ -68,6 +70,12 @@ export default async function PlanPage({ params }: { params: Promise<{ id: strin
         <p className="text-[11px] font-mono uppercase tracking-widest text-[#D4A843]">{plan.status === 'open' ? 'Plan' : 'Closed plan'}</p>
         <h1 className="mt-1 text-2xl font-display font-medium text-white">{plan.title}</h1>
         {plan.briefLine && <p className="mt-2 text-sm text-neutral-400">{plan.briefLine}</p>}
+        {readyLine && (
+          <p className="mt-4 text-sm text-neutral-200">
+            <span className="font-mono text-[#D4A843]">{readyLine}</span>
+            <span className="text-neutral-500">: ready means the person said yes, or the gear is booked.</span>
+          </p>
+        )}
       </div>
 
       {plan.next && (
@@ -96,10 +104,17 @@ export default async function PlanPage({ params }: { params: Promise<{ id: strin
                 )}
               </div>
             </div>
-            {p.next && plan.status === 'open' && (
-              <Link href={p.next.href} className="inline-flex min-h-[44px] shrink-0 items-center justify-center px-4 border border-white/15 text-neutral-200 text-xs font-mono font-bold uppercase tracking-widest hover:border-[#D4A843]/50">
-                {p.next.label}
+            {plan.status === 'open' && plan.readiness.askNext[p.itemId] ? (
+              // A declined request or one with no answer in time: the client picks the next person. Nothing is sent from here.
+              <Link href={plan.readiness.askNext[p.itemId]} className="inline-flex min-h-[44px] shrink-0 items-center justify-center px-4 text-sm text-neutral-300 underline underline-offset-4 hover:text-white">
+                Ask the next listed person
               </Link>
+            ) : (
+              p.next && plan.status === 'open' && (
+                <Link href={p.next.href} className="inline-flex min-h-[44px] shrink-0 items-center justify-center px-4 border border-white/15 text-neutral-200 text-xs font-mono font-bold uppercase tracking-widest hover:border-[#D4A843]/50">
+                  {p.next.label}
+                </Link>
+              )
             )}
           </li>
         ))}

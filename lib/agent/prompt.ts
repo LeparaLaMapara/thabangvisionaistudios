@@ -10,6 +10,13 @@ const rands = (cents: number): string => `R${(cents / 100).toFixed(2)}`;
  */
 export function pendingProposalBlock(a: AgentActionRecord): string {
   const s = a.summary;
+  if (a.kind === 'people_requests') {
+    return `===== REQUESTS WAITING FOR APPROVAL (server state) =====
+Requests ${a.id}: ${sanitiseForPrompt(s.title)} | ${sanitiseForPrompt(s.period)} | nothing to pay.
+Expires: ${a.expiresAt}.
+If the person says yes, ok or similar, it refers to THESE requests. You cannot send them yourself: tell them to press the button on the card above. Nobody is asked until they do. If they want other people, call propose_requests again; the new card replaces this one.
+===== END REQUESTS =====`;
+  }
   if (a.kind === 'project_update') {
     return `===== PLAN MOVE WAITING FOR APPROVAL (server state) =====
 Plan move ${a.id}: ${sanitiseForPrompt(s.title)} | to ${sanitiseForPrompt(s.period)} | nothing to pay.

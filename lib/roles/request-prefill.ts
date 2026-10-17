@@ -57,3 +57,19 @@ export function prefillQuery(p: RequestPrefill): string {
   const s = q.toString();
   return s ? `?${s}` : '';
 }
+
+/**
+ * The request link's query from People opened for a plan ("Ask the next
+ * listed person"): the checked prefill plus the plan and its need. The ids
+ * must already be checked (parsePlanLink); the request route checks the plan
+ * is the client's own again before joining it.
+ */
+export function planRequestQuery(p: RequestPrefill, plan: { planId: string | null; needItemId: string | null }): string {
+  const q = new URLSearchParams(prefillQuery(p).replace(/^\?/, ''));
+  if (plan.planId) {
+    q.set('plan', plan.planId);
+    if (plan.needItemId) q.set('need', plan.needItemId);
+  }
+  const s = q.toString();
+  return s ? `?${s}` : '';
+}

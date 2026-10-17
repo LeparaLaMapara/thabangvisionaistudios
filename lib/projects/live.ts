@@ -4,6 +4,7 @@ import { isExpiredHold } from '@/lib/rental/availability';
 import { requestDays } from '@/lib/roles';
 import { saToday } from '@/lib/dates/johannesburg';
 import { planSteps, type PlanStep } from '@/lib/core/projects/timeline';
+import { planReadiness, type PlanReadiness } from '@/lib/core/projects/readiness';
 import {
   briefLine,
   orderParts,
@@ -60,7 +61,7 @@ export async function liveParts(clientId: string, items: ItemRef[], now: Date = 
 
   const [people, gear, intents, services] = await Promise.all([
     peopleIds.length
-      ? db.from('role_booking_requests').select('id, person_role_id, status, requested_date, requested_dates, total_cents').in('id', peopleIds).eq('client_id', clientId)
+      ? db.from('role_booking_requests').select('id, person_role_id, status, requested_date, requested_dates, total_cents, created_at').in('id', peopleIds).eq('client_id', clientId)
       : Promise.resolve({ data: [], error: null }),
     gearIds.length
       ? db.from('equipment_bookings').select('id, checkout_group_id, status, start_date, end_date, hold_expires_at, created_at, smart_rentals(title)').in('checkout_group_id', gearIds).eq('user_id', clientId).order('created_at', { ascending: true })
@@ -74,7 +75,7 @@ export async function liveParts(clientId: string, items: ItemRef[], now: Date = 
   ]);
   for (const r of [people, gear, intents, services]) if (r.error) throw new Error(r.error.message);
 
-  type PeopleRow = { id: string; person_role_id: string; status: string; requested_date: string; requested_dates: string[] | null; total_cents: number | null };
+  type PeopleRow = { id: string; person_role_id: string; status: string; requested_date: string; requested_dates: string[] | null; total_cents: number | null; created_at?: string | null };
   type GearRow = { id: string; checkout_group_id: string; status: string; start_date: string | null; end_date: string | null; hold_expires_at: string | null; created_at: string; smart_rentals: { title: string } | { title: string }[] | null };
   type IntentRow = { checkout_group_id: string; expected_amount_cents: number | null; state: string; reference: string | null };
   type ServiceRow = { id: string; project_category: string; status: string; payment_status: string; total: number | null; shoot_date: string | null };
@@ -122,6 +123,7 @@ export async function liveParts(clientId: string, items: ItemRef[], now: Date = 
         status: r.status,
         dates: requestDays(r),
         totalCents: typeof r.total_cents === 'number' ? r.total_cents : null,
+        ...(r.created_at ? { createdAt: r.created_at } : {}),
       };
     }
     if (it.kind === 'gear_order') {
@@ -186,6 +188,8 @@ export interface ProjectView {
   next: ReturnType<typeof planNextAction>;
   /** The plan's own steps (the shoot day, the edit afterwards), from its shoot type. */
   steps: PlanStep[];
+  /** "N of M ready" and "Ask the next listed person" links (lib/core/projects/readiness.ts). */
+  readiness: PlanReadiness;
 }
 
 type ItemRow = { id: string; kind: ProjectItemKind; ref_id: string | null; need: unknown; due_date?: string | null; step?: string | null; position?: number | null };
@@ -234,6 +238,7 @@ export async function getProjectView(clientId: string, projectId: string, db: Ad
     parts,
     next: p.status === 'open' ? planNextAction(parts) : null,
     steps: planSteps(brief, today),
+    readiness: planReadiness(live, { projectId, brief, today, open: p.status === 'open' }),
   };
 }
 

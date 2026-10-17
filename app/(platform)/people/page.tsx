@@ -13,6 +13,9 @@ import { buildPageMetadata } from '@/lib/seo/metadata';
 import { peopleWords } from '@/lib/roles/offered';
 import { whatsappLink } from '@/lib/payments/eft';
 import { PersonCardBody } from '@/components/roles/PersonCard';
+import { parseRequestPrefill, planRequestQuery } from '@/lib/roles/request-prefill';
+import { parsePlanLink } from '@/lib/core/projects/plan';
+import { formatSaDay, saToday } from '@/lib/dates/johannesburg';
 
 export const metadata: Metadata = buildPageMetadata({
   title: 'People',
@@ -25,17 +28,28 @@ export const metadata: Metadata = buildPageMetadata({
 const PEOPLE_ASK_MESSAGE = 'Hi, I need someone for my shoot. My date is:';
 
 interface Props {
-  searchParams: Promise<{ role?: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }
 
 /**
  * People (roles_v1): everyone bookable on one page, the photo and video
  * packages from /studio plus approved role profiles. Blind cards (equal
  * chance): role, area, code, work, price, record. Never a face or a name.
+ *
+ * From a plan ("Ask the next listed person"): the link carries the day, the
+ * area, the plan and its need (all checked: lib/roles/request-prefill.ts,
+ * parsePlanLink). Each card then also offers its request form, prefilled
+ * and joined to the plan. Nothing is sent from here.
  */
 export default async function PeoplePage({ searchParams }: Props) {
   if (!(await getFlag('roles_v1'))) notFound();
-  const { role: roleParam } = await searchParams;
+  const query = await searchParams;
+  const roleParam = typeof query.role === 'string' ? query.role : undefined;
+  const today = saToday();
+  const prefill = parseRequestPrefill(query, today, { byDays: true });
+  const plan = (await getFlag('ubunye_projects')) ? parsePlanLink(query) : { planId: null, needItemId: null };
+  const forPlan = !!plan.planId;
+  const requestQuery = forPlan ? planRequestQuery(prefill, plan) : '';
   const live = (await getRoles()).filter((r) => r.status === 'live');
   const [everyone, allPackages, held] = await Promise.all([listApprovedProfiles(), getPublishedProductions(), heldProductions()]);
   // Only kinds of work someone actually offers get a chip: an empty category is noise (owner, 2026-10-14).
@@ -52,6 +66,11 @@ export default async function PeoplePage({ searchParams }: Props) {
       <div className="max-w-5xl mx-auto">
         <h1 className="text-4xl font-display font-medium text-white mb-2">People</h1>
         <p className="text-neutral-400 mb-6">{ROLES_POLICY.copy.blindNote}</p>
+        {forPlan && (
+          <p className="mb-6 border border-[#D4A843]/40 bg-[#D4A843]/5 p-4 text-sm text-neutral-200">
+            For your plan{prefill.dates[0] ? `, ${formatSaDay(prefill.dates[0])}` : ''}: choose the next person and send the request. It joins your plan.
+          </p>
+        )}
         {roles.length > 1 && (
         <nav aria-label="Kinds of work" className="flex gap-2 overflow-x-auto pb-2 mb-8 -mx-4 px-4">
           <Link href="/people" className={`shrink-0 min-h-[44px] px-4 flex items-center border text-sm ${!active ? 'border-accent-gold text-accent-gold' : 'border-white/15 text-neutral-300'}`}>
@@ -114,6 +133,11 @@ export default async function PeoplePage({ searchParams }: Props) {
                       }}
                     />
                   </Link>
+                  {forPlan && (
+                    <Link href={`/people/${c.id}/request${requestQuery}`} className="mt-2 inline-flex min-h-[44px] items-center text-sm text-accent-gold underline underline-offset-4">
+                      Request for your plan
+                    </Link>
+                  )}
                 </li>
               ))}
             </ul>

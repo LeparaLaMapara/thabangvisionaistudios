@@ -202,7 +202,7 @@ export interface PartView {
 /** What the server read live for one item. Blind: no names, user ids or contacts. */
 export type LivePart =
   | { kind: 'people_request'; itemId: string; found: false }
-  | { kind: 'people_request'; itemId: string; found: true; requestId: string; roleName: string; roleSlug: string | null; status: string; dates: string[]; totalCents: number | null; personRoleId?: string }
+  | { kind: 'people_request'; itemId: string; found: true; requestId: string; roleName: string; roleSlug: string | null; status: string; dates: string[]; totalCents: number | null; personRoleId?: string; createdAt?: string }
   | { kind: 'gear_order'; itemId: string; found: false }
   | { kind: 'gear_order'; itemId: string; found: true; titles: string[]; statuses: string[]; startDate: string | null; endDate: string | null; amountCents: number | null; firstBookingId: string | null }
   | { kind: 'service_booking'; itemId: string; found: false }
