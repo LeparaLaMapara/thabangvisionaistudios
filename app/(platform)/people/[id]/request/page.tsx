@@ -25,11 +25,11 @@ export default async function RequestPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<Record<string, string | string[] | undefined>>;
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
 }) {
   if (!(await getFlag('roles_v1'))) notFound();
   const { id } = await params;
-  const query = await searchParams;
+  const query = (await searchParams) ?? {};
   const today = saToday();
   const supabase = await createClient();
   const {

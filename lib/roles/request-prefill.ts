@@ -28,7 +28,6 @@ function one(v: string | string[] | undefined): string {
 
 /** One plain line: no tags, no control characters, trimmed to max. */
 function cleanText(raw: string, max: number): string | null {
-  // eslint-disable-next-line no-control-regex
   const t = raw.replace(/[\u0000-\u001f\u007f<>]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, max).trim();
   return t || null;
 }
