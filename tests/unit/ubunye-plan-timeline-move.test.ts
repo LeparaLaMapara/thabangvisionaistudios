@@ -364,3 +364,12 @@ describe('chat cards: "Add to my plan" survives a reload, only as our own link',
     }
   });
 });
+
+
+describe('approval card words for a step already past its day', () => {
+  it('dueWords marks a past day as late and today as today', () => {
+    expect(dueWords('2026-10-03', '2026-10-17')).toMatchObject({ late: true });
+    expect(dueWords('2026-10-17', '2026-10-17')?.words).toBe('Do this today');
+    expect(dueWords('2026-11-07', '2026-10-17')?.words).toBe('Do by Saturday 7 November 2026');
+  });
+});
