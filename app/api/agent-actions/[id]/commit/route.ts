@@ -4,7 +4,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth, checkRateLimit } from '@/lib/auth';
 import { commitAction } from '@/lib/core/agent/use-cases';
 import { agentDeps, APPROVALS_UNAVAILABLE } from '@/lib/agent/deps';
-import { executorFor, requote } from '@/lib/agent/offers';
+import { executorFor, requoteFor } from '@/lib/agent/offers';
 import { logEvent } from '@/lib/data/events';
 
 /**
@@ -33,7 +33,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
   try {
     const out = await commitAction(
-      { ...deps, requote, execute: executorFor(auth.user, null) },
+      { ...deps, requote: requoteFor(auth.user.id), execute: executorFor(auth.user, null) },
       { actionId: id, userId: auth.user.id, token: body.token, explicitApproval: body.approved === true },
     );
     logEvent({ eventType: out.ok ? 'agent_action_committed' : 'agent_action_refused', eventCategory: 'booking', userId: auth.user.id, metadata: { actionId: id, ...(out.ok ? {} : { code: out.code }) } });

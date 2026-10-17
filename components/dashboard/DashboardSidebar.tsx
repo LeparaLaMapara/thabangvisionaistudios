@@ -12,6 +12,8 @@ interface DashboardSidebarProps {
   isVerified?: boolean;
   /** People (roles_v1) is on: one "My People profile" entry instead of Gigs, Portfolio and the Pricing Guide. */
   people?: boolean;
+  /** Ubunye plans (ubunye_projects) is on: "Plans" under Activity. */
+  plans?: boolean;
 }
 
 interface NavItem {
@@ -53,7 +55,7 @@ const STUDIO_TOOLS: NavGroup = {
  * until the ID check is done, and a way in to offering gear or services for
  * a verified renter.
  */
-export function sidebarGroups(isCreator: boolean, isVerified: boolean, people = false): NavGroup[] {
+export function sidebarGroups(isCreator: boolean, isVerified: boolean, people = false, plans = false): NavGroup[] {
   const account: NavItem[] = [{ href: '/dashboard/profile', label: 'Profile' }];
   if (isCreator) account.push({ href: '/dashboard/banking', label: 'Payouts' });
   account.push({ href: '/dashboard/notifications', label: 'Notifications' });
@@ -64,14 +66,18 @@ export function sidebarGroups(isCreator: boolean, isVerified: boolean, people = 
     ? { title: STUDIO_TOOLS.title, items: [{ href: PEOPLE_PROFILE_HREF, label: 'My People profile' }, ...STUDIO_TOOLS.items.filter((i) => !HIDDEN_WITH_PEOPLE.includes(i.href))] }
     : STUDIO_TOOLS;
 
+  const activity: NavGroup = plans
+    ? { ...ACTIVITY, items: [...ACTIVITY.items.slice(0, 1), { href: '/dashboard/plans', label: 'Plans' }, ...ACTIVITY.items.slice(1)] }
+    : ACTIVITY;
+
   return [
-    ACTIVITY,
+    activity,
     ...(isCreator ? [studio] : []),
     { title: 'Account', items: account },
   ];
 }
 
-export function DashboardSidebar({ isCreator, isVerified = isCreator, people = false }: DashboardSidebarProps) {
+export function DashboardSidebar({ isCreator, isVerified = isCreator, people = false, plans = false }: DashboardSidebarProps) {
   const pathname = usePathname();
 
   const isActive = (href: string, exact?: boolean) => {
@@ -79,7 +85,7 @@ export function DashboardSidebar({ isCreator, isVerified = isCreator, people = f
     return pathname === href || pathname.startsWith(href + '/');
   };
 
-  const groups = sidebarGroups(isCreator, isVerified, people);
+  const groups = sidebarGroups(isCreator, isVerified, people, plans);
 
   return (
     <nav className="space-y-6">

@@ -1848,3 +1848,31 @@ export const UBUNYE_STUDIO = {
 export function getUbunyeApp(slug: string): UbunyeStudioApp | undefined {
   return UBUNYE_STUDIO.apps.find((a) => a.slug === slug);
 }
+
+/**
+ * Ubunye plans (Slice C, migration 097, flag ubunye_projects). A plan holds
+ * references to bookings and requests, never copies of their status or
+ * price. The byte caps match the table checks in 097.
+ */
+export const PLAN_POLICY = {
+  /** Most parts one plan can hold. */
+  maxParts: 12,
+  /** Longest plan title (projects.title check). */
+  maxTitleChars: 120,
+  /** Longest outcome sentence kept in the brief. */
+  maxOutcomeChars: 200,
+  /** Longest place text kept in the brief. */
+  maxPlaceChars: 80,
+  /** Longest label for one part. */
+  maxPartLabelChars: 60,
+  /** Biggest budget a brief records, in rands (a typo guard, not a limit on spending). */
+  maxBudgetRands: 10_000_000,
+  /** projects.brief size cap (bytes), as in 097. */
+  maxBriefBytes: 2048,
+  /** How many of the client's own bookings and requests "Add to this plan" offers. */
+  linkableLimit: 10,
+  /** Ids tools returned that one chat message keeps (chat_messages.tool_ref_ids cap in 097). */
+  maxToolRefIds: 200,
+  /** How many earlier assistant messages are read for ids tools returned. */
+  priorMessagesForIds: 40,
+} as const;

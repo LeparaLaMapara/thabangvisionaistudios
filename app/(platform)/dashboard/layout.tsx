@@ -30,7 +30,7 @@ export default async function DashboardLayout({
 
   // Fetch verification status and what they came to do
   const supabase = await createClient();
-  const [{ data: profile }, { data: { user: authUser } }, people] = await Promise.all([
+  const [{ data: profile }, { data: { user: authUser } }, people, plans] = await Promise.all([
     supabase
       .from('profiles')
       .select('verification_status, is_suspended, suspension_reason, onboarding_completed_at')
@@ -38,6 +38,7 @@ export default async function DashboardLayout({
       .single(),
     supabase.auth.getUser(),
     getFlag('roles_v1'),
+    getFlag('ubunye_projects'),
   ]);
 
   const isVerified = profile?.verification_status === 'verified';
@@ -70,7 +71,7 @@ export default async function DashboardLayout({
         <div className="grid grid-cols-1 md:grid-cols-[200px_1fr] gap-10">
           {/* Desktop sidebar — grouped sections */}
           <div className="hidden md:block">
-            <DashboardSidebar isCreator={isCreator} isVerified={isVerified} people={people} />
+            <DashboardSidebar isCreator={isCreator} isVerified={isVerified} people={people} plans={plans} />
             <div className="border-t border-white/10 mt-6 pt-4">
               <SignOutButton />
             </div>

@@ -9,10 +9,10 @@ import { getFlag } from '@/lib/features';
  * so the error fallback links to /people (not /book) when People is on.
  */
 export default async function UbunyeAIStudioPage() {
-  const people = await getFlag('roles_v1');
+  const [people, plans] = await Promise.all([getFlag('roles_v1'), getFlag('ubunye_projects')]);
   return (
     <Suspense>
-      <UbunyeStudioClient people={people} />
+      <UbunyeStudioClient people={people} plans={plans} />
     </Suspense>
   );
 }
