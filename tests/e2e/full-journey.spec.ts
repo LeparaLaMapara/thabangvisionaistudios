@@ -525,12 +525,12 @@ test.describe('6. Ubunye AI', () => {
     await page.goto('/ubunye-ai-studio');
     await page.waitForLoadState('networkidle');
 
-    // Should show greeting
+    // One question (a guest sees no greeting; a signed-in client sees their first name)
     const bodyText = await page.textContent('body');
-    expect(bodyText?.match(/good (morning|afternoon|evening)|what can i do/i)).not.toBeNull();
+    expect(bodyText?.match(/what are you planning/i)).not.toBeNull();
 
-    // Quick action chips
-    const chips = page.locator('button').filter({ hasText: /plan a shoot|find gear|hire crew|get pricing/i });
+    // Occasion chips (UBUNYE_OCCASIONS)
+    const chips = page.locator('button').filter({ hasText: /a wedding|a music video|a shoot for my business|a film or series/i });
     expect(await chips.count()).toBeGreaterThanOrEqual(1);
   });
 

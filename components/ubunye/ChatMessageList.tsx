@@ -2,13 +2,16 @@
 
 import { useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { LogIn, UserPlus, ArrowUpRight, RotateCcw } from 'lucide-react';
+import { LogIn, UserPlus, ArrowUpRight, RotateCcw, PenLine } from 'lucide-react';
 import ReactMarkdown, { type Components } from 'react-markdown';
 import Link from 'next/link';
 import type { UIMessage } from 'ai';
 import { FollowUpSuggestions } from '@/components/ubunye/FollowUpSuggestions';
 import { ApprovalCard } from '@/components/ubunye/ApprovalCard';
 import { PeopleResults } from '@/components/ubunye/PeopleResults';
+import { ShootOutlineCard } from '@/components/ubunye/ShootOutlineCard';
+import { answerStart, outlineCard } from '@/lib/ubunye/outline-card';
+import { visibleUserText } from '@/lib/ubunye/chat-photos';
 import { STUDIO } from '@/lib/constants';
 
 const TOOL_LABELS: Record<string, string> = {
@@ -65,6 +68,12 @@ function getPeopleOutput(msg: UIMessage): unknown {
   return done.length ? done[done.length - 1].output : null;
 }
 
+/** The latest plan_outline result in this message, drawn as the "Your shoot" card. */
+function getOutlineOutput(msg: UIMessage): unknown {
+  const done = toolParts(msg).filter((p) => toolName(p) === 'plan_outline' && p.state === 'output-available');
+  return done.length ? done[done.length - 1].output : null;
+}
+
 /** The latest proposal in this message that is waiting for approval, if any. */
 function getProposalId(msg: UIMessage): string | null {
   const ids = toolParts(msg)
@@ -87,6 +96,10 @@ interface ChatMessageListProps {
   onRetry?: () => void;
   /** People (roles_v1) is on: the fallback link goes to /people, never the old /book. */
   people?: boolean;
+  /** Photos the client sent, by message id (kept in this tab only), drawn in their bubble. */
+  userPhotos?: Record<string, string[]>;
+  /** Puts words in the box without sending them (the answer chip under the shoot card). */
+  onPrefill?: (text: string) => void;
 }
 
 export function ChatMessageList({
@@ -100,6 +113,8 @@ export function ChatMessageList({
   onSend,
   onRetry,
   people = false,
+  userPhotos = {},
+  onPrefill,
 }: ChatMessageListProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -142,6 +157,11 @@ export function ChatMessageList({
         const mentioned = isAssistant && isAuthenticated ? getProposalId(msg) : null;
         const proposalId = mentioned && cardAt.get(mentioned) === msgIndex ? mentioned : null;
         const peopleOutput = isAssistant ? getPeopleOutput(msg) : null;
+        const outline = isAssistant ? outlineCard(getOutlineOutput(msg)) : null;
+        // At most one answer chip, on the latest reply, once it has finished.
+        const start = outline?.question && isLastAssistant && !isLoading && onPrefill ? answerStart(outline.question) : null;
+        const sentPhotos = msg.role === 'user' ? userPhotos[msg.id] ?? [] : [];
+        const shownText = msg.role === 'user' ? visibleUserText(text) : text;
 
         return (
           <motion.div
@@ -158,9 +178,21 @@ export function ChatMessageList({
             </span>
 
             {msg.role === 'user' ? (
-              <div className="text-[15px] text-neutral-200 leading-relaxed whitespace-pre-wrap">
-                {text}
-              </div>
+              <>
+                {sentPhotos.length > 0 && (
+                  <div className="flex gap-2 pt-1">
+                    {sentPhotos.map((src, i) => (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img key={i} src={src} alt={`Your photo ${i + 1}`} className="w-20 h-20 rounded-xl object-cover bg-neutral-900" />
+                    ))}
+                  </div>
+                )}
+                {shownText && (
+                  <div className="text-[15px] text-neutral-200 leading-relaxed whitespace-pre-wrap">
+                    {shownText}
+                  </div>
+                )}
+              </>
             ) : (
               <div className="text-[15px] text-neutral-400 leading-relaxed border-l-2 border-[#D4A843]/10 pl-3 md:border-l-0 md:pl-0">
                 <ReactMarkdown components={mdComponents}>
@@ -178,9 +210,24 @@ export function ChatMessageList({
               </div>
             )}
 
+            {outline && <ShootOutlineCard card={outline} />}
+
             {peopleOutput ? <PeopleResults output={peopleOutput} /> : null}
 
             {proposalId && <ApprovalCard key={proposalId} proposalId={proposalId} />}
+
+            {start && onPrefill && (
+              <div className="pt-2">
+                <button
+                  type="button"
+                  onClick={() => onPrefill(start)}
+                  className="inline-flex items-center gap-2 min-h-[44px] px-4 rounded-full border border-white/10 text-sm text-neutral-300 hover:text-[#D4A843] hover:border-[#D4A843]/30 transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#D4A843]"
+                >
+                  <PenLine className="w-3.5 h-3.5" aria-hidden="true" />
+                  {start.trim()}…
+                </button>
+              </div>
+            )}
 
             {completedTool && (
               <FollowUpSuggestions toolName={completedTool.name} output={completedTool.output} onSelect={onSend} />
