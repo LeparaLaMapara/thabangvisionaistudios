@@ -11,7 +11,7 @@
     { "id": "uk-1", "text": "Kgoroso for my sister in Atteridgeville, we need photos, video, make-up and a PA system", "type": "umabo-kgoroso", "first_tool": "plan_outline", "no_unseen_prices": true },
     { "id": "cc-1", "text": "We are having umgidi for my brother coming back from initiation, need a videographer and speakers", "type": "cultural-ceremony", "first_tool": "plan_outline", "no_unseen_prices": true },
     { "id": "cc-2", "text": "imbeleko for our baby girl next month in Katlehong. Photographer and catering please", "type": "cultural-ceremony", "first_tool": "plan_outline", "must_say_any": ["not offer", "do not offer", "don't offer"], "no_unseen_prices": true },
-    { "id": "en-1", "text": "I want to propose to my girlfriend at Melville koppies, need someone to secretly film it and take photos", "type": "engagement", "first_tool": "find_people", "no_unseen_prices": true },
+    { "id": "en-1", "text": "I want to propose to my girlfriend at Melville koppies, need someone to secretly film it and take photos", "type": "engagement", "first_tool": "find_people", "first_any": ["plan_outline"], "no_unseen_prices": true },
     { "id": "mm-1", "text": "My grandmother passed away, the funeral is on Saturday in Lenasia. We would like someone to film the service and a PA", "type": "memorial", "first_tool": "plan_outline", "no_unseen_prices": true },
     { "id": "md-1", "text": "Matric dance on 21 November, need makeup, hair, a car with a driver and photos for my daughter", "type": "matric-dance", "first_tool": "plan_outline", "must_say_any": ["coming soon"], "no_unseen_prices": true },
     { "id": "gr-1", "text": "graduation photographer at UJ tomorrow", "type": "graduation", "first_tool": "find_people", "no_unseen_prices": true },

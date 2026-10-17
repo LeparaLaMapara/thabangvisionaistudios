@@ -22,18 +22,35 @@
  *   DELAY_MS=1500 \                          # optional, pause between cases
  *   node scripts/eval/ubunye-live-eval.mjs
  *
+ *   SET=holdout \                           # optional, the frozen held-out set
+ *   REPEAT=3 \                               # optional, run every case N times
+ *   RESULTS_JSON=eval.json \                 # optional, every run and the summary
+ *
  * It refuses the production site unless ALLOW_PROD=1 (it costs AI tokens and
  * counts against the guest network allowance). Guests are limited per
  * network per day (STUDIO.ai.guestNetworkDailyMessages), so run a subset or
- * sign in for the full set. Exit code 1 when any scored check fails.
+ * sign in for the full set.
+ *
+ * Each check prints its rate with a Wilson 95% range: 40 of 43 is "about 81%
+ * to 98%", not 93%. Exit code 1 when a rate is below its minimum in
+ * tests/eval/thresholds.json, or too many runs errored. CI runs this on every
+ * preview that changes Ubunye and every night (.github/workflows/ubunye-eval.yml).
+ *
+ * The held-out set (tests/eval/ubunye-holdout.json) was written and labelled
+ * blind, by writers who never saw the catalogue or its keywords. Never tune
+ * the matcher or the prompt against its sentences, and never copy them into
+ * unit tests: it only measures. Tune against ubunye-outcomes.json.
  */
 
-import { readFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
-const SET = JSON.parse(readFileSync(path.resolve(here, '../../tests/eval/ubunye-outcomes.json'), 'utf8'));
+// SET=holdout runs the frozen held-out set (tests/eval/ubunye-holdout.json).
+const SET_NAME = process.env.SET || 'outcomes';
+const SET = JSON.parse(readFileSync(path.resolve(here, `../../tests/eval/ubunye-${SET_NAME}.json`), 'utf8'));
+const THRESHOLDS = JSON.parse(readFileSync(path.resolve(here, '../../tests/eval/thresholds.json'), 'utf8'));
 
 const BASE = (process.env.BASE ?? '').replace(/\/+$/, '');
 if (!/^https?:\/\//.test(BASE)) {
@@ -48,10 +65,28 @@ if (/(^|\.)thabangvision\.com$/.test(host) && process.env.ALLOW_PROD !== '1') {
 const ONLY = new Set((process.env.ONLY ?? '').split(',').map((s) => s.trim()).filter(Boolean));
 const DELAY_MS = Number(process.env.DELAY_MS ?? 1500);
 const TIMEOUT_MS = Number(process.env.TIMEOUT_MS ?? 90_000);
+// The model does not answer the same way twice: REPEAT runs every case N times.
+const REPEAT = Math.max(1, Number(process.env.REPEAT ?? 1));
 
 const headers = { 'Content-Type': 'application/json', Origin: BASE };
 if (process.env.VERCEL_PROTECTION_BYPASS) headers['x-vercel-protection-bypass'] = process.env.VERCEL_PROTECTION_BYPASS;
-if (process.env.COOKIE) headers.Cookie = process.env.COOKIE;
+const COOKIE = process.env.COOKIE || (process.env.COOKIE_FILE ? readFileSync(process.env.COOKIE_FILE, 'utf8').trim() : '');
+// The session refreshes about hourly and the refresh token is single use, so
+// keep whatever cookies the site sends back, or a long run signs itself out.
+const jar = new Map(COOKIE ? COOKIE.split(/;\s*/).filter(Boolean).map((kv) => [kv.slice(0, kv.indexOf('=')), kv.slice(kv.indexOf('=') + 1)]) : []);
+const sendCookies = () => { if (jar.size) headers.Cookie = [...jar].map(([k, v]) => `${k}=${v}`).join('; '); };
+function keepCookies(res) {
+  if (!jar.size) return;
+  for (const line of res.headers.getSetCookie?.() ?? []) {
+    const [pair, ...attrs] = line.split(';');
+    const name = pair.slice(0, pair.indexOf('=')).trim();
+    const value = pair.slice(pair.indexOf('=') + 1).trim();
+    const gone = !value || attrs.some((a) => /max-age=0/i.test(a.trim()) || /expires=thu, 01 jan 1970/i.test(a.trim()));
+    if (gone) jar.delete(name); else jar.set(name, value);
+  }
+  sendCookies();
+}
+sendCookies();
 
 /** Reads an SSE body, buffering partial lines across chunks; calls onEvent per JSON event. */
 async function readStream(body, onEvent) {
@@ -93,9 +128,10 @@ async function runCase(c) {
       body: JSON.stringify({
         messages: [{ id: `eval-${c.id}`, role: 'user', parts: [{ type: 'text', text: c.text }] }],
         sessionMessageCount: 0,
-        isFirstGuestMessage: !process.env.COOKIE,
+        isFirstGuestMessage: !COOKIE,
       }),
     });
+    keepCookies(res);
     result.status = res.status;
     if (!res.ok || !res.body) {
       result.error = `${res.status} ${(await res.text().catch(() => '')).slice(0, 160)}`;
@@ -136,8 +172,9 @@ function score(c, r) {
     return !toolText.includes(squash(a)) && !numbers.has(String(Number(digits))) && !asked.includes(digits);
   });
   return {
-    type: outline ? (outline.type?.slug === c.type ? 'ok' : `got ${outline.type?.slug}`) : 'n/a',
-    first: first === c.first_tool ? 'ok' : `got ${first}`,
+    // type_any / first_any: a sentence that honestly reads two ways accepts either.
+    type: outline ? ([c.type, ...(c.type_any ?? [])].includes(outline.type?.slug) ? 'ok' : `got ${outline.type?.slug}`) : 'n/a',
+    first: [c.first_tool, ...(c.first_any ?? [])].includes(first) ? 'ok' : `got ${first}`,
     prices: c.no_unseen_prices ? (unseen.length ? `unseen ${unseen.join(' ')}` : 'ok') : 'n/a',
     says: c.must_say_any ? (c.must_say_any.some((w) => lower.includes(w)) ? 'ok' : 'missing') : 'n/a',
     dashes: /[–—]/.test(reply) ? 'dash' : 'ok',
@@ -145,27 +182,70 @@ function score(c, r) {
 }
 
 const cases = SET.cases.filter((c) => !ONLY.size || ONLY.has(c.id));
-console.log(`Ubunye live eval: ${cases.length} cases against ${BASE}${process.env.COOKIE ? ' (signed in)' : ' (guest)'}\n`);
+console.log(`Ubunye live eval: set ${SET_NAME}, ${cases.length} cases x ${REPEAT} against ${BASE}${COOKIE ? ' (signed in)' : ' (guest)'}\n`);
+const checks = ['type', 'first', 'prices', 'says', 'dashes'];
 const rows = [];
-for (const c of cases) {
-  const r = await runCase(c);
-  const s = r.error ? { type: 'err', first: 'err', prices: 'err', says: 'err', dashes: 'err' } : score(c, r);
-  rows.push({ id: c.id, ...s, tools: r.tools.map((t) => t.name).join('>') || '-', error: r.error });
-  const mark = Object.values(s).every((v) => v === 'ok' || v === 'n/a') ? 'PASS' : 'FAIL';
-  console.log(`${mark} ${c.id.padEnd(5)} type=${s.type} first=${s.first} prices=${s.prices} says=${s.says} dashes=${s.dashes} tools=${rows.at(-1).tools}${r.error ? ` error=${r.error}` : ''}`);
-  if (process.env.VERBOSE) console.log(`      reply: ${r.text.replace(/\s+/g, ' ').slice(0, 400)}\n`);
-  if (DELAY_MS > 0) await new Promise((res) => setTimeout(res, DELAY_MS));
+for (let round = 1; round <= REPEAT; round++) {
+  for (const c of cases) {
+    let r = await runCase(c);
+    // A per-minute limit is the harness going too fast, not Ubunye failing: wait once and retry.
+    if (r.status === 429 && !/limit_reached/.test(r.error ?? '')) {
+      await new Promise((res) => setTimeout(res, 65_000));
+      r = await runCase(c);
+    }
+    const s = r.error ? Object.fromEntries(checks.map((k) => [k, 'err'])) : score(c, r);
+    rows.push({ id: c.id, round, ...s, tools: r.tools.map((t) => t.name).join('>') || '-', error: r.error, reply: r.text });
+    const mark = Object.values(s).every((v) => v === 'ok' || v === 'n/a') ? 'PASS' : 'FAIL';
+    console.log(`${mark} ${c.id.padEnd(5)}${REPEAT > 1 ? ` r${round}` : ''} type=${s.type} first=${s.first} prices=${s.prices} says=${s.says} dashes=${s.dashes} tools=${rows.at(-1).tools}${r.error ? ` error=${r.error}` : ''}`);
+    if (process.env.VERBOSE) console.log(`      reply: ${r.text.replace(/\s+/g, ' ').slice(0, 400)}\n`);
+    if (DELAY_MS > 0) await new Promise((res) => setTimeout(res, DELAY_MS));
+  }
 }
 
-const checks = ['type', 'first', 'prices', 'says', 'dashes'];
-console.log('\nScore (passed / scored):');
-let failed = 0;
-for (const k of checks) {
-  const scored = rows.filter((r) => r[k] !== 'n/a');
-  const ok = scored.filter((r) => r[k] === 'ok').length;
-  failed += scored.length - ok;
-  console.log(`  ${k.padEnd(7)} ${ok}/${scored.length}`);
+/** Wilson 95% interval: with few runs, 40/43 is a range, not a point. */
+function wilson(ok, n) {
+  if (!n) return [0, 1];
+  const z = 1.96, p = ok / n, d = 1 + (z * z) / n;
+  const mid = (p + (z * z) / (2 * n)) / d;
+  const half = (z * Math.sqrt((p * (1 - p)) / n + (z * z) / (4 * n * n))) / d;
+  return [Math.max(0, mid - half), Math.min(1, mid + half)];
 }
-const full = rows.filter((r) => checks.every((k) => r[k] === 'ok' || r[k] === 'n/a')).length;
-console.log(`  cases   ${full}/${rows.length} fully passed`);
-process.exit(failed ? 1 : 0);
+const pct = (x) => `${Math.round(x * 100)}%`;
+
+const limits = THRESHOLDS[SET_NAME] ?? {};
+const summary = {};
+const errors = rows.filter((r) => r.error).length;
+console.log('\nScore (passed / scored, rate, 95% range, minimum):');
+const below = [];
+const rate = (k, ok, n) => {
+  const [lo, hi] = wilson(ok, n);
+  const min = limits[k];
+  summary[k] = { ok, n, rate: n ? ok / n : null, low: lo, high: hi, min: min ?? null };
+  const miss = min != null && n > 0 && ok / n < min;
+  if (miss) below.push(k);
+  console.log(`  ${k.padEnd(7)} ${ok}/${n}  ${n ? pct(ok / n) : '-'}  (${pct(lo)} to ${pct(hi)})${min != null ? `  min ${pct(min)}${miss ? '  BELOW' : ''}` : ''}`);
+};
+for (const k of checks) {
+  const scored = rows.filter((r) => r[k] !== 'n/a' && r[k] !== 'err');
+  rate(k, scored.filter((r) => r[k] === 'ok').length, scored.length);
+}
+const clean = rows.filter((r) => !r.error);
+rate('cases', clean.filter((r) => checks.every((k) => r[k] === 'ok' || r[k] === 'n/a')).length, clean.length);
+
+// A case that passes some rounds and fails others is flaky: worth a look even when the rate is fine.
+if (REPEAT > 1) {
+  const flaky = cases.filter((c) => {
+    const rs = rows.filter((r) => r.id === c.id && !r.error).map((r) => checks.every((k) => r[k] === 'ok' || r[k] === 'n/a'));
+    return rs.includes(true) && rs.includes(false);
+  }).map((c) => c.id);
+  if (flaky.length) console.log(`\nFlaky (passed some rounds, failed others): ${flaky.join(', ')}`);
+}
+if (errors) console.log(`\n${errors} run(s) errored (limits or timeouts); they are left out of the rates.`);
+const maxErr = limits.max_error_rate ?? 0.1;
+if (rows.length && errors / rows.length > maxErr) below.push('errors');
+
+if (process.env.RESULTS_JSON) {
+  writeFileSync(process.env.RESULTS_JSON, JSON.stringify({ set: SET_NAME, base: BASE, repeat: REPEAT, at: new Date().toISOString(), summary, errors, rows }, null, 1));
+}
+if (below.length) console.log(`\nBELOW THE MINIMUM: ${below.join(', ')}`);
+process.exit(below.length ? 1 : 0);
