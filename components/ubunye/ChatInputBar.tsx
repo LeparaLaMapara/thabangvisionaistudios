@@ -2,9 +2,10 @@
 
 import { useRef, useCallback, useEffect } from 'react';
 import Link from 'next/link';
-import { ArrowUp, ImagePlus, X } from 'lucide-react';
-import { PLAN, UBUNYE_PHOTO_POLICY } from '@/lib/constants';
+import { ArrowUp, ImagePlus, Mic, X } from 'lucide-react';
+import { PLAN, STUDIO, UBUNYE_PHOTO_POLICY } from '@/lib/constants';
 import type { ChatPhoto } from '@/components/ubunye/useChatPhotos';
+import { useVoiceNote, voiceClock } from '@/components/ubunye/useVoiceNote';
 
 interface ChatInputBarProps {
   input: string;
@@ -26,6 +27,10 @@ interface ChatInputBarProps {
   sendQueued?: boolean;
   onAddPhotos?: (files: FileList) => void;
   onRemovePhoto?: (id: string) => void;
+  /** Voice notes are on (same flag as photos): the microphone shows when the box is empty. */
+  voiceEnabled?: boolean;
+  /** The words of a voice note, sent by the page as the client's message. */
+  onVoiceText?: (text: string) => void;
 }
 
 export function ChatInputBar({
@@ -44,6 +49,8 @@ export function ChatInputBar({
   sendQueued = false,
   onAddPhotos,
   onRemovePhoto,
+  voiceEnabled = false,
+  onVoiceText,
 }: ChatInputBarProps) {
   const ownRef = useRef<HTMLTextAreaElement>(null);
   const textareaRef = inputRef ?? ownRef;
@@ -85,6 +92,11 @@ export function ChatInputBar({
   const canSend = (hasSomething || photosBusy) && !sendQueued && !isLoading && !limitReached;
   const photoRoom = photos.length < UBUNYE_PHOTO_POLICY.perMessage;
   const photoErrors = photos.filter((p) => p.status === 'error' && p.error);
+  const voice = useVoiceNote({ maxSeconds: STUDIO.security.chat.voiceMaxSeconds, onText: (text) => onVoiceText?.(text) });
+  const showVoice = voiceEnabled && !!onVoiceText;
+  const voiceBusy = voice.state !== 'idle';
+  // An empty box offers the microphone in place of send (like Messages and WhatsApp).
+  const micInsteadOfSend = showVoice && !hasSomething && !photosBusy && !sendQueued && !voiceBusy;
 
   return (
     <div className="pb-4 pt-3 flex-shrink-0">
@@ -136,6 +148,43 @@ export function ChatInputBar({
             </div>
           )}
 
+          {showVoice && voice.error && !voiceBusy && (
+            <div className="px-4 pt-2" aria-live="polite">
+              <p className="text-xs text-amber-200/80">{voice.error}</p>
+            </div>
+          )}
+
+          {voiceBusy ? (
+            <div className="flex items-center gap-3 pl-4 pr-1 py-1 min-h-[52px]" role="status" aria-live="polite">
+              {voice.state === 'recording' ? (
+                <>
+                  <span aria-hidden="true" className="w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse" />
+                  <span className="text-[15px] text-neutral-200 tabular-nums">{voiceClock(voice.seconds)}</span>
+                  <span className="text-sm text-neutral-400 flex-1">Listening. Say what you are planning.</span>
+                  <button
+                    type="button"
+                    onClick={voice.cancel}
+                    className="min-h-[44px] px-3 text-sm text-neutral-300 hover:text-white rounded-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#D4A843]"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={voice.stop}
+                    aria-label="Send voice note"
+                    className="w-11 h-11 flex items-center justify-center rounded-lg bg-[#D4A843] text-black hover:bg-[#E8C96A] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#D4A843]"
+                  >
+                    <ArrowUp className="w-4 h-4" aria-hidden="true" />
+                  </button>
+                </>
+              ) : (
+                <>
+                  <span aria-hidden="true" className="w-4 h-4 border-2 border-[#D4A843]/30 border-t-[#D4A843] rounded-full animate-spin" />
+                  <span className="text-sm text-neutral-300">Writing down what you said</span>
+                </>
+              )}
+            </div>
+          ) : (
           <div className="flex items-end">
             {showPhotos && (
               <div className="pl-1 pb-1">
@@ -177,8 +226,19 @@ export function ChatInputBar({
               style={{ maxHeight: 120 }}
             />
 
-            {/* Send button */}
+            {/* Send button, or the microphone when there is nothing to send */}
             <div className="pr-1 pb-1">
+              {micInsteadOfSend ? (
+              <button
+                type="button"
+                onClick={() => { voice.clearError(); voice.start(); }}
+                disabled={isLoading || limitReached}
+                aria-label="Record a voice note"
+                className="w-11 h-11 flex items-center justify-center rounded-lg text-neutral-300 hover:text-[#D4A843] transition-colors disabled:opacity-40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#D4A843]"
+              >
+                <Mic className="w-5 h-5" aria-hidden="true" />
+              </button>
+              ) : (
               <button
                 type="submit"
                 aria-label={sendQueued ? 'Sending when your photo is read' : 'Send message'}
@@ -191,8 +251,10 @@ export function ChatInputBar({
                   ? <span className="w-4 h-4 rounded-full border-2 border-neutral-500 border-t-[#D4A843] animate-spin" aria-hidden="true" />
                   : <ArrowUp className="w-4 h-4" aria-hidden="true" />}
               </button>
+              )}
             </div>
           </div>
+          )}
         </div>
       </form>
 

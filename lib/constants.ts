@@ -523,6 +523,13 @@ export const STUDIO = {
       photoMaxBytes: 3 * 1024 * 1024,
       photosPerTenMinutes: 10,
       guestPhotosPerTenMinutes: 4,
+      // Voice notes in Plan (POST /api/ubunye-chat/voice): about a minute of
+      // speech, transcribed once by Gemini Flash (Gemma has no audio input),
+      // never stored.
+      voiceMaxBytes: 4 * 1024 * 1024,
+      voiceMaxSeconds: 60,
+      voiceNotesPerTenMinutes: 20,
+      guestVoiceNotesPerTenMinutes: 5,
     },
   },
 

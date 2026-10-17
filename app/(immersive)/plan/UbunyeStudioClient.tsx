@@ -577,6 +577,8 @@ export default function UbunyeStudioClient({ people = false, plans = false, phot
           sendQueued={sendQueued}
           onAddPhotos={chatPhotos.add}
           onRemovePhoto={chatPhotos.remove}
+          voiceEnabled={photos}
+          onVoiceText={(text) => { void doSend(text); }}
         />
       </div>
     </div>
