@@ -1,4 +1,5 @@
 import { SHOOT_PLAN_POLICY, type RentalCategorySlug } from '@/lib/constants';
+import type { PlanMode } from '@/lib/ubunye/plan-mode';
 
 /**
  * Shoot types: ONE catalogue for every kind of shoot, so one engine plans a
@@ -44,10 +45,22 @@ export const FUTURE_ROLES: Record<string, string> = {
 
 export type GearCategory = Exclude<RentalCategorySlug, 'studios'>;
 
+/**
+ * What a gear or studio part is for (the plan mode, lib/ubunye/plan-mode.ts):
+ *   crew   the kit the people shooting it use (cameras, lenses, lights for the
+ *          crew, grip, drones, cards and drives, sound kit for recording).
+ *          Only for a client who shoots it themselves; a hired person brings
+ *          their own.
+ *   event  something the occasion itself needs whoever shoots it (a PA for
+ *          speeches, microphones for the speakers, the studio as the place).
+ *          Always optional, and labelled for what it is for.
+ */
+export type PartUse = 'crew' | 'event';
+
 export type ShootPart =
   | { kind: 'person'; role: string; optional?: boolean }
-  | { kind: 'gear'; category: GearCategory; label: string; optional?: boolean }
-  | { kind: 'studio'; label: string; optional?: boolean };
+  | { kind: 'gear'; category: GearCategory; label: string; use: PartUse; optional?: boolean }
+  | { kind: 'studio'; label: string; use: PartUse; optional?: boolean };
 
 /** What the client is asked when it is missing. `key` decides how "answered" is checked. */
 export type QuestionKey = 'date' | 'place' | 'guests' | 'hours' | 'days' | 'locations' | 'coverage' | 'items' | 'people';
@@ -87,13 +100,20 @@ export interface ShootType {
   scaleNote?: string;
   /** Sad occasions: gentle, brief wording. */
   gentle?: boolean;
+  /** Who usually shoots it, when the client's words do not say. */
+  defaultMode: PlanMode;
 }
 
 // ── Building blocks (keep entries short) ────────────────────────────────────
 
 const person = (role: string, optional = false): ShootPart => (optional ? { kind: 'person', role, optional } : { kind: 'person', role });
-const gear = (category: GearCategory, label: string, optional = false): ShootPart => (optional ? { kind: 'gear', category, label, optional } : { kind: 'gear', category, label });
-const studio = (optional = false): ShootPart => (optional ? { kind: 'studio', label: 'The studio', optional } : { kind: 'studio', label: 'The studio' });
+/** Crew kit: only when the client shoots it themselves. */
+const kit = (category: GearCategory, label: string, optional = false): ShootPart =>
+  optional ? { kind: 'gear', category, label, use: 'crew', optional } : { kind: 'gear', category, label, use: 'crew' };
+/** An event extra: the occasion needs it whoever shoots. Always optional, labelled for what it is for. */
+const extra = (category: GearCategory, label: string): ShootPart => ({ kind: 'gear', category, label, use: 'event', optional: true });
+/** The studio as the place to shoot: an event extra. */
+const place = (label = 'The studio'): ShootPart => ({ kind: 'studio', label, use: 'event', optional: true });
 
 const Q = {
   date: { key: 'date', text: 'Which day is it?' },
@@ -120,7 +140,8 @@ export const SHOOT_TYPES: readonly ShootType[] = [
     name: 'Traditional wedding',
     group: 'weddings',
     keywords: ['traditional wedding', 'traditional ceremony', 'cultural wedding', 'african wedding', 'umshado', 'lenyalo', 'mokete wa lenyalo', '~traditional attire', '~traditional', 'setswana wedding', 'zulu wedding', 'xhosa wedding', 'sotho wedding', 'pedi wedding', 'venda wedding', 'tsonga wedding'],
-    parts: [person(PV), person(MUA), person('hairstylist', true), person('driver-with-vehicle', true), person('editor', true), gear('lighting-power', 'Lights', true), gear('sound-reinforcement', 'PA and speakers', true)],
+    parts: [person(PV), person(MUA), person('hairstylist', true), person('driver-with-vehicle', true), person('editor', true), kit('lighting-power', 'Lights', true), extra('sound-reinforcement', 'PA for speeches')],
+    defaultMode: 'hire',
     sizes: ['guests', 'hours', 'locations'],
     questions: [Q.date, Q.place, Q.guests],
     timeline: [
@@ -139,7 +160,8 @@ export const SHOOT_TYPES: readonly ShootType[] = [
     name: 'White wedding',
     group: 'weddings',
     keywords: ['white wedding', 'church wedding', 'wedding', 'wedding day', '~reception', '~bride', '~groom', '~bridal', 'wedding photographer', 'wedding videographer', 'wedding video', 'wedding photos', '~vows', 'getting married', 'court wedding'],
-    parts: [person(PV), person(MUA), person('hairstylist', true), person('driver-with-vehicle', true), person('editor', true), person('drone-pilot', true), gear('sound-reinforcement', 'PA and speakers', true)],
+    parts: [person(PV), person(MUA), person('hairstylist', true), person('driver-with-vehicle', true), person('editor', true), person('drone-pilot', true), extra('sound-reinforcement', 'PA for speeches')],
+    defaultMode: 'hire',
     sizes: ['guests', 'hours', 'locations'],
     questions: [Q.date, Q.place, Q.coverage],
     timeline: [
@@ -157,7 +179,8 @@ export const SHOOT_TYPES: readonly ShootType[] = [
     name: 'Umembeso',
     group: 'weddings',
     keywords: ['umembeso', 'membeso', 'gift giving ceremony', 'gift ceremony'],
-    parts: [person(PV), person(MUA), person('driver-with-vehicle', true), gear('lighting-power', 'Lights', true)],
+    parts: [person(PV), person(MUA), person('driver-with-vehicle', true), kit('lighting-power', 'Lights', true)],
+    defaultMode: 'hire',
     sizes: ['guests', 'hours'],
     questions: [Q.date, Q.place, Q.guests],
     timeline: [
@@ -175,6 +198,7 @@ export const SHOOT_TYPES: readonly ShootType[] = [
     group: 'weddings',
     keywords: ['lobola', 'lobolo', 'magadi', 'bogadi', 'negotiations', 'lobola negotiations', 'bride price', 'go kopa', 'ukulobola', 'mahadi'],
     parts: [person(PV), person('driver-with-vehicle', true), person(MUA, true)],
+    defaultMode: 'hire',
     sizes: ['guests', 'hours'],
     questions: [Q.date, Q.place, Q.coverage],
     timeline: [
@@ -190,7 +214,8 @@ export const SHOOT_TYPES: readonly ShootType[] = [
     name: 'Umabo or kgoroso (welcoming the bride)',
     group: 'weddings',
     keywords: ['umabo', 'kgoroso', 'go laya', 'welcoming the bride', 'bride welcoming', 'umgcagco', 'umtshato', 'ukwendisa', 'umakoti'],
-    parts: [person(PV), person(MUA), person('driver-with-vehicle', true), gear('sound-reinforcement', 'PA and speakers', true)],
+    parts: [person(PV), person(MUA), person('driver-with-vehicle', true), extra('sound-reinforcement', 'PA for speeches')],
+    defaultMode: 'hire',
     sizes: ['guests', 'hours'],
     questions: [Q.date, Q.place, Q.guests],
     timeline: [
@@ -207,7 +232,8 @@ export const SHOOT_TYPES: readonly ShootType[] = [
     name: 'Cultural ceremony',
     group: 'weddings',
     keywords: ['umgidi', 'imbeleko', 'umemulo', 'ancestral ceremony', 'ancestors', 'cultural ceremony', '~homecoming', 'initiation', 'koma', '~ceremony', '~ritual', '~thanksgiving'],
-    parts: [person(PV), person('driver-with-vehicle', true), gear('sound-reinforcement', 'PA and speakers', true)],
+    parts: [person(PV), person('driver-with-vehicle', true), extra('sound-reinforcement', 'PA for speeches and music')],
+    defaultMode: 'hire',
     sizes: ['guests', 'hours'],
     questions: [Q.date, Q.place, Q.guests],
     timeline: [
@@ -223,7 +249,8 @@ export const SHOOT_TYPES: readonly ShootType[] = [
     name: 'Engagement or proposal',
     group: 'weddings',
     keywords: ['engagement', 'engaged', 'proposal', 'propose', 'pre wedding', 'prewedding', 'save the date', 'couple shoot', 'couples shoot'],
-    parts: [person(PV), person(MUA, true), studio(true)],
+    parts: [person(PV), person(MUA, true), place('Studio, if you shoot inside')],
+    defaultMode: 'hire',
     sizes: ['hours', 'locations'],
     questions: [Q.date, Q.place],
     timeline: [
@@ -240,7 +267,8 @@ export const SHOOT_TYPES: readonly ShootType[] = [
     name: 'Funeral or memorial',
     group: 'weddings',
     keywords: ['funeral', 'memorial', 'burial', 'unveiling', 'tombstone unveiling', 'umngcwabo', 'poloko', 'passed away', 'celebration of life', 'night vigil', 'after tears', '~remembrance'],
-    parts: [person(PV), gear('sound-reinforcement', 'PA and speakers', true), person('driver-with-vehicle', true)],
+    parts: [person(PV), extra('sound-reinforcement', 'PA for the service'), person('driver-with-vehicle', true)],
+    defaultMode: 'hire',
     sizes: ['guests', 'hours'],
     questions: [Q.date, Q.place, Q.coverage],
     timeline: [
@@ -259,6 +287,7 @@ export const SHOOT_TYPES: readonly ShootType[] = [
     group: 'celebrations',
     keywords: ['matric dance', 'matric farewell', '~farewell', 'prom', 'matric ball', 'grade 12 dance', '~matric'],
     parts: [person(PV), person(MUA), person('hairstylist', true), person('driver-with-vehicle', true)],
+    defaultMode: 'hire',
     sizes: ['hours', 'locations'],
     questions: [Q.date, Q.place],
     timeline: [
@@ -276,6 +305,7 @@ export const SHOOT_TYPES: readonly ShootType[] = [
     group: 'celebrations',
     keywords: ['graduation', 'graduate', 'graduating', '~grad', 'capping', 'diploma ceremony', 'degree ceremony', 'convocation'],
     parts: [person(PV), person(MUA, true), person('driver-with-vehicle', true)],
+    defaultMode: 'hire',
     sizes: ['hours'],
     questions: [Q.date, Q.place],
     timeline: [
@@ -291,7 +321,8 @@ export const SHOOT_TYPES: readonly ShootType[] = [
     name: 'Birthday party',
     group: 'celebrations',
     keywords: ['birthday', 'bday', '21st', '30th', '40th', '50th', '60th', '70th', '80th', '~party', '~celebration', 'surprise party', 'kids party', 'first birthday'],
-    parts: [person(PV), gear('sound-reinforcement', 'PA and speakers', true), person(MUA, true)],
+    parts: [person(PV), extra('sound-reinforcement', 'PA for music and speeches'), person(MUA, true)],
+    defaultMode: 'hire',
     sizes: ['guests', 'hours'],
     questions: [Q.date, Q.place, Q.hours],
     timeline: [
@@ -307,7 +338,8 @@ export const SHOOT_TYPES: readonly ShootType[] = [
     name: 'Baby shower or maternity shoot',
     group: 'celebrations',
     keywords: ['baby shower', 'maternity', 'gender reveal', 'bump shoot', 'pregnancy shoot', 'newborn', 'baby shoot'],
-    parts: [person(PV), person(MUA, true), studio(true)],
+    parts: [person(PV), person(MUA, true), place('Studio, for a shoot inside')],
+    defaultMode: 'hire',
     sizes: ['guests', 'hours'],
     questions: [Q.date, Q.place],
     timeline: [
@@ -323,7 +355,8 @@ export const SHOOT_TYPES: readonly ShootType[] = [
     name: 'Anniversary or vow renewal',
     group: 'celebrations',
     keywords: ['anniversary', 'vow renewal', 'renew our vows', 'golden anniversary', 'silver anniversary'],
-    parts: [person(PV), person(MUA, true), gear('sound-reinforcement', 'PA and speakers', true)],
+    parts: [person(PV), person(MUA, true), extra('sound-reinforcement', 'PA for speeches')],
+    defaultMode: 'hire',
     sizes: ['guests', 'hours'],
     questions: [Q.date, Q.place, Q.guests],
     timeline: [
@@ -340,7 +373,8 @@ export const SHOOT_TYPES: readonly ShootType[] = [
     name: 'Music video',
     group: 'music',
     keywords: ['music video', 'musicvideo', 'video for my song', 'video for my track', 'amapiano video', 'gqom video', 'hip hop video', 'rap video', 'gospel video', 'maskandi video', 'visualiser', 'visualizer', 'official video'],
-    parts: [person(PV), person(MUA), person('model', true), person('gaffer', true), person('editor'), person('director', true), gear('lighting-power', 'Lights'), gear('grip-motion', 'Gimbal or tripod', true), gear('aerial-support', 'Drone', true), studio(true)],
+    parts: [person(PV), person(MUA), person('model', true), person('gaffer', true), person('editor'), person('director', true), kit('lighting-power', 'Lights'), kit('grip-motion', 'Gimbal or tripod', true), kit('aerial-support', 'Drone', true), place('Studio, if you shoot inside')],
+    defaultMode: 'produce',
     sizes: ['days', 'locations', 'hours'],
     questions: [Q.date, Q.place, Q.locations],
     timeline: [
@@ -359,7 +393,8 @@ export const SHOOT_TYPES: readonly ShootType[] = [
     name: 'Live performance or concert',
     group: 'music',
     keywords: ['concert', 'live performance', '~gig', 'live show', 'festival', '~show', '~stage', '~performance', 'live music', 'launch party', 'album launch'],
-    parts: [person(PV), person('sound-recordist', true), person('editor', true), gear('sound-reinforcement', 'PA and speakers'), gear('audio', 'Microphones and mixer', true), gear('lighting-power', 'Lights', true), person('livestream-operator', true)],
+    parts: [person(PV), person('sound-recordist', true), person('editor', true), extra('sound-reinforcement', 'PA for the show'), extra('audio', 'Microphones and mixer for the stage'), extra('lighting-power', 'Stage lights'), person('livestream-operator', true)],
+    defaultMode: 'hire',
     sizes: ['guests', 'hours'],
     questions: [Q.date, Q.place, Q.guests],
     timeline: [
@@ -377,7 +412,8 @@ export const SHOOT_TYPES: readonly ShootType[] = [
     name: 'Artist shoot or album cover',
     group: 'music',
     keywords: ['album cover', 'cover art', 'artwork for my single', 'ep cover', 'single cover', 'press shoot', 'artist shoot', 'press photos', 'epk', 'promo shoot', 'artist photos'],
-    parts: [person(PV), person(MUA), person('wardrobe-stylist', true), studio(true), gear('lighting-power', 'Lights', true)],
+    parts: [person(PV), person(MUA), person('wardrobe-stylist', true), place('Studio to shoot in'), kit('lighting-power', 'Lights', true)],
+    defaultMode: 'hire',
     sizes: ['hours', 'locations'],
     questions: [Q.date, Q.place, Q.items],
     timeline: [
@@ -395,7 +431,8 @@ export const SHOOT_TYPES: readonly ShootType[] = [
     name: 'Product shoot',
     group: 'business',
     keywords: ['product shoot', 'product photos', 'product photography', 'packshot', 'pack shot', 'my products', 'product video', 'shoot my products', '~products'],
-    parts: [person(PV), studio(), gear('lighting-power', 'Lights', true), person('editor', true)],
+    parts: [person(PV), place('Studio to shoot in'), kit('lighting-power', 'Lights', true), person('editor', true)],
+    defaultMode: 'hire',
     sizes: ['hours'],
     questions: [Q.date, Q.items, Q.coverage],
     timeline: [
@@ -411,7 +448,8 @@ export const SHOOT_TYPES: readonly ShootType[] = [
     name: 'E-commerce catalogue',
     group: 'business',
     keywords: ['catalogue', 'catalog', 'ecommerce', 'e-commerce', 'online store', 'online shop', 'website photos', 'takealot', 'shopify', 'flat lay', 'flatlay', 'white background'],
-    parts: [person(PV), studio(), person('model', true), gear('lighting-power', 'Lights', true), gear('data-storage', 'Cards and drives', true)],
+    parts: [person(PV), place('Studio to shoot in'), person('model', true), kit('lighting-power', 'Lights', true), kit('data-storage', 'Cards and drives', true)],
+    defaultMode: 'hire',
     sizes: ['hours', 'days'],
     questions: [Q.date, Q.items, Q.days],
     timeline: [
@@ -428,7 +466,8 @@ export const SHOOT_TYPES: readonly ShootType[] = [
     name: 'Brand campaign',
     group: 'business',
     keywords: ['brand campaign', '~campaign', 'brand shoot', 'brand content', 'marketing shoot', 'social media campaign', 'billboard', 'brand video', 'ad campaign', '~brands', '~brand'],
-    parts: [person(PV), person('model'), person(MUA), person('wardrobe-stylist', true), person('editor', true), person('producer', true), studio(true), gear('lighting-power', 'Lights')],
+    parts: [person(PV), person('model'), person(MUA), person('wardrobe-stylist', true), person('editor', true), person('producer', true), place('Studio, if you shoot inside'), kit('lighting-power', 'Lights')],
+    defaultMode: 'hire',
     sizes: ['days', 'locations'],
     questions: [Q.date, Q.place, Q.days],
     timeline: [
@@ -448,7 +487,8 @@ export const SHOOT_TYPES: readonly ShootType[] = [
     name: 'Corporate event',
     group: 'business',
     keywords: ['corporate event', 'company event', 'year end function', 'year-end function', 'end of year function', 'awards', 'gala', 'gala dinner', 'team building', 'staff party', 'product launch', 'launch event', '~function', '~corporate', 'business event', 'office party'],
-    parts: [person(PV), gear('sound-reinforcement', 'PA and speakers', true), gear('audio', 'Microphones', true), person('editor', true), gear('lighting-power', 'Lights', true)],
+    parts: [person(PV), extra('sound-reinforcement', 'PA for speeches'), extra('audio', 'Microphones for speeches'), person('editor', true), kit('lighting-power', 'Lights', true)],
+    defaultMode: 'hire',
     sizes: ['guests', 'hours'],
     questions: [Q.date, Q.place, Q.hours],
     timeline: [
@@ -465,7 +505,8 @@ export const SHOOT_TYPES: readonly ShootType[] = [
     name: 'Conference or seminar',
     group: 'business',
     keywords: ['conference', 'summit', 'seminar', '~workshop', 'expo', 'exhibition', 'indaba', 'panel discussion', 'keynote', 'agm', '~webinar'],
-    parts: [person(PV), gear('audio', 'Microphones and mixer'), gear('sound-reinforcement', 'PA and speakers', true), person('sound-recordist', true), person('livestream-operator', true), person('editor', true)],
+    parts: [person(PV), extra('audio', 'Microphones for the speakers'), extra('sound-reinforcement', 'PA for the room'), person('sound-recordist', true), person('livestream-operator', true), person('editor', true)],
+    defaultMode: 'hire',
     sizes: ['guests', 'days', 'hours'],
     questions: [Q.date, Q.place, Q.days],
     timeline: [
@@ -482,7 +523,8 @@ export const SHOOT_TYPES: readonly ShootType[] = [
     name: 'Corporate headshots',
     group: 'business',
     keywords: ['headshots', 'headshot', 'profile photos', 'staff photos', 'team photos', 'linkedin', 'corporate portraits', 'company profile photos', 'id photos for staff'],
-    parts: [person(PV), studio(true), person(MUA, true), gear('lighting-power', 'Lights', true)],
+    parts: [person(PV), place('Studio, if not at your office'), person(MUA, true), kit('lighting-power', 'Lights', true)],
+    defaultMode: 'hire',
     sizes: ['hours'],
     questions: [Q.date, Q.place, Q.people],
     timeline: [
@@ -498,7 +540,8 @@ export const SHOOT_TYPES: readonly ShootType[] = [
     name: 'Property or real estate',
     group: 'business',
     keywords: ['real estate', '~property', 'house photos', 'listing photos', 'airbnb', 'estate agent', 'property video', '~interior', '~interiors', 'show house', 'guesthouse', '~lodge'],
-    parts: [person(PV), person('drone-pilot', true), gear('aerial-support', 'Drone', true), gear('grip-motion', 'Tripod or gimbal', true)],
+    parts: [person(PV), person('drone-pilot', true), kit('aerial-support', 'Drone', true), kit('grip-motion', 'Tripod or gimbal', true)],
+    defaultMode: 'hire',
     sizes: ['hours', 'locations'],
     questions: [Q.date, Q.place, Q.locations],
     timeline: [
@@ -514,7 +557,8 @@ export const SHOOT_TYPES: readonly ShootType[] = [
     name: 'Food or restaurant shoot',
     group: 'business',
     keywords: ['food shoot', 'food photos', 'food photography', 'menu photos', '~restaurant', '~menu', '~dishes', '~cafe', 'shisanyama', '~kitchen', '~chef', 'bakery', '~cakes'],
-    parts: [person(PV), person('food-stylist', true), gear('lighting-power', 'Lights', true), studio(true)],
+    parts: [person(PV), person('food-stylist', true), kit('lighting-power', 'Lights', true), place('Studio, if not at your place')],
+    defaultMode: 'hire',
     sizes: ['hours'],
     questions: [Q.date, Q.place, Q.items],
     timeline: [
@@ -530,7 +574,8 @@ export const SHOOT_TYPES: readonly ShootType[] = [
     name: 'Fashion shoot or lookbook',
     group: 'business',
     keywords: ['~fashion', 'lookbook', 'look book', 'clothing brand', 'editorial', 'fashion shoot', 'my clothing', 'new collection', '~apparel', 'streetwear', '~designer', 'fashion week', 'runway'],
-    parts: [person(PV), person('model'), person(MUA), person('hairstylist', true), person('wardrobe-stylist', true), studio(true), gear('lighting-power', 'Lights', true)],
+    parts: [person(PV), person('model'), person(MUA), person('hairstylist', true), person('wardrobe-stylist', true), place('Studio, if you shoot inside'), kit('lighting-power', 'Lights', true)],
+    defaultMode: 'hire',
     sizes: ['hours', 'locations'],
     questions: [Q.date, Q.place, Q.items],
     timeline: [
@@ -549,7 +594,8 @@ export const SHOOT_TYPES: readonly ShootType[] = [
     name: 'Short film',
     group: 'film',
     keywords: ['short film', 'student film', 'short movie', 'film school project', 'thesis film', '~skit', 'web series episode', '~short'],
-    parts: [person(PV), person('sound-recordist'), person(MUA), person('gaffer', true), person('editor'), person('director', true), gear('cameras-optics', 'Camera and lenses'), gear('lighting-power', 'Lights'), gear('audio', 'Sound kit'), gear('grip-motion', 'Tripod or gimbal', true)],
+    parts: [person(PV), person('sound-recordist'), person(MUA), person('gaffer', true), person('editor'), person('director', true), kit('cameras-optics', 'Camera and lenses'), kit('lighting-power', 'Lights'), kit('audio', 'Sound kit'), kit('grip-motion', 'Tripod or gimbal', true)],
+    defaultMode: 'produce',
     sizes: ['days', 'locations'],
     questions: [Q.date, Q.days, Q.locations],
     timeline: [
@@ -570,7 +616,8 @@ export const SHOOT_TYPES: readonly ShootType[] = [
     name: 'Feature film',
     group: 'film',
     keywords: ['feature film', 'movie', 'film production', '~feature', 'full length film', 'cinema release', 'south african film', 'sa film', 'nollywood', 'film shoot', 'a film'],
-    parts: [person('film-crew'), person('director'), person('producer'), person(PV), person('sound-recordist'), person(MUA), person('gaffer'), person('editor'), gear('cameras-optics', 'Camera and lenses'), gear('lighting-power', 'Lights'), gear('audio', 'Sound kit'), gear('grip-motion', 'Grip and motion')],
+    parts: [person('film-crew'), person('director'), person('producer'), person(PV), person('sound-recordist'), person(MUA), person('gaffer'), person('editor'), kit('cameras-optics', 'Camera and lenses'), kit('lighting-power', 'Lights'), kit('audio', 'Sound kit'), kit('grip-motion', 'Grip and motion')],
+    defaultMode: 'produce',
     sizes: ['days', 'locations'],
     questions: [Q.date, Q.days, Q.place],
     timeline: [
@@ -589,7 +636,8 @@ export const SHOOT_TYPES: readonly ShootType[] = [
     name: 'Series or streaming show',
     group: 'film',
     keywords: ['series', 'tv series', 'tv show', 'netflix', 'showmax', 'amazon prime', 'disney', 'streaming', '~episodes', '~season', 'sitcom', 'drama series', 'soapie', 'reality show', 'dstv', 'sabc', 'etv', 'mzansi magic'],
-    parts: [person('film-crew'), person('director'), person('producer'), person(PV), person('sound-recordist'), person(MUA), person('gaffer'), person('editor'), gear('cameras-optics', 'Camera and lenses'), gear('lighting-power', 'Lights'), gear('audio', 'Sound kit'), gear('grip-motion', 'Grip and motion'), studio(true)],
+    parts: [person('film-crew'), person('director'), person('producer'), person(PV), person('sound-recordist'), person(MUA), person('gaffer'), person('editor'), kit('cameras-optics', 'Camera and lenses'), kit('lighting-power', 'Lights'), kit('audio', 'Sound kit'), kit('grip-motion', 'Grip and motion'), place('Studio, if you shoot inside')],
+    defaultMode: 'produce',
     sizes: ['days', 'locations'],
     questions: [Q.date, Q.days, Q.place],
     timeline: [
@@ -608,7 +656,8 @@ export const SHOOT_TYPES: readonly ShootType[] = [
     name: 'Documentary',
     group: 'film',
     keywords: ['documentary', 'doccie', 'docuseries', 'docu', '~interviews', '~interview', 'oral history', 'feature story'],
-    parts: [person(PV), person('sound-recordist'), person('editor'), person('driver-with-vehicle', true), person('director', true), gear('audio', 'Sound kit'), gear('cameras-optics', 'Camera and lenses', true), gear('aerial-support', 'Drone', true)],
+    parts: [person(PV), person('sound-recordist'), person('editor'), person('driver-with-vehicle', true), person('director', true), kit('audio', 'Sound kit'), kit('cameras-optics', 'Camera and lenses', true), kit('aerial-support', 'Drone', true)],
+    defaultMode: 'produce',
     sizes: ['days', 'locations'],
     questions: [Q.date, Q.days, Q.locations],
     timeline: [
@@ -626,7 +675,8 @@ export const SHOOT_TYPES: readonly ShootType[] = [
     name: 'TV commercial',
     group: 'film',
     keywords: ['tv commercial', 'tvc', 'commercial', 'advert', 'advertisement', 'tv ad', 'radio and tv ad', 'ad shoot', 'promo video', 'explainer video', 'company video', 'corporate video'],
-    parts: [person(PV), person('model'), person(MUA), person('gaffer'), person('sound-recordist', true), person('editor'), person('director'), person('producer', true), gear('cameras-optics', 'Camera and lenses'), gear('lighting-power', 'Lights'), studio(true)],
+    parts: [person(PV), person('model'), person(MUA), person('gaffer'), person('sound-recordist', true), person('editor'), person('director'), person('producer', true), kit('cameras-optics', 'Camera and lenses'), kit('lighting-power', 'Lights'), place('Studio, if you shoot inside')],
+    defaultMode: 'produce',
     sizes: ['days', 'locations'],
     questions: [Q.date, Q.days, Q.place],
     timeline: [
@@ -648,7 +698,8 @@ export const SHOOT_TYPES: readonly ShootType[] = [
     name: 'Sports event',
     group: 'sport',
     keywords: ['~sport', '~sports', 'soccer', 'football', 'rugby', 'cricket', 'netball', 'athletics', 'marathon', '~race', 'tournament', '~match', 'boxing', 'golf day', 'school sports', 'derby', 'fun run', 'cycling'],
-    parts: [person(PV), gear('cameras-optics', 'Long lenses', true), person('drone-pilot', true), gear('aerial-support', 'Drone', true), person('editor', true), person('livestream-operator', true)],
+    parts: [person(PV), kit('cameras-optics', 'Long lenses', true), person('drone-pilot', true), kit('aerial-support', 'Drone', true), person('editor', true), person('livestream-operator', true)],
+    defaultMode: 'hire',
     sizes: ['hours', 'days'],
     questions: [Q.date, Q.place, Q.hours],
     timeline: [
@@ -665,7 +716,9 @@ export const SHOOT_TYPES: readonly ShootType[] = [
     name: 'Podcast',
     group: 'content',
     keywords: ['podcast', 'pod', 'podcast studio', 'record a podcast', 'podcast episode', 'video podcast', 'vodcast'],
-    parts: [gear('audio', 'Microphones and mixer'), person(PV, true), person('sound-recordist', true), studio(true), person('editor', true)],
+    parts: [kit('audio', 'Microphones and mixer'), person(PV, true), person('sound-recordist', true), place('Studio to record in'), person('editor', true)],
+    // Most people who ask about a podcast host and record it themselves.
+    defaultMode: 'rent',
     sizes: ['hours', 'days'],
     questions: [Q.date, Q.place, Q.people],
     timeline: [
@@ -682,7 +735,9 @@ export const SHOOT_TYPES: readonly ShootType[] = [
     name: 'Livestream',
     group: 'content',
     keywords: ['livestream', 'live stream', 'stream live', 'streaming live', 'broadcast', 'go live', 'youtube live', 'facebook live', 'zoom', 'hybrid event'],
-    parts: [person('livestream-operator'), person(PV), gear('cameras-optics', 'Cameras'), gear('audio', 'Microphones and mixer'), gear('specialized-solutions', 'Specialist kit', true)],
+    parts: [person('livestream-operator'), person(PV), kit('cameras-optics', 'Cameras'), kit('audio', 'Microphones and mixer'), kit('specialized-solutions', 'Specialist kit', true)],
+    // A stream needs both the people to run it and the kit to send it.
+    defaultMode: 'produce',
     sizes: ['hours'],
     questions: [Q.date, Q.place, Q.hours],
     timeline: [
@@ -700,7 +755,8 @@ export const SHOOT_TYPES: readonly ShootType[] = [
     name: 'YouTube or social media content',
     group: 'content',
     keywords: ['youtube', 'tiktok', 'instagram', 'reels', 'content creation', 'content day', 'social media content', 'vlog', 'influencer', 'content creator', '~socials', 'ugc'],
-    parts: [person(PV), gear('cameras-optics', 'Camera', true), gear('audio', 'Microphones', true), gear('lighting-power', 'Lights', true), studio(true), person('editor', true)],
+    parts: [person(PV), kit('cameras-optics', 'Camera', true), kit('audio', 'Microphones', true), kit('lighting-power', 'Lights', true), place('Studio, if you shoot inside'), person('editor', true)],
+    defaultMode: 'hire',
     sizes: ['hours', 'locations'],
     questions: [Q.date, Q.place, Q.hours],
     timeline: [
@@ -717,7 +773,8 @@ export const SHOOT_TYPES: readonly ShootType[] = [
     name: 'Studio portrait session',
     group: 'content',
     keywords: ['~portrait', '~portraits', '~photoshoot', '~photo shoot', 'family photos', 'family shoot', 'studio shoot', 'studio session', 'pictures of me', 'personal shoot', 'birthday shoot', 'model portfolio', 'portfolio shoot'],
-    parts: [person(PV), studio(true), person(MUA, true)],
+    parts: [person(PV), place('The studio'), person(MUA, true)],
+    defaultMode: 'hire',
     sizes: ['hours'],
     questions: [Q.date, Q.place, Q.people],
     timeline: [
@@ -736,7 +793,8 @@ export const GENERAL_SHOOT: ShootType = {
   name: 'A shoot',
   group: 'other',
   keywords: [],
-  parts: [person(PV), gear('lighting-power', 'Lights', true)],
+  parts: [person(PV), kit('lighting-power', 'Lights', true)],
+  defaultMode: 'hire',
   sizes: ['hours'],
   questions: [Q.date, Q.place, Q.coverage],
   timeline: [{ at: -10, label: 'Send a request to the photographer or videographer', part: PV }, SHOOT_DAY(), EDIT_AFTER(7)],

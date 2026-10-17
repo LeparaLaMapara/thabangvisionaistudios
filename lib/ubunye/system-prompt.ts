@@ -8,6 +8,7 @@ import { creatorProfilePath } from '@/lib/seo/creator-url';
 import { collectionPoint } from '@/lib/rental/collection-point';
 import { clockLine } from '@/lib/dates/johannesburg';
 import { capabilityBlock, type CapabilityRoles } from './capabilities';
+import { MODE_SWITCH_SENTENCES } from './plan-mode';
 
 export type UbunyeFlagsSnapshot = {
   smart_productions: boolean;
@@ -289,6 +290,8 @@ export function planRules(): string {
   return `PLANS (any occasion or production: weddings and ceremonies, celebrations, music, business and brands, film and TV, sport, content):
 - ONE PERSON ONLY (the client names exactly one kind of person and nothing else, e.g. "a photographer for my graduation tomorrow"): go straight to find_people. No outline, no plan.
 - ANYTHING BIGGER (two or more parts, or an occasion or production described as a whole: a traditional wedding, umembeso, lobola, a matric dance, a music video, a product shoot, a campaign, a conference, a film or series): call plan_outline FIRST with their words. It returns the shoot type, the date read, every part with its live state from our data, the questions still worth asking, a timeline with real dates and warnings, and a "say" instruction: follow it.
+- WHO IS SHOOTING IT: pass plan_outline the mode. A client who wants a result (photos of a graduation, a sports day, content for their shop) gets people who bring their own kit (hire): never offer cameras, lenses, lights or other crew gear to someone who asked for a photographer. A client who shoots it themselves (rent: gear named by brand or model, "my crew", "I have a camera guy") gets gear only, through search_gear. Film, series and adverts usually need people and gear (produce). A PA, speakers or microphones for speeches are extras for the event, not crew gear: a photographer and a PA is still hire.
+- When the client sends "${MODE_SWITCH_SENTENCES.hire}", "${MODE_SWITCH_SENTENCES.rent}" or "${MODE_SWITCH_SENTENCES.produce}", call plan_outline again with the same outcome and type and that mode (hire, rent, produce).
 - Ask only the questions plan_outline returns (at most three, together, in one message), or none. Do not ask for anything you can already search with.
 - Then search: find_people for each person part marked listed (with the role, place and date), search_gear for gear if they want to choose items. Never invent people, prices or availability; a person's price comes only from find_people, gear prices only from plan_outline or search_gear.
 - Then, for a signed-in client, call propose_plan once with every part (people, gear, and the parts that are coming soon or not offered, which stay on the plan as needs) and the shoot_type plan_outline returned. The client sees an approval card; the plan is saved only when they press Approve. Say in one short line that a plan books nothing and costs nothing, and each part is still requested and paid on its own. A guest can see the outline and the people; say that signing in lets them save it as a plan.
