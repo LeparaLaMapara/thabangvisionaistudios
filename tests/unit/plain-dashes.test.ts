@@ -46,3 +46,26 @@ describe('plainDashesTransform', () => {
     expect(await run(['Hello ', 'there. ', 'Two people listed.'])).toBe('Hello there. Two people listed.');
   });
 });
+
+import { peopleListed } from '@/lib/ai/plain-dashes';
+
+describe('peopleListed (a person is listed, never available)', () => {
+  it('changes the words for people', () => {
+    expect(peopleListed('We found 2 photographers available in Soweto.')).toBe('We found 2 photographers listed in Soweto.');
+    expect(peopleListed('2 make-up artists are available.')).toBe('2 make-up artists are listed.');
+    expect(peopleListed('### Photographers Available')).toBe('### Photographers Listed');
+    expect(peopleListed('Here are the available creators.')).toBe('Here are the listed creators.');
+    expect(peopleListed('2 photographers or videographers available')).toBe('2 photographers or videographers listed');
+  });
+  it('leaves gear and other uses alone', () => {
+    expect(peopleListed('The Aputure 600d is available for rental.')).toBe('The Aputure 600d is available for rental.');
+    expect(peopleListed('Lights: 2 available, from R120 a day.')).toBe('Lights: 2 available, from R120 a day.');
+    expect(peopleListed('Here is what is available on the platform.')).toBe('Here is what is available on the platform.');
+  });
+});
+
+describe('plainDashesTransform, people words', () => {
+  it('fixes "available" split across deltas', async () => {
+    expect(await run(['We found 2 photographers ', 'avail', 'able near you. Pick one.'])).toBe('We found 2 photographers listed near you. Pick one.');
+  });
+});

@@ -19,7 +19,7 @@ import { shootTypeBySlug, type ShootType } from '@/lib/ubunye/shoot-types';
 import { assignTimeline } from './timeline';
 import { formatSaDay, isIsoDate, saToday, type ResolvedDate } from '@/lib/dates/johannesburg';
 import type { ApprovalSummary } from '@/lib/core/agent/use-cases';
-import { briefLine, cleanLine, dedupeParts, isRefKind, isUuid, makeBrief, needWords, planNeeded, type PlanNeed, type PlanPart, type PlanPayload, type ProjectRefKind } from './plan';
+import { briefLine, cleanLine, dedupeParts, dueWords, isRefKind, isUuid, makeBrief, needWords, planNeeded, type PlanNeed, type PlanPart, type PlanPayload, type ProjectRefKind } from './plan';
 import { checkRefs, PLANS_OFF, type ProjectStore, type Refusal } from './use-cases';
 
 export interface PlanRole {
@@ -201,7 +201,10 @@ export async function buildPlanProposal(
   const byPosition = [...unique].sort((a, b) => (a.position ?? 100) - (b.position ?? 100));
   const lines = byPosition.map((p) => {
     const line = p.kind === 'need' ? needWords(p.need) : p.label;
-    return p.due_date ? `${line} (do by ${formatSaDay(p.due_date)})` : line;
+    // A step already past its day says "do this now", like the plan page (dueWords).
+    const due = p.due_date ? dueWords(p.due_date, saToday(now)) : null;
+    if (!due) return line;
+    return `${line} (${due.late ? `do this now, it was due by ${formatSaDay(due.iso)}` : due.words.charAt(0).toLowerCase() + due.words.slice(1)})`;
   });
   const summary: ApprovalSummary = {
     title: `Plan: ${title}`,
