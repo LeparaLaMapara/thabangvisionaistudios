@@ -18,6 +18,8 @@ export function RequestForm({
   minDate,
   unit,
   priceCents,
+  planId = null,
+  needItemId = null,
 }: {
   personRoleId: string;
   defaultArea: string;
@@ -28,6 +30,9 @@ export function RequestForm({
   minDate?: string;
   unit: PricingUnit;
   priceCents: number;
+  /** Sent from a plan (?plan=&need=): the server adds the request to it after checking it is theirs. */
+  planId?: string | null;
+  needItemId?: string | null;
 }) {
   const router = useRouter();
   const byDays = pricedByDays(unit);
@@ -57,6 +62,7 @@ export function RequestForm({
           area: f.get('area'),
           address: f.get('address') || null,
           note: f.get('note') || null,
+          ...(planId ? { plan_id: planId, need_item_id: needItemId } : {}),
         }),
       });
       const body = (await res.json().catch(() => ({}))) as { id?: string; error?: string };

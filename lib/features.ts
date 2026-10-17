@@ -19,6 +19,10 @@ export const FEATURE_KEYS = [
   // the home hero and /welcome; /find, /offer and /people. Off (or absent) in
   // production until the owner switches it on: today's behaviour unchanged.
   'roles_v1',
+  // Ubunye plans (Slice C, migration 097): a multi-part outcome saved as a
+  // plan the client approves, /dashboard/plans. Off on production until the
+  // owner switches it on; untested features stay off.
+  'ubunye_projects',
 ] as const;
 
 export type FeatureKey = typeof FEATURE_KEYS[number];
@@ -30,6 +34,7 @@ const FLAG_DEFAULTS: Partial<Record<FeatureKey, boolean>> = {
   delivery_courier: false,
   creative_tools: false,
   roles_v1: false,
+  ubunye_projects: false,
 };
 
 export interface FeatureFlag {

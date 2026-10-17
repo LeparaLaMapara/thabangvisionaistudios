@@ -13,12 +13,17 @@ import { GoldenSphere } from '@/components/ubunye/GoldenSphere';
 import { ChatMessageList } from '@/components/ubunye/ChatMessageList';
 import { ChatInputBar } from '@/components/ubunye/ChatInputBar';
 import type { OrbState } from '@/types/ubunye';
+import { cardsFromUiParts, cardsToUiParts, readCards } from '@/lib/ubunye/chat-cards';
 
 // ─── Constants ──────────────────────────────────────────────────────────────────
 
 const GUEST_LIMIT = 5;
 const SESSION_STORAGE_KEY = 'ubunye_msg_count';
 const CHAT_HISTORY_KEY = 'ubunye_chat_history';
+// The conversation this tab is in, so a reload keeps logging to it and still
+// finds a proposal waiting for approval (the server checks it is theirs).
+const CONVERSATION_KEY = 'ubunye_conversation_id';
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const HEADER_HEIGHT = '5rem';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────────
@@ -46,9 +51,14 @@ const fadeUp = {
 interface UbunyeStudioClientProps {
   /** People (roles_v1) is on: the error fallback points to /people, not /book. */
   people?: boolean;
+  /**
+   * Ubunye plans (ubunye_projects) is on: cards and the conversation survive
+   * a reload, and a plan can open its chat (?c=). Off: today's behaviour.
+   */
+  plans?: boolean;
 }
 
-export default function UbunyeStudioClient({ people = false }: UbunyeStudioClientProps) {
+export default function UbunyeStudioClient({ people = false, plans = false }: UbunyeStudioClientProps) {
   const [input, setInput] = useState('');
   const [userName, setUserName] = useState<string | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -73,6 +83,7 @@ export default function UbunyeStudioClient({ people = false }: UbunyeStudioClien
 
   // ─── Conversation ID (persists across messages in one session) ──
   const conversationIdRef = useRef<string | null>(null);
+  const plansRef = useRef(plans);
 
   // ─── Transport with dynamic body ──
   const transportRef = useRef(
@@ -91,6 +102,9 @@ export default function UbunyeStudioClient({ people = false }: UbunyeStudioClien
         const res = await fetch(input, init);
         const id = res.headers.get('x-conversation-id');
         if (id && !conversationIdRef.current) conversationIdRef.current = id;
+        if (plansRef.current && conversationIdRef.current) {
+          try { sessionStorage.setItem(CONVERSATION_KEY, conversationIdRef.current); } catch { /* SSR */ }
+        }
         return res;
       },
     })
@@ -157,31 +171,68 @@ export default function UbunyeStudioClient({ people = false }: UbunyeStudioClien
   useEffect(() => {
     if (messages.length > 0) {
       try {
+        // Text, plus a blind copy of each card (People results, proposals),
+        // so a reload draws the same cards (lib/ubunye/chat-cards.ts).
         const toSave = messages.map(m => ({
           id: m.id,
           role: m.role,
-          parts: m.parts.filter(p => p.type === 'text'),
+          parts: [...m.parts.filter(p => p.type === 'text'), ...(plans ? cardsToUiParts(cardsFromUiParts(m.parts), m.id) : [])],
         }));
         sessionStorage.setItem(CHAT_HISTORY_KEY, JSON.stringify(toSave));
       } catch { /* quota exceeded or SSR */ }
     }
-  }, [messages]);
+  }, [messages, plans]);
 
   // Restore messages from sessionStorage on mount
   const restoredRef = useRef(false);
   useEffect(() => {
     if (restoredRef.current) return;
     restoredRef.current = true;
+    let restored = false;
     try {
+      const savedId = plans ? sessionStorage.getItem(CONVERSATION_KEY) : null;
+      if (savedId && UUID.test(savedId)) conversationIdRef.current = savedId;
       const saved = sessionStorage.getItem(CHAT_HISTORY_KEY);
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          setMessages(parsed);
+          // Cards are checked again on the way back in: only blind fields survive.
+          setMessages(parsed.map((m: { id: string; role: 'user' | 'assistant'; parts?: unknown[] }) => ({
+            id: m.id,
+            role: m.role,
+            parts: [
+              ...(Array.isArray(m.parts) ? m.parts.filter((p) => (p as { type?: unknown }).type === 'text') : []),
+              ...(plans ? cardsToUiParts(cardsFromUiParts(m.parts), m.id) : []),
+            ],
+          })) as typeof messages);
+          restored = true;
         }
       }
     } catch { /* SSR or invalid JSON */ }
-  }, [setMessages]);
+
+    // Opened from a plan (?c=<conversation>): load that chat from the server,
+    // the person's own only (the route checks), with its cards.
+    const c = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('c') : null;
+    if (plans && !restored && c && UUID.test(c)) {
+      void (async () => {
+        try {
+          const res = await fetch(`/api/chat-session/${encodeURIComponent(c)}`, { cache: 'no-store' });
+          if (!res.ok) return;
+          const body = await res.json() as { messages?: { id: string; role: 'user' | 'assistant'; text: string; cards: unknown }[] };
+          const loaded = (body.messages ?? []).map((m) => ({
+            id: m.id,
+            role: m.role,
+            parts: [...(m.text ? [{ type: 'text' as const, text: m.text }] : []), ...cardsToUiParts(readCards(m.cards), m.id)],
+          }));
+          if (loaded.length) {
+            conversationIdRef.current = c;
+            try { sessionStorage.setItem(CONVERSATION_KEY, c); } catch { /* SSR */ }
+            setMessages(loaded as typeof messages);
+          }
+        } catch { /* the chat simply starts fresh */ }
+      })();
+    }
+  }, [setMessages, plans]);
 
 
   // ─── Markdown components (stable ref; links/images are policed, see chatMarkdown.tsx) ──

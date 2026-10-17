@@ -20,6 +20,10 @@ export interface ChatMessageInsert {
   model?: string;
   inputTokens?: number;
   outputTokens?: number;
+  /** Blind card data to draw again on reload (lib/ubunye/chat-cards.ts; column from 097). */
+  cards?: unknown[];
+  /** Ids our tools returned this turn (column from 097), for propose_plan. */
+  toolRefIds?: string[];
 }
 
 export interface ConversionUpdate {
@@ -110,7 +114,7 @@ async function _createConversation(data: ChatConversationInsert): Promise<string
 async function _insertMessage(data: ChatMessageInsert): Promise<void> {
   const supabase = createAdminClient();
 
-  const { error } = await supabase.from('chat_messages').insert({
+  const row: Record<string, unknown> = {
     conversation_id: data.conversationId,
     role: data.role,
     content: data.content,
@@ -120,7 +124,15 @@ async function _insertMessage(data: ChatMessageInsert): Promise<void> {
     model: data.model ?? null,
     input_tokens: data.inputTokens ?? null,
     output_tokens: data.outputTokens ?? null,
-  });
+  };
+  // Only sent when there is something to keep, so a database without 097
+  // (the columns) still logs every message.
+  const extras: Record<string, unknown> = {};
+  if (data.cards && data.cards.length) extras.cards = data.cards;
+  if (data.toolRefIds && data.toolRefIds.length) extras.tool_ref_ids = data.toolRefIds;
+
+  let { error } = await supabase.from('chat_messages').insert({ ...row, ...extras });
+  if (error && Object.keys(extras).length) ({ error } = await supabase.from('chat_messages').insert(row));
 
   if (error) {
     console.error('[chat-history] Insert message error:', error.message);

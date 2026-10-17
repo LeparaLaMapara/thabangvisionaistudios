@@ -22,6 +22,8 @@ const TOOL_LABELS: Record<string, string> = {
   my_bookings: 'Checking your bookings',
   improve_brief: 'Analyzing your brief',
   find_people: 'Looking for people',
+  propose_plan: 'Preparing your plan for approval',
+  my_plan_parts: 'Checking your bookings',
   search_gear: 'Searching gear',
 };
 

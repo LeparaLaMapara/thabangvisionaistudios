@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { NextRequest } from 'next/server';
 import { buildSystemPrompt, fetchUserContext, peopleRules, type CachedData } from '@/lib/ubunye/system-prompt';
 import { capabilityBlock } from '@/lib/ubunye/capabilities';
-import { gearNotice, GEAR_CATEGORY_HELP } from '@/lib/agents/tools/search';
+import { createSearchTools, gearNotice, GEAR_CATEGORY_HELP } from '@/lib/agents/tools/search';
 import { RENTAL_CATEGORIES } from '@/lib/constants';
 
 /**
@@ -172,5 +172,18 @@ describe('search_gear: real categories and the 48-hour notice', () => {
     expect(soon.whatsapp_url).toMatch(/^https:\/\/wa\.me\/\d+\?text=/);
     expect(gearNotice('2026-10-26', SAT)).toMatchObject({ too_soon: false, message: null });
     expect(gearNotice(undefined, SAT)).toBeNull();
+  });
+
+  it('a place from the model does not break the search (gear has no location column)', async () => {
+    const calls: string[] = [];
+    const q: Record<string, unknown> = {};
+    for (const m of ['select', 'eq', 'is', 'order', 'limit', 'lte', 'or', 'ilike']) q[m] = (...a: unknown[]) => { calls.push(`${m}:${String(a[0])}`); return q; };
+    q.then = (ok: (v: unknown) => unknown) => ok({ data: [{ id: 'r1', title: 'Light', brand: 'A', model: 'B', price_per_day: 800, price_per_week: 4000, deposit_amount: 3000, is_available: true, category: 'lighting-power', slug: 'light' }], error: null });
+    const tools = createSearchTools({ from: () => q } as never, { smart_productions: false, roles_v1: true } as never);
+    const out = await tools.search_gear.execute({ category: 'lighting-power', location: 'Soweto' } as never);
+    expect(calls.some((c) => c.startsWith('ilike:location'))).toBe(false);
+    expect(out.error).toBeUndefined();
+    expect(out.results).toHaveLength(1);
+    expect(tools.search_gear.inputSchema.jsonSchema.properties).not.toHaveProperty('location');
   });
 });

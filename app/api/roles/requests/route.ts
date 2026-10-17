@@ -9,6 +9,7 @@ import { findOpenRequest } from '@/lib/supabase/queries/role-requests';
 import { bookingTotal, effectiveUnit, isDuplicateRequestError, pricedByDays } from '@/lib/roles';
 import { saToday } from '@/lib/dates/johannesburg';
 import { notifyNewRequest } from '@/lib/roles/request-notify-server';
+import { linkRequestToPlan } from '@/lib/projects/link';
 
 /**
  * Ask to book a person: who, where, when. Nothing is paid here. POST
@@ -67,7 +68,10 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     }
     // Already asked (a double submit, or a second tab): the same request back.
     const existing = await findOpenRequest(user.id, profile.personRole.id, date);
-    if (existing) return NextResponse.json({ id: existing, existing: true }, { status: 200 });
+    if (existing) {
+      const linked = await linkRequestToPlan(user.id, b.plan_id, existing, b.need_item_id);
+      return NextResponse.json({ id: existing, existing: true, ...(linked !== null ? { plan_linked: linked } : {}) }, { status: 200 });
+    }
     // The one price, worked out here from the profile, never from the browser.
     const unit = effectiveUnit(profile.role.pricing_unit, profile.personRole.pricing_unit);
     const price = profile.personRole.price_cents ?? profile.role.suggested_price_cents.typical;
@@ -95,7 +99,9 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       return NextResponse.json({ id: raced, existing: true }, { status: 200 });
     }
     after(() => notifyNewRequest(requestId).then(() => undefined));
-    return NextResponse.json({ id: requestId }, { status: 201 });
+    // Sent from a plan: add it there, after the plan service checks the plan and the request are theirs.
+    const linked = await linkRequestToPlan(user.id, b.plan_id, requestId, b.need_item_id);
+    return NextResponse.json({ id: requestId, ...(linked !== null ? { plan_linked: linked } : {}) }, { status: 201 });
   } catch {
     console.error('[roles/requests] failed');
     return NextResponse.json({ error: 'Could not send the request. Please try again.' }, { status: 500 });

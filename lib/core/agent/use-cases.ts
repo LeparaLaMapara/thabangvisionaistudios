@@ -36,6 +36,8 @@ export interface ApprovalSummary {
   cancellationPolicy: string;
   /** What happens when they approve (e.g. "added to your cart; you pay at checkout"). */
   nextStep: string;
+  /** Nothing is paid or booked by approving (a plan): the card shows no money. */
+  noCharge?: boolean;
 }
 
 export interface AgentActionRecord extends StoredAction {

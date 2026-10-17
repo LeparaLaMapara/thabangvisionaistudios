@@ -22,6 +22,8 @@ interface Summary {
   collection: string | null;
   cancellationPolicy: string;
   nextStep: string;
+  /** A plan: nothing is paid or booked, so no money is shown. */
+  noCharge?: boolean;
 }
 
 type State =
@@ -30,7 +32,7 @@ type State =
   | { kind: 'working'; summary: Summary }
   | { kind: 'done'; message: string; next: string | null }
   | { kind: 'declined' }
-  | { kind: 'closed'; message: string };
+  | { kind: 'closed'; message: string; next?: string | null };
 
 function closedMessage(state: unknown): string {
   if (state === 'committed' || state === 'committing') return 'This proposal was already approved.';
@@ -57,6 +59,11 @@ export function ApprovalCard({ proposalId }: { proposalId: string }) {
           return;
         }
         if (body.state !== 'prepared') {
+          const plan = (body.summary as Summary | undefined)?.noCharge === true;
+          if (plan && (body.state === 'committed' || body.state === 'committing')) {
+            setState({ kind: 'closed', message: 'This plan is saved.', next: '/dashboard/plans' });
+            return;
+          }
           setState({ kind: 'closed', message: closedMessage(body.state) });
           return;
         }
@@ -106,7 +113,18 @@ export function ApprovalCard({ proposalId }: { proposalId: string }) {
   const box = 'mt-3 rounded-lg border border-[#D4A843]/30 bg-[#0b0b0b] p-4 text-[14px] text-neutral-300';
 
   if (state.kind === 'loading') return <div className={box}><span className="font-mono text-xs text-neutral-500">Loading the proposal…</span></div>;
-  if (state.kind === 'closed') return <div className={box}><p className="text-neutral-400">{state.message}</p></div>;
+  if (state.kind === 'closed') {
+    return (
+      <div className={box}>
+        <p className="text-neutral-400">{state.message}</p>
+        {state.next && (
+          <Link href={state.next} className="mt-3 inline-flex min-h-[44px] items-center rounded-md border border-[#D4A843]/50 px-4 text-[#D4A843]">
+            See your plans
+          </Link>
+        )}
+      </div>
+    );
+  }
   if (state.kind === 'declined') return <div className={box}><p className="text-neutral-400">Declined. Nothing was booked or charged.</p></div>;
   if (state.kind === 'done') {
     return (
@@ -114,7 +132,7 @@ export function ApprovalCard({ proposalId }: { proposalId: string }) {
         <p className="text-neutral-200">{state.message}</p>
         {state.next && (
           <Link href={state.next} className="mt-3 inline-flex min-h-[44px] items-center rounded-md bg-[#D4A843] px-4 font-medium text-[#050505]">
-            Continue
+            {state.next.startsWith('/dashboard/plans') ? 'See your plan' : 'Continue'}
           </Link>
         )}
       </div>
@@ -123,7 +141,7 @@ export function ApprovalCard({ proposalId }: { proposalId: string }) {
 
   const s = state.summary;
   return (
-    <div className={box} role="group" aria-label="Approve this booking">
+    <div className={box} role="group" aria-label={s.noCharge ? 'Approve this plan' : 'Approve this booking'}>
       <p className="font-mono text-[11px] uppercase tracking-wider text-[#D4A843]">Approval needed</p>
       <p className="mt-1 font-display text-lg text-neutral-100">{s.title}</p>
       <p className="text-neutral-400">{s.period}</p>
@@ -132,7 +150,7 @@ export function ApprovalCard({ proposalId }: { proposalId: string }) {
           {s.details.map((d) => <li key={d}>{d}</li>)}
         </ul>
       )}
-      <dl className="mt-3 space-y-1 font-mono text-[13px]">
+      {!s.noCharge && <dl className="mt-3 space-y-1 font-mono text-[13px]">
         {s.lines.map((l) => (
           <div key={l.label} className="flex justify-between"><dt>{l.label}</dt><dd>{rands(l.amountCents)}</dd></div>
         ))}
@@ -140,7 +158,7 @@ export function ApprovalCard({ proposalId }: { proposalId: string }) {
           <div className="flex justify-between"><dt>Refundable deposit</dt><dd>{rands(s.depositCents)}</dd></div>
         )}
         <div className="flex justify-between border-t border-neutral-800 pt-1 text-neutral-100"><dt>Total</dt><dd>{rands(s.totalCents)}</dd></div>
-      </dl>
+      </dl>}
       {s.collection && <p className="mt-3 text-neutral-300">{s.collection}</p>}
       <p className="mt-3 text-[12px] text-neutral-500">{s.cancellationPolicy}</p>
       <p className="mt-2 text-[12px] text-neutral-400">{s.nextStep}</p>
