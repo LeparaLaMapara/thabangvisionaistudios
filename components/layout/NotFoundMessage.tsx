@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import type { Metadata } from 'next';
 import { getFlag } from '@/lib/features';
+import { PLAN } from '@/lib/constants';
 
 /** The tab title for every "not found" page. */
 export const notFoundMetadata: Metadata = {
@@ -21,7 +22,7 @@ export async function NotFoundMessage() {
   const links = [
     { label: 'Rentals', href: '/rentals' },
     { label: 'People', href: rolesOn ? '/people' : '/smart-creators' },
-    { label: 'Ask Ubunye', href: '/ubunye-ai-studio' },
+    { label: PLAN.cta, href: PLAN.href },
     { label: 'Home', href: '/' },
   ];
   return (

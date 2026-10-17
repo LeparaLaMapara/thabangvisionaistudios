@@ -195,7 +195,7 @@ export const STUDIO = {
   nav: {
     sections: [
       { id: '01', label: 'About', href: '/about' },
-      { id: '02', label: 'Capabilities', href: '/ubunye-ai-studio' },
+      { id: '02', label: 'Capabilities', href: '/plan' },
       { id: '03', label: 'Studio', href: '/studio' },
       { id: '04', label: 'Rentals', href: '/rentals' },
       { id: '05', label: 'Press', href: '/press' },
@@ -729,6 +729,24 @@ export const CREATOR_JOIN = {
   emptyDirectoryCta: `Earn with ${STUDIO.shortName}`,
 } as const;
 
+/**
+ * Plan (owner 2026-10-17): the page where a client says what they are
+ * planning and Ubunye brings the people and gear together. The feature is
+ * named for the job; Ubunye stays the intelligence behind it (replies are
+ * signed Ubunye). The old address redirects here (next.config.ts).
+ */
+export const PLAN = {
+  href: '/plan',
+  /** The old address. It redirects permanently to `href`, keeping the query. */
+  legacyHref: '/ubunye-ai-studio',
+  /** Menu and tight spaces. */
+  label: 'Plan',
+  /** Buttons around the site. */
+  cta: 'Plan a shoot',
+  /** The one quiet line on the page about the brain behind it. */
+  brainLine: 'Ubunye brings it together.',
+} as const;
+
 export const MAIN_NAVIGATION: {
   label: string;
   href: string;
@@ -736,6 +754,8 @@ export const MAIN_NAVIGATION: {
 }[] = [
     { label: 'Rentals', href: '/rentals' },
     { label: 'Studio', href: '/studio' },
+    // Plan a shoot with Ubunye. With roles_v1 on the menu reads People, Rentals, Plan (lib/nav.ts).
+    { label: PLAN.label, href: PLAN.href },
     // The free Ubunye apps. Hidden until the `creative_tools` flag is on (lib/nav.ts); /tools itself is always reachable by URL.
     { label: 'Apps', href: '/tools' },
     { label: 'Help', href: '/faq' },
@@ -1617,7 +1637,7 @@ export const UBUNYE_QUICK_ACTIONS: readonly QuickAction[] = [
   },
 ] as const;
 
-// The Ask Ubunye page asks one question ("What are you planning?") and offers
+// The Plan page asks one question ("What are you planning?") and offers
 // four occasions under it. Tapping one puts the starter sentence in the box
 // (it is not sent), so the client finishes it in their own words.
 export interface UbunyeOccasion {

@@ -9,7 +9,7 @@ import type { Components } from 'react-markdown';
 import { chatMarkdownComponents } from '@/components/ubunye/chatMarkdown';
 import { createClient } from '@/lib/supabase/client';
 import { Clapperboard, Heart, Music, Store, type LucideIcon } from 'lucide-react';
-import { STUDIO, UBUNYE_OCCASIONS, type UbunyeOccasion } from '@/lib/constants';
+import { PLAN, STUDIO, UBUNYE_OCCASIONS, type UbunyeOccasion } from '@/lib/constants';
 import { ChatMessageList } from '@/components/ubunye/ChatMessageList';
 import { ChatInputBar } from '@/components/ubunye/ChatInputBar';
 import Image from 'next/image';
@@ -458,7 +458,7 @@ export default function UbunyeStudioClient({ people = false, plans = false, phot
     if (promptParam && !promptSentRef.current && !isLoading && messages.length === 0) {
       promptSentRef.current = true;
       void doSend(promptParam);
-      router.replace('/ubunye-ai-studio', { scroll: false });
+      router.replace(PLAN.href, { scroll: false });
     }
   }, [searchParams, doSend, isLoading, messages.length, router]);
 
@@ -510,6 +510,8 @@ export default function UbunyeStudioClient({ people = false, plans = false, phot
                     ? 'Tell me about your shoot, or send a photo of the look you want.'
                     : 'Tell me about your shoot.'}
                 </p>
+                {/* The one quiet line about the brain behind Plan (owner, 2026-10-17). */}
+                <p className="mt-2 text-xs text-neutral-400 text-center">{PLAN.brainLine}</p>
               </div>
 
               {/* Four occasions. A tap starts the sentence in the box (not sent). */}

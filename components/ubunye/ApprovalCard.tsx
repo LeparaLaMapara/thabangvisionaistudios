@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { ChevronRight } from 'lucide-react';
+import { noChargeButton, noChargeDeclined, pickKind } from '@/lib/ubunye/approval-labels';
 
 /**
  * The human approval screen for a Ubunye proposal (spec §8.7). It loads the
@@ -11,6 +12,10 @@ import { ChevronRight } from 'lucide-react';
  * Loading is read-only; the single-use approval token is requested only when
  * Approve is pressed and sent straight back to the server, so the AI never
  * sees it and a second card for the same proposal cannot invalidate this one.
+ *
+ * A proposal that costs nothing (saving a plan, moving it, asking people) is
+ * shown by the server's own title, and its gold button names what it does
+ * (lib/ubunye/approval-labels.ts).
  */
 
 interface Summary {
@@ -26,6 +31,8 @@ interface Summary {
   /** A plan: nothing is paid or booked, so no money is shown. */
   noCharge?: boolean;
   doneMessage?: string;
+  /** The proposal's kind, when the server includes it. */
+  kind?: string;
 }
 
 type State =
@@ -33,7 +40,7 @@ type State =
   | { kind: 'ready'; summary: Summary }
   | { kind: 'working'; summary: Summary }
   | { kind: 'done'; message: string; next: string | null }
-  | { kind: 'declined'; plan: boolean }
+  | { kind: 'declined'; plan: boolean; message: string }
   | { kind: 'closed'; message: string; next?: string | null };
 
 function closedMessage(state: unknown): string {
@@ -46,8 +53,10 @@ function closedMessage(state: unknown): string {
 const rands = (cents: number): string =>
   `R${(cents / 100).toLocaleString('en-ZA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
-export function ApprovalCard({ proposalId }: { proposalId: string }) {
+export function ApprovalCard({ proposalId, kind = null }: { proposalId: string; kind?: string | null }) {
   const [state, setState] = useState<State>({ kind: 'loading' });
+  // The kind as the server names it, when it does.
+  const [serverKind, setServerKind] = useState<unknown>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -56,6 +65,7 @@ export function ApprovalCard({ proposalId }: { proposalId: string }) {
         const res = await fetch(`/api/agent-actions/${encodeURIComponent(proposalId)}`, { cache: 'no-store' });
         const body = await res.json().catch(() => ({}));
         if (cancelled) return;
+        setServerKind(body.kind ?? null);
         if (!res.ok) {
           setState({ kind: 'closed', message: body.error ?? 'This proposal is no longer waiting for approval.' });
           return;
@@ -109,8 +119,10 @@ export function ApprovalCard({ proposalId }: { proposalId: string }) {
   }
 
   async function decline(): Promise<void> {
-    const plan = (state.kind === 'ready' || state.kind === 'working') && state.summary.noCharge === true;
-    setState({ kind: 'declined', plan });
+    const summary = state.kind === 'ready' || state.kind === 'working' ? state.summary : null;
+    const plan = summary?.noCharge === true;
+    const message = plan ? noChargeDeclined(pickKind(serverKind, summary?.kind, kind)) : 'Declined. Nothing was booked or charged.';
+    setState({ kind: 'declined', plan, message });
     await fetch(`/api/agent-actions/${encodeURIComponent(proposalId)}`, { method: 'DELETE' }).catch(() => undefined);
   }
 
@@ -132,7 +144,7 @@ export function ApprovalCard({ proposalId }: { proposalId: string }) {
   if (state.kind === 'declined') {
     return (
       <div className={box}>
-        <p className="text-neutral-400">{state.plan ? 'Not saved. Nothing was booked or charged.' : 'Declined. Nothing was booked or charged.'}</p>
+        <p className="text-neutral-400">{state.message}</p>
       </div>
     );
   }
@@ -152,27 +164,26 @@ export function ApprovalCard({ proposalId }: { proposalId: string }) {
   const s = state.summary;
   const working = state.kind === 'working';
 
-  // A plan books nothing and costs nothing: one question, two buttons, and
-  // what is in it behind a small disclosure.
+  // Nothing is booked or paid: the server's title as the one question, two
+  // buttons, and what is in it behind a small disclosure.
   if (s.noCharge) {
+    const heading = s.title || 'Save this as your plan?';
+    const button = noChargeButton(pickKind(serverKind, s.kind, kind));
     return (
-      <div className={box} role="group" aria-label="Save this plan">
-        <p className="font-display text-lg text-neutral-100">Save this as your plan?</p>
+      <div className={box} role="group" aria-label={heading}>
+        <p className="font-display text-lg text-neutral-100">{heading}</p>
         {s.period && <p className="mt-0.5 text-neutral-400">{s.period}</p>}
         <p className="mt-3 text-neutral-300">It books nothing and costs nothing.</p>
-        {((s.details && s.details.length > 0) || s.title) && (
+        {s.details && s.details.length > 0 && (
           <details className="group mt-3">
             <summary className="inline-flex min-h-[44px] cursor-pointer list-none items-center gap-1.5 text-[13px] text-neutral-400 hover:text-[#D4A843] [&::-webkit-details-marker]:hidden">
               <ChevronRight className="h-3.5 w-3.5 transition-transform group-open:rotate-90" aria-hidden="true" />
               See what is in it
             </summary>
             <div className="pb-1 pl-5 text-[13px] text-neutral-300">
-              {s.title && <p className="text-neutral-200">{s.title}</p>}
-              {s.details && s.details.length > 0 && (
-                <ul className="mt-1 space-y-1">
-                  {s.details.map((d) => <li key={d}>{d}</li>)}
-                </ul>
-              )}
+              <ul className="mt-1 space-y-1">
+                {s.details.map((d) => <li key={d}>{d}</li>)}
+              </ul>
             </div>
           </details>
         )}
@@ -183,7 +194,7 @@ export function ApprovalCard({ proposalId }: { proposalId: string }) {
             disabled={working}
             className="min-h-[44px] flex-1 rounded-full bg-[#D4A843] px-5 font-medium text-[#050505] disabled:opacity-60"
           >
-            {working ? 'Saving…' : 'Save plan'}
+            {working ? button.working : button.label}
           </button>
           <button
             type="button"

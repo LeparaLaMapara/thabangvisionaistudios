@@ -33,9 +33,9 @@ npm run dev                   # http://localhost:3000
 thabangvisionaistudios/
 ├── app/                          # Next.js App Router
 │   ├── (marketing)/              # Public pages: home, contact, careers, press, legal, login, register
-│   ├── (platform)/               # Product pages: smart-rentals, smart-production, ubunye-ai-studio,
+│   ├── (platform)/               # Product pages: smart-rentals, smart-production, plan,
 │   │                             #   marketplace, pricing, dashboard, creators, book, onboarding
-│   ├── (immersive)/              # Full-screen: ubunye-ai-studio (Three.js energy sphere)
+│   ├── (immersive)/              # Full-screen: plan (the Ubunye chat; /ubunye-ai-studio redirects here)
 │   ├── (admin)/                  # Auth-gated CMS: admin dashboard, content CRUD, bookings, verifications
 │   ├── api/                      # API routes (all auth-gated where needed)
 │   └── auth/callback/            # Google + email confirmation callback handler
@@ -311,7 +311,7 @@ Admin → Same login flow → admin layout checks ADMIN_EMAILS in constants.ts
 
 ## Ubunye AI (Chat Assistant)
 
-Ubunye is the platform's AI assistant, accessible at `/ubunye-ai-studio`.
+Ubunye is the platform's AI assistant. Clients use it on Plan at `/plan` (the old `/ubunye-ai-studio` redirects there, keeping the query).
 
 **Architecture:**
 - `lib/ubunye/system-prompt.ts` — builds context-aware prompt from live DB data (rentals, productions, rates) with 5-minute cache
@@ -436,7 +436,7 @@ NEXT_PUBLIC_APP_URL=http://localhost:3000
 
 | Strategy | Routes |
 |----------|--------|
-| `force-dynamic` | dashboard/, admin/, ubunye-ai-studio/, pricing/, api/ |
+| `force-dynamic` | dashboard/, admin/, plan/, pricing/, api/ |
 | `revalidate = 60` | smart-rentals/, smart-production/, press/, careers/, contact, lab, home |
 | Static | legal/, privacy/, login/, register/ |
 

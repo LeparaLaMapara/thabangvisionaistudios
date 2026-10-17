@@ -22,7 +22,7 @@ const PAGES: { name: string; path: string }[] = [
   { name: 'rental category', path: '/rentals/cameras-optics' },
   { name: 'login', path: '/login' },
   { name: 'book', path: '/book' },
-  { name: 'ubunye studio', path: '/ubunye-ai-studio' },
+  { name: 'plan', path: '/plan' },
 ];
 
 async function settle(page: Page, path: string): Promise<boolean> {
@@ -163,8 +163,8 @@ test.describe('Keyboard and focus', () => {
   });
 
   test('Ubunye studio input and send button are labelled', async ({ page }) => {
-    if (!(await settle(page, '/ubunye-ai-studio'))) {
-      test.skip(true, 'Ubunye studio unavailable');
+    if (!(await settle(page, '/plan'))) {
+      test.skip(true, 'Plan unavailable');
       return;
     }
     await expect(page.getByRole('textbox', { name: 'Message Ubunye' })).toBeVisible({ timeout: 15_000 });

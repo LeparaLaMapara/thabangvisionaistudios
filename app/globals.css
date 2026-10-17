@@ -42,7 +42,7 @@ body {
   overflow-x: hidden;
 }
 
-/* Floating buttons (Ask Ubunye) step aside while a calendar is open, so
+/* Floating buttons (Plan a shoot) step aside while a calendar is open, so
    they never cover a date (components/ui/DateRangePicker.tsx sets it). */
 body[data-calendar-open='true'] [data-floating] {
   display: none;

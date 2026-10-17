@@ -11,6 +11,9 @@ import { PersonCardBody } from '@/components/roles/PersonCard';
  * prefilled), the honest availability line and, at short notice, WhatsApp.
  * The output is the server tool's, never model text; it is still checked
  * here so only our own paths and our WhatsApp link become links.
+ *
+ * The first card for each role says "Best match": the server ranks them, and
+ * the first is the one "Ask everyone" picks by default.
  */
 
 interface Match {
@@ -67,6 +70,19 @@ function toMatch(raw: unknown): Match | null {
   };
 }
 
+/** The first match for each role: the one asked by default. */
+export function bestMatchIds(matches: readonly { id: string; role: string }[]): Set<string> {
+  const seen = new Set<string>();
+  const best = new Set<string>();
+  for (const m of matches) {
+    const role = m.role.trim().toLowerCase();
+    if (seen.has(role)) continue;
+    seen.add(role);
+    best.add(m.id);
+  }
+  return best;
+}
+
 const button = 'inline-flex items-center justify-center gap-2 min-h-[44px] px-4 text-xs font-mono font-bold uppercase tracking-widest transition-opacity hover:opacity-80';
 
 function WhatsappButton({ href, label = 'WhatsApp us' }: { href: string; label?: string }) {
@@ -99,6 +115,7 @@ export function PeopleResults({ output }: { output: unknown }) {
   const short = o.short_notice && typeof o.short_notice === 'object' ? (o.short_notice as Record<string, unknown>) : null;
   const wa = isWhatsapp(o.whatsapp_url) ? o.whatsapp_url : null;
   const browse = isOwnPath(o.browse_url) ? o.browse_url : '/people';
+  const best = bestMatchIds(matches);
 
   return (
     <section aria-label="People who match" className="pt-3 space-y-3">
@@ -106,7 +123,12 @@ export function PeopleResults({ output }: { output: unknown }) {
         // One row the client swipes through, not a tall stack under the reply.
         <ul className="flex gap-3 overflow-x-auto snap-x snap-mandatory pb-2 scrollbar-thin scrollbar-thumb-neutral-800 scrollbar-track-transparent">
           {matches.map((m) => (
-            <li key={m.id} className="snap-start shrink-0 w-[78%] max-w-[300px] sm:w-[260px] rounded-2xl overflow-hidden border border-white/10 bg-[#0b0b0b] flex flex-col">
+            <li key={m.id} className="relative snap-start shrink-0 w-[78%] max-w-[300px] sm:w-[260px] rounded-2xl overflow-hidden border border-white/10 bg-[#0b0b0b] flex flex-col">
+              {best.has(m.id) && (
+                <span className="absolute top-2 left-2 z-10 rounded-full bg-[#050505]/85 px-2.5 py-1 font-mono text-[11px] uppercase tracking-wider text-[#D4A843]">
+                  Best match
+                </span>
+              )}
               <Link href={m.profile_url} className="block hover:opacity-90">
                 <PersonCardBody
                   compact

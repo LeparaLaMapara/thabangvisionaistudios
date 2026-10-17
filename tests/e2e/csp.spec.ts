@@ -7,7 +7,7 @@ import { test, expect, type Page } from '@playwright/test';
 // violations, and an injected inline script (what the INJ-1 XSS did) must be
 // refused.
 
-const PAGES = ['/', '/rentals', '/rentals/cameras-optics', '/studio', '/login', '/pricing', '/faq', '/legal', '/pay', '/ubunye-ai-studio'];
+const PAGES = ['/', '/rentals', '/rentals/cameras-optics', '/studio', '/login', '/pricing', '/faq', '/legal', '/pay', '/plan'];
 
 function scriptViolations(page: Page): string[] {
   const seen: string[] = [];

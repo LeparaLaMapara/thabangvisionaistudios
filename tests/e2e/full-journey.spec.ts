@@ -522,7 +522,7 @@ test.describe('5. Browsing — public pages', () => {
 
 test.describe('6. Ubunye AI', () => {
   test('6a. Ubunye page loads with greeting and quick actions', async ({ page }) => {
-    await page.goto('/ubunye-ai-studio');
+    await page.goto('/plan');
     await page.waitForLoadState('networkidle');
 
     // One question (a guest sees no greeting; a signed-in client sees their first name)
@@ -534,14 +534,20 @@ test.describe('6. Ubunye AI', () => {
     expect(await chips.count()).toBeGreaterThanOrEqual(1);
   });
 
+  test('6a2. the old /ubunye-ai-studio address redirects to /plan and keeps the query', async ({ page }) => {
+    const res = await page.request.get('/ubunye-ai-studio?prompt=hello%20there', { maxRedirects: 0 });
+    expect(res.status()).toBe(308);
+    expect(res.headers()['location']).toMatch(/\/plan\?prompt=hello(%20|\+)there$/);
+  });
+
   test('6b. Ubunye responds to a message with streaming', async ({ page }) => {
-    await page.goto('/ubunye-ai-studio');
+    await page.goto('/plan');
     await page.waitForLoadState('networkidle');
 
     // Type and send a message
     // The composer is a <textarea>, not an <input>. See
     // components/ubunye/ChatInputBar.tsx.
-    const input = page.getByPlaceholder(/ask ubunye/i);
+    const input = page.getByPlaceholder(/message ubunye/i);
     await input.fill('Hello');
     await page.locator('button[type="submit"]').click();
 
@@ -557,7 +563,7 @@ test.describe('6. Ubunye AI', () => {
   });
 
   test('6c. Ubunye quick action sends message', async ({ page }) => {
-    await page.goto('/ubunye-ai-studio');
+    await page.goto('/plan');
     await page.waitForLoadState('networkidle');
 
     // Click a quick action chip
@@ -572,7 +578,7 @@ test.describe('6. Ubunye AI', () => {
   });
 
   test('6d. Ubunye shows remaining messages for guests', async ({ page }) => {
-    await page.goto('/ubunye-ai-studio');
+    await page.goto('/plan');
     await page.waitForLoadState('networkidle');
 
     // A guest sees the counter before sending anything: ChatInputBar renders
@@ -943,7 +949,7 @@ test.describe('11. API validation', () => {
     const publicPages = [
       '/', '/rentals', '/studio', '/press', '/pricing',
       '/contact', '/about', '/careers', '/locations', '/legal', '/privacy', '/refunds',
-      '/login', '/register', '/support/tech', '/ubunye-ai-studio', '/marketplace',
+      '/login', '/register', '/support/tech', '/plan', '/marketplace',
     ];
 
     for (const path of publicPages) {

@@ -3,7 +3,7 @@ export const dynamic = 'force-dynamic';
 import type { Metadata } from 'next';
 import { buildPageMetadata } from '@/lib/seo/metadata';
 import { faqPageJsonLd, renderJsonLd } from '@/lib/seo/structured-data';
-import { STUDIO } from '@/lib/constants';
+import { PLAN, STUDIO } from '@/lib/constants';
 import { ExitIntentModal } from '@/components/engagement/ExitIntentModal';
 import { onlinePaymentsOpen } from '@/lib/payments/status';
 import { PAYMENTS_NOT_OPEN_NOTICE } from '@/lib/payments/offline-message';
@@ -51,7 +51,7 @@ export default function PricingLayout({ children }: { children: React.ReactNode 
         prompt="Help me choose gear or a package for my shoot"
         heading="Not sure what you need?"
         body="Ubunye can suggest gear or a package for your shoot and tell you the full price."
-        ctaLabel="Ask Ubunye"
+        ctaLabel={PLAN.cta}
       />
     </>
   );

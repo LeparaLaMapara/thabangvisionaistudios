@@ -129,7 +129,7 @@ export default async function RentalDetailPage({
       />
       {/* No exit-intent modal here: this page is the start of a booking, and a
           pop-up on the way to the date picker is an interruption, not help
-          (spec 9.5, no unnecessary modal chains). The Ask Ubunye button above
+          (spec 9.5, no unnecessary modal chains). The Plan a shoot button above
           already offers the same route. */}
     </>
   );

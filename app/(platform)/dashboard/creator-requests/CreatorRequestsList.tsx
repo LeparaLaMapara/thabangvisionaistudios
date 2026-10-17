@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { MapPin, Calendar, Briefcase, X, User, Clock } from 'lucide-react';
-import { STUDIO } from '@/lib/constants';
+import { PLAN, STUDIO } from '@/lib/constants';
 import type { CrewRequest } from '@/lib/supabase/queries/crew';
 
 const TABS = ['all', 'pending', 'confirmed', 'completed', 'cancelled'] as const;
@@ -180,7 +180,11 @@ export default function CreatorRequestsList({ requests: initialRequests }: Creat
             <Link href="/studio" className="text-[#D4A843] hover:text-[#D4A843]/80 transition-colors">
               /studio
             </Link>{' '}
-            or ask Ubunye to find the perfect match.
+            or use{' '}
+            <Link href={PLAN.href} className="text-[#D4A843] hover:text-[#D4A843]/80 transition-colors">
+              {PLAN.label}
+            </Link>{' '}
+            to find the right match.
           </p>
         </div>
       )}

@@ -4,7 +4,7 @@ import { filterNavForFlags } from '@/lib/nav';
 
 /**
  * Immersive layout — Header only, no Footer.
- * Used for full-viewport experiences like Ubunye AI Studio.
+ * Used for full-viewport experiences like Plan (the Ubunye chat).
  */
 export default async function ImmersiveLayout({
   children,
