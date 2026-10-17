@@ -379,13 +379,13 @@ export default function UbunyeStudioClient({ people = false, plans = false, phot
   // Clear the box straight away so it feels instant, but put the text back if
   // the message was held back (limit, still loading) -- a failed request is
   // handled the same way in onError above.
-  // Photos: sending waits while one is still being read; a photo that could
-  // not be read stays behind with its reason and the words still go.
+  // Photos: a send pressed while a photo is still being read waits and goes by
+  // itself the moment reading ends (it used to be dropped silently); a photo
+  // that could not be read stays behind with its reason and the words still go.
   const { busy: photosBusy, photos: pendingPhotos, take: takePhotos, restore: restorePhotos } = chatPhotos;
-  const handleSubmit = useCallback((e: React.FormEvent) => {
-    e.preventDefault();
+  const [sendQueued, setSendQueued] = useState(false);
+  const sendNow = useCallback(() => {
     const text = input;
-    if (photosBusy) return;
     const ready = pendingPhotos.filter(p => p.status === 'ready' && p.text && p.dataUrl);
     if (!text.trim() && ready.length === 0) return;
     setInput('');
@@ -402,7 +402,22 @@ export default function UbunyeStudioClient({ people = false, plans = false, phot
       setInput(prev => prev || text);
       restorePhotos(taken);
     });
-  }, [input, doSend, photosBusy, pendingPhotos, takePhotos, restorePhotos]);
+  }, [input, doSend, pendingPhotos, takePhotos, restorePhotos]);
+
+  const handleSubmit = useCallback((e: React.FormEvent) => {
+    e.preventDefault();
+    if (photosBusy) {
+      setSendQueued(true);
+      return;
+    }
+    sendNow();
+  }, [photosBusy, sendNow]);
+
+  useEffect(() => {
+    if (!sendQueued || photosBusy) return;
+    setSendQueued(false);
+    sendNow();
+  }, [sendQueued, photosBusy, sendNow]);
 
   // ─── Put words in the box without sending (an occasion, an answer start) ──
   const prefill = useCallback((text: string) => {
@@ -553,6 +568,7 @@ export default function UbunyeStudioClient({ people = false, plans = false, phot
           photos={chatPhotos.photos}
           photoNotice={chatPhotos.notice}
           photosBusy={chatPhotos.busy}
+          sendQueued={sendQueued}
           onAddPhotos={chatPhotos.add}
           onRemovePhoto={chatPhotos.remove}
         />

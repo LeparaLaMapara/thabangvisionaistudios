@@ -172,7 +172,7 @@ describe('ChatInputBar with photos', () => {
     expect(screen.getByRole('button', { name: 'Send message' })).not.toBeDisabled();
   });
 
-  it('waits while a photo is read, and shows a reading error plainly', () => {
+  it('lets send be pressed while a photo is read, and shows a reading error plainly', () => {
     const onRemovePhoto = vi.fn();
     render(createElement(ChatInputBar, {
       ...base,
@@ -183,9 +183,23 @@ describe('ChatInputBar with photos', () => {
       photosBusy: true,
       photos: [photo({ status: 'reading', text: null }), photo({ id: 'p2', status: 'error', text: null, error: 'The free photo reader is busy.' })],
     }));
-    expect(screen.getByRole('button', { name: 'Send message' })).toBeDisabled();
+    // Pressing send while reading queues it (UbunyeStudioClient sends when reading ends).
+    expect(screen.getByRole('button', { name: 'Send message' })).toBeEnabled();
     expect(screen.getByText('Photo 2: The free photo reader is busy.')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Remove photo 1' }));
     expect(onRemovePhoto).toHaveBeenCalledWith('p1');
+  });
+
+  it('shows a waiting send once it is queued', () => {
+    render(createElement(ChatInputBar, {
+      ...base,
+      input: 'hello',
+      photosEnabled: true,
+      onAddPhotos: vi.fn(),
+      photosBusy: true,
+      sendQueued: true,
+      photos: [photo({ status: 'reading', text: null })],
+    }));
+    expect(screen.getByRole('button', { name: 'Sending when your photo is read' })).toBeDisabled();
   });
 });

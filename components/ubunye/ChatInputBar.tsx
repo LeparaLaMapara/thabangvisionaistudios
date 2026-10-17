@@ -22,6 +22,8 @@ interface ChatInputBarProps {
   photoNotice?: string | null;
   /** A photo is still being resized or read: sending waits for it. */
   photosBusy?: boolean;
+  /** Send was pressed while a photo was being read: it goes by itself when reading ends. */
+  sendQueued?: boolean;
   onAddPhotos?: (files: FileList) => void;
   onRemovePhoto?: (id: string) => void;
 }
@@ -39,6 +41,7 @@ export function ChatInputBar({
   photos = [],
   photoNotice = null,
   photosBusy = false,
+  sendQueued = false,
   onAddPhotos,
   onRemovePhoto,
 }: ChatInputBarProps) {
@@ -78,7 +81,8 @@ export function ChatInputBar({
   const showPhotos = photosEnabled && !!onAddPhotos;
   const readyPhotos = photos.filter((p) => p.status === 'ready').length;
   const hasSomething = input.trim().length > 0 || readyPhotos > 0;
-  const canSend = hasSomething && !photosBusy && !isLoading && !limitReached;
+  // Send may be pressed while a photo is still being read: it waits and goes by itself.
+  const canSend = (hasSomething || photosBusy) && !sendQueued && !isLoading && !limitReached;
   const photoRoom = photos.length < UBUNYE_PHOTO_POLICY.perMessage;
   const photoErrors = photos.filter((p) => p.status === 'error' && p.error);
 
@@ -177,13 +181,15 @@ export function ChatInputBar({
             <div className="pr-1 pb-1">
               <button
                 type="submit"
-                aria-label="Send message"
+                aria-label={sendQueued ? 'Sending when your photo is read' : 'Send message'}
                 disabled={!canSend}
                 className={`w-11 h-11 flex items-center justify-center rounded-lg transition-all duration-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#D4A843] ${
                   canSend ? 'bg-[#D4A843] text-black hover:bg-[#E8C96A]' : 'text-neutral-500'
                 }`}
               >
-                <ArrowUp className="w-4 h-4" aria-hidden="true" />
+                {sendQueued
+                  ? <span className="w-4 h-4 rounded-full border-2 border-neutral-500 border-t-[#D4A843] animate-spin" aria-hidden="true" />
+                  : <ArrowUp className="w-4 h-4" aria-hidden="true" />}
               </button>
             </div>
           </div>
