@@ -139,7 +139,8 @@ function requestUrl(id: string, p: { date: string | null; days: number; area: st
 }
 
 function askMessage(roleName: string, area: string | null, date: ResolvedDate | null, note: string | null): string {
-  return `Hi, I am looking for a ${roleName.toLowerCase()}${area ? ` in ${area}` : ''}${date ? ` on ${date.label}` : ''}${note ? ` for ${note}` : ''}. Can you help?`;
+  const what = roleName.toLowerCase();
+  return `Hi, I am looking for ${/^[aeiou]/.test(what) ? 'an' : 'a'} ${what}${area ? ` in ${area}` : ''}${date ? ` on ${date.label}` : ''}${note ? ` for ${note}` : ''}. Can you help?`;
 }
 
 export async function findPeople(input: FindPeopleInput, deps: FindPeopleDeps): Promise<FindPeopleResult> {
