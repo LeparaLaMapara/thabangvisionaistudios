@@ -1,7 +1,5 @@
 // ─── Ubunye AI Studio Types ─────────────────────────────────────────────────
 
-export type OrbState = 'idle' | 'processing' | 'streaming';
-
 export type QuickAction = {
   id: string;
   label: string;

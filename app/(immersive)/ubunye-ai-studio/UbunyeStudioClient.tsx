@@ -10,10 +10,9 @@ import { chatMarkdownComponents } from '@/components/ubunye/chatMarkdown';
 import { createClient } from '@/lib/supabase/client';
 import { Clapperboard, Heart, Music, Store, type LucideIcon } from 'lucide-react';
 import { STUDIO, UBUNYE_OCCASIONS, type UbunyeOccasion } from '@/lib/constants';
-import { GoldenSphere } from '@/components/ubunye/GoldenSphere';
 import { ChatMessageList } from '@/components/ubunye/ChatMessageList';
 import { ChatInputBar } from '@/components/ubunye/ChatInputBar';
-import type { OrbState } from '@/types/ubunye';
+import Image from 'next/image';
 import { cardsFromUiParts, cardsToUiParts, readCards } from '@/lib/ubunye/chat-cards';
 import { composePhotoMessage } from '@/lib/ubunye/chat-photos';
 import { useChatPhotos } from '@/components/ubunye/useChatPhotos';
@@ -196,7 +195,6 @@ export default function UbunyeStudioClient({ people = false, plans = false, phot
   const isLoading = status === 'submitted' || status === 'streaming';
 
   // ─── Orb state ──
-  const orbState: OrbState = status === 'submitted' ? 'processing' : status === 'streaming' ? 'streaming' : 'idle';
 
   // ─── Persist chat to sessionStorage ──
   useEffect(() => {
@@ -490,9 +488,15 @@ export default function UbunyeStudioClient({ people = false, plans = false, phot
               {/* One question. Painted at once (no fade): the heading is the
                   page's largest paint on most phones. */}
               <div className="flex flex-col items-center mb-8">
-                <div className="w-12 h-12 md:w-[72px] md:h-[72px] mb-5">
-                  <GoldenSphere className="w-full h-full" state={orbState} />
-                </div>
+                {/* Just the B (owner, 2026-10-17): no floating sphere. */}
+                <Image
+                  src="/logo-header-90.webp"
+                  alt=""
+                  width={80}
+                  height={90}
+                  priority
+                  className="h-12 md:h-14 w-auto mb-5 select-none"
+                />
                 {displayName && (
                   <p className="text-sm text-neutral-400 mb-2">
                     {greeting}, {displayName}.
