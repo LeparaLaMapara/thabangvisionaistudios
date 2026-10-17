@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { getPublishedFaqs } from '@/lib/supabase/queries/chatFaqs';
 import { buildPageMetadata } from '@/lib/seo/metadata';
 import { faqPageJsonLd, breadcrumbJsonLd, renderJsonLd } from '@/lib/seo/structured-data';
-import { STUDIO } from '@/lib/constants';
+import { PLAN, STUDIO } from '@/lib/constants';
 import { coreFaqs } from '@/lib/content/faqs';
 import { onlinePaymentsOpen } from '@/lib/payments/status';
 import { getFlag } from '@/lib/features';
@@ -71,9 +71,9 @@ export default async function FaqPage() {
               Frequently Asked Questions
             </h1>
             <p className="text-neutral-400 font-light max-w-xl text-sm md:text-base leading-relaxed">
-              Can&apos;t find what you&apos;re looking for?{' '}
-              <Link href="/ubunye-ai-studio" className="text-[#D4A843] hover:underline">
-                Ask Ubunye AI
+              Can&apos;t find what you&apos;re looking for? Ask on{' '}
+              <Link href={PLAN.href} className="text-[#D4A843] hover:underline">
+                {PLAN.label}
               </Link>{' '}
               or{' '}
               <Link href="/contact" className="text-[#D4A843] hover:underline">
@@ -89,10 +89,10 @@ export default async function FaqPage() {
                 No FAQs published yet.
               </p>
               <Link
-                href="/ubunye-ai-studio"
-                className="inline-flex items-center gap-2 text-xs font-mono font-bold uppercase tracking-widest text-[#D4A843] hover:underline"
+                href={PLAN.href}
+                className="inline-flex items-center gap-2 min-h-[44px] text-xs font-mono font-bold uppercase tracking-widest text-[#D4A843] hover:underline"
               >
-                Ask Ubunye AI instead
+                Ask on {PLAN.label} instead
               </Link>
             </div>
           ) : (

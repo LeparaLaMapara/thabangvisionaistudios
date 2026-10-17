@@ -67,6 +67,18 @@ const nextConfig: NextConfig = {
       destination: '/rentals/:path*',
       permanent: true,
     },
+    // The Ubunye chat is now Plan (owner 2026-10-17). Old links, bookmarks and
+    // ?prompt= / ?c= links keep working: Next.js passes the query string on.
+    {
+      source: '/ubunye-ai-studio',
+      destination: '/plan',
+      permanent: true,
+    },
+    {
+      source: '/ubunye-ai-studio/:path*',
+      destination: '/plan',
+      permanent: true,
+    },
     // The menu calls the free apps "Apps", so people type /apps. They live at /tools.
     {
       source: '/apps',

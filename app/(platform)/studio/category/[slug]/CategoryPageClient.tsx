@@ -15,7 +15,7 @@ import { calculatePackagePrice } from '@/lib/productions/pricing';
 import { formatRand, withServiceVat } from '@/lib/format/money';
 import { categoryFromPrice } from '@/lib/productions/from-price';
 import { displayTag } from '@/lib/content/tags';
-import { PRODUCTION_SERVICES } from '@/lib/constants';
+import { PLAN, PRODUCTION_SERVICES } from '@/lib/constants';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -724,10 +724,10 @@ export default function CategoryPageClient({ category, packages, productions, cr
               Send Us a Brief <ChevronRight className="w-3 h-3" />
             </Link>
             <Link
-              href={`/ubunye-ai-studio?prompt=I need a custom ${category.name.toLowerCase()} quote`}
+              href={`${PLAN.href}?${new URLSearchParams({ prompt: `I need a custom ${category.name.toLowerCase()} quote` })}`}
               className="inline-flex items-center gap-2 text-xs font-mono font-bold uppercase tracking-widest border border-white/20 text-white px-6 py-3 hover:bg-white/5 transition-colors"
             >
-              Ask Ubunye <ChevronRight className="w-3 h-3" />
+              {PLAN.cta} <ChevronRight className="w-3 h-3" />
             </Link>
           </div>
         </div>

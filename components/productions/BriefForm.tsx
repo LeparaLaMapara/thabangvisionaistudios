@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, type FormEvent } from 'react';
-import { STUDIO } from '@/lib/constants';
+import { PLAN, STUDIO } from '@/lib/constants';
 
 const PRODUCTION_TYPES = [
   'Portrait',
@@ -291,10 +291,10 @@ export default function BriefForm() {
           <p className="text-neutral-400 text-sm">
             Need help right now?{' '}
             <a
-              href="/ubunye-ai-studio"
+              href={PLAN.href}
               className="text-[#D4A843] underline underline-offset-2 hover:text-[#e5be5f] transition-colors"
             >
-              Ask Ubunye for a quote
+              Plan a shoot
             </a>
           </p>
         </div>

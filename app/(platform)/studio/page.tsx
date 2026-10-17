@@ -3,7 +3,7 @@ export const revalidate = 60;
 import SmartProductionClient from './SmartProductionClient';
 import { permanentRedirect } from 'next/navigation';
 import { getFlag } from '@/lib/features';
-import { STUDIO } from '@/lib/constants';
+import { PLAN, STUDIO } from '@/lib/constants';
 import { AskUbunyeButton } from '@/components/ubunye/AskUbunyeButton';
 import { getPublishedProductions } from '@/lib/supabase/queries/smartProductions';
 import { buildPageMetadata } from '@/lib/seo/metadata';
@@ -33,7 +33,7 @@ export default async function SmartProductionPage() {
   return (
     <>
       <SmartProductionClient productions={productions} />
-      <AskUbunyeButton prompt="I need a quote for a production" label="Questions? Ask Ubunye" />
+      <AskUbunyeButton prompt="I need a quote for a production" label={PLAN.cta} />
     </>
   );
 }

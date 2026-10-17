@@ -36,7 +36,7 @@ export const SITEMAP_ROUTES: Record<string, SitemapId> = {
   '/refunds': 'static',
   '/paia': 'static',
   '/resources/tools': 'static',
-  '/ubunye-ai-studio': 'static',
+  '/plan': 'static',
 
   '/rentals': 'rentals',
   '/rentals/[category]': 'rentals',

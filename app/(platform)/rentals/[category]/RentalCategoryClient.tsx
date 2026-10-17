@@ -11,7 +11,7 @@ import { cityPageHeading, collectionPointWithCity } from '@/lib/rental/collectio
 import { isOnSiteCategory, specEntries } from '@/lib/rental/on-site';
 import { categoryLabel } from '@/lib/content/tags';
 import type { RentalListItem } from '@/lib/supabase/queries/smartRentals';
-import { STUDIO } from '@/lib/constants';
+import { PLAN, STUDIO } from '@/lib/constants';
 import { useFocusTrap } from '@/components/ui/useFocusTrap';
 
 // ─── Cloudinary thumbnail helper ──────────────────────────────────────────────
@@ -684,7 +684,8 @@ export default function RentalCategoryClient({
                 </div>
                 {hasMore && (
                   <p className="mt-8 text-xs font-mono text-neutral-400 uppercase tracking-widest text-center">
-                    Showing the top {rentals.length} items. Use the filters, or ask Ubunye for something specific.
+                    Showing the top {rentals.length} items. Use the filters, or say what you need on{' '}
+                    <Link href={PLAN.href} className="text-[#D4A843] underline underline-offset-2">{PLAN.label}</Link>.
                   </p>
                 )}
               </>

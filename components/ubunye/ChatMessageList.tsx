@@ -11,6 +11,7 @@ import { ApprovalCard } from '@/components/ubunye/ApprovalCard';
 import { PeopleResults } from '@/components/ubunye/PeopleResults';
 import { ShootOutlineCard } from '@/components/ubunye/ShootOutlineCard';
 import { answerStart, outlineCard } from '@/lib/ubunye/outline-card';
+import { proposalKind } from '@/lib/ubunye/approval-labels';
 import { visibleUserText } from '@/lib/ubunye/chat-photos';
 import { STUDIO } from '@/lib/constants';
 
@@ -81,6 +82,14 @@ function getProposalId(msg: UIMessage): string | null {
     .map((p) => p.output as { approval_required?: boolean; proposal_id?: unknown } | undefined)
     .filter((o): o is { approval_required: boolean; proposal_id: string } => Boolean(o?.approval_required) && typeof o?.proposal_id === 'string');
   return ids.length > 0 ? ids[ids.length - 1].proposal_id : null;
+}
+
+/** What kind of proposal this is (a plan, a move, asking people), from the tool that made it. */
+function getProposalKind(msg: UIMessage, id: string): string | null {
+  const part = toolParts(msg).find(
+    (p) => p.state === 'output-available' && (p.output as { proposal_id?: unknown } | undefined)?.proposal_id === id,
+  );
+  return part ? proposalKind(toolName(part), part.output) : null;
 }
 
 interface ChatMessageListProps {
@@ -210,11 +219,11 @@ export function ChatMessageList({
               </div>
             )}
 
-            {outline && <ShootOutlineCard card={outline} />}
+            {outline && <ShootOutlineCard card={outline} onSend={onSend} busy={isLoading} />}
 
             {peopleOutput ? <PeopleResults output={peopleOutput} /> : null}
 
-            {proposalId && <ApprovalCard key={proposalId} proposalId={proposalId} />}
+            {proposalId && <ApprovalCard key={proposalId} proposalId={proposalId} kind={getProposalKind(msg, proposalId)} />}
 
             {start && onPrefill && (
               <div className="pt-2">

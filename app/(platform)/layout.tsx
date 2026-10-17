@@ -7,7 +7,7 @@ import { filterNavForFlags, footerSectionsForFlags } from '@/lib/nav';
  * Platform layout — wraps capability pages:
  *   /studio            /studio/[slug]
  *   /rentals           /rentals/[category]
- *   /ubunye-ai-studio  /catalog/[slug]
+ *   /catalog/[slug]    (Plan, /plan, is in the immersive group)
  *   /resources/tools
  *
  * Renders the same public Header and Footer as the marketing layout.

@@ -25,7 +25,7 @@ describe('main navigation', () => {
   it('shows Apps only when the creative_tools switch is on', () => {
     const on = filterNavSync(MAIN_NAVIGATION, { creative_tools: true, smart_productions: true }).map((i) => i.label);
     const off = filterNavSync(MAIN_NAVIGATION, { creative_tools: false, smart_productions: true }).map((i) => i.label);
-    expect(on.slice(0, 4)).toEqual(['Rentals', 'Studio', 'Apps', 'Help']);
+    expect(on.slice(0, 5)).toEqual(['Rentals', 'Studio', 'Plan', 'Apps', 'Help']);
     expect(off).not.toContain('Apps');
   });
 });

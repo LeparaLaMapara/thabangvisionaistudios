@@ -3,7 +3,7 @@
 import { useRef, useCallback, useEffect } from 'react';
 import Link from 'next/link';
 import { ArrowUp, ImagePlus, X } from 'lucide-react';
-import { UBUNYE_PHOTO_POLICY } from '@/lib/constants';
+import { PLAN, UBUNYE_PHOTO_POLICY } from '@/lib/constants';
 import type { ChatPhoto } from '@/components/ubunye/useChatPhotos';
 
 interface ChatInputBarProps {
@@ -167,7 +167,7 @@ export function ChatInputBar({
               onChange={handleChange}
               onKeyDown={handleKeyDown}
               aria-label="Message Ubunye"
-              placeholder={limitReached ? 'Message limit reached' : 'Ask Ubunye…'}
+              placeholder={limitReached ? 'Message limit reached' : 'Message Ubunye…'}
               disabled={isLoading || limitReached}
               rows={1}
               // 16px on phones: iOS Safari zooms the page into any smaller input.
@@ -208,7 +208,7 @@ export function ChatInputBar({
             ) : (
               <>
                 {remaining} free question{remaining === 1 ? '' : 's'}.{' '}
-                <Link href="/login?next=/ubunye-ai-studio" className="text-[#D4A843] underline underline-offset-2">
+                <Link href={`/login?next=${PLAN.href}`} className="text-[#D4A843] underline underline-offset-2">
                   Sign in for more
                 </Link>
               </>

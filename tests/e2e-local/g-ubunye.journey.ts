@@ -17,7 +17,7 @@ const message = (text: string, extra: Record<string, unknown> = {}) => ({
 test.beforeAll(() => clearRateLimit('ai-guest-day:'));
 
 test('the chat fails gracefully: a plain message, no stack trace', async ({ page }) => {
-  await page.goto('/ubunye-ai-studio');
+  await page.goto('/plan');
   const box = page.getByRole('textbox').first();
   await box.fill('What cameras can I rent this weekend?');
   await box.press('Enter');

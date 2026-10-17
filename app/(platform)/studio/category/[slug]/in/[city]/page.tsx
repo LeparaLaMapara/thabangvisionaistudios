@@ -4,7 +4,7 @@ export const revalidate = 60;
 export const dynamicParams = true;
 
 import { notFound, permanentRedirect } from 'next/navigation';
-import { PRODUCTION_CATEGORIES, PRODUCTION_PACKAGES, STUDIO } from '@/lib/constants';
+import { PLAN, PRODUCTION_CATEGORIES, PRODUCTION_PACKAGES, STUDIO } from '@/lib/constants';
 import { getCategoryBySlug } from '@/lib/supabase/queries/productionCategories';
 import { getStudioProductionsByType, getCreatorProductionsByType } from '@/lib/supabase/queries/smartProductions';
 import { getCrewBySpecializationsAndLocation } from '@/lib/supabase/queries/crew';
@@ -109,7 +109,7 @@ export default async function StudioLocationPage({ params }: Props) {
       <RelatedCategories currentSlug={slug} type="studio" locationSlug={citySlug} />
       <AskUbunyeButton
         prompt={`I need a quote for ${category.name.toLowerCase()} in ${locationName}`}
-        label="Ask Ubunye about this"
+        label={PLAN.cta}
       />
     </>
   );

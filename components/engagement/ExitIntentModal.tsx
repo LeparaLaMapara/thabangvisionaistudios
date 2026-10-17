@@ -5,6 +5,7 @@ import { X, MessageCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import Link from 'next/link';
 import { useFocusTrap } from '@/components/ui/useFocusTrap';
+import { PLAN } from '@/lib/constants';
 
 interface ExitIntentModalProps {
   prompt?: string;
@@ -18,8 +19,8 @@ export function ExitIntentModal({
   prompt,
   heading = 'Before you go...',
   body = 'Have questions? Our AI assistant can help you find exactly what you need: prices, dates, or a quote.',
-  ctaLabel = 'Chat with Ubunye AI',
-  ctaHref = '/ubunye-ai-studio',
+  ctaLabel = PLAN.cta,
+  ctaHref = PLAN.href,
 }: ExitIntentModalProps) {
   const [show, setShow] = useState(false);
   const firedRef = useRef(false);

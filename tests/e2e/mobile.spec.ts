@@ -383,12 +383,12 @@ test.describe('Mobile dashboard', () => {
 
 test.describe('Mobile Ubunye AI', () => {
   test('chat input is visible at bottom of viewport', async ({ page }) => {
-    if (!(await safeGoto(page, '/ubunye-ai-studio', { timeout: 45000 }))) {
+    if (!(await safeGoto(page, '/plan', { timeout: 45000 }))) {
       test.skip(true, 'Ubunye AI page unavailable');
       return;
     }
 
-    const chatInput = page.locator('textarea[placeholder*="Ask Ubunye"]');
+    const chatInput = page.locator('textarea[placeholder*="Message Ubunye"]');
     await expect(chatInput).toBeVisible({ timeout: 15000 });
 
     const box = await chatInput.boundingBox();
@@ -397,7 +397,7 @@ test.describe('Mobile Ubunye AI', () => {
   });
 
   test('quick action chips are visible and do not overflow', async ({ page }) => {
-    if (!(await safeGoto(page, '/ubunye-ai-studio', { timeout: 45000 }))) {
+    if (!(await safeGoto(page, '/plan', { timeout: 45000 }))) {
       test.skip(true, 'Ubunye AI page unavailable');
       return;
     }
@@ -416,7 +416,7 @@ test.describe('Mobile Ubunye AI', () => {
   });
 
   test('HUD side panels are hidden on mobile', async ({ page }) => {
-    if (!(await safeGoto(page, '/ubunye-ai-studio', { timeout: 45000 }))) {
+    if (!(await safeGoto(page, '/plan', { timeout: 45000 }))) {
       test.skip(true, 'Ubunye AI page unavailable');
       return;
     }
@@ -439,11 +439,11 @@ test.describe('Mobile Ubunye AI', () => {
   });
 
   test('send button, example prompts and header controls are 44px targets', async ({ page }) => {
-    if (!(await safeGoto(page, '/ubunye-ai-studio', { timeout: 45000 }))) {
+    if (!(await safeGoto(page, '/plan', { timeout: 45000 }))) {
       test.skip(true, 'Ubunye AI page unavailable');
       return;
     }
-    await page.waitForSelector('textarea[placeholder*="Ask Ubunye"]', { timeout: 15000 });
+    await page.waitForSelector('textarea[placeholder*="Message Ubunye"]', { timeout: 15000 });
 
     await expectTouchTargets(page.getByRole('button', { name: 'Send message' }));
     await expectTouchTargets(page.getByRole('button', { name: 'Open menu' }));
@@ -458,21 +458,21 @@ test.describe('Mobile Ubunye AI', () => {
     expect(box!.y + box!.height).toBeLessThanOrEqual(852);
   });
 
-  test('Ask Ubunye header link is a 44px target', async ({ page }) => {
+  test('Plan header link is a 44px target', async ({ page }) => {
     if (!(await safeGoto(page, '/rentals', { timeout: 45000 }))) {
       test.skip(true, 'Rentals page unavailable');
       return;
     }
-    await expectTouchTargets(page.locator('header').getByRole('link', { name: 'Ask Ubunye' }));
+    await expectTouchTargets(page.locator('header').getByRole('link', { name: 'Plan', exact: true }));
   });
 
   test('no horizontal overflow', async ({ page }) => {
-    if (!(await safeGoto(page, '/ubunye-ai-studio', { timeout: 45000 }))) {
+    if (!(await safeGoto(page, '/plan', { timeout: 45000 }))) {
       test.skip(true, 'Ubunye AI page unavailable');
       return;
     }
 
-    await page.waitForSelector('textarea[placeholder*="Ask Ubunye"]', { timeout: 15000 });
+    await page.waitForSelector('textarea[placeholder*="Message Ubunye"]', { timeout: 15000 });
 
     const scrollWidth = await page.evaluate(() => document.documentElement.scrollWidth);
     const clientWidth = await page.evaluate(() => document.documentElement.clientWidth);

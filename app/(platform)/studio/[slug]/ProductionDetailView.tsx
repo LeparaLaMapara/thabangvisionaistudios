@@ -5,7 +5,7 @@ import { ArrowLeft, Aperture, Camera } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { PhotographyGallery } from '@/components/projects/ProjectsComponents';
-import { STUDIO } from '@/lib/constants';
+import { PLAN, STUDIO } from '@/lib/constants';
 import { formatRand, withServiceVat } from '@/lib/format/money';
 import { displayTag } from '@/lib/content/tags';
 import { usePaymentsOpen } from '@/lib/payments/usePaymentsOpen';
@@ -303,7 +303,7 @@ function BookingWidget({ project }: { project: SmartProduction }) {
         onClick={() => {
           // A real booking form at this package's own price; the assistant is
           // there for questions, not the only way to book.
-          router.push(hasPrice ? `/book?production=${project.id}` : `/ubunye-ai-studio?${new URLSearchParams({ prompt: `I'd like a quote for the "${project.title}" production` })}`);
+          router.push(hasPrice ? `/book?production=${project.id}` : `${PLAN.href}?${new URLSearchParams({ prompt: `I'd like a quote for the "${project.title}" production` })}`);
         }}
         className="w-full py-3 text-xs font-mono font-bold uppercase tracking-widest bg-[#D4A843] text-black border border-[#D4A843] hover:opacity-80 transition-all flex items-center justify-center gap-2"
       >
@@ -317,10 +317,10 @@ function BookingWidget({ project }: { project: SmartProduction }) {
               ? 'Pick a date and send a request. We confirm who will shoot it and the price, then you pay by EFT.'
               : paymentsOpen ? 'Pick a date and pay.' : 'Pick a date and send a request.'} Questions?{' '}
             <a
-              href={`/ubunye-ai-studio?${new URLSearchParams({ prompt: `I have a question about the "${project.title}" production` })}`}
+              href={`${PLAN.href}?${new URLSearchParams({ prompt: `I have a question about the "${project.title}" production` })}`}
               className="underline underline-offset-2 hover:text-white"
             >
-              Ask Ubunye
+              {PLAN.cta}
             </a>
           </>
         ) : 'Ubunye will help you with a quote'}

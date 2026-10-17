@@ -3,13 +3,13 @@
 import { motion } from 'framer-motion';
 import { Sparkles, Camera, Bot, Workflow, ArrowRight, Download } from 'lucide-react';
 import Link from 'next/link';
-import { STUDIO, RESEARCH_LAB, UBUNYE_STUDIO, CREATOR_JOIN, EARN } from '@/lib/constants';
+import { STUDIO, RESEARCH_LAB, UBUNYE_STUDIO, CREATOR_JOIN, EARN, PLAN } from '@/lib/constants';
 import { collectionPoint } from '@/lib/rental/collection-point';
 
 const HERO_CAPABILITY = {
-  title: 'Ask Ubunye',
+  title: PLAN.label,
   icon: Bot,
-  desc: `Ubunye is our AI assistant. Ask it about gear, dates and prices, or to help plan a shoot, in plain words.`,
+  desc: `Say what you are planning, in plain words. Ubunye, our AI assistant, brings the people, the gear, the dates and the prices together.`,
 };
 
 // What you can do on the site today.
@@ -29,11 +29,11 @@ export default function LabContent({ appsLive }: { appsLive: boolean }) {
         </h1>
         <div className="w-8 h-px bg-[#D4A843] mt-6 mb-8" />
         <p className="text-xl md:text-3xl text-neutral-300 font-light leading-relaxed max-w-4xl">
-          {STUDIO.name} is where you book what a shoot needs: the people and the gear. Gear is collected in {STUDIO.location.city} at {collectionPoint()}, and you see the full price before you book. Ask Ubunye, our AI assistant, anything along the way.
+          {STUDIO.name} is where you book what a shoot needs: the people and the gear. Gear is collected in {STUDIO.location.city} at {collectionPoint()}, and you see the full price before you book. Plan a shoot in plain words and Ubunye, our AI assistant, brings it together.
         </p>
       </motion.div>
 
-      {/* Ask Ubunye: hero card */}
+      {/* Plan: hero card */}
       <motion.div
         initial={{ opacity: 0, y: 30 }}
         whileInView={{ opacity: 1, y: 0 }}

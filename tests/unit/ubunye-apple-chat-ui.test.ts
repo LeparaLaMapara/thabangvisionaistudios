@@ -36,7 +36,7 @@ function json(body: unknown, status = 200): Response {
 }
 
 describe('ApprovalCard for a plan', () => {
-  it('asks one question, hides the parts behind a disclosure, and saves with the same token flow', async () => {
+  it('shows the server title, hides the parts behind a disclosure, and saves with the same token flow', async () => {
     const calls: { url: string; method: string; body?: string }[] = [];
     vi.stubGlobal('fetch', vi.fn(async (url: string, init?: RequestInit) => {
       const method = init?.method ?? 'GET';
@@ -47,7 +47,8 @@ describe('ApprovalCard for a plan', () => {
     }));
 
     render(createElement(ApprovalCard, { proposalId: PROPOSAL }));
-    expect(await screen.findByText('Save this as your plan?')).toBeInTheDocument();
+    // Plan (owner 2026-10-17): the card reads the server's own title.
+    expect(await screen.findByText('Plan: Traditional wedding in Soweto')).toBeInTheDocument();
     expect(screen.getByText('Saturday 14 November 2026')).toBeInTheDocument();
     expect(screen.getByText('It books nothing and costs nothing.')).toBeInTheDocument();
     // The parts are behind "See what is in it", collapsed by default.

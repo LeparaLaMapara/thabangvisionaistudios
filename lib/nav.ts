@@ -40,7 +40,7 @@ export async function filterNavForFlags<T extends HrefEntry>(
 }
 
 /**
- * roles_v1 (TASK-085): the menu reads People, Rentals, Apps, Help. "People"
+ * roles_v1 (TASK-085): the menu reads People, Rentals, Plan, Apps, Help. "People"
  * replaces "Studio": everyone bookable is on one page (/people), and "Studio"
  * sounded like a place to hire. With the flag off the menu is unchanged.
  */

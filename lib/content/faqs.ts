@@ -154,7 +154,7 @@ export function coreFaqs(opts: { paymentsOpen?: boolean; rolesOn?: boolean } = {
       id: 'core-human',
       category: 'general',
       question: 'Can I talk to a person?',
-      answer: `Yes. WhatsApp ${STUDIO.whatsapp.display} or email ${STUDIO.email}; we reply ${STUDIO.responseTime}. You can also ask Ubunye, our AI assistant, at any time.`,
+      answer: `Yes. WhatsApp ${STUDIO.whatsapp.display} or email ${STUDIO.email}; we reply ${STUDIO.responseTime}. You can also plan your shoot with Ubunye, our AI assistant, at any time.`,
     },
   ];
 }

@@ -1,7 +1,7 @@
 export const revalidate = 60;
 
 import { notFound } from 'next/navigation';
-import { PRODUCTION_CATEGORIES, PRODUCTION_PACKAGES, STUDIO } from '@/lib/constants';
+import { PLAN, PRODUCTION_CATEGORIES, PRODUCTION_PACKAGES, STUDIO } from '@/lib/constants';
 import { getCategoryBySlug } from '@/lib/supabase/queries/productionCategories';
 import { getStudioProductionsByType, getCreatorProductionsByType } from '@/lib/supabase/queries/smartProductions';
 import { getCrewBySpecializations } from '@/lib/supabase/queries/crew';
@@ -84,7 +84,7 @@ export default async function CategoryPage({ params }: Props) {
       <RelatedCategories currentSlug={slug} type="studio" />
       <AskUbunyeButton
         prompt={`I need someone for ${category.name.toLowerCase()}`}
-        label="Ask Ubunye about this"
+        label={PLAN.cta}
       />
     </>
   );

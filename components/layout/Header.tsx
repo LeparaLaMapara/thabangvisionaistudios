@@ -6,11 +6,11 @@ import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { Menu, X, ChevronDown, ShoppingCart } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { MAIN_NAVIGATION } from '@/lib/constants';
+import { MAIN_NAVIGATION, PLAN } from '@/lib/constants';
 import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/providers/AuthProvider';
 import { useCart } from '@/providers/CartProvider';
-import { HeaderUbunyeBubble } from '@/components/ubunye/HeaderUbunyeBubble';
+import { HeaderPlanLink } from '@/components/ubunye/HeaderPlanLink';
 import { useFocusTrap } from '@/components/ui/useFocusTrap';
 
 const ThabangLogo = () => (
@@ -257,7 +257,7 @@ export const Header = ({ navigation = MAIN_NAVIGATION }: { navigation?: readonly
               )}
             </Link>
           )}
-          <HeaderUbunyeBubble />
+          {/* Plan is in the menu on wide screens: no separate door here. */}
           {authLoading ? (
             <div className="w-24 h-11" />
           ) : isLoggedIn ? (
@@ -288,7 +288,7 @@ export const Header = ({ navigation = MAIN_NAVIGATION }: { navigation?: readonly
 
         {/* Mobile Actions */}
         <div className="lg:hidden flex items-center gap-3 pointer-events-auto">
-          <HeaderUbunyeBubble />
+          <HeaderPlanLink />
           {isLoggedIn && (
             <Link
               href="/dashboard/cart"
@@ -363,10 +363,10 @@ export const Header = ({ navigation = MAIN_NAVIGATION }: { navigation?: readonly
 
               <div className="mt-6 px-6 w-full flex flex-col gap-3">
                 <button
-                  onClick={() => mobileNavigate('/ubunye-ai-studio')}
+                  onClick={() => mobileNavigate(PLAN.href)}
                   className={`${ACTION_BTN} bg-[#D4A843] text-black border border-[#D4A843] min-h-[44px]`}
                 >
-                  Ask Ubunye
+                  {PLAN.cta}
                 </button>
                 {authLoading ? (
                   <div className="h-[44px]" />

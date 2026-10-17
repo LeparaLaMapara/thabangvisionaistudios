@@ -111,7 +111,7 @@ export function DateRangePicker({
     setIsOpen(true);
   };
 
-  // While the calendar is open, floating buttons (Ask Ubunye) step aside so
+  // While the calendar is open, floating buttons (Plan a shoot) step aside so
   // they never cover a date: app/globals.css hides [data-floating] under it.
   useEffect(() => {
     if (!isOpen) return;
