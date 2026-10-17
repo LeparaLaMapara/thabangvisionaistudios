@@ -92,6 +92,12 @@ describe('find_people: roles', () => {
     expect(r.live_roles).toEqual(['Photographer or videographer', 'Make-up artist']);
   });
 
+  it('the WhatsApp text says "an" before a vowel ("an editor")', async () => {
+    const r = await findPeople({ role: 'editor' }, deps([]));
+    if (r.kind !== 'people_unavailable') throw new Error('expected coming soon');
+    expect(decodeURIComponent(r.whatsapp_url!.split('text=')[1])).toBe('Hi, I am looking for an editor. Can you help?');
+  });
+
   it('something we do not offer gets a short honest no and the live list', async () => {
     for (const ask of ['DJ', 'caterer', 'stockbroker']) {
       const r = await findPeople({ role: ask }, deps([]));
