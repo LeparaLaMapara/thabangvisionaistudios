@@ -1,11 +1,13 @@
 import { promptField, promptList, sanitiseForPrompt } from './sanitise';
-import { STUDIO, PRODUCTION_SERVICES, PRODUCTION_PACKAGES, EARN, ON_SITE_RENTAL, SHOW_CAREERS } from '@/lib/constants';
+import { STUDIO, PRODUCTION_SERVICES, PRODUCTION_PACKAGES, EARN, ON_SITE_RENTAL, SHOW_CAREERS, ROLES_POLICY } from '@/lib/constants';
 import { LIST_GEAR_HREF } from '@/lib/welcome';
 import { calculatePackagePrice } from '@/lib/productions/pricing';
 import { packageUnitWords } from '@/lib/bookings/pricing';
 import { formatRand, formatRate } from '@/lib/format/money';
 import { creatorProfilePath } from '@/lib/seo/creator-url';
 import { collectionPoint } from '@/lib/rental/collection-point';
+import { clockLine } from '@/lib/dates/johannesburg';
+import { capabilityBlock, type CapabilityRoles } from './capabilities';
 
 export type UbunyeFlagsSnapshot = {
   smart_productions: boolean;
@@ -30,6 +32,8 @@ export type CachedData = {
   plans: string;
   services: string;
   crew: string;
+  /** What we can do, from the roles table and the rental constants (capabilityBlock). */
+  capabilities?: string;
 };
 
 // ─── Platform Data Cache (5 minutes, keyed by flag snapshot) ───────────────
@@ -90,7 +94,13 @@ export async function fetchPlatformData(supabase: any, flags: UbunyeFlagsSnapsho
         .limit(PROMPT_SECTION_LIMIT)
     : Promise.resolve({ data: null });
 
-  const [rentals, productions, press, careers, creators, listings, plans, crew] = await Promise.all([
+  // The role catalogue (live, coming soon, who is listed) for the capability
+  // list. Loaded lazily so the prompt builder stays importable without a server.
+  const roleCatalogue: Promise<CapabilityRoles | null> = flags.roles_v1
+    ? import('@/lib/supabase/queries/roles').then((m) => m.getRoleCatalogue()).catch(() => null)
+    : Promise.resolve(null);
+
+  const [rentals, productions, press, careers, creators, listings, plans, crew, roles] = await Promise.all([
     supabase
       .from('smart_rentals')
       .select('title, brand, model, price_per_day, price_per_week, deposit_amount, is_available, category, slug, description, features')
@@ -112,11 +122,14 @@ export async function fetchPlatformData(supabase: any, flags: UbunyeFlagsSnapsho
       .eq('is_published', true)
       .is('deleted_at', null)
       .limit(PROMPT_SECTION_LIMIT),
-    supabase
-      .from('public_profiles')
-      .select('display_name, skills, bio, id')
-      .eq('is_verified', true)
-      .limit(PROMPT_SECTION_LIMIT),
+    // With People on, names never reach the prompt (People is blind).
+    flags.roles_v1
+      ? Promise.resolve({ data: null })
+      : supabase
+          .from('public_profiles')
+          .select('display_name, skills, bio, id')
+          .eq('is_verified', true)
+          .limit(PROMPT_SECTION_LIMIT),
     supabase
       .from('listings')
       .select('title, price, pricing_model, category, description, profiles(display_name)')
@@ -139,6 +152,7 @@ export async function fetchPlatformData(supabase: any, flags: UbunyeFlagsSnapsho
           .eq('available_for_hire', true)
           .order('crew_featured', { ascending: false })
           .limit(PROMPT_SECTION_LIMIT),
+    roleCatalogue,
   ]);
 
   const data: CachedData = {
@@ -182,6 +196,7 @@ export async function fetchPlatformData(supabase: any, flags: UbunyeFlagsSnapsho
     ).join('\n') || (flags.roles_v1 ? PEOPLE_CATALOGUE_LINE : 'No crew available yet'),
 
     services: formatServices(),
+    capabilities: capabilityBlock(roles, !!flags.roles_v1),
   };
 
   platformCacheByKey.set(cacheKey, { data, expiresAt: Date.now() + CACHE_TTL });
@@ -192,14 +207,12 @@ export async function fetchPlatformData(supabase: any, flags: UbunyeFlagsSnapsho
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export async function fetchUserContext(supabase: any, userId: string): Promise<string> {
-  // Get user email from auth
-  const { data: { user: authUser } } = await supabase.auth.getUser();
-  const userEmail = authUser?.email || '';
-
+  // No email or phone: no tool needs them, and the prompt goes to an AI
+  // provider on every message (privacy). Tools read the session themselves.
   const [profile, bookings, myListings] = await Promise.all([
     supabase
       .from('profiles')
-      .select('display_name, is_verified, skills, bio, phone')
+      .select('display_name, is_verified')
       .eq('id', userId)
       .single(),
     supabase
@@ -218,8 +231,6 @@ export async function fetchUserContext(supabase: any, userId: string): Promise<s
 
   // Typed by the person themselves: flattened like catalogue data (spec §8.8).
   const name = promptField(profile.data?.display_name);
-  const email = userEmail;
-  const phone = profile.data?.phone || '';
   const verified = profile.data?.is_verified ? 'Verified Creator' : 'Unverified';
 
   const bookingLines = bookings.data?.map((b: Record<string, unknown>) => {
@@ -234,8 +245,6 @@ export async function fetchUserContext(supabase: any, userId: string): Promise<s
   return `
 ===== YOUR ACCOUNT =====
 Name: ${name}
-Email: ${email}
-Phone: ${phone || 'Not provided'}
 Status: ${verified}
 Active Bookings: ${bookings.data?.length || 0}
 ${bookingLines}
@@ -245,7 +254,7 @@ ${listingLines}`;
 
 // ─── Payment and People rules ───────────────────────────────────────────────
 
-const PEOPLE_CATALOGUE_LINE = 'People are listed on /people, each with the price on their profile. Send people there; never quote a rate for a person.';
+const PEOPLE_CATALOGUE_LINE = 'People are listed on /people, each with the price on their profile. Use find_people to show them; never quote a rate for a person yourself.';
 
 /**
  * How to pay, from the same switch the /pay page reads
@@ -264,11 +273,13 @@ export function paymentRules(paymentsOpen: boolean): string {
 
 /** People (roles_v1): one way to book a person, and never a made-up rate. */
 export function peopleRules(): string {
+  const replyDays = ROLES_POLICY.requests.replyWithinWorkingDays;
   return `PEOPLE (photographers, videographers and anyone else bookable):
-- People are booked on [People](/people) only: choose a person, pick the days, see the total, then send a request. Nothing is paid when asking; we confirm the booking first, and the customer sees who is coming once it is confirmed.
-- NEVER invent, estimate or quote a rate, hourly price or total for a person, and never promise anything about travel fees. Say the price is shown on each person's profile on [People](/people).
-- Do not search for, compare or book creators yourself, and never suggest comparing rates or booking a "top match". Point to [People](/people).
-- If someone needs a kind of person not listed there, say so honestly and offer WhatsApp ${STUDIO.whatsapp.display} with their date so we can find someone.`;
+- When someone needs a person, call find_people with the role, the area, the date (their words or YYYY-MM-DD) and any budget or occasion. Do it straight away, even for a short message, and ask only for what is missing (usually nothing). The chat shows the results as cards with a "Request this person" button, so keep your text short: the date you used (as a day and date, so they can correct it), how many people matched, the price and total exactly as returned, and the availability line.
+- The next step is the person's profile or the request link find_people returned; people are booked on [People](/people). Nothing is paid when asking; we confirm the date with them first, and the customer sees who is coming once the booking is confirmed.
+- People have no calendar. Never say someone is available or booked: say it needs confirmation and they reply within ${replyDays} working day${replyDays === 1 ? '' : 's'}. If find_people returns short_notice, say it plainly and give its WhatsApp link.
+- NEVER invent, estimate or quote a rate, hourly price or total for a person yourself, and never promise anything about travel fees. Only repeat the price and total find_people returned. Never invent a person, a name, a review or a count, and never call anyone a "top match" or "the best".
+- If the role is coming soon or not offered, or nobody matches, say so in one or two sentences and offer the WhatsApp link the tool returned (or WhatsApp ${STUDIO.whatsapp.display}) with their date so we can look.`;
 }
 
 // ─── Build System Prompt ────────────────────────────────────────────────────
@@ -277,6 +288,8 @@ export function buildSystemPrompt(
   platform: CachedData,
   userContext: string | null,
   flags: UbunyeFlagsSnapshot,
+  /** The server clock. Read on every request; never cached with the platform data. */
+  now: Date = new Date(),
 ): string {
   const people = !!flags.roles_v1;
   const productionsLine = people
@@ -315,6 +328,9 @@ CREATOR RULES:
 
   return `You are Ubunye, the AI brain behind ${STUDIO.name} — ${STUDIO.location.city}, ${STUDIO.location.country}.
 
+===== TODAY =====
+${clockLine(now)}
+
 ===== ABOUT =====
 ${STUDIO.name} (${STUDIO.legal.tradingAs}) is a ${STUDIO.location.city}-based marketplace to book photographers and videographers and to hire camera gear. It is the seller of record: clients pay ${STUDIO.name}, and creators supply their work and gear through it.
 Service area: we work in ${STUDIO.serviceArea.province}. ${STUDIO.serviceArea.outsideProvinceNote} Never say we cover all of South Africa or other provinces.
@@ -334,10 +350,12 @@ ${productionsLine}${productionsLine ? '\n' : ''}- Rentals — Equipment rental w
 - Creator Network — Verified creators supply gear and services, booked through us
 - About — who we are, at /about. Ubunye Studio, an AI photo and video editor, is in development and not part of this site yet.
 
+${platform.capabilities ?? capabilityBlock(null, people)}
+
 ${servicesBlock}===== RENTAL TERMS =====
 ${paymentRules(!!flags.payments_open)}
 Deposit: a fixed, refundable amount per item, shown on each item before booking (paid at checkout with the order, refunded after the gear comes back undamaged; late fees and damage are taken from it)
-Notice: book at least ${STUDIO.rental.minLeadTimeHours} hours ahead
+Notice: book at least ${STUDIO.rental.minLeadTimeHours} hours ahead. If the date they want is sooner (search_gear says so when you pass start_date), say so plainly and offer WhatsApp ${STUDIO.whatsapp.display}; never prepare or promise a hire inside that notice
 ID check: a photo of the ID and a selfie, once, before the first rental (no certified copy); a person checks it, ${STUDIO.verification.reviewTime}
 Delivery: collect in ${STUDIO.fulfilment.dispatchFrom.name}, Johannesburg (the exact place is sent only with a booking; never give it out), or delivery within ${STUDIO.fulfilment.delivery.maxRadiusKm} km at ${formatRate(STUDIO.fulfilment.delivery.ratePerKm, 'km')} (minimum ${formatRand(STUDIO.fulfilment.delivery.minimumFee)})
 Studios: items under /rentals/studios/ are rooms, not gear. They are used where they are, in ${collectionPoint()} (never delivered, nothing to collect). Booked online by full days only, at the price in the catalogue; a half day is not booked online, it is arranged on WhatsApp ${STUDIO.whatsapp.display}, and its price is on the studio's page. Never quote a half-day price yourself
@@ -363,10 +381,10 @@ ${platform.rentals}
 ${productionsSection}===== ${people ? 'PEOPLE' : 'CREW SERVICES'} =====
 ${people ? PEOPLE_CATALOGUE_LINE : platform.crew}
 
-===== VERIFIED CREATORS =====
+${people ? '' : `===== VERIFIED CREATORS =====
 ${platform.creators}
 
-===== COMMUNITY GEAR =====
+`}===== COMMUNITY GEAR =====
 ${platform.listings}
 
 ===== PRESS & NEWS =====
