@@ -3,7 +3,6 @@ export const dynamic = 'force-dynamic';
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { BadgeCheck, Package } from 'lucide-react';
 import { getFlag } from '@/lib/features';
 import { EARN, ROLES_POLICY, STUDIO } from '@/lib/constants';
 import { getRoles, heldProductions, listApprovedProfiles } from '@/lib/supabase/queries/roles';
@@ -13,6 +12,7 @@ import { formatRand } from '@/lib/format/money';
 import { buildPageMetadata } from '@/lib/seo/metadata';
 import { peopleWords } from '@/lib/roles/offered';
 import { whatsappLink } from '@/lib/payments/eft';
+import { PersonCardBody } from '@/components/roles/PersonCard';
 
 export const metadata: Metadata = buildPageMetadata({
   title: 'People',
@@ -101,24 +101,18 @@ export default async function PeoplePage({ searchParams }: Props) {
               {cards.map((c) => (
                 <li key={c.id}>
                   <Link href={`/people/${c.id}`} className="group block border border-white/10 hover:border-accent-gold/60 transition-colors">
-                    <div className="aspect-[4/3] bg-neutral-900 overflow-hidden flex items-center justify-center">
-                      {c.cover ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img src={c.cover} alt="" className="w-full h-full object-cover" loading="lazy" />
-                      ) : (
-                        <span className="text-neutral-600 text-sm">{c.roleName}</span>
-                      )}
-                    </div>
-                    <div className="p-4">
-                      <p className="text-white flex items-center gap-2">
-                        {c.label}
-                        {c.verified && <BadgeCheck className="w-4 h-4 text-accent-gold shrink-0" aria-label={ROLES_POLICY.copy.verified} />}
-                      </p>
-                      {c.headline && <p className="text-sm text-neutral-400 line-clamp-1">{c.headline}</p>}
-                      {c.comesWith && <p className="flex items-center gap-1 text-xs text-neutral-300 mt-1"><Package className="w-3.5 h-3.5 text-accent-gold" aria-hidden="true" /> Comes with: {c.comesWith}</p>}
-                      <p className="text-xs text-neutral-500 mt-2">{c.record}</p>
-                      {c.priceCents !== null && <p className="text-sm text-neutral-200 mt-1">{formatRolePrice(c.unit, c.priceCents, c.perKmCents)}</p>}
-                    </div>
+                    <PersonCardBody
+                      card={{
+                        label: c.label,
+                        roleName: c.roleName,
+                        cover: c.cover,
+                        verified: c.verified,
+                        record: c.record,
+                        headline: c.headline,
+                        comesWith: c.comesWith,
+                        priceText: c.priceCents !== null ? formatRolePrice(c.unit, c.priceCents, c.perKmCents) : null,
+                      }}
+                    />
                   </Link>
                 </li>
               ))}
