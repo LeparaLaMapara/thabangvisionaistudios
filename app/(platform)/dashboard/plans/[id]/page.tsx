@@ -5,6 +5,7 @@ import { notFound, redirect } from 'next/navigation';
 import { ArrowLeft } from 'lucide-react';
 import { auth } from '@/lib/auth';
 import { getFlag } from '@/lib/features';
+import { PLAN } from '@/lib/constants';
 import { getProjectView, listLinkableParts, type LinkablePart, type ProjectView } from '@/lib/projects/live';
 import { AddToPlan, ClosePlan } from '@/components/plans/PlanActions';
 import { MovePlan } from '@/components/plans/MovePlan';
@@ -141,7 +142,7 @@ export default async function PlanPage({ params }: { params: Promise<{ id: strin
 
       <div className="mt-10 flex flex-col gap-4 border-t border-white/10 pt-6 sm:flex-row sm:items-start sm:justify-between">
         {plan.sourceConversationId ? (
-          <Link href={`/ubunye-ai-studio?c=${plan.sourceConversationId}`} className="inline-flex min-h-[44px] items-center text-sm text-[#D4A843] underline underline-offset-2">
+          <Link href={`${PLAN.href}?c=${plan.sourceConversationId}`} className="inline-flex min-h-[44px] items-center text-sm text-[#D4A843] underline underline-offset-2">
             Back to the chat
           </Link>
         ) : (

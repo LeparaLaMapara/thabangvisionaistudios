@@ -20,7 +20,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   try {
     const out = await describeAction(deps, { actionId: id, userId: auth.user.id });
     if (!out.ok) return NextResponse.json({ error: out.message, code: out.code }, { status: 404 });
-    return NextResponse.json({ summary: out.summary, state: out.state, expires_at: out.expiresAt }, { headers: { 'Cache-Control': 'no-store' } });
+    return NextResponse.json({ kind: out.kind, summary: out.summary, state: out.state, expires_at: out.expiresAt }, { headers: { 'Cache-Control': 'no-store' } });
   } catch (err) {
     console.error('[agent-actions] approval load failed:', err instanceof Error ? err.message : 'unknown');
     return NextResponse.json({ error: 'Could not load this proposal just now.' }, { status: 503 });

@@ -114,11 +114,12 @@ export async function prepareAction(
 export async function describeAction(
   deps: Pick<AgentDeps, 'repo' | 'clock'>,
   p: { actionId: string; userId: string },
-): Promise<{ ok: true; summary: ApprovalSummary; expiresAt: string; state: AgentActionState | 'expired' } | { ok: false; code: 'not_found'; message: string }> {
+): Promise<{ ok: true; kind: AgentActionKind; summary: ApprovalSummary; expiresAt: string; state: AgentActionState | 'expired' } | { ok: false; code: 'not_found'; message: string }> {
   const a = await deps.repo.get(p.actionId);
   if (!a || a.userId !== p.userId) return { ok: false, code: 'not_found', message: 'That proposal does not exist.' };
   const expired = a.state === 'prepared' && new Date(a.expiresAt).getTime() <= deps.clock.now().getTime();
-  return { ok: true, summary: a.summary, expiresAt: a.expiresAt, state: expired ? 'expired' : a.state };
+  // The kind lets the card label its button (Save plan, Move plan, Ask them).
+  return { ok: true, kind: a.kind, summary: a.summary, expiresAt: a.expiresAt, state: expired ? 'expired' : a.state };
 }
 
 /**

@@ -330,7 +330,7 @@ ${platform.services}
 ${PRODUCTION_PACKAGES.map((pk) => { const pr = calculatePackagePrice(pk); return `- ${pk.name}: ${formatRand(pr.total)} — ${pk.description} — Book: /book?production=${pk.id}`; }).join('\n')}
 
 `;
-  const signInRule = '- If the user is NOT logged in, direct them to sign in first: [Sign in](/login?redirect=/ubunye-ai-studio)';
+  const signInRule = '- If the user is NOT logged in, direct them to sign in first: [Sign in](/login?redirect=/plan)';
   const bookingRules = people
     ? `${peopleRules()}
 ${signInRule}`
@@ -364,7 +364,7 @@ Hours: ${STUDIO.hours.weekday} | ${STUDIO.hours.weekend} | ${STUDIO.hours.sunday
 
 ===== WHAT WE OFFER =====
 ${productionsLine}${productionsLine ? '\n' : ''}- Rentals — Equipment rental with online booking at /rentals
-- Ubunye AI Studio — You. The AI assistant at /ubunye-ai-studio
+- Plan: you, Ubunye. Clients plan a shoot with you at [Plan](/plan)
 - Creator Network — Verified creators supply gear and services, booked through us
 - About — who we are, at /about. Ubunye Studio, an AI photo and video editor, is in development and not part of this site yet.
 
