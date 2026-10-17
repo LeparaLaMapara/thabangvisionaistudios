@@ -7,25 +7,41 @@ import { getFlag } from '@/lib/features';
 import { loginUrl } from '@/lib/auth/next-path';
 import { createClient } from '@/lib/supabase/server';
 import { getPublicRoleProfile } from '@/lib/supabase/queries/roles';
-import { effectiveUnit, formatRolePrice } from '@/lib/roles';
+import { effectiveUnit, formatRolePrice, pricedByDays } from '@/lib/roles';
+import { parseRequestPrefill, prefillQuery } from '@/lib/roles/request-prefill';
+import { saToday } from '@/lib/dates/johannesburg';
 import { buildPageMetadata } from '@/lib/seo/metadata';
 import { RequestForm } from '@/components/roles/RequestForm';
 
 export const metadata = buildPageMetadata({ title: 'Request a booking', description: 'Ask to book.', path: '/people', noIndex: true });
 
-/** Ask to book a person: who (blind), where, when. Signed in; no payment yet. */
-export default async function RequestPage({ params }: { params: Promise<{ id: string }> }) {
+/**
+ * Ask to book a person: who (blind), where, when. Signed in; no payment yet.
+ * A link from Ubunye can prefill the day(s), area and note (checked in
+ * lib/roles/request-prefill.ts); the price always comes from the profile.
+ */
+export default async function RequestPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
   if (!(await getFlag('roles_v1'))) notFound();
   const { id } = await params;
+  const query = await searchParams;
+  const today = saToday();
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) redirect(loginUrl(`/people/${id}/request`));
+  // Sign-in comes back here with the checked prefill, so nothing is typed twice.
+  if (!user) redirect(loginUrl(`/people/${id}/request${prefillQuery(parseRequestPrefill(query, today, { byDays: true }))}`));
   const profile = await getPublicRoleProfile(id);
   if (!profile) notFound();
   const price = profile.personRole.price_cents ?? profile.role.suggested_price_cents.typical;
   const unit = effectiveUnit(profile.role.pricing_unit, profile.personRole.pricing_unit);
+  const prefill = parseRequestPrefill(query, today, { byDays: pricedByDays(unit) });
 
   return (
     <div className="pt-28 pb-16 px-4">
@@ -37,7 +53,15 @@ export default async function RequestPage({ params }: { params: Promise<{ id: st
         <p className="text-neutral-400 mb-6">
           {profile.label} · {formatRolePrice(unit, price, profile.personRole.per_km_cents)}
         </p>
-        <RequestForm personRoleId={id} defaultArea={profile.personRole.area ?? ''} unit={unit} priceCents={price} />
+        <RequestForm
+          personRoleId={id}
+          defaultArea={prefill.area ?? profile.personRole.area ?? ''}
+          defaultDates={prefill.dates}
+          defaultNote={prefill.note ?? ''}
+          minDate={today}
+          unit={unit}
+          priceCents={price}
+        />
       </div>
     </div>
   );
