@@ -175,7 +175,12 @@ const CREW_OFFER = /\b(rent|hire|book|add|get|need|want|choose|pick)\s+(a |an |s
 /** Every way a hire case can be offered crew gear: an outline part, a search_gear call, the reply. */
 function crewGearOffered(outline, r) {
   const parts = (outline?.parts ?? []).filter((p) => (p.kind === 'gear' || p.kind === 'studio') && (p.use ? p.use === 'crew' : CREW_CATEGORIES.has(p.key)));
-  const searches = r.tools.filter((t) => t.name === 'search_gear' && CREW_CATEGORIES.has(String(t.input?.category ?? '')));
+  // A category the outline itself tagged as an event extra (microphones for speeches) is not crew gear.
+  const eventKeys = new Set((outline?.parts ?? []).filter((p) => p.use === 'event').map((p) => p.key));
+  const searches = r.tools.filter((t) => {
+    const category = String(t.input?.category ?? '');
+    return t.name === 'search_gear' && CREW_CATEGORIES.has(category) && !eventKeys.has(category);
+  });
   const said = r.text.match(CREW_OFFER);
   return [...parts.map((p) => `part ${p.key}`), ...searches.map((t) => `search_gear ${t.input.category}`), ...(said ? [`says "${said[0]}"`] : [])];
 }

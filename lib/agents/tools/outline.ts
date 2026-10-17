@@ -628,7 +628,8 @@ export function createOutlineTools(deps?: OutlineDeps): Record<string, any> {
               'Who is shooting it, judged from their words in any language. ' +
               '"hire": someone shoots it for them and brings their own kit ("someone to take photos", "a photographer for my graduation", a family or business that wants the result). ' +
               '"rent": they shoot it themselves and need gear only (gear named by brand or model, "I am shooting", "my crew", "I have a camera guy"). ' +
-              '"produce": they need people and gear together (a film, a series, an advert, "crew and equipment", people plus named gear). ' +
+              '"produce": they need people and crew gear together (a film, a series, an advert, "crew and equipment", people plus cameras, lights or grip). ' +
+              'Gear the occasion itself needs (a PA, speakers, microphones for speeches, the studio) does not change it: a photographer and a PA is still hire. ' +
               'If they sent "Someone else shoots it for me." it is hire; "I am shooting it myself, I only need the gear." is rent; "I am producing it, I need people and gear." is produce. Leave it out only when you cannot tell.',
           },
           place: { type: 'string', description: 'Where, in their words.' },
