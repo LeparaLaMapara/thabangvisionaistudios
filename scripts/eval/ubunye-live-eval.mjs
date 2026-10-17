@@ -165,18 +165,32 @@ function score(c, r) {
   const amounts = [...reply.matchAll(/R\s?\d[\d\s ,]*(\.\d{2})?/g)].map((m) => m[0].trim());
   // A tool may hold the amount as a plain number ("deposit": 25000), and the
   // client may have given it (their own budget): neither is an invented price.
-  const numbers = new Set([...toolText.matchAll(/\d+(?:\.\d+)?/g)].map((m) => String(Number(m[0]))));
+  // Only money in the tool output counts: an "R..." amount, or a number under a
+  // price-like key ("price_per_day": 800, "deposit": 25000). Not ids or counts.
+  const raw = JSON.stringify(r.outputs.map((o) => o.output));
+  const numbers = new Set([
+    ...[...raw.matchAll(/R\s?(\d[\d\s ,]*\d|\d)/g)].map((m) => Number(m[1].replace(/[\s ,]/g, ''))),
+    ...[...raw.matchAll(/"[a-z_]*(price|deposit|rate|amount|total|cost|fee|budget)[a-z_]*"\s*:\s*"?(\d+(?:\.\d+)?)/gi)].map((m) => Number(m[2])),
+  ]);
   const asked = squash(c.text);
+  const known = (n) => numbers.has(n) || PUBLIC_PRICES.has(n);
+  // A real price times a quantity or a number of days (2 lights x 3 days) is
+  // arithmetic on a real price, not an invented one. Counted separately.
+  const derived = (n) => [...numbers, ...PUBLIC_PRICES].some((v) => v >= 10 && n % v === 0 && n / v >= 2 && n / v <= 60);
   const unseen = amounts.filter((a) => {
     const digits = squash(a).replace(/^R/, '');
-    return !toolText.includes(squash(a)) && !numbers.has(String(Number(digits))) && !asked.includes(digits);
+    const n = Number(digits);
+    if (toolText.includes(squash(a)) || known(n) || asked.includes(digits)) return false;
+    if (derived(n)) { derivedCount++; return false; }
+    return true;
   });
   return {
     // type_any / first_any: a sentence that honestly reads two ways accepts either.
     type: outline ? ([c.type, ...(c.type_any ?? [])].includes(outline.type?.slug) ? 'ok' : `got ${outline.type?.slug}`) : 'n/a',
     first: [c.first_tool, ...(c.first_any ?? [])].includes(first) ? 'ok' : `got ${first}`,
     prices: c.no_unseen_prices ? (unseen.length ? `unseen ${unseen.join(' ')}` : 'ok') : 'n/a',
-    says: c.must_say_any ? (c.must_say_any.some((w) => lower.includes(w)) ? 'ok' : 'missing') : 'n/a',
+    // A plain refusal in other words ("we do not sell cars") says the same thing.
+    says: c.must_say_any ? (c.must_say_any.some((w) => lower.includes(w)) || (c.must_say_any.includes('not offer') && /\b(do not|don't|cannot|can't|we only)\s+(offer|sell|provide|supply|arrange|help)/.test(lower)) ? 'ok' : 'missing') : 'n/a',
     dashes: /[–—]/.test(reply) ? 'dash' : 'ok',
   };
 }
@@ -184,6 +198,15 @@ function score(c, r) {
 const cases = SET.cases.filter((c) => !ONLY.size || ONLY.has(c.id));
 console.log(`Ubunye live eval: set ${SET_NAME}, ${cases.length} cases x ${REPEAT} against ${BASE}${COOKIE ? ' (signed in)' : ' (guest)'}\n`);
 const checks = ['type', 'first', 'prices', 'says', 'dashes'];
+let derivedCount = 0;
+// Every published gear price, from the site's own public list, so a real
+// catalogue price the model quotes from its prompt is not called invented.
+const PUBLIC_PRICES = new Set();
+try {
+  const res = await fetch(`${BASE}/llms-full.txt`, { headers });
+  if (res.ok) for (const m of (await res.text()).matchAll(/R\s?(\d[\d\s ,]*\d|\d)/g)) PUBLIC_PRICES.add(Number(m[1].replace(/[\s ,]/g, '')));
+} catch { /* without it, the check is only stricter */ }
+console.log(`Public price list: ${PUBLIC_PRICES.size} amounts read.\n`);
 const rows = [];
 for (let round = 1; round <= REPEAT; round++) {
   for (const c of cases) {
@@ -240,6 +263,7 @@ if (REPEAT > 1) {
   }).map((c) => c.id);
   if (flaky.length) console.log(`\nFlaky (passed some rounds, failed others): ${flaky.join(', ')}`);
 }
+if (derivedCount) console.log(`\n${derivedCount} amount(s) were a real price times a quantity or days (worked out by the model, not by code).`);
 if (errors) console.log(`\n${errors} run(s) errored (limits or timeouts); they are left out of the rates.`);
 const maxErr = limits.max_error_rate ?? 0.1;
 if (rows.length && errors / rows.length > maxErr) below.push('errors');
