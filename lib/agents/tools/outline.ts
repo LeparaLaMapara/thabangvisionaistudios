@@ -3,9 +3,10 @@ import { ROLES_POLICY, SHOOT_PLAN_POLICY, STUDIO } from '@/lib/constants';
 import { addDays, daysBetween, formatSaDay, isIsoDate, resolveDate, saToday, type ResolvedDate } from '@/lib/dates/johannesburg';
 import { areaFit, resolveArea } from '@/lib/roles/areas';
 import { meetsLeadTime } from '@/lib/rental/leadTime';
-import { formatRate } from '@/lib/format/money';
+import { formatRand, formatRate } from '@/lib/format/money';
 import { whatsappLink } from '@/lib/payments/eft';
 import { sanitiseForPrompt } from '@/lib/ubunye/sanitise';
+import { isPlanMode, modeOverride, PLAN_MODES, type PlanMode } from '@/lib/ubunye/plan-mode';
 import {
   FUTURE_ROLES,
   SHOOT_TYPES,
@@ -13,6 +14,7 @@ import {
   partKey,
   shootTypeBySlug,
   type GearCategory,
+  type PartUse,
   type QuestionKey,
   type ShootPart,
   type ShootType,
@@ -36,6 +38,11 @@ import { peopleShortNotice, REQUEST_PREFILL_MAX_DAYS_AHEAD } from './people';
  * shoot date, and warnings when a step is already too late (the gear notice
  * checkout enforces, the People reply window).
  *
+ * Who is shooting it (the mode, lib/ubunye/plan-mode.ts) decides which parts
+ * show: hire = people (they bring their own kit) plus event extras; rent =
+ * gear only; produce = everything. A gear estimate is summed here, by code,
+ * only from real cheapest day prices; people are never in it.
+ *
  * Blind People rule: counts and areas only, never a person, a name, a user id
  * or a price for a person (find_people shows those). Nothing is written.
  */
@@ -43,6 +50,8 @@ import { peopleShortNotice, REQUEST_PREFILL_MAX_DAYS_AHEAD } from './people';
 export interface PlanOutlineInput {
   outcome?: string;
   type?: string;
+  /** Who is shooting it: 'hire', 'rent' or 'produce', as the model read it. */
+  mode?: string;
   place?: string;
   date?: string;
   days?: number;
@@ -84,6 +93,10 @@ export interface OutlinePart {
   line: string;
   /** What to call next for this part, with arguments, or null. */
   next: { tool: 'find_people'; role: string } | { tool: 'search_gear'; category: string } | null;
+  /** Gear and studio only: crew kit (only when the client shoots it) or an event extra. */
+  use?: PartUse;
+  /** An event extra (a PA for speeches): always optional on the card. */
+  extra?: true;
 }
 
 export interface OutlineStep {
@@ -101,6 +114,12 @@ export type PlanOutlineResult =
       date_note: string | null;
       days: number;
       place: string | null;
+      /** Who is shooting it. */
+      mode: PlanMode;
+      /** False when the model gave no mode and no clear signal decided it (the type's usual mode). */
+      mode_sure: boolean;
+      /** A gear sum from real cheapest day prices, by code, or null when nothing is honest to sum. */
+      estimate: { text: string } | null;
       parts: OutlinePart[];
       also_possible: string[];
       not_offered: string[];
@@ -168,6 +187,66 @@ const GEAR_LABELS: Record<string, string> = {
   'cameras-optics': 'Camera and lenses',
   'data-storage': 'Cards and drives',
   'specialized-solutions': 'Specialist kit',
+};
+
+/** Gear named outside the type's own list: a PA serves the event; the rest is crew kit. */
+const GEAR_USE: Record<string, PartUse> = { 'sound-reinforcement': 'event' };
+
+/**
+ * Who is shooting it. A switch sentence or a high precision signal (gear
+ * named by brand or model, "I'm shooting it myself", "my crew", without
+ * asking for people) decides; else the model's choice; else, with nothing
+ * from the model, only gear named means they shoot it, otherwise the type's
+ * usual mode (and then the mode is not sure).
+ */
+export function resolvePlanMode(given: unknown, outcome: string, type: ShootType, named: ReadonlySet<string>): { mode: PlanMode; sure: boolean } {
+  const override = modeOverride(outcome);
+  if (override) return { mode: override, sure: true };
+  if (isPlanMode(given)) return { mode: given, sure: true };
+  const keys = [...named];
+  if (keys.length && keys.every((k) => k === 'studios' || GEAR_KEYS.has(k))) return { mode: 'rent', sure: false };
+  return { mode: type.defaultMode, sure: false };
+}
+
+/** Whether a part belongs on the list in this mode: hire has no crew kit, rent has no people. */
+export function partFitsMode(p: ShootPart, mode: PlanMode): boolean {
+  if (p.kind === 'person') return mode !== 'rent';
+  return p.use === 'event' || mode !== 'hire';
+}
+
+/**
+ * The gear estimate, by code: only when every counted gear or studio part
+ * (crew kit, and event extras the client named) has a real cheapest day
+ * price, summed in cents for the days known. People are never in it.
+ */
+export function gearEstimate(
+  parts: readonly OutlinePart[],
+  prices: ReadonlyMap<string, { count: number; cheapestPerDay: number | null }> | null,
+  named: ReadonlySet<string>,
+  days: number,
+): { text: string } | null {
+  if (!prices) return null;
+  const counted = parts.filter((p) => (p.kind === 'gear' || p.kind === 'studio') && (!p.extra || named.has(p.key)));
+  if (!counted.length) return null;
+  let cents = 0;
+  for (const p of counted) {
+    const perDay = prices.get(p.key)?.cheapestPerDay;
+    if (p.state !== 'available' || typeof perDay !== 'number' || !Number.isFinite(perDay) || perDay <= 0) return null;
+    cents += Math.round(perDay * 100) * days;
+  }
+  const hasStudio = counted.some((p) => p.kind === 'studio');
+  const hasGear = counted.some((p) => p.kind === 'gear');
+  const what = hasStudio && hasGear ? 'Gear and the studio' : hasStudio ? 'The studio' : 'Gear';
+  const people = parts.filter((p) => p.kind === 'person');
+  const peopleNote = people.some((p) => p.state === 'listed') ? ' People prices are on their cards.' : people.length ? ' People are not included.' : '';
+  return { text: `${what} from ${formatRand(cents / 100)} for ${days} day${days === 1 ? '' : 's'}.${peopleNote}` };
+}
+
+/** The one short clause said when the mode was not given and is only the usual one. */
+export const MODE_UNSURE_LINE: Record<PlanMode, string> = {
+  hire: 'I have set this up as someone shooting it for you; switch it if you are shooting it yourself.',
+  rent: 'I have set this up as you shooting it yourself, so gear only; switch it if you want someone to shoot it for you.',
+  produce: 'I have set this up as you producing it, with people and gear; switch it if someone else shoots it for you.',
 };
 
 function norm(text: string): string {
@@ -290,27 +369,37 @@ export async function planOutline(input: PlanOutlineInput, deps: OutlineDeps): P
   const placeAsked = resolveArea(typeof input.place === 'string' && input.place.trim() ? input.place : outcome);
   const place = placeAsked.kind === 'place' ? placeAsked.name : placeAsked.kind === 'gauteng' ? 'Gauteng' : placeAsked.kind === 'outside' ? placeAsked.name : null;
 
-  // Which parts: the type's required parts, its optional parts the client
-  // named, and anything else they named (lights at a birthday).
+  // Which parts: the type's required parts, its event extras, its optional
+  // parts the client named, and anything else they named (lights at a
+  // birthday), each only when it fits who is shooting it.
   const mentioned = mentionedParts(outcome);
+  const { mode, sure: modeSure } = resolvePlanMode(input.mode, outcome, type, mentioned.keys);
   const chosen: ShootPart[] = [];
   const seen = new Set<string>();
+  const dropped: string[] = [];
   const add = (p: ShootPart): void => {
     const k = partKey(p);
     if (seen.has(k)) return;
+    if (!partFitsMode(p, mode)) {
+      // Something they named that this mode leaves off, said once.
+      if (mentioned.keys.has(k) && !dropped.includes(k)) dropped.push(k);
+      return;
+    }
     seen.add(k);
     chosen.push(p);
   };
   // Nothing matched and nothing named: no guessed parts (shares, a loan): say what we do.
   const unclear = type.slug === 'general' && mentioned.keys.size === 0;
-  if (!unclear) for (const p of type.parts) if (!p.optional || mentioned.keys.has(partKey(p))) add(p);
+  if (!unclear) for (const p of type.parts) if (!p.optional || (p.kind !== 'person' && p.use === 'event') || mentioned.keys.has(partKey(p))) add(p);
   for (const k of mentioned.keys) {
     if (seen.has(k)) continue;
-    if (k === 'studios') add({ kind: 'studio', label: 'The studio' });
-    else if (GEAR_KEYS.has(k)) add({ kind: 'gear', category: k as GearCategory, label: GEAR_LABELS[k] ?? k });
-    else add({ kind: 'person', role: k });
+    if (k === 'studios') add({ kind: 'studio', label: 'The studio', use: 'event', optional: true });
+    else if (GEAR_KEYS.has(k)) {
+      const use = GEAR_USE[k] ?? 'crew';
+      add({ kind: 'gear', category: k as GearCategory, label: GEAR_LABELS[k] ?? k, use, ...(use === 'event' ? { optional: true } : {}) });
+    } else add({ kind: 'person', role: k });
   }
-  const alsoPossibleParts = unclear ? [] : type.parts.filter((p) => p.optional && !seen.has(partKey(p)));
+  const alsoPossibleParts = unclear ? [] : type.parts.filter((p) => p.optional && !seen.has(partKey(p)) && partFitsMode(p, mode));
 
   // Live data. A failed read is "unknown", never "none".
   const categories = chosen.filter((p) => p.kind !== 'person').map(partKey);
@@ -386,6 +475,8 @@ export async function planOutline(input: PlanOutlineInput, deps: OutlineDeps): P
       do_by: state === 'available' ? dueFor(key, p.kind) : null,
       line,
       next: state === 'available' ? { tool: 'search_gear', category: key } : null,
+      use: p.use,
+      ...(p.use === 'event' ? { extra: true as const } : {}),
     };
   });
   for (const label of mentioned.notOffered) {
@@ -394,11 +485,19 @@ export async function planOutline(input: PlanOutlineInput, deps: OutlineDeps): P
 
   // Questions: the type's, only when the words or inputs do not answer them.
   const answered = (k: QuestionKey): boolean => (k === 'date' ? !!date : k === 'place' ? !!place : ANSWERED[k](words, input));
-  const questions = unclear ? [] : type.questions.filter((q) => !answered(q.key)).slice(0, SHOOT_PLAN_POLICY.maxQuestions).map((q) => q.text);
+  // Someone shooting it themselves is not asked about guests, coverage or looks.
+  const RENT_QUESTIONS: readonly QuestionKey[] = ['date', 'place', 'days'];
+  const questions = unclear
+    ? []
+    : type.questions
+        .filter((q) => !answered(q.key) && (mode !== 'rent' || RENT_QUESTIONS.includes(q.key)))
+        .slice(0, SHOOT_PLAN_POLICY.maxQuestions)
+        .map((q) => q.text);
 
   // Timeline: real dates once the day is known; post steps count from the last shoot day.
+  // Someone shooting it themselves does their own edit: no "edited photos ready" step.
   const lastDay = shootIso ? addDays(shootIso, days - 1) : null;
-  const relevant = unclear ? [] : type.timeline.filter((s) => !s.part || seen.has(s.part));
+  const relevant = unclear ? [] : type.timeline.filter((s) => (!s.part || seen.has(s.part)) && !(mode === 'rent' && !s.part && s.at > 0));
   const dated = relevant.map((s) => {
     const base = s.at > 0 ? lastDay : shootIso;
     const iso = base ? addDays(base, s.at) : null;
@@ -423,11 +522,18 @@ export async function planOutline(input: PlanOutlineInput, deps: OutlineDeps): P
     }
   }
 
-  const countable = parts.filter((p) => p.state !== 'not_offered');
+  // An event extra nobody asked for is an option on the card, not a part to count.
+  const countable = parts.filter((p) => p.state !== 'not_offered' && !(p.extra && !mentioned.keys.has(p.key)));
+  const onlyExtras = parts.some((p) => p.extra);
   const plan_hint: 'plan' | 'single' | 'nothing_we_offer' | 'unclear' =
-    countable.length === 0 ? (parts.length ? 'nothing_we_offer' : 'unclear') : countable.length === 1 && countable[0].state !== 'coming_soon' ? 'single' : 'plan';
+    countable.length === 0
+      ? parts.some((p) => p.state === 'not_offered') && !onlyExtras ? 'nothing_we_offer' : 'unclear'
+      : countable.length === 1 && countable[0].state !== 'coming_soon' ? 'single' : 'plan';
   const notOffered = parts.filter((p) => p.state === 'not_offered').map((p) => p.label);
   const sure = confidence >= SHOOT_PLAN_POLICY.sureConfidence;
+  // They shoot it themselves, but nothing typical for this shoot is gear: ask what they need.
+  const rentNothing = !unclear && mode === 'rent' && !countable.some((p) => p.kind === 'gear' || p.kind === 'studio');
+  const estimate = unclear ? null : gearEstimate(parts, gearMap, mentioned.keys, days);
 
   const sayParts: string[] = [];
   if (!unclear) sayParts.push(
@@ -435,15 +541,31 @@ export async function planOutline(input: PlanOutlineInput, deps: OutlineDeps): P
       ? `Say in a few words that this is ${type.slug === 'general' ? 'a shoot' : `a ${type.name.toLowerCase()}`}${date ? ` on ${date.label}` : ''}${place ? ` in ${place}` : ''}, so they can correct it.`
       : `You are not sure what kind of shoot this is (${type.slug === 'general' ? 'nothing matched' : `best guess: ${type.name.toLowerCase()}`}). Check it with them in one short question.`,
   );
+  if (!unclear && !modeSure) sayParts.push(`Say this in one short clause: "${MODE_UNSURE_LINE[mode]}"`);
+  if (!unclear && mode === 'hire') {
+    sayParts.push(
+      `They want it shot for them: the people bring their own kit, so never offer cameras, lenses, lights or other crew gear.${dropped.some((k) => GEAR_KEYS.has(k)) ? ' If they named gear, say in a few words that the person they book brings it.' : ''}`,
+    );
+  }
+  if (!unclear && mode === 'rent') sayParts.push('They shoot it themselves: gear only, never offer people. Gear is chosen with search_gear.');
   // The chat shows these parts on a card (state, counts, gear prices), so the text stays short.
   if (parts.length) sayParts.push('The client sees a card with every part, its state and gear prices: do not list the parts, counts or prices again.');
+  if (estimate) sayParts.push('The card also shows the gear estimate; never work out another total yourself.');
   if (notOffered.length) sayParts.push(`In one short sentence, say we do not offer ${notOffered.join(', ')}, with no partner, referral or price.`);
-  if (type.scaleNote) sayParts.push(`Say this honestly, in one sentence: ${type.scaleNote}`);
+  if (type.scaleNote && mode !== 'rent') sayParts.push(`Say this honestly, in one sentence: ${type.scaleNote}`);
   if (warnings.length) sayParts.push(`Give the most important warning in one short sentence: ${warnings[0]}`);
   if (questions.length) sayParts.push(`Ask at most one question, this one: ${questions[0]}`);
-  if (plan_hint === 'plan') sayParts.push('Then call find_people for each person part marked listed (role, place, date) and, for a signed-in client, propose_plan with every part (people, gear, and the coming soon or not offered ones as needs). Do not wait for answers that are not needed to search.');
-  else if (plan_hint === 'single') sayParts.push('Only one part is needed, so no plan: book it on its own (find_people for a person, search_gear for gear).');
-  else if (plan_hint === 'nothing_we_offer') sayParts.push('We offer none of this, so no plan. Mention what we do offer only if it could help.');
+  if (plan_hint === 'plan') {
+    sayParts.push(
+      mode === 'rent'
+        ? 'Then call search_gear for the gear parts they want to choose and, for a signed-in client, propose_plan with every part. Do not wait for answers that are not needed to search.'
+        : 'Then call find_people for each person part marked listed (role, place, date) and, for a signed-in client, propose_plan with every part (people, gear, and the coming soon or not offered ones as needs). Do not wait for answers that are not needed to search.',
+    );
+  } else if (plan_hint === 'single') {
+    sayParts.push(countable[0].kind === 'person' ? 'Only one part is needed, so no plan: book it on its own with find_people.' : `Only one part is needed, so no plan: book it on its own with search_gear (category ${countable[0].key}).`);
+  } else if (plan_hint === 'nothing_we_offer') sayParts.push('We offer none of this, so no plan. Mention what we do offer only if it could help.');
+  else if (rentNothing) sayParts.push('They shoot it themselves and nothing typical for this shoot is gear: ask in one short question which gear they need, then use search_gear.');
+  else if (!unclear) sayParts.push('Nothing typical for this shoot is needed the way it is set up: ask in one short question what they need (people, gear or the studio).');
   else sayParts.push('Nothing here matches what we offer (people, gear and the studio for shoots). If it is not about a shoot, say in one or two sentences that we do not offer it; otherwise ask in one short question what they are planning.');
   if (type.gentle) sayParts.push('This is a sad occasion: be gentle and brief, and offer condolences once.');
 
@@ -454,6 +576,9 @@ export async function planOutline(input: PlanOutlineInput, deps: OutlineDeps): P
     date_note: dateNote,
     days,
     place,
+    mode,
+    mode_sure: modeSure,
+    estimate,
     parts,
     also_possible: alsoPossibleParts.map((p) => (p.kind === 'person' ? roleList.find((r) => r.slug === p.role)?.name ?? FUTURE_ROLES[p.role] ?? p.role : p.label)),
     not_offered: notOffered,
@@ -485,7 +610,7 @@ export function createOutlineTools(deps?: OutlineDeps): Record<string, any> {
     plan_outline: {
       description:
         'FIRST STEP for any outcome with more than one part, or any occasion or production (a wedding, umembeso, lobola, matric dance, music video, product shoot, campaign, conference, film, series, sports day, podcast and so on). ' +
-        'Read-only. Returns the shoot type, the date read, every typical part with its LIVE state from our data (people listed, coming soon, not offered; gear listed and the cheapest day price), the questions still worth asking, a timeline with real dates and warnings. ' +
+        'Read-only. Returns the shoot type, who is shooting it (mode), the date read, every typical part for that mode with its LIVE state from our data (people listed, coming soon, not offered; gear listed and the cheapest day price), a gear estimate worked out by code, the questions still worth asking, a timeline with real dates and warnings. ' +
         'Not for one person alone ("a photographer tomorrow"): use find_people for that.',
       inputSchema: jsonSchema({
         type: 'object' as const,
@@ -495,6 +620,16 @@ export function createOutlineTools(deps?: OutlineDeps): Record<string, any> {
             type: 'string',
             enum: SHOOT_TYPES.map((t) => t.slug),
             description: 'Always pick the closest kind of shoot from this list, judged from what they said, in any language (a Nikah or Hindu wedding is a traditional-wedding, umbondo or umemulo a cultural-ceremony, a company profile video a brand-campaign). Use "general" only when nothing fits.',
+          },
+          mode: {
+            type: 'string',
+            enum: [...PLAN_MODES],
+            description:
+              'Who is shooting it, judged from their words in any language. ' +
+              '"hire": someone shoots it for them and brings their own kit ("someone to take photos", "a photographer for my graduation", a family or business that wants the result). ' +
+              '"rent": they shoot it themselves and need gear only (gear named by brand or model, "I am shooting", "my crew", "I have a camera guy"). ' +
+              '"produce": they need people and gear together (a film, a series, an advert, "crew and equipment", people plus named gear). ' +
+              'If they sent "Someone else shoots it for me." it is hire; "I am shooting it myself, I only need the gear." is rent; "I am producing it, I need people and gear." is produce. Leave it out only when you cannot tell.',
           },
           place: { type: 'string', description: 'Where, in their words.' },
           date: { type: 'string', description: 'The day (or first day), YYYY-MM-DD or their words.' },

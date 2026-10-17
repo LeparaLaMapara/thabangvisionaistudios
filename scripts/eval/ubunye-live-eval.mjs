@@ -13,6 +13,11 @@
  *   says      the reply says at least one of must_say_any (coming soon,
  *             not offered, ...) when the case has one
  *   dashes    no long dashes in the reply
+ *   mode      plan_outline (if called) read who is shooting it as labelled
+ *             (mode, or one of mode_any): hire, rent or produce
+ *   nogear    for "no_gear_for_hire" cases labelled hire: neither the
+ *             outline parts nor the reply offer crew gear (cameras, lenses,
+ *             lights for the crew, grip, a drone, cards and drives, sound kit)
  *
  * Usage (bash):
  *   BASE=https://<preview>.vercel.app \
@@ -141,6 +146,9 @@ async function runCase(c) {
       if (e.type === 'text-delta' && typeof e.delta === 'string') result.text += e.delta;
       else if (e.type === 'tool-input-available' || e.type === 'tool-input-start') {
         if (e.toolName && !result.tools.some((t) => t.id === e.toolCallId)) result.tools.push({ id: e.toolCallId, name: e.toolName });
+        // Keep what each tool was asked for (search_gear's category, for the nogear check).
+        const t = result.tools.find((x) => x.id === e.toolCallId);
+        if (t && e.input && typeof e.input === 'object') t.input = e.input;
       } else if (e.type === 'tool-output-available') {
         const t = result.tools.find((x) => x.id === e.toolCallId);
         result.outputs.push({ name: t?.name ?? '?', output: e.output });
@@ -155,6 +163,22 @@ async function runCase(c) {
 }
 
 const squash = (s) => s.replace(/[\s ,]/g, '');
+
+// Crew gear: what the people shooting it use. A hired person brings their own,
+// so a hire case must never be offered these (a PA or the studio is an event
+// extra, not crew gear, and is fine).
+const CREW_CATEGORIES = new Set(['cameras-optics', 'lighting-power', 'grip-motion', 'aerial-support', 'data-storage', 'audio']);
+// An offer in the reply: a verb that books or adds, then a crew gear word.
+// "they bring their own camera" is not an offer; "a drone pilot" is a person.
+const CREW_OFFER = /\b(rent|hire|book|add|get|need|want|choose|pick)\s+(a |an |some |the |two |three |our |any |extra )?(cameras?|lens(es)?|lights|lighting|gimbals?|tripods?|sliders?|drones?(?!\s*(pilot|operator))|memory cards?|hard drives?|sound kit|boom mics?)\b/i;
+
+/** Every way a hire case can be offered crew gear: an outline part, a search_gear call, the reply. */
+function crewGearOffered(outline, r) {
+  const parts = (outline?.parts ?? []).filter((p) => (p.kind === 'gear' || p.kind === 'studio') && (p.use ? p.use === 'crew' : CREW_CATEGORIES.has(p.key)));
+  const searches = r.tools.filter((t) => t.name === 'search_gear' && CREW_CATEGORIES.has(String(t.input?.category ?? '')));
+  const said = r.text.match(CREW_OFFER);
+  return [...parts.map((p) => `part ${p.key}`), ...searches.map((t) => `search_gear ${t.input.category}`), ...(said ? [`says "${said[0]}"`] : [])];
+}
 
 /** True when the outline card shows a state the case wants said. */
 function cardSays(outline, words) {
@@ -200,12 +224,15 @@ function score(c, r) {
     // "We do not offer this"), so a state shown on the card counts as said.
     says: c.must_say_any ? (c.must_say_any.some((w) => lower.includes(w)) || (c.must_say_any.includes('not offer') && /\b(do not|don't|cannot|can't|we only)\s+(offer|sell|provide|supply|arrange|help)/.test(lower)) || cardSays(outline, c.must_say_any) ? 'ok' : 'missing') : 'n/a',
     dashes: /[–—]/.test(reply) ? 'dash' : 'ok',
+    // mode_any: a sentence that honestly reads two ways (a concert: hire or produce) accepts either.
+    mode: c.mode && outline ? ([c.mode, ...(c.mode_any ?? [])].includes(outline.mode) ? 'ok' : `got ${outline.mode ?? 'none'}`) : 'n/a',
+    nogear: c.no_gear_for_hire && c.mode === 'hire' ? ((offered) => (offered.length ? `offered ${offered.join(', ')}` : 'ok'))(crewGearOffered(outline, r)) : 'n/a',
   };
 }
 
 const cases = SET.cases.filter((c) => !ONLY.size || ONLY.has(c.id));
 console.log(`Ubunye live eval: set ${SET_NAME}, ${cases.length} cases x ${REPEAT} against ${BASE}${COOKIE ? ' (signed in)' : ' (guest)'}\n`);
-const checks = ['type', 'first', 'prices', 'says', 'dashes'];
+const checks = ['type', 'first', 'prices', 'says', 'dashes', 'mode', 'nogear'];
 let derivedCount = 0;
 // Every published gear price, from the site's own public list, so a real
 // catalogue price the model quotes from its prompt is not called invented.
@@ -227,7 +254,7 @@ for (let round = 1; round <= REPEAT; round++) {
     const s = r.error ? Object.fromEntries(checks.map((k) => [k, 'err'])) : score(c, r);
     rows.push({ id: c.id, round, ...s, tools: r.tools.map((t) => t.name).join('>') || '-', error: r.error, reply: r.text });
     const mark = Object.values(s).every((v) => v === 'ok' || v === 'n/a') ? 'PASS' : 'FAIL';
-    console.log(`${mark} ${c.id.padEnd(5)}${REPEAT > 1 ? ` r${round}` : ''} type=${s.type} first=${s.first} prices=${s.prices} says=${s.says} dashes=${s.dashes} tools=${rows.at(-1).tools}${r.error ? ` error=${r.error}` : ''}`);
+    console.log(`${mark} ${c.id.padEnd(5)}${REPEAT > 1 ? ` r${round}` : ''} type=${s.type} first=${s.first} prices=${s.prices} says=${s.says} dashes=${s.dashes} mode=${s.mode} nogear=${s.nogear} tools=${rows.at(-1).tools}${r.error ? ` error=${r.error}` : ''}`);
     if (process.env.VERBOSE) console.log(`      reply: ${r.text.replace(/\s+/g, ' ').slice(0, 400)}\n`);
     if (DELAY_MS > 0) await new Promise((res) => setTimeout(res, DELAY_MS));
   }

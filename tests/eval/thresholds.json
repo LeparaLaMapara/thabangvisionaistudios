@@ -1,6 +1,6 @@
 {
   "about": "Minimum pass rates for scripts/eval/ubunye-live-eval.mjs. A run below any minimum fails (exit 1), which fails the 'Ubunye eval' check. prices and dashes are hard rules (an invented price or a long dash is never fine). The others leave room for the model answering differently run to run. Holdout minimums were set from its first blind baseline; raise them as Ubunye gets better, never lower them to make a change pass.",
-  "outcomes": { "type": 0.95, "first": 0.85, "prices": 1.0, "says": 0.85, "dashes": 1.0, "cases": 0.85, "max_error_rate": 0.1 },
-  "holdout": { "type": 0.65, "first": 0.88, "prices": 1.0, "says": 0.6, "dashes": 1.0, "cases": 0.65, "max_error_rate": 0.1 },
+  "outcomes": { "type": 0.95, "first": 0.85, "prices": 1.0, "says": 0.85, "dashes": 1.0, "mode": 0.9, "nogear": 1.0, "cases": 0.85, "max_error_rate": 0.1 },
+  "holdout": { "type": 0.65, "first": 0.88, "prices": 1.0, "says": 0.6, "dashes": 1.0, "mode": 0.85, "cases": 0.65, "max_error_rate": 0.1 },
   "holdout_baseline": "2026-10-17, develop preview, 80 x 2 runs, gemini-3.6-flash: type 76% (67 to 83), first 94% (90 to 97), says 88% (64 to 97), dashes 100%, cases 74% (66 to 80); every flagged price was a published price or a real price times a quantity. Minimums sit at about the low end of each range."
 }
