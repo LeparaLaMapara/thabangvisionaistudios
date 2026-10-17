@@ -20,6 +20,7 @@ import type { AgentActionKind } from '@/lib/core/agent/approval';
 import type { ApprovalSummary, Execute, Requote } from '@/lib/core/agent/use-cases';
 import type { CartItemWithRental } from '@/types/cart';
 import { appUrl } from '@/lib/app-url';
+import { planExecute, planRequote } from '@/lib/projects/agent';
 
 /**
  * Server-side quotes and execution for Ubunye proposals. Prices come from the
@@ -258,9 +259,19 @@ export const requote: Requote = async (kind: AgentActionKind, payload: Record<st
     if (!c.ok) return c;
     return { ok: true, amountCents: priceGear(c.rental, p).totalCents };
   }
+  // A plan is checked against its owner, so it needs requoteFor (the commit route uses it).
+  if (kind === 'project_create') return { ok: false, message: 'That plan cannot be checked here. Ask Ubunye again.' };
   const q = await quoteService(payload as unknown as ServicePayload);
   return q.ok ? { ok: true, amountCents: toCents(q.total) } : q;
 };
+
+/**
+ * The requote for one signed-in person. A plan (project_create) re-checks
+ * that every booking it points at is still theirs; it always costs 0.
+ */
+export function requoteFor(userId: string): Requote {
+  return async (kind, payload) => (kind === 'project_create' ? planRequote(userId, payload) : requote(kind, payload));
+}
 
 export function executorFor(user: { id: string; email?: string | null; email_confirmed_at?: string | null }, conversationId: string | null): Execute {
   return async (kind, payload, _userId, approvedAmountCents) => {
@@ -275,6 +286,10 @@ export function executorFor(user: { id: string; email?: string | null; email_con
       if (!item) return { ok: false, message: 'Could not add it to your cart. Try again.' };
       logEvent({ eventType: 'cart_added', eventCategory: 'booking', userId: user.id, metadata: { rental_id: p.rental_id, start_date: p.start_date, end_date: p.end_date, qty: p.quantity, source: 'ubunye_approved' } });
       return { ok: true, result: { next: '/dashboard/cart', message: `${c.rental.title} is in your cart. Pay at checkout to hold it.` } };
+    }
+    if (kind === 'project_create') {
+      if (approvedAmountCents !== 0) return { ok: false, message: 'A plan costs nothing; this approval does not match.' };
+      return planExecute(user.id, payload);
     }
     return createServiceBooking(user, payload as unknown as ServicePayload, conversationId, approvedAmountCents);
   };

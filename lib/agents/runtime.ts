@@ -3,7 +3,7 @@ export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
 import { convertToModelMessages, stepCountIs } from 'ai';
 import { checkRateLimit } from '@/lib/auth';
-import { STUDIO } from '@/lib/constants';
+import { PLAN_POLICY, STUDIO } from '@/lib/constants';
 import { getModelId, routeQuery } from '@/lib/ai';
 import { logTokenUsage } from '@/lib/ai/tracked';
 import { streamWithFallback } from '@/lib/ai/resilient-stream';
@@ -21,6 +21,9 @@ import { CHAT_TOO_LONG_MESSAGE, capToolCalls, chatBodyWithinLimit, limitChatMess
 import { createBookingTools } from '@/lib/agents/tools/booking';
 import { createDeliveryTools } from '@/lib/agents/tools/delivery';
 import { createPeopleTools } from '@/lib/agents/tools/people';
+import { createPlanTools } from '@/lib/agents/tools/plans';
+import { recordToolRefs } from '@/lib/agents/tool-refs';
+import { cardsFromSteps } from '@/lib/ubunye/chat-cards';
 import { lastUserText } from '@/lib/agents/last-user-text';
 import { buildAssistantPrompt } from '@/lib/agents/agents/assistant';
 import { buildBookingPrompt } from '@/lib/agents/agents/booking';
@@ -83,7 +86,17 @@ function resolveLimit(
 export const PEOPLE_RETIRED_TOOLS = ['search_creators', 'get_creator_detail', 'calculate_booking_quote', 'prepare_service_booking'] as const;
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function getToolsForAgent(agentId: string, supabase: any, isAuthenticated: boolean, flags: UbunyeFlagsSnapshot, hasPreSelectedCreator = false, conversationId: string | null = null): Record<string, any> {
+export function getToolsForAgent(agentId: string, supabase: any, isAuthenticated: boolean, flags: UbunyeFlagsSnapshot, hasPreSelectedCreator = false, conversationId: string | null = null, seenIds: Set<string> = new Set()): Record<string, any> {
+  const tools = baseToolsForAgent(agentId, supabase, isAuthenticated, flags, hasPreSelectedCreator, conversationId);
+  // Plans (ubunye_projects): signed-in only, for the agents that have tools.
+  if (flags.ubunye_projects && isAuthenticated && Object.keys(tools).length) {
+    Object.assign(tools, createPlanTools({ supabase, conversationId, seenIds }));
+  }
+  return tools;
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function baseToolsForAgent(agentId: string, supabase: any, isAuthenticated: boolean, flags: UbunyeFlagsSnapshot, hasPreSelectedCreator: boolean, conversationId: string | null): Record<string, any> {
   switch (agentId) {
     case 'assistant': {
       // Delivery tools are read-only (plus reporting an issue); each checks sign-in itself.
@@ -348,10 +361,11 @@ export async function executeAgent(
     }
 
     // ── Fetch feature flags (shared for prompt + tools) ──
-    const flagsState = await getFlags(['smart_productions', 'roles_v1']);
+    const flagsState = await getFlags(['smart_productions', 'roles_v1', 'ubunye_projects']);
     const flags: UbunyeFlagsSnapshot = {
       smart_productions: flagsState.smart_productions,
       roles_v1: flagsState.roles_v1,
+      ubunye_projects: flagsState.ubunye_projects,
       // The same switch /pay reads, so Ubunye never states another way to pay.
       payments_open: paymentsOpenForLegalPages(),
     };
@@ -427,7 +441,9 @@ export async function executeAgent(
         : rawMessages;
 
       // One shared budget of tool executions for this message (security LLM-5).
-      const tools = capToolCalls(getToolsForAgent(agentId, supabase, !!user, flags, !!preSelectedCreatorId, conversationId));
+      // Ids every tool returns this turn: propose_plan accepts only these (and earlier turns').
+      const seenIds = new Set<string>();
+      const tools = capToolCalls(recordToolRefs(getToolsForAgent(agentId, supabase, !!user, flags, !!preSelectedCreatorId, conversationId, seenIds), seenIds));
 
       // Route to model based on agent config and query complexity
       const queryText = userText;
@@ -541,6 +557,11 @@ export async function executeAgent(
               model: servedModelId,
               inputTokens: totalUsage.inputTokens ?? 0,
               outputTokens: totalUsage.outputTokens ?? 0,
+              // Cards survive a reload, and later turns know which ids tools returned
+              // (columns from 097, written only with the plans flag on).
+              ...(flags.ubunye_projects
+                ? { cards: cardsFromSteps(steps), toolRefIds: [...seenIds].slice(0, PLAN_POLICY.maxToolRefIds) }
+                : {}),
             });
           }
         },

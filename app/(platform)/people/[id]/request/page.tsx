@@ -12,6 +12,7 @@ import { parseRequestPrefill, prefillQuery } from '@/lib/roles/request-prefill';
 import { saToday } from '@/lib/dates/johannesburg';
 import { buildPageMetadata } from '@/lib/seo/metadata';
 import { RequestForm } from '@/components/roles/RequestForm';
+import { parsePlanLink } from '@/lib/core/projects/plan';
 
 export const metadata = buildPageMetadata({ title: 'Request a booking', description: 'Ask to book.', path: '/people', noIndex: true });
 
@@ -20,6 +21,14 @@ export const metadata = buildPageMetadata({ title: 'Request a booking', descript
  * A link from Ubunye can prefill the day(s), area and note (checked in
  * lib/roles/request-prefill.ts); the price always comes from the profile.
  */
+function withPlanQuery(qs: string, plan: { planId: string | null; needItemId: string | null }): string {
+  if (!plan.planId) return qs;
+  const q = new URLSearchParams(qs.replace(/^\?/, ''));
+  q.set('plan', plan.planId);
+  if (plan.needItemId) q.set('need', plan.needItemId);
+  return `?${q.toString()}`;
+}
+
 export default async function RequestPage({
   params,
   searchParams,
@@ -36,7 +45,9 @@ export default async function RequestPage({
     data: { user },
   } = await supabase.auth.getUser();
   // Sign-in comes back here with the checked prefill, so nothing is typed twice.
-  if (!user) redirect(loginUrl(`/people/${id}/request${prefillQuery(parseRequestPrefill(query, today, { byDays: true }))}`));
+  // A request sent from a plan carries it (checked ids only; the server checks the plan is theirs).
+  const plan = (await getFlag('ubunye_projects')) ? parsePlanLink(query) : { planId: null, needItemId: null };
+  if (!user) redirect(loginUrl(`/people/${id}/request${withPlanQuery(prefillQuery(parseRequestPrefill(query, today, { byDays: true })), plan)}`));
   const profile = await getPublicRoleProfile(id);
   if (!profile) notFound();
   const price = profile.personRole.price_cents ?? profile.role.suggested_price_cents.typical;
@@ -61,6 +72,8 @@ export default async function RequestPage({
           minDate={today}
           unit={unit}
           priceCents={price}
+          planId={plan.planId}
+          needItemId={plan.needItemId}
         />
       </div>
     </div>

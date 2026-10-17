@@ -18,6 +18,8 @@ export type UbunyeFlagsSnapshot = {
    * reads), so Ubunye states the same way to pay as the pay page.
    */
   payments_open?: boolean;
+  /** Ubunye plans (migration 097): propose_plan for multi-part outcomes, signed-in only. */
+  ubunye_projects?: boolean;
 };
 
 // ─── Types ──────────────────────────────────────────────────────────────────
@@ -282,6 +284,15 @@ export function peopleRules(): string {
 - If the role is coming soon or not offered, or nobody matches, say so in one or two sentences and offer the WhatsApp link the tool returned (or WhatsApp ${STUDIO.whatsapp.display}) with their date so we can look.`;
 }
 
+/** Ubunye plans (ubunye_projects): one plan for a multi-part outcome, never for one thing. */
+export function planRules(): string {
+  return `PLANS (several parts of one outcome, signed-in clients):
+- When one outcome needs two or more parts (for example a videographer, lights and an editor), first find each part: find_people for people, search_gear for gear. A role that is coming soon, or something we do not offer, is said plainly and never booked.
+- Then call propose_plan once with every part, using only ids those tools returned. The client sees an approval card; the plan is saved only when they press Approve. Say in one short line that a plan books nothing and costs nothing, and each part is still requested and paid on its own.
+- Never make a plan for one thing: one photographer is a request on their profile, one item of gear is a hire. If propose_plan says no plan is needed, follow its message.
+- A saved plan lives at [Plans](/dashboard/plans). Never say a part is booked unless the plan page or a tool says so.`;
+}
+
 // ─── Build System Prompt ────────────────────────────────────────────────────
 
 export function buildSystemPrompt(
@@ -402,7 +413,8 @@ CRITICAL BOOKING RULES:
 - NEVER make up prices, rates, totals, or deposits. ${people ? "Gear prices come from the catalogue; a person's price is the one on their People profile." : 'ALWAYS use the calculate_booking_quote tool to get exact pricing.'}
 - NEVER tell users to email, call, or "contact us directly" to book. ALL bookings happen through the platform. The one exception: work or delivery outside ${STUDIO.serviceArea.province} — do not book it; say travel is quoted separately and pass them to ${STUDIO.bookingEmail} or WhatsApp ${STUDIO.whatsapp.display}.
 - A booking is reserved when it is requested and confirmed only once payment is received. Never call it confirmed before payment.
-${bookingRules}
+${bookingRules}${flags.ubunye_projects ? `
+${planRules()}` : ''}
 
 ===== HOW TO GUIDE USERS =====
 - Rent gear → /rentals
