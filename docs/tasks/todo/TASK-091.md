@@ -34,6 +34,13 @@ Small gaps found while building plans and the eval.
     keywords only as the fallback and the check. Measure on the held-out set
     once, after the change.
 
+- The "Your shoot" card and the People swipe row vanish after a page reload
+  (chat cards are stored for People results, not for plan_outline). Store a
+  blind outline card in lib/ubunye/chat-cards.ts and restore it.
+- After the 2026-10-17 shoot-type fix the held-out score rose to 90% (81 to
+  95) from 74%; raise the holdout minimums in tests/eval/thresholds.json once
+  two nightly runs confirm it.
+
 ## Done when
 - Stuck proposals show in the daily checks, the "available" slip is filtered,
   and one-person asks go straight to find_people on the tuning set.
