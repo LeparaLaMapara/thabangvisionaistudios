@@ -49,12 +49,16 @@ const COMPLEX_PATTERNS = [
   /\b(how\s+(?:do|can|should|would)\s+(?:i|we|you))\b/i,
 ];
 
-/** Patterns that mark a turn as simple enough for the fast model. */
-const SIMPLE_PATTERNS = [
-  /^(hi|hello|hey|yo|sup|howzit|good\s*(morning|afternoon|evening))[\s!?.]*$/i,
-  /^(what(?:'s| is) (?:your|the) (?:name|email|phone|address|hours|location))/i,
+/**
+ * Patterns that mark a turn as simple enough for the fast model, which runs
+ * with tools off. Greetings, thanks and contact questions only: a short real
+ * request ("photographer tomorrow jhb") must reach the tools, so length alone
+ * never makes a turn simple.
+ */
+export const SIMPLE_PATTERNS = [
+  /^(hi|hello|hey|yo|sup|howzit|sawubona|dumela|molo|good\s*(morning|afternoon|evening))[\s!?.]*$/i,
+  /^(what(?:'s| is) (?:your|the) (?:name|email|phone|address|hours|location))[\s?.!]*$/i,
   /^(yes|no|ok|okay|sure|thanks|thank you|cool|great|perfect)[\s!?.]*$/i,
-  /^.{1,30}$/,
 ];
 
 /**

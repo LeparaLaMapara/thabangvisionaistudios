@@ -8,6 +8,7 @@ import Link from 'next/link';
 import type { UIMessage } from 'ai';
 import { FollowUpSuggestions } from '@/components/ubunye/FollowUpSuggestions';
 import { ApprovalCard } from '@/components/ubunye/ApprovalCard';
+import { PeopleResults } from '@/components/ubunye/PeopleResults';
 import { STUDIO } from '@/lib/constants';
 
 const TOOL_LABELS: Record<string, string> = {
@@ -20,6 +21,8 @@ const TOOL_LABELS: Record<string, string> = {
   get_pending_proposal: 'Loading your proposal',
   my_bookings: 'Checking your bookings',
   improve_brief: 'Analyzing your brief',
+  find_people: 'Looking for people',
+  search_gear: 'Searching gear',
 };
 
 function getMessageText(msg: UIMessage): string {
@@ -52,6 +55,12 @@ function getLastCompletedTool(msg: UIMessage): { name: string; output: unknown }
   if (done.length === 0) return null;
   const last = done[done.length - 1];
   return { name: toolName(last), output: last.output };
+}
+
+/** The latest find_people result in this message, drawn as People cards. */
+function getPeopleOutput(msg: UIMessage): unknown {
+  const done = toolParts(msg).filter((p) => toolName(p) === 'find_people' && p.state === 'output-available');
+  return done.length ? done[done.length - 1].output : null;
 }
 
 /** The latest proposal in this message that is waiting for approval, if any. */
@@ -130,6 +139,7 @@ export function ChatMessageList({
         const completedTool = isLastAssistant && pendingTools.length === 0 ? getLastCompletedTool(msg) : null;
         const mentioned = isAssistant && isAuthenticated ? getProposalId(msg) : null;
         const proposalId = mentioned && cardAt.get(mentioned) === msgIndex ? mentioned : null;
+        const peopleOutput = isAssistant ? getPeopleOutput(msg) : null;
 
         return (
           <motion.div
@@ -165,6 +175,8 @@ export function ChatMessageList({
                 </span>
               </div>
             )}
+
+            {peopleOutput ? <PeopleResults output={peopleOutput} /> : null}
 
             {proposalId && <ApprovalCard key={proposalId} proposalId={proposalId} />}
 

@@ -315,7 +315,7 @@ Ubunye is the platform's AI assistant, accessible at `/ubunye-ai-studio`.
 
 **Architecture:**
 - `lib/ubunye/system-prompt.ts` — builds context-aware prompt from live DB data (rentals, productions, rates) with 5-minute cache
-- `lib/ubunye/tools.ts` — function calling tools: `search_equipment`, `get_equipment_details`, `search_creators`, `get_creator_detail`, `submit_creator_request`, `calculate_booking_quote`
+- `lib/agents/tools/*` — the chat's tools (search, People search `find_people`, booking proposals, delivery); every write is a proposal the person approves on a card
 - `POST /api/ubunye-chat` — streaming endpoint using `streamText()` from Vercel AI SDK
 - Frontend uses `useChat()` from `@ai-sdk/react`
 

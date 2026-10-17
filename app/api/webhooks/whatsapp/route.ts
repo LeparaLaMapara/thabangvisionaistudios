@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { routeQuery, generateWithFallback } from '@/lib/ai';
 import { createAdminClient } from '@/lib/supabase/server';
 import { buildSystemPrompt, fetchPlatformData } from '@/lib/ubunye/system-prompt';
+import { promptField } from '@/lib/ubunye/sanitise';
 import { whatsapp, whatsappProviderName } from '@/lib/whatsapp';
 import { meta, metaChallenge, metaSendConfigured, parseMetaInbound, verifyMetaSignature } from '@/lib/whatsapp/meta';
 import type { WhatsAppMessage } from '@/lib/whatsapp';
@@ -149,7 +150,9 @@ async function handleTwilio(request: NextRequest): Promise<NextResponse> {
     };
     const platformData = await fetchPlatformData(supabase, flags);
     let systemPrompt = buildSystemPrompt(platformData, null, flags);
-    systemPrompt += '\n\nYou are responding via WhatsApp. Keep responses concise (under 1000 characters). Use plain text, no markdown. Be warm and helpful. The user\'s name is ' + (message.profileName || 'there') + '.';
+    // No tools on WhatsApp, so the People rules' find_people step does not apply.
+    // The WhatsApp profile name is typed by the sender: flattened like any data.
+    systemPrompt += '\n\nYou are responding via WhatsApp. Keep responses concise (under 1000 characters). Use plain text, no markdown. Be warm and helpful. You have no tools here, so never mention find_people or searching: for people, point to ' + STUDIO.meta.url + '/people, where each person shows their price. The user\'s name is ' + promptField(message.profileName, 'there', 60) + '.';
 
     // Build message history
     addToHistory(message.from, 'user', message.body);

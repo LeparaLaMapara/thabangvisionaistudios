@@ -34,7 +34,7 @@ export function buildBookingPrompt(
   // shortlist below are not used; this agent books gear only.
   const people = !!flags.roles_v1;
   const serviceFlow = people
-    ? `PEOPLE: you cannot quote or book a person here. Follow the PEOPLE rules above and send them to [People](/people).
+    ? `PEOPLE: you cannot quote or book a person yourself. Follow the PEOPLE rules above: find_people shows who can be asked, with the price from their profile and a request link; the request is sent on [People](/people).
 
 `
     : `BOOKING FLOW — 3 STEPS ONLY:

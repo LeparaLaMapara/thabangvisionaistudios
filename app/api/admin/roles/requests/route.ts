@@ -3,7 +3,8 @@ export const dynamic = 'force-dynamic';
 import { NextResponse, after, type NextRequest } from 'next/server';
 import { rolesOffResponse } from '@/lib/roles/flag';
 import { requireAdmin } from '@/lib/auth';
-import { ADMIN_REQUEST_GROUPS, listRequestsForAdmin, moveRequest, requestGroupCounts, type AdminRequestGroup } from '@/lib/supabase/queries/role-requests';
+import { ADMIN_REQUEST_GROUPS, findBookedOverlap, listRequestsForAdmin, moveRequest, requestGroupCounts, type AdminRequestGroup } from '@/lib/supabase/queries/role-requests';
+import { formatSaDay } from '@/lib/dates/johannesburg';
 import { notifyRequestDecision, type Decision } from '@/lib/roles/request-notify-server';
 import type { RequestStatus } from '@/lib/roles';
 
@@ -12,7 +13,9 @@ import type { RequestStatus } from '@/lib/roles';
  *
  *   GET   ?group=waiting (default) | accepted | booked | closed
  *   PATCH { id, action: 'accept' }        requested -> accepted. The client is
- *         emailed the amount, our bank details and their reference.
+ *         emailed the amount, our bank details and their reference. Refused
+ *         (409) while the same person is already accepted or confirmed on
+ *         one of its days: no double booking.
  *   PATCH { id, action: 'decline', note? } requested or accepted -> declined.
  *         The client (with the note) and the person are told.
  *   PATCH { id, action: 'paid' }          accepted -> confirmed, once the EFT
@@ -62,6 +65,15 @@ export async function PATCH(request: NextRequest): Promise<NextResponse> {
   const note = action.to === 'declined' && rawNote ? rawNote.slice(0, 500) : null;
 
   try {
+    if (action.to === 'accepted') {
+      const clash = await findBookedOverlap(id);
+      if (clash) {
+        return NextResponse.json(
+          { error: `This person is already booked on ${clash.days.map(formatSaDay).join(', ')} (request ${clash.reference}). Decline this request, or ask them first and decline the other.` },
+          { status: 409 },
+        );
+      }
+    }
     let moved = false;
     for (const from of action.from) {
       if (await moveRequest(id, from, action.to, auth.user.id, note)) {

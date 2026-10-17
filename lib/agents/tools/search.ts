@@ -3,6 +3,35 @@ import { jsonSchema } from 'ai';
 import { escapeIlike, filterIlikePattern } from '@/lib/search/types';
 import { getBusyCreatorIds } from '@/lib/supabase/queries/crew';
 import { creatorProfilePath } from '@/lib/seo/creator-url';
+import { RENTAL_CATEGORIES, RENTAL_CATEGORY_VALUES, STUDIO } from '@/lib/constants';
+import { meetsLeadTime, leadTimeMessage } from '@/lib/rental/leadTime';
+import { isIsoDate, resolveDate, saToday } from '@/lib/dates/johannesburg';
+import { whatsappLink } from '@/lib/payments/eft';
+
+/** The category filter's description, from the real slugs (it used to list ones that do not exist). */
+export const GEAR_CATEGORY_HELP = `Rental category slug, one of: ${RENTAL_CATEGORIES.map((c) => `${c.value} (${c.label})`).join(', ')}. "studios" is the studio, booked by full days.`;
+
+/**
+ * Whether a hire starting on this date gives the notice checkout enforces
+ * (STUDIO.rental.minLeadTimeHours, lib/rental/leadTime.ts). Null when no date
+ * was given; otherwise the date read and, when too soon, the words and a
+ * prefilled WhatsApp link.
+ */
+export function gearNotice(startDate: unknown, now: Date = new Date(), what = 'gear'): { start_date: string; too_soon: boolean; message: string | null; whatsapp_url: string | null } | null {
+  if (typeof startDate !== 'string' || !startDate.trim()) return null;
+  const iso = isIsoDate(startDate.trim()) ? startDate.trim() : resolveDate(startDate, now)?.iso;
+  if (!iso) return null;
+  if (iso < saToday(now)) return { start_date: iso, too_soon: true, message: 'That date has passed.', whatsapp_url: null };
+  // The same call checkout makes (app/api/cart/checkout), so the answer matches what is enforced.
+  const ok = meetsLeadTime(iso, now);
+  if (ok) return { start_date: iso, too_soon: false, message: null, whatsapp_url: null };
+  return {
+    start_date: iso,
+    too_soon: true,
+    message: `${leadTimeMessage(now)} For something sooner, WhatsApp us and we will tell you honestly whether it can be done.`,
+    whatsapp_url: whatsappLink(`Hi, I need ${what} on ${iso}. Is anything possible at short notice?`),
+  };
+}
 
 // ─── Search Tools for Assistant Agent ─────────────────────────────────────────
 // Tools focused on searching and browsing platform data.
@@ -14,11 +43,12 @@ type SupabaseClient = any;
  * Creates search-oriented tools for the Assistant agent.
  * Includes creator search, gear search, production search, and press search.
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function createSearchTools(
   supabase: SupabaseClient,
   flags: { smart_productions: boolean } = { smart_productions: false },
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
 ): Record<string, any> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const tools: Record<string, any> = {
     search_creators: {
       description:
@@ -70,15 +100,17 @@ export function createSearchTools(
       inputSchema: jsonSchema({
         type: 'object' as const,
         properties: {
-          category: { type: 'string', description: 'Equipment category: cameras-optics, lighting, audio, grip-support, drones, accessories' },
+          category: { type: 'string', enum: [...RENTAL_CATEGORY_VALUES], description: GEAR_CATEGORY_HELP },
           location: { type: 'string', description: 'City or area' },
+          start_date: { type: 'string', description: `The first hire day, YYYY-MM-DD or the customer's words ("tomorrow", "Friday"), to check the ${STUDIO.rental.minLeadTimeHours}-hour notice.` },
           max_price_per_day: { type: 'number', description: 'Maximum daily rental price in ZAR' },
           search_term: { type: 'string', description: 'Search term to match against title, brand, or model' },
         },
       }),
-      execute: async ({ category, location, max_price_per_day, search_term }: {
-        category?: string; location?: string; max_price_per_day?: number; search_term?: string;
+      execute: async ({ category, location, max_price_per_day, search_term, start_date }: {
+        category?: string; location?: string; max_price_per_day?: number; search_term?: string; start_date?: string;
       }) => {
+        const notice = gearNotice(start_date, new Date(), category === 'studios' ? 'the studio' : 'gear');
         let query = supabase
           .from('smart_rentals')
           .select('id, title, brand, model, price_per_day, price_per_week, deposit_amount, is_available, category, slug, description')
@@ -95,10 +127,10 @@ export function createSearchTools(
 
         const { data, error } = await query;
         if (error) return { error: 'Search is unavailable just now.' };
-        if (!data || data.length === 0) return { results: [], message: 'No equipment found matching your criteria.' };
+        if (!data || data.length === 0) return { results: [], message: 'No equipment found matching your criteria.', notice };
 
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        return { results: data.map((g: any) => ({
+        return { notice, results: data.map((g: any) => ({
           id: g.id, title: sanitiseForPrompt(g.title), brand: sanitiseForPrompt(g.brand, 60), model: sanitiseForPrompt(g.model, 80),
           price_per_day: g.price_per_day, price_per_week: g.price_per_week,
           deposit: g.deposit_amount, available: g.is_available,
