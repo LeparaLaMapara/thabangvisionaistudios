@@ -41,6 +41,10 @@ export async function POST(req: NextRequest): Promise<Response> {
       const text = lastUserText(body);
       if (text) agentId = classifyIntent(text);
     }
+    // The portfolio and rates agents have no chat tools (and no guest
+    // allowance): in this chat their turns go to the assistant, which can
+    // search People and gear ("a photographer for my portfolio shoot").
+    if (agentId === 'portfolios' || agentId === 'rates') agentId = 'assistant';
     // Signed-out visitors talk to the assistant (which explains how to sign in
     // to book) instead of being turned away by the booking agent.
     if (!user && agentId === 'booking' && !body?.creator_id) agentId = 'assistant';

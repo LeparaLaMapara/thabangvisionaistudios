@@ -13,17 +13,25 @@ import { bookingTotal, formatRands, pricedByDays, REQUEST_NEXT_STEPS, type Prici
 export function RequestForm({
   personRoleId,
   defaultArea,
+  defaultDates = [],
+  defaultNote = '',
+  minDate,
   unit,
   priceCents,
 }: {
   personRoleId: string;
   defaultArea: string;
+  /** Checked prefill (lib/roles/request-prefill.ts), e.g. from Ubunye. */
+  defaultDates?: string[];
+  defaultNote?: string;
+  /** South African today: earlier days cannot be picked. */
+  minDate?: string;
   unit: PricingUnit;
   priceCents: number;
 }) {
   const router = useRouter();
   const byDays = pricedByDays(unit);
-  const [dates, setDates] = useState<string[]>(['']);
+  const [dates, setDates] = useState<string[]>(defaultDates.length ? defaultDates : ['']);
   const [hours, setHours] = useState(byDays ? 8 : 4);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -70,6 +78,7 @@ export function RequestForm({
               type="date"
               required={i === 0}
               value={d}
+              min={minDate}
               aria-label={`Day ${i + 1}`}
               onChange={(e) => setDates((x) => x.map((y, j) => (j === i ? e.target.value : y)))}
               className={field}
@@ -108,7 +117,7 @@ export function RequestForm({
       </label>
       <label className="block">
         <span className="block text-sm text-neutral-300 mb-1">Anything they should know (optional)</span>
-        <textarea name="note" maxLength={500} className={`${field} min-h-[80px] py-2`} />
+        <textarea name="note" maxLength={500} defaultValue={defaultNote} className={`${field} min-h-[80px] py-2`} />
       </label>
 
       <div className="border border-accent-gold/40 bg-accent-gold/5 p-4" aria-live="polite">

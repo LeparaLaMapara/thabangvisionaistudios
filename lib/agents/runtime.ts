@@ -20,6 +20,8 @@ import { createSearchTools } from '@/lib/agents/tools/search';
 import { CHAT_TOO_LONG_MESSAGE, capToolCalls, chatBodyWithinLimit, limitChatMessages } from '@/lib/agents/request-limits';
 import { createBookingTools } from '@/lib/agents/tools/booking';
 import { createDeliveryTools } from '@/lib/agents/tools/delivery';
+import { createPeopleTools } from '@/lib/agents/tools/people';
+import { lastUserText } from '@/lib/agents/last-user-text';
 import { buildAssistantPrompt } from '@/lib/agents/agents/assistant';
 import { buildBookingPrompt } from '@/lib/agents/agents/booking';
 import { createConversation, logChatMessage, hashIp, conversationBelongsTo } from '@/lib/data/chat-history';
@@ -81,13 +83,17 @@ function resolveLimit(
 export const PEOPLE_RETIRED_TOOLS = ['search_creators', 'get_creator_detail', 'calculate_booking_quote', 'prepare_service_booking'] as const;
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-function getToolsForAgent(agentId: string, supabase: any, isAuthenticated: boolean, flags: UbunyeFlagsSnapshot, hasPreSelectedCreator = false, conversationId: string | null = null): Record<string, any> {
+export function getToolsForAgent(agentId: string, supabase: any, isAuthenticated: boolean, flags: UbunyeFlagsSnapshot, hasPreSelectedCreator = false, conversationId: string | null = null): Record<string, any> {
   switch (agentId) {
     case 'assistant': {
       // Delivery tools are read-only (plus reporting an issue); each checks sign-in itself.
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const tools: Record<string, any> = { ...createSearchTools(supabase, flags), ...createDeliveryTools(supabase, isAuthenticated) };
-      if (flags.roles_v1) for (const name of PEOPLE_RETIRED_TOOLS) delete tools[name];
+      if (flags.roles_v1) {
+        for (const name of PEOPLE_RETIRED_TOOLS) delete tools[name];
+        // People search (read-only, blind): the replacement for the old creator tools.
+        Object.assign(tools, createPeopleTools());
+      }
       return tools;
     }
     case 'booking': {
@@ -98,6 +104,7 @@ function getToolsForAgent(agentId: string, supabase: any, isAuthenticated: boole
       // not quote or book anyone.
       if (flags.roles_v1) {
         for (const name of PEOPLE_RETIRED_TOOLS) delete tools[name];
+        Object.assign(tools, createPeopleTools());
         return tools;
       }
       // Remove search tools when creator is already selected — no searching needed
@@ -145,7 +152,8 @@ async function buildPromptForAgent(
   }
 
   if (isFirstGuestMessage) {
-    systemPrompt += `\n\nThis is the user's very first message. Introduce yourself warmly as Ubunye. Mention you can help with production planning, equipment, crew hiring, creative briefs, and SA industry pricing. Subtly mention they can sign in for more access. Be energetic and welcoming. Use their message as a springboard.`;
+    // A real request is answered first: no self-introduction in front of it.
+    systemPrompt += `\n\nThis is the person's first message. If it asks for something (a person, gear, a date), answer it straight away and do not introduce yourself. If it is only a greeting, say in one short line who you are and what you can help with. You may mention once, briefly, that signing in is needed to send a request or book.`;
   }
 
   return systemPrompt;
@@ -326,15 +334,9 @@ export async function executeAgent(
       });
     }
 
-    // Log the user message
-    const lastUserMsg = [...rawMessages].reverse().find(
-      (m: { role: string }) => m.role === 'user',
-    );
-    const userText = typeof lastUserMsg?.content === 'string'
-      ? lastUserMsg.content
-      : Array.isArray(lastUserMsg?.content)
-        ? lastUserMsg.content.filter((p: { type: string }) => p.type === 'text').map((p: { text: string }) => p.text).join(' ')
-        : '';
+    // Log the user message. The chat window sends `parts`, older callers
+    // `content`: lastUserText reads both (it read neither from the browser).
+    const userText = lastUserText({ messages: rawMessages });
 
     if (conversationId && userText) {
       logChatMessage({
@@ -358,7 +360,8 @@ export async function executeAgent(
     let systemPrompt = await buildPromptForAgent(agentId, supabase, user?.id ?? null, isFirstGuestMessage, flags);
 
     // ── Pre-selected creator context (from "Book Now" on creator page) ──
-    if (preSelectedCreatorId) {
+    // Not with People on: old hourly rates never reach Ubunye (system-prompt.ts).
+    if (preSelectedCreatorId && !flags.roles_v1) {
       const adminClient = createAdminClient();
       const { data: preCreator } = await adminClient
         .from('profiles')
@@ -427,12 +430,7 @@ export async function executeAgent(
       const tools = capToolCalls(getToolsForAgent(agentId, supabase, !!user, flags, !!preSelectedCreatorId, conversationId));
 
       // Route to model based on agent config and query complexity
-      const lastUserText = [...rawMessages].reverse().find(
-        (m: { role: string }) => m.role === 'user',
-      );
-      const queryText = typeof lastUserText?.content === 'string'
-        ? lastUserText.content
-        : '';
+      const queryText = userText;
 
       // Booking agent uses the smart tier; the assistant routes by complexity.
       // We pass a tier REF (not a concrete model) so the resilient stream can

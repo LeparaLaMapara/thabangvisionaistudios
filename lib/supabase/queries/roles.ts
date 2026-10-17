@@ -293,16 +293,24 @@ export interface ProfileCard {
   verified: boolean;
   record: string;
   comesWith: string | null;
+  /** The area as the person typed it (public on the card, inside the label). */
+  area: string | null;
+  /** Self-declared weekdays (mon..sun); empty when not given. Not a calendar. */
+  availableDays: string[];
+  /** Public photos and videos of their work. */
+  workCount: number;
+  /** The record behind `record`, for ranking (counts only, no identity). */
+  recordFacts: RecordFacts;
 }
 
-/** Approved profiles for People, blind. */
-export async function listApprovedProfiles(roleSlug?: string): Promise<ProfileCard[]> {
+/** Approved profiles for People, blind. `roles` saves a second read when the caller has them. */
+export async function listApprovedProfiles(roleSlug?: string, preloadedRoles?: Role[]): Promise<ProfileCard[]> {
   const admin = createAdminClient();
   let q = admin.from('person_roles').select(PERSON_ROLE_COLUMNS).eq('status', 'approved').order('approved_at', { ascending: false }).limit(60);
   if (roleSlug) q = q.eq('role_slug', roleSlug);
   const { data, error } = await q;
   if (error || !data?.length) return [];
-  const roles = await getRoles();
+  const roles = preloadedRoles ?? (await getRoles());
   const profiles = await buildBlind(data as unknown as PersonRole[], roles, { withReviews: false });
   return profiles.map((p) => ({
     id: p.personRole.id,
@@ -317,6 +325,10 @@ export async function listApprovedProfiles(roleSlug?: string): Promise<ProfileCa
     verified: p.verified,
     record: p.record.line,
     comesWith: p.comesWith?.label ?? null,
+    area: p.personRole.area,
+    availableDays: p.personRole.available_days ?? [],
+    workCount: p.work.length,
+    recordFacts: p.record,
   }));
 }
 
@@ -356,7 +368,10 @@ export async function createBookingRequest(i: RequestInput): Promise<string> {
     })
     .select('id')
     .single();
-  if (error) throw new Error(error.message);
+  if (error) {
+    // Keep the Postgres code: 23505 is the 096 "already asked" index.
+    throw Object.assign(new Error(error.message), { code: error.code });
+  }
   return data.id as string;
 }
 
@@ -568,21 +583,43 @@ export async function heldProductions(): Promise<Map<string, string>> {
  * it. Any read error gives empty lists, and the pages fall back to generic words.
  */
 export async function getOfferedRoles(): Promise<{ live: { slug: string; name: string }[]; offered: { slug: string; name: string }[] }> {
+  const { live, offered } = await getRoleCatalogue();
+  return { live, offered };
+}
+
+export interface RoleCatalogue {
+  live: { slug: string; name: string }[];
+  /** Live roles with at least one approved person. */
+  offered: { slug: string; name: string }[];
+  comingSoon: { slug: string; name: string }[];
+  /** False when the read failed: say nothing about roles rather than "none". */
+  ok: boolean;
+}
+
+/**
+ * What People offers, from the roles table (live and coming soon) and the
+ * approved profiles: the one source for pages and for Ubunye, never a
+ * hand-kept list. Server key, no cookies. A read error gives empty lists.
+ */
+export async function getRoleCatalogue(): Promise<RoleCatalogue> {
+  const empty: RoleCatalogue = { live: [], offered: [], comingSoon: [], ok: false };
   try {
     const admin = createAdminClient();
     const [roles, people] = await Promise.all([
-      admin.from('roles').select('slug, name, status, sort').eq('status', 'live').order('sort'),
+      admin.from('roles').select('slug, name, status, sort').in('status', ['live', 'coming_soon']).order('sort'),
       admin.from('person_roles').select('role_slug').eq('status', 'approved').limit(500),
     ]);
     if (roles.error || people.error) {
-      console.error('[roles] getOfferedRoles:', roles.error?.message ?? people.error?.message);
-      return { live: [], offered: [] };
+      console.error('[roles] getRoleCatalogue:', roles.error?.message ?? people.error?.message);
+      return empty;
     }
-    const live = ((roles.data ?? []) as { slug: string; name: string }[]).map((r) => ({ slug: r.slug, name: r.name }));
+    const rows = (roles.data ?? []) as { slug: string; name: string; status: string }[];
+    const pick = (status: string) => rows.filter((r) => r.status === status).map((r) => ({ slug: r.slug, name: r.name }));
+    const live = pick('live');
     const approved = new Set(((people.data ?? []) as { role_slug: string }[]).map((p) => p.role_slug));
-    return { live, offered: live.filter((r) => approved.has(r.slug)) };
+    return { live, offered: live.filter((r) => approved.has(r.slug)), comingSoon: pick('coming_soon'), ok: true };
   } catch (err) {
-    console.error('[roles] getOfferedRoles:', err instanceof Error ? err.message : 'unknown error');
-    return { live: [], offered: [] };
+    console.error('[roles] getRoleCatalogue:', err instanceof Error ? err.message : 'unknown error');
+    return empty;
   }
 }

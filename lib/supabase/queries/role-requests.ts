@@ -1,5 +1,5 @@
 import { createAdminClient } from '@/lib/supabase/server';
-import { arrivalLabel, firstName, requestReference, type RequestFacts, type RequestStatus } from '@/lib/roles';
+import { arrivalLabel, BOOKED_REQUEST_STATUSES, firstName, OPEN_REQUEST_STATUSES, overlappingRequest, requestDays, requestReference, type DatedRequest, type RequestFacts, type RequestStatus } from '@/lib/roles';
 
 /**
  * People requests after they are sent (migration 095): who to tell, what the
@@ -45,10 +45,6 @@ export function requestPersonLabel(roleName: string, area: string | null, code: 
   return code ? `${label} (ref ${code})` : label;
 }
 
-function datesOf(r: Pick<RequestRow, 'requested_dates' | 'requested_date'>): string[] {
-  return Array.isArray(r.requested_dates) && r.requested_dates.length ? r.requested_dates : [r.requested_date];
-}
-
 async function roleNames(slugs: string[]): Promise<Map<string, string>> {
   const out = new Map<string, string>();
   if (!slugs.length) return out;
@@ -70,7 +66,7 @@ function toFacts(r: RequestRow, pr: PersonRoleBits | undefined, roleName: string
     requestId: r.id,
     roleName,
     personLabel: requestPersonLabel(roleName, pr?.area ?? null, pr?.profile_code ?? null),
-    dates: datesOf(r),
+    dates: requestDays(r),
     arrival: arrivalLabel(r.arrival_time),
     durationHours: Number(r.duration_hours),
     area: r.area,
@@ -258,6 +254,55 @@ export async function moveRequest(
     .select('id');
   if (error) throw new Error(error.message);
   return (data ?? []).length > 0;
+}
+
+/**
+ * The client's open request to this person for this first day, if any
+ * (096: at most one). A double submit returns it instead of a second one.
+ */
+export async function findOpenRequest(clientId: string, personRoleId: string, firstDate: string): Promise<string | null> {
+  const { data, error } = await createAdminClient()
+    .from('role_booking_requests')
+    .select('id')
+    .eq('client_id', clientId)
+    .eq('person_role_id', personRoleId)
+    .eq('requested_date', firstDate)
+    .in('status', [...OPEN_REQUEST_STATUSES])
+    .limit(1);
+  if (error) throw new Error(error.message);
+  return ((data ?? [])[0]?.id as string | undefined) ?? null;
+}
+
+/**
+ * Before staff accept: a request for the same person (any of their roles)
+ * that is already accepted or confirmed on one of this request's days.
+ * Reads with the service role; no identity leaves this function, only the
+ * other request's reference and the shared days.
+ */
+export async function findBookedOverlap(requestId: string): Promise<{ reference: string; days: string[] } | null> {
+  const admin = createAdminClient();
+  const { data: target, error } = await admin
+    .from('role_booking_requests')
+    .select('id, person_role_id, requested_date, requested_dates')
+    .eq('id', requestId)
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  if (!target) return null;
+  const { data: pr, error: prError } = await admin.from('person_roles').select('user_id').eq('id', target.person_role_id as string).maybeSingle();
+  if (prError) throw new Error(prError.message);
+  if (!pr) return null;
+  const { data: theirRoles, error: rolesError } = await admin.from('person_roles').select('id').eq('user_id', pr.user_id as string);
+  if (rolesError) throw new Error(rolesError.message);
+  const ids = ((theirRoles ?? []) as { id: string }[]).map((r) => r.id);
+  const { data: booked, error: bookedError } = await admin
+    .from('role_booking_requests')
+    .select('id, requested_date, requested_dates')
+    .in('person_role_id', ids.length ? ids : [target.person_role_id as string])
+    .in('status', [...BOOKED_REQUEST_STATUSES])
+    .neq('id', requestId);
+  if (bookedError) throw new Error(bookedError.message);
+  const hit = overlappingRequest(target as unknown as DatedRequest, (booked ?? []) as unknown as DatedRequest[]);
+  return hit ? { reference: requestReference(hit.id), days: hit.days } : null;
 }
 
 /** The decline note the client sees, when there is one. */
