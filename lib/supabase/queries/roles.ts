@@ -623,3 +623,14 @@ export async function getRoleCatalogue(): Promise<RoleCatalogue> {
     return empty;
   }
 }
+
+/**
+ * Approved People, blind: the role and the area typed on the public card,
+ * nothing else (no user id, name, face or contact). For plan_outline's
+ * "N listed" counts. Throws on a read error.
+ */
+export async function listApprovedRoleAreas(): Promise<{ roleSlug: string; area: string | null }[]> {
+  const { data, error } = await createAdminClient().from('person_roles').select('role_slug, area').eq('status', 'approved').limit(1000);
+  if (error) throw new Error(`people count failed: ${error.message}`);
+  return ((data ?? []) as { role_slug: string; area: string | null }[]).map((r) => ({ roleSlug: r.role_slug, area: r.area }));
+}

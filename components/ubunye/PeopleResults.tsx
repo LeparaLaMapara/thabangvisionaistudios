@@ -27,6 +27,7 @@ interface Match {
   record: string;
   usual_days_note: string | null;
   budget_note: string | null;
+  plan_request_url: string | null;
 }
 
 const UUID = /^[0-9a-f-]{36}$/i;
@@ -42,6 +43,7 @@ function toMatch(raw: unknown): Match | null {
   const request = str(m.request_url);
   if (!request.startsWith(`/people/${id}/request`)) return null;
   const cover = str(m.cover_url);
+  const planLink = str(m.plan_request_url);
   return {
     id,
     role: str(m.role),
@@ -57,6 +59,7 @@ function toMatch(raw: unknown): Match | null {
     record: str(m.record),
     usual_days_note: str(m.usual_days_note) || null,
     budget_note: str(m.budget_note) || null,
+    plan_request_url: planLink.startsWith(`/people/${id}/request?`) && /[?&]plan=[0-9a-f-]{36}(&|$)/i.test(planLink) ? planLink : null,
   };
 }
 
@@ -117,6 +120,11 @@ export function PeopleResults({ output }: { output: unknown }) {
                 <Link href={m.request_url} className={`${button} w-full mt-2 bg-[#D4A843] text-black`}>
                   Request this person
                 </Link>
+                {m.plan_request_url && (
+                  <Link href={m.plan_request_url} className={`${button} w-full border border-[#D4A843]/50 text-[#D4A843]`}>
+                    Add to my plan
+                  </Link>
+                )}
               </div>
             </li>
           ))}

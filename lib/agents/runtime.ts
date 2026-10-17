@@ -22,6 +22,7 @@ import { createBookingTools } from '@/lib/agents/tools/booking';
 import { createDeliveryTools } from '@/lib/agents/tools/delivery';
 import { createPeopleTools } from '@/lib/agents/tools/people';
 import { createPlanTools } from '@/lib/agents/tools/plans';
+import { createOutlineTools } from '@/lib/agents/tools/outline';
 import { recordToolRefs } from '@/lib/agents/tool-refs';
 import { cardsFromSteps } from '@/lib/ubunye/chat-cards';
 import { lastUserText } from '@/lib/agents/last-user-text';
@@ -88,11 +89,31 @@ export const PEOPLE_RETIRED_TOOLS = ['search_creators', 'get_creator_detail', 'c
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function getToolsForAgent(agentId: string, supabase: any, isAuthenticated: boolean, flags: UbunyeFlagsSnapshot, hasPreSelectedCreator = false, conversationId: string | null = null, seenIds: Set<string> = new Set()): Record<string, any> {
   const tools = baseToolsForAgent(agentId, supabase, isAuthenticated, flags, hasPreSelectedCreator, conversationId);
+  const hasTools = Object.keys(tools).length > 0;
+  // plan_outline (People and plans on): read-only and blind, so guests may see an outline too.
+  if (flags.ubunye_projects && flags.roles_v1 && hasTools) {
+    Object.assign(tools, createOutlineTools());
+  }
   // Plans (ubunye_projects): signed-in only, for the agents that have tools.
-  if (flags.ubunye_projects && isAuthenticated && Object.keys(tools).length) {
+  if (flags.ubunye_projects && isAuthenticated && hasTools) {
     Object.assign(tools, createPlanTools({ supabase, conversationId, seenIds }));
+    // People cards offer "Add to my plan" when this chat has an open plan.
+    if (flags.roles_v1 && conversationId && tools.find_people) {
+      Object.assign(tools, createPeopleTools(undefined, openPlanFor(supabase, conversationId)));
+    }
   }
   return tools;
+}
+
+/** The client's open plan from this chat, read when find_people runs (blind: plan and need ids only). */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function openPlanFor(supabase: any, conversationId: string): () => Promise<{ id: string; needs: { itemId: string; roleSlug: string }[] } | null> {
+  return async () => {
+    const user = (await supabase.auth.getUser()).data.user as { id: string } | null;
+    if (!user) return null;
+    const { openPlanForConversation } = await import('@/lib/projects/live');
+    return openPlanForConversation(user.id, conversationId);
+  };
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -498,7 +519,8 @@ export async function executeAgent(
         system: systemPrompt,
         messages: modelMessages,
         tools: toolsEnabled ? tools : undefined,
-        stopWhen: stepCountIs(4),
+        // Plans add one round trip (plan_outline, then find_people and search_gear, then propose_plan).
+        stopWhen: stepCountIs(flags.ubunye_projects ? 5 : 4),
         // Per model step (security LLM-4: output was uncapped).
         maxOutputTokens: STUDIO.security.chat.maxOutputTokens,
         // Awaited inside the stream before it closes, so it is never dropped

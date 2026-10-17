@@ -38,6 +38,8 @@ export interface ApprovalSummary {
   nextStep: string;
   /** Nothing is paid or booked by approving (a plan): the card shows no money. */
   noCharge?: boolean;
+  /** What the card says once a no-charge proposal is done ("Your plan is moved."). */
+  doneMessage?: string;
 }
 
 export interface AgentActionRecord extends StoredAction {

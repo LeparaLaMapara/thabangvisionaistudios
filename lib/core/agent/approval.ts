@@ -12,8 +12,11 @@
  * the action out of `prepared` with a compare-and-set.
  */
 
-/** project_create: a Ubunye plan (migration 097); it costs nothing and books nothing. */
-export const AGENT_ACTION_KINDS = ['gear_booking', 'service_booking', 'project_create'] as const;
+/**
+ * project_create: a Ubunye plan (migration 097); project_update: moving a
+ * plan to a new date (098). Both cost nothing and book nothing.
+ */
+export const AGENT_ACTION_KINDS = ['gear_booking', 'service_booking', 'project_create', 'project_update'] as const;
 export type AgentActionKind = (typeof AGENT_ACTION_KINDS)[number];
 
 export const AGENT_ACTION_STATES = ['prepared', 'committing', 'committed', 'failed', 'cancelled', 'superseded'] as const;

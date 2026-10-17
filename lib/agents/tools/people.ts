@@ -43,6 +43,11 @@ export interface FindPeopleDeps {
   getRoles: () => Promise<Role[]>;
   listProfiles: (roleSlug: string, roles: Role[]) => Promise<ProfileCard[]>;
   now: () => Date;
+  /**
+   * The client's open plan from this chat (plans flag, signed in), so each
+   * card can offer "Add to my plan". Null or absent: no plan link.
+   */
+  openPlan?: () => Promise<{ id: string; needs: { itemId: string; roleSlug: string }[] } | null>;
 }
 
 export interface PersonMatch {
@@ -62,6 +67,8 @@ export interface PersonMatch {
   record: string;
   usual_days_note: string | null;
   budget_note: string | null;
+  /** The request link that also adds the request to the open plan from this chat (?plan=&need=). */
+  plan_request_url?: string;
 }
 
 export interface ShortNotice {
@@ -254,6 +261,19 @@ export async function findPeople(input: FindPeopleInput, deps: FindPeopleDeps): 
     };
   });
 
+  // "Add to my plan": the same request link, carrying the open plan (and the need it fills).
+  if (matches.length && deps.openPlan) {
+    const plan = await deps.openPlan().catch(() => null);
+    if (plan && /^[0-9a-f-]{36}$/i.test(plan.id)) {
+      const need = plan.needs.find((n) => n.roleSlug === role.slug);
+      for (const m of matches) {
+        const q = new URLSearchParams({ plan: plan.id });
+        if (need && /^[0-9a-f-]{36}$/i.test(need.itemId)) q.set('need', need.itemId);
+        m.plan_request_url = `${m.request_url}${m.request_url.includes('?') ? '&' : '?'}${q.toString()}`;
+      }
+    }
+  }
+
   const status = matches.length ? 'found' : cards.length ? 'none_in_area' : 'nobody_listed';
   const say =
     status === 'found'
@@ -289,7 +309,7 @@ async function defaultDeps(): Promise<FindPeopleDeps> {
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function createPeopleTools(deps?: FindPeopleDeps): Record<string, any> {
+export function createPeopleTools(deps?: FindPeopleDeps, openPlan?: FindPeopleDeps['openPlan']): Record<string, any> {
   return {
     find_people: {
       description:
@@ -311,7 +331,8 @@ export function createPeopleTools(deps?: FindPeopleDeps): Record<string, any> {
       }),
       execute: async (input: FindPeopleInput) => {
         try {
-          return await findPeople(input, deps ?? (await defaultDeps()));
+          const d = deps ?? (await defaultDeps());
+          return await findPeople(input, openPlan && !d.openPlan ? { ...d, openPlan } : d);
         } catch (err) {
           console.error('[find_people] failed:', err instanceof Error ? err.message : 'unknown error');
           return { kind: 'people_unavailable', status: 'error', message: 'People search is not available just now. They are all listed on /people.', browse_url: '/people' };

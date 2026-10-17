@@ -33,6 +33,9 @@ function blindMatch(raw: unknown): Record<string, unknown> | null {
   const request = ownPath(m.request_url);
   if (!request || !request.startsWith(`/people/${id}/request`)) return null;
   const cover = str(m.cover_url, 600);
+  // "Add to my plan": our own request link for this person, with a plan id.
+  const planLink = ownPath(m.plan_request_url);
+  const planRequest = planLink && planLink.startsWith(`/people/${id}/request?`) && /[?&]plan=[0-9a-f-]{36}(&|$)/i.test(planLink) ? planLink : null;
   return {
     id,
     role: str(m.role, 80),
@@ -50,6 +53,7 @@ function blindMatch(raw: unknown): Record<string, unknown> | null {
     record: str(m.record, 80),
     usual_days_note: str(m.usual_days_note, 300) || null,
     budget_note: str(m.budget_note, 200) || null,
+    ...(planRequest ? { plan_request_url: planRequest } : {}),
   };
 }
 

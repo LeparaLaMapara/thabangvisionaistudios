@@ -1,14 +1,14 @@
 import { createAdminClient } from '@/lib/supabase/server';
-import { PLAN_POLICY } from '@/lib/constants';
-import { resolveDate } from '@/lib/dates/johannesburg';
+import { PLAN_POLICY, SHOOT_PLAN_POLICY } from '@/lib/constants';
+import { formatSaDay, resolveDate, saToday } from '@/lib/dates/johannesburg';
 import { logEvent } from '@/lib/data/events';
 import { getRoles } from '@/lib/supabase/queries/roles';
 import { resolveRole } from '@/lib/agents/tools/people';
 import { planNeeded } from '@/lib/core/projects/plan';
-import { checkRefs, createProject, PLANS_OFF, validatePayload } from '@/lib/core/projects/use-cases';
+import { checkMove, checkRefs, createProject, movePlanDate, PLANS_OFF, validatePayload } from '@/lib/core/projects/use-cases';
 import type { PlanLookups, PlanRole } from '@/lib/core/projects/propose';
 import type { Role } from '@/lib/roles';
-import { SupabaseProjectStore } from './store';
+import { SupabasePlanMoveStore, SupabaseProjectStore } from './store';
 import { describeRef } from './live';
 
 /**
@@ -50,9 +50,9 @@ export function planLookups(p: { conversationId: string | null }): PlanLookups {
       return data ? { id: data.id as string, roleSlug: data.role_slug as string } : null;
     },
     rental: async (id) => {
-      const { data, error } = await admin.from('smart_rentals').select('id, title').eq('id', id).eq('is_published', true).is('deleted_at', null).maybeSingle();
+      const { data, error } = await admin.from('smart_rentals').select('id, title, category').eq('id', id).eq('is_published', true).is('deleted_at', null).maybeSingle();
       if (error) throw new Error(error.message);
-      return data ? { id: data.id as string, title: data.title as string } : null;
+      return data ? { id: data.id as string, title: data.title as string, category: data.category as string } : null;
     },
     describeRef: (clientId, kind, id) => describeRef(clientId, kind, id, admin),
     priorIds: () => priorToolIds(p.conversationId),
@@ -84,4 +84,30 @@ export async function planExecute(userId: string, payload: Record<string, unknow
   if (!out.ok) return { ok: false, message: out.message };
   logEvent({ eventType: 'plan_created', eventCategory: 'booking', userId, metadata: { project_id: out.projectId, source: 'ubunye_approved' } });
   return { ok: true, result: { project_id: out.projectId, next: `/dashboard/plans/${out.projectId}`, message: 'Your plan is saved. Each part shows where it stands.' } };
+}
+
+// ── Moving a plan (kind project_update, 098) ────────────────────────────────
+
+const moveInput = (userId: string, payload: Record<string, unknown>) => ({
+  clientId: userId,
+  projectId: payload.project_id,
+  date: payload.date,
+  dateEnd: payload.date_end ?? null,
+  today: saToday(new Date()),
+  maxDays: SHOOT_PLAN_POLICY.maxMoveDays,
+  label: formatSaDay,
+});
+
+/** The commit's requote for a plan move: it costs nothing, but every check runs again first. */
+export async function planMoveRequote(userId: string, payload: Record<string, unknown>): Promise<{ ok: true; amountCents: number } | { ok: false; message: string }> {
+  const out = await checkMove(new SupabasePlanMoveStore(), moveInput(userId, payload));
+  return out.ok ? { ok: true, amountCents: 0 } : { ok: false, message: out.message };
+}
+
+/** The commit's execute for a plan move: the plan date and its needs' do by dates, nothing else. */
+export async function planMoveExecute(userId: string, payload: Record<string, unknown>): Promise<{ ok: true; result: Record<string, unknown> } | { ok: false; message: string }> {
+  const out = await movePlanDate(new SupabasePlanMoveStore(), moveInput(userId, payload));
+  if (!out.ok) return { ok: false, message: out.message };
+  logEvent({ eventType: 'plan_moved', eventCategory: 'booking', userId, metadata: { project_id: out.projectId, date: out.date, source: 'ubunye_approved' } });
+  return { ok: true, result: { project_id: out.projectId, next: `/dashboard/plans/${out.projectId}`, message: `Your plan is moved to ${formatSaDay(out.date)}. Bookings and requests are not changed.` } };
 }

@@ -36,11 +36,23 @@ export interface PlanNeed {
   /** A blind profile id find_people returned (person_roles.id), never a user id. */
   person_role_id?: string;
   rental_id?: string;
+  /** For gear: the rental category (RENTAL_CATEGORIES slug), so the timeline knows its step. */
+  category?: string;
+}
+
+/**
+ * Where a part sits on the plan's timeline (098): the "do by" day for a part
+ * not booked yet, the step in plain words, and the order. Planning data only.
+ */
+export interface PartTimeline {
+  due_date?: string | null;
+  step?: string | null;
+  position?: number | null;
 }
 
 export type PlanPart =
-  | { kind: ProjectRefKind; ref_id: string; label: string }
-  | { kind: 'need'; need: PlanNeed };
+  | ({ kind: ProjectRefKind; ref_id: string; label: string } & PartTimeline)
+  | ({ kind: 'need'; need: PlanNeed } & PartTimeline);
 
 /** What the client said, nothing more. */
 export interface PlanBrief {
@@ -50,6 +62,8 @@ export interface PlanBrief {
   date_label: string | null;
   date_end: string | null;
   budget_cents: number | null;
+  /** The shoot type slug (lib/ubunye/shoot-types.ts), so the plan page can show the timeline. */
+  shoot_type?: string | null;
 }
 
 /** The stored proposal payload (agent_actions.payload for kind project_create). */
@@ -85,7 +99,7 @@ export function rands(cents: number): string {
 }
 
 /** The brief, size-capped so it always fits projects.brief (097). */
-export function makeBrief(p: { outcome: unknown; place?: unknown; date?: { iso: string; label: string } | null; dateEnd?: string | null; budget?: unknown }): PlanBrief {
+export function makeBrief(p: { outcome: unknown; place?: unknown; date?: { iso: string; label: string } | null; dateEnd?: string | null; budget?: unknown; shootType?: string | null }): PlanBrief {
   const brief: PlanBrief = {
     outcome: cleanLine(p.outcome, PLAN_POLICY.maxOutcomeChars),
     place: cleanLine(p.place, PLAN_POLICY.maxPlaceChars) || null,
@@ -93,6 +107,7 @@ export function makeBrief(p: { outcome: unknown; place?: unknown; date?: { iso: 
     date_label: p.date?.label ?? null,
     date_end: p.dateEnd && isIsoDate(p.dateEnd) && p.date && p.dateEnd >= p.date.iso ? p.dateEnd : null,
     budget_cents: budgetCents(p.budget),
+    ...(p.shootType && /^[a-z0-9-]{2,40}$/.test(p.shootType) ? { shoot_type: p.shootType } : {}),
   };
   // Multi-byte text could pass the character caps and still be too big.
   while (new TextEncoder().encode(JSON.stringify(brief)).length > PLAN_POLICY.maxBriefBytes - 64 && brief.outcome.length > 20) {
@@ -177,12 +192,17 @@ export interface PartView {
   /** For the dot next to it. */
   tone: 'done' | 'waiting' | 'todo' | 'blocked';
   next: NextAction | null;
+  /** "Do by Saturday 31 October 2026", only for a part still to do (098). */
+  due?: { iso: string; words: string; late: boolean } | null;
+  /** The step in plain words, e.g. "Send requests for make-up". */
+  step?: string | null;
+  position?: number | null;
 }
 
 /** What the server read live for one item. Blind: no names, user ids or contacts. */
 export type LivePart =
   | { kind: 'people_request'; itemId: string; found: false }
-  | { kind: 'people_request'; itemId: string; found: true; requestId: string; roleName: string; roleSlug: string | null; status: string; dates: string[]; totalCents: number | null }
+  | { kind: 'people_request'; itemId: string; found: true; requestId: string; roleName: string; roleSlug: string | null; status: string; dates: string[]; totalCents: number | null; personRoleId?: string }
   | { kind: 'gear_order'; itemId: string; found: false }
   | { kind: 'gear_order'; itemId: string; found: true; titles: string[]; statuses: string[]; startDate: string | null; endDate: string | null; amountCents: number | null; firstBookingId: string | null }
   | { kind: 'service_booking'; itemId: string; found: false }
@@ -248,7 +268,42 @@ function datesLabel(dates: readonly string[]): string {
   return valid.length === 1 ? formatSaDay(valid[0]) : `${formatSaDay(valid[0])} to ${formatSaDay(valid[valid.length - 1])}`;
 }
 
-export function partView(p: LivePart, projectId: string, brief: Partial<PlanBrief> | null = null): PartView {
+/** The "do by" words for a part still to do. Null when there is no due date or nothing to do. */
+export function dueWords(dueIso: string | null | undefined, today: string): { iso: string; words: string; late: boolean } | null {
+  if (!dueIso || !isIsoDate(dueIso)) return null;
+  if (dueIso < today) return { iso: dueIso, words: `Do this now (it was due by ${formatSaDay(dueIso)})`, late: true };
+  if (dueIso === today) return { iso: dueIso, words: 'Do this today', late: false };
+  return { iso: dueIso, words: `Do by ${formatSaDay(dueIso)}`, late: false };
+}
+
+/** Parts in plan order: position, then the "do by" day, then as stored. Pure. */
+export function orderParts<T extends { position?: number | null; due?: { iso: string } | null }>(views: readonly T[]): T[] {
+  return views
+    .map((v, i) => ({ v, i }))
+    .sort((a, b) => {
+      const pa = a.v.position ?? 1000;
+      const pb = b.v.position ?? 1000;
+      if (pa !== pb) return pa - pb;
+      const da = a.v.due?.iso ?? '9999-12-31';
+      const db = b.v.due?.iso ?? '9999-12-31';
+      return da < db ? -1 : da > db ? 1 : a.i - b.i;
+    })
+    .map((x) => x.v);
+}
+
+export function partView(p: LivePart, projectId: string, brief: Partial<PlanBrief> | null = null, opts: { timeline?: PartTimeline; today?: string } = {}): PartView {
+  const view = partViewBase(p, projectId, brief);
+  const t = opts.timeline;
+  if (!t) return view;
+  return {
+    ...view,
+    step: t.step ?? null,
+    position: typeof t.position === 'number' ? t.position : null,
+    due: view.tone === 'todo' && opts.today ? dueWords(t.due_date ?? null, opts.today) : null,
+  };
+}
+
+function partViewBase(p: LivePart, projectId: string, brief: Partial<PlanBrief> | null): PartView {
   const base = { itemId: p.itemId, kind: p.kind };
   if (p.kind !== 'need' && !p.found) return { ...base, ...NOT_FOUND };
   switch (p.kind) {

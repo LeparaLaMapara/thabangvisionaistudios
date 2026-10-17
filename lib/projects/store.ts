@@ -1,6 +1,6 @@
 import { createAdminClient } from '@/lib/supabase/server';
 import { getFlag } from '@/lib/features';
-import type { ProjectStore } from '@/lib/core/projects/use-cases';
+import type { PlanMoveStore, ProjectStore } from '@/lib/core/projects/use-cases';
 import type { PlanNeed, PlanPart, ProjectRefKind } from '@/lib/core/projects/plan';
 
 /**
@@ -33,7 +33,13 @@ export class SupabaseProjectStore implements ProjectStore {
   }
 
   async create(p: { clientId: string; title: string; brief: object; conversationId: string | null; parts: PlanPart[] }): Promise<string> {
-    const items = p.parts.map((part) => (part.kind === 'need' ? { kind: 'need', need: part.need } : { kind: part.kind, ref_id: part.ref_id }));
+    // The timeline (098) rides along; project_create ignores what it cannot read.
+    const timeline = (part: PlanPart) => ({
+      ...(part.due_date ? { due_date: part.due_date } : {}),
+      ...(part.step ? { step: part.step } : {}),
+      ...(typeof part.position === 'number' ? { position: part.position } : {}),
+    });
+    const items = p.parts.map((part) => (part.kind === 'need' ? { kind: 'need', need: part.need, ...timeline(part) } : { kind: part.kind, ref_id: part.ref_id, ...timeline(part) }));
     const { data, error } = await this.db.rpc('project_create', {
       p_client: p.clientId,
       p_title: p.title,
@@ -81,5 +87,35 @@ export class SupabaseProjectStore implements ProjectStore {
       .select('id');
     if (error) throw new Error(`plan close failed: ${error.message}`);
     return (data ?? []).length === 1;
+  }
+}
+
+/** Supabase adapter for moving a plan (098, project_move_date). Service role; the function checks ownership again. */
+export class SupabasePlanMoveStore implements PlanMoveStore {
+  constructor(private db: Admin = createAdminClient()) {}
+
+  async flagOn(): Promise<boolean> {
+    return getFlag('ubunye_projects');
+  }
+
+  async planDate(p: { projectId: string; clientId: string }): Promise<{ date: string | null; open: boolean } | null> {
+    const { data, error } = await this.db.from('projects').select('brief, status').eq('id', p.projectId).eq('client_id', p.clientId).maybeSingle();
+    if (error) throw new Error(`plan lookup failed: ${error.message}`);
+    if (!data) return null;
+    const brief = (data.brief ?? {}) as { date?: unknown };
+    return { date: typeof brief.date === 'string' ? brief.date : null, open: data.status === 'open' };
+  }
+
+  async moveDate(p: { projectId: string; clientId: string; date: string; dateEnd: string | null; label: string; shiftDays: number }): Promise<boolean> {
+    const { data, error } = await this.db.rpc('project_move_date', {
+      p_project: p.projectId,
+      p_client: p.clientId,
+      p_date: p.date,
+      p_date_end: p.dateEnd,
+      p_label: p.label,
+      p_shift_days: p.shiftDays,
+    });
+    if (error) throw new Error(`plan move failed: ${error.message}`);
+    return data === true;
   }
 }

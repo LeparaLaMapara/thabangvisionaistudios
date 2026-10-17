@@ -83,7 +83,7 @@ export default async function DashboardLayout({
       </div>
 
       {/* Mobile bottom tab bar */}
-      <DashboardTabBar isCreator={isCreator} people={people} />
+      <DashboardTabBar isCreator={isCreator} people={people} plans={plans} />
     </div>
   );
 }

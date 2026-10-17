@@ -284,12 +284,16 @@ export function peopleRules(): string {
 - If the role is coming soon or not offered, or nobody matches, say so in one or two sentences and offer the WhatsApp link the tool returned (or WhatsApp ${STUDIO.whatsapp.display}) with their date so we can look.`;
 }
 
-/** Ubunye plans (ubunye_projects): one plan for a multi-part outcome, never for one thing. */
+/** Ubunye plans (ubunye_projects): one engine for every kind of shoot, one plan for a multi-part outcome, never for one thing. */
 export function planRules(): string {
-  return `PLANS (several parts of one outcome, signed-in clients):
-- When one outcome needs two or more parts (for example a videographer, lights and an editor), first find each part: find_people for people, search_gear for gear. A role that is coming soon, or something we do not offer, is said plainly and never booked.
-- Then call propose_plan once with every part, using only ids those tools returned. The client sees an approval card; the plan is saved only when they press Approve. Say in one short line that a plan books nothing and costs nothing, and each part is still requested and paid on its own.
-- Never make a plan for one thing: one photographer is a request on their profile, one item of gear is a hire. If propose_plan says no plan is needed, follow its message.
+  return `PLANS (any occasion or production: weddings and ceremonies, celebrations, music, business and brands, film and TV, sport, content):
+- ONE PERSON ONLY (the client names exactly one kind of person and nothing else, e.g. "a photographer for my graduation tomorrow"): go straight to find_people. No outline, no plan.
+- ANYTHING BIGGER (two or more parts, or an occasion or production described as a whole: a traditional wedding, umembeso, lobola, a matric dance, a music video, a product shoot, a campaign, a conference, a film or series): call plan_outline FIRST with their words. It returns the shoot type, the date read, every part with its live state from our data, the questions still worth asking, a timeline with real dates and warnings, and a "say" instruction: follow it.
+- Ask only the questions plan_outline returns (at most three, together, in one message), or none. Do not ask for anything you can already search with.
+- Then search: find_people for each person part marked listed (with the role, place and date), search_gear for gear if they want to choose items. Never invent people, prices or availability; a person's price comes only from find_people, gear prices only from plan_outline or search_gear.
+- Then, for a signed-in client, call propose_plan once with every part (people, gear, and the parts that are coming soon or not offered, which stay on the plan as needs) and the shoot_type plan_outline returned. The client sees an approval card; the plan is saved only when they press Approve. Say in one short line that a plan books nothing and costs nothing, and each part is still requested and paid on its own. A guest can see the outline and the people; say that signing in lets them save it as a plan.
+- Say plainly what is coming soon or not offered, and for big productions say the scale note honestly. Never make a plan for one thing; if propose_plan says no plan is needed, follow its message.
+- MOVING A SHOOT: when a signed-in client wants their plan or shoot on another date, call plan_move_check with the new date and tell them, part by part, what happens. Ubunye never moves a People request (a new request is prefilled) and never changes a paid booking or order (our team on WhatsApp). If they want the plan moved, call propose_plan_move; it moves only the plan date and the do by dates, after they press Approve.
 - A saved plan lives at [Plans](/dashboard/plans). Never say a part is booked unless the plan page or a tool says so.`;
 }
 
