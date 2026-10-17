@@ -101,14 +101,15 @@ export function createSearchTools(
         type: 'object' as const,
         properties: {
           category: { type: 'string', enum: [...RENTAL_CATEGORY_VALUES], description: GEAR_CATEGORY_HELP },
-          location: { type: 'string', description: 'City or area' },
           start_date: { type: 'string', description: `The first hire day, YYYY-MM-DD or the customer's words ("tomorrow", "Friday"), to check the ${STUDIO.rental.minLeadTimeHours}-hour notice.` },
           max_price_per_day: { type: 'number', description: 'Maximum daily rental price in ZAR' },
           search_term: { type: 'string', description: 'Search term to match against title, brand, or model' },
         },
       }),
-      execute: async ({ category, location, max_price_per_day, search_term, start_date }: {
-        category?: string; location?: string; max_price_per_day?: number; search_term?: string; start_date?: string;
+      // No place filter: gear has no location column (it is collected or
+      // delivered across Gauteng), so a "location" from the model is ignored.
+      execute: async ({ category, max_price_per_day, search_term, start_date }: {
+        category?: string; max_price_per_day?: number; search_term?: string; start_date?: string;
       }) => {
         const notice = gearNotice(start_date, new Date(), category === 'studios' ? 'the studio' : 'gear');
         let query = supabase
@@ -123,7 +124,6 @@ export function createSearchTools(
         if (max_price_per_day) query = query.lte('price_per_day', max_price_per_day);
         const gearPattern = filterIlikePattern(search_term);
         if (gearPattern) query = query.or(`title.ilike.${gearPattern},brand.ilike.${gearPattern},model.ilike.${gearPattern}`);
-        if (location) query = query.ilike('location', `%${escapeIlike(location)}%`);
 
         const { data, error } = await query;
         if (error) return { error: 'Search is unavailable just now.' };
