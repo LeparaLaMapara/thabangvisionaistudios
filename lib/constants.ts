@@ -1892,6 +1892,10 @@ export const PLAN_POLICY = {
   maxToolRefIds: 200,
   /** How many earlier assistant messages are read for ids tools returned. */
   priorMessagesForIds: 40,
+  /** "Ask everyone" (approval kind people_requests): most People requests one approval sends. */
+  maxAskAtOnce: 6,
+  /** The request form's own starting values (components/roles/RequestForm.tsx), used when the client gave none. */
+  askDefaults: { arrival: '08:00', hoursByDay: 8, hoursByHour: 4 },
 } as const;
 
 /**

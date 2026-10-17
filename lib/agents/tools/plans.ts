@@ -2,6 +2,7 @@ import { jsonSchema } from 'ai';
 import { PLAN_POLICY, SHOOT_PLAN_POLICY } from '@/lib/constants';
 import { prepareAction, type AgentDeps } from '@/lib/core/agent/use-cases';
 import { buildPlanProposal, type PlanLookups, type ProposePlanInput } from '@/lib/core/projects/propose';
+import { buildRequestsProposal, type AskLookups, type ProposeRequestsInput } from '@/lib/core/projects/requests';
 import { checkMove, type PlanMoveStore } from '@/lib/core/projects/use-cases';
 import { formatSaDay, isIsoDate, resolveDate, saToday } from '@/lib/dates/johannesburg';
 import { SHOOT_TYPES } from '@/lib/ubunye/shoot-types';
@@ -19,6 +20,10 @@ import type { MoveCheck } from '@/lib/projects/move';
  *
  * my_plan_parts lists the client's own open People requests and gear orders
  * that are in no plan yet, blind, so a plan can point at them.
+ *
+ * propose_requests PREPARES "Ask everyone" (kind people_requests): one card,
+ * one tap, and the commit sends each request through the same rules as the
+ * request form (lib/core/projects/requests.ts, lib/roles/request-send.ts).
  */
 
 export interface PlanToolDeps {
@@ -31,6 +36,8 @@ export interface PlanToolDeps {
   moveStore?: () => PlanMoveStore;
   /** The plan meant when none is named: the open plan from this chat, else the newest open plan. */
   defaultPlan?: (userId: string, conversationId: string | null) => Promise<{ id: string; title: string } | null>;
+  /** "Ask everyone" (people_requests). Optional so older fakes still fit; the server always supplies it. */
+  askLookups?: (conversationId: string | null) => AskLookups;
   now?: () => Date;
 }
 
@@ -51,17 +58,31 @@ export function planForModel(id: string, title: string, details: string[] | unde
     parts: details ?? [],
     cost: 'Nothing. A plan books nothing and costs nothing.',
     expires_at: expiresAt,
-    message: 'Shown to the client on an approval card. The plan is saved only when they press Approve there; you cannot approve it for them. Each part is still requested, booked and paid on its own.',
+    message: 'Shown to the client on an approval card. The plan is saved only when they press Approve there; you cannot approve it for them. Each part is still requested, booked and paid on its own. If they want everyone asked now, call propose_requests with the people find_people returned (one per role, the first match unless they chose another).',
+  };
+}
+
+/** What the model sees after propose_requests: the card is shown; nothing is sent until the client presses the button. */
+export function requestsForModel(id: string, title: string, details: string[] | undefined, expiresAt: string): Record<string, unknown> {
+  return {
+    approval_required: true,
+    proposal_id: id,
+    title,
+    requests: details ?? [],
+    cost: 'Nothing. Asking books nothing and costs nothing; they pay only once someone says yes.',
+    expires_at: expiresAt,
+    message: 'Shown to the client on an approval card. Nobody is asked until they press the button there; you cannot press it for them. Never say anyone said yes or is booked: each person answers on their own, and the plan shows each answer.',
   };
 }
 
 async function defaultDeps(supabase: { auth: { getUser: () => Promise<{ data: { user: { id: string } | null } }> } }): Promise<PlanToolDeps> {
-  const [{ agentDeps }, { planLookups }, live, { planMoveCheck }, { SupabasePlanMoveStore }] = await Promise.all([
+  const [{ agentDeps }, { planLookups }, live, { planMoveCheck }, { SupabasePlanMoveStore }, { askLookups }] = await Promise.all([
     import('@/lib/agent/deps'),
     import('@/lib/projects/agent'),
     import('@/lib/projects/live'),
     import('@/lib/projects/move'),
     import('@/lib/projects/store'),
+    import('@/lib/projects/requests'),
   ]);
   return {
     getUser: async () => (await supabase.auth.getUser()).data.user,
@@ -76,6 +97,7 @@ async function defaultDeps(supabase: { auth: { getUser: () => Promise<{ data: { 
       const pick = (fromChat && open.find((x) => x.id === fromChat.id)) || open[0];
       return pick ? { id: pick.id, title: pick.title } : null;
     },
+    askLookups: (conversationId) => askLookups({ conversationId }),
     now: () => new Date(),
   };
 }
@@ -242,6 +264,54 @@ export function createPlanTools(p: { supabase: any; conversationId: string | nul
           };
         } catch {
           return { error: 'Could not prepare the move just now. Try again in a moment.' };
+        }
+      },
+    },
+    propose_requests: {
+      description:
+        'ASK EVERYONE: prepare People requests for the client to send with one tap on an approval card. Call it after find_people when the client wants the people asked ("ask everyone", "ask them", "book them", "send the requests"). ' +
+        'Pick one person per role: the FIRST match find_people returned for that role (the best match), unless the client chose another card. Use only ids find_people returned in this chat. ' +
+        'Give the day, the place and a short brief in their words; it goes to the plan from this chat automatically. Nothing is sent until they press the button; asking costs nothing, and each person answers on their own. Never say anyone said yes.',
+      inputSchema: jsonSchema({
+        type: 'object' as const,
+        properties: {
+          date: { type: 'string', description: 'The shoot day (first day), YYYY-MM-DD or their words.' },
+          date_end: { type: 'string', description: 'The last day, if it runs over several days.' },
+          place: { type: 'string', description: 'Where, in their words (the area), e.g. "Soweto".' },
+          brief: { type: 'string', description: 'A short line from their words, e.g. "Graduation photos for my daughter".' },
+          arrival: { type: 'string', description: 'Arrival time HH:MM, only if they said one.' },
+          hours: { type: 'number', description: 'How many hours, only if they said.' },
+          project_id: { type: 'string', description: 'The plan id, only if you know it. Leave out to use the plan from this chat.' },
+          requests: {
+            type: 'array',
+            maxItems: PLAN_POLICY.maxAskAtOnce,
+            description: 'One entry per person to ask.',
+            items: {
+              type: 'object',
+              properties: {
+                person_role_id: { type: 'string', description: 'A card id find_people returned (match id).' },
+                role_slug: { type: 'string', description: 'The role find_people searched (role.slug).' },
+                need_item_id: { type: 'string', description: 'The plan need it fills, if known.' },
+              },
+              required: ['person_role_id'],
+            },
+          },
+        },
+        required: ['date', 'place', 'requests'],
+      }),
+      execute: async (input: ProposeRequestsInput) => {
+        const d = await deps();
+        const user = await d.getUser().catch(() => null);
+        if (!user) return { error: 'The client must sign in first (/login), then I can ask the people for them.' };
+        const agent = d.agentDeps();
+        if (!agent || !d.askLookups) return { error: 'Asking people from the chat is not available right now.' };
+        try {
+          const built = await buildRequestsProposal(input, { clientId: user.id, seenIds: p.seenIds }, d.askLookups(p.conversationId));
+          if (!built.ok) return { not_sent: true, code: built.code, message: built.message };
+          const prepared = await prepareAction(agent, { userId: user.id, conversationId: p.conversationId, kind: 'people_requests', payload: { ...built.payload }, summary: built.summary });
+          return requestsForModel(prepared.actionId, prepared.summary.title, prepared.summary.details, prepared.expiresAt);
+        } catch {
+          return { error: 'Could not prepare the requests just now. Try again in a moment.' };
         }
       },
     },

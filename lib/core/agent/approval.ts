@@ -15,8 +15,10 @@
 /**
  * project_create: a Ubunye plan (migration 097); project_update: moving a
  * plan to a new date (098). Both cost nothing and book nothing.
+ * people_requests: "Ask everyone", sending People requests (099). It costs
+ * nothing: a request is not a booking and nothing is paid by approving.
  */
-export const AGENT_ACTION_KINDS = ['gear_booking', 'service_booking', 'project_create', 'project_update'] as const;
+export const AGENT_ACTION_KINDS = ['gear_booking', 'service_booking', 'project_create', 'project_update', 'people_requests'] as const;
 export type AgentActionKind = (typeof AGENT_ACTION_KINDS)[number];
 
 export const AGENT_ACTION_STATES = ['prepared', 'committing', 'committed', 'failed', 'cancelled', 'superseded'] as const;
