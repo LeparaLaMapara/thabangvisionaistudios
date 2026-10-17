@@ -18,10 +18,15 @@ export interface PersonCardData {
   comesWith?: string | null;
 }
 
-export function PersonCardBody({ card }: { card: PersonCardData }) {
+/**
+ * `compact` (the chat's swipe row): a wider, shorter photo, and with no photo
+ * a short plain tile with the role, so an empty card is not a tall grey box.
+ */
+export function PersonCardBody({ card, compact = false }: { card: PersonCardData; compact?: boolean }) {
+  const media = compact ? (card.cover ? 'aspect-[16/10]' : 'h-16') : 'aspect-[4/3]';
   return (
     <>
-      <div className="aspect-[4/3] bg-neutral-900 overflow-hidden flex items-center justify-center">
+      <div className={`${media} bg-neutral-900 overflow-hidden flex items-center justify-center`}>
         {card.cover ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img src={card.cover} alt="" className="w-full h-full object-cover" loading="lazy" />

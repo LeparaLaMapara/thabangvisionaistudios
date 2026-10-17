@@ -6,7 +6,8 @@ import { PersonCardBody } from '@/components/roles/PersonCard';
 
 /**
  * find_people results in the chat (lib/agents/tools/people.ts): the same
- * blind cards as /people, each with "Request this person" (the request form,
+ * blind cards as /people, in one row the client swipes through, each with
+ * "Request this person" (the request form,
  * prefilled), the honest availability line and, at short notice, WhatsApp.
  * The output is the server tool's, never model text; it is still checked
  * here so only our own paths and our WhatsApp link become links.
@@ -31,6 +32,7 @@ interface Match {
 }
 
 const UUID = /^[0-9a-f-]{36}$/i;
+const DEMO_SAMPLES = '/roles/demo/';
 const str = (v: unknown): string => (typeof v === 'string' ? v : '');
 const isWhatsapp = (v: unknown): v is string => typeof v === 'string' && v.startsWith('https://wa.me/');
 const isOwnPath = (v: unknown): v is string => typeof v === 'string' && v.startsWith('/') && !v.startsWith('//');
@@ -54,7 +56,9 @@ function toMatch(raw: unknown): Match | null {
     price: str(m.price),
     total: str(m.total),
     total_label: str(m.total_label),
-    cover_url: cover && (cover.startsWith('https://') || isOwnPath(cover)) ? cover : null,
+    // A demo sample picture (public/roles/demo, it says SAMPLE) is not a real
+    // photo of their work: the card shows the plain role tile instead.
+    cover_url: cover && !cover.startsWith(DEMO_SAMPLES) && (cover.startsWith('https://') || isOwnPath(cover)) ? cover : null,
     verified: m.verified === true,
     record: str(m.record),
     usual_days_note: str(m.usual_days_note) || null,
@@ -97,17 +101,19 @@ export function PeopleResults({ output }: { output: unknown }) {
   const browse = isOwnPath(o.browse_url) ? o.browse_url : '/people';
 
   return (
-    <section aria-label="People who match" className="pt-2 space-y-3">
+    <section aria-label="People who match" className="pt-3 space-y-3">
       {matches.length > 0 && (
-        <ul className="grid gap-3 sm:grid-cols-2">
+        // One row the client swipes through, not a tall stack under the reply.
+        <ul className="flex gap-3 overflow-x-auto snap-x snap-mandatory pb-2 scrollbar-thin scrollbar-thumb-neutral-800 scrollbar-track-transparent">
           {matches.map((m) => (
-            <li key={m.id} className="border border-white/10 bg-black/30">
+            <li key={m.id} className="snap-start shrink-0 w-[78%] max-w-[300px] sm:w-[260px] rounded-2xl overflow-hidden border border-white/10 bg-[#0b0b0b] flex flex-col">
               <Link href={m.profile_url} className="block hover:opacity-90">
                 <PersonCardBody
+                  compact
                   card={{ label: m.area ? `${m.role} in ${m.area}` : m.role, roleName: m.role, cover: m.cover_url, verified: m.verified, record: m.record, priceText: m.price }}
                 />
               </Link>
-              <div className="px-4 pb-4 space-y-1 text-xs text-neutral-400">
+              <div className="px-4 pb-4 space-y-1 text-xs text-neutral-400 mt-auto">
                 {m.area_fit && <p>{m.area_fit}</p>}
                 {m.total && (
                   <p className="text-neutral-200">

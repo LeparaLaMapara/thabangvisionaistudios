@@ -3,16 +3,17 @@ import UbunyeStudioClient from './UbunyeStudioClient';
 import { getFlag } from '@/lib/features';
 
 /**
- * Ask Ubunye: just the box and a few example questions (clarity audit C12).
- * The featured gear and people strips, and their counts, are gone, so the
- * page no longer loads the studio context. It reads only the People switch,
- * so the error fallback links to /people (not /book) when People is on.
+ * Ask Ubunye: one question ("What are you planning?"), four occasions and
+ * the box. It reads the People switch (the error fallback links to /people,
+ * not /book), the plans switch, and whether photos are on.
  */
 export default async function UbunyeAIStudioPage() {
   const [people, plans] = await Promise.all([getFlag('roles_v1'), getFlag('ubunye_projects')]);
+  // Photos ride on ubunye_projects until the owner gives them their own switch.
+  const photosEnabled = plans;
   return (
     <Suspense>
-      <UbunyeStudioClient people={people} plans={plans} />
+      <UbunyeStudioClient people={people} plans={plans} photos={photosEnabled} />
     </Suspense>
   );
 }

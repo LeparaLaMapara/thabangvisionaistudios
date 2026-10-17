@@ -1611,24 +1611,35 @@ export const UBUNYE_QUICK_ACTIONS: readonly QuickAction[] = [
   },
 ] as const;
 
-// The Ask Ubunye page's example questions under the box (clarity audit C12:
-// just the box and two or three examples). Questions the catalogue answers.
-export const UBUNYE_LANDING_QUESTIONS: readonly string[] = [
-  'What camera can I rent for a weekend, and what does it cost?',
-  'Which lens should I rent for portraits?',
-  'What do I need before I can rent gear?',
+// The Ask Ubunye page asks one question ("What are you planning?") and offers
+// four occasions under it. Tapping one puts the starter sentence in the box
+// (it is not sent), so the client finishes it in their own words.
+export interface UbunyeOccasion {
+  id: 'wedding' | 'music-video' | 'business' | 'film';
+  label: string;
+  starter: string;
+}
+
+export const UBUNYE_OCCASIONS: readonly UbunyeOccasion[] = [
+  { id: 'wedding', label: 'A wedding', starter: 'I am planning a wedding on ' },
+  { id: 'music-video', label: 'A music video', starter: 'I am planning a music video shoot on ' },
+  { id: 'business', label: 'A shoot for my business', starter: 'I need a shoot for my business. It is ' },
+  { id: 'film', label: 'A film or series', starter: 'I am making a film or series. We start on ' },
 ] as const;
 
-export const UBUNYE_EXAMPLE_PROMPTS: readonly string[] = [
-  'Build a podcast setup for 3 people.',
-  'Which lens should I rent for portraits?',
-  'Compare Sony cameras for documentary filmmaking.',
-  'Create a wedding production package.',
-  `What gear do I need for a rooftop shoot in ${STUDIO.location.city}?`,
-  `Plan a 2-day music video shoot for R50,000.`,
-  'Find an editor for a 5-minute corporate promo.',
-  'What lighting setup works best for product photography?',
-] as const;
+// Photos in the Ubunye chat (flag ubunye_projects for now). The browser
+// refuses a file over maxFileBytes before resizing, then resizes to maxSide
+// pixels on the long side as a JPEG at jpegQuality, at most perMessage photos.
+export const UBUNYE_PHOTO_POLICY = {
+  perMessage: 3,
+  maxFileBytes: 10 * 1024 * 1024,
+  maxSide: 1600,
+  jpegQuality: 0.8,
+  /** The line the photo reader's description starts with; hidden in the client's own bubble. */
+  descriptionPrefix: 'Photo the client sent:',
+  /** The words sent when a photo comes with no words. */
+  photoOnlyWords: 'Here is a photo.',
+} as const;
 // ─── FUNNEL (spec §9.6) ──────────────────────────────────────────────────────
 // Where a browser may say a funnel step happened (POST /api/funnel). Anything
 // else is refused, so the funnel tables only hold known page names.

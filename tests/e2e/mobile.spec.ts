@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { UBUNYE_LANDING_QUESTIONS } from '../../lib/constants';
+import { UBUNYE_OCCASIONS } from '../../lib/constants';
 
 // All tests in this file run on iPhone 14 (393×852) via the "mobile" project
 // in playwright.config.ts using Chromium with mobile emulation.
@@ -402,10 +402,10 @@ test.describe('Mobile Ubunye AI', () => {
       return;
     }
 
-    // One button per example question (UBUNYE_LANDING_QUESTIONS): the page
-    // is just the box and two or three examples (clarity audit C12).
-    for (const question of UBUNYE_LANDING_QUESTIONS) {
-      const chip = page.getByRole('button', { name: question });
+    // One button per occasion (UBUNYE_OCCASIONS): the page asks one
+    // question and offers four occasions under it.
+    for (const occasion of UBUNYE_OCCASIONS) {
+      const chip = page.getByRole('button', { name: occasion.label });
       await expect(chip).toBeVisible({ timeout: 15000 });
       const box = await chip.boundingBox();
       if (box) {

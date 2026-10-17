@@ -8,12 +8,15 @@ import { motion, AnimatePresence } from 'framer-motion';
 import type { Components } from 'react-markdown';
 import { chatMarkdownComponents } from '@/components/ubunye/chatMarkdown';
 import { createClient } from '@/lib/supabase/client';
-import { STUDIO, UBUNYE_LANDING_QUESTIONS } from '@/lib/constants';
+import { Clapperboard, Heart, Music, Store, type LucideIcon } from 'lucide-react';
+import { STUDIO, UBUNYE_OCCASIONS, type UbunyeOccasion } from '@/lib/constants';
 import { GoldenSphere } from '@/components/ubunye/GoldenSphere';
 import { ChatMessageList } from '@/components/ubunye/ChatMessageList';
 import { ChatInputBar } from '@/components/ubunye/ChatInputBar';
 import type { OrbState } from '@/types/ubunye';
 import { cardsFromUiParts, cardsToUiParts, readCards } from '@/lib/ubunye/chat-cards';
+import { composePhotoMessage } from '@/lib/ubunye/chat-photos';
+import { useChatPhotos } from '@/components/ubunye/useChatPhotos';
 
 // ─── Constants ──────────────────────────────────────────────────────────────────
 
@@ -27,6 +30,24 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const HEADER_HEIGHT = '5rem';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────────
+
+/** "Ubunye eval (dev only)" becomes "Ubunye": the greeting uses the first name only. */
+function firstName(name: string | null): string | null {
+  const first = name?.trim().split(/\s+/)[0] ?? '';
+  return first || null;
+}
+
+const OCCASION_ICONS: Record<UbunyeOccasion['id'], LucideIcon> = {
+  wedding: Heart,
+  'music-video': Music,
+  business: Store,
+  film: Clapperboard,
+};
+
+const newMessageId = (): string =>
+  typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+    ? crypto.randomUUID()
+    : `u-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
 function getGreeting(): string {
   const h = new Date().getHours();
@@ -56,10 +77,20 @@ interface UbunyeStudioClientProps {
    * a reload, and a plan can open its chat (?c=). Off: today's behaviour.
    */
   plans?: boolean;
+  /**
+   * Photos are on (read on the server, ubunye_projects for now): the photo
+   * button shows. Off: no button, and the page never mentions photos.
+   */
+  photos?: boolean;
 }
 
-export default function UbunyeStudioClient({ people = false, plans = false }: UbunyeStudioClientProps) {
+export default function UbunyeStudioClient({ people = false, plans = false, photos = false }: UbunyeStudioClientProps) {
   const [input, setInput] = useState('');
+  const inputRef = useRef<HTMLTextAreaElement>(null);
+  const chatPhotos = useChatPhotos();
+  // The photos the client sent, by message id, for their own bubble. Kept in
+  // this tab only: the chat itself carries just the photo's description.
+  const [userPhotos, setUserPhotos] = useState<Record<string, string[]>>({});
   const [userName, setUserName] = useState<string | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [, setUserPlan] = useState<string>('free');
@@ -299,15 +330,19 @@ export default function UbunyeStudioClient({ people = false, plans = false }: Ub
   }, [handleAuthUser]);
 
   // ─── Send message helper ──
-  /** Resolves true when the message was handed to the model, false when it was held back. */
-  const doSend = useCallback(async (text: string): Promise<boolean> => {
+  /**
+   * Resolves true when the message was handed to the model, false when it was
+   * held back. With photos, `words` is what the client typed (it goes back in
+   * the box if the request fails) and `thumbs` are drawn in their bubble.
+   */
+  const doSend = useCallback(async (text: string, withPhotos?: { words: string; thumbs: string[] }): Promise<boolean> => {
     if (!text.trim() || limitReached || isLoading) return false;
     if (!isAuthenticated && guestMessageCount >= GUEST_LIMIT) {
       setLimitMessage(`You've used your ${GUEST_LIMIT} free messages. Sign in to continue chatting with Ubunye.`);
       setLimitReached(true);
       return false;
     }
-    lastSentRef.current = text;
+    lastSentRef.current = withPhotos ? withPhotos.words : text;
 
     // Create chat session on first message
     if (!conversationIdRef.current) {
@@ -328,7 +363,15 @@ export default function UbunyeStudioClient({ people = false, plans = false }: Ub
       }
     }
 
-    void sendMessage({ text });
+    if (withPhotos && withPhotos.thumbs.length > 0) {
+      // Our own id, so the bubble can find its thumbnails. Still one text part.
+      const id = newMessageId();
+      const thumbs = withPhotos.thumbs;
+      setUserPhotos(prev => ({ ...prev, [id]: thumbs }));
+      void sendMessage({ id, role: 'user', parts: [{ type: 'text', text }] });
+    } else {
+      void sendMessage({ text });
+    }
     return true;
   }, [limitReached, isLoading, isAuthenticated, guestMessageCount, sendMessage]);
 
@@ -336,15 +379,41 @@ export default function UbunyeStudioClient({ people = false, plans = false }: Ub
   // Clear the box straight away so it feels instant, but put the text back if
   // the message was held back (limit, still loading) -- a failed request is
   // handled the same way in onError above.
+  // Photos: sending waits while one is still being read; a photo that could
+  // not be read stays behind with its reason and the words still go.
+  const { busy: photosBusy, photos: pendingPhotos, take: takePhotos, restore: restorePhotos } = chatPhotos;
   const handleSubmit = useCallback((e: React.FormEvent) => {
     e.preventDefault();
     const text = input;
-    if (!text.trim()) return;
+    if (photosBusy) return;
+    const ready = pendingPhotos.filter(p => p.status === 'ready' && p.text && p.dataUrl);
+    if (!text.trim() && ready.length === 0) return;
     setInput('');
-    void doSend(text).then(sent => {
-      if (!sent) setInput(prev => prev || text);
+    if (ready.length === 0) {
+      void doSend(text).then(sent => {
+        if (!sent) setInput(prev => prev || text);
+      });
+      return;
+    }
+    const taken = takePhotos();
+    const message = composePhotoMessage(text, ready.map(p => p.text as string));
+    void doSend(message, { words: text, thumbs: ready.map(p => p.dataUrl as string) }).then(sent => {
+      if (sent) return;
+      setInput(prev => prev || text);
+      restorePhotos(taken);
     });
-  }, [input, doSend]);
+  }, [input, doSend, photosBusy, pendingPhotos, takePhotos, restorePhotos]);
+
+  // ─── Put words in the box without sending (an occasion, an answer start) ──
+  const prefill = useCallback((text: string) => {
+    setInput(text);
+    requestAnimationFrame(() => {
+      const el = inputRef.current;
+      if (!el) return;
+      el.focus();
+      el.setSelectionRange(text.length, text.length);
+    });
+  }, []);
 
   // ─── Retry after a failed request ──
   // regenerate() re-sends the conversation up to the last user message, so
@@ -356,7 +425,7 @@ export default function UbunyeStudioClient({ people = false, plans = false }: Ub
     void regenerate();
   }, [isLoading, limitReached, input, clearError, regenerate]);
 
-  // ─── Quick action ──
+  // ─── Quick action (follow-up buttons send straight away) ──
   const sendQuickAction = useCallback((text: string) => {
     void doSend(text);
   }, [doSend]);
@@ -381,7 +450,7 @@ export default function UbunyeStudioClient({ people = false, plans = false }: Ub
   }, [searchParams, doSend, isLoading, messages.length, router]);
 
   const greeting = getGreeting();
-  const displayName = userName || null;
+  const displayName = firstName(userName);
   const hasMessages = messages.length > 0;
 
   const remaining = !isAuthenticated
@@ -401,44 +470,51 @@ export default function UbunyeStudioClient({ people = false, plans = false }: Ub
               key="landing"
               initial={{ opacity: 1 }}
               exit={{ opacity: 0, scale: 0.98, transition: { duration: 0.25 } }}
-              className="flex-1 flex flex-col pt-6 md:pt-10 overflow-y-auto scrollbar-thin scrollbar-thumb-neutral-800 scrollbar-track-transparent"
+              className="flex-1 flex flex-col justify-center py-6 overflow-y-auto scrollbar-thin scrollbar-thumb-neutral-800 scrollbar-track-transparent"
             >
-              {/* Compact hero: sphere + greeting. Painted at once (no fade):
-                  the heading is the page's largest paint on most phones. */}
-              <div className="flex flex-col items-center mb-6 md:mb-8">
-                <div className="w-[80px] h-[80px] md:w-[120px] md:h-[120px] mb-4 md:mb-5">
+              {/* One question. Painted at once (no fade): the heading is the
+                  page's largest paint on most phones. */}
+              <div className="flex flex-col items-center mb-8">
+                <div className="w-12 h-12 md:w-[72px] md:h-[72px] mb-5">
                   <GoldenSphere className="w-full h-full" state={orbState} />
                 </div>
-                <p className="text-xs text-neutral-400 tracking-wide mb-1.5">
-                  {greeting}{displayName ? `, ${displayName}` : ''}. Ask about gear, dates or prices.
-                </p>
-                <h1 className="text-lg md:text-2xl font-medium text-neutral-200 text-center">
-                  What can I help you <span className="text-[#D4A843]">create?</span>
+                {displayName && (
+                  <p className="text-sm text-neutral-400 mb-2">
+                    {greeting}, {displayName}.
+                  </p>
+                )}
+                <h1 className="text-2xl md:text-3xl font-medium text-neutral-100 text-center">
+                  What are you <span className="text-[#D4A843]">planning?</span>
                 </h1>
+                <p className="mt-3 max-w-[30ch] md:max-w-none text-[15px] text-neutral-400 text-center leading-relaxed">
+                  {photos
+                    ? 'Tell me about your shoot, or send a photo of the look you want.'
+                    : 'Tell me about your shoot.'}
+                </p>
               </div>
 
-              {/* Just the box and two or three example questions (clarity
-                  audit C12): no action tiles, no "active gear" count. */}
+              {/* Four occasions. A tap starts the sentence in the box (not sent). */}
               <motion.div
                 custom={1}
                 initial="hidden"
                 animate="visible"
                 variants={fadeUp}
-                className="flex flex-col sm:flex-row sm:flex-wrap gap-2 justify-center mb-4"
+                className="grid grid-cols-2 gap-2 w-full max-w-[520px] mx-auto"
               >
-                {(
-                  <>
-                    {UBUNYE_LANDING_QUESTIONS.map(prompt => (
-                      <button
-                        key={prompt}
-                        onClick={() => sendQuickAction(prompt)}
-                        className="min-h-[44px] px-3 py-2 text-sm text-neutral-300 border border-neutral-800 hover:text-[#D4A843] hover:border-[#D4A843]/30 transition-all duration-200 text-left sm:text-center"
-                      >
-                        &ldquo;{prompt}&rdquo;
-                      </button>
-                    ))}
-                  </>
-                )}
+                {UBUNYE_OCCASIONS.map(occasion => {
+                  const Icon = OCCASION_ICONS[occasion.id];
+                  return (
+                    <button
+                      key={occasion.id}
+                      type="button"
+                      onClick={() => prefill(occasion.starter)}
+                      className="flex items-center gap-3 min-h-[52px] px-4 py-3 rounded-2xl border border-white/10 bg-white/[0.02] text-left text-sm text-neutral-200 hover:border-[#D4A843]/40 hover:text-[#D4A843] transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#D4A843]"
+                    >
+                      <Icon className="w-4 h-4 shrink-0 text-[#D4A843]" strokeWidth={1.5} aria-hidden="true" />
+                      <span>{occasion.label}</span>
+                    </button>
+                  );
+                })}
               </motion.div>
 
             </motion.div>
@@ -458,6 +534,8 @@ export default function UbunyeStudioClient({ people = false, plans = false }: Ub
             onSend={sendQuickAction}
             onRetry={handleRetry}
             people={people}
+            userPhotos={userPhotos}
+            onPrefill={prefill}
           />
         )}
 
@@ -470,7 +548,13 @@ export default function UbunyeStudioClient({ people = false, plans = false }: Ub
           limitReached={limitReached}
           remaining={remaining}
           isAuthenticated={isAuthenticated}
-          showSuggestions={!hasMessages}
+          inputRef={inputRef}
+          photosEnabled={photos}
+          photos={chatPhotos.photos}
+          photoNotice={chatPhotos.notice}
+          photosBusy={chatPhotos.busy}
+          onAddPhotos={chatPhotos.add}
+          onRemovePhoto={chatPhotos.remove}
         />
       </div>
     </div>
