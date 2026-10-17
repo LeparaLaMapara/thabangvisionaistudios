@@ -8,6 +8,7 @@ import { whatsappLink } from '@/lib/payments/eft';
 import { sanitiseForPrompt } from '@/lib/ubunye/sanitise';
 import {
   FUTURE_ROLES,
+  SHOOT_TYPES,
   matchShootType,
   partKey,
   shootTypeBySlug,
@@ -266,7 +267,11 @@ export async function planOutline(input: PlanOutlineInput, deps: OutlineDeps): P
 
   // The type: the slug the model gave if it is ours, else the catalogue match.
   const matched = matchShootType(outcome);
-  const given = shootTypeBySlug(input.type);
+  // The model picks from the fixed list (it reads wording the keywords have
+  // never seen: a Nikah, umbondo, a company profile video); keywords are the
+  // fallback, and win only when the model said "general" but they found one.
+  const picked = shootTypeBySlug(input.type);
+  const given = picked && picked.slug === 'general' && matched.type.slug !== 'general' ? null : picked;
   const type: ShootType = given ?? matched.type;
   const confidence = given ? Math.max(matched.type.slug === given.slug ? matched.confidence : 0.6, 0.6) : matched.confidence;
 
@@ -422,7 +427,6 @@ export async function planOutline(input: PlanOutlineInput, deps: OutlineDeps): P
   const plan_hint: 'plan' | 'single' | 'nothing_we_offer' | 'unclear' =
     countable.length === 0 ? (parts.length ? 'nothing_we_offer' : 'unclear') : countable.length === 1 && countable[0].state !== 'coming_soon' ? 'single' : 'plan';
   const notOffered = parts.filter((p) => p.state === 'not_offered').map((p) => p.label);
-  const comingSoon = parts.filter((p) => p.state === 'coming_soon').map((p) => p.label);
   const sure = confidence >= SHOOT_PLAN_POLICY.sureConfidence;
 
   const sayParts: string[] = [];
@@ -431,12 +435,12 @@ export async function planOutline(input: PlanOutlineInput, deps: OutlineDeps): P
       ? `Say in a few words that this is ${type.slug === 'general' ? 'a shoot' : `a ${type.name.toLowerCase()}`}${date ? ` on ${date.label}` : ''}${place ? ` in ${place}` : ''}, so they can correct it.`
       : `You are not sure what kind of shoot this is (${type.slug === 'general' ? 'nothing matched' : `best guess: ${type.name.toLowerCase()}`}). Check it with them in one short question.`,
   );
-  if (parts.length) sayParts.push('Then list each part in one short line using ONLY the line given for it (counts and gear prices exactly as given; never a price for a person).');
-  if (comingSoon.length) sayParts.push(`Say plainly that ${comingSoon.join(', ')} ${comingSoon.length === 1 ? 'is' : 'are'} coming soon and not bookable yet.`);
-  if (notOffered.length) sayParts.push(`Say plainly that we do not offer ${notOffered.join(', ')}, in one sentence, with no partner, referral or price.`);
-  if (type.scaleNote) sayParts.push(`Say this honestly: ${type.scaleNote}`);
-  if (warnings.length) sayParts.push('Give each warning in plain words.');
-  if (questions.length) sayParts.push(`Ask only these questions, together, in one message: ${questions.join(' ')}`);
+  // The chat shows these parts on a card (state, counts, gear prices), so the text stays short.
+  if (parts.length) sayParts.push('The client sees a card with every part, its state and gear prices: do not list the parts, counts or prices again.');
+  if (notOffered.length) sayParts.push(`In one short sentence, say we do not offer ${notOffered.join(', ')}, with no partner, referral or price.`);
+  if (type.scaleNote) sayParts.push(`Say this honestly, in one sentence: ${type.scaleNote}`);
+  if (warnings.length) sayParts.push(`Give the most important warning in one short sentence: ${warnings[0]}`);
+  if (questions.length) sayParts.push(`Ask at most one question, this one: ${questions[0]}`);
   if (plan_hint === 'plan') sayParts.push('Then call find_people for each person part marked listed (role, place, date) and, for a signed-in client, propose_plan with every part (people, gear, and the coming soon or not offered ones as needs). Do not wait for answers that are not needed to search.');
   else if (plan_hint === 'single') sayParts.push('Only one part is needed, so no plan: book it on its own (find_people for a person, search_gear for gear).');
   else if (plan_hint === 'nothing_we_offer') sayParts.push('We offer none of this, so no plan. Mention what we do offer only if it could help.');
@@ -487,7 +491,11 @@ export function createOutlineTools(deps?: OutlineDeps): Record<string, any> {
         type: 'object' as const,
         properties: {
           outcome: { type: 'string', description: 'What the client wants, in their own words (the whole sentence is best).' },
-          type: { type: 'string', description: 'A shoot type slug if you already know it, e.g. "traditional-wedding", "music-video". Leave out to let the server match it.' },
+          type: {
+            type: 'string',
+            enum: SHOOT_TYPES.map((t) => t.slug),
+            description: 'Always pick the closest kind of shoot from this list, judged from what they said, in any language (a Nikah or Hindu wedding is a traditional-wedding, umbondo or umemulo a cultural-ceremony, a company profile video a brand-campaign). Use "general" only when nothing fits.',
+          },
           place: { type: 'string', description: 'Where, in their words.' },
           date: { type: 'string', description: 'The day (or first day), YYYY-MM-DD or their words.' },
           days: { type: 'number', description: 'How many shoot days, if they said.' },

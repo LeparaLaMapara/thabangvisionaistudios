@@ -517,6 +517,12 @@ export const STUDIO = {
       // (stepCountIs bounds round trips, not calls per step).
       maxOutputTokens: 1500,
       maxToolCallsPerMessage: 8,
+      // Photos a client adds to the chat (POST /api/ubunye-chat/photo). Read
+      // by the free Gemma model (16 000 input tokens a minute for the whole
+      // site), never stored; only a short description reaches the chat.
+      photoMaxBytes: 3 * 1024 * 1024,
+      photosPerTenMinutes: 10,
+      guestPhotosPerTenMinutes: 4,
     },
   },
 

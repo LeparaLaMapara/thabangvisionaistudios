@@ -204,7 +204,9 @@ describe('plan_outline: live states from our data, never invented', () => {
     expect(o.plan_hint).toBe('plan');
     expect(o.questions).not.toContain('Which day is it?');
     expect(o.questions).not.toContain('Where is it (the area or suburb)?');
-    expect(o.say).toMatch(/Editor is coming soon/);
+    // The card shows "coming soon"; the text must not repeat the parts.
+    expect(o.say).toMatch(/do not list the parts/);
+    expect(o.say).not.toMatch(/list each part/);
     expect(o.say).toMatch(/propose_plan/);
   });
 
@@ -357,5 +359,14 @@ describe('find_people with an open plan in the chat', () => {
     const broken = await createPeopleTools(peopleDeps, async () => { throw new Error('down'); }).find_people.execute({ role: 'photographer' });
     expect(broken.status).toBe('found');
     expect(broken.matches[0].plan_request_url).toBeUndefined();
+  });
+});
+
+describe('plan_outline type: the model picks from the fixed list', () => {
+  it('offers every shoot type slug as an enum, so the model cannot invent one', async () => {
+    const { createOutlineTools } = await import('@/lib/agents/tools/outline');
+    const { SHOOT_TYPES } = await import('@/lib/ubunye/shoot-types');
+    const schema = (createOutlineTools().plan_outline.inputSchema as unknown as { jsonSchema: { properties: { type: { enum: string[] } } } }).jsonSchema;
+    expect(schema.properties.type.enum).toEqual(SHOOT_TYPES.map((t) => t.slug));
   });
 });

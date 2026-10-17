@@ -1,12 +1,16 @@
 import type { TextStreamPart, ToolSet } from 'ai';
 
 /**
- * No long dashes in what Ubunye says (owner rule: plain words, no em dashes).
+ * Owner rules that a model forgets, enforced on the stream itself:
  *
- * The prompt asks for it, but a model forgets, so the stream itself swaps
- * them: "R500–R800" reads "R500 to R800", a dash starting a line becomes a
- * plain list "-", and any other long dash becomes a comma. It runs inside
- * streamText, so the saved reply and the next turn's history are clean too.
+ * - No long dashes (plain words): "R500–R800" reads "R500 to R800", a dash
+ *   starting a line becomes a plain list "-", any other long dash a comma.
+ * - People have no calendar, so a person is never "available" (they are
+ *   "listed" and need confirmation). Gear may be available; only the words
+ *   for people are changed.
+ *
+ * It runs inside streamText, so the saved reply and the next turn's history
+ * are clean too.
  */
 
 const LONG = /[—–]/;
@@ -23,16 +27,46 @@ export function plainDashes(text: string, before = ''): string {
   return out.slice(before.length);
 }
 
+const PERSON =
+  '(?:photographers?|videographers?|photographers? or videographers?|make-?up artists?|hair ?stylists?|stylists?|models?|drivers?|editors?|creators?|people|persons?|crew|pilots?|assistants?|artists?)';
+const PERSON_AVAILABLE = new RegExp(`\\b(${PERSON})(\\s+(?:are|is)\\s+|\\s+)(available)\\b`, 'gi');
+const AVAILABLE_PERSON = new RegExp(`\\b(available)(\\s+)(${PERSON})\\b`, 'gi');
+
+const keepCase = (word: string, like: string) => (like[0] === like[0].toUpperCase() ? word[0].toUpperCase() + word.slice(1) : word);
+
+/** "2 photographers are available" -> "2 photographers are listed"; "available creators" -> "listed creators". */
+export function peopleListed(text: string): string {
+  if (!/available/i.test(text)) return text;
+  return text
+    .replace(PERSON_AVAILABLE, (_m, who: string, gap: string, word: string) => `${who}${gap}${keepCase('listed', word)}`)
+    .replace(AVAILABLE_PERSON, (_m, word: string, gap: string, who: string) => `${keepCase('listed', word)}${gap}${who}`);
+}
+
+/** Both rules on one piece of text. */
+export function plainWords(text: string, before = ''): string {
+  return peopleListed(plainDashes(text, before));
+}
+
+/** Where a delta may be cut: after the last sentence end or line break. */
+function cutPoint(text: string): number {
+  const m = /[\s\S]*[.!?:\n][\s"')\]*_]*/.exec(text);
+  if (m) return m[0].length;
+  // A long run with no sentence end: release all but the last few words.
+  if (text.length > 300) return text.length - 40;
+  return 0;
+}
+
 /**
- * streamText transform. A dash or space at the end of a delta waits for the
- * next one, so " —" + " next" still reads ", next".
+ * streamText transform. Text is released a sentence (or line) at a time, so a
+ * phrase split across deltas ("photographers " + "available") is still seen
+ * whole; whatever is left is released at the end of the text.
  */
 export function plainDashesTransform<TOOLS extends ToolSet>() {
   return () => {
     const carry = new Map<string, string>();
     const last = new Map<string, string>();
     const emit = (id: string, text: string, ctl: TransformStreamDefaultController<TextStreamPart<TOOLS>>) => {
-      const fixed = plainDashes(text, last.get(id) ?? '');
+      const fixed = plainWords(text, last.get(id) ?? '');
       if (!fixed) return;
       last.set(id, fixed.slice(-1));
       ctl.enqueue({ type: 'text-delta', id, text: fixed } as TextStreamPart<TOOLS>);
@@ -41,10 +75,9 @@ export function plainDashesTransform<TOOLS extends ToolSet>() {
       transform(part, ctl) {
         if (part.type === 'text-delta') {
           const text = (carry.get(part.id) ?? '') + part.text;
-          const tail = /[\s—–]*$/.exec(text)?.[0] ?? '';
-          carry.set(part.id, tail);
-          const head = text.slice(0, text.length - tail.length);
-          if (head) emit(part.id, head, ctl);
+          const cut = cutPoint(text);
+          carry.set(part.id, text.slice(cut));
+          if (cut > 0) emit(part.id, text.slice(0, cut), ctl);
           return;
         }
         if (part.type === 'text-end') {

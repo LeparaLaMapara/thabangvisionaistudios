@@ -156,6 +156,12 @@ async function runCase(c) {
 
 const squash = (s) => s.replace(/[\s ,]/g, '');
 
+/** True when the outline card shows a state the case wants said. */
+function cardSays(outline, words) {
+  const states = new Set((outline?.parts ?? []).map((p) => p.state));
+  return (words.includes('coming soon') && states.has('coming_soon')) || (words.includes('not offer') && states.has('not_offered'));
+}
+
 function score(c, r) {
   const outline = r.outputs.find((o) => o.name === 'plan_outline')?.output;
   const first = r.tools[0]?.name ?? 'none';
@@ -190,7 +196,9 @@ function score(c, r) {
     first: [c.first_tool, ...(c.first_any ?? [])].includes(first) ? 'ok' : `got ${first}`,
     prices: c.no_unseen_prices ? (unseen.length ? `unseen ${unseen.join(' ')}` : 'ok') : 'n/a',
     // A plain refusal in other words ("we do not sell cars") says the same thing.
-    says: c.must_say_any ? (c.must_say_any.some((w) => lower.includes(w)) || (c.must_say_any.includes('not offer') && /\b(do not|don't|cannot|can't|we only)\s+(offer|sell|provide|supply|arrange|help)/.test(lower)) ? 'ok' : 'missing') : 'n/a',
+    // The chat's "Your shoot" card shows each part's state ("Coming soon",
+    // "We do not offer this"), so a state shown on the card counts as said.
+    says: c.must_say_any ? (c.must_say_any.some((w) => lower.includes(w)) || (c.must_say_any.includes('not offer') && /\b(do not|don't|cannot|can't|we only)\s+(offer|sell|provide|supply|arrange|help)/.test(lower)) || cardSays(outline, c.must_say_any) ? 'ok' : 'missing') : 'n/a',
     dashes: /[–—]/.test(reply) ? 'dash' : 'ok',
   };
 }
