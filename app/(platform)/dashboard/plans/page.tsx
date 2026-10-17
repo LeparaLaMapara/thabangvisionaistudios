@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 import { auth } from '@/lib/auth';
 import { getFlag } from '@/lib/features';
+import { PLAN } from '@/lib/constants';
 import { listPlans, type PlanListItem } from '@/lib/projects/live';
 
 export const metadata = { title: 'My plans' };
@@ -37,8 +38,8 @@ export default async function PlansPage() {
       ) : plans.length === 0 ? (
         <div className="border border-white/10 p-6 text-sm text-neutral-400">
           <p>No plans yet. When something needs more than one part, like a videographer and lights for a music video, ask Ubunye and it can save it as a plan for you.</p>
-          <Link href="/ubunye-ai-studio" className="mt-4 inline-flex min-h-[44px] items-center px-4 bg-[#D4A843] text-black text-xs font-mono font-bold uppercase tracking-widest">
-            Ask Ubunye
+          <Link href={PLAN.href} className="mt-4 inline-flex min-h-[44px] items-center px-4 bg-[#D4A843] text-black text-xs font-mono font-bold uppercase tracking-widest">
+            Plan a shoot
           </Link>
         </div>
       ) : (
